@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@8 managed
--- @bsb-hash sha256:2f2dc4e3b9af162e0225c7770118adf3759170196319ecd5ad1dd7b2b4831d21
+-- @bsb-hash sha256:23c522890e6dbab930ae3988c190a3d8f745dec2d8521035e16f371e38e258ff
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -99,11 +99,13 @@ $$;
 revoke execute on function "better_supabase"."comment_message_readable"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."comment_message_readable"(uuid, uuid) to authenticated, service_role;
 
-drop policy if exists "comment_tasks_read" on "better_supabase"."comment_tasks";
-create policy "comment_tasks_read" on "better_supabase"."comment_tasks" for select to authenticated
+drop policy if exists comment_tasks_read on "better_supabase"."comment_tasks";
+create policy comment_tasks_read on "better_supabase"."comment_tasks"
+  for select to authenticated
   using ("better_supabase"."comment_message_readable"("message_id", "organization_id"));
-drop policy if exists "comment_tasks_insert" on "better_supabase"."comment_tasks";
-create policy "comment_tasks_insert" on "better_supabase"."comment_tasks" for insert to authenticated
+drop policy if exists comment_tasks_insert on "better_supabase"."comment_tasks";
+create policy comment_tasks_insert on "better_supabase"."comment_tasks"
+  for insert to authenticated
   with check (("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "organization_id")) and (select better_supabase.actor_may_write()));
 
 -- A record's conversation, or null before its first comment.
@@ -432,7 +434,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@8 managed
--- @bsb-hash sha256:7ae59da48cd115716d53d84ee195fa0adefc06c0c880470d7067008a064f6124
+-- @bsb-hash sha256:ca36d0501419a8fb4c7c35a3e7231c5f5aaea9076006133aced24baa82c41747
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -530,11 +532,13 @@ $$;
 revoke execute on function "better_supabase"."comment_message_readable"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."comment_message_readable"(uuid, uuid) to authenticated, service_role;
 
-drop policy if exists "comment_tasks_read" on "better_supabase"."comment_tasks";
-create policy "comment_tasks_read" on "better_supabase"."comment_tasks" for select to authenticated
+drop policy if exists comment_tasks_read on "better_supabase"."comment_tasks";
+create policy comment_tasks_read on "better_supabase"."comment_tasks"
+  for select to authenticated
   using ("better_supabase"."comment_message_readable"("message_id", "organization_id"));
-drop policy if exists "comment_tasks_insert" on "better_supabase"."comment_tasks";
-create policy "comment_tasks_insert" on "better_supabase"."comment_tasks" for insert to authenticated
+drop policy if exists comment_tasks_insert on "better_supabase"."comment_tasks";
+create policy comment_tasks_insert on "better_supabase"."comment_tasks"
+  for insert to authenticated
   with check (("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "organization_id")) and (select better_supabase.actor_may_write()));
 
 -- A record's conversation, or null before its first comment.
@@ -965,7 +969,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@8 managed
--- @bsb-hash sha256:1e683091ac6d758bbfab14997b59a5b284795e3e262c86d84edaef3c9ae2765f
+-- @bsb-hash sha256:1de86e7cecf4045bdcd2fa48124324196dc28a0a453b9a98cb6fd1b2eb435454
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1065,11 +1069,13 @@ $$;
 revoke execute on function "app_private"."comment_message_readable"(uuid, uuid) from public, anon;
 grant execute on function "app_private"."comment_message_readable"(uuid, uuid) to authenticated, service_role;
 
-drop policy if exists "comment_tasks_read" on "app_private"."comment_tasks";
-create policy "comment_tasks_read" on "app_private"."comment_tasks" for select to authenticated
+drop policy if exists comment_tasks_read on "app_private"."comment_tasks";
+create policy comment_tasks_read on "app_private"."comment_tasks"
+  for select to authenticated
   using ("app_private"."comment_message_readable"("message_id", "organization_id"));
-drop policy if exists "comment_tasks_insert" on "app_private"."comment_tasks";
-create policy "comment_tasks_insert" on "app_private"."comment_tasks" for insert to authenticated
+drop policy if exists comment_tasks_insert on "app_private"."comment_tasks";
+create policy comment_tasks_insert on "app_private"."comment_tasks"
+  for insert to authenticated
   with check (("created_by" = (select auth.uid()) and "app_private"."comment_message_readable"("message_id", "organization_id")) and (select better_supabase.actor_may_write()));
 
 -- A record's conversation, or null before its first comment.
@@ -1398,7 +1404,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@8 managed
--- @bsb-hash sha256:2dd2cd38311b8a47909c30f3a497dd13d7f1fe5b203e491cfa63c63d18ab8546
+-- @bsb-hash sha256:899bdff67b4abcb8e00831d3ed25439ab26bf30e19a461f83ee5c589699b2a0f
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1496,11 +1502,13 @@ $$;
 revoke execute on function "better_supabase"."comment_message_readable"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."comment_message_readable"(uuid, uuid) to authenticated, service_role;
 
-drop policy if exists "comment_tasks_read" on "better_supabase"."comment_tasks";
-create policy "comment_tasks_read" on "better_supabase"."comment_tasks" for select to authenticated
+drop policy if exists comment_tasks_read on "better_supabase"."comment_tasks";
+create policy comment_tasks_read on "better_supabase"."comment_tasks"
+  for select to authenticated
   using ("better_supabase"."comment_message_readable"("message_id", "organization_id"));
-drop policy if exists "comment_tasks_insert" on "better_supabase"."comment_tasks";
-create policy "comment_tasks_insert" on "better_supabase"."comment_tasks" for insert to authenticated
+drop policy if exists comment_tasks_insert on "better_supabase"."comment_tasks";
+create policy comment_tasks_insert on "better_supabase"."comment_tasks"
+  for insert to authenticated
   with check (("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "organization_id")) and (select better_supabase.actor_may_write()));
 
 -- A record's conversation, or null before its first comment.
@@ -1920,7 +1928,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@8 managed
--- @bsb-hash sha256:48c4f03e280f13d1779b16f20f048bbf8e21cb190ee93d53a9e103b4e119d8ca
+-- @bsb-hash sha256:eaa60e866566eac6862c2d297437d8c779d4c0b30f9f6b90a9a09b37d1bbf0e9
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2018,10 +2026,12 @@ revoke execute on function "better_supabase"."comment_message_readable"(uuid, uu
 grant execute on function "better_supabase"."comment_message_readable"(uuid, uuid) to authenticated, service_role;
 
 drop policy if exists bsb_comment_tasks_select on "better_supabase"."comment_tasks";
-create policy bsb_comment_tasks_select on "better_supabase"."comment_tasks" for select to authenticated
+create policy bsb_comment_tasks_select on "better_supabase"."comment_tasks"
+  for select to authenticated
   using ("better_supabase"."comment_message_readable"("message_id", "organization_id"));
 drop policy if exists bsb_comment_tasks_insert on "better_supabase"."comment_tasks";
-create policy bsb_comment_tasks_insert on "better_supabase"."comment_tasks" for insert to authenticated
+create policy bsb_comment_tasks_insert on "better_supabase"."comment_tasks"
+  for insert to authenticated
   with check (("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "organization_id")) and (select better_supabase.actor_may_write()));
 
 -- A record's conversation, or null before its first comment.
@@ -2350,7 +2360,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@8 managed
--- @bsb-hash sha256:3eb2535dcd5e563748cf1a4eb35ba7ca074e424eee46f052b5e7cbb369a6032e
+-- @bsb-hash sha256:a168019fc6eb784e67768cef3c037408dd79d2b078d3e8ce0e6b1aba5b6e0002
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2448,11 +2458,13 @@ $$;
 revoke execute on function "better_supabase"."comment_message_readable"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."comment_message_readable"(uuid, uuid) to authenticated, service_role;
 
-drop policy if exists "comment_tasks_read" on "better_supabase"."comment_tasks";
-create policy "comment_tasks_read" on "better_supabase"."comment_tasks" for select to authenticated
+drop policy if exists comment_tasks_read on "better_supabase"."comment_tasks";
+create policy comment_tasks_read on "better_supabase"."comment_tasks"
+  for select to authenticated
   using ("better_supabase"."comment_message_readable"("message_id", "org_id"));
-drop policy if exists "comment_tasks_insert" on "better_supabase"."comment_tasks";
-create policy "comment_tasks_insert" on "better_supabase"."comment_tasks" for insert to authenticated
+drop policy if exists comment_tasks_insert on "better_supabase"."comment_tasks";
+create policy comment_tasks_insert on "better_supabase"."comment_tasks"
+  for insert to authenticated
   with check (("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "org_id")) and (select better_supabase.actor_may_write()));
 
 -- A record's conversation, or null before its first comment.

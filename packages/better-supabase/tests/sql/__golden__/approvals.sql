@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:bfe99a027f1c8bbc8af7c62e86d16904d8bdc77d0f62caa667d04315931d7e00
+-- @bsb-hash sha256:c13a341dd229ac4825dbbfe1a50ed01eec7ea17c88244e78e2abf69069bddedb
 -- Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -88,7 +88,8 @@ revoke all on "better_supabase"."approval_requests" from anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
 drop policy if exists approval_requests_read on "better_supabase"."approval_requests";
-create policy approval_requests_read on "better_supabase"."approval_requests" for select to authenticated
+create policy approval_requests_read on "better_supabase"."approval_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
 
 create table if not exists "better_supabase"."approval_decisions" (
@@ -110,7 +111,8 @@ revoke all on "better_supabase"."approval_decisions" from anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
 drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
-create policy approval_decisions_read on "better_supabase"."approval_decisions" for select to authenticated
+create policy approval_decisions_read on "better_supabase"."approval_decisions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
 -- The policy a new request snapshots, from options.policies.
@@ -663,7 +665,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:7e7a01eed7d71cf1c9a3dab355953393ac549c8b3b596e553d14391073d52074
+-- @bsb-hash sha256:e127cbdba7da644b9e46666922628e5fade12886f9d3dbd584547c101ac7cb44
 -- Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -750,7 +752,8 @@ revoke all on "better_supabase"."approval_requests" from anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
 drop policy if exists approval_requests_read on "better_supabase"."approval_requests";
-create policy approval_requests_read on "better_supabase"."approval_requests" for select to authenticated
+create policy approval_requests_read on "better_supabase"."approval_requests"
+  for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) and not "subject_type" in ('support_request', 'ai_tool_approval')) or "requested_by" = (select auth.uid()));
 
 create table if not exists "better_supabase"."approval_decisions" (
@@ -772,7 +775,8 @@ revoke all on "better_supabase"."approval_decisions" from anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
 drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
-create policy approval_decisions_read on "better_supabase"."approval_decisions" for select to authenticated
+create policy approval_decisions_read on "better_supabase"."approval_decisions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
 -- The policy a new request snapshots, from options.policies.
@@ -1533,7 +1537,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:3c31894f22401787e0d8678e4dc6fa1f35b704c84d8c78ec00dd208aed2433a1
+-- @bsb-hash sha256:f8ca8cdff80398e455848bf468f551dc191f0d13e84b29b22d41cdced5e51b65
 -- Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1622,7 +1626,8 @@ revoke all on "app_private"."approval_requests" from anon, authenticated;
 grant select on "app_private"."approval_requests" to authenticated;
 grant all on "app_private"."approval_requests" to service_role;
 drop policy if exists approval_requests_read on "app_private"."approval_requests";
-create policy approval_requests_read on "app_private"."approval_requests" for select to authenticated
+create policy approval_requests_read on "app_private"."approval_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
 
 create table if not exists "app_private"."approval_decisions" (
@@ -1644,7 +1649,8 @@ revoke all on "app_private"."approval_decisions" from anon, authenticated;
 grant select on "app_private"."approval_decisions" to authenticated;
 grant all on "app_private"."approval_decisions" to service_role;
 drop policy if exists approval_decisions_read on "app_private"."approval_decisions";
-create policy approval_decisions_read on "app_private"."approval_decisions" for select to authenticated
+create policy approval_decisions_read on "app_private"."approval_decisions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
 -- The policy a new request snapshots, from options.policies.
@@ -2197,7 +2203,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:5799a372c02709ebf3b428d2308f568e7dc831600f0e80a726d30c9e6b4a60b8
+-- @bsb-hash sha256:5c19c0ff8fdc23f832d655a36064a6888f39f6b92ca5300c6d4950ab202d03de
 -- Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2284,7 +2290,8 @@ revoke all on "better_supabase"."approval_requests" from anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
 drop policy if exists approval_requests_read on "better_supabase"."approval_requests";
-create policy approval_requests_read on "better_supabase"."approval_requests" for select to authenticated
+create policy approval_requests_read on "better_supabase"."approval_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
 
 create table if not exists "better_supabase"."approval_decisions" (
@@ -2306,7 +2313,8 @@ revoke all on "better_supabase"."approval_decisions" from anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
 drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
-create policy approval_decisions_read on "better_supabase"."approval_decisions" for select to authenticated
+create policy approval_decisions_read on "better_supabase"."approval_decisions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
 -- The policy a new request snapshots, from options.policies.
@@ -2982,7 +2990,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:eb78684e6b7e012f8bd743f63026cb5379bdbdff6fbffdaed517aa1d4108c06d
+-- @bsb-hash sha256:6e95863e6acb1aca4c0ad101151b4a9572380b2d70c45154672f25547920caad
 -- Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3083,7 +3091,8 @@ alter table "better_supabase"."approval_requests" enable row level security;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
 drop policy if exists bsb_approval_requests_select on "better_supabase"."approval_requests";
-create policy bsb_approval_requests_select on "better_supabase"."approval_requests" for select to authenticated
+create policy bsb_approval_requests_select on "better_supabase"."approval_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
 
 -- better_supabase.approval_decisions is the app's table: this block adds only the columns it needs.
@@ -3102,7 +3111,8 @@ alter table "better_supabase"."approval_decisions" enable row level security;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
 drop policy if exists bsb_approval_decisions_select on "better_supabase"."approval_decisions";
-create policy bsb_approval_decisions_select on "better_supabase"."approval_decisions" for select to authenticated
+create policy bsb_approval_decisions_select on "better_supabase"."approval_decisions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
 -- The policy a new request snapshots, from options.policies.
@@ -3655,7 +3665,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:5ddb79a6a1a6ca03a6d3d50fd81fcc2d04bcebd2204ea46cdedcc4166c6eb4a2
+-- @bsb-hash sha256:3adf46be78278c2593f4e6d888da75ee2375ecdc60e4a83a5e7c26e828c769b7
 -- Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3742,7 +3752,8 @@ revoke all on "better_supabase"."approval_requests" from anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
 drop policy if exists approval_requests_read on "better_supabase"."approval_requests";
-create policy approval_requests_read on "better_supabase"."approval_requests" for select to authenticated
+create policy approval_requests_read on "better_supabase"."approval_requests"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
 
 create table if not exists "better_supabase"."approval_decisions" (
@@ -3764,7 +3775,8 @@ revoke all on "better_supabase"."approval_decisions" from anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
 drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
-create policy approval_decisions_read on "better_supabase"."approval_decisions" for select to authenticated
+create policy approval_decisions_read on "better_supabase"."approval_decisions"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
 -- The policy a new request snapshots, from options.policies.

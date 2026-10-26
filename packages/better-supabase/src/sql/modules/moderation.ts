@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
 import { moderationFunctions } from "./moderation-functions.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -275,20 +276,16 @@ function build(ctx: BlockSqlContext): string {
   const policies = ctx.manages
     ? `${lockTable(items, { read: true })}
 drop policy if exists ${name("items", "read")} on ${items};
-create policy ${name("items", "read")} on ${items} for select to authenticated
-  using (${ctx.scope.check(i("tenant"), read)});
+${renderPolicy(makePolicy({ table: items, name: name("items", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(i("tenant"), read) }), { target: items })}
 ${lockTable(reports, { read: true })}
 drop policy if exists ${name("reports", "read")} on ${reports};
-create policy ${name("reports", "read")} on ${reports} for select to authenticated
-  using (${r("reporter")} = (select auth.uid()) or ${ctx.scope.check(r("tenant"), read)});
+${renderPolicy(makePolicy({ table: reports, name: name("reports", "read"), command: "select", roles: ["authenticated"], using: `${r("reporter")} = (select auth.uid()) or ${ctx.scope.check(r("tenant"), read)}` }), { target: reports })}
 ${lockTable(actions, { read: true })}
 drop policy if exists ${name("actions", "read")} on ${actions};
-create policy ${name("actions", "read")} on ${actions} for select to authenticated
-  using (${ctx.scope.check(a("tenant"), read)});
+${renderPolicy(makePolicy({ table: actions, name: name("actions", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(a("tenant"), read) }), { target: actions })}
 ${lockTable(bans, { read: true })}
 drop policy if exists ${name("bans", "read")} on ${bans};
-create policy ${name("bans", "read")} on ${bans} for select to authenticated
-  using (${b("user")} = (select auth.uid()) or ${ctx.scope.check(b("tenant"), read)});
+${renderPolicy(makePolicy({ table: bans, name: name("bans", "read"), command: "select", roles: ["authenticated"], using: `${b("user")} = (select auth.uid()) or ${ctx.scope.check(b("tenant"), read)}` }), { target: bans })}
 `
     : "";
 

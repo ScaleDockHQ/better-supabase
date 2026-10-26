@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@4 managed
--- @bsb-hash sha256:840d3b3f62ac01b0f24692f130d837561ccfb7a2dc03ed0edb30a57fa8324ebf
+-- @bsb-hash sha256:147ecb894789c23e1c6bf10a89eaa3d6f77621c3e8e189dffcadf2b5781c914c
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -107,7 +107,8 @@ revoke all on "better_supabase"."ai_projects" from anon, authenticated;
 grant all on "better_supabase"."ai_projects" to service_role;
 grant select on "better_supabase"."ai_projects" to authenticated;
 drop policy if exists ai_projects_owner_read on "better_supabase"."ai_projects";
-create policy ai_projects_owner_read on "better_supabase"."ai_projects" for select to authenticated
+create policy ai_projects_owner_read on "better_supabase"."ai_projects"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- One row per conversation. current_leaf_id is the message the chat shows;
@@ -144,11 +145,10 @@ revoke all on "better_supabase"."ai_chats" from anon, authenticated;
 grant all on "better_supabase"."ai_chats" to service_role;
 grant select on "better_supabase"."ai_chats" to authenticated;
 drop policy if exists ai_chats_read on "better_supabase"."ai_chats";
-create policy ai_chats_read on "better_supabase"."ai_chats" for select to authenticated
-  using (
-    "owner_id" = (select auth.uid())
-    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
-  );
+create policy ai_chats_read on "better_supabase"."ai_chats"
+  for select to authenticated
+  using ("owner_id" = (select auth.uid())
+    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read'))));
 
 -- The message tree: (chat_id, id) is the key, parent_id the previous turn.
 -- Editing a prompt or regenerating a reply adds a sibling, never an update.
@@ -182,7 +182,8 @@ revoke all on "better_supabase"."ai_messages" from anon, authenticated;
 grant all on "better_supabase"."ai_messages" to service_role;
 grant select on "better_supabase"."ai_messages" to authenticated;
 drop policy if exists ai_messages_read on "better_supabase"."ai_messages";
-create policy ai_messages_read on "better_supabase"."ai_messages" for select to authenticated
+create policy ai_messages_read on "better_supabase"."ai_messages"
+  for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- One generation: the stream it wrote, its usage and cost.
@@ -212,7 +213,8 @@ revoke all on "better_supabase"."ai_runs" from anon, authenticated;
 grant all on "better_supabase"."ai_runs" to service_role;
 grant select on "better_supabase"."ai_runs" to authenticated;
 drop policy if exists ai_runs_owner_read on "better_supabase"."ai_runs";
-create policy ai_runs_owner_read on "better_supabase"."ai_runs" for select to authenticated
+create policy ai_runs_owner_read on "better_supabase"."ai_runs"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Tool calls that wait for a person: requested by the server, decided once.
@@ -240,7 +242,8 @@ revoke all on "better_supabase"."ai_tool_approvals" from anon, authenticated;
 grant all on "better_supabase"."ai_tool_approvals" to service_role;
 grant select on "better_supabase"."ai_tool_approvals" to authenticated;
 drop policy if exists ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals";
-create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals" for select to authenticated
+create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Per tenant: whether a tool runs (auto), waits for approval (ask) or never
@@ -277,7 +280,8 @@ revoke all on "better_supabase"."ai_pending_inputs" from anon, authenticated;
 grant all on "better_supabase"."ai_pending_inputs" to service_role;
 grant select on "better_supabase"."ai_pending_inputs" to authenticated;
 drop policy if exists ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs";
-create policy ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs" for select to authenticated
+create policy ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- The sources a reply cited, copied out of its parts when it is saved.
@@ -297,7 +301,8 @@ revoke all on "better_supabase"."ai_message_sources" from anon, authenticated;
 grant all on "better_supabase"."ai_message_sources" to service_role;
 grant select on "better_supabase"."ai_message_sources" to authenticated;
 drop policy if exists ai_message_sources_read on "better_supabase"."ai_message_sources";
-create policy ai_message_sources_read on "better_supabase"."ai_message_sources" for select to authenticated
+create policy ai_message_sources_read on "better_supabase"."ai_message_sources"
+  for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- Thumbs up (1) or down (-1) on a reply, one per user.
@@ -319,7 +324,8 @@ revoke all on "better_supabase"."ai_message_feedback" from anon, authenticated;
 grant all on "better_supabase"."ai_message_feedback" to service_role;
 grant select on "better_supabase"."ai_message_feedback" to authenticated;
 drop policy if exists ai_message_feedback_own_read on "better_supabase"."ai_message_feedback";
-create policy ai_message_feedback_own_read on "better_supabase"."ai_message_feedback" for select to authenticated
+create policy ai_message_feedback_own_read on "better_supabase"."ai_message_feedback"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A read-only link to one branch of a chat. Only the SHA-256 of the token is
@@ -396,7 +402,8 @@ revoke all on "better_supabase"."ai_run_steps" from anon, authenticated;
 grant all on "better_supabase"."ai_run_steps" to service_role;
 grant select on "better_supabase"."ai_run_steps" to authenticated;
 drop policy if exists ai_run_steps_owner_read on "better_supabase"."ai_run_steps";
-create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps" for select to authenticated
+create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- What a coding-agent harness needs to pick up a chat again: its resume and
@@ -1804,7 +1811,8 @@ revoke all on "better_supabase"."ai_sandboxes" from anon, authenticated;
 grant select on "better_supabase"."ai_sandboxes" to authenticated;
 grant all on "better_supabase"."ai_sandboxes" to service_role;
 drop policy if exists ai_sandboxes_read on "better_supabase"."ai_sandboxes";
-create policy ai_sandboxes_read on "better_supabase"."ai_sandboxes" for select to authenticated
+create policy ai_sandboxes_read on "better_supabase"."ai_sandboxes"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')));
 
 -- Records a sandbox or container the app started, or marks a known one used
@@ -2330,20 +2338,18 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_ai_chat_receive" on realtime.messages;
-    create policy "bsb_ai_chat_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_ai_chat_receive on realtime.messages;
+create policy bsb_ai_chat_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-        and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid)
-      );
-    drop policy if exists "bsb_ai_chats_receive" on realtime.messages;
-    create policy "bsb_ai_chats_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
-        and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text
-      );
+        and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
+        drop policy if exists bsb_ai_chats_receive on realtime.messages;
+create policy bsb_ai_chats_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
+        and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
   end if;
 end;
 $$;
@@ -2458,7 +2464,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@4 managed
--- @bsb-hash sha256:c75cfdc923ab99a7c496b20acd50b29ebdd04921c3150141980b6d2654982792
+-- @bsb-hash sha256:2b91974ae08eb8de7111cd326ca41209316f40ea82177aa81037b661790d9ac8
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2564,7 +2570,8 @@ revoke all on "better_supabase"."ai_projects" from anon, authenticated;
 grant all on "better_supabase"."ai_projects" to service_role;
 grant select on "better_supabase"."ai_projects" to authenticated;
 drop policy if exists ai_projects_owner_read on "better_supabase"."ai_projects";
-create policy ai_projects_owner_read on "better_supabase"."ai_projects" for select to authenticated
+create policy ai_projects_owner_read on "better_supabase"."ai_projects"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- One row per conversation. current_leaf_id is the message the chat shows;
@@ -2601,11 +2608,10 @@ revoke all on "better_supabase"."ai_chats" from anon, authenticated;
 grant all on "better_supabase"."ai_chats" to service_role;
 grant select on "better_supabase"."ai_chats" to authenticated;
 drop policy if exists ai_chats_read on "better_supabase"."ai_chats";
-create policy ai_chats_read on "better_supabase"."ai_chats" for select to authenticated
-  using (
-    "owner_id" = (select auth.uid())
-    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
-  );
+create policy ai_chats_read on "better_supabase"."ai_chats"
+  for select to authenticated
+  using ("owner_id" = (select auth.uid())
+    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read'))));
 
 -- The message tree: (chat_id, id) is the key, parent_id the previous turn.
 -- Editing a prompt or regenerating a reply adds a sibling, never an update.
@@ -2639,7 +2645,8 @@ revoke all on "better_supabase"."ai_messages" from anon, authenticated;
 grant all on "better_supabase"."ai_messages" to service_role;
 grant select on "better_supabase"."ai_messages" to authenticated;
 drop policy if exists ai_messages_read on "better_supabase"."ai_messages";
-create policy ai_messages_read on "better_supabase"."ai_messages" for select to authenticated
+create policy ai_messages_read on "better_supabase"."ai_messages"
+  for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- One generation: the stream it wrote, its usage and cost.
@@ -2669,7 +2676,8 @@ revoke all on "better_supabase"."ai_runs" from anon, authenticated;
 grant all on "better_supabase"."ai_runs" to service_role;
 grant select on "better_supabase"."ai_runs" to authenticated;
 drop policy if exists ai_runs_owner_read on "better_supabase"."ai_runs";
-create policy ai_runs_owner_read on "better_supabase"."ai_runs" for select to authenticated
+create policy ai_runs_owner_read on "better_supabase"."ai_runs"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Tool calls that wait for a person: requested by the server, decided once.
@@ -2697,7 +2705,8 @@ revoke all on "better_supabase"."ai_tool_approvals" from anon, authenticated;
 grant all on "better_supabase"."ai_tool_approvals" to service_role;
 grant select on "better_supabase"."ai_tool_approvals" to authenticated;
 drop policy if exists ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals";
-create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals" for select to authenticated
+create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Per tenant: whether a tool runs (auto), waits for approval (ask) or never
@@ -2734,7 +2743,8 @@ revoke all on "better_supabase"."ai_pending_inputs" from anon, authenticated;
 grant all on "better_supabase"."ai_pending_inputs" to service_role;
 grant select on "better_supabase"."ai_pending_inputs" to authenticated;
 drop policy if exists ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs";
-create policy ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs" for select to authenticated
+create policy ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- The sources a reply cited, copied out of its parts when it is saved.
@@ -2754,7 +2764,8 @@ revoke all on "better_supabase"."ai_message_sources" from anon, authenticated;
 grant all on "better_supabase"."ai_message_sources" to service_role;
 grant select on "better_supabase"."ai_message_sources" to authenticated;
 drop policy if exists ai_message_sources_read on "better_supabase"."ai_message_sources";
-create policy ai_message_sources_read on "better_supabase"."ai_message_sources" for select to authenticated
+create policy ai_message_sources_read on "better_supabase"."ai_message_sources"
+  for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- Thumbs up (1) or down (-1) on a reply, one per user.
@@ -2776,7 +2787,8 @@ revoke all on "better_supabase"."ai_message_feedback" from anon, authenticated;
 grant all on "better_supabase"."ai_message_feedback" to service_role;
 grant select on "better_supabase"."ai_message_feedback" to authenticated;
 drop policy if exists ai_message_feedback_own_read on "better_supabase"."ai_message_feedback";
-create policy ai_message_feedback_own_read on "better_supabase"."ai_message_feedback" for select to authenticated
+create policy ai_message_feedback_own_read on "better_supabase"."ai_message_feedback"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A read-only link to one branch of a chat. Only the SHA-256 of the token is
@@ -2853,7 +2865,8 @@ revoke all on "better_supabase"."ai_run_steps" from anon, authenticated;
 grant all on "better_supabase"."ai_run_steps" to service_role;
 grant select on "better_supabase"."ai_run_steps" to authenticated;
 drop policy if exists ai_run_steps_owner_read on "better_supabase"."ai_run_steps";
-create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps" for select to authenticated
+create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- What a coding-agent harness needs to pick up a chat again: its resume and
@@ -4331,7 +4344,8 @@ revoke all on "better_supabase"."ai_sandboxes" from anon, authenticated;
 grant select on "better_supabase"."ai_sandboxes" to authenticated;
 grant all on "better_supabase"."ai_sandboxes" to service_role;
 drop policy if exists ai_sandboxes_read on "better_supabase"."ai_sandboxes";
-create policy ai_sandboxes_read on "better_supabase"."ai_sandboxes" for select to authenticated
+create policy ai_sandboxes_read on "better_supabase"."ai_sandboxes"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')));
 
 -- Records a sandbox or container the app started, or marks a known one used
@@ -4857,20 +4871,18 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_ai_chat_receive" on realtime.messages;
-    create policy "bsb_ai_chat_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_ai_chat_receive on realtime.messages;
+create policy bsb_ai_chat_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-        and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid)
-      );
-    drop policy if exists "bsb_ai_chats_receive" on realtime.messages;
-    create policy "bsb_ai_chats_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
-        and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text
-      );
+        and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
+        drop policy if exists bsb_ai_chats_receive on realtime.messages;
+create policy bsb_ai_chats_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
+        and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
   end if;
 end;
 $$;
@@ -4985,7 +4997,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@4 managed
--- @bsb-hash sha256:b5111cd7f99977c46b92de849bfd1d36a49c45f09853ddf98170842fa617ae75
+-- @bsb-hash sha256:f3c3d6db36a7cb2245a85e78c88906f08a8ad10cd65902e08d3ebf8ee617f894
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5093,7 +5105,8 @@ revoke all on "app_private"."ai_projects" from anon, authenticated;
 grant all on "app_private"."ai_projects" to service_role;
 grant select on "app_private"."ai_projects" to authenticated;
 drop policy if exists ai_projects_owner_read on "app_private"."ai_projects";
-create policy ai_projects_owner_read on "app_private"."ai_projects" for select to authenticated
+create policy ai_projects_owner_read on "app_private"."ai_projects"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- One row per conversation. current_leaf_id is the message the chat shows;
@@ -5130,11 +5143,10 @@ revoke all on "app_private"."ai_chats" from anon, authenticated;
 grant all on "app_private"."ai_chats" to service_role;
 grant select on "app_private"."ai_chats" to authenticated;
 drop policy if exists ai_chats_read on "app_private"."ai_chats";
-create policy ai_chats_read on "app_private"."ai_chats" for select to authenticated
-  using (
-    "owner_id" = (select auth.uid())
-    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
-  );
+create policy ai_chats_read on "app_private"."ai_chats"
+  for select to authenticated
+  using ("owner_id" = (select auth.uid())
+    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read'))));
 
 -- The message tree: (chat_id, id) is the key, parent_id the previous turn.
 -- Editing a prompt or regenerating a reply adds a sibling, never an update.
@@ -5168,7 +5180,8 @@ revoke all on "app_private"."ai_messages" from anon, authenticated;
 grant all on "app_private"."ai_messages" to service_role;
 grant select on "app_private"."ai_messages" to authenticated;
 drop policy if exists ai_messages_read on "app_private"."ai_messages";
-create policy ai_messages_read on "app_private"."ai_messages" for select to authenticated
+create policy ai_messages_read on "app_private"."ai_messages"
+  for select to authenticated
   using ("chat_id" in (select x."id" from "app_private"."ai_chats" x));
 
 -- One generation: the stream it wrote, its usage and cost.
@@ -5198,7 +5211,8 @@ revoke all on "app_private"."ai_runs" from anon, authenticated;
 grant all on "app_private"."ai_runs" to service_role;
 grant select on "app_private"."ai_runs" to authenticated;
 drop policy if exists ai_runs_owner_read on "app_private"."ai_runs";
-create policy ai_runs_owner_read on "app_private"."ai_runs" for select to authenticated
+create policy ai_runs_owner_read on "app_private"."ai_runs"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Tool calls that wait for a person: requested by the server, decided once.
@@ -5226,7 +5240,8 @@ revoke all on "app_private"."ai_tool_approvals" from anon, authenticated;
 grant all on "app_private"."ai_tool_approvals" to service_role;
 grant select on "app_private"."ai_tool_approvals" to authenticated;
 drop policy if exists ai_tool_approvals_owner_read on "app_private"."ai_tool_approvals";
-create policy ai_tool_approvals_owner_read on "app_private"."ai_tool_approvals" for select to authenticated
+create policy ai_tool_approvals_owner_read on "app_private"."ai_tool_approvals"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Per tenant: whether a tool runs (auto), waits for approval (ask) or never
@@ -5263,7 +5278,8 @@ revoke all on "app_private"."ai_pending_inputs" from anon, authenticated;
 grant all on "app_private"."ai_pending_inputs" to service_role;
 grant select on "app_private"."ai_pending_inputs" to authenticated;
 drop policy if exists ai_pending_inputs_owner_read on "app_private"."ai_pending_inputs";
-create policy ai_pending_inputs_owner_read on "app_private"."ai_pending_inputs" for select to authenticated
+create policy ai_pending_inputs_owner_read on "app_private"."ai_pending_inputs"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- The sources a reply cited, copied out of its parts when it is saved.
@@ -5283,7 +5299,8 @@ revoke all on "app_private"."ai_message_sources" from anon, authenticated;
 grant all on "app_private"."ai_message_sources" to service_role;
 grant select on "app_private"."ai_message_sources" to authenticated;
 drop policy if exists ai_message_sources_read on "app_private"."ai_message_sources";
-create policy ai_message_sources_read on "app_private"."ai_message_sources" for select to authenticated
+create policy ai_message_sources_read on "app_private"."ai_message_sources"
+  for select to authenticated
   using ("chat_id" in (select x."id" from "app_private"."ai_chats" x));
 
 -- Thumbs up (1) or down (-1) on a reply, one per user.
@@ -5305,7 +5322,8 @@ revoke all on "app_private"."ai_message_feedback" from anon, authenticated;
 grant all on "app_private"."ai_message_feedback" to service_role;
 grant select on "app_private"."ai_message_feedback" to authenticated;
 drop policy if exists ai_message_feedback_own_read on "app_private"."ai_message_feedback";
-create policy ai_message_feedback_own_read on "app_private"."ai_message_feedback" for select to authenticated
+create policy ai_message_feedback_own_read on "app_private"."ai_message_feedback"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A read-only link to one branch of a chat. Only the SHA-256 of the token is
@@ -5382,7 +5400,8 @@ revoke all on "app_private"."ai_run_steps" from anon, authenticated;
 grant all on "app_private"."ai_run_steps" to service_role;
 grant select on "app_private"."ai_run_steps" to authenticated;
 drop policy if exists ai_run_steps_owner_read on "app_private"."ai_run_steps";
-create policy ai_run_steps_owner_read on "app_private"."ai_run_steps" for select to authenticated
+create policy ai_run_steps_owner_read on "app_private"."ai_run_steps"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- What a coding-agent harness needs to pick up a chat again: its resume and
@@ -6790,7 +6809,8 @@ revoke all on "app_private"."ai_sandboxes" from anon, authenticated;
 grant select on "app_private"."ai_sandboxes" to authenticated;
 grant all on "app_private"."ai_sandboxes" to service_role;
 drop policy if exists ai_sandboxes_read on "app_private"."ai_sandboxes";
-create policy ai_sandboxes_read on "app_private"."ai_sandboxes" for select to authenticated
+create policy ai_sandboxes_read on "app_private"."ai_sandboxes"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')));
 
 -- Records a sandbox or container the app started, or marks a known one used
@@ -7316,20 +7336,18 @@ grant execute on function "app_private"."unlock_ai_harness_session"(uuid, text, 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_ai_chat_receive" on realtime.messages;
-    create policy "bsb_ai_chat_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_ai_chat_receive on realtime.messages;
+create policy bsb_ai_chat_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-        and "app_private"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid)
-      );
-    drop policy if exists "bsb_ai_chats_receive" on realtime.messages;
-    create policy "bsb_ai_chats_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
-        and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text
-      );
+        and "app_private"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
+        drop policy if exists bsb_ai_chats_receive on realtime.messages;
+create policy bsb_ai_chats_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
+        and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
   end if;
 end;
 $$;
@@ -7444,7 +7462,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@4 managed
--- @bsb-hash sha256:f93ac8f2bb16d000f5dc52d15ab799055934e2e997e3eabf77798d4e13deec6b
+-- @bsb-hash sha256:43510c9cc53db6cf220ab817762d35b698814a11b037aaa9a1ea9708b42e1946
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7550,7 +7568,8 @@ revoke all on "better_supabase"."ai_projects" from anon, authenticated;
 grant all on "better_supabase"."ai_projects" to service_role;
 grant select on "better_supabase"."ai_projects" to authenticated;
 drop policy if exists ai_projects_owner_read on "better_supabase"."ai_projects";
-create policy ai_projects_owner_read on "better_supabase"."ai_projects" for select to authenticated
+create policy ai_projects_owner_read on "better_supabase"."ai_projects"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- One row per conversation. current_leaf_id is the message the chat shows;
@@ -7587,11 +7606,10 @@ revoke all on "better_supabase"."ai_chats" from anon, authenticated;
 grant all on "better_supabase"."ai_chats" to service_role;
 grant select on "better_supabase"."ai_chats" to authenticated;
 drop policy if exists ai_chats_read on "better_supabase"."ai_chats";
-create policy ai_chats_read on "better_supabase"."ai_chats" for select to authenticated
-  using (
-    "owner_id" = (select auth.uid())
-    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
-  );
+create policy ai_chats_read on "better_supabase"."ai_chats"
+  for select to authenticated
+  using ("owner_id" = (select auth.uid())
+    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read'))));
 
 -- The message tree: (chat_id, id) is the key, parent_id the previous turn.
 -- Editing a prompt or regenerating a reply adds a sibling, never an update.
@@ -7625,7 +7643,8 @@ revoke all on "better_supabase"."ai_messages" from anon, authenticated;
 grant all on "better_supabase"."ai_messages" to service_role;
 grant select on "better_supabase"."ai_messages" to authenticated;
 drop policy if exists ai_messages_read on "better_supabase"."ai_messages";
-create policy ai_messages_read on "better_supabase"."ai_messages" for select to authenticated
+create policy ai_messages_read on "better_supabase"."ai_messages"
+  for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- One generation: the stream it wrote, its usage and cost.
@@ -7655,7 +7674,8 @@ revoke all on "better_supabase"."ai_runs" from anon, authenticated;
 grant all on "better_supabase"."ai_runs" to service_role;
 grant select on "better_supabase"."ai_runs" to authenticated;
 drop policy if exists ai_runs_owner_read on "better_supabase"."ai_runs";
-create policy ai_runs_owner_read on "better_supabase"."ai_runs" for select to authenticated
+create policy ai_runs_owner_read on "better_supabase"."ai_runs"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Tool calls that wait for a person: requested by the server, decided once.
@@ -7683,7 +7703,8 @@ revoke all on "better_supabase"."ai_tool_approvals" from anon, authenticated;
 grant all on "better_supabase"."ai_tool_approvals" to service_role;
 grant select on "better_supabase"."ai_tool_approvals" to authenticated;
 drop policy if exists ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals";
-create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals" for select to authenticated
+create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Per tenant: whether a tool runs (auto), waits for approval (ask) or never
@@ -7720,7 +7741,8 @@ revoke all on "better_supabase"."ai_pending_inputs" from anon, authenticated;
 grant all on "better_supabase"."ai_pending_inputs" to service_role;
 grant select on "better_supabase"."ai_pending_inputs" to authenticated;
 drop policy if exists ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs";
-create policy ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs" for select to authenticated
+create policy ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- The sources a reply cited, copied out of its parts when it is saved.
@@ -7740,7 +7762,8 @@ revoke all on "better_supabase"."ai_message_sources" from anon, authenticated;
 grant all on "better_supabase"."ai_message_sources" to service_role;
 grant select on "better_supabase"."ai_message_sources" to authenticated;
 drop policy if exists ai_message_sources_read on "better_supabase"."ai_message_sources";
-create policy ai_message_sources_read on "better_supabase"."ai_message_sources" for select to authenticated
+create policy ai_message_sources_read on "better_supabase"."ai_message_sources"
+  for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- Thumbs up (1) or down (-1) on a reply, one per user.
@@ -7762,7 +7785,8 @@ revoke all on "better_supabase"."ai_message_feedback" from anon, authenticated;
 grant all on "better_supabase"."ai_message_feedback" to service_role;
 grant select on "better_supabase"."ai_message_feedback" to authenticated;
 drop policy if exists ai_message_feedback_own_read on "better_supabase"."ai_message_feedback";
-create policy ai_message_feedback_own_read on "better_supabase"."ai_message_feedback" for select to authenticated
+create policy ai_message_feedback_own_read on "better_supabase"."ai_message_feedback"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A read-only link to one branch of a chat. Only the SHA-256 of the token is
@@ -7839,7 +7863,8 @@ revoke all on "better_supabase"."ai_run_steps" from anon, authenticated;
 grant all on "better_supabase"."ai_run_steps" to service_role;
 grant select on "better_supabase"."ai_run_steps" to authenticated;
 drop policy if exists ai_run_steps_owner_read on "better_supabase"."ai_run_steps";
-create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps" for select to authenticated
+create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- What a coding-agent harness needs to pick up a chat again: its resume and
@@ -9247,7 +9272,8 @@ revoke all on "better_supabase"."ai_sandboxes" from anon, authenticated;
 grant select on "better_supabase"."ai_sandboxes" to authenticated;
 grant all on "better_supabase"."ai_sandboxes" to service_role;
 drop policy if exists ai_sandboxes_read on "better_supabase"."ai_sandboxes";
-create policy ai_sandboxes_read on "better_supabase"."ai_sandboxes" for select to authenticated
+create policy ai_sandboxes_read on "better_supabase"."ai_sandboxes"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')));
 
 -- Records a sandbox or container the app started, or marks a known one used
@@ -9773,20 +9799,18 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_ai_chat_receive" on realtime.messages;
-    create policy "bsb_ai_chat_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_ai_chat_receive on realtime.messages;
+create policy bsb_ai_chat_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-        and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid)
-      );
-    drop policy if exists "bsb_ai_chats_receive" on realtime.messages;
-    create policy "bsb_ai_chats_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
-        and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text
-      );
+        and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
+        drop policy if exists bsb_ai_chats_receive on realtime.messages;
+create policy bsb_ai_chats_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
+        and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
   end if;
 end;
 $$;
@@ -10384,7 +10408,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@4 managed
--- @bsb-hash sha256:4400b4f1c111db92b644291e1c9db5a52956e7648869fc6e97158317d3f08b9c
+-- @bsb-hash sha256:46a9c689bb32bd36e46eb3f97341fa2f64a34a50ea85608451184f67150669f9
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10504,7 +10528,8 @@ alter table "better_supabase"."ai_projects" enable row level security;
 grant all on "better_supabase"."ai_projects" to service_role;
 grant select on "better_supabase"."ai_projects" to authenticated;
 drop policy if exists bsb_ai_projects_select on "better_supabase"."ai_projects";
-create policy bsb_ai_projects_select on "better_supabase"."ai_projects" for select to authenticated
+create policy bsb_ai_projects_select on "better_supabase"."ai_projects"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- One row per conversation. current_leaf_id is the message the chat shows;
@@ -10538,11 +10563,10 @@ alter table "better_supabase"."ai_chats" enable row level security;
 grant all on "better_supabase"."ai_chats" to service_role;
 grant select on "better_supabase"."ai_chats" to authenticated;
 drop policy if exists bsb_ai_chats_select on "better_supabase"."ai_chats";
-create policy bsb_ai_chats_select on "better_supabase"."ai_chats" for select to authenticated
-  using (
-    "owner_id" = (select auth.uid())
-    or ("visibility"::text = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
-  );
+create policy bsb_ai_chats_select on "better_supabase"."ai_chats"
+  for select to authenticated
+  using ("owner_id" = (select auth.uid())
+    or ("visibility"::text = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read'))));
 
 -- The message tree: (chat_id, id) is the key, parent_id the previous turn.
 -- Editing a prompt or regenerating a reply adds a sibling, never an update.
@@ -10570,7 +10594,8 @@ alter table "better_supabase"."ai_messages" enable row level security;
 grant all on "better_supabase"."ai_messages" to service_role;
 grant select on "better_supabase"."ai_messages" to authenticated;
 drop policy if exists bsb_ai_messages_select on "better_supabase"."ai_messages";
-create policy bsb_ai_messages_select on "better_supabase"."ai_messages" for select to authenticated
+create policy bsb_ai_messages_select on "better_supabase"."ai_messages"
+  for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- One generation: the stream it wrote, its usage and cost.
@@ -10598,7 +10623,8 @@ alter table "better_supabase"."ai_runs" enable row level security;
 grant all on "better_supabase"."ai_runs" to service_role;
 grant select on "better_supabase"."ai_runs" to authenticated;
 drop policy if exists bsb_ai_runs_select on "better_supabase"."ai_runs";
-create policy bsb_ai_runs_select on "better_supabase"."ai_runs" for select to authenticated
+create policy bsb_ai_runs_select on "better_supabase"."ai_runs"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Tool calls that wait for a person: requested by the server, decided once.
@@ -10625,7 +10651,8 @@ alter table "better_supabase"."ai_tool_approvals" enable row level security;
 grant all on "better_supabase"."ai_tool_approvals" to service_role;
 grant select on "better_supabase"."ai_tool_approvals" to authenticated;
 drop policy if exists bsb_ai_tool_approvals_select on "better_supabase"."ai_tool_approvals";
-create policy bsb_ai_tool_approvals_select on "better_supabase"."ai_tool_approvals" for select to authenticated
+create policy bsb_ai_tool_approvals_select on "better_supabase"."ai_tool_approvals"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Per tenant: whether a tool runs (auto), waits for approval (ask) or never
@@ -10658,7 +10685,8 @@ alter table "better_supabase"."ai_pending_inputs" enable row level security;
 grant all on "better_supabase"."ai_pending_inputs" to service_role;
 grant select on "better_supabase"."ai_pending_inputs" to authenticated;
 drop policy if exists bsb_ai_pending_inputs_select on "better_supabase"."ai_pending_inputs";
-create policy bsb_ai_pending_inputs_select on "better_supabase"."ai_pending_inputs" for select to authenticated
+create policy bsb_ai_pending_inputs_select on "better_supabase"."ai_pending_inputs"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- The sources a reply cited, copied out of its parts when it is saved.
@@ -10674,7 +10702,8 @@ alter table "better_supabase"."ai_message_sources" enable row level security;
 grant all on "better_supabase"."ai_message_sources" to service_role;
 grant select on "better_supabase"."ai_message_sources" to authenticated;
 drop policy if exists bsb_ai_message_sources_select on "better_supabase"."ai_message_sources";
-create policy bsb_ai_message_sources_select on "better_supabase"."ai_message_sources" for select to authenticated
+create policy bsb_ai_message_sources_select on "better_supabase"."ai_message_sources"
+  for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- Thumbs up (1) or down (-1) on a reply, one per user.
@@ -10693,7 +10722,8 @@ alter table "better_supabase"."ai_message_feedback" enable row level security;
 grant all on "better_supabase"."ai_message_feedback" to service_role;
 grant select on "better_supabase"."ai_message_feedback" to authenticated;
 drop policy if exists bsb_ai_message_feedback_select on "better_supabase"."ai_message_feedback";
-create policy bsb_ai_message_feedback_select on "better_supabase"."ai_message_feedback" for select to authenticated
+create policy bsb_ai_message_feedback_select on "better_supabase"."ai_message_feedback"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A read-only link to one branch of a chat. Only the SHA-256 of the token is
@@ -10764,7 +10794,8 @@ alter table "better_supabase"."ai_run_steps" enable row level security;
 grant all on "better_supabase"."ai_run_steps" to service_role;
 grant select on "better_supabase"."ai_run_steps" to authenticated;
 drop policy if exists bsb_ai_run_steps_select on "better_supabase"."ai_run_steps";
-create policy bsb_ai_run_steps_select on "better_supabase"."ai_run_steps" for select to authenticated
+create policy bsb_ai_run_steps_select on "better_supabase"."ai_run_steps"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- What a coding-agent harness needs to pick up a chat again: its resume and
@@ -12167,7 +12198,8 @@ alter table "better_supabase"."ai_sandboxes" enable row level security;
 grant select on "better_supabase"."ai_sandboxes" to authenticated;
 grant all on "better_supabase"."ai_sandboxes" to service_role;
 drop policy if exists bsb_ai_sandboxes_select on "better_supabase"."ai_sandboxes";
-create policy bsb_ai_sandboxes_select on "better_supabase"."ai_sandboxes" for select to authenticated
+create policy bsb_ai_sandboxes_select on "better_supabase"."ai_sandboxes"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')));
 
 -- Records a sandbox or container the app started, or marks a known one used
@@ -12693,20 +12725,18 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_ai_chat_receive" on realtime.messages;
-    create policy "bsb_ai_chat_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_ai_chat_receive on realtime.messages;
+create policy bsb_ai_chat_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-        and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid)
-      );
-    drop policy if exists "bsb_ai_chats_receive" on realtime.messages;
-    create policy "bsb_ai_chats_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
-        and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text
-      );
+        and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
+        drop policy if exists bsb_ai_chats_receive on realtime.messages;
+create policy bsb_ai_chats_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
+        and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
   end if;
 end;
 $$;
@@ -12821,7 +12851,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@4 managed
--- @bsb-hash sha256:4512d63b7608b0d8abb617270dd216ad7944d084c7168efe97a569c167bf4029
+-- @bsb-hash sha256:14fa8ddb4d2557acde1cece0e7e8b84a94dce9ae675d1b17042ebb6215c3292b
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12927,7 +12957,8 @@ revoke all on "better_supabase"."ai_projects" from anon, authenticated;
 grant all on "better_supabase"."ai_projects" to service_role;
 grant select on "better_supabase"."ai_projects" to authenticated;
 drop policy if exists ai_projects_owner_read on "better_supabase"."ai_projects";
-create policy ai_projects_owner_read on "better_supabase"."ai_projects" for select to authenticated
+create policy ai_projects_owner_read on "better_supabase"."ai_projects"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- One row per conversation. current_leaf_id is the message the chat shows;
@@ -12964,11 +12995,10 @@ revoke all on "better_supabase"."ai_chats" from anon, authenticated;
 grant all on "better_supabase"."ai_chats" to service_role;
 grant select on "better_supabase"."ai_chats" to authenticated;
 drop policy if exists ai_chats_read on "better_supabase"."ai_chats";
-create policy ai_chats_read on "better_supabase"."ai_chats" for select to authenticated
-  using (
-    "owner_id" = (select auth.uid())
-    or ("visibility" = 'organization' and "org_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
-  );
+create policy ai_chats_read on "better_supabase"."ai_chats"
+  for select to authenticated
+  using ("owner_id" = (select auth.uid())
+    or ("visibility" = 'organization' and "org_id" in (select better_supabase.tenant_ids_with('ai_chat.read'))));
 
 -- The message tree: (chat_id, id) is the key, parent_id the previous turn.
 -- Editing a prompt or regenerating a reply adds a sibling, never an update.
@@ -13002,7 +13032,8 @@ revoke all on "better_supabase"."ai_messages" from anon, authenticated;
 grant all on "better_supabase"."ai_messages" to service_role;
 grant select on "better_supabase"."ai_messages" to authenticated;
 drop policy if exists ai_messages_read on "better_supabase"."ai_messages";
-create policy ai_messages_read on "better_supabase"."ai_messages" for select to authenticated
+create policy ai_messages_read on "better_supabase"."ai_messages"
+  for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- One generation: the stream it wrote, its usage and cost.
@@ -13032,7 +13063,8 @@ revoke all on "better_supabase"."ai_runs" from anon, authenticated;
 grant all on "better_supabase"."ai_runs" to service_role;
 grant select on "better_supabase"."ai_runs" to authenticated;
 drop policy if exists ai_runs_owner_read on "better_supabase"."ai_runs";
-create policy ai_runs_owner_read on "better_supabase"."ai_runs" for select to authenticated
+create policy ai_runs_owner_read on "better_supabase"."ai_runs"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Tool calls that wait for a person: requested by the server, decided once.
@@ -13060,7 +13092,8 @@ revoke all on "better_supabase"."ai_tool_approvals" from anon, authenticated;
 grant all on "better_supabase"."ai_tool_approvals" to service_role;
 grant select on "better_supabase"."ai_tool_approvals" to authenticated;
 drop policy if exists ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals";
-create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals" for select to authenticated
+create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Per tenant: whether a tool runs (auto), waits for approval (ask) or never
@@ -13097,7 +13130,8 @@ revoke all on "better_supabase"."ai_pending_inputs" from anon, authenticated;
 grant all on "better_supabase"."ai_pending_inputs" to service_role;
 grant select on "better_supabase"."ai_pending_inputs" to authenticated;
 drop policy if exists ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs";
-create policy ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs" for select to authenticated
+create policy ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- The sources a reply cited, copied out of its parts when it is saved.
@@ -13117,7 +13151,8 @@ revoke all on "better_supabase"."ai_message_sources" from anon, authenticated;
 grant all on "better_supabase"."ai_message_sources" to service_role;
 grant select on "better_supabase"."ai_message_sources" to authenticated;
 drop policy if exists ai_message_sources_read on "better_supabase"."ai_message_sources";
-create policy ai_message_sources_read on "better_supabase"."ai_message_sources" for select to authenticated
+create policy ai_message_sources_read on "better_supabase"."ai_message_sources"
+  for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- Thumbs up (1) or down (-1) on a reply, one per user.
@@ -13139,7 +13174,8 @@ revoke all on "better_supabase"."ai_message_feedback" from anon, authenticated;
 grant all on "better_supabase"."ai_message_feedback" to service_role;
 grant select on "better_supabase"."ai_message_feedback" to authenticated;
 drop policy if exists ai_message_feedback_own_read on "better_supabase"."ai_message_feedback";
-create policy ai_message_feedback_own_read on "better_supabase"."ai_message_feedback" for select to authenticated
+create policy ai_message_feedback_own_read on "better_supabase"."ai_message_feedback"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A read-only link to one branch of a chat. Only the SHA-256 of the token is
@@ -13216,7 +13252,8 @@ revoke all on "better_supabase"."ai_run_steps" from anon, authenticated;
 grant all on "better_supabase"."ai_run_steps" to service_role;
 grant select on "better_supabase"."ai_run_steps" to authenticated;
 drop policy if exists ai_run_steps_owner_read on "better_supabase"."ai_run_steps";
-create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps" for select to authenticated
+create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- What a coding-agent harness needs to pick up a chat again: its resume and
@@ -14624,7 +14661,8 @@ revoke all on "better_supabase"."ai_sandboxes" from anon, authenticated;
 grant select on "better_supabase"."ai_sandboxes" to authenticated;
 grant all on "better_supabase"."ai_sandboxes" to service_role;
 drop policy if exists ai_sandboxes_read on "better_supabase"."ai_sandboxes";
-create policy ai_sandboxes_read on "better_supabase"."ai_sandboxes" for select to authenticated
+create policy ai_sandboxes_read on "better_supabase"."ai_sandboxes"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')));
 
 -- Records a sandbox or container the app started, or marks a known one used
@@ -15150,20 +15188,18 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_ai_chat_receive" on realtime.messages;
-    create policy "bsb_ai_chat_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_ai_chat_receive on realtime.messages;
+create policy bsb_ai_chat_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-        and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid)
-      );
-    drop policy if exists "bsb_ai_chats_receive" on realtime.messages;
-    create policy "bsb_ai_chats_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
-        and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text
-      );
+        and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
+        drop policy if exists bsb_ai_chats_receive on realtime.messages;
+create policy bsb_ai_chats_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
+        and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
   end if;
 end;
 $$;

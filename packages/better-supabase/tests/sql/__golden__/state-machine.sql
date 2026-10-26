@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
--- @bsb-hash sha256:a580168a5de4478e446be81842992a19c4dd2a4344df0d73f58a376bf61d39d5
+-- @bsb-hash sha256:035337daeeafd61f18ae0008ea8189aa86bc497b217a8f3fffc3dfbfecc4fa07
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -55,7 +55,8 @@ revoke all on "better_supabase"."status_history" from anon, authenticated;
 grant select on "better_supabase"."status_history" to authenticated;
 grant all on "better_supabase"."status_history" to service_role;
 drop policy if exists status_history_read on "better_supabase"."status_history";
-create policy status_history_read on "better_supabase"."status_history" for select to authenticated
+create policy status_history_read on "better_supabase"."status_history"
+  for select to authenticated
   using (false);
 create table if not exists "better_supabase"."status_stages" (
   "id" uuid primary key default gen_random_uuid(),
@@ -74,7 +75,8 @@ revoke all on "better_supabase"."status_stages" from anon, authenticated;
 grant select on "better_supabase"."status_stages" to authenticated;
 grant all on "better_supabase"."status_stages" to service_role;
 drop policy if exists status_stages_read on "better_supabase"."status_stages";
-create policy status_stages_read on "better_supabase"."status_stages" for select to authenticated
+create policy status_stages_read on "better_supabase"."status_stages"
+  for select to authenticated
   using (false);
 create table if not exists "better_supabase"."subject_lifecycles" (
   "id" uuid primary key default gen_random_uuid(),
@@ -97,7 +99,8 @@ revoke all on "better_supabase"."subject_lifecycles" from anon, authenticated;
 grant select on "better_supabase"."subject_lifecycles" to authenticated;
 grant all on "better_supabase"."subject_lifecycles" to service_role;
 drop policy if exists subject_lifecycles_read on "better_supabase"."subject_lifecycles";
-create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles" for select to authenticated
+create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles"
+  for select to authenticated
   using (false);
 
 
@@ -387,7 +390,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
--- @bsb-hash sha256:a580168a5de4478e446be81842992a19c4dd2a4344df0d73f58a376bf61d39d5
+-- @bsb-hash sha256:035337daeeafd61f18ae0008ea8189aa86bc497b217a8f3fffc3dfbfecc4fa07
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -441,7 +444,8 @@ revoke all on "better_supabase"."status_history" from anon, authenticated;
 grant select on "better_supabase"."status_history" to authenticated;
 grant all on "better_supabase"."status_history" to service_role;
 drop policy if exists status_history_read on "better_supabase"."status_history";
-create policy status_history_read on "better_supabase"."status_history" for select to authenticated
+create policy status_history_read on "better_supabase"."status_history"
+  for select to authenticated
   using (false);
 create table if not exists "better_supabase"."status_stages" (
   "id" uuid primary key default gen_random_uuid(),
@@ -460,7 +464,8 @@ revoke all on "better_supabase"."status_stages" from anon, authenticated;
 grant select on "better_supabase"."status_stages" to authenticated;
 grant all on "better_supabase"."status_stages" to service_role;
 drop policy if exists status_stages_read on "better_supabase"."status_stages";
-create policy status_stages_read on "better_supabase"."status_stages" for select to authenticated
+create policy status_stages_read on "better_supabase"."status_stages"
+  for select to authenticated
   using (false);
 create table if not exists "better_supabase"."subject_lifecycles" (
   "id" uuid primary key default gen_random_uuid(),
@@ -483,7 +488,8 @@ revoke all on "better_supabase"."subject_lifecycles" from anon, authenticated;
 grant select on "better_supabase"."subject_lifecycles" to authenticated;
 grant all on "better_supabase"."subject_lifecycles" to service_role;
 drop policy if exists subject_lifecycles_read on "better_supabase"."subject_lifecycles";
-create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles" for select to authenticated
+create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles"
+  for select to authenticated
   using (false);
 
 
@@ -773,7 +779,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
--- @bsb-hash sha256:7e2c88581dc917c659b6e66384a61a6a6e484a983b76d81a09284adc92cf0860
+-- @bsb-hash sha256:ea233c0abf821f73da94790115e141e6e81d4c06c0faf0138ae1a3140162827f
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -829,7 +835,8 @@ revoke all on "app_private"."status_history" from anon, authenticated;
 grant select on "app_private"."status_history" to authenticated;
 grant all on "app_private"."status_history" to service_role;
 drop policy if exists status_history_read on "app_private"."status_history";
-create policy status_history_read on "app_private"."status_history" for select to authenticated
+create policy status_history_read on "app_private"."status_history"
+  for select to authenticated
   using (false);
 create table if not exists "app_private"."status_stages" (
   "id" uuid primary key default gen_random_uuid(),
@@ -848,7 +855,8 @@ revoke all on "app_private"."status_stages" from anon, authenticated;
 grant select on "app_private"."status_stages" to authenticated;
 grant all on "app_private"."status_stages" to service_role;
 drop policy if exists status_stages_read on "app_private"."status_stages";
-create policy status_stages_read on "app_private"."status_stages" for select to authenticated
+create policy status_stages_read on "app_private"."status_stages"
+  for select to authenticated
   using (false);
 create table if not exists "app_private"."subject_lifecycles" (
   "id" uuid primary key default gen_random_uuid(),
@@ -871,7 +879,8 @@ revoke all on "app_private"."subject_lifecycles" from anon, authenticated;
 grant select on "app_private"."subject_lifecycles" to authenticated;
 grant all on "app_private"."subject_lifecycles" to service_role;
 drop policy if exists subject_lifecycles_read on "app_private"."subject_lifecycles";
-create policy subject_lifecycles_read on "app_private"."subject_lifecycles" for select to authenticated
+create policy subject_lifecycles_read on "app_private"."subject_lifecycles"
+  for select to authenticated
   using (false);
 
 
@@ -1161,7 +1170,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
--- @bsb-hash sha256:021fde176641c2092814ee9183b77a7282d66baacad416d5889d2bd027f249a4
+-- @bsb-hash sha256:543a92daedb05cd0e142e4c825510512851c09e98e5efe9ba43f95beea6d56b0
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1215,7 +1224,8 @@ revoke all on "better_supabase"."status_history" from anon, authenticated;
 grant select on "better_supabase"."status_history" to authenticated;
 grant all on "better_supabase"."status_history" to service_role;
 drop policy if exists status_history_read on "better_supabase"."status_history";
-create policy status_history_read on "better_supabase"."status_history" for select to authenticated
+create policy status_history_read on "better_supabase"."status_history"
+  for select to authenticated
   using (false);
 create table if not exists "better_supabase"."status_stages" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1234,7 +1244,8 @@ revoke all on "better_supabase"."status_stages" from anon, authenticated;
 grant select on "better_supabase"."status_stages" to authenticated;
 grant all on "better_supabase"."status_stages" to service_role;
 drop policy if exists status_stages_read on "better_supabase"."status_stages";
-create policy status_stages_read on "better_supabase"."status_stages" for select to authenticated
+create policy status_stages_read on "better_supabase"."status_stages"
+  for select to authenticated
   using (false);
 create table if not exists "better_supabase"."subject_lifecycles" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1257,7 +1268,8 @@ revoke all on "better_supabase"."subject_lifecycles" from anon, authenticated;
 grant select on "better_supabase"."subject_lifecycles" to authenticated;
 grant all on "better_supabase"."subject_lifecycles" to service_role;
 drop policy if exists subject_lifecycles_read on "better_supabase"."subject_lifecycles";
-create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles" for select to authenticated
+create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles"
+  for select to authenticated
   using (false);
 
 
@@ -1614,7 +1626,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
--- @bsb-hash sha256:249403d71df03934135d76a46464c94f44fd16201abef1cd1a7bcb8b085870bb
+-- @bsb-hash sha256:ecdf2f5a60af7da7f42bdc0f6b50558d4909ad4f9e4f0eebe3350ea825c6c7fa
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1666,7 +1678,8 @@ alter table "better_supabase"."status_history" enable row level security;
 grant select on "better_supabase"."status_history" to authenticated;
 grant all on "better_supabase"."status_history" to service_role;
 drop policy if exists bsb_status_history_select on "better_supabase"."status_history";
-create policy bsb_status_history_select on "better_supabase"."status_history" for select to authenticated
+create policy bsb_status_history_select on "better_supabase"."status_history"
+  for select to authenticated
   using (false);
 -- better_supabase.status_stages is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."status_stages" add column if not exists "id" uuid default gen_random_uuid();
@@ -1683,7 +1696,8 @@ alter table "better_supabase"."status_stages" enable row level security;
 grant select on "better_supabase"."status_stages" to authenticated;
 grant all on "better_supabase"."status_stages" to service_role;
 drop policy if exists bsb_status_stages_select on "better_supabase"."status_stages";
-create policy bsb_status_stages_select on "better_supabase"."status_stages" for select to authenticated
+create policy bsb_status_stages_select on "better_supabase"."status_stages"
+  for select to authenticated
   using (false);
 -- better_supabase.subject_lifecycles is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."subject_lifecycles" add column if not exists "id" uuid default gen_random_uuid();
@@ -1703,7 +1717,8 @@ alter table "better_supabase"."subject_lifecycles" enable row level security;
 grant select on "better_supabase"."subject_lifecycles" to authenticated;
 grant all on "better_supabase"."subject_lifecycles" to service_role;
 drop policy if exists bsb_subject_lifecycles_select on "better_supabase"."subject_lifecycles";
-create policy bsb_subject_lifecycles_select on "better_supabase"."subject_lifecycles" for select to authenticated
+create policy bsb_subject_lifecycles_select on "better_supabase"."subject_lifecycles"
+  for select to authenticated
   using (false);
 
 
@@ -1993,7 +2008,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
--- @bsb-hash sha256:ce551285e5e1949768b7bd3017b2c63f0c372ace3323851cf0097cb5b29c0774
+-- @bsb-hash sha256:1af33a15b14e33fbb6c0eafe95abf03d2275ecfa62fd70a2765d9d05b2f9c0ec
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2047,7 +2062,8 @@ revoke all on "better_supabase"."status_history" from anon, authenticated;
 grant select on "better_supabase"."status_history" to authenticated;
 grant all on "better_supabase"."status_history" to service_role;
 drop policy if exists status_history_read on "better_supabase"."status_history";
-create policy status_history_read on "better_supabase"."status_history" for select to authenticated
+create policy status_history_read on "better_supabase"."status_history"
+  for select to authenticated
   using (false);
 create table if not exists "better_supabase"."status_stages" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2066,7 +2082,8 @@ revoke all on "better_supabase"."status_stages" from anon, authenticated;
 grant select on "better_supabase"."status_stages" to authenticated;
 grant all on "better_supabase"."status_stages" to service_role;
 drop policy if exists status_stages_read on "better_supabase"."status_stages";
-create policy status_stages_read on "better_supabase"."status_stages" for select to authenticated
+create policy status_stages_read on "better_supabase"."status_stages"
+  for select to authenticated
   using (false);
 create table if not exists "better_supabase"."subject_lifecycles" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2089,7 +2106,8 @@ revoke all on "better_supabase"."subject_lifecycles" from anon, authenticated;
 grant select on "better_supabase"."subject_lifecycles" to authenticated;
 grant all on "better_supabase"."subject_lifecycles" to service_role;
 drop policy if exists subject_lifecycles_read on "better_supabase"."subject_lifecycles";
-create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles" for select to authenticated
+create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles"
+  for select to authenticated
   using (false);
 
 

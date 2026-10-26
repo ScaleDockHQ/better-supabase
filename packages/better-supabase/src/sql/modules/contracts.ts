@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
@@ -248,8 +249,7 @@ ${contract("counterpartyType") ? `create index if not exists ${name("contracts",
 create index if not exists ${name("contracts", "signature_idx")} on ${contracts} (${c("signatureRequest")}) where ${c("signatureRequest")} is not null;
 ${lockModuleTable(ctx, "contracts", { read: true })}
 drop policy if exists ${name("contracts", "read")} on ${contracts};
-create policy ${name("contracts", "read")} on ${contracts} for select to authenticated
-  using (${c("owner")} = (select auth.uid()) or ${ctx.scope.check(c("tenant"), read)});
+${renderPolicy(makePolicy({ table: contracts, name: name("contracts", "read"), command: "select", roles: ["authenticated"], using: `${c("owner")} = (select auth.uid()) or ${ctx.scope.check(c("tenant"), read)}` }), { target: contracts })}
 
 create table if not exists ${obligations} (
   ${o("id")} uuid primary key default gen_random_uuid(),
@@ -287,8 +287,7 @@ create index if not exists ${name("obligations", "owner_idx")} on ${obligations}
 create index if not exists ${name("obligations", "due_idx")} on ${obligations} (${o("tenant")}, ${o("dueOn")}) where ${o("status")} = 'open';
 ${lockModuleTable(ctx, "obligations", { read: true })}
 drop policy if exists ${name("obligations", "read")} on ${obligations};
-create policy ${name("obligations", "read")} on ${obligations} for select to authenticated
-  using (${o("owner")} = (select auth.uid()) or ${ctx.scope.check(o("tenant"), read)});
+${renderPolicy(makePolicy({ table: obligations, name: name("obligations", "read"), command: "select", roles: ["authenticated"], using: `${o("owner")} = (select auth.uid()) or ${ctx.scope.check(o("tenant"), read)}` }), { target: obligations })}
 `;
 }
 

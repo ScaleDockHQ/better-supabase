@@ -1,6 +1,6 @@
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:a79986283bb24166ee39846ec01266601f1aa99157b02133761cdd905569518c
+-- @bsb-hash sha256:97aa50035f31e6090a96bf2180f8cea316e32b7d72b4824b179e6114f2ef8f51
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -87,7 +87,8 @@ revoke all on "better_supabase"."time_rates" from anon, authenticated;
 grant select on "better_supabase"."time_rates" to authenticated;
 grant all on "better_supabase"."time_rates" to service_role;
 drop policy if exists "time_rates_read" on "better_supabase"."time_rates";
-create policy "time_rates_read" on "better_supabase"."time_rates" for select to authenticated
+create policy time_rates_read on "better_supabase"."time_rates"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- One row per billed time entry: the invoice and the rate it was billed at.
@@ -107,7 +108,8 @@ revoke all on "better_supabase"."time_invoice_entries" from anon, authenticated;
 grant select on "better_supabase"."time_invoice_entries" to authenticated;
 grant all on "better_supabase"."time_invoice_entries" to service_role;
 drop policy if exists "time_invoice_entries_read" on "better_supabase"."time_invoice_entries";
-create policy "time_invoice_entries_read" on "better_supabase"."time_invoice_entries" for select to authenticated
+create policy time_invoice_entries_read on "better_supabase"."time_invoice_entries"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- A billed entry keeps what it was billed for: it can't be deleted, and its

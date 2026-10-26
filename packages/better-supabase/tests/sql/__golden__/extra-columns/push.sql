@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_054_push.sql
 -- better-supabase module: push
 -- @bsb-block push@2 managed
--- @bsb-hash sha256:7eec64e89b9f7c7b11db80c00e84bd36f90cab2cdac60b3155c6c3341ee26e34
+-- @bsb-hash sha256:679c590cfe09c75b0b3aeb1370e06b9bdd8d030aff4505110a71cda7794b4e19
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -64,11 +64,13 @@ alter table "better_supabase"."push_devices" enable row level security;
 revoke all on "better_supabase"."push_devices" from anon, authenticated;
 grant select, delete on "better_supabase"."push_devices" to authenticated;
 grant all on "better_supabase"."push_devices" to service_role;
-drop policy if exists "push_devices_own_read" on "better_supabase"."push_devices";
-create policy "push_devices_own_read" on "better_supabase"."push_devices" for select to authenticated
+drop policy if exists push_devices_own_read on "better_supabase"."push_devices";
+create policy push_devices_own_read on "better_supabase"."push_devices"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
-drop policy if exists "push_devices_own_delete" on "better_supabase"."push_devices";
-create policy "push_devices_own_delete" on "better_supabase"."push_devices" for delete to authenticated
+drop policy if exists push_devices_own_delete on "better_supabase"."push_devices";
+create policy push_devices_own_delete on "better_supabase"."push_devices"
+  for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 -- Registers the caller's device, or refreshes it; returns the device id.

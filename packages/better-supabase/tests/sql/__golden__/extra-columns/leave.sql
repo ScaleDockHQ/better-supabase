@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:9ec706a053efd8fd1c8bf841b5abf29b28a1be5aa3993d733e5058604b025cd3
+-- @bsb-hash sha256:36c3bbd48ffe39e3977fb3f1461bf12b990dabca5ad98755f39e1b98fe8186ed
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -89,7 +89,8 @@ revoke all on "better_supabase"."leave_types" from anon, authenticated;
 grant select on "better_supabase"."leave_types" to authenticated;
 grant all on "better_supabase"."leave_types" to service_role;
 drop policy if exists leave_types_read on "better_supabase"."leave_types";
-create policy leave_types_read on "better_supabase"."leave_types" for select to authenticated
+create policy leave_types_read on "better_supabase"."leave_types"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 create table if not exists "better_supabase"."leave_requests" (
@@ -122,7 +123,8 @@ revoke all on "better_supabase"."leave_requests" from anon, authenticated;
 grant select on "better_supabase"."leave_requests" to authenticated;
 grant all on "better_supabase"."leave_requests" to service_role;
 drop policy if exists leave_requests_read on "better_supabase"."leave_requests";
-create policy leave_requests_read on "better_supabase"."leave_requests" for select to authenticated
+create policy leave_requests_read on "better_supabase"."leave_requests"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 

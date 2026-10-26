@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:ed898b0a98b2155f5a53b2667b80406cce06d7a9c04d4f39f683a65ef08044ca
+-- @bsb-hash sha256:2b256984f6a4c438b913c9521b43323919a1aa77945ba2cc131fcc65bd365713
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -982,11 +982,10 @@ revoke execute on function "better_supabase"."audit_reads_all"() from public, an
 grant execute on function "better_supabase"."audit_read_tenants"() to authenticated, service_role;
 grant execute on function "better_supabase"."audit_reads_all"() to authenticated, service_role;
 drop policy if exists bsb_audit_read on "better_supabase"."audit_events";
-create policy bsb_audit_read on "better_supabase"."audit_events" for select to authenticated
-  using (
-    "organization_id" in (select "better_supabase"."audit_read_tenants"())
-    or (select "better_supabase"."audit_reads_all"())
-  );
+create policy bsb_audit_read on "better_supabase"."audit_events"
+  for select to authenticated
+  using ("organization_id" in (select "better_supabase"."audit_read_tenants"())
+    or (select "better_supabase"."audit_reads_all"()));
 grant select on "better_supabase"."audit_events" to authenticated;
 
 -- Deletes up to batch entries older than older_than and returns how many.

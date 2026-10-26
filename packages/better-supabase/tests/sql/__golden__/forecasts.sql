@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:8e3521fdc248e47bf6447c6394ad4f1821965e48cb17dcbb4722c61edec7de91
+-- @bsb-hash sha256:4a8de7bee5a9211935fe70191906b4c454ee7f2489f2fe6a57cdc2eda17df034
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -107,11 +107,13 @@ revoke all on "better_supabase"."forecast_snapshot_deals" from anon, authenticat
 grant select on "better_supabase"."forecast_snapshot_deals" to authenticated;
 grant all on "better_supabase"."forecast_snapshot_deals" to service_role;
 drop policy if exists forecast_snapshots_read on "better_supabase"."forecast_snapshots";
-create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 drop policy if exists forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals";
-create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 
 -- Takes a snapshot of the forecast call for one currency between since and
 -- until: the deal_forecast totals for the whole organization and every deal
@@ -368,7 +370,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:e2a8b9b0dbf7bd1368fe8e45664ca929fe2aae38e4c5e14fadb261aac0cad586
+-- @bsb-hash sha256:ee4a5b43d7e8d210977113ca9932eb4e7fb07f7b064caaa1ad747db6d7af7afa
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -474,11 +476,13 @@ revoke all on "better_supabase"."forecast_snapshot_deals" from anon, authenticat
 grant select on "better_supabase"."forecast_snapshot_deals" to authenticated;
 grant all on "better_supabase"."forecast_snapshot_deals" to service_role;
 drop policy if exists forecast_snapshots_read on "better_supabase"."forecast_snapshots";
-create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 drop policy if exists forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals";
-create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 
 -- Takes a snapshot of the forecast call for one currency between since and
 -- until: the deal_forecast totals for the whole organization and every deal
@@ -735,7 +739,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:6d22105d472f6efb04a032905b73cc8d25a0be2969c46cb0a42edc20547083ff
+-- @bsb-hash sha256:623320cc0be99d7128ef006f159064985a3a7dab3100791d1562f1c53665919f
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -843,11 +847,13 @@ revoke all on "app_private"."forecast_snapshot_deals" from anon, authenticated;
 grant select on "app_private"."forecast_snapshot_deals" to authenticated;
 grant all on "app_private"."forecast_snapshot_deals" to service_role;
 drop policy if exists forecast_snapshots_read on "app_private"."forecast_snapshots";
-create policy forecast_snapshots_read on "app_private"."forecast_snapshots" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshots_read on "app_private"."forecast_snapshots"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 drop policy if exists forecast_snapshot_deals_read on "app_private"."forecast_snapshot_deals";
-create policy forecast_snapshot_deals_read on "app_private"."forecast_snapshot_deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshot_deals_read on "app_private"."forecast_snapshot_deals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 
 -- Takes a snapshot of the forecast call for one currency between since and
 -- until: the deal_forecast totals for the whole organization and every deal
@@ -1104,7 +1110,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:cf287d4cbf9166b146910b59688c55ea3daa9cb7849f8c6830ee8de067473eb9
+-- @bsb-hash sha256:8284b14e79b4546b11677421a83c1b37d82dcdcc299057718d71aacd041e8c5b
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1210,11 +1216,13 @@ revoke all on "better_supabase"."forecast_snapshot_deals" from anon, authenticat
 grant select on "better_supabase"."forecast_snapshot_deals" to authenticated;
 grant all on "better_supabase"."forecast_snapshot_deals" to service_role;
 drop policy if exists forecast_snapshots_read on "better_supabase"."forecast_snapshots";
-create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 drop policy if exists forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals";
-create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 
 -- Takes a snapshot of the forecast call for one currency between since and
 -- until: the deal_forecast totals for the whole organization and every deal
@@ -1529,7 +1537,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:ca60bc68d4993f3aaf919ca7a07a6129aae5c300cb503ec591cc20fb1a8def19
+-- @bsb-hash sha256:8765ce609a09925db236f5881f574a6c76b8b84224db93e4e30a2ca67de084a4
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1645,11 +1653,13 @@ alter table "better_supabase"."forecast_snapshot_deals" enable row level securit
 grant select on "better_supabase"."forecast_snapshot_deals" to authenticated;
 grant all on "better_supabase"."forecast_snapshot_deals" to service_role;
 drop policy if exists bsb_forecast_snapshots_select on "better_supabase"."forecast_snapshots";
-create policy bsb_forecast_snapshots_select on "better_supabase"."forecast_snapshots" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy bsb_forecast_snapshots_select on "better_supabase"."forecast_snapshots"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 drop policy if exists bsb_forecast_snapshot_deals_select on "better_supabase"."forecast_snapshot_deals";
-create policy bsb_forecast_snapshot_deals_select on "better_supabase"."forecast_snapshot_deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy bsb_forecast_snapshot_deals_select on "better_supabase"."forecast_snapshot_deals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 
 -- Takes a snapshot of the forecast call for one currency between since and
 -- until: the deal_forecast totals for the whole organization and every deal
@@ -1906,7 +1916,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:21f3e98b3ffd468e802ea7c9268430f61a7fd2ba0b42e2b10fe207c835d36bfb
+-- @bsb-hash sha256:31f20fecbfa2b514170a10a0aa61ecb03eafe6e675afc07b498845b7a45e2858
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2012,11 +2022,13 @@ revoke all on "better_supabase"."forecast_snapshot_deals" from anon, authenticat
 grant select on "better_supabase"."forecast_snapshot_deals" to authenticated;
 grant all on "better_supabase"."forecast_snapshot_deals" to service_role;
 drop policy if exists forecast_snapshots_read on "better_supabase"."forecast_snapshots";
-create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 drop policy if exists forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals";
-create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 
 -- Takes a snapshot of the forecast call for one currency between since and
 -- until: the deal_forecast totals for the whole organization and every deal

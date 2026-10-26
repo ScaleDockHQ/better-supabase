@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:34396d1ea9cae2e9e4ee264355329ca3f9f375b3b66a7632e38586c563f191e4
+-- @bsb-hash sha256:3d1b11a7663a6b33c9d357c8f3dcfe26ef4d495ec877678de6f3648079b92f02
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -105,7 +105,8 @@ revoke all on "better_supabase"."lease_agreements" from anon, authenticated;
 grant select on "better_supabase"."lease_agreements" to authenticated;
 grant all on "better_supabase"."lease_agreements" to service_role;
 drop policy if exists "lease_agreements_read" on "better_supabase"."lease_agreements";
-create policy "lease_agreements_read" on "better_supabase"."lease_agreements" for select to authenticated
+create policy lease_agreements_read on "better_supabase"."lease_agreements"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 -- One row per rent period posted to the ledger, so each period posts once.
@@ -129,7 +130,8 @@ revoke all on "better_supabase"."lease_charges" from anon, authenticated;
 grant select on "better_supabase"."lease_charges" to authenticated;
 grant all on "better_supabase"."lease_charges" to service_role;
 drop policy if exists "lease_charges_read" on "better_supabase"."lease_charges";
-create policy "lease_charges_read" on "better_supabase"."lease_charges" for select to authenticated
+create policy lease_charges_read on "better_supabase"."lease_charges"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 

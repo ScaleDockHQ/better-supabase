@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:a531c2b1e74eeee3bff9e9efc023ab1e983ac7eef3be460157545cd673b90242
+-- @bsb-hash sha256:74863309e11b94bea63f8740fab47e82f56c7a2f2c8754fbafbf84b6fe93bf88
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,7 +98,8 @@ revoke all on "better_supabase"."forms" from anon, authenticated;
 grant select on "better_supabase"."forms" to authenticated;
 grant all on "better_supabase"."forms" to service_role;
 drop policy if exists forms_read on "better_supabase"."forms";
-create policy forms_read on "better_supabase"."forms" for select to authenticated
+create policy forms_read on "better_supabase"."forms"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "better_supabase"."form_versions" (
@@ -117,7 +118,8 @@ revoke all on "better_supabase"."form_versions" from anon, authenticated;
 grant select on "better_supabase"."form_versions" to authenticated;
 grant all on "better_supabase"."form_versions" to service_role;
 drop policy if exists form_versions_read on "better_supabase"."form_versions";
-create policy form_versions_read on "better_supabase"."form_versions" for select to authenticated
+create policy form_versions_read on "better_supabase"."form_versions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "better_supabase"."form_submissions" (
@@ -147,7 +149,8 @@ revoke all on "better_supabase"."form_submissions" from anon, authenticated;
 grant select on "better_supabase"."form_submissions" to authenticated;
 grant all on "better_supabase"."form_submissions" to service_role;
 drop policy if exists form_submissions_read on "better_supabase"."form_submissions";
-create policy form_submissions_read on "better_supabase"."form_submissions" for select to authenticated
+create policy form_submissions_read on "better_supabase"."form_submissions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()));
 alter table "better_supabase"."form_submissions" add column if not exists "score" numeric;
 alter table "better_supabase"."form_submissions" add column if not exists "max_score" numeric;
@@ -1156,7 +1159,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:8252c11d54f2638a45bea0afe1ab6cc3666256bf08cb4a38d37fcca6d626a24f
+-- @bsb-hash sha256:0d4f2f1e9441185b0cd8b12556ccb724151339a78102d3e7d632d28489374406
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1253,7 +1256,8 @@ revoke all on "better_supabase"."forms" from anon, authenticated;
 grant select on "better_supabase"."forms" to authenticated;
 grant all on "better_supabase"."forms" to service_role;
 drop policy if exists forms_read on "better_supabase"."forms";
-create policy forms_read on "better_supabase"."forms" for select to authenticated
+create policy forms_read on "better_supabase"."forms"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "better_supabase"."form_versions" (
@@ -1272,7 +1276,8 @@ revoke all on "better_supabase"."form_versions" from anon, authenticated;
 grant select on "better_supabase"."form_versions" to authenticated;
 grant all on "better_supabase"."form_versions" to service_role;
 drop policy if exists form_versions_read on "better_supabase"."form_versions";
-create policy form_versions_read on "better_supabase"."form_versions" for select to authenticated
+create policy form_versions_read on "better_supabase"."form_versions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "better_supabase"."form_submissions" (
@@ -1302,7 +1307,8 @@ revoke all on "better_supabase"."form_submissions" from anon, authenticated;
 grant select on "better_supabase"."form_submissions" to authenticated;
 grant all on "better_supabase"."form_submissions" to service_role;
 drop policy if exists form_submissions_read on "better_supabase"."form_submissions";
-create policy form_submissions_read on "better_supabase"."form_submissions" for select to authenticated
+create policy form_submissions_read on "better_supabase"."form_submissions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()));
 alter table "better_supabase"."form_submissions" add column if not exists "score" numeric;
 alter table "better_supabase"."form_submissions" add column if not exists "max_score" numeric;
@@ -2459,7 +2465,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:f9f533c1321ff920596f71ae3a7e6f4c8235e1e836c476431eb4ddc58e730743
+-- @bsb-hash sha256:24e8771b9070b149e15be92e055cbf887f2c62a969ad75d72b8b793779e45e23
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2558,7 +2564,8 @@ revoke all on "app_private"."forms" from anon, authenticated;
 grant select on "app_private"."forms" to authenticated;
 grant all on "app_private"."forms" to service_role;
 drop policy if exists forms_read on "app_private"."forms";
-create policy forms_read on "app_private"."forms" for select to authenticated
+create policy forms_read on "app_private"."forms"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "app_private"."form_versions" (
@@ -2577,7 +2584,8 @@ revoke all on "app_private"."form_versions" from anon, authenticated;
 grant select on "app_private"."form_versions" to authenticated;
 grant all on "app_private"."form_versions" to service_role;
 drop policy if exists form_versions_read on "app_private"."form_versions";
-create policy form_versions_read on "app_private"."form_versions" for select to authenticated
+create policy form_versions_read on "app_private"."form_versions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "app_private"."form_submissions" (
@@ -2607,7 +2615,8 @@ revoke all on "app_private"."form_submissions" from anon, authenticated;
 grant select on "app_private"."form_submissions" to authenticated;
 grant all on "app_private"."form_submissions" to service_role;
 drop policy if exists form_submissions_read on "app_private"."form_submissions";
-create policy form_submissions_read on "app_private"."form_submissions" for select to authenticated
+create policy form_submissions_read on "app_private"."form_submissions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()));
 alter table "app_private"."form_submissions" add column if not exists "score" numeric;
 alter table "app_private"."form_submissions" add column if not exists "max_score" numeric;
@@ -3616,7 +3625,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:8e2628a1da170a04053700a33e8280f53badb06f6ad41f9908e5fb3b63a85b4f
+-- @bsb-hash sha256:b39f63324c119cfc7f705165a1c861ae9973b4f7f33bbad0aba0b13e5fb65082
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3713,7 +3722,8 @@ revoke all on "better_supabase"."forms" from anon, authenticated;
 grant select on "better_supabase"."forms" to authenticated;
 grant all on "better_supabase"."forms" to service_role;
 drop policy if exists forms_read on "better_supabase"."forms";
-create policy forms_read on "better_supabase"."forms" for select to authenticated
+create policy forms_read on "better_supabase"."forms"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "better_supabase"."form_versions" (
@@ -3732,7 +3742,8 @@ revoke all on "better_supabase"."form_versions" from anon, authenticated;
 grant select on "better_supabase"."form_versions" to authenticated;
 grant all on "better_supabase"."form_versions" to service_role;
 drop policy if exists form_versions_read on "better_supabase"."form_versions";
-create policy form_versions_read on "better_supabase"."form_versions" for select to authenticated
+create policy form_versions_read on "better_supabase"."form_versions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "better_supabase"."form_submissions" (
@@ -3762,7 +3773,8 @@ revoke all on "better_supabase"."form_submissions" from anon, authenticated;
 grant select on "better_supabase"."form_submissions" to authenticated;
 grant all on "better_supabase"."form_submissions" to service_role;
 drop policy if exists form_submissions_read on "better_supabase"."form_submissions";
-create policy form_submissions_read on "better_supabase"."form_submissions" for select to authenticated
+create policy form_submissions_read on "better_supabase"."form_submissions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()));
 alter table "better_supabase"."form_submissions" add column if not exists "score" numeric;
 alter table "better_supabase"."form_submissions" add column if not exists "max_score" numeric;
@@ -4904,7 +4916,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:6758960676ec621feeb466accb347414caca7908be7492567f6a801c1b6eb369
+-- @bsb-hash sha256:9baf10cefaa70682b0b64169cbd027109c1c015a213220bcf1cd3b2e29314085
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5014,7 +5026,8 @@ alter table "better_supabase"."forms" enable row level security;
 grant select on "better_supabase"."forms" to authenticated;
 grant all on "better_supabase"."forms" to service_role;
 drop policy if exists bsb_forms_select on "better_supabase"."forms";
-create policy bsb_forms_select on "better_supabase"."forms" for select to authenticated
+create policy bsb_forms_select on "better_supabase"."forms"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 -- better_supabase.form_versions is the app's table: this block adds only the columns it needs.
@@ -5030,7 +5043,8 @@ alter table "better_supabase"."form_versions" enable row level security;
 grant select on "better_supabase"."form_versions" to authenticated;
 grant all on "better_supabase"."form_versions" to service_role;
 drop policy if exists bsb_form_versions_select on "better_supabase"."form_versions";
-create policy bsb_form_versions_select on "better_supabase"."form_versions" for select to authenticated
+create policy bsb_form_versions_select on "better_supabase"."form_versions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 -- better_supabase.form_submissions is the app's table: this block adds only the columns it needs.
@@ -5057,7 +5071,8 @@ alter table "better_supabase"."form_submissions" enable row level security;
 grant select on "better_supabase"."form_submissions" to authenticated;
 grant all on "better_supabase"."form_submissions" to service_role;
 drop policy if exists bsb_form_submissions_select on "better_supabase"."form_submissions";
-create policy bsb_form_submissions_select on "better_supabase"."form_submissions" for select to authenticated
+create policy bsb_form_submissions_select on "better_supabase"."form_submissions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()));
 alter table "better_supabase"."form_submissions" add column if not exists "score" numeric;
 alter table "better_supabase"."form_submissions" add column if not exists "max_score" numeric;
@@ -6066,7 +6081,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:94c0a3f4d19049a6002228de65819c5379c22b0e4ec679b1068834c1555da40a
+-- @bsb-hash sha256:1b218a5df9fa78feaba6ec0b5cb9f3df40eb4fa8e15ed95e53ec9138065d16cf
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6163,7 +6178,8 @@ revoke all on "better_supabase"."forms" from anon, authenticated;
 grant select on "better_supabase"."forms" to authenticated;
 grant all on "better_supabase"."forms" to service_role;
 drop policy if exists forms_read on "better_supabase"."forms";
-create policy forms_read on "better_supabase"."forms" for select to authenticated
+create policy forms_read on "better_supabase"."forms"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "better_supabase"."form_versions" (
@@ -6182,7 +6198,8 @@ revoke all on "better_supabase"."form_versions" from anon, authenticated;
 grant select on "better_supabase"."form_versions" to authenticated;
 grant all on "better_supabase"."form_versions" to service_role;
 drop policy if exists form_versions_read on "better_supabase"."form_versions";
-create policy form_versions_read on "better_supabase"."form_versions" for select to authenticated
+create policy form_versions_read on "better_supabase"."form_versions"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "better_supabase"."form_submissions" (
@@ -6212,7 +6229,8 @@ revoke all on "better_supabase"."form_submissions" from anon, authenticated;
 grant select on "better_supabase"."form_submissions" to authenticated;
 grant all on "better_supabase"."form_submissions" to service_role;
 drop policy if exists form_submissions_read on "better_supabase"."form_submissions";
-create policy form_submissions_read on "better_supabase"."form_submissions" for select to authenticated
+create policy form_submissions_read on "better_supabase"."form_submissions"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()));
 alter table "better_supabase"."form_submissions" add column if not exists "score" numeric;
 alter table "better_supabase"."form_submissions" add column if not exists "max_score" numeric;

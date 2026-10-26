@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@5 managed
--- @bsb-hash sha256:b834bdc1762f532e1641fbdbaa964385322972f9898ba73c0a18ad165e5393da
+-- @bsb-hash sha256:f2dca292aef519f47fefcdd714fb950117e9b1c46702c85ff885954b108c9808
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -82,14 +82,14 @@ create trigger bsb_updated_at before update on "centrakit"."webhook_destinations
 alter table "centrakit"."webhook_destinations" enable row level security;
 grant all on "centrakit"."webhook_destinations" to service_role;
 grant select, insert, update, delete on "centrakit"."webhook_destinations" to authenticated;
-drop policy if exists "bsb_webhook_endpoints_read" on "centrakit"."webhook_destinations";
+drop policy if exists bsb_webhook_endpoints_read on "centrakit"."webhook_destinations";
 -- centrakit.webhook_destinations: the app's policy webhook_destinations_select already allows what bsb_webhook_endpoints_read would, so the block adds none.
 drop policy if exists bsb_webhook_endpoints_write on "centrakit"."webhook_destinations";
-drop policy if exists "bsb_webhook_endpoints_insert" on "centrakit"."webhook_destinations";
+drop policy if exists bsb_webhook_endpoints_insert on "centrakit"."webhook_destinations";
 -- centrakit.webhook_destinations: the app's policy webhook_destinations_insert already allows what bsb_webhook_endpoints_insert would, so the block adds none.
-drop policy if exists "bsb_webhook_endpoints_update" on "centrakit"."webhook_destinations";
+drop policy if exists bsb_webhook_endpoints_update on "centrakit"."webhook_destinations";
 -- centrakit.webhook_destinations: the app's policy webhook_destinations_update already allows what bsb_webhook_endpoints_update would, so the block adds none.
-drop policy if exists "bsb_webhook_endpoints_delete" on "centrakit"."webhook_destinations";
+drop policy if exists bsb_webhook_endpoints_delete on "centrakit"."webhook_destinations";
 -- centrakit.webhook_destinations: the app's policy webhook_destinations_delete already allows what bsb_webhook_endpoints_delete would, so the block adds none.
 
 -- centrakit.webhook_destination_secrets is the app's table, and it has every column this block needs.
@@ -107,8 +107,10 @@ create unique index if not exists webhook_deliveries_endpoint_event_idx on "cent
 alter table "centrakit"."webhook_deliveries" enable row level security;
 grant all on "centrakit"."webhook_deliveries" to service_role;
 grant select on "centrakit"."webhook_deliveries" to authenticated;
-drop policy if exists "bsb_webhook_deliveries_read" on "centrakit"."webhook_deliveries";
-create policy "bsb_webhook_deliveries_read" on "centrakit"."webhook_deliveries" for select to authenticated using ("organization_id" in (select better_supabase.tenant_ids_with('webhook.view')));
+drop policy if exists bsb_webhook_deliveries_read on "centrakit"."webhook_deliveries";
+create policy bsb_webhook_deliveries_read on "centrakit"."webhook_deliveries"
+  for select to authenticated
+  using ("organization_id" in (select better_supabase.tenant_ids_with('webhook.view')));
 drop trigger if exists "bsb_webhook_endpoint_reenable" on "centrakit"."webhook_destinations";
 drop trigger if exists "bsb_webhook_secret_vault" on "centrakit"."webhook_destination_secrets";
 

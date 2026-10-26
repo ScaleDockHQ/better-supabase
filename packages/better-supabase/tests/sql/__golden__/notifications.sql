@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@9 managed
--- @bsb-hash sha256:0146a73a6a43a52a4d60e12ef893b245be7c6e772fb4a2f6f051f0b416fab4c0
+-- @bsb-hash sha256:27020da4196fabb1307e3c4ee9e21c0ef102a66c9dae429e298b4afe9f314af6
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -174,12 +174,19 @@ revoke all on "better_supabase"."notification_recipients" from anon, authenticat
 grant select on "better_supabase"."notification_recipients" to authenticated;
 grant update ("read_at", "dismissed_at") on "better_supabase"."notification_recipients" to authenticated;
 grant all on "better_supabase"."notification_recipients" to service_role;
-drop policy if exists "bsb_notification_recipients_read" on "better_supabase"."notification_recipients";
-create policy "bsb_notification_recipients_read" on "better_supabase"."notification_recipients" for select to authenticated using ("user_id" = (select auth.uid()));
-drop policy if exists "bsb_notification_recipients_update" on "better_supabase"."notification_recipients";
-create policy "bsb_notification_recipients_update" on "better_supabase"."notification_recipients" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_notification_events_read" on "better_supabase"."notification_events";
-create policy "bsb_notification_events_read" on "better_supabase"."notification_events" for select to authenticated using (
+drop policy if exists bsb_notification_recipients_read on "better_supabase"."notification_recipients";
+create policy bsb_notification_recipients_read on "better_supabase"."notification_recipients"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
+drop policy if exists bsb_notification_recipients_update on "better_supabase"."notification_recipients";
+create policy bsb_notification_recipients_update on "better_supabase"."notification_recipients"
+  for update to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists bsb_notification_events_read on "better_supabase"."notification_events";
+create policy bsb_notification_events_read on "better_supabase"."notification_events"
+  for select to authenticated
+  using (
   exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."event_id" = "better_supabase"."notification_events"."id"
@@ -209,8 +216,10 @@ alter table "better_supabase"."notification_deliveries" enable row level securit
 revoke all on "better_supabase"."notification_deliveries" from anon, authenticated;
 grant select on "better_supabase"."notification_deliveries" to authenticated;
 grant all on "better_supabase"."notification_deliveries" to service_role;
-drop policy if exists "bsb_notification_deliveries_read" on "better_supabase"."notification_deliveries";
-create policy "bsb_notification_deliveries_read" on "better_supabase"."notification_deliveries" for select to authenticated using (
+drop policy if exists bsb_notification_deliveries_read on "better_supabase"."notification_deliveries";
+create policy bsb_notification_deliveries_read on "better_supabase"."notification_deliveries"
+  for select to authenticated
+  using (
   exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."id" = "better_supabase"."notification_deliveries"."recipient_id"
@@ -293,8 +302,10 @@ alter table "better_supabase"."notification_suppressions" enable row level secur
 revoke all on "better_supabase"."notification_suppressions" from anon, authenticated;
 grant select on "better_supabase"."notification_suppressions" to authenticated;
 grant all on "better_supabase"."notification_suppressions" to service_role;
-drop policy if exists "bsb_notification_suppressions_read" on "better_supabase"."notification_suppressions";
-create policy "bsb_notification_suppressions_read" on "better_supabase"."notification_suppressions" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists bsb_notification_suppressions_read on "better_supabase"."notification_suppressions";
+create policy bsb_notification_suppressions_read on "better_supabase"."notification_suppressions"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
 
 alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
 alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status_at" timestamptz;
@@ -317,15 +328,15 @@ alter table "better_supabase"."notification_delivery_events" enable row level se
 revoke all on "better_supabase"."notification_delivery_events" from anon, authenticated;
 grant select on "better_supabase"."notification_delivery_events" to authenticated;
 grant all on "better_supabase"."notification_delivery_events" to service_role;
-drop policy if exists "bsb_notification_delivery_events_read" on "better_supabase"."notification_delivery_events";
-create policy "bsb_notification_delivery_events_read" on "better_supabase"."notification_delivery_events" for select to authenticated using (
-  exists (
+drop policy if exists bsb_notification_delivery_events_read on "better_supabase"."notification_delivery_events";
+create policy bsb_notification_delivery_events_read on "better_supabase"."notification_delivery_events"
+  for select to authenticated
+  using (exists (
     select 1 from "better_supabase"."notification_deliveries" d
     join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
     where d."id" = "better_supabase"."notification_delivery_events"."delivery_id"
       and r."user_id" = (select auth.uid())
-  )
-);
+  ));
 
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
@@ -1327,9 +1338,10 @@ create trigger "bsb_notification_broadcast_update" after update of "read_at", "d
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_notifications_receive" on realtime.messages;
-    create policy "bsb_notifications_receive" on realtime.messages for select to authenticated
-      using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'notifications:' || (select auth.uid())::text || '$'));
+        drop policy if exists bsb_notifications_receive on realtime.messages;
+create policy bsb_notifications_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'notifications:' || (select auth.uid())::text || '$'));
   end if;
 end;
 $$;
@@ -1549,7 +1561,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@9 managed
--- @bsb-hash sha256:c617cf9353162edbe62e0562de46a227f71759f88d44a94464741f7ec4e69593
+-- @bsb-hash sha256:32d9b00780dfc2d0582a814b980e36c4e87d5dfae1f12bb09b4253b4c6ccff96
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1722,12 +1734,19 @@ revoke all on "better_supabase"."notification_recipients" from anon, authenticat
 grant select on "better_supabase"."notification_recipients" to authenticated;
 grant update ("read_at", "dismissed_at") on "better_supabase"."notification_recipients" to authenticated;
 grant all on "better_supabase"."notification_recipients" to service_role;
-drop policy if exists "bsb_notification_recipients_read" on "better_supabase"."notification_recipients";
-create policy "bsb_notification_recipients_read" on "better_supabase"."notification_recipients" for select to authenticated using ("user_id" = (select auth.uid()));
-drop policy if exists "bsb_notification_recipients_update" on "better_supabase"."notification_recipients";
-create policy "bsb_notification_recipients_update" on "better_supabase"."notification_recipients" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_notification_events_read" on "better_supabase"."notification_events";
-create policy "bsb_notification_events_read" on "better_supabase"."notification_events" for select to authenticated using (
+drop policy if exists bsb_notification_recipients_read on "better_supabase"."notification_recipients";
+create policy bsb_notification_recipients_read on "better_supabase"."notification_recipients"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
+drop policy if exists bsb_notification_recipients_update on "better_supabase"."notification_recipients";
+create policy bsb_notification_recipients_update on "better_supabase"."notification_recipients"
+  for update to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists bsb_notification_events_read on "better_supabase"."notification_events";
+create policy bsb_notification_events_read on "better_supabase"."notification_events"
+  for select to authenticated
+  using (
   exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."event_id" = "better_supabase"."notification_events"."id"
@@ -1757,8 +1776,10 @@ alter table "better_supabase"."notification_deliveries" enable row level securit
 revoke all on "better_supabase"."notification_deliveries" from anon, authenticated;
 grant select on "better_supabase"."notification_deliveries" to authenticated;
 grant all on "better_supabase"."notification_deliveries" to service_role;
-drop policy if exists "bsb_notification_deliveries_read" on "better_supabase"."notification_deliveries";
-create policy "bsb_notification_deliveries_read" on "better_supabase"."notification_deliveries" for select to authenticated using (
+drop policy if exists bsb_notification_deliveries_read on "better_supabase"."notification_deliveries";
+create policy bsb_notification_deliveries_read on "better_supabase"."notification_deliveries"
+  for select to authenticated
+  using (
   exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."id" = "better_supabase"."notification_deliveries"."recipient_id"
@@ -1841,8 +1862,10 @@ alter table "better_supabase"."notification_suppressions" enable row level secur
 revoke all on "better_supabase"."notification_suppressions" from anon, authenticated;
 grant select on "better_supabase"."notification_suppressions" to authenticated;
 grant all on "better_supabase"."notification_suppressions" to service_role;
-drop policy if exists "bsb_notification_suppressions_read" on "better_supabase"."notification_suppressions";
-create policy "bsb_notification_suppressions_read" on "better_supabase"."notification_suppressions" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists bsb_notification_suppressions_read on "better_supabase"."notification_suppressions";
+create policy bsb_notification_suppressions_read on "better_supabase"."notification_suppressions"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
 
 alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
 alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status_at" timestamptz;
@@ -1865,15 +1888,15 @@ alter table "better_supabase"."notification_delivery_events" enable row level se
 revoke all on "better_supabase"."notification_delivery_events" from anon, authenticated;
 grant select on "better_supabase"."notification_delivery_events" to authenticated;
 grant all on "better_supabase"."notification_delivery_events" to service_role;
-drop policy if exists "bsb_notification_delivery_events_read" on "better_supabase"."notification_delivery_events";
-create policy "bsb_notification_delivery_events_read" on "better_supabase"."notification_delivery_events" for select to authenticated using (
-  exists (
+drop policy if exists bsb_notification_delivery_events_read on "better_supabase"."notification_delivery_events";
+create policy bsb_notification_delivery_events_read on "better_supabase"."notification_delivery_events"
+  for select to authenticated
+  using (exists (
     select 1 from "better_supabase"."notification_deliveries" d
     join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
     where d."id" = "better_supabase"."notification_delivery_events"."delivery_id"
       and r."user_id" = (select auth.uid())
-  )
-);
+  ));
 
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
@@ -2949,9 +2972,10 @@ create trigger "bsb_notification_broadcast_update" after update of "read_at", "d
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_notifications_receive" on realtime.messages;
-    create policy "bsb_notifications_receive" on realtime.messages for select to authenticated
-      using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'notifications:' || (select auth.uid())::text || '$'));
+        drop policy if exists bsb_notifications_receive on realtime.messages;
+create policy bsb_notifications_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'notifications:' || (select auth.uid())::text || '$'));
   end if;
 end;
 $$;
@@ -3171,7 +3195,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@9 managed
--- @bsb-hash sha256:6a53caa2e90975d4c6ec51916991bcdeb566466c5f2f4dea88b98fc158b60e00
+-- @bsb-hash sha256:79dbded0bbe61839bc26147dc254b7c12eddd6f45e8aace7f9569f6abb103902
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3346,12 +3370,19 @@ revoke all on "app_private"."notification_recipients" from anon, authenticated;
 grant select on "app_private"."notification_recipients" to authenticated;
 grant update ("read_at", "dismissed_at") on "app_private"."notification_recipients" to authenticated;
 grant all on "app_private"."notification_recipients" to service_role;
-drop policy if exists "bsb_notification_recipients_read" on "app_private"."notification_recipients";
-create policy "bsb_notification_recipients_read" on "app_private"."notification_recipients" for select to authenticated using ("user_id" = (select auth.uid()));
-drop policy if exists "bsb_notification_recipients_update" on "app_private"."notification_recipients";
-create policy "bsb_notification_recipients_update" on "app_private"."notification_recipients" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_notification_events_read" on "app_private"."notification_events";
-create policy "bsb_notification_events_read" on "app_private"."notification_events" for select to authenticated using (
+drop policy if exists bsb_notification_recipients_read on "app_private"."notification_recipients";
+create policy bsb_notification_recipients_read on "app_private"."notification_recipients"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
+drop policy if exists bsb_notification_recipients_update on "app_private"."notification_recipients";
+create policy bsb_notification_recipients_update on "app_private"."notification_recipients"
+  for update to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists bsb_notification_events_read on "app_private"."notification_events";
+create policy bsb_notification_events_read on "app_private"."notification_events"
+  for select to authenticated
+  using (
   exists (
     select 1 from "app_private"."notification_recipients" r
     where r."event_id" = "app_private"."notification_events"."id"
@@ -3381,8 +3412,10 @@ alter table "app_private"."notification_deliveries" enable row level security;
 revoke all on "app_private"."notification_deliveries" from anon, authenticated;
 grant select on "app_private"."notification_deliveries" to authenticated;
 grant all on "app_private"."notification_deliveries" to service_role;
-drop policy if exists "bsb_notification_deliveries_read" on "app_private"."notification_deliveries";
-create policy "bsb_notification_deliveries_read" on "app_private"."notification_deliveries" for select to authenticated using (
+drop policy if exists bsb_notification_deliveries_read on "app_private"."notification_deliveries";
+create policy bsb_notification_deliveries_read on "app_private"."notification_deliveries"
+  for select to authenticated
+  using (
   exists (
     select 1 from "app_private"."notification_recipients" r
     where r."id" = "app_private"."notification_deliveries"."recipient_id"
@@ -3465,8 +3498,10 @@ alter table "app_private"."notification_suppressions" enable row level security;
 revoke all on "app_private"."notification_suppressions" from anon, authenticated;
 grant select on "app_private"."notification_suppressions" to authenticated;
 grant all on "app_private"."notification_suppressions" to service_role;
-drop policy if exists "bsb_notification_suppressions_read" on "app_private"."notification_suppressions";
-create policy "bsb_notification_suppressions_read" on "app_private"."notification_suppressions" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists bsb_notification_suppressions_read on "app_private"."notification_suppressions";
+create policy bsb_notification_suppressions_read on "app_private"."notification_suppressions"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
 
 alter table "app_private"."notification_deliveries" add column if not exists "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
 alter table "app_private"."notification_deliveries" add column if not exists "provider_status_at" timestamptz;
@@ -3489,15 +3524,15 @@ alter table "app_private"."notification_delivery_events" enable row level securi
 revoke all on "app_private"."notification_delivery_events" from anon, authenticated;
 grant select on "app_private"."notification_delivery_events" to authenticated;
 grant all on "app_private"."notification_delivery_events" to service_role;
-drop policy if exists "bsb_notification_delivery_events_read" on "app_private"."notification_delivery_events";
-create policy "bsb_notification_delivery_events_read" on "app_private"."notification_delivery_events" for select to authenticated using (
-  exists (
+drop policy if exists bsb_notification_delivery_events_read on "app_private"."notification_delivery_events";
+create policy bsb_notification_delivery_events_read on "app_private"."notification_delivery_events"
+  for select to authenticated
+  using (exists (
     select 1 from "app_private"."notification_deliveries" d
     join "app_private"."notification_recipients" r on r."id" = d."recipient_id"
     where d."id" = "app_private"."notification_delivery_events"."delivery_id"
       and r."user_id" = (select auth.uid())
-  )
-);
+  ));
 
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
@@ -4499,9 +4534,10 @@ create trigger "bsb_notification_broadcast_update" after update of "read_at", "d
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_notifications_receive" on realtime.messages;
-    create policy "bsb_notifications_receive" on realtime.messages for select to authenticated
-      using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'notifications:' || (select auth.uid())::text || '$'));
+        drop policy if exists bsb_notifications_receive on realtime.messages;
+create policy bsb_notifications_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'notifications:' || (select auth.uid())::text || '$'));
   end if;
 end;
 $$;
@@ -4721,7 +4757,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@9 managed
--- @bsb-hash sha256:5b224cc2ac06177cb851e5026a9f3a38637c90cfbcfc695ba742618a4d7d6ad5
+-- @bsb-hash sha256:58a919f691e968314dce7050fd60c555d82185758a1ff4a2e9afd2ac8893181c
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4894,12 +4930,19 @@ revoke all on "better_supabase"."notification_recipients" from anon, authenticat
 grant select on "better_supabase"."notification_recipients" to authenticated;
 grant update ("read_at", "dismissed_at") on "better_supabase"."notification_recipients" to authenticated;
 grant all on "better_supabase"."notification_recipients" to service_role;
-drop policy if exists "bsb_notification_recipients_read" on "better_supabase"."notification_recipients";
-create policy "bsb_notification_recipients_read" on "better_supabase"."notification_recipients" for select to authenticated using ("user_id" = (select auth.uid()));
-drop policy if exists "bsb_notification_recipients_update" on "better_supabase"."notification_recipients";
-create policy "bsb_notification_recipients_update" on "better_supabase"."notification_recipients" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_notification_events_read" on "better_supabase"."notification_events";
-create policy "bsb_notification_events_read" on "better_supabase"."notification_events" for select to authenticated using (
+drop policy if exists bsb_notification_recipients_read on "better_supabase"."notification_recipients";
+create policy bsb_notification_recipients_read on "better_supabase"."notification_recipients"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
+drop policy if exists bsb_notification_recipients_update on "better_supabase"."notification_recipients";
+create policy bsb_notification_recipients_update on "better_supabase"."notification_recipients"
+  for update to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists bsb_notification_events_read on "better_supabase"."notification_events";
+create policy bsb_notification_events_read on "better_supabase"."notification_events"
+  for select to authenticated
+  using (
   exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."event_id" = "better_supabase"."notification_events"."id"
@@ -4929,8 +4972,10 @@ alter table "better_supabase"."notification_deliveries" enable row level securit
 revoke all on "better_supabase"."notification_deliveries" from anon, authenticated;
 grant select on "better_supabase"."notification_deliveries" to authenticated;
 grant all on "better_supabase"."notification_deliveries" to service_role;
-drop policy if exists "bsb_notification_deliveries_read" on "better_supabase"."notification_deliveries";
-create policy "bsb_notification_deliveries_read" on "better_supabase"."notification_deliveries" for select to authenticated using (
+drop policy if exists bsb_notification_deliveries_read on "better_supabase"."notification_deliveries";
+create policy bsb_notification_deliveries_read on "better_supabase"."notification_deliveries"
+  for select to authenticated
+  using (
   exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."id" = "better_supabase"."notification_deliveries"."recipient_id"
@@ -5013,8 +5058,10 @@ alter table "better_supabase"."notification_suppressions" enable row level secur
 revoke all on "better_supabase"."notification_suppressions" from anon, authenticated;
 grant select on "better_supabase"."notification_suppressions" to authenticated;
 grant all on "better_supabase"."notification_suppressions" to service_role;
-drop policy if exists "bsb_notification_suppressions_read" on "better_supabase"."notification_suppressions";
-create policy "bsb_notification_suppressions_read" on "better_supabase"."notification_suppressions" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists bsb_notification_suppressions_read on "better_supabase"."notification_suppressions";
+create policy bsb_notification_suppressions_read on "better_supabase"."notification_suppressions"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
 
 alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
 alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status_at" timestamptz;
@@ -5037,15 +5084,15 @@ alter table "better_supabase"."notification_delivery_events" enable row level se
 revoke all on "better_supabase"."notification_delivery_events" from anon, authenticated;
 grant select on "better_supabase"."notification_delivery_events" to authenticated;
 grant all on "better_supabase"."notification_delivery_events" to service_role;
-drop policy if exists "bsb_notification_delivery_events_read" on "better_supabase"."notification_delivery_events";
-create policy "bsb_notification_delivery_events_read" on "better_supabase"."notification_delivery_events" for select to authenticated using (
-  exists (
+drop policy if exists bsb_notification_delivery_events_read on "better_supabase"."notification_delivery_events";
+create policy bsb_notification_delivery_events_read on "better_supabase"."notification_delivery_events"
+  for select to authenticated
+  using (exists (
     select 1 from "better_supabase"."notification_deliveries" d
     join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
     where d."id" = "better_supabase"."notification_delivery_events"."delivery_id"
       and r."user_id" = (select auth.uid())
-  )
-);
+  ));
 
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
@@ -6047,9 +6094,10 @@ create trigger "bsb_notification_broadcast_update" after update of "read_at", "d
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_notifications_receive" on realtime.messages;
-    create policy "bsb_notifications_receive" on realtime.messages for select to authenticated
-      using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'notifications:' || (select auth.uid())::text || '$'));
+        drop policy if exists bsb_notifications_receive on realtime.messages;
+create policy bsb_notifications_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'notifications:' || (select auth.uid())::text || '$'));
   end if;
 end;
 $$;
@@ -6520,7 +6568,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@9 managed
--- @bsb-hash sha256:c9689800f25810e7c21b5d8241647c681020c436f394e36e923dac583fbb1c54
+-- @bsb-hash sha256:0b899503a621848d497cef777c0caf5b0d9747995378518f2eef09e5d27b3862
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6684,12 +6732,19 @@ alter table "better_supabase"."notification_recipients" enable row level securit
 grant select on "better_supabase"."notification_recipients" to authenticated;
 grant update ("read_at", "dismissed_at") on "better_supabase"."notification_recipients" to authenticated;
 grant all on "better_supabase"."notification_recipients" to service_role;
-drop policy if exists "bsb_notification_recipients_read" on "better_supabase"."notification_recipients";
-create policy "bsb_notification_recipients_read" on "better_supabase"."notification_recipients" for select to authenticated using ("user_id" = (select auth.uid()));
-drop policy if exists "bsb_notification_recipients_update" on "better_supabase"."notification_recipients";
-create policy "bsb_notification_recipients_update" on "better_supabase"."notification_recipients" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_notification_events_read" on "better_supabase"."notification_events";
-create policy "bsb_notification_events_read" on "better_supabase"."notification_events" for select to authenticated using (
+drop policy if exists bsb_notification_recipients_read on "better_supabase"."notification_recipients";
+create policy bsb_notification_recipients_read on "better_supabase"."notification_recipients"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
+drop policy if exists bsb_notification_recipients_update on "better_supabase"."notification_recipients";
+create policy bsb_notification_recipients_update on "better_supabase"."notification_recipients"
+  for update to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists bsb_notification_events_read on "better_supabase"."notification_events";
+create policy bsb_notification_events_read on "better_supabase"."notification_events"
+  for select to authenticated
+  using (
   exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."event_id" = "better_supabase"."notification_events"."id"
@@ -6716,8 +6771,10 @@ create index if not exists notification_deliveries_leased_idx on "better_supabas
 alter table "better_supabase"."notification_deliveries" enable row level security;
 grant select on "better_supabase"."notification_deliveries" to authenticated;
 grant all on "better_supabase"."notification_deliveries" to service_role;
-drop policy if exists "bsb_notification_deliveries_read" on "better_supabase"."notification_deliveries";
-create policy "bsb_notification_deliveries_read" on "better_supabase"."notification_deliveries" for select to authenticated using (
+drop policy if exists bsb_notification_deliveries_read on "better_supabase"."notification_deliveries";
+create policy bsb_notification_deliveries_read on "better_supabase"."notification_deliveries"
+  for select to authenticated
+  using (
   exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."id" = "better_supabase"."notification_deliveries"."recipient_id"
@@ -6794,8 +6851,10 @@ alter table "better_supabase"."notification_suppressions" enable row level secur
 revoke all on "better_supabase"."notification_suppressions" from anon, authenticated;
 grant select on "better_supabase"."notification_suppressions" to authenticated;
 grant all on "better_supabase"."notification_suppressions" to service_role;
-drop policy if exists "bsb_notification_suppressions_read" on "better_supabase"."notification_suppressions";
-create policy "bsb_notification_suppressions_read" on "better_supabase"."notification_suppressions" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists bsb_notification_suppressions_read on "better_supabase"."notification_suppressions";
+create policy bsb_notification_suppressions_read on "better_supabase"."notification_suppressions"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
 
 alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
 alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status_at" timestamptz;
@@ -6818,15 +6877,15 @@ alter table "better_supabase"."notification_delivery_events" enable row level se
 revoke all on "better_supabase"."notification_delivery_events" from anon, authenticated;
 grant select on "better_supabase"."notification_delivery_events" to authenticated;
 grant all on "better_supabase"."notification_delivery_events" to service_role;
-drop policy if exists "bsb_notification_delivery_events_read" on "better_supabase"."notification_delivery_events";
-create policy "bsb_notification_delivery_events_read" on "better_supabase"."notification_delivery_events" for select to authenticated using (
-  exists (
+drop policy if exists bsb_notification_delivery_events_read on "better_supabase"."notification_delivery_events";
+create policy bsb_notification_delivery_events_read on "better_supabase"."notification_delivery_events"
+  for select to authenticated
+  using (exists (
     select 1 from "better_supabase"."notification_deliveries" d
     join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
     where d."id" = "better_supabase"."notification_delivery_events"."delivery_id"
       and r."user_id" = (select auth.uid())
-  )
-);
+  ));
 
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
@@ -7828,9 +7887,10 @@ create trigger "bsb_notification_broadcast_update" after update of "read_at", "d
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_notifications_receive" on realtime.messages;
-    create policy "bsb_notifications_receive" on realtime.messages for select to authenticated
-      using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'notifications:' || (select auth.uid())::text || '$'));
+        drop policy if exists bsb_notifications_receive on realtime.messages;
+create policy bsb_notifications_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'notifications:' || (select auth.uid())::text || '$'));
   end if;
 end;
 $$;
@@ -8050,7 +8110,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@9 managed
--- @bsb-hash sha256:ea48e4106c797a57a71a731659e7f0c6ac0d4fd997c34ccbe883f12d725fe96b
+-- @bsb-hash sha256:b854e10d2218eb8f518f0a1df585119100d8d965cea847d3236c2030b972c15a
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8223,12 +8283,19 @@ revoke all on "better_supabase"."notification_recipients" from anon, authenticat
 grant select on "better_supabase"."notification_recipients" to authenticated;
 grant update ("read_at", "dismissed_at") on "better_supabase"."notification_recipients" to authenticated;
 grant all on "better_supabase"."notification_recipients" to service_role;
-drop policy if exists "bsb_notification_recipients_read" on "better_supabase"."notification_recipients";
-create policy "bsb_notification_recipients_read" on "better_supabase"."notification_recipients" for select to authenticated using ("user_id" = (select auth.uid()));
-drop policy if exists "bsb_notification_recipients_update" on "better_supabase"."notification_recipients";
-create policy "bsb_notification_recipients_update" on "better_supabase"."notification_recipients" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_notification_events_read" on "better_supabase"."notification_events";
-create policy "bsb_notification_events_read" on "better_supabase"."notification_events" for select to authenticated using (
+drop policy if exists bsb_notification_recipients_read on "better_supabase"."notification_recipients";
+create policy bsb_notification_recipients_read on "better_supabase"."notification_recipients"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
+drop policy if exists bsb_notification_recipients_update on "better_supabase"."notification_recipients";
+create policy bsb_notification_recipients_update on "better_supabase"."notification_recipients"
+  for update to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists bsb_notification_events_read on "better_supabase"."notification_events";
+create policy bsb_notification_events_read on "better_supabase"."notification_events"
+  for select to authenticated
+  using (
   exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."event_id" = "better_supabase"."notification_events"."id"
@@ -8258,8 +8325,10 @@ alter table "better_supabase"."notification_deliveries" enable row level securit
 revoke all on "better_supabase"."notification_deliveries" from anon, authenticated;
 grant select on "better_supabase"."notification_deliveries" to authenticated;
 grant all on "better_supabase"."notification_deliveries" to service_role;
-drop policy if exists "bsb_notification_deliveries_read" on "better_supabase"."notification_deliveries";
-create policy "bsb_notification_deliveries_read" on "better_supabase"."notification_deliveries" for select to authenticated using (
+drop policy if exists bsb_notification_deliveries_read on "better_supabase"."notification_deliveries";
+create policy bsb_notification_deliveries_read on "better_supabase"."notification_deliveries"
+  for select to authenticated
+  using (
   exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."id" = "better_supabase"."notification_deliveries"."recipient_id"
@@ -8342,8 +8411,10 @@ alter table "better_supabase"."notification_suppressions" enable row level secur
 revoke all on "better_supabase"."notification_suppressions" from anon, authenticated;
 grant select on "better_supabase"."notification_suppressions" to authenticated;
 grant all on "better_supabase"."notification_suppressions" to service_role;
-drop policy if exists "bsb_notification_suppressions_read" on "better_supabase"."notification_suppressions";
-create policy "bsb_notification_suppressions_read" on "better_supabase"."notification_suppressions" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists bsb_notification_suppressions_read on "better_supabase"."notification_suppressions";
+create policy bsb_notification_suppressions_read on "better_supabase"."notification_suppressions"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
 
 alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
 alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status_at" timestamptz;
@@ -8366,15 +8437,15 @@ alter table "better_supabase"."notification_delivery_events" enable row level se
 revoke all on "better_supabase"."notification_delivery_events" from anon, authenticated;
 grant select on "better_supabase"."notification_delivery_events" to authenticated;
 grant all on "better_supabase"."notification_delivery_events" to service_role;
-drop policy if exists "bsb_notification_delivery_events_read" on "better_supabase"."notification_delivery_events";
-create policy "bsb_notification_delivery_events_read" on "better_supabase"."notification_delivery_events" for select to authenticated using (
-  exists (
+drop policy if exists bsb_notification_delivery_events_read on "better_supabase"."notification_delivery_events";
+create policy bsb_notification_delivery_events_read on "better_supabase"."notification_delivery_events"
+  for select to authenticated
+  using (exists (
     select 1 from "better_supabase"."notification_deliveries" d
     join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
     where d."id" = "better_supabase"."notification_delivery_events"."delivery_id"
       and r."user_id" = (select auth.uid())
-  )
-);
+  ));
 
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
@@ -9376,9 +9447,10 @@ create trigger "bsb_notification_broadcast_update" after update of "read_at", "d
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_notifications_receive" on realtime.messages;
-    create policy "bsb_notifications_receive" on realtime.messages for select to authenticated
-      using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'notifications:' || (select auth.uid())::text || '$'));
+        drop policy if exists bsb_notifications_receive on realtime.messages;
+create policy bsb_notifications_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'notifications:' || (select auth.uid())::text || '$'));
   end if;
 end;
 $$;

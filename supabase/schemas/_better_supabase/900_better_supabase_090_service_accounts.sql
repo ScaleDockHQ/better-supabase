@@ -1,6 +1,6 @@
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:3e58a60998a1811b97df995d73147a26afc61edf84f336bcbfeaddf8cb106769
+-- @bsb-hash sha256:b10630763596e0aafc525ff10bb820d175193439d411c183c36e4794a9049c02
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -47,8 +47,9 @@ grant select on "better_supabase"."service_principals" to authenticated;
 grant all on "better_supabase"."service_principals" to service_role;
 
 drop policy if exists service_principals_read on "better_supabase"."service_principals";
-create policy service_principals_read on "better_supabase"."service_principals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
+create policy service_principals_read on "better_supabase"."service_principals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry

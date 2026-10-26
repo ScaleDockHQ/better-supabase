@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:376f2d324e076197984cbbeebffdb14b9bdaac9bbd3999e230c6c7b721785e58
+-- @bsb-hash sha256:ecddcaee0abf50a9b15c43fb08d32be4ceeeb08c950a2e7985b24ce99ec7168c
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -166,25 +166,29 @@ grant all on "better_supabase"."saved_items" to service_role;
 -- read its record, so a shared list never shows a record to someone who
 -- can't open it. Stars and saved items are the caller's own.
 drop policy if exists subject_collections_read on "better_supabase"."subject_collections";
-create policy subject_collections_read on "better_supabase"."subject_collections" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read')) and (
+create policy subject_collections_read on "better_supabase"."subject_collections"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read')) and (
   ("scope" = 'user' and "owner_id" = (select auth.uid()))
   or ("scope" = 'team' and false)
   or "scope" = 'tenant'
 ));
 drop policy if exists subject_collection_entries_read on "better_supabase"."subject_collection_entries";
-create policy subject_collection_entries_read on "better_supabase"."subject_collection_entries" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
+create policy subject_collection_entries_read on "better_supabase"."subject_collection_entries"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and exists (select 1 from "better_supabase"."subject_collections" c where c."id" = "collection_id")
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists favorites_read on "better_supabase"."favorites";
-create policy favorites_read on "better_supabase"."favorites" for select to authenticated
-using ("user_id" = (select auth.uid())
+create policy favorites_read on "better_supabase"."favorites"
+  for select to authenticated
+  using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists saved_items_read on "better_supabase"."saved_items";
-create policy saved_items_read on "better_supabase"."saved_items" for select to authenticated
-using ("user_id" = (select auth.uid())
+create policy saved_items_read on "better_supabase"."saved_items"
+  for select to authenticated
+  using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -1100,7 +1104,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:0659a32530d163513f573807909bd721b01aa05a915bb9cce46b5e1fae0646ee
+-- @bsb-hash sha256:7590d87a0290189355337c3b6541c6c9bfdb71ffdfddb8eaa9d4e9ef8c864a58
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1265,25 +1269,29 @@ grant all on "better_supabase"."saved_items" to service_role;
 -- read its record, so a shared list never shows a record to someone who
 -- can't open it. Stars and saved items are the caller's own.
 drop policy if exists subject_collections_read on "better_supabase"."subject_collections";
-create policy subject_collections_read on "better_supabase"."subject_collections" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read')) and (
+create policy subject_collections_read on "better_supabase"."subject_collections"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read')) and (
   ("scope" = 'user' and "owner_id" = (select auth.uid()))
   or ("scope" = 'team' and "team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t))
   or "scope" = 'tenant'
 ));
 drop policy if exists subject_collection_entries_read on "better_supabase"."subject_collection_entries";
-create policy subject_collection_entries_read on "better_supabase"."subject_collection_entries" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
+create policy subject_collection_entries_read on "better_supabase"."subject_collection_entries"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and exists (select 1 from "better_supabase"."subject_collections" c where c."id" = "collection_id")
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists favorites_read on "better_supabase"."favorites";
-create policy favorites_read on "better_supabase"."favorites" for select to authenticated
-using ("user_id" = (select auth.uid())
+create policy favorites_read on "better_supabase"."favorites"
+  for select to authenticated
+  using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists saved_items_read on "better_supabase"."saved_items";
-create policy saved_items_read on "better_supabase"."saved_items" for select to authenticated
-using ("user_id" = (select auth.uid())
+create policy saved_items_read on "better_supabase"."saved_items"
+  for select to authenticated
+  using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -2199,7 +2207,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:c5dc312bc6eb9b622280c2fce6d20dac6579015d6a4989765fce33f63133e355
+-- @bsb-hash sha256:e587dfc401292723018b57f9b7763f1a1bac9b87fcabcaefa68d277140ddfa82
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2366,25 +2374,29 @@ grant all on "app_private"."saved_items" to service_role;
 -- read its record, so a shared list never shows a record to someone who
 -- can't open it. Stars and saved items are the caller's own.
 drop policy if exists subject_collections_read on "app_private"."subject_collections";
-create policy subject_collections_read on "app_private"."subject_collections" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read')) and (
+create policy subject_collections_read on "app_private"."subject_collections"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read')) and (
   ("scope" = 'user' and "owner_id" = (select auth.uid()))
   or ("scope" = 'team' and false)
   or "scope" = 'tenant'
 ));
 drop policy if exists subject_collection_entries_read on "app_private"."subject_collection_entries";
-create policy subject_collection_entries_read on "app_private"."subject_collection_entries" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
+create policy subject_collection_entries_read on "app_private"."subject_collection_entries"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and exists (select 1 from "app_private"."subject_collections" c where c."id" = "collection_id")
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists favorites_read on "app_private"."favorites";
-create policy favorites_read on "app_private"."favorites" for select to authenticated
-using ("user_id" = (select auth.uid())
+create policy favorites_read on "app_private"."favorites"
+  for select to authenticated
+  using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists saved_items_read on "app_private"."saved_items";
-create policy saved_items_read on "app_private"."saved_items" for select to authenticated
-using ("user_id" = (select auth.uid())
+create policy saved_items_read on "app_private"."saved_items"
+  for select to authenticated
+  using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -3300,7 +3312,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:ae7f94ed1ff92e5cefd1b0f979673ed9c3b90808a31ebe8d643416bf80e7741f
+-- @bsb-hash sha256:928b521ea00fdeb32f4e13a9ead6ce13df9b1ad519ee2b670f3022859cdc134a
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3465,25 +3477,29 @@ grant all on "better_supabase"."saved_items" to service_role;
 -- read its record, so a shared list never shows a record to someone who
 -- can't open it. Stars and saved items are the caller's own.
 drop policy if exists subject_collections_read on "better_supabase"."subject_collections";
-create policy subject_collections_read on "better_supabase"."subject_collections" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read')) and (
+create policy subject_collections_read on "better_supabase"."subject_collections"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read')) and (
   ("scope" = 'user' and "owner_id" = (select auth.uid()))
   or ("scope" = 'team' and false)
   or "scope" = 'tenant'
 ));
 drop policy if exists subject_collection_entries_read on "better_supabase"."subject_collection_entries";
-create policy subject_collection_entries_read on "better_supabase"."subject_collection_entries" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
+create policy subject_collection_entries_read on "better_supabase"."subject_collection_entries"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and exists (select 1 from "better_supabase"."subject_collections" c where c."id" = "collection_id")
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists favorites_read on "better_supabase"."favorites";
-create policy favorites_read on "better_supabase"."favorites" for select to authenticated
-using ("user_id" = (select auth.uid())
+create policy favorites_read on "better_supabase"."favorites"
+  for select to authenticated
+  using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists saved_items_read on "better_supabase"."saved_items";
-create policy saved_items_read on "better_supabase"."saved_items" for select to authenticated
-using ("user_id" = (select auth.uid())
+create policy saved_items_read on "better_supabase"."saved_items"
+  for select to authenticated
+  using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -4595,7 +4611,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:e251782afdbe32a8b073a558aab7673cf9a99ef737b10f16f856ec0b4eb1bbe3
+-- @bsb-hash sha256:d6672f1559d520217ce48b910f5e41681f7471e9d8ea1165149b420032772801
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4766,25 +4782,29 @@ grant all on "better_supabase"."saved_items" to service_role;
 -- read its record, so a shared list never shows a record to someone who
 -- can't open it. Stars and saved items are the caller's own.
 drop policy if exists bsb_subject_collections_select on "better_supabase"."subject_collections";
-create policy bsb_subject_collections_select on "better_supabase"."subject_collections" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read')) and (
+create policy bsb_subject_collections_select on "better_supabase"."subject_collections"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read')) and (
   ("scope" = 'user' and "owner_id" = (select auth.uid()))
   or ("scope" = 'team' and false)
   or "scope" = 'tenant'
 ));
 drop policy if exists bsb_subject_collection_entries_select on "better_supabase"."subject_collection_entries";
-create policy bsb_subject_collection_entries_select on "better_supabase"."subject_collection_entries" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
+create policy bsb_subject_collection_entries_select on "better_supabase"."subject_collection_entries"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and exists (select 1 from "better_supabase"."subject_collections" c where c."id" = "collection_id")
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists bsb_favorites_select on "better_supabase"."favorites";
-create policy bsb_favorites_select on "better_supabase"."favorites" for select to authenticated
-using ("user_id" = (select auth.uid())
+create policy bsb_favorites_select on "better_supabase"."favorites"
+  for select to authenticated
+  using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists bsb_saved_items_select on "better_supabase"."saved_items";
-create policy bsb_saved_items_select on "better_supabase"."saved_items" for select to authenticated
-using ("user_id" = (select auth.uid())
+create policy bsb_saved_items_select on "better_supabase"."saved_items"
+  for select to authenticated
+  using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -5700,7 +5720,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:f8ce0632195cb69e420f4501a86aca1003a0f02985f95b6a5f91af331e4d5d6c
+-- @bsb-hash sha256:c6fe4cf5c64c82e15c0df8291cffb093ab981b18a0d82387f3f87b5fbba41414
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5865,25 +5885,29 @@ grant all on "better_supabase"."saved_items" to service_role;
 -- read its record, so a shared list never shows a record to someone who
 -- can't open it. Stars and saved items are the caller's own.
 drop policy if exists subject_collections_read on "better_supabase"."subject_collections";
-create policy subject_collections_read on "better_supabase"."subject_collections" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('collections.read')) and (
+create policy subject_collections_read on "better_supabase"."subject_collections"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('collections.read')) and (
   ("scope" = 'user' and "owner_id" = (select auth.uid()))
   or ("scope" = 'team' and false)
   or "scope" = 'tenant'
 ));
 drop policy if exists subject_collection_entries_read on "better_supabase"."subject_collection_entries";
-create policy subject_collection_entries_read on "better_supabase"."subject_collection_entries" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('collections.read'))
+create policy subject_collection_entries_read on "better_supabase"."subject_collection_entries"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and exists (select 1 from "better_supabase"."subject_collections" c where c."id" = "collection_id")
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists favorites_read on "better_supabase"."favorites";
-create policy favorites_read on "better_supabase"."favorites" for select to authenticated
-using ("user_id" = (select auth.uid())
+create policy favorites_read on "better_supabase"."favorites"
+  for select to authenticated
+  using ("user_id" = (select auth.uid())
   and "org_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists saved_items_read on "better_supabase"."saved_items";
-create policy saved_items_read on "better_supabase"."saved_items" for select to authenticated
-using ("user_id" = (select auth.uid())
+create policy saved_items_read on "better_supabase"."saved_items"
+  for select to authenticated
+  using ("user_id" = (select auth.uid())
   and "org_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 

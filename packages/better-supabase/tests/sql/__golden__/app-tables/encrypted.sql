@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:f8bb85f5848d7e79eaaf769488b91fae87dd6990d3a2737d86d672fc8b092401
+-- @bsb-hash sha256:ffac7080e396869e0aa72e87a2421e61cef1de143b4d914c19331b01f5a7a5f5
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -77,14 +77,23 @@ grant select ("id", "organization_id", "created_at", "updated_at", "name") on "p
 grant insert ("id", "organization_id", "created_at", "updated_at", "name", "ssn", "email", "born_on"), update ("id", "organization_id", "created_at", "updated_at", "name", "ssn", "email", "born_on") on "public"."patients" to authenticated;
 grant delete on "public"."patients" to authenticated;
 grant all on "public"."patients" to service_role;
-drop policy if exists "patients_select" on "public"."patients";
-create policy "patients_select" on "public"."patients" for select to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists "patients_insert" on "public"."patients";
-create policy "patients_insert" on "public"."patients" for insert to authenticated with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists "patients_update" on "public"."patients";
-create policy "patients_update" on "public"."patients" for update to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write())) with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists "patients_delete" on "public"."patients";
-create policy "patients_delete" on "public"."patients" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists patients_select on "public"."patients";
+create policy patients_select on "public"."patients"
+  for select to authenticated
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists patients_insert on "public"."patients";
+create policy patients_insert on "public"."patients"
+  for insert to authenticated
+  with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists patients_update on "public"."patients";
+create policy patients_update on "public"."patients"
+  for update to authenticated
+  using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()))
+  with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists patients_delete on "public"."patients";
+create policy patients_delete on "public"."patients"
+  for delete to authenticated
+  using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."patients";
 drop policy if exists bsb_tenant_scope_select on "public"."patients";
 create policy bsb_tenant_scope_select on "public"."patients" as restrictive
@@ -236,14 +245,23 @@ grant select ("id", "user_id", "created_at", "updated_at") on "public"."notes" t
 grant insert ("id", "user_id", "created_at", "updated_at", "body"), update ("id", "user_id", "created_at", "updated_at", "body") on "public"."notes" to authenticated;
 grant delete on "public"."notes" to authenticated;
 grant all on "public"."notes" to service_role;
-drop policy if exists "notes_select" on "public"."notes";
-create policy "notes_select" on "public"."notes" for select to authenticated using ("user_id" = (select auth.uid()));
-drop policy if exists "notes_insert" on "public"."notes";
-create policy "notes_insert" on "public"."notes" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "notes_update" on "public"."notes";
-create policy "notes_update" on "public"."notes" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "notes_delete" on "public"."notes";
-create policy "notes_delete" on "public"."notes" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists notes_select on "public"."notes";
+create policy notes_select on "public"."notes"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
+drop policy if exists notes_insert on "public"."notes";
+create policy notes_insert on "public"."notes"
+  for insert to authenticated
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists notes_update on "public"."notes";
+create policy notes_update on "public"."notes"
+  for update to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists notes_delete on "public"."notes";
+create policy notes_delete on "public"."notes"
+  for delete to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 create index if not exists "notes_user_id_idx" on "public"."notes" ("user_id");
 drop trigger if exists "bsb_updated_at" on "public"."notes";
 create trigger "bsb_updated_at" before update on "public"."notes"
@@ -328,8 +346,10 @@ alter table "public"."keys" enable row level security;
 revoke all on "public"."keys" from anon, authenticated;
 grant select ("id", "created_at", "updated_at") on "public"."keys" to authenticated;
 grant all on "public"."keys" to service_role;
-drop policy if exists "keys_select" on "public"."keys";
-create policy "keys_select" on "public"."keys" for select to authenticated using (((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true'));
+drop policy if exists keys_select on "public"."keys";
+create policy keys_select on "public"."keys"
+  for select to authenticated
+  using (((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true'));
 drop trigger if exists "bsb_updated_at" on "public"."keys";
 create trigger "bsb_updated_at" before update on "public"."keys"
   for each row execute function better_supabase.set_updated_at();
@@ -413,7 +433,7 @@ grant execute on function "public"."keys_reveal"(bigint[]) to authenticated, ser
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- @bsb-hash sha256:c944995e9704397e7b45d526a4da1fedbffb4269f788a0ec3499fc0edf556177
+-- @bsb-hash sha256:348a58894381622f7d85c6f7641eadd196af2730330af6b1166c02717c305ddc
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
@@ -461,7 +481,10 @@ select extensions.ok((select bool_and(left("diagnosis", 5) = 'bsf1:' and "diagno
 select extensions.is((select r."diagnosis"::text from "public"."patients_reveal"(current_setting('bsb.app_reveal_ids')::uuid[]) r limit 1), (repeat('x', 1))::text, 'the service role reveals public.patients.diagnosis');
 
 -- An app's own permissive policy can't widen the tenant scope.
-create policy bsb_test_app_widens on "public"."patients" for all to authenticated using (true) with check (true);
+create policy bsb_test_app_widens on "public"."patients"
+  for all to authenticated
+  using (true)
+  with check (true);
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;

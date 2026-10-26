@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:c349cf78489f14cd00dd1c54ac22460a3b3f21f8f875c5dd2e2f887eb5f36c1a
+-- @bsb-hash sha256:521df71b13cb28ad21d6870cd0c91b0868b86b90c9f577ceee07296579d3620b
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -91,7 +91,8 @@ revoke all on "better_supabase"."ai_scheduled_tasks" from anon, authenticated;
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;
 grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
 drop policy if exists ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks";
-create policy ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks" for select to authenticated
+create policy ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 create table if not exists "better_supabase"."ai_task_runs" (
@@ -115,7 +116,8 @@ revoke all on "better_supabase"."ai_task_runs" from anon, authenticated;
 grant select on "better_supabase"."ai_task_runs" to authenticated;
 grant all on "better_supabase"."ai_task_runs" to service_role;
 drop policy if exists ai_task_runs_read on "better_supabase"."ai_task_runs";
-create policy ai_task_runs_read on "better_supabase"."ai_task_runs" for select to authenticated
+create policy ai_task_runs_read on "better_supabase"."ai_task_runs"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 -- Creates (id null) or changes a task. Only the service role sets
@@ -456,7 +458,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:f9d46f51ec6fd50fc81cff567a1c0cd6853ba83445a61724aa73d64296fe1271
+-- @bsb-hash sha256:5f332ff87c3d99b761da30e1b60e19b42f9492f340ac50426d6ef42c5eb394b1
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -546,7 +548,8 @@ revoke all on "better_supabase"."ai_scheduled_tasks" from anon, authenticated;
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;
 grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
 drop policy if exists ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks";
-create policy ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks" for select to authenticated
+create policy ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 create table if not exists "better_supabase"."ai_task_runs" (
@@ -570,7 +573,8 @@ revoke all on "better_supabase"."ai_task_runs" from anon, authenticated;
 grant select on "better_supabase"."ai_task_runs" to authenticated;
 grant all on "better_supabase"."ai_task_runs" to service_role;
 drop policy if exists ai_task_runs_read on "better_supabase"."ai_task_runs";
-create policy ai_task_runs_read on "better_supabase"."ai_task_runs" for select to authenticated
+create policy ai_task_runs_read on "better_supabase"."ai_task_runs"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 -- Creates (id null) or changes a task. Only the service role sets
@@ -912,7 +916,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:1c629fd40ca2f91730a32dceee49a711d3cbb86ec8aa92d627e485e21f23b6b6
+-- @bsb-hash sha256:35437d66f4bad50927c2e806ff40a6bf4ea26f7ae6181c775bd7a8f02eef20b7
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1004,7 +1008,8 @@ revoke all on "app_private"."ai_scheduled_tasks" from anon, authenticated;
 grant select on "app_private"."ai_scheduled_tasks" to authenticated;
 grant all on "app_private"."ai_scheduled_tasks" to service_role;
 drop policy if exists ai_scheduled_tasks_read on "app_private"."ai_scheduled_tasks";
-create policy ai_scheduled_tasks_read on "app_private"."ai_scheduled_tasks" for select to authenticated
+create policy ai_scheduled_tasks_read on "app_private"."ai_scheduled_tasks"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 create table if not exists "app_private"."ai_task_runs" (
@@ -1028,7 +1033,8 @@ revoke all on "app_private"."ai_task_runs" from anon, authenticated;
 grant select on "app_private"."ai_task_runs" to authenticated;
 grant all on "app_private"."ai_task_runs" to service_role;
 drop policy if exists ai_task_runs_read on "app_private"."ai_task_runs";
-create policy ai_task_runs_read on "app_private"."ai_task_runs" for select to authenticated
+create policy ai_task_runs_read on "app_private"."ai_task_runs"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 -- Creates (id null) or changes a task. Only the service role sets
@@ -1369,7 +1375,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:a63f91d30f355bc6ca65d33806f563a21d984d8913749065383569b493a223ca
+-- @bsb-hash sha256:438840c66a7823c501057b61e765660b0bc173f93679eac39d3f0c3ed8db3131
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1459,7 +1465,8 @@ revoke all on "better_supabase"."ai_scheduled_tasks" from anon, authenticated;
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;
 grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
 drop policy if exists ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks";
-create policy ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks" for select to authenticated
+create policy ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 create table if not exists "better_supabase"."ai_task_runs" (
@@ -1483,7 +1490,8 @@ revoke all on "better_supabase"."ai_task_runs" from anon, authenticated;
 grant select on "better_supabase"."ai_task_runs" to authenticated;
 grant all on "better_supabase"."ai_task_runs" to service_role;
 drop policy if exists ai_task_runs_read on "better_supabase"."ai_task_runs";
-create policy ai_task_runs_read on "better_supabase"."ai_task_runs" for select to authenticated
+create policy ai_task_runs_read on "better_supabase"."ai_task_runs"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 -- Creates (id null) or changes a task. Only the service role sets
@@ -1918,7 +1926,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:95725aaed98f2cd27ad488295156a86d68efd75285aca08244ace700edcee889
+-- @bsb-hash sha256:fb4fe12a8b0406d382e75b354caaea62d5d609cb0b049740bb4d321f5cf62c0b
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2022,7 +2030,8 @@ alter table "better_supabase"."ai_scheduled_tasks" enable row level security;
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;
 grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
 drop policy if exists bsb_ai_scheduled_tasks_select on "better_supabase"."ai_scheduled_tasks";
-create policy bsb_ai_scheduled_tasks_select on "better_supabase"."ai_scheduled_tasks" for select to authenticated
+create policy bsb_ai_scheduled_tasks_select on "better_supabase"."ai_scheduled_tasks"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 -- better_supabase.ai_task_runs is the app's table: this block adds only the columns it needs.
@@ -2044,7 +2053,8 @@ alter table "better_supabase"."ai_task_runs" enable row level security;
 grant select on "better_supabase"."ai_task_runs" to authenticated;
 grant all on "better_supabase"."ai_task_runs" to service_role;
 drop policy if exists bsb_ai_task_runs_select on "better_supabase"."ai_task_runs";
-create policy bsb_ai_task_runs_select on "better_supabase"."ai_task_runs" for select to authenticated
+create policy bsb_ai_task_runs_select on "better_supabase"."ai_task_runs"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 -- Creates (id null) or changes a task. Only the service role sets
@@ -2385,7 +2395,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:2db528a901ebf5b3bbd70e2159868492412d42c9e0c019541a853df235d7b58d
+-- @bsb-hash sha256:1bbc92b58b095dfdff295046e5e9bfbd568f888a14e2e517e3c31b43730c3f94
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2475,7 +2485,8 @@ revoke all on "better_supabase"."ai_scheduled_tasks" from anon, authenticated;
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;
 grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
 drop policy if exists ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks";
-create policy ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks" for select to authenticated
+create policy ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 create table if not exists "better_supabase"."ai_task_runs" (
@@ -2499,7 +2510,8 @@ revoke all on "better_supabase"."ai_task_runs" from anon, authenticated;
 grant select on "better_supabase"."ai_task_runs" to authenticated;
 grant all on "better_supabase"."ai_task_runs" to service_role;
 drop policy if exists ai_task_runs_read on "better_supabase"."ai_task_runs";
-create policy ai_task_runs_read on "better_supabase"."ai_task_runs" for select to authenticated
+create policy ai_task_runs_read on "better_supabase"."ai_task_runs"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 -- Creates (id null) or changes a task. Only the service role sets

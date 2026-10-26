@@ -1,6 +1,6 @@
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:8dbce4dd4417683304afc440761f7251ee2d5512887cf26fc3af80cd5ecf988c
+-- @bsb-hash sha256:eb6005190638eaeccc63daf40c2fbb475a71b1d6ff9d5fb1826361a89c88e452
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -95,8 +95,9 @@ alter table "better_supabase"."documents" enable row level security;
 revoke all on "better_supabase"."documents" from anon, authenticated;
 grant select on "better_supabase"."documents" to authenticated;
 grant all on "better_supabase"."documents" to service_role;
-drop policy if exists "documents_read" on "better_supabase"."documents";
-create policy "documents_read" on "better_supabase"."documents" for select to authenticated
+drop policy if exists documents_read on "better_supabase"."documents";
+create policy documents_read on "better_supabase"."documents"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')));
 
 create table if not exists "better_supabase"."document_updates" (
@@ -1845,18 +1846,16 @@ grant execute on function "better_supabase"."name_document_version"(uuid, uuid, 
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_documents_receive" on realtime.messages;
-    create policy "bsb_documents_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension in ('broadcast', 'presence')
-        and "better_supabase"."document_topic_access"((select realtime.topic()), false)
-      );
-    drop policy if exists "bsb_documents_send" on realtime.messages;
-    create policy "bsb_documents_send" on realtime.messages for insert to authenticated
-      with check ((
-        (realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
-        or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))
-      ) and (select better_supabase.actor_may_write()));
+        drop policy if exists bsb_documents_receive on realtime.messages;
+create policy bsb_documents_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension in ('broadcast', 'presence')
+        and "better_supabase"."document_topic_access"((select realtime.topic()), false));
+        drop policy if exists bsb_documents_send on realtime.messages;
+create policy bsb_documents_send on realtime.messages
+  for insert to authenticated
+  with check (((realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
+        or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))) and (select better_supabase.actor_may_write()));
   end if;
 end;
 $do$;

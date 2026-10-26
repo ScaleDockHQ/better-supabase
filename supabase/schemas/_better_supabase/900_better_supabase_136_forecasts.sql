@@ -1,6 +1,6 @@
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:c800cace614b17b2393dee529c60065d185dccd0f35db34f478a33a0bac1ff30
+-- @bsb-hash sha256:469f7afe86498e6b95b3b7f3502c3b73fc78c6eaf714b63b5f14c97086f66feb
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -106,11 +106,13 @@ revoke all on "better_supabase"."forecast_snapshot_deals" from anon, authenticat
 grant select on "better_supabase"."forecast_snapshot_deals" to authenticated;
 grant all on "better_supabase"."forecast_snapshot_deals" to service_role;
 drop policy if exists forecast_snapshots_read on "better_supabase"."forecast_snapshots";
-create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 drop policy if exists forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals";
-create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 
 -- Takes a snapshot of the forecast call for one currency between since and
 -- until: the deal_forecast totals for the whole organization and every deal

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:fb5e514ab6998845a3bc41655b86af0cf0dbb4c97c341d649dd5bce6c972a1c5
+-- @bsb-hash sha256:3a53d531e5e2398eab86def5867eaa97431ae81683bbfbd294e0dbf01c713a87
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -78,7 +78,8 @@ revoke all on "better_supabase"."streams" from anon, authenticated;
 grant select on "better_supabase"."streams" to authenticated;
 grant all on "better_supabase"."streams" to service_role;
 drop policy if exists streams_owner_read on "better_supabase"."streams";
-create policy streams_owner_read on "better_supabase"."streams" for select to authenticated
+create policy streams_owner_read on "better_supabase"."streams"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 create table if not exists "better_supabase"."stream_chunks" (
@@ -92,7 +93,8 @@ revoke all on "better_supabase"."stream_chunks" from anon, authenticated;
 grant select on "better_supabase"."stream_chunks" to authenticated;
 grant all on "better_supabase"."stream_chunks" to service_role;
 drop policy if exists stream_chunks_owner_read on "better_supabase"."stream_chunks";
-create policy stream_chunks_owner_read on "better_supabase"."stream_chunks" for select to authenticated
+create policy stream_chunks_owner_read on "better_supabase"."stream_chunks"
+  for select to authenticated
   using (exists (
     select 1 from "better_supabase"."streams" st
     where st."id" = "stream_id" and st."owner_id" = (select auth.uid())
@@ -316,17 +318,16 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_streams_receive" on realtime.messages;
-    create policy "bsb_streams_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_streams_receive on realtime.messages;
+create policy bsb_streams_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
         and exists (
           select 1 from "better_supabase"."streams" st
           where st."id" = substr((select realtime.topic()), 8)
             and st."owner_id" = (select auth.uid())
-        )
-      );
+        ));
   end if;
 end;
 $$;
@@ -398,7 +399,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:fb5e514ab6998845a3bc41655b86af0cf0dbb4c97c341d649dd5bce6c972a1c5
+-- @bsb-hash sha256:3a53d531e5e2398eab86def5867eaa97431ae81683bbfbd294e0dbf01c713a87
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -475,7 +476,8 @@ revoke all on "better_supabase"."streams" from anon, authenticated;
 grant select on "better_supabase"."streams" to authenticated;
 grant all on "better_supabase"."streams" to service_role;
 drop policy if exists streams_owner_read on "better_supabase"."streams";
-create policy streams_owner_read on "better_supabase"."streams" for select to authenticated
+create policy streams_owner_read on "better_supabase"."streams"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 create table if not exists "better_supabase"."stream_chunks" (
@@ -489,7 +491,8 @@ revoke all on "better_supabase"."stream_chunks" from anon, authenticated;
 grant select on "better_supabase"."stream_chunks" to authenticated;
 grant all on "better_supabase"."stream_chunks" to service_role;
 drop policy if exists stream_chunks_owner_read on "better_supabase"."stream_chunks";
-create policy stream_chunks_owner_read on "better_supabase"."stream_chunks" for select to authenticated
+create policy stream_chunks_owner_read on "better_supabase"."stream_chunks"
+  for select to authenticated
   using (exists (
     select 1 from "better_supabase"."streams" st
     where st."id" = "stream_id" and st."owner_id" = (select auth.uid())
@@ -713,17 +716,16 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_streams_receive" on realtime.messages;
-    create policy "bsb_streams_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_streams_receive on realtime.messages;
+create policy bsb_streams_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
         and exists (
           select 1 from "better_supabase"."streams" st
           where st."id" = substr((select realtime.topic()), 8)
             and st."owner_id" = (select auth.uid())
-        )
-      );
+        ));
   end if;
 end;
 $$;
@@ -795,7 +797,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:0446d128680bb4c0bce7f4141cb14a3273977f5fc41185d6b48b229d77ab4046
+-- @bsb-hash sha256:a73bf247600e812dfa3c80a831a119b8726ea2e44de102cb80a03cad0b3dc0fc
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -874,7 +876,8 @@ revoke all on "app_private"."streams" from anon, authenticated;
 grant select on "app_private"."streams" to authenticated;
 grant all on "app_private"."streams" to service_role;
 drop policy if exists streams_owner_read on "app_private"."streams";
-create policy streams_owner_read on "app_private"."streams" for select to authenticated
+create policy streams_owner_read on "app_private"."streams"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 create table if not exists "app_private"."stream_chunks" (
@@ -888,7 +891,8 @@ revoke all on "app_private"."stream_chunks" from anon, authenticated;
 grant select on "app_private"."stream_chunks" to authenticated;
 grant all on "app_private"."stream_chunks" to service_role;
 drop policy if exists stream_chunks_owner_read on "app_private"."stream_chunks";
-create policy stream_chunks_owner_read on "app_private"."stream_chunks" for select to authenticated
+create policy stream_chunks_owner_read on "app_private"."stream_chunks"
+  for select to authenticated
   using (exists (
     select 1 from "app_private"."streams" st
     where st."id" = "stream_id" and st."owner_id" = (select auth.uid())
@@ -1112,17 +1116,16 @@ grant execute on function "app_private"."purge_streams"(interval, integer) to se
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_streams_receive" on realtime.messages;
-    create policy "bsb_streams_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_streams_receive on realtime.messages;
+create policy bsb_streams_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
         and exists (
           select 1 from "app_private"."streams" st
           where st."id" = substr((select realtime.topic()), 8)
             and st."owner_id" = (select auth.uid())
-        )
-      );
+        ));
   end if;
 end;
 $$;
@@ -1194,7 +1197,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:4fa792ca84487ac37e21585ca3e35f87538563b76d234a2d9de2dbfaf87fa534
+-- @bsb-hash sha256:8ee215d4dbb94f1dccbb8f5c844ec47e5ce06a23a6407f75166c815ae576c4b6
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1271,7 +1274,8 @@ revoke all on "better_supabase"."streams" from anon, authenticated;
 grant select on "better_supabase"."streams" to authenticated;
 grant all on "better_supabase"."streams" to service_role;
 drop policy if exists streams_owner_read on "better_supabase"."streams";
-create policy streams_owner_read on "better_supabase"."streams" for select to authenticated
+create policy streams_owner_read on "better_supabase"."streams"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 create table if not exists "better_supabase"."stream_chunks" (
@@ -1285,7 +1289,8 @@ revoke all on "better_supabase"."stream_chunks" from anon, authenticated;
 grant select on "better_supabase"."stream_chunks" to authenticated;
 grant all on "better_supabase"."stream_chunks" to service_role;
 drop policy if exists stream_chunks_owner_read on "better_supabase"."stream_chunks";
-create policy stream_chunks_owner_read on "better_supabase"."stream_chunks" for select to authenticated
+create policy stream_chunks_owner_read on "better_supabase"."stream_chunks"
+  for select to authenticated
   using (exists (
     select 1 from "better_supabase"."streams" st
     where st."id" = "stream_id" and st."owner_id" = (select auth.uid())
@@ -1509,17 +1514,16 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_streams_receive" on realtime.messages;
-    create policy "bsb_streams_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_streams_receive on realtime.messages;
+create policy bsb_streams_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
         and exists (
           select 1 from "better_supabase"."streams" st
           where st."id" = substr((select realtime.topic()), 8)
             and st."owner_id" = (select auth.uid())
-        )
-      );
+        ));
   end if;
 end;
 $$;
@@ -1676,7 +1680,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:b72119e2bcc3d35259db2a72c12b6af5c3101acc38f93aea7274863155404e2c
+-- @bsb-hash sha256:ae4e817a351109e9de5b64d85d32e8bb882b75f692d3e8f09cb50f7c727bb7e3
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1752,7 +1756,8 @@ alter table "better_supabase"."streams" enable row level security;
 grant select on "better_supabase"."streams" to authenticated;
 grant all on "better_supabase"."streams" to service_role;
 drop policy if exists bsb_streams_select on "better_supabase"."streams";
-create policy bsb_streams_select on "better_supabase"."streams" for select to authenticated
+create policy bsb_streams_select on "better_supabase"."streams"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- better_supabase.stream_chunks is the app's table: this block adds only the columns it needs.
@@ -1764,7 +1769,8 @@ alter table "better_supabase"."stream_chunks" enable row level security;
 grant select on "better_supabase"."stream_chunks" to authenticated;
 grant all on "better_supabase"."stream_chunks" to service_role;
 drop policy if exists bsb_stream_chunks_select on "better_supabase"."stream_chunks";
-create policy bsb_stream_chunks_select on "better_supabase"."stream_chunks" for select to authenticated
+create policy bsb_stream_chunks_select on "better_supabase"."stream_chunks"
+  for select to authenticated
   using (exists (
     select 1 from "better_supabase"."streams" st
     where st."id" = "stream_id" and st."owner_id" = (select auth.uid())
@@ -1988,17 +1994,16 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_streams_receive" on realtime.messages;
-    create policy "bsb_streams_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_streams_receive on realtime.messages;
+create policy bsb_streams_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
         and exists (
           select 1 from "better_supabase"."streams" st
           where st."id" = substr((select realtime.topic()), 8)
             and st."owner_id" = (select auth.uid())
-        )
-      );
+        ));
   end if;
 end;
 $$;
@@ -2070,7 +2075,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:4ed8466bb31777235a9ea65f776cba64dc8472fa88b61f514fa35983a7de84ce
+-- @bsb-hash sha256:17a3b8df49eca6c36a1500f4cc706aaf1781ae8478226bf8270152954e1e44c0
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2147,7 +2152,8 @@ revoke all on "better_supabase"."streams" from anon, authenticated;
 grant select on "better_supabase"."streams" to authenticated;
 grant all on "better_supabase"."streams" to service_role;
 drop policy if exists streams_owner_read on "better_supabase"."streams";
-create policy streams_owner_read on "better_supabase"."streams" for select to authenticated
+create policy streams_owner_read on "better_supabase"."streams"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 create table if not exists "better_supabase"."stream_chunks" (
@@ -2161,7 +2167,8 @@ revoke all on "better_supabase"."stream_chunks" from anon, authenticated;
 grant select on "better_supabase"."stream_chunks" to authenticated;
 grant all on "better_supabase"."stream_chunks" to service_role;
 drop policy if exists stream_chunks_owner_read on "better_supabase"."stream_chunks";
-create policy stream_chunks_owner_read on "better_supabase"."stream_chunks" for select to authenticated
+create policy stream_chunks_owner_read on "better_supabase"."stream_chunks"
+  for select to authenticated
   using (exists (
     select 1 from "better_supabase"."streams" st
     where st."id" = "stream_id" and st."owner_id" = (select auth.uid())
@@ -2385,17 +2392,16 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_streams_receive" on realtime.messages;
-    create policy "bsb_streams_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_streams_receive on realtime.messages;
+create policy bsb_streams_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
         and exists (
           select 1 from "better_supabase"."streams" st
           where st."id" = substr((select realtime.topic()), 8)
             and st."owner_id" = (select auth.uid())
-        )
-      );
+        ));
   end if;
 end;
 $$;

@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:c888434c2ade583c0a4c548e57cc517f56949fd1699a5ea4147bd51d5fdaa9b6
+-- @bsb-hash sha256:aa9c4c1fb18eec36b4b540722adc2296cd7f18107e4df11e6986f291a48a993b
 -- Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -87,7 +87,8 @@ revoke all on "better_supabase"."approval_requests" from anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
 drop policy if exists approval_requests_read on "better_supabase"."approval_requests";
-create policy approval_requests_read on "better_supabase"."approval_requests" for select to authenticated
+create policy approval_requests_read on "better_supabase"."approval_requests"
+  for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) and not "subject_type" in ('ai_tool_approval')) or "requested_by" = (select auth.uid()));
 
 create table if not exists "better_supabase"."approval_decisions" (
@@ -109,7 +110,8 @@ revoke all on "better_supabase"."approval_decisions" from anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
 drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
-create policy approval_decisions_read on "better_supabase"."approval_decisions" for select to authenticated
+create policy approval_decisions_read on "better_supabase"."approval_decisions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
 -- The policy a new request snapshots, from options.policies.

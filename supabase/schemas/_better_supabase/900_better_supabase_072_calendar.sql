@@ -1,6 +1,6 @@
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:efe238e41a17dae0962f56cdc35677cdd464394fc0ad88169207d682c98c4bf9
+-- @bsb-hash sha256:155722765d8c83600422d7266bfe843d305703c1271aedd7084cbc9696a70b7d
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -95,8 +95,9 @@ grant select on "better_supabase"."calendars" to authenticated;
 grant all on "better_supabase"."calendars" to service_role;
 create index if not exists "calendars_tenant_idx" on "better_supabase"."calendars" ("tenant_id");
 drop policy if exists calendars_read on "better_supabase"."calendars";
-create policy calendars_read on "better_supabase"."calendars" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')));
+create policy calendars_read on "better_supabase"."calendars"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')));
 create table if not exists "better_supabase"."calendar_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -171,8 +172,9 @@ revoke all on "better_supabase"."calendar_events" from anon, authenticated;
 grant select on "better_supabase"."calendar_events" to authenticated;
 grant all on "better_supabase"."calendar_events" to service_role;
 drop policy if exists calendar_events_read on "better_supabase"."calendar_events";
-create policy calendar_events_read on "better_supabase"."calendar_events" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')));
+create policy calendar_events_read on "better_supabase"."calendar_events"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')));
 create table if not exists "better_supabase"."calendar_attendees" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -206,8 +208,9 @@ begin
 end;
 $$;
 drop policy if exists calendar_attendees_read on "better_supabase"."calendar_attendees";
-create policy calendar_attendees_read on "better_supabase"."calendar_attendees" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()));
+create policy calendar_attendees_read on "better_supabase"."calendar_attendees"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()));
 create table if not exists "better_supabase"."calendar_working_hours" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -224,8 +227,9 @@ revoke all on "better_supabase"."calendar_working_hours" from anon, authenticate
 grant select on "better_supabase"."calendar_working_hours" to authenticated;
 grant all on "better_supabase"."calendar_working_hours" to service_role;
 drop policy if exists calendar_working_hours_read on "better_supabase"."calendar_working_hours";
-create policy calendar_working_hours_read on "better_supabase"."calendar_working_hours" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()));
+create policy calendar_working_hours_read on "better_supabase"."calendar_working_hours"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()));
 
 create or replace function "better_supabase"."create_calendar"(tenant uuid, name text, tz text, owner_type text, owner_id text)
 returns jsonb

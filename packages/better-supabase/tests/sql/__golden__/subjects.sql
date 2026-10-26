@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:d7cb8c0758654f3c2679d73393ae5cbe21baafde22064c16538ec1a19bcdd92e
+-- @bsb-hash sha256:27c7a38353d6e17369c40f2f522b2561af3653f38fcc7015b55f2941b57f1759
 -- The app-wide subject registry from config.records: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -260,20 +260,18 @@ grant execute on function "better_supabase"."subject_presence_allowed"(text) to 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_subject_presence_receive" on realtime.messages;
-    create policy "bsb_subject_presence_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'presence'
+        drop policy if exists bsb_subject_presence_receive on realtime.messages;
+create policy bsb_subject_presence_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
-        and "better_supabase"."subject_presence_allowed"((select realtime.topic()))
-      );
-    drop policy if exists "bsb_subject_presence_send" on realtime.messages;
-    create policy "bsb_subject_presence_send" on realtime.messages for insert to authenticated
-      with check ((
-        realtime.messages.extension = 'presence'
+        and "better_supabase"."subject_presence_allowed"((select realtime.topic())));
+        drop policy if exists bsb_subject_presence_send on realtime.messages;
+create policy bsb_subject_presence_send on realtime.messages
+  for insert to authenticated
+  with check ((realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
-        and "better_supabase"."subject_presence_allowed"((select realtime.topic()))
-      ) and (select better_supabase.actor_may_write()));
+        and "better_supabase"."subject_presence_allowed"((select realtime.topic()))) and (select better_supabase.actor_may_write()));
   end if;
 end;
 $$;
@@ -308,7 +306,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:ba95eb013ca17b73fb097cb6c2b111b2ada7903fd6f054605241e1f9f395e0d3
+-- @bsb-hash sha256:c18773e69116abbcd58dc3569b441812b299ed2f8ff87bff0d3e444f81c61ba6
 -- The app-wide subject registry from config.records: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -672,20 +670,18 @@ grant execute on function "better_supabase"."subject_presence_allowed"(text) to 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_subject_presence_receive" on realtime.messages;
-    create policy "bsb_subject_presence_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'presence'
+        drop policy if exists bsb_subject_presence_receive on realtime.messages;
+create policy bsb_subject_presence_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
-        and "better_supabase"."subject_presence_allowed"((select realtime.topic()))
-      );
-    drop policy if exists "bsb_subject_presence_send" on realtime.messages;
-    create policy "bsb_subject_presence_send" on realtime.messages for insert to authenticated
-      with check ((
-        realtime.messages.extension = 'presence'
+        and "better_supabase"."subject_presence_allowed"((select realtime.topic())));
+        drop policy if exists bsb_subject_presence_send on realtime.messages;
+create policy bsb_subject_presence_send on realtime.messages
+  for insert to authenticated
+  with check ((realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
-        and "better_supabase"."subject_presence_allowed"((select realtime.topic()))
-      ) and (select better_supabase.actor_may_write()));
+        and "better_supabase"."subject_presence_allowed"((select realtime.topic()))) and (select better_supabase.actor_may_write()));
   end if;
 end;
 $$;
@@ -720,7 +716,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:9f054739a43b0963a17cf3a6d312962c836ea11817ea095faca6cbb79f703afe
+-- @bsb-hash sha256:22180ae3c1d00efb15b2f1571db818b0f99954a93b634856dece8b27c7b00050
 -- The app-wide subject registry from config.records: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -981,20 +977,18 @@ grant execute on function "app_private"."subject_presence_allowed"(text) to auth
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_subject_presence_receive" on realtime.messages;
-    create policy "bsb_subject_presence_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'presence'
+        drop policy if exists bsb_subject_presence_receive on realtime.messages;
+create policy bsb_subject_presence_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
-        and "app_private"."subject_presence_allowed"((select realtime.topic()))
-      );
-    drop policy if exists "bsb_subject_presence_send" on realtime.messages;
-    create policy "bsb_subject_presence_send" on realtime.messages for insert to authenticated
-      with check ((
-        realtime.messages.extension = 'presence'
+        and "app_private"."subject_presence_allowed"((select realtime.topic())));
+        drop policy if exists bsb_subject_presence_send on realtime.messages;
+create policy bsb_subject_presence_send on realtime.messages
+  for insert to authenticated
+  with check ((realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
-        and "app_private"."subject_presence_allowed"((select realtime.topic()))
-      ) and (select better_supabase.actor_may_write()));
+        and "app_private"."subject_presence_allowed"((select realtime.topic()))) and (select better_supabase.actor_may_write()));
   end if;
 end;
 $$;
@@ -1029,7 +1023,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:96bc74251325053727ef94ef492366a6a6f32f475fc11170995989646f615bf5
+-- @bsb-hash sha256:c84ab1f91658f506c0290b268d319a32733dc0163c138ad9b766e45a216a1881
 -- The app-wide subject registry from config.records: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1288,20 +1282,18 @@ grant execute on function "better_supabase"."subject_presence_allowed"(text) to 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_subject_presence_receive" on realtime.messages;
-    create policy "bsb_subject_presence_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'presence'
+        drop policy if exists bsb_subject_presence_receive on realtime.messages;
+create policy bsb_subject_presence_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
-        and "better_supabase"."subject_presence_allowed"((select realtime.topic()))
-      );
-    drop policy if exists "bsb_subject_presence_send" on realtime.messages;
-    create policy "bsb_subject_presence_send" on realtime.messages for insert to authenticated
-      with check ((
-        realtime.messages.extension = 'presence'
+        and "better_supabase"."subject_presence_allowed"((select realtime.topic())));
+        drop policy if exists bsb_subject_presence_send on realtime.messages;
+create policy bsb_subject_presence_send on realtime.messages
+  for insert to authenticated
+  with check ((realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
-        and "better_supabase"."subject_presence_allowed"((select realtime.topic()))
-      ) and (select better_supabase.actor_may_write()));
+        and "better_supabase"."subject_presence_allowed"((select realtime.topic()))) and (select better_supabase.actor_may_write()));
   end if;
 end;
 $$;

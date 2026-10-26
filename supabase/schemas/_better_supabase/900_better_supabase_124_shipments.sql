@@ -1,6 +1,6 @@
 -- better-supabase module: shipments
 -- @bsb-block shipments@1 managed
--- @bsb-hash sha256:59860b833345ee498f9da6a65b4eb54091913c8a371cc4c36c5873e1abbf2687
+-- @bsb-hash sha256:58ed9378219a8ce2cfeef647a7350da564f0fa38ae0f37f1ced9a1905e8869d3
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -115,7 +115,8 @@ revoke all on "better_supabase"."shipments" from anon, authenticated;
 grant select on "better_supabase"."shipments" to authenticated;
 grant all on "better_supabase"."shipments" to service_role;
 drop policy if exists "shipments_read" on "better_supabase"."shipments";
-create policy "shipments_read" on "better_supabase"."shipments" for select to authenticated
+create policy shipments_read on "better_supabase"."shipments"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 create table if not exists "better_supabase"."shipment_packages" (
   "id" uuid primary key default gen_random_uuid(),
@@ -134,7 +135,8 @@ revoke all on "better_supabase"."shipment_packages" from anon, authenticated;
 grant select on "better_supabase"."shipment_packages" to authenticated;
 grant all on "better_supabase"."shipment_packages" to service_role;
 drop policy if exists "shipment_packages_read" on "better_supabase"."shipment_packages";
-create policy "shipment_packages_read" on "better_supabase"."shipment_packages" for select to authenticated
+create policy shipment_packages_read on "better_supabase"."shipment_packages"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 -- The tracking timeline. A carrier event id is recorded once per shipment, so
 -- a redelivered webhook or a repeated poll changes nothing.
@@ -157,7 +159,8 @@ revoke all on "better_supabase"."shipment_tracking_events" from anon, authentica
 grant select on "better_supabase"."shipment_tracking_events" to authenticated;
 grant all on "better_supabase"."shipment_tracking_events" to service_role;
 drop policy if exists "shipment_tracking_events_read" on "better_supabase"."shipment_tracking_events";
-create policy "shipment_tracking_events_read" on "better_supabase"."shipment_tracking_events" for select to authenticated
+create policy shipment_tracking_events_read on "better_supabase"."shipment_tracking_events"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 do $$
 begin

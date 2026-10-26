@@ -8,6 +8,7 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { InviteTable } from "./invitations-tables.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -213,9 +214,7 @@ end;
 $$;
 revoke execute on function ${ctx.fn("invitation_tenant_ids")}() from public, anon;
 grant execute on function ${ctx.fn("invitation_tenant_ids")}() to authenticated, service_role;
-drop policy if exists bsb_invitations_read on ${t.table};
-create policy bsb_invitations_read on ${t.table} for select to authenticated
-  using (${c("tenant")} in (select ${ctx.fn("invitation_tenant_ids")}()));
+${renderPolicy(makePolicy({ table: t.table, name: "bsb_invitations_read", command: "select", roles: ["authenticated"], using: `${c("tenant")} in (select ${ctx.fn("invitation_tenant_ids")}())` }), { drop: true, target: t.table })}
 `;
 }
 
@@ -285,17 +284,13 @@ function platformReadPolicy(ctx: BlockSqlContext, p: InviteTable): string {
   const readable = `(select ${ctx.fn("platform_invitations_readable")}())`;
 
   if (!sharesTable(ctx)) {
-    return `drop policy if exists bsb_platform_invitations_read on ${p.table};
-create policy bsb_platform_invitations_read on ${p.table} for select to authenticated
-  using (${readable});
+    return `${renderPolicy(makePolicy({ table: p.table, name: "bsb_platform_invitations_read", command: "select", roles: ["authenticated"], using: readable }), { drop: true, target: p.table })}
 `;
   }
 
   return `-- Tenant and platform invitations share ${p.table}, so one policy reads both.
 drop policy if exists bsb_platform_invitations_read on ${p.table};
-drop policy if exists bsb_invitations_read on ${p.table};
-create policy bsb_invitations_read on ${p.table} for select to authenticated
-  using (${tenantTable(ctx).col("tenant")} in (select ${ctx.fn("invitation_tenant_ids")}()) or ${readable});
+${renderPolicy(makePolicy({ table: p.table, name: "bsb_invitations_read", command: "select", roles: ["authenticated"], using: `${tenantTable(ctx).col("tenant")} in (select ${ctx.fn("invitation_tenant_ids")}()) or ${readable}` }), { drop: true, target: p.table })}
 `;
 }
 

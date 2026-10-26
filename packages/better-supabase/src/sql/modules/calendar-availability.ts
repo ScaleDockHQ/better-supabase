@@ -5,6 +5,7 @@ import type {
 } from "../context.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
   lockTable,
@@ -727,9 +728,7 @@ export function workingHoursTable(ctx: BlockSqlContext): string {
   unique (${h("tenant")}, ${h("user")}, ${h("weekday")}, ${h("startsAt")})
 );
 ${lockTable(hours, { read: true })}
-drop policy if exists ${name}_read on ${hours};
-create policy ${name}_read on ${hours} for select to authenticated
-using (${ctx.scope.check(h("tenant"), read)} or ${h("user")} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: hours, name: `${name}_read`, command: "select", roles: ["authenticated"], using: `${ctx.scope.check(h("tenant"), read)} or ${h("user")} = (select auth.uid())` }), { drop: true, target: hours })}
 `;
 }
 

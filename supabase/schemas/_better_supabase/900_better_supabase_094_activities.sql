@@ -1,6 +1,6 @@
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:06fcd563fc254a0da16ca8fdabdb0bb36814519e9e0e1e53693dedbabc4e2c2a
+-- @bsb-hash sha256:b9796262d7b2137b6e266462d7d658a74b62bfc9c60eae09fc31c11009af33ad
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -103,11 +103,13 @@ grant all on "better_supabase"."engagement_subjects" to service_role;
 -- A link is visible when its record is; an engagement when one of its
 -- records is, or it has none.
 drop policy if exists engagement_subjects_read on "better_supabase"."engagement_subjects";
-create policy engagement_subjects_read on "better_supabase"."engagement_subjects" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+create policy engagement_subjects_read on "better_supabase"."engagement_subjects"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists engagements_read on "better_supabase"."engagements";
-create policy engagements_read on "better_supabase"."engagements" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+create policy engagements_read on "better_supabase"."engagements"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ));
@@ -536,8 +538,9 @@ revoke all on "better_supabase"."engagement_recordings" from anon, authenticated
 grant select on "better_supabase"."engagement_recordings" to authenticated;
 grant all on "better_supabase"."engagement_recordings" to service_role;
 drop policy if exists engagement_recordings_read on "better_supabase"."engagement_recordings";
-create policy engagement_recordings_read on "better_supabase"."engagement_recordings" for select to authenticated
-using (exists (select 1 from "better_supabase"."engagements" ex where ex."id" = "engagement_id"));
+create policy engagement_recordings_read on "better_supabase"."engagement_recordings"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."engagements" ex where ex."id" = "engagement_id"));
 
 -- A transcript, one row per speaker turn, offsets in milliseconds from the
 -- start of the recording.
@@ -559,8 +562,9 @@ revoke all on "better_supabase"."engagement_transcript_segments" from anon, auth
 grant select on "better_supabase"."engagement_transcript_segments" to authenticated;
 grant all on "better_supabase"."engagement_transcript_segments" to service_role;
 drop policy if exists engagement_transcript_segments_read on "better_supabase"."engagement_transcript_segments";
-create policy engagement_transcript_segments_read on "better_supabase"."engagement_transcript_segments" for select to authenticated
-using (exists (select 1 from "better_supabase"."engagement_recordings" rx where rx."id" = "recording_id"));
+create policy engagement_transcript_segments_read on "better_supabase"."engagement_transcript_segments"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."engagement_recordings" rx where rx."id" = "recording_id"));
 
 -- Notes on an engagement: a summary and action items, written by an AI
 -- note taker or a member. One row per engagement; saving replaces it.
@@ -580,8 +584,9 @@ revoke all on "better_supabase"."engagement_notes" from anon, authenticated;
 grant select on "better_supabase"."engagement_notes" to authenticated;
 grant all on "better_supabase"."engagement_notes" to service_role;
 drop policy if exists engagement_notes_read on "better_supabase"."engagement_notes";
-create policy engagement_notes_read on "better_supabase"."engagement_notes" for select to authenticated
-using (exists (select 1 from "better_supabase"."engagements" ex where ex."id" = "engagement_id"));
+create policy engagement_notes_read on "better_supabase"."engagement_notes"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."engagements" ex where ex."id" = "engagement_id"));
 
 -- Attaches a ready ai-files file of the engagement's tenant as a recording.
 -- The author, the owner and engagements.manage may attach; the file must be

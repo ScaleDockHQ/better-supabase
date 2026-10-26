@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, triggerGrant } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -47,13 +48,19 @@ export function messagingModeration(ctx: BlockSqlContext): string {
   const guard = ctx.fn("messages_moderation_guard");
 
   return `
-drop policy if exists ${policy} on ${table};
-create policy ${policy} on ${table} as restrictive for select to authenticated
-  using (
-    ${c("author")} = (select auth.uid())
+${renderPolicy(
+  makePolicy({
+    table,
+    name: policy,
+    command: "select",
+    roles: ["authenticated"],
+    permissive: false,
+    using: `${c("author")} = (select auth.uid())
     or not ${moderation.fn("moderation_hidden")}(${sqlString(type)}, ${table}.${c("id")}::text)
-    or ${moderation.scope.check(`${table}.${c("tenant")}`, read)}
-  );
+    or ${moderation.scope.check(`${table}.${c("tenant")}`, read)}`,
+  }),
+  { drop: true, target: table },
+)}
 
 -- Refuses messages from members banned in the organization.
 create or replace function ${guard}()

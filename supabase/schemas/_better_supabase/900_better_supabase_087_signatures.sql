@@ -1,6 +1,6 @@
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:4b139c3eb25ada670d07a5fc6b7f30dcd23819a380e56d0ba66ac2d05ae6075e
+-- @bsb-hash sha256:f19fe43f4084d615f87ead9fb4a0bf78859eb8d3bb59c3d311ef4db3a8e9efc3
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -87,7 +87,8 @@ revoke all on "better_supabase"."signature_requests" from anon, authenticated;
 grant select on "better_supabase"."signature_requests" to authenticated;
 grant all on "better_supabase"."signature_requests" to service_role;
 drop policy if exists signature_requests_read on "better_supabase"."signature_requests";
-create policy signature_requests_read on "better_supabase"."signature_requests" for select to authenticated
+create policy signature_requests_read on "better_supabase"."signature_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
 create table if not exists "better_supabase"."signatures" (
@@ -111,7 +112,8 @@ revoke all on "better_supabase"."signatures" from anon, authenticated;
 grant select on "better_supabase"."signatures" to authenticated;
 grant all on "better_supabase"."signatures" to service_role;
 drop policy if exists signatures_read on "better_supabase"."signatures";
-create policy signatures_read on "better_supabase"."signatures" for select to authenticated
+create policy signatures_read on "better_supabase"."signatures"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
 
 -- Asks members to sign one version of a record. The version is frozen, so

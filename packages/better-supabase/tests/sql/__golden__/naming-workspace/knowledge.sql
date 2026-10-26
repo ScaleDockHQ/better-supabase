@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@2 managed
--- @bsb-hash sha256:9dcc64a6bbe5cda25e53af4c50447814bc925a40af54a21f67f1229962938479
+-- @bsb-hash sha256:7944666d1b480446b2bbc8c3bba51fb77c13bc7a2e214d1d01ca77e2474dda4c
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -86,7 +86,8 @@ revoke all on "better_supabase"."knowledge_documents" from anon, authenticated;
 grant select on "better_supabase"."knowledge_documents" to authenticated;
 grant all on "better_supabase"."knowledge_documents" to service_role;
 drop policy if exists knowledge_documents_read on "better_supabase"."knowledge_documents";
-create policy knowledge_documents_read on "better_supabase"."knowledge_documents" for select to authenticated
+create policy knowledge_documents_read on "better_supabase"."knowledge_documents"
+  for select to authenticated
   using (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "workspace_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "workspace_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and false)));
 
 -- A chunk is visible when its document is, so search inherits the scopes.
@@ -109,7 +110,8 @@ revoke all on "better_supabase"."knowledge_chunks" from anon, authenticated;
 grant select on "better_supabase"."knowledge_chunks" to authenticated;
 grant all on "better_supabase"."knowledge_chunks" to service_role;
 drop policy if exists knowledge_chunks_read on "better_supabase"."knowledge_chunks";
-create policy knowledge_chunks_read on "better_supabase"."knowledge_chunks" for select to authenticated
+create policy knowledge_chunks_read on "better_supabase"."knowledge_chunks"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."knowledge_documents" doc where doc."id" = "document_id"));
 
 -- Creates a document for the caller (or for owner, as the service role).

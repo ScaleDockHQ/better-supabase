@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@1 managed
--- @bsb-hash sha256:723e3ce1b6038f6da545ddee79687f414342310ca68c354da18d76ca59e17df5
+-- @bsb-hash sha256:a4e2821d14f76533007e0cc19b9dcf9a4d02c0e356b3999ab664c73b048b96d9
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -265,26 +265,33 @@ grant execute on function "better_supabase"."drive_attachment_allowed"(text, tex
 
 -- Restrictive policies: the attachments policies still apply, and a node's
 -- files also need its grants.
-drop policy if exists "bsb_drive_attachments_read" on "better_supabase"."attachments";
-create policy "bsb_drive_attachments_read" on "better_supabase"."attachments" as restrictive for select to authenticated
+drop policy if exists bsb_drive_attachments_read on "better_supabase"."attachments";
+create policy bsb_drive_attachments_read on "better_supabase"."attachments" as restrictive
+  for select to authenticated
   using ("better_supabase"."drive_attachment_allowed"("subject_type", "subject_id", false));
-drop policy if exists "bsb_drive_attachments_insert" on "better_supabase"."attachments";
-create policy "bsb_drive_attachments_insert" on "better_supabase"."attachments" as restrictive for insert to authenticated
+drop policy if exists bsb_drive_attachments_insert on "better_supabase"."attachments";
+create policy bsb_drive_attachments_insert on "better_supabase"."attachments" as restrictive
+  for insert to authenticated
   with check (("better_supabase"."drive_attachment_allowed"("subject_type", "subject_id", true)) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_drive_attachments_delete" on "better_supabase"."attachments";
-create policy "bsb_drive_attachments_delete" on "better_supabase"."attachments" as restrictive for delete to authenticated
+drop policy if exists bsb_drive_attachments_delete on "better_supabase"."attachments";
+create policy bsb_drive_attachments_delete on "better_supabase"."attachments" as restrictive
+  for delete to authenticated
   using (("better_supabase"."drive_attachment_allowed"("subject_type", "subject_id", true)) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_drive_objects_read" on storage.objects;
-create policy "bsb_drive_objects_read" on storage.objects as restrictive for select to authenticated
+drop policy if exists bsb_drive_objects_read on storage.objects;
+create policy bsb_drive_objects_read on storage.objects as restrictive
+  for select to authenticated
   using ("better_supabase"."drive_object_allowed"(bucket_id, name, 'select'));
-drop policy if exists "bsb_drive_objects_insert" on storage.objects;
-create policy "bsb_drive_objects_insert" on storage.objects as restrictive for insert to authenticated
+drop policy if exists bsb_drive_objects_insert on storage.objects;
+create policy bsb_drive_objects_insert on storage.objects as restrictive
+  for insert to authenticated
   with check (("better_supabase"."drive_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_drive_objects_update" on storage.objects;
-create policy "bsb_drive_objects_update" on storage.objects as restrictive for update to authenticated
+drop policy if exists bsb_drive_objects_update on storage.objects;
+create policy bsb_drive_objects_update on storage.objects as restrictive
+  for update to authenticated
   using (("better_supabase"."drive_object_allowed"(bucket_id, name, 'update')) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_drive_objects_delete" on storage.objects;
-create policy "bsb_drive_objects_delete" on storage.objects as restrictive for delete to authenticated
+drop policy if exists bsb_drive_objects_delete on storage.objects;
+create policy bsb_drive_objects_delete on storage.objects as restrictive
+  for delete to authenticated
   using (("better_supabase"."drive_object_allowed"(bucket_id, name, 'delete')) and (select better_supabase.actor_may_write()));
 
 -- Attachments of nodes that are not the current content and not a saved

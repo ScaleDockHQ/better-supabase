@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:201bb1e28a346960ea5fb6dd4f9fff91d857128e30f4047aa225c3619410078b
+-- @bsb-hash sha256:be63a4dbfaad896cdf618ea3a4040b23c0e3f01d3ecbf6abf30616d57dd8d8d5
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -79,7 +79,8 @@ revoke all on "better_supabase"."versions" from anon, authenticated;
 grant select on "better_supabase"."versions" to authenticated;
 grant all on "better_supabase"."versions" to service_role;
 drop policy if exists versions_read on "better_supabase"."versions";
-create policy versions_read on "better_supabase"."versions" for select to authenticated
+create policy versions_read on "better_supabase"."versions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')));
 
 -- Writes a version, numbered per subject. A version without a label whose
@@ -489,7 +490,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:8316e4adfd3df319be7b2bfcf1cb12dba533af36b9ce7302a3922af0c5f73e83
+-- @bsb-hash sha256:544080dc4ca3deecb9b8ebd95eb3d4d0cff114c80fbeb6e8b31d23e64d20f898
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -567,7 +568,8 @@ revoke all on "better_supabase"."versions" from anon, authenticated;
 grant select on "better_supabase"."versions" to authenticated;
 grant all on "better_supabase"."versions" to service_role;
 drop policy if exists versions_read on "better_supabase"."versions";
-create policy versions_read on "better_supabase"."versions" for select to authenticated
+create policy versions_read on "better_supabase"."versions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')));
 
 -- Writes a version, numbered per subject. A version without a label whose
@@ -1029,7 +1031,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:7a56998aa3a51d9cdec68f86146bd9748cc2017ddd1c2c50935dd22772b2df13
+-- @bsb-hash sha256:e84a2e94b96326c8d7d370a0799f444093e4ee69873335afcfb08f1cf6f9f8dd
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1109,7 +1111,8 @@ revoke all on "app_private"."versions" from anon, authenticated;
 grant select on "app_private"."versions" to authenticated;
 grant all on "app_private"."versions" to service_role;
 drop policy if exists versions_read on "app_private"."versions";
-create policy versions_read on "app_private"."versions" for select to authenticated
+create policy versions_read on "app_private"."versions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')));
 
 -- Writes a version, numbered per subject. A version without a label whose
@@ -1519,7 +1522,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:fac43ddbca96023ab49ac053f5c27cc7451f9132cf9e3bb5bc7b50e9c8a7c100
+-- @bsb-hash sha256:b17231d4b1c94c703db183daade0db35849b13a6d1c4174adee9eee492a7e68d
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1597,7 +1600,8 @@ revoke all on "better_supabase"."versions" from anon, authenticated;
 grant select on "better_supabase"."versions" to authenticated;
 grant all on "better_supabase"."versions" to service_role;
 drop policy if exists versions_read on "better_supabase"."versions";
-create policy versions_read on "better_supabase"."versions" for select to authenticated
+create policy versions_read on "better_supabase"."versions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')));
 
 -- Writes a version, numbered per subject. A version without a label whose
@@ -2095,7 +2099,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:8f9ffca29dc444c22c5f4bf2f8c7ac7dac69583f131b3ca0f231c7648273385c
+-- @bsb-hash sha256:39b35ba6f2fd38df38d41f252bc9bc0cc754dc7ef8d48ed19a9af1ec0cb750ce
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2169,7 +2173,8 @@ alter table "better_supabase"."versions" enable row level security;
 grant select on "better_supabase"."versions" to authenticated;
 grant all on "better_supabase"."versions" to service_role;
 drop policy if exists bsb_versions_select on "better_supabase"."versions";
-create policy bsb_versions_select on "better_supabase"."versions" for select to authenticated
+create policy bsb_versions_select on "better_supabase"."versions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')));
 
 -- Writes a version, numbered per subject. A version without a label whose
@@ -2579,7 +2584,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:a6442b7a68c6e07e935b81b25c2c83cd8c8c0cf6641c29ad8fc3d7fd911c47ac
+-- @bsb-hash sha256:f0baa32649bd20c5429db22f4833232a28e139873879b897e6d7e3e39e2f0e12
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2657,7 +2662,8 @@ revoke all on "better_supabase"."versions" from anon, authenticated;
 grant select on "better_supabase"."versions" to authenticated;
 grant all on "better_supabase"."versions" to service_role;
 drop policy if exists versions_read on "better_supabase"."versions";
-create policy versions_read on "better_supabase"."versions" for select to authenticated
+create policy versions_read on "better_supabase"."versions"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('versions.read')));
 
 -- Writes a version, numbered per subject. A version without a label whose

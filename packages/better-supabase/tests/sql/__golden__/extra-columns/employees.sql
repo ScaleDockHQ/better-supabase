@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:773ae7758aa2c80e858bd8c0b611d2673e7b91542bfe66ba05ef0c93d83c9b87
+-- @bsb-hash sha256:bf2c692220f459afd92fffce242f43b1ffa7e5c9b9e698185cf92593edcfc1c0
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -110,8 +110,9 @@ revoke all on "better_supabase"."employees" from anon, authenticated;
 grant select on "better_supabase"."employees" to authenticated;
 grant all on "better_supabase"."employees" to service_role;
 drop policy if exists employees_read on "better_supabase"."employees";
-create policy employees_read on "better_supabase"."employees" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()));
+create policy employees_read on "better_supabase"."employees"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()));
 
 -- Private details stay out of the directory: readable with
 -- employees.view_sensitive and by the employee.
@@ -137,8 +138,9 @@ revoke all on "better_supabase"."employee_private_details" from anon, authentica
 grant select on "better_supabase"."employee_private_details" to authenticated;
 grant all on "better_supabase"."employee_private_details" to service_role;
 drop policy if exists employee_private_details_read on "better_supabase"."employee_private_details";
-create policy employee_private_details_read on "better_supabase"."employee_private_details" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or "user_id" = (select auth.uid()));
+create policy employee_private_details_read on "better_supabase"."employee_private_details"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or "user_id" = (select auth.uid()));
 
 -- Contract history: a new contract ends the one before it, and rows are
 -- never edited. Salary is in minor units of its currency.
@@ -164,8 +166,9 @@ revoke all on "better_supabase"."employee_contracts" from anon, authenticated;
 grant select on "better_supabase"."employee_contracts" to authenticated;
 grant all on "better_supabase"."employee_contracts" to service_role;
 drop policy if exists employee_contracts_read on "better_supabase"."employee_contracts";
-create policy employee_contracts_read on "better_supabase"."employee_contracts" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or exists (
+create policy employee_contracts_read on "better_supabase"."employee_contracts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())));
 
 -- A manager is an employee of the same organization and never one of the

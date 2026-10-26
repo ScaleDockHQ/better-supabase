@@ -36,7 +36,7 @@ describe("moderation module", () => {
     const messages = sqlOf(modules, {}, "messaging");
 
     expect(sql).toContain("a removed message can''t be restored");
-    expect(messages).toContain('create policy "messages_moderation"');
+    expect(messages).toContain("create policy messages_moderation");
     expect(messages).toContain(
       '"better_supabase"."moderation_hidden"(\'message\'',
     );

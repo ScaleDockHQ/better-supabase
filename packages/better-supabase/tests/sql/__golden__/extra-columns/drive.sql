@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:e40be8b0c0cef4ad6a8c2252181fc8757a9a5b14c6093d05fbb5718e8288445b
+-- @bsb-hash sha256:dad6b7c28b7f280fcdc15154347b3ca78dfc1d5d6f1a4a3e13da43eee1a9b7ee
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -239,7 +239,8 @@ $$;
 revoke execute on function "better_supabase"."drive_node_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
 
 drop policy if exists drive_nodes_read on "better_supabase"."drive_nodes";
-create policy drive_nodes_read on "better_supabase"."drive_nodes" for select to authenticated
+create policy drive_nodes_read on "better_supabase"."drive_nodes"
+  for select to authenticated
   using ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()));
 
 -- Keeps path, the ids from the root to the node, in step with parent, so

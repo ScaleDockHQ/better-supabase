@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, schemaPreamble } from "../shared.ts";
 import { ledgerFunctions, ledgerTouch } from "./ledger-functions.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
@@ -372,28 +373,36 @@ end;
 $$;
 revoke execute on function ${fn("ledger_read_grants")}() from public, anon;
 grant execute on function ${fn("ledger_read_grants")}() to authenticated, service_role;
-drop policy if exists ${policyName("accounts")} on ${accounts};
-create policy ${policyName("accounts")} on ${accounts} for select to authenticated
-  using (${ctx.scope.check(a("tenant"), read)}
+${renderPolicy(
+  makePolicy({
+    table: accounts,
+    name: policyName("accounts"),
+    command: "select",
+    roles: ["authenticated"],
+    using: `${ctx.scope.check(a("tenant"), read)}
     or ${a("owner")} = (select auth.uid())
-    or (${a("tenant")}, ${a("readPermission")}) in (select g.tenant, g.permission from ${fn("ledger_read_grants")}() g));
+    or (${a("tenant")}, ${a("readPermission")}) in (select g.tenant, g.permission from ${fn("ledger_read_grants")}() g)`,
+  }),
+  { drop: true, target: accounts },
+)}
 ${lockModuleTable(ctx, "transactions", { read: true })}
-drop policy if exists ${policyName("transactions")} on ${transactions};
-create policy ${policyName("transactions")} on ${transactions} for select to authenticated
-  using (${ctx.scope.check(t("tenant"), read)}
-    or exists (select 1 from ${entries} y where y.${e("transaction")} = ${t("id")}));
+${renderPolicy(
+  makePolicy({
+    table: transactions,
+    name: policyName("transactions"),
+    command: "select",
+    roles: ["authenticated"],
+    using: `${ctx.scope.check(t("tenant"), read)}
+    or exists (select 1 from ${entries} y where y.${e("transaction")} = ${t("id")})`,
+  }),
+  { drop: true, target: transactions },
+)}
 ${lockModuleTable(ctx, "entries", { read: true })}
-drop policy if exists ${policyName("entries")} on ${entries};
-create policy ${policyName("entries")} on ${entries} for select to authenticated
-  using (${e("account")} in (select y.${a("id")} from ${accounts} y));
+${renderPolicy(makePolicy({ table: entries, name: policyName("entries"), command: "select", roles: ["authenticated"], using: `${e("account")} in (select y.${a("id")} from ${accounts} y)` }), { drop: true, target: entries })}
 ${lockModuleTable(ctx, "balances", { read: true })}
-drop policy if exists ${policyName("balances")} on ${balances};
-create policy ${policyName("balances")} on ${balances} for select to authenticated
-  using (${b("account")} in (select y.${a("id")} from ${accounts} y));
+${renderPolicy(makePolicy({ table: balances, name: policyName("balances"), command: "select", roles: ["authenticated"], using: `${b("account")} in (select y.${a("id")} from ${accounts} y)` }), { drop: true, target: balances })}
 ${lockModuleTable(ctx, "holds", { read: true })}
-drop policy if exists ${policyName("holds")} on ${holds};
-create policy ${policyName("holds")} on ${holds} for select to authenticated
-  using (${h("account")} in (select y.${a("id")} from ${accounts} y));
+${renderPolicy(makePolicy({ table: holds, name: policyName("holds"), command: "select", roles: ["authenticated"], using: `${h("account")} in (select y.${a("id")} from ${accounts} y)` }), { drop: true, target: holds })}
 
 -- Entries and transactions are append-only: a reversal posts the opposite.
 create or replace function ${fn("ledger_append_only")}()

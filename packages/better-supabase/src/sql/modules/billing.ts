@@ -9,6 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { PlanLookup } from "./billing-platform.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addForeignKey,
   columnRef,
@@ -311,9 +312,7 @@ alter table ${t} enable row level security;
 ${revokeTable(t)}
 grant select on ${t} to authenticated;
 grant all on ${t} to service_role;
-${tenantKey}drop policy if exists "billing_customers_read" on ${t};
-create policy "billing_customers_read" on ${t} for select to authenticated
-  using (${ctx.scope.check(c("tenant"), ctx.permission("read", permissions.read))});
+${tenantKey}${renderPolicy(makePolicy({ table: t, name: "billing_customers_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), ctx.permission("read", permissions.read)) }), { drop: true, target: t })}
 
 create or replace function ${fn("billing_customer")}(tenant ${id})
 returns text

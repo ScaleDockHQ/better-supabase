@@ -3,6 +3,7 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   ensureCheck,
@@ -498,19 +499,20 @@ $$;
 revoke execute on function ${fn("attachment_subject_readable")}(text, text, ${id}) from public, anon;
 grant execute on function ${fn("attachment_subject_readable")}(text, text, ${id}) to authenticated, service_role;
 
-drop policy if exists ${sqlIdent(`${ctx.tableName("attachments").name}_read`)} on ${t};
-create policy ${sqlIdent(`${ctx.tableName("attachments").name}_read`)} on ${t} for select to authenticated
-  using (${memberIn("read")} and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")}));
-drop policy if exists ${sqlIdent(`${ctx.tableName("attachments").name}_insert`)} on ${t};
-create policy ${sqlIdent(`${ctx.tableName("attachments").name}_insert`)} on ${t} for insert to authenticated
-  with check (
-    ${c("uploadedBy")} = (select auth.uid())
+${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("attachments").name}_read`), command: "select", roles: ["authenticated"], using: `${memberIn("read")} and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})` }), { drop: true, target: t })}
+${renderPolicy(
+  makePolicy({
+    table: t,
+    name: sqlIdent(`${ctx.tableName("attachments").name}_insert`),
+    command: "insert",
+    roles: ["authenticated"],
+    check: `${c("uploadedBy")} = (select auth.uid())
     and ${inTenant("", "upload")}
-    and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})
-  );
-drop policy if exists ${sqlIdent(`${ctx.tableName("attachments").name}_delete`)} on ${t};
-create policy ${sqlIdent(`${ctx.tableName("attachments").name}_delete`)} on ${t} for delete to authenticated
-  using (${c("uploadedBy")} = (select auth.uid()) or ${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "manage")});
+    and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})`,
+  }),
+  { drop: true, target: t },
+)}
+${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("attachments").name}_delete`), command: "delete", roles: ["authenticated"], using: `${c("uploadedBy")} = (select auth.uid()) or ${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "manage")}` }), { drop: true, target: t })}
 
 ${versioned.table}
 -- Whether the caller may run action (insert, select or delete) on the
@@ -577,16 +579,22 @@ revoke execute on function ${fn("attachment_object_visible")}(text, text) from p
 grant execute on function ${fn("attachment_object_visible")}(text, text) to authenticated, service_role;
 ${offlineSql?.sql ?? attachmentsOnlineSql(ctx, t)}
 
-create policy ${policy("insert")} on storage.objects for insert to authenticated
-  with check (bucket_id in (${bucketList}) and ${fn("attachment_object_allowed")}(bucket_id, name, 'insert'));
-create policy ${policy("select")} on storage.objects for select to authenticated
-  using (bucket_id in (${bucketList}) and ${fn("attachment_object_allowed")}(bucket_id, name, 'select')${
-    subjects.length === 0
-      ? ""
-      : ` and ${fn("attachment_object_visible")}(bucket_id, name)`
-  });
-create policy ${policy("delete")} on storage.objects for delete to authenticated
-  using (bucket_id in (${bucketList}) and ${offlineSql === undefined ? `${fn("attachment_object_allowed")}(bucket_id, name, 'delete')` : offlineSql.deleteCheck});
+${renderPolicy(makePolicy({ table: "storage.objects", name: policy("insert"), command: "insert", roles: ["authenticated"], check: `bucket_id in (${bucketList}) and ${fn("attachment_object_allowed")}(bucket_id, name, 'insert')` }), { target: "storage.objects" })}
+${renderPolicy(
+  makePolicy({
+    table: "storage.objects",
+    name: policy("select"),
+    command: "select",
+    roles: ["authenticated"],
+    using: `bucket_id in (${bucketList}) and ${fn("attachment_object_allowed")}(bucket_id, name, 'select')${
+      subjects.length === 0
+        ? ""
+        : ` and ${fn("attachment_object_visible")}(bucket_id, name)`
+    }`,
+  }),
+  { target: "storage.objects" },
+)}
+${renderPolicy(makePolicy({ table: "storage.objects", name: policy("delete"), command: "delete", roles: ["authenticated"], using: `bucket_id in (${bucketList}) and ${offlineSql === undefined ? `${fn("attachment_object_allowed")}(bucket_id, name, 'delete')` : offlineSql.deleteCheck}` }), { target: "storage.objects" })}
 
 -- The caller's new record, for a signed upload URL to its object_path.
 drop function if exists ${fn("create_attachment")}(${id}, text, text, bigint, text, text);

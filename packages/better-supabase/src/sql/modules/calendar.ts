@@ -3,6 +3,7 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addCheck,
   addExtraColumns,
@@ -216,9 +217,7 @@ ${
       })
     : ""
 }
-drop policy if exists ${ctx.tableName("attendees").name}_read on ${attendees};
-create policy ${ctx.tableName("attendees").name}_read on ${attendees} for select to authenticated
-using (${features.access ? eventAccessCall(ctx, a("event"), "read", me) : ctx.scope.check(a("tenant"), read)} or ${a("user")} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: attendees, name: `${ctx.tableName("attendees").name}_read`, command: "select", roles: ["authenticated"], using: `${features.access ? eventAccessCall(ctx, a("event"), "read", me) : ctx.scope.check(a("tenant"), read)} or ${a("user")} = (select auth.uid())` }), { drop: true, target: attendees })}
 `
       : "";
 
@@ -235,9 +234,7 @@ using (${features.access ? eventAccessCall(ctx, a("event"), "read", me) : ctx.sc
 );${addExtraColumns(calendars, calendarExtras)}${calendarColumns}
 ${lockTable(calendars, { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("calendars").name}_tenant_idx`)} on ${calendars} (${k("tenant")});
-drop policy if exists ${ctx.tableName("calendars").name}_read on ${calendars};
-create policy ${ctx.tableName("calendars").name}_read on ${calendars} for select to authenticated
-using (${features.access ? accessCall(ctx, k("id"), "read", me) : ctx.scope.check(k("tenant"), read)});
+${renderPolicy(makePolicy({ table: calendars, name: `${ctx.tableName("calendars").name}_read`, command: "select", roles: ["authenticated"], using: features.access ? accessCall(ctx, k("id"), "read", me) : ctx.scope.check(k("tenant"), read) }), { drop: true, target: calendars })}
 create table if not exists ${events} (
   ${e("id")} uuid primary key default gen_random_uuid(),
   ${e("tenant")} ${ctx.idType} not null,
@@ -284,9 +281,7 @@ ${addCheck({
   expression: `${e("transparency")} in ${TRANSPARENCIES}`,
 })}${eventColumns}${addExtraColumns(events, eventExtras(ctx))}
 ${lockTable(events, { read: true })}
-drop policy if exists ${ctx.tableName("events").name}_read on ${events};
-create policy ${ctx.tableName("events").name}_read on ${events} for select to authenticated
-using (${features.access ? eventAccessCall(ctx, e("id"), "read", me) : ctx.scope.check(e("tenant"), read)});
+${renderPolicy(makePolicy({ table: events, name: `${ctx.tableName("events").name}_read`, command: "select", roles: ["authenticated"], using: features.access ? eventAccessCall(ctx, e("id"), "read", me) : ctx.scope.check(e("tenant"), read) }), { drop: true, target: events })}
 ${attendeesTable()}${workingHoursTable(ctx)}${grantsTable(ctx)}${recurrenceTables(ctx)}`
     : "";
 

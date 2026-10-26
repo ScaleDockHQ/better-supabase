@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:e6a0f6243db3d54427049e82813681451deb83b45c98d645aeed4f3d234204c9
+-- @bsb-hash sha256:1b1cd7c236dca9fc599096598492de9c7972493d7ccf93f170213f73d583e41b
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -118,8 +118,9 @@ revoke all on "better_supabase"."promotions" from anon, authenticated;
 grant select on "better_supabase"."promotions" to authenticated;
 grant all on "better_supabase"."promotions" to service_role;
 drop policy if exists promotions_read on "better_supabase"."promotions";
-create policy promotions_read on "better_supabase"."promotions" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
+create policy promotions_read on "better_supabase"."promotions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
 
 create table if not exists "better_supabase"."promotion_codes" (
   "id" uuid primary key default gen_random_uuid(),
@@ -137,8 +138,9 @@ revoke all on "better_supabase"."promotion_codes" from anon, authenticated;
 grant select on "better_supabase"."promotion_codes" to authenticated;
 grant all on "better_supabase"."promotion_codes" to service_role;
 drop policy if exists promotion_codes_read on "better_supabase"."promotion_codes";
-create policy promotion_codes_read on "better_supabase"."promotion_codes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
+create policy promotion_codes_read on "better_supabase"."promotion_codes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
 
 create table if not exists "better_supabase"."cart_promotion_codes" (
   "tenant_id" uuid not null,
@@ -153,8 +155,9 @@ revoke all on "better_supabase"."cart_promotion_codes" from anon, authenticated;
 grant select on "better_supabase"."cart_promotion_codes" to authenticated;
 grant all on "better_supabase"."cart_promotion_codes" to service_role;
 drop policy if exists cart_promotion_codes_read on "better_supabase"."cart_promotion_codes";
-create policy cart_promotion_codes_read on "better_supabase"."cart_promotion_codes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
+create policy cart_promotion_codes_read on "better_supabase"."cart_promotion_codes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."promotion_redemptions" (
   "id" uuid primary key default gen_random_uuid(),
@@ -179,8 +182,9 @@ revoke all on "better_supabase"."promotion_redemptions" from anon, authenticated
 grant select on "better_supabase"."promotion_redemptions" to authenticated;
 grant all on "better_supabase"."promotion_redemptions" to service_role;
 drop policy if exists promotion_redemptions_read on "better_supabase"."promotion_redemptions";
-create policy promotion_redemptions_read on "better_supabase"."promotion_redemptions" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or "customer_id" = (select auth.uid()));
+create policy promotion_redemptions_read on "better_supabase"."promotion_redemptions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or "customer_id" = (select auth.uid()));
 
 -- Creates or updates a promotion. data holds name, description, kind
 -- (percentage, fixed or free_shipping), percent, currency, amount and

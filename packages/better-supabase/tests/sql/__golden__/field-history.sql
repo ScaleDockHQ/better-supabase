@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:1f1b3077f26decfc1bb1480478dedd44707be178a7c51e9e626f10cdb527c42e
+-- @bsb-hash sha256:cdf702de435b410f6fe783f457b9d9d4a92fbbfb9b6e4cf8e79ca103a53ac064
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -43,8 +43,9 @@ revoke all on "better_supabase"."field_changes" from anon, authenticated;
 grant select on "better_supabase"."field_changes" to authenticated;
 grant all on "better_supabase"."field_changes" to service_role;
 drop policy if exists field_changes_read on "better_supabase"."field_changes";
-create policy field_changes_read on "better_supabase"."field_changes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+create policy field_changes_read on "better_supabase"."field_changes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
 
 -- A record's changes, newest first, optionally of one field. before is the id
@@ -149,7 +150,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:1f1b3077f26decfc1bb1480478dedd44707be178a7c51e9e626f10cdb527c42e
+-- @bsb-hash sha256:cdf702de435b410f6fe783f457b9d9d4a92fbbfb9b6e4cf8e79ca103a53ac064
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -191,8 +192,9 @@ revoke all on "better_supabase"."field_changes" from anon, authenticated;
 grant select on "better_supabase"."field_changes" to authenticated;
 grant all on "better_supabase"."field_changes" to service_role;
 drop policy if exists field_changes_read on "better_supabase"."field_changes";
-create policy field_changes_read on "better_supabase"."field_changes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+create policy field_changes_read on "better_supabase"."field_changes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
 
 -- A record's changes, newest first, optionally of one field. before is the id
@@ -297,7 +299,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:89876b21ed7faf569aa1300270c04e53a3bb6140bcf20dbe3f731fa557eb955b
+-- @bsb-hash sha256:d0bfe7ae9321b9e7333a90e554852e27457472597f71ee371bb251d827c5d8cf
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -341,8 +343,9 @@ revoke all on "app_private"."field_changes" from anon, authenticated;
 grant select on "app_private"."field_changes" to authenticated;
 grant all on "app_private"."field_changes" to service_role;
 drop policy if exists field_changes_read on "app_private"."field_changes";
-create policy field_changes_read on "app_private"."field_changes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+create policy field_changes_read on "app_private"."field_changes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
 
 -- A record's changes, newest first, optionally of one field. before is the id
@@ -447,7 +450,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:6f2781c921474d2ec4ada9bfb49e1e15cd74a0c607055b124386f9514e63fa5d
+-- @bsb-hash sha256:f9f3970719ed91236d68fdafaea93feaf854e6472c7dcadda295077a6f627a40
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -489,8 +492,9 @@ revoke all on "better_supabase"."field_changes" from anon, authenticated;
 grant select on "better_supabase"."field_changes" to authenticated;
 grant all on "better_supabase"."field_changes" to service_role;
 drop policy if exists field_changes_read on "better_supabase"."field_changes";
-create policy field_changes_read on "better_supabase"."field_changes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+create policy field_changes_read on "better_supabase"."field_changes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
 
 -- A record's changes, newest first, optionally of one field. before is the id
@@ -608,7 +612,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:c9af0cc76e7572e566b2c7ae317b4e65d6a24116946a283ceb9f071269e54584
+-- @bsb-hash sha256:8e0754fa77631d7c73c517a9352642d796924253501ff9157a135b45ad414733
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -648,8 +652,9 @@ alter table "better_supabase"."field_changes" enable row level security;
 grant select on "better_supabase"."field_changes" to authenticated;
 grant all on "better_supabase"."field_changes" to service_role;
 drop policy if exists bsb_field_changes_select on "better_supabase"."field_changes";
-create policy bsb_field_changes_select on "better_supabase"."field_changes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+create policy bsb_field_changes_select on "better_supabase"."field_changes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
 
 -- A record's changes, newest first, optionally of one field. before is the id
@@ -754,7 +759,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:5ddc383d5a0d8df9880ca13df2d6c531abf81fcc77c8b960ce47d987d2e20106
+-- @bsb-hash sha256:04a5258453542d12df05c7db53a83f84c8e11608617e739e0d6b15f82c3fd128
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -796,8 +801,9 @@ revoke all on "better_supabase"."field_changes" from anon, authenticated;
 grant select on "better_supabase"."field_changes" to authenticated;
 grant all on "better_supabase"."field_changes" to service_role;
 drop policy if exists field_changes_read on "better_supabase"."field_changes";
-create policy field_changes_read on "better_supabase"."field_changes" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+create policy field_changes_read on "better_supabase"."field_changes"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
 
 -- A record's changes, newest first, optionally of one field. before is the id

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:d2196363ccfb4f5e6917e6a66c3fdd33f63c7775fea785f956f087a1cd3df913
+-- @bsb-hash sha256:95f84ea005b88b3ca29ea1ca131f940c9cd437f63afbed31936a62d11d230439
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -123,8 +123,9 @@ revoke all on "better_supabase"."inventory_locations" from anon, authenticated;
 grant select on "better_supabase"."inventory_locations" to authenticated;
 grant all on "better_supabase"."inventory_locations" to service_role;
 drop policy if exists inventory_locations_read on "better_supabase"."inventory_locations";
-create policy inventory_locations_read on "better_supabase"."inventory_locations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy inventory_locations_read on "better_supabase"."inventory_locations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."stock_levels" (
   "tenant_id" uuid not null,
@@ -144,8 +145,9 @@ revoke all on "better_supabase"."stock_levels" from anon, authenticated;
 grant select on "better_supabase"."stock_levels" to authenticated;
 grant all on "better_supabase"."stock_levels" to service_role;
 drop policy if exists stock_levels_read on "better_supabase"."stock_levels";
-create policy stock_levels_read on "better_supabase"."stock_levels" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_levels_read on "better_supabase"."stock_levels"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."stock_reservations" (
   "id" uuid primary key default gen_random_uuid(),
@@ -168,8 +170,9 @@ revoke all on "better_supabase"."stock_reservations" from anon, authenticated;
 grant select on "better_supabase"."stock_reservations" to authenticated;
 grant all on "better_supabase"."stock_reservations" to service_role;
 drop policy if exists stock_reservations_read on "better_supabase"."stock_reservations";
-create policy stock_reservations_read on "better_supabase"."stock_reservations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_reservations_read on "better_supabase"."stock_reservations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."stock_transfers" (
   "id" uuid primary key default gen_random_uuid(),
@@ -190,8 +193,9 @@ revoke all on "better_supabase"."stock_transfers" from anon, authenticated;
 grant select on "better_supabase"."stock_transfers" to authenticated;
 grant all on "better_supabase"."stock_transfers" to service_role;
 drop policy if exists stock_transfers_read on "better_supabase"."stock_transfers";
-create policy stock_transfers_read on "better_supabase"."stock_transfers" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_transfers_read on "better_supabase"."stock_transfers"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."stock_transfer_lines" (
   "tenant_id" uuid not null,
@@ -206,8 +210,9 @@ revoke all on "better_supabase"."stock_transfer_lines" from anon, authenticated;
 grant select on "better_supabase"."stock_transfer_lines" to authenticated;
 grant all on "better_supabase"."stock_transfer_lines" to service_role;
 drop policy if exists stock_transfer_lines_read on "better_supabase"."stock_transfer_lines";
-create policy stock_transfer_lines_read on "better_supabase"."stock_transfer_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_transfer_lines_read on "better_supabase"."stock_transfer_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."purchase_orders" (
   "id" uuid primary key default gen_random_uuid(),
@@ -231,8 +236,9 @@ revoke all on "better_supabase"."purchase_orders" from anon, authenticated;
 grant select on "better_supabase"."purchase_orders" to authenticated;
 grant all on "better_supabase"."purchase_orders" to service_role;
 drop policy if exists purchase_orders_read on "better_supabase"."purchase_orders";
-create policy purchase_orders_read on "better_supabase"."purchase_orders" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy purchase_orders_read on "better_supabase"."purchase_orders"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."purchase_order_lines" (
   "id" uuid primary key default gen_random_uuid(),
@@ -250,8 +256,9 @@ revoke all on "better_supabase"."purchase_order_lines" from anon, authenticated;
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 drop policy if exists purchase_order_lines_read on "better_supabase"."purchase_order_lines";
-create policy purchase_order_lines_read on "better_supabase"."purchase_order_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy purchase_order_lines_read on "better_supabase"."purchase_order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 -- Posts a stock movement to the ledger and applies it to its level. A
 -- tracked variant without backorders can't go below zero on hand, and a
@@ -1330,7 +1337,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:caf0fe168ba00d9c5dd0b80d29a0ad03b95c88c3345b2898d70cc2e1fcdc0830
+-- @bsb-hash sha256:9528e7e3fae934abbe726dde371f570e409ceba74ff81ee195839e76ec247958
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1452,8 +1459,9 @@ revoke all on "better_supabase"."inventory_locations" from anon, authenticated;
 grant select on "better_supabase"."inventory_locations" to authenticated;
 grant all on "better_supabase"."inventory_locations" to service_role;
 drop policy if exists inventory_locations_read on "better_supabase"."inventory_locations";
-create policy inventory_locations_read on "better_supabase"."inventory_locations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy inventory_locations_read on "better_supabase"."inventory_locations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."stock_levels" (
   "tenant_id" uuid not null,
@@ -1473,8 +1481,9 @@ revoke all on "better_supabase"."stock_levels" from anon, authenticated;
 grant select on "better_supabase"."stock_levels" to authenticated;
 grant all on "better_supabase"."stock_levels" to service_role;
 drop policy if exists stock_levels_read on "better_supabase"."stock_levels";
-create policy stock_levels_read on "better_supabase"."stock_levels" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_levels_read on "better_supabase"."stock_levels"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."stock_reservations" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1497,8 +1506,9 @@ revoke all on "better_supabase"."stock_reservations" from anon, authenticated;
 grant select on "better_supabase"."stock_reservations" to authenticated;
 grant all on "better_supabase"."stock_reservations" to service_role;
 drop policy if exists stock_reservations_read on "better_supabase"."stock_reservations";
-create policy stock_reservations_read on "better_supabase"."stock_reservations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_reservations_read on "better_supabase"."stock_reservations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."stock_transfers" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1519,8 +1529,9 @@ revoke all on "better_supabase"."stock_transfers" from anon, authenticated;
 grant select on "better_supabase"."stock_transfers" to authenticated;
 grant all on "better_supabase"."stock_transfers" to service_role;
 drop policy if exists stock_transfers_read on "better_supabase"."stock_transfers";
-create policy stock_transfers_read on "better_supabase"."stock_transfers" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_transfers_read on "better_supabase"."stock_transfers"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."stock_transfer_lines" (
   "tenant_id" uuid not null,
@@ -1535,8 +1546,9 @@ revoke all on "better_supabase"."stock_transfer_lines" from anon, authenticated;
 grant select on "better_supabase"."stock_transfer_lines" to authenticated;
 grant all on "better_supabase"."stock_transfer_lines" to service_role;
 drop policy if exists stock_transfer_lines_read on "better_supabase"."stock_transfer_lines";
-create policy stock_transfer_lines_read on "better_supabase"."stock_transfer_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_transfer_lines_read on "better_supabase"."stock_transfer_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."purchase_orders" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1560,8 +1572,9 @@ revoke all on "better_supabase"."purchase_orders" from anon, authenticated;
 grant select on "better_supabase"."purchase_orders" to authenticated;
 grant all on "better_supabase"."purchase_orders" to service_role;
 drop policy if exists purchase_orders_read on "better_supabase"."purchase_orders";
-create policy purchase_orders_read on "better_supabase"."purchase_orders" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy purchase_orders_read on "better_supabase"."purchase_orders"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."purchase_order_lines" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1579,8 +1592,9 @@ revoke all on "better_supabase"."purchase_order_lines" from anon, authenticated;
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 drop policy if exists purchase_order_lines_read on "better_supabase"."purchase_order_lines";
-create policy purchase_order_lines_read on "better_supabase"."purchase_order_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy purchase_order_lines_read on "better_supabase"."purchase_order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 -- Posts a stock movement to the ledger and applies it to its level. A
 -- tracked variant without backorders can't go below zero on hand, and a
@@ -2659,7 +2673,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:7f072c37f7438ed0628ab2e66e3d6793afeab012f93d4d8e43db711eb36bbb5f
+-- @bsb-hash sha256:f46d4885b495e4a978a40472d935ce7ba426865452d9699044b2d9a86e8088ac
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2783,8 +2797,9 @@ revoke all on "app_private"."inventory_locations" from anon, authenticated;
 grant select on "app_private"."inventory_locations" to authenticated;
 grant all on "app_private"."inventory_locations" to service_role;
 drop policy if exists inventory_locations_read on "app_private"."inventory_locations";
-create policy inventory_locations_read on "app_private"."inventory_locations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy inventory_locations_read on "app_private"."inventory_locations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "app_private"."stock_levels" (
   "tenant_id" uuid not null,
@@ -2804,8 +2819,9 @@ revoke all on "app_private"."stock_levels" from anon, authenticated;
 grant select on "app_private"."stock_levels" to authenticated;
 grant all on "app_private"."stock_levels" to service_role;
 drop policy if exists stock_levels_read on "app_private"."stock_levels";
-create policy stock_levels_read on "app_private"."stock_levels" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_levels_read on "app_private"."stock_levels"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "app_private"."stock_reservations" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2828,8 +2844,9 @@ revoke all on "app_private"."stock_reservations" from anon, authenticated;
 grant select on "app_private"."stock_reservations" to authenticated;
 grant all on "app_private"."stock_reservations" to service_role;
 drop policy if exists stock_reservations_read on "app_private"."stock_reservations";
-create policy stock_reservations_read on "app_private"."stock_reservations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_reservations_read on "app_private"."stock_reservations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "app_private"."stock_transfers" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2850,8 +2867,9 @@ revoke all on "app_private"."stock_transfers" from anon, authenticated;
 grant select on "app_private"."stock_transfers" to authenticated;
 grant all on "app_private"."stock_transfers" to service_role;
 drop policy if exists stock_transfers_read on "app_private"."stock_transfers";
-create policy stock_transfers_read on "app_private"."stock_transfers" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_transfers_read on "app_private"."stock_transfers"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "app_private"."stock_transfer_lines" (
   "tenant_id" uuid not null,
@@ -2866,8 +2884,9 @@ revoke all on "app_private"."stock_transfer_lines" from anon, authenticated;
 grant select on "app_private"."stock_transfer_lines" to authenticated;
 grant all on "app_private"."stock_transfer_lines" to service_role;
 drop policy if exists stock_transfer_lines_read on "app_private"."stock_transfer_lines";
-create policy stock_transfer_lines_read on "app_private"."stock_transfer_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_transfer_lines_read on "app_private"."stock_transfer_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "app_private"."purchase_orders" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2891,8 +2910,9 @@ revoke all on "app_private"."purchase_orders" from anon, authenticated;
 grant select on "app_private"."purchase_orders" to authenticated;
 grant all on "app_private"."purchase_orders" to service_role;
 drop policy if exists purchase_orders_read on "app_private"."purchase_orders";
-create policy purchase_orders_read on "app_private"."purchase_orders" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy purchase_orders_read on "app_private"."purchase_orders"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "app_private"."purchase_order_lines" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2910,8 +2930,9 @@ revoke all on "app_private"."purchase_order_lines" from anon, authenticated;
 grant select on "app_private"."purchase_order_lines" to authenticated;
 grant all on "app_private"."purchase_order_lines" to service_role;
 drop policy if exists purchase_order_lines_read on "app_private"."purchase_order_lines";
-create policy purchase_order_lines_read on "app_private"."purchase_order_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy purchase_order_lines_read on "app_private"."purchase_order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 -- Posts a stock movement to the ledger and applies it to its level. A
 -- tracked variant without backorders can't go below zero on hand, and a
@@ -3990,7 +4011,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:244b78bf92dec9458ec15a0f67b36a72403e13ba2780ff5e3f50d8fa2fc470a9
+-- @bsb-hash sha256:ad616b2b7f97c66787def34647156b653fe03dff596d23d3c038d234bb2ee70c
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4112,8 +4133,9 @@ revoke all on "better_supabase"."inventory_locations" from anon, authenticated;
 grant select on "better_supabase"."inventory_locations" to authenticated;
 grant all on "better_supabase"."inventory_locations" to service_role;
 drop policy if exists inventory_locations_read on "better_supabase"."inventory_locations";
-create policy inventory_locations_read on "better_supabase"."inventory_locations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy inventory_locations_read on "better_supabase"."inventory_locations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."stock_levels" (
   "tenant_id" uuid not null,
@@ -4133,8 +4155,9 @@ revoke all on "better_supabase"."stock_levels" from anon, authenticated;
 grant select on "better_supabase"."stock_levels" to authenticated;
 grant all on "better_supabase"."stock_levels" to service_role;
 drop policy if exists stock_levels_read on "better_supabase"."stock_levels";
-create policy stock_levels_read on "better_supabase"."stock_levels" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_levels_read on "better_supabase"."stock_levels"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."stock_reservations" (
   "id" uuid primary key default gen_random_uuid(),
@@ -4157,8 +4180,9 @@ revoke all on "better_supabase"."stock_reservations" from anon, authenticated;
 grant select on "better_supabase"."stock_reservations" to authenticated;
 grant all on "better_supabase"."stock_reservations" to service_role;
 drop policy if exists stock_reservations_read on "better_supabase"."stock_reservations";
-create policy stock_reservations_read on "better_supabase"."stock_reservations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_reservations_read on "better_supabase"."stock_reservations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."stock_transfers" (
   "id" uuid primary key default gen_random_uuid(),
@@ -4179,8 +4203,9 @@ revoke all on "better_supabase"."stock_transfers" from anon, authenticated;
 grant select on "better_supabase"."stock_transfers" to authenticated;
 grant all on "better_supabase"."stock_transfers" to service_role;
 drop policy if exists stock_transfers_read on "better_supabase"."stock_transfers";
-create policy stock_transfers_read on "better_supabase"."stock_transfers" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_transfers_read on "better_supabase"."stock_transfers"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."stock_transfer_lines" (
   "tenant_id" uuid not null,
@@ -4195,8 +4220,9 @@ revoke all on "better_supabase"."stock_transfer_lines" from anon, authenticated;
 grant select on "better_supabase"."stock_transfer_lines" to authenticated;
 grant all on "better_supabase"."stock_transfer_lines" to service_role;
 drop policy if exists stock_transfer_lines_read on "better_supabase"."stock_transfer_lines";
-create policy stock_transfer_lines_read on "better_supabase"."stock_transfer_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_transfer_lines_read on "better_supabase"."stock_transfer_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."purchase_orders" (
   "id" uuid primary key default gen_random_uuid(),
@@ -4220,8 +4246,9 @@ revoke all on "better_supabase"."purchase_orders" from anon, authenticated;
 grant select on "better_supabase"."purchase_orders" to authenticated;
 grant all on "better_supabase"."purchase_orders" to service_role;
 drop policy if exists purchase_orders_read on "better_supabase"."purchase_orders";
-create policy purchase_orders_read on "better_supabase"."purchase_orders" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy purchase_orders_read on "better_supabase"."purchase_orders"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."purchase_order_lines" (
   "id" uuid primary key default gen_random_uuid(),
@@ -4239,8 +4266,9 @@ revoke all on "better_supabase"."purchase_order_lines" from anon, authenticated;
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 drop policy if exists purchase_order_lines_read on "better_supabase"."purchase_order_lines";
-create policy purchase_order_lines_read on "better_supabase"."purchase_order_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy purchase_order_lines_read on "better_supabase"."purchase_order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 -- Posts a stock movement to the ledger and applies it to its level. A
 -- tracked variant without backorders can't go below zero on hand, and a
@@ -5505,7 +5533,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:1201a50c5be49f857f509087e2b7b77775805855836b7cb33e635358f7365968
+-- @bsb-hash sha256:4d112bb69f945352eaa950ca87241ddee7a2df53da771e3a39374b6dad5f43d5
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5640,8 +5668,9 @@ alter table "better_supabase"."inventory_locations" enable row level security;
 grant select on "better_supabase"."inventory_locations" to authenticated;
 grant all on "better_supabase"."inventory_locations" to service_role;
 drop policy if exists bsb_inventory_locations_select on "better_supabase"."inventory_locations";
-create policy bsb_inventory_locations_select on "better_supabase"."inventory_locations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy bsb_inventory_locations_select on "better_supabase"."inventory_locations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 -- better_supabase.stock_levels is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."stock_levels" add column if not exists "tenant_id" uuid;
@@ -5658,8 +5687,9 @@ alter table "better_supabase"."stock_levels" enable row level security;
 grant select on "better_supabase"."stock_levels" to authenticated;
 grant all on "better_supabase"."stock_levels" to service_role;
 drop policy if exists bsb_stock_levels_select on "better_supabase"."stock_levels";
-create policy bsb_stock_levels_select on "better_supabase"."stock_levels" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy bsb_stock_levels_select on "better_supabase"."stock_levels"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 -- better_supabase.stock_reservations is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."stock_reservations" add column if not exists "id" uuid default gen_random_uuid();
@@ -5680,8 +5710,9 @@ alter table "better_supabase"."stock_reservations" enable row level security;
 grant select on "better_supabase"."stock_reservations" to authenticated;
 grant all on "better_supabase"."stock_reservations" to service_role;
 drop policy if exists bsb_stock_reservations_select on "better_supabase"."stock_reservations";
-create policy bsb_stock_reservations_select on "better_supabase"."stock_reservations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy bsb_stock_reservations_select on "better_supabase"."stock_reservations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 -- better_supabase.stock_transfers is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."stock_transfers" add column if not exists "id" uuid default gen_random_uuid();
@@ -5699,8 +5730,9 @@ alter table "better_supabase"."stock_transfers" enable row level security;
 grant select on "better_supabase"."stock_transfers" to authenticated;
 grant all on "better_supabase"."stock_transfers" to service_role;
 drop policy if exists bsb_stock_transfers_select on "better_supabase"."stock_transfers";
-create policy bsb_stock_transfers_select on "better_supabase"."stock_transfers" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy bsb_stock_transfers_select on "better_supabase"."stock_transfers"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 -- better_supabase.stock_transfer_lines is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."stock_transfer_lines" add column if not exists "tenant_id" uuid;
@@ -5712,8 +5744,9 @@ alter table "better_supabase"."stock_transfer_lines" enable row level security;
 grant select on "better_supabase"."stock_transfer_lines" to authenticated;
 grant all on "better_supabase"."stock_transfer_lines" to service_role;
 drop policy if exists bsb_stock_transfer_lines_select on "better_supabase"."stock_transfer_lines";
-create policy bsb_stock_transfer_lines_select on "better_supabase"."stock_transfer_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy bsb_stock_transfer_lines_select on "better_supabase"."stock_transfer_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 -- better_supabase.purchase_orders is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."purchase_orders" add column if not exists "id" uuid default gen_random_uuid();
@@ -5734,8 +5767,9 @@ alter table "better_supabase"."purchase_orders" enable row level security;
 grant select on "better_supabase"."purchase_orders" to authenticated;
 grant all on "better_supabase"."purchase_orders" to service_role;
 drop policy if exists bsb_purchase_orders_select on "better_supabase"."purchase_orders";
-create policy bsb_purchase_orders_select on "better_supabase"."purchase_orders" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy bsb_purchase_orders_select on "better_supabase"."purchase_orders"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 -- better_supabase.purchase_order_lines is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."purchase_order_lines" add column if not exists "id" uuid default gen_random_uuid();
@@ -5750,8 +5784,9 @@ alter table "better_supabase"."purchase_order_lines" enable row level security;
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 drop policy if exists bsb_purchase_order_lines_select on "better_supabase"."purchase_order_lines";
-create policy bsb_purchase_order_lines_select on "better_supabase"."purchase_order_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy bsb_purchase_order_lines_select on "better_supabase"."purchase_order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 -- Posts a stock movement to the ledger and applies it to its level. A
 -- tracked variant without backorders can't go below zero on hand, and a
@@ -6830,7 +6865,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:bceffebad9a23360f7718e5ad9af6a558b9118776547dafffc01f64e86f358b3
+-- @bsb-hash sha256:c38e30467a8827102927f72c04c78bef290b71387a61adab5da0beb6f70c9ec3
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6952,8 +6987,9 @@ revoke all on "better_supabase"."inventory_locations" from anon, authenticated;
 grant select on "better_supabase"."inventory_locations" to authenticated;
 grant all on "better_supabase"."inventory_locations" to service_role;
 drop policy if exists inventory_locations_read on "better_supabase"."inventory_locations";
-create policy inventory_locations_read on "better_supabase"."inventory_locations" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy inventory_locations_read on "better_supabase"."inventory_locations"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."stock_levels" (
   "org_id" uuid not null,
@@ -6973,8 +7009,9 @@ revoke all on "better_supabase"."stock_levels" from anon, authenticated;
 grant select on "better_supabase"."stock_levels" to authenticated;
 grant all on "better_supabase"."stock_levels" to service_role;
 drop policy if exists stock_levels_read on "better_supabase"."stock_levels";
-create policy stock_levels_read on "better_supabase"."stock_levels" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_levels_read on "better_supabase"."stock_levels"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."stock_reservations" (
   "id" uuid primary key default gen_random_uuid(),
@@ -6997,8 +7034,9 @@ revoke all on "better_supabase"."stock_reservations" from anon, authenticated;
 grant select on "better_supabase"."stock_reservations" to authenticated;
 grant all on "better_supabase"."stock_reservations" to service_role;
 drop policy if exists stock_reservations_read on "better_supabase"."stock_reservations";
-create policy stock_reservations_read on "better_supabase"."stock_reservations" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_reservations_read on "better_supabase"."stock_reservations"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."stock_transfers" (
   "id" uuid primary key default gen_random_uuid(),
@@ -7019,8 +7057,9 @@ revoke all on "better_supabase"."stock_transfers" from anon, authenticated;
 grant select on "better_supabase"."stock_transfers" to authenticated;
 grant all on "better_supabase"."stock_transfers" to service_role;
 drop policy if exists stock_transfers_read on "better_supabase"."stock_transfers";
-create policy stock_transfers_read on "better_supabase"."stock_transfers" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_transfers_read on "better_supabase"."stock_transfers"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."stock_transfer_lines" (
   "org_id" uuid not null,
@@ -7035,8 +7074,9 @@ revoke all on "better_supabase"."stock_transfer_lines" from anon, authenticated;
 grant select on "better_supabase"."stock_transfer_lines" to authenticated;
 grant all on "better_supabase"."stock_transfer_lines" to service_role;
 drop policy if exists stock_transfer_lines_read on "better_supabase"."stock_transfer_lines";
-create policy stock_transfer_lines_read on "better_supabase"."stock_transfer_lines" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy stock_transfer_lines_read on "better_supabase"."stock_transfer_lines"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."purchase_orders" (
   "id" uuid primary key default gen_random_uuid(),
@@ -7060,8 +7100,9 @@ revoke all on "better_supabase"."purchase_orders" from anon, authenticated;
 grant select on "better_supabase"."purchase_orders" to authenticated;
 grant all on "better_supabase"."purchase_orders" to service_role;
 drop policy if exists purchase_orders_read on "better_supabase"."purchase_orders";
-create policy purchase_orders_read on "better_supabase"."purchase_orders" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy purchase_orders_read on "better_supabase"."purchase_orders"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."purchase_order_lines" (
   "id" uuid primary key default gen_random_uuid(),
@@ -7079,8 +7120,9 @@ revoke all on "better_supabase"."purchase_order_lines" from anon, authenticated;
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 drop policy if exists purchase_order_lines_read on "better_supabase"."purchase_order_lines";
-create policy purchase_order_lines_read on "better_supabase"."purchase_order_lines" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+create policy purchase_order_lines_read on "better_supabase"."purchase_order_lines"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 -- Posts a stock movement to the ledger and applies it to its level. A
 -- tracked variant without backorders can't go below zero on hand, and a

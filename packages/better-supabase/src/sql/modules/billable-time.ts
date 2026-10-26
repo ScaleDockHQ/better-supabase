@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
   pageSize,
@@ -140,8 +141,7 @@ create table if not exists ${rates} (
 create index if not exists ${index("rates", "lookup_idx")} on ${rates} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("user")}, ${r("effectiveFrom")} desc);
 ${lockModuleTable(ctx, "rates", { read: true })}
 drop policy if exists ${index("rates", "read")} on ${rates};
-create policy ${index("rates", "read")} on ${rates} for select to authenticated
-  using (${ctx.scope.check(r("tenant"), read)});
+${renderPolicy(makePolicy({ table: rates, name: index("rates", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(r("tenant"), read) }), { target: rates })}
 
 -- One row per billed time entry: the invoice and the rate it was billed at.
 create table if not exists ${billed} (
@@ -156,8 +156,7 @@ create index if not exists ${index("billed", "invoice_idx")} on ${billed} (${b("
 create index if not exists ${index("billed", "tenant_idx")} on ${billed} (${b("tenant")});
 ${lockModuleTable(ctx, "billed", { read: true })}
 drop policy if exists ${index("billed", "read")} on ${billed};
-create policy ${index("billed", "read")} on ${billed} for select to authenticated
-  using (${ctx.scope.check(b("tenant"), read)});
+${renderPolicy(makePolicy({ table: billed, name: index("billed", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(b("tenant"), read) }), { target: billed })}
 `;
 }
 

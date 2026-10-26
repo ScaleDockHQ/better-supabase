@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:81fa1d4d6eddc40ea6e92b6f991b3efea5bead0ceb96012fdd66779ead9c65b0
+-- @bsb-hash sha256:c1bad7b9cea893019b737f3060d1a44bac3425d7f1e0b0757e513458a1880770
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -95,8 +95,9 @@ alter table "better_supabase"."content_entries" enable row level security;
 revoke all on "better_supabase"."content_entries" from anon, authenticated;
 grant select on "better_supabase"."content_entries" to authenticated;
 grant all on "better_supabase"."content_entries" to service_role;
-drop policy if exists "content_entries_read" on "better_supabase"."content_entries";
-create policy "content_entries_read" on "better_supabase"."content_entries" for select to authenticated
+drop policy if exists content_entries_read on "better_supabase"."content_entries";
+create policy content_entries_read on "better_supabase"."content_entries"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')));
 
 -- An entry the caller writes: attrs is { type, locale, slug, title, summary,
@@ -709,7 +710,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:e2ebad7de43dcac7221d851804305584f3c1b27dd1b0efb35542b5db744b1887
+-- @bsb-hash sha256:019b704a0db66627ecdd7e18b601f2128f6af9efd9f1ba98bf85eb3560f40267
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -803,8 +804,9 @@ alter table "better_supabase"."content_entries" enable row level security;
 revoke all on "better_supabase"."content_entries" from anon, authenticated;
 grant select on "better_supabase"."content_entries" to authenticated;
 grant all on "better_supabase"."content_entries" to service_role;
-drop policy if exists "content_entries_read" on "better_supabase"."content_entries";
-create policy "content_entries_read" on "better_supabase"."content_entries" for select to authenticated
+drop policy if exists content_entries_read on "better_supabase"."content_entries";
+create policy content_entries_read on "better_supabase"."content_entries"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')));
 
 -- An entry the caller writes: attrs is { type, locale, slug, title, summary,
@@ -1481,7 +1483,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:dbd52b2feebc4a801f9d5d2d12b295469388961c954c130f9b7016a9a4c2de2b
+-- @bsb-hash sha256:f28eae3514866349626260483fa633dadd7b4ed5160e55d5c798536bb6643db1
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1577,8 +1579,9 @@ alter table "app_private"."content_entries" enable row level security;
 revoke all on "app_private"."content_entries" from anon, authenticated;
 grant select on "app_private"."content_entries" to authenticated;
 grant all on "app_private"."content_entries" to service_role;
-drop policy if exists "content_entries_read" on "app_private"."content_entries";
-create policy "content_entries_read" on "app_private"."content_entries" for select to authenticated
+drop policy if exists content_entries_read on "app_private"."content_entries";
+create policy content_entries_read on "app_private"."content_entries"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')));
 
 -- An entry the caller writes: attrs is { type, locale, slug, title, summary,
@@ -2191,7 +2194,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:d42336020a92d6001deb42eecc9485c0c148448bfa0db81b6b398d1ddc8ea335
+-- @bsb-hash sha256:fd59a4685d52a5e750b67eac6277006396e3bfca476ca17702661d673524aa57
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2285,8 +2288,9 @@ alter table "better_supabase"."content_entries" enable row level security;
 revoke all on "better_supabase"."content_entries" from anon, authenticated;
 grant select on "better_supabase"."content_entries" to authenticated;
 grant all on "better_supabase"."content_entries" to service_role;
-drop policy if exists "content_entries_read" on "better_supabase"."content_entries";
-create policy "content_entries_read" on "better_supabase"."content_entries" for select to authenticated
+drop policy if exists content_entries_read on "better_supabase"."content_entries";
+create policy content_entries_read on "better_supabase"."content_entries"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')));
 
 -- An entry the caller writes: attrs is { type, locale, slug, title, summary,
@@ -3011,7 +3015,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:750105439b812b8963050918a23fee34fe6b4dbc85ed66a75ebb1b313c2e83c7
+-- @bsb-hash sha256:79e4b77ebad06831a19cba6d8ae5a5cd11a675cfd45d4d7e7fc3c12f560bba4e
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3133,7 +3137,8 @@ alter table "better_supabase"."content_entries" enable row level security;
 grant select on "better_supabase"."content_entries" to authenticated;
 grant all on "better_supabase"."content_entries" to service_role;
 drop policy if exists bsb_content_entries_select on "better_supabase"."content_entries";
-create policy bsb_content_entries_select on "better_supabase"."content_entries" for select to authenticated
+create policy bsb_content_entries_select on "better_supabase"."content_entries"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')));
 
 -- An entry the caller writes: attrs is { type, locale, slug, title, summary,
@@ -3746,7 +3751,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:e8f5054cc7bd44f5c3e4cb3bbab72518a9367c23f01cd10c71cf83da30766bb7
+-- @bsb-hash sha256:08d629a414dd154cbebc6ecc7ec967d44713525d5bcc4909c69114eb78f89a8d
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3840,8 +3845,9 @@ alter table "better_supabase"."content_entries" enable row level security;
 revoke all on "better_supabase"."content_entries" from anon, authenticated;
 grant select on "better_supabase"."content_entries" to authenticated;
 grant all on "better_supabase"."content_entries" to service_role;
-drop policy if exists "content_entries_read" on "better_supabase"."content_entries";
-create policy "content_entries_read" on "better_supabase"."content_entries" for select to authenticated
+drop policy if exists content_entries_read on "better_supabase"."content_entries";
+create policy content_entries_read on "better_supabase"."content_entries"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('content.read')));
 
 -- An entry the caller writes: attrs is { type, locale, slug, title, summary,

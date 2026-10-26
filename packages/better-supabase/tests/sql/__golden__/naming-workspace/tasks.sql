@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:7bb1eb2dfc46eecdb08e8d7b47906d2b30c88904e1bddd8757f9674578cc209c
+-- @bsb-hash sha256:c19f0df1b1990ef27ee19f4a1536b74c96e86914a615b48d8607115719ac60ac
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -111,8 +111,9 @@ revoke all on "better_supabase"."projects" from anon, authenticated;
 grant select on "better_supabase"."projects" to authenticated;
 grant all on "better_supabase"."projects" to service_role;
 drop policy if exists projects_read on "better_supabase"."projects";
-create policy projects_read on "better_supabase"."projects" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
+create policy projects_read on "better_supabase"."projects"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
 
 create table if not exists "better_supabase"."iterations" (
   "id" uuid primary key default gen_random_uuid(),
@@ -130,8 +131,9 @@ revoke all on "better_supabase"."iterations" from anon, authenticated;
 grant select on "better_supabase"."iterations" to authenticated;
 grant all on "better_supabase"."iterations" to service_role;
 drop policy if exists iterations_read on "better_supabase"."iterations";
-create policy iterations_read on "better_supabase"."iterations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
+create policy iterations_read on "better_supabase"."iterations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
 
 create table if not exists "better_supabase"."work_items" (
   "id" uuid primary key default gen_random_uuid(),
@@ -175,8 +177,9 @@ revoke all on "better_supabase"."work_items" from anon, authenticated;
 grant select on "better_supabase"."work_items" to authenticated;
 grant all on "better_supabase"."work_items" to service_role;
 drop policy if exists work_items_read on "better_supabase"."work_items";
-create policy work_items_read on "better_supabase"."work_items" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
+create policy work_items_read on "better_supabase"."work_items"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
 
 create table if not exists "better_supabase"."work_item_assignees" (
   "tenant_id" uuid not null,
@@ -191,8 +194,9 @@ revoke all on "better_supabase"."work_item_assignees" from anon, authenticated;
 grant select on "better_supabase"."work_item_assignees" to authenticated;
 grant all on "better_supabase"."work_item_assignees" to service_role;
 drop policy if exists work_item_assignees_read on "better_supabase"."work_item_assignees";
-create policy work_item_assignees_read on "better_supabase"."work_item_assignees" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
+create policy work_item_assignees_read on "better_supabase"."work_item_assignees"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
 
 alter table "better_supabase"."work_items" add column if not exists "recurs_from" uuid references "better_supabase"."work_items" ("id") on delete set null;
 create unique index if not exists work_items_recurs_from_idx on "better_supabase"."work_items" ("recurs_from");
@@ -215,8 +219,9 @@ revoke all on "better_supabase"."work_item_checklist_items" from anon, authentic
 grant select on "better_supabase"."work_item_checklist_items" to authenticated;
 grant all on "better_supabase"."work_item_checklist_items" to service_role;
 drop policy if exists work_item_checklist_items_read on "better_supabase"."work_item_checklist_items";
-create policy work_item_checklist_items_read on "better_supabase"."work_item_checklist_items" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
+create policy work_item_checklist_items_read on "better_supabase"."work_item_checklist_items"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
 
 create or replace function better_supabase.bsb_work_item_guard()
 returns trigger

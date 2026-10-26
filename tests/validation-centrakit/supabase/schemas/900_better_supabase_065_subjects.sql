@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:6a8f332b7b97f09dd2b2c8514df19dbdf9715016b6e685d121776b70c3aa18d9
+-- @bsb-hash sha256:ad8d8b0a77d8eaddfc64d2a050dfb9a1379556bd8afa626d521a3f10e4ec4f4a
 -- The app-wide subject registry from config.records: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -445,20 +445,18 @@ grant execute on function "better_supabase"."subject_presence_allowed"(text) to 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_subject_presence_receive" on realtime.messages;
-    create policy "bsb_subject_presence_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'presence'
+        drop policy if exists bsb_subject_presence_receive on realtime.messages;
+create policy bsb_subject_presence_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
-        and "better_supabase"."subject_presence_allowed"((select realtime.topic()))
-      );
-    drop policy if exists "bsb_subject_presence_send" on realtime.messages;
-    create policy "bsb_subject_presence_send" on realtime.messages for insert to authenticated
-      with check ((
-        realtime.messages.extension = 'presence'
+        and "better_supabase"."subject_presence_allowed"((select realtime.topic())));
+        drop policy if exists bsb_subject_presence_send on realtime.messages;
+create policy bsb_subject_presence_send on realtime.messages
+  for insert to authenticated
+  with check ((realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
-        and "better_supabase"."subject_presence_allowed"((select realtime.topic()))
-      ) and (select centrakit.authz_actor_may_write()));
+        and "better_supabase"."subject_presence_allowed"((select realtime.topic()))) and (select centrakit.authz_actor_may_write()));
   end if;
 end;
 $$;

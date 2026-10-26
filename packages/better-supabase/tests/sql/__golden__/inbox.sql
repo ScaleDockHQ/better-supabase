@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@4 managed
--- @bsb-hash sha256:e79a321b308ca99cd65dcbcc691dee9b50d4a74180b5fe60c9813e28748c7b2b
+-- @bsb-hash sha256:eee7d660dca6d1854dd2caf5f333abe8cb3744c152e235977e7bd841b2104663
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -162,7 +162,8 @@ revoke all on "better_supabase"."inboxes" from anon, authenticated;
 grant select on "better_supabase"."inboxes" to authenticated;
 grant all on "better_supabase"."inboxes" to service_role;
 drop policy if exists inboxes_staff_read on "better_supabase"."inboxes";
-create policy inboxes_staff_read on "better_supabase"."inboxes" for select to authenticated
+create policy inboxes_staff_read on "better_supabase"."inboxes"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 create table if not exists "better_supabase"."inbox_members" (
@@ -178,7 +179,8 @@ revoke all on "better_supabase"."inbox_members" from anon, authenticated;
 grant select on "better_supabase"."inbox_members" to authenticated;
 grant all on "better_supabase"."inbox_members" to service_role;
 drop policy if exists inbox_members_staff_read on "better_supabase"."inbox_members";
-create policy inbox_members_staff_read on "better_supabase"."inbox_members" for select to authenticated
+create policy inbox_members_staff_read on "better_supabase"."inbox_members"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."inboxes" i where i."id" = "inbox_id" and i."tenant_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
 
 -- Teams live in the teams module. Assignment stores that module's id.
@@ -208,7 +210,8 @@ revoke all on "better_supabase"."contacts" from anon, authenticated;
 grant select on "better_supabase"."contacts" to authenticated;
 grant all on "better_supabase"."contacts" to service_role;
 drop policy if exists contacts_read on "better_supabase"."contacts";
-create policy contacts_read on "better_supabase"."contacts" for select to authenticated
+create policy contacts_read on "better_supabase"."contacts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "user_id" = (select auth.uid()));
 
 -- A contact's address on a channel: a WhatsApp number, a Slack user id.
@@ -227,7 +230,8 @@ revoke all on "better_supabase"."contact_identities" from anon, authenticated;
 grant select on "better_supabase"."contact_identities" to authenticated;
 grant all on "better_supabase"."contact_identities" to service_role;
 drop policy if exists contact_identities_staff_read on "better_supabase"."contact_identities";
-create policy contact_identities_staff_read on "better_supabase"."contact_identities" for select to authenticated
+create policy contact_identities_staff_read on "better_supabase"."contact_identities"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- The inbox side of a core conversation of kind inbox, with the same id:
@@ -286,7 +290,8 @@ revoke all on "better_supabase"."conversation_events" from anon, authenticated;
 grant select on "better_supabase"."conversation_events" to authenticated;
 grant all on "better_supabase"."conversation_events" to service_role;
 drop policy if exists conversation_events_staff_read on "better_supabase"."conversation_events";
-create policy conversation_events_staff_read on "better_supabase"."conversation_events" for select to authenticated
+create policy conversation_events_staff_read on "better_supabase"."conversation_events"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 create table if not exists "better_supabase"."inbox_message_details" (
@@ -308,7 +313,8 @@ revoke all on "better_supabase"."inbox_message_details" from anon, authenticated
 grant select on "better_supabase"."inbox_message_details" to authenticated;
 grant all on "better_supabase"."inbox_message_details" to service_role;
 drop policy if exists inbox_message_details_staff_read on "better_supabase"."inbox_message_details";
-create policy inbox_message_details_staff_read on "better_supabase"."inbox_message_details" for select to authenticated
+create policy inbox_message_details_staff_read on "better_supabase"."inbox_message_details"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- What happened to an outbound message on its channel. Status only moves
@@ -335,7 +341,8 @@ revoke all on "better_supabase"."message_deliveries" from anon, authenticated;
 grant select on "better_supabase"."message_deliveries" to authenticated;
 grant all on "better_supabase"."message_deliveries" to service_role;
 drop policy if exists message_deliveries_staff_read on "better_supabase"."message_deliveries";
-create policy message_deliveries_staff_read on "better_supabase"."message_deliveries" for select to authenticated
+create policy message_deliveries_staff_read on "better_supabase"."message_deliveries"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- Webhook deliveries from the channels, stored before the ack so a slow or
@@ -386,7 +393,8 @@ revoke all on "better_supabase"."message_templates" from anon, authenticated;
 grant select on "better_supabase"."message_templates" to authenticated;
 grant all on "better_supabase"."message_templates" to service_role;
 drop policy if exists message_templates_staff_read on "better_supabase"."message_templates";
-create policy message_templates_staff_read on "better_supabase"."message_templates" for select to authenticated
+create policy message_templates_staff_read on "better_supabase"."message_templates"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- Staff replies to send later. publish_due_inbox_messages sends each one
@@ -413,7 +421,8 @@ revoke all on "better_supabase"."scheduled_inbox_messages" from anon, authentica
 grant select on "better_supabase"."scheduled_inbox_messages" to authenticated;
 grant all on "better_supabase"."scheduled_inbox_messages" to service_role;
 drop policy if exists scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages";
-create policy scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages" for select to authenticated
+create policy scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages"
+  for select to authenticated
   using ("author_id" = (select auth.uid()) and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
 
 create or replace function "better_supabase"."inbox_contact_ids"()
@@ -494,7 +503,8 @@ revoke execute on function "better_supabase"."inbox_can_conversation"(uuid, text
 grant execute on function "better_supabase"."inbox_can_conversation"(uuid, text) to authenticated, service_role;
 
 drop policy if exists conversations_read on "better_supabase"."inbox_conversations";
-create policy conversations_read on "better_supabase"."inbox_conversations" for select to authenticated
+create policy conversations_read on "better_supabase"."inbox_conversations"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "contact_id" in (select "better_supabase"."inbox_contact_ids"()));
 
 -- When the contact last read the conversation, for staff read receipts.
@@ -2060,13 +2070,12 @@ create trigger message_deliveries_broadcast after insert or update of "status" o
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_inbox_receive" on realtime.messages;
-    create policy "bsb_inbox_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_inbox_receive on realtime.messages;
+create policy bsb_inbox_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'inbox:org:%'
-        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('inbox.read') x)
-      );
+        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('inbox.read') x));
     drop policy if exists "bsb_inbox_broadcast" on realtime.messages;
   end if;
 end;
@@ -2098,9 +2107,10 @@ grant execute on function "better_supabase"."inbox_file_allowed"(text, text) to 
 do $$
 begin
   if to_regclass('storage.objects') is not null then
-    drop policy if exists "bsb_inbox_files_read" on storage.objects;
-    create policy "bsb_inbox_files_read" on storage.objects for select to authenticated
-      using ("better_supabase"."inbox_file_allowed"(bucket_id, name));
+        drop policy if exists bsb_inbox_files_read on storage.objects;
+create policy bsb_inbox_files_read on storage.objects
+  for select to authenticated
+  using ("better_supabase"."inbox_file_allowed"(bucket_id, name));
     drop policy if exists "bsb_inbox_files_write" on storage.objects;
   end if;
 end;
@@ -2341,7 +2351,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@4 managed
--- @bsb-hash sha256:7c1ef3893e0097b6314b978c54c86f82f99b264e8e5651edca6c0a8dc8372746
+-- @bsb-hash sha256:04fbdb8707eb841466ba1bb4f8b364f34a3d5a6edc8b2bc4749cd2f760a74d7d
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2502,7 +2512,8 @@ revoke all on "better_supabase"."inboxes" from anon, authenticated;
 grant select on "better_supabase"."inboxes" to authenticated;
 grant all on "better_supabase"."inboxes" to service_role;
 drop policy if exists inboxes_staff_read on "better_supabase"."inboxes";
-create policy inboxes_staff_read on "better_supabase"."inboxes" for select to authenticated
+create policy inboxes_staff_read on "better_supabase"."inboxes"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 create table if not exists "better_supabase"."inbox_members" (
@@ -2518,7 +2529,8 @@ revoke all on "better_supabase"."inbox_members" from anon, authenticated;
 grant select on "better_supabase"."inbox_members" to authenticated;
 grant all on "better_supabase"."inbox_members" to service_role;
 drop policy if exists inbox_members_staff_read on "better_supabase"."inbox_members";
-create policy inbox_members_staff_read on "better_supabase"."inbox_members" for select to authenticated
+create policy inbox_members_staff_read on "better_supabase"."inbox_members"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."inboxes" i where i."id" = "inbox_id" and i."tenant_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
 
 -- Teams live in the teams module. Assignment stores that module's id.
@@ -2548,7 +2560,8 @@ revoke all on "better_supabase"."contacts" from anon, authenticated;
 grant select on "better_supabase"."contacts" to authenticated;
 grant all on "better_supabase"."contacts" to service_role;
 drop policy if exists contacts_read on "better_supabase"."contacts";
-create policy contacts_read on "better_supabase"."contacts" for select to authenticated
+create policy contacts_read on "better_supabase"."contacts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "user_id" = (select auth.uid()));
 
 -- A contact's address on a channel: a WhatsApp number, a Slack user id.
@@ -2567,7 +2580,8 @@ revoke all on "better_supabase"."contact_identities" from anon, authenticated;
 grant select on "better_supabase"."contact_identities" to authenticated;
 grant all on "better_supabase"."contact_identities" to service_role;
 drop policy if exists contact_identities_staff_read on "better_supabase"."contact_identities";
-create policy contact_identities_staff_read on "better_supabase"."contact_identities" for select to authenticated
+create policy contact_identities_staff_read on "better_supabase"."contact_identities"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- The inbox side of a core conversation of kind inbox, with the same id:
@@ -2626,7 +2640,8 @@ revoke all on "better_supabase"."conversation_events" from anon, authenticated;
 grant select on "better_supabase"."conversation_events" to authenticated;
 grant all on "better_supabase"."conversation_events" to service_role;
 drop policy if exists conversation_events_staff_read on "better_supabase"."conversation_events";
-create policy conversation_events_staff_read on "better_supabase"."conversation_events" for select to authenticated
+create policy conversation_events_staff_read on "better_supabase"."conversation_events"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 create table if not exists "better_supabase"."inbox_message_details" (
@@ -2648,7 +2663,8 @@ revoke all on "better_supabase"."inbox_message_details" from anon, authenticated
 grant select on "better_supabase"."inbox_message_details" to authenticated;
 grant all on "better_supabase"."inbox_message_details" to service_role;
 drop policy if exists inbox_message_details_staff_read on "better_supabase"."inbox_message_details";
-create policy inbox_message_details_staff_read on "better_supabase"."inbox_message_details" for select to authenticated
+create policy inbox_message_details_staff_read on "better_supabase"."inbox_message_details"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- What happened to an outbound message on its channel. Status only moves
@@ -2675,7 +2691,8 @@ revoke all on "better_supabase"."message_deliveries" from anon, authenticated;
 grant select on "better_supabase"."message_deliveries" to authenticated;
 grant all on "better_supabase"."message_deliveries" to service_role;
 drop policy if exists message_deliveries_staff_read on "better_supabase"."message_deliveries";
-create policy message_deliveries_staff_read on "better_supabase"."message_deliveries" for select to authenticated
+create policy message_deliveries_staff_read on "better_supabase"."message_deliveries"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- Webhook deliveries from the channels, stored before the ack so a slow or
@@ -2726,7 +2743,8 @@ revoke all on "better_supabase"."message_templates" from anon, authenticated;
 grant select on "better_supabase"."message_templates" to authenticated;
 grant all on "better_supabase"."message_templates" to service_role;
 drop policy if exists message_templates_staff_read on "better_supabase"."message_templates";
-create policy message_templates_staff_read on "better_supabase"."message_templates" for select to authenticated
+create policy message_templates_staff_read on "better_supabase"."message_templates"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- Staff replies to send later. publish_due_inbox_messages sends each one
@@ -2753,7 +2771,8 @@ revoke all on "better_supabase"."scheduled_inbox_messages" from anon, authentica
 grant select on "better_supabase"."scheduled_inbox_messages" to authenticated;
 grant all on "better_supabase"."scheduled_inbox_messages" to service_role;
 drop policy if exists scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages";
-create policy scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages" for select to authenticated
+create policy scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages"
+  for select to authenticated
   using ("author_id" = (select auth.uid()) and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
 
 create or replace function "better_supabase"."inbox_contact_ids"()
@@ -2834,7 +2853,8 @@ revoke execute on function "better_supabase"."inbox_can_conversation"(uuid, text
 grant execute on function "better_supabase"."inbox_can_conversation"(uuid, text) to authenticated, service_role;
 
 drop policy if exists conversations_read on "better_supabase"."inbox_conversations";
-create policy conversations_read on "better_supabase"."inbox_conversations" for select to authenticated
+create policy conversations_read on "better_supabase"."inbox_conversations"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "contact_id" in (select "better_supabase"."inbox_contact_ids"()));
 
 -- When the contact last read the conversation, for staff read receipts.
@@ -4522,13 +4542,12 @@ create trigger message_deliveries_broadcast after insert or update of "status" o
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_inbox_receive" on realtime.messages;
-    create policy "bsb_inbox_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_inbox_receive on realtime.messages;
+create policy bsb_inbox_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'inbox:org:%'
-        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('inbox.read') x)
-      );
+        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('inbox.read') x));
     drop policy if exists "bsb_inbox_broadcast" on realtime.messages;
   end if;
 end;
@@ -4560,9 +4579,10 @@ grant execute on function "better_supabase"."inbox_file_allowed"(text, text) to 
 do $$
 begin
   if to_regclass('storage.objects') is not null then
-    drop policy if exists "bsb_inbox_files_read" on storage.objects;
-    create policy "bsb_inbox_files_read" on storage.objects for select to authenticated
-      using ("better_supabase"."inbox_file_allowed"(bucket_id, name));
+        drop policy if exists bsb_inbox_files_read on storage.objects;
+create policy bsb_inbox_files_read on storage.objects
+  for select to authenticated
+  using ("better_supabase"."inbox_file_allowed"(bucket_id, name));
     drop policy if exists "bsb_inbox_files_write" on storage.objects;
   end if;
 end;
@@ -4807,7 +4827,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@4 managed
--- @bsb-hash sha256:e2c7369f2b7d3260e78320265a1cf443e7a29745710c33cdbb6a7633ac429f04
+-- @bsb-hash sha256:4e89458775b5a39336eab871ee3cb0b8485085d3a75328d07e8e44a1ef25edc4
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4970,7 +4990,8 @@ revoke all on "app_private"."inboxes" from anon, authenticated;
 grant select on "app_private"."inboxes" to authenticated;
 grant all on "app_private"."inboxes" to service_role;
 drop policy if exists inboxes_staff_read on "app_private"."inboxes";
-create policy inboxes_staff_read on "app_private"."inboxes" for select to authenticated
+create policy inboxes_staff_read on "app_private"."inboxes"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 create table if not exists "app_private"."inbox_members" (
@@ -4986,7 +5007,8 @@ revoke all on "app_private"."inbox_members" from anon, authenticated;
 grant select on "app_private"."inbox_members" to authenticated;
 grant all on "app_private"."inbox_members" to service_role;
 drop policy if exists inbox_members_staff_read on "app_private"."inbox_members";
-create policy inbox_members_staff_read on "app_private"."inbox_members" for select to authenticated
+create policy inbox_members_staff_read on "app_private"."inbox_members"
+  for select to authenticated
   using (exists (select 1 from "app_private"."inboxes" i where i."id" = "inbox_id" and i."tenant_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
 
 -- Teams live in the teams module. Assignment stores that module's id.
@@ -5016,7 +5038,8 @@ revoke all on "app_private"."contacts" from anon, authenticated;
 grant select on "app_private"."contacts" to authenticated;
 grant all on "app_private"."contacts" to service_role;
 drop policy if exists contacts_read on "app_private"."contacts";
-create policy contacts_read on "app_private"."contacts" for select to authenticated
+create policy contacts_read on "app_private"."contacts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "user_id" = (select auth.uid()));
 
 -- A contact's address on a channel: a WhatsApp number, a Slack user id.
@@ -5035,7 +5058,8 @@ revoke all on "app_private"."contact_identities" from anon, authenticated;
 grant select on "app_private"."contact_identities" to authenticated;
 grant all on "app_private"."contact_identities" to service_role;
 drop policy if exists contact_identities_staff_read on "app_private"."contact_identities";
-create policy contact_identities_staff_read on "app_private"."contact_identities" for select to authenticated
+create policy contact_identities_staff_read on "app_private"."contact_identities"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- The inbox side of a core conversation of kind inbox, with the same id:
@@ -5094,7 +5118,8 @@ revoke all on "app_private"."conversation_events" from anon, authenticated;
 grant select on "app_private"."conversation_events" to authenticated;
 grant all on "app_private"."conversation_events" to service_role;
 drop policy if exists conversation_events_staff_read on "app_private"."conversation_events";
-create policy conversation_events_staff_read on "app_private"."conversation_events" for select to authenticated
+create policy conversation_events_staff_read on "app_private"."conversation_events"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 create table if not exists "app_private"."inbox_message_details" (
@@ -5116,7 +5141,8 @@ revoke all on "app_private"."inbox_message_details" from anon, authenticated;
 grant select on "app_private"."inbox_message_details" to authenticated;
 grant all on "app_private"."inbox_message_details" to service_role;
 drop policy if exists inbox_message_details_staff_read on "app_private"."inbox_message_details";
-create policy inbox_message_details_staff_read on "app_private"."inbox_message_details" for select to authenticated
+create policy inbox_message_details_staff_read on "app_private"."inbox_message_details"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- What happened to an outbound message on its channel. Status only moves
@@ -5143,7 +5169,8 @@ revoke all on "app_private"."message_deliveries" from anon, authenticated;
 grant select on "app_private"."message_deliveries" to authenticated;
 grant all on "app_private"."message_deliveries" to service_role;
 drop policy if exists message_deliveries_staff_read on "app_private"."message_deliveries";
-create policy message_deliveries_staff_read on "app_private"."message_deliveries" for select to authenticated
+create policy message_deliveries_staff_read on "app_private"."message_deliveries"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- Webhook deliveries from the channels, stored before the ack so a slow or
@@ -5194,7 +5221,8 @@ revoke all on "app_private"."message_templates" from anon, authenticated;
 grant select on "app_private"."message_templates" to authenticated;
 grant all on "app_private"."message_templates" to service_role;
 drop policy if exists message_templates_staff_read on "app_private"."message_templates";
-create policy message_templates_staff_read on "app_private"."message_templates" for select to authenticated
+create policy message_templates_staff_read on "app_private"."message_templates"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- Staff replies to send later. publish_due_inbox_messages sends each one
@@ -5221,7 +5249,8 @@ revoke all on "app_private"."scheduled_inbox_messages" from anon, authenticated;
 grant select on "app_private"."scheduled_inbox_messages" to authenticated;
 grant all on "app_private"."scheduled_inbox_messages" to service_role;
 drop policy if exists scheduled_inbox_messages_author_read on "app_private"."scheduled_inbox_messages";
-create policy scheduled_inbox_messages_author_read on "app_private"."scheduled_inbox_messages" for select to authenticated
+create policy scheduled_inbox_messages_author_read on "app_private"."scheduled_inbox_messages"
+  for select to authenticated
   using ("author_id" = (select auth.uid()) and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
 
 create or replace function "app_private"."inbox_contact_ids"()
@@ -5302,7 +5331,8 @@ revoke execute on function "app_private"."inbox_can_conversation"(uuid, text) fr
 grant execute on function "app_private"."inbox_can_conversation"(uuid, text) to authenticated, service_role;
 
 drop policy if exists conversations_read on "app_private"."inbox_conversations";
-create policy conversations_read on "app_private"."inbox_conversations" for select to authenticated
+create policy conversations_read on "app_private"."inbox_conversations"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "contact_id" in (select "app_private"."inbox_contact_ids"()));
 
 -- When the contact last read the conversation, for staff read receipts.
@@ -6868,13 +6898,12 @@ create trigger message_deliveries_broadcast after insert or update of "status" o
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_inbox_receive" on realtime.messages;
-    create policy "bsb_inbox_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_inbox_receive on realtime.messages;
+create policy bsb_inbox_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'inbox:org:%'
-        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('inbox.read') x)
-      );
+        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('inbox.read') x));
     drop policy if exists "bsb_inbox_broadcast" on realtime.messages;
   end if;
 end;
@@ -6906,9 +6935,10 @@ grant execute on function "app_private"."inbox_file_allowed"(text, text) to auth
 do $$
 begin
   if to_regclass('storage.objects') is not null then
-    drop policy if exists "bsb_inbox_files_read" on storage.objects;
-    create policy "bsb_inbox_files_read" on storage.objects for select to authenticated
-      using ("app_private"."inbox_file_allowed"(bucket_id, name));
+        drop policy if exists bsb_inbox_files_read on storage.objects;
+create policy bsb_inbox_files_read on storage.objects
+  for select to authenticated
+  using ("app_private"."inbox_file_allowed"(bucket_id, name));
     drop policy if exists "bsb_inbox_files_write" on storage.objects;
   end if;
 end;
@@ -7149,7 +7179,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@4 managed
--- @bsb-hash sha256:04d13a14424f5c69e1281e489e29a9f862d9f945631ed2382746269f4121e34e
+-- @bsb-hash sha256:d66e0ba09b1b856c5a97035d2748ad46fae2ca50336d9a280084833d8e898e0e
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7310,7 +7340,8 @@ revoke all on "better_supabase"."inboxes" from anon, authenticated;
 grant select on "better_supabase"."inboxes" to authenticated;
 grant all on "better_supabase"."inboxes" to service_role;
 drop policy if exists inboxes_staff_read on "better_supabase"."inboxes";
-create policy inboxes_staff_read on "better_supabase"."inboxes" for select to authenticated
+create policy inboxes_staff_read on "better_supabase"."inboxes"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 create table if not exists "better_supabase"."inbox_members" (
@@ -7326,7 +7357,8 @@ revoke all on "better_supabase"."inbox_members" from anon, authenticated;
 grant select on "better_supabase"."inbox_members" to authenticated;
 grant all on "better_supabase"."inbox_members" to service_role;
 drop policy if exists inbox_members_staff_read on "better_supabase"."inbox_members";
-create policy inbox_members_staff_read on "better_supabase"."inbox_members" for select to authenticated
+create policy inbox_members_staff_read on "better_supabase"."inbox_members"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."inboxes" i where i."id" = "inbox_id" and i."tenant_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
 
 -- Teams live in the teams module. Assignment stores that module's id.
@@ -7356,7 +7388,8 @@ revoke all on "better_supabase"."contacts" from anon, authenticated;
 grant select on "better_supabase"."contacts" to authenticated;
 grant all on "better_supabase"."contacts" to service_role;
 drop policy if exists contacts_read on "better_supabase"."contacts";
-create policy contacts_read on "better_supabase"."contacts" for select to authenticated
+create policy contacts_read on "better_supabase"."contacts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "user_id" = (select auth.uid()));
 
 -- A contact's address on a channel: a WhatsApp number, a Slack user id.
@@ -7375,7 +7408,8 @@ revoke all on "better_supabase"."contact_identities" from anon, authenticated;
 grant select on "better_supabase"."contact_identities" to authenticated;
 grant all on "better_supabase"."contact_identities" to service_role;
 drop policy if exists contact_identities_staff_read on "better_supabase"."contact_identities";
-create policy contact_identities_staff_read on "better_supabase"."contact_identities" for select to authenticated
+create policy contact_identities_staff_read on "better_supabase"."contact_identities"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- The inbox side of a core conversation of kind inbox, with the same id:
@@ -7434,7 +7468,8 @@ revoke all on "better_supabase"."conversation_events" from anon, authenticated;
 grant select on "better_supabase"."conversation_events" to authenticated;
 grant all on "better_supabase"."conversation_events" to service_role;
 drop policy if exists conversation_events_staff_read on "better_supabase"."conversation_events";
-create policy conversation_events_staff_read on "better_supabase"."conversation_events" for select to authenticated
+create policy conversation_events_staff_read on "better_supabase"."conversation_events"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 create table if not exists "better_supabase"."inbox_message_details" (
@@ -7456,7 +7491,8 @@ revoke all on "better_supabase"."inbox_message_details" from anon, authenticated
 grant select on "better_supabase"."inbox_message_details" to authenticated;
 grant all on "better_supabase"."inbox_message_details" to service_role;
 drop policy if exists inbox_message_details_staff_read on "better_supabase"."inbox_message_details";
-create policy inbox_message_details_staff_read on "better_supabase"."inbox_message_details" for select to authenticated
+create policy inbox_message_details_staff_read on "better_supabase"."inbox_message_details"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- What happened to an outbound message on its channel. Status only moves
@@ -7483,7 +7519,8 @@ revoke all on "better_supabase"."message_deliveries" from anon, authenticated;
 grant select on "better_supabase"."message_deliveries" to authenticated;
 grant all on "better_supabase"."message_deliveries" to service_role;
 drop policy if exists message_deliveries_staff_read on "better_supabase"."message_deliveries";
-create policy message_deliveries_staff_read on "better_supabase"."message_deliveries" for select to authenticated
+create policy message_deliveries_staff_read on "better_supabase"."message_deliveries"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- Webhook deliveries from the channels, stored before the ack so a slow or
@@ -7534,7 +7571,8 @@ revoke all on "better_supabase"."message_templates" from anon, authenticated;
 grant select on "better_supabase"."message_templates" to authenticated;
 grant all on "better_supabase"."message_templates" to service_role;
 drop policy if exists message_templates_staff_read on "better_supabase"."message_templates";
-create policy message_templates_staff_read on "better_supabase"."message_templates" for select to authenticated
+create policy message_templates_staff_read on "better_supabase"."message_templates"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- Staff replies to send later. publish_due_inbox_messages sends each one
@@ -7561,7 +7599,8 @@ revoke all on "better_supabase"."scheduled_inbox_messages" from anon, authentica
 grant select on "better_supabase"."scheduled_inbox_messages" to authenticated;
 grant all on "better_supabase"."scheduled_inbox_messages" to service_role;
 drop policy if exists scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages";
-create policy scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages" for select to authenticated
+create policy scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages"
+  for select to authenticated
   using ("author_id" = (select auth.uid()) and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
 
 create or replace function "better_supabase"."inbox_contact_ids"()
@@ -7642,7 +7681,8 @@ revoke execute on function "better_supabase"."inbox_can_conversation"(uuid, text
 grant execute on function "better_supabase"."inbox_can_conversation"(uuid, text) to authenticated, service_role;
 
 drop policy if exists conversations_read on "better_supabase"."inbox_conversations";
-create policy conversations_read on "better_supabase"."inbox_conversations" for select to authenticated
+create policy conversations_read on "better_supabase"."inbox_conversations"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "contact_id" in (select "better_supabase"."inbox_contact_ids"()));
 
 -- When the contact last read the conversation, for staff read receipts.
@@ -9208,13 +9248,12 @@ create trigger message_deliveries_broadcast after insert or update of "status" o
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_inbox_receive" on realtime.messages;
-    create policy "bsb_inbox_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_inbox_receive on realtime.messages;
+create policy bsb_inbox_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'inbox:org:%'
-        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('inbox.read') x)
-      );
+        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('inbox.read') x));
     drop policy if exists "bsb_inbox_broadcast" on realtime.messages;
   end if;
 end;
@@ -9246,9 +9285,10 @@ grant execute on function "better_supabase"."inbox_file_allowed"(text, text) to 
 do $$
 begin
   if to_regclass('storage.objects') is not null then
-    drop policy if exists "bsb_inbox_files_read" on storage.objects;
-    create policy "bsb_inbox_files_read" on storage.objects for select to authenticated
-      using ("better_supabase"."inbox_file_allowed"(bucket_id, name));
+        drop policy if exists bsb_inbox_files_read on storage.objects;
+create policy bsb_inbox_files_read on storage.objects
+  for select to authenticated
+  using ("better_supabase"."inbox_file_allowed"(bucket_id, name));
     drop policy if exists "bsb_inbox_files_write" on storage.objects;
   end if;
 end;
@@ -9872,7 +9912,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@4 managed
--- @bsb-hash sha256:bccc8221427b7883f6ac1310dd7313e540f87d85666cd98ce79d3a989b5d0ef6
+-- @bsb-hash sha256:187daa0b49ae0b5cd43b0f0303381c505019dd4b7d8079c19c312100a6acc3d0
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10047,7 +10087,8 @@ alter table "better_supabase"."inboxes" enable row level security;
 grant select on "better_supabase"."inboxes" to authenticated;
 grant all on "better_supabase"."inboxes" to service_role;
 drop policy if exists bsb_inboxes_select on "better_supabase"."inboxes";
-create policy bsb_inboxes_select on "better_supabase"."inboxes" for select to authenticated
+create policy bsb_inboxes_select on "better_supabase"."inboxes"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- better_supabase.inbox_members is the app's table: this block adds only the columns it needs.
@@ -10061,7 +10102,8 @@ alter table "better_supabase"."inbox_members" enable row level security;
 grant select on "better_supabase"."inbox_members" to authenticated;
 grant all on "better_supabase"."inbox_members" to service_role;
 drop policy if exists bsb_inbox_members_select on "better_supabase"."inbox_members";
-create policy bsb_inbox_members_select on "better_supabase"."inbox_members" for select to authenticated
+create policy bsb_inbox_members_select on "better_supabase"."inbox_members"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."inboxes" i where i."id" = "inbox_id" and i."tenant_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
 
 -- Teams live in the teams module. Assignment stores that module's id.
@@ -10089,7 +10131,8 @@ alter table "better_supabase"."contacts" enable row level security;
 grant select on "better_supabase"."contacts" to authenticated;
 grant all on "better_supabase"."contacts" to service_role;
 drop policy if exists bsb_contacts_select on "better_supabase"."contacts";
-create policy bsb_contacts_select on "better_supabase"."contacts" for select to authenticated
+create policy bsb_contacts_select on "better_supabase"."contacts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "user_id" = (select auth.uid()));
 
 -- A contact's address on a channel: a WhatsApp number, a Slack user id.
@@ -10106,7 +10149,8 @@ alter table "better_supabase"."contact_identities" enable row level security;
 grant select on "better_supabase"."contact_identities" to authenticated;
 grant all on "better_supabase"."contact_identities" to service_role;
 drop policy if exists bsb_contact_identities_select on "better_supabase"."contact_identities";
-create policy bsb_contact_identities_select on "better_supabase"."contact_identities" for select to authenticated
+create policy bsb_contact_identities_select on "better_supabase"."contact_identities"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- The inbox side of a core conversation of kind inbox, with the same id:
@@ -10161,7 +10205,8 @@ alter table "better_supabase"."conversation_events" enable row level security;
 grant select on "better_supabase"."conversation_events" to authenticated;
 grant all on "better_supabase"."conversation_events" to service_role;
 drop policy if exists bsb_conversation_events_select on "better_supabase"."conversation_events";
-create policy bsb_conversation_events_select on "better_supabase"."conversation_events" for select to authenticated
+create policy bsb_conversation_events_select on "better_supabase"."conversation_events"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- better_supabase.inbox_message_details is the app's table: this block adds only the columns it needs.
@@ -10181,7 +10226,8 @@ alter table "better_supabase"."inbox_message_details" enable row level security;
 grant select on "better_supabase"."inbox_message_details" to authenticated;
 grant all on "better_supabase"."inbox_message_details" to service_role;
 drop policy if exists bsb_inbox_message_details_select on "better_supabase"."inbox_message_details";
-create policy bsb_inbox_message_details_select on "better_supabase"."inbox_message_details" for select to authenticated
+create policy bsb_inbox_message_details_select on "better_supabase"."inbox_message_details"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- What happened to an outbound message on its channel. Status only moves
@@ -10206,7 +10252,8 @@ alter table "better_supabase"."message_deliveries" enable row level security;
 grant select on "better_supabase"."message_deliveries" to authenticated;
 grant all on "better_supabase"."message_deliveries" to service_role;
 drop policy if exists bsb_message_deliveries_select on "better_supabase"."message_deliveries";
-create policy bsb_message_deliveries_select on "better_supabase"."message_deliveries" for select to authenticated
+create policy bsb_message_deliveries_select on "better_supabase"."message_deliveries"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- Webhook deliveries from the channels, stored before the ack so a slow or
@@ -10253,7 +10300,8 @@ alter table "better_supabase"."message_templates" enable row level security;
 grant select on "better_supabase"."message_templates" to authenticated;
 grant all on "better_supabase"."message_templates" to service_role;
 drop policy if exists bsb_message_templates_select on "better_supabase"."message_templates";
-create policy bsb_message_templates_select on "better_supabase"."message_templates" for select to authenticated
+create policy bsb_message_templates_select on "better_supabase"."message_templates"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- Staff replies to send later. publish_due_inbox_messages sends each one
@@ -10278,7 +10326,8 @@ alter table "better_supabase"."scheduled_inbox_messages" enable row level securi
 grant select on "better_supabase"."scheduled_inbox_messages" to authenticated;
 grant all on "better_supabase"."scheduled_inbox_messages" to service_role;
 drop policy if exists bsb_scheduled_inbox_messages_select on "better_supabase"."scheduled_inbox_messages";
-create policy bsb_scheduled_inbox_messages_select on "better_supabase"."scheduled_inbox_messages" for select to authenticated
+create policy bsb_scheduled_inbox_messages_select on "better_supabase"."scheduled_inbox_messages"
+  for select to authenticated
   using ("author_id" = (select auth.uid()) and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
 
 create or replace function "better_supabase"."inbox_contact_ids"()
@@ -10359,7 +10408,8 @@ revoke execute on function "better_supabase"."inbox_can_conversation"(uuid, text
 grant execute on function "better_supabase"."inbox_can_conversation"(uuid, text) to authenticated, service_role;
 
 drop policy if exists bsb_inbox_conversations_select on "better_supabase"."inbox_conversations";
-create policy bsb_inbox_conversations_select on "better_supabase"."inbox_conversations" for select to authenticated
+create policy bsb_inbox_conversations_select on "better_supabase"."inbox_conversations"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "contact_id" in (select "better_supabase"."inbox_contact_ids"()));
 
 -- When the contact last read the conversation, for staff read receipts.
@@ -11931,13 +11981,12 @@ create trigger bsb_message_deliveries_broadcast after insert or update of "statu
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_inbox_receive" on realtime.messages;
-    create policy "bsb_inbox_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_inbox_receive on realtime.messages;
+create policy bsb_inbox_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'inbox:org:%'
-        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('inbox.read') x)
-      );
+        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('inbox.read') x));
     drop policy if exists "bsb_inbox_broadcast" on realtime.messages;
   end if;
 end;
@@ -11969,9 +12018,10 @@ grant execute on function "better_supabase"."inbox_file_allowed"(text, text) to 
 do $$
 begin
   if to_regclass('storage.objects') is not null then
-    drop policy if exists "bsb_inbox_files_read" on storage.objects;
-    create policy "bsb_inbox_files_read" on storage.objects for select to authenticated
-      using ("better_supabase"."inbox_file_allowed"(bucket_id, name));
+        drop policy if exists bsb_inbox_files_read on storage.objects;
+create policy bsb_inbox_files_read on storage.objects
+  for select to authenticated
+  using ("better_supabase"."inbox_file_allowed"(bucket_id, name));
     drop policy if exists "bsb_inbox_files_write" on storage.objects;
   end if;
 end;
@@ -12212,7 +12262,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@4 managed
--- @bsb-hash sha256:dc136226629cf7eb168eec4904c26bd7515059c2c0b9dda7cb233e1c95a3c559
+-- @bsb-hash sha256:15fb66e99c6dba8ba631dfa5093ff8a1f07ed6e360a23660dc1d44b8ff5b6f4a
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12373,7 +12423,8 @@ revoke all on "better_supabase"."inboxes" from anon, authenticated;
 grant select on "better_supabase"."inboxes" to authenticated;
 grant all on "better_supabase"."inboxes" to service_role;
 drop policy if exists inboxes_staff_read on "better_supabase"."inboxes";
-create policy inboxes_staff_read on "better_supabase"."inboxes" for select to authenticated
+create policy inboxes_staff_read on "better_supabase"."inboxes"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 create table if not exists "better_supabase"."inbox_members" (
@@ -12389,7 +12440,8 @@ revoke all on "better_supabase"."inbox_members" from anon, authenticated;
 grant select on "better_supabase"."inbox_members" to authenticated;
 grant all on "better_supabase"."inbox_members" to service_role;
 drop policy if exists inbox_members_staff_read on "better_supabase"."inbox_members";
-create policy inbox_members_staff_read on "better_supabase"."inbox_members" for select to authenticated
+create policy inbox_members_staff_read on "better_supabase"."inbox_members"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."inboxes" i where i."id" = "inbox_id" and i."org_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
 
 -- Teams live in the teams module. Assignment stores that module's id.
@@ -12419,7 +12471,8 @@ revoke all on "better_supabase"."contacts" from anon, authenticated;
 grant select on "better_supabase"."contacts" to authenticated;
 grant all on "better_supabase"."contacts" to service_role;
 drop policy if exists contacts_read on "better_supabase"."contacts";
-create policy contacts_read on "better_supabase"."contacts" for select to authenticated
+create policy contacts_read on "better_supabase"."contacts"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "user_id" = (select auth.uid()));
 
 -- A contact's address on a channel: a WhatsApp number, a Slack user id.
@@ -12438,7 +12491,8 @@ revoke all on "better_supabase"."contact_identities" from anon, authenticated;
 grant select on "better_supabase"."contact_identities" to authenticated;
 grant all on "better_supabase"."contact_identities" to service_role;
 drop policy if exists contact_identities_staff_read on "better_supabase"."contact_identities";
-create policy contact_identities_staff_read on "better_supabase"."contact_identities" for select to authenticated
+create policy contact_identities_staff_read on "better_supabase"."contact_identities"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- The inbox side of a core conversation of kind inbox, with the same id:
@@ -12497,7 +12551,8 @@ revoke all on "better_supabase"."conversation_events" from anon, authenticated;
 grant select on "better_supabase"."conversation_events" to authenticated;
 grant all on "better_supabase"."conversation_events" to service_role;
 drop policy if exists conversation_events_staff_read on "better_supabase"."conversation_events";
-create policy conversation_events_staff_read on "better_supabase"."conversation_events" for select to authenticated
+create policy conversation_events_staff_read on "better_supabase"."conversation_events"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 create table if not exists "better_supabase"."inbox_message_details" (
@@ -12519,7 +12574,8 @@ revoke all on "better_supabase"."inbox_message_details" from anon, authenticated
 grant select on "better_supabase"."inbox_message_details" to authenticated;
 grant all on "better_supabase"."inbox_message_details" to service_role;
 drop policy if exists inbox_message_details_staff_read on "better_supabase"."inbox_message_details";
-create policy inbox_message_details_staff_read on "better_supabase"."inbox_message_details" for select to authenticated
+create policy inbox_message_details_staff_read on "better_supabase"."inbox_message_details"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- What happened to an outbound message on its channel. Status only moves
@@ -12546,7 +12602,8 @@ revoke all on "better_supabase"."message_deliveries" from anon, authenticated;
 grant select on "better_supabase"."message_deliveries" to authenticated;
 grant all on "better_supabase"."message_deliveries" to service_role;
 drop policy if exists message_deliveries_staff_read on "better_supabase"."message_deliveries";
-create policy message_deliveries_staff_read on "better_supabase"."message_deliveries" for select to authenticated
+create policy message_deliveries_staff_read on "better_supabase"."message_deliveries"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- Webhook deliveries from the channels, stored before the ack so a slow or
@@ -12597,7 +12654,8 @@ revoke all on "better_supabase"."message_templates" from anon, authenticated;
 grant select on "better_supabase"."message_templates" to authenticated;
 grant all on "better_supabase"."message_templates" to service_role;
 drop policy if exists message_templates_staff_read on "better_supabase"."message_templates";
-create policy message_templates_staff_read on "better_supabase"."message_templates" for select to authenticated
+create policy message_templates_staff_read on "better_supabase"."message_templates"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- Staff replies to send later. publish_due_inbox_messages sends each one
@@ -12624,7 +12682,8 @@ revoke all on "better_supabase"."scheduled_inbox_messages" from anon, authentica
 grant select on "better_supabase"."scheduled_inbox_messages" to authenticated;
 grant all on "better_supabase"."scheduled_inbox_messages" to service_role;
 drop policy if exists scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages";
-create policy scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages" for select to authenticated
+create policy scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages"
+  for select to authenticated
   using ("author_id" = (select auth.uid()) and "org_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
 
 create or replace function "better_supabase"."inbox_contact_ids"()
@@ -12705,7 +12764,8 @@ revoke execute on function "better_supabase"."inbox_can_conversation"(uuid, text
 grant execute on function "better_supabase"."inbox_can_conversation"(uuid, text) to authenticated, service_role;
 
 drop policy if exists conversations_read on "better_supabase"."inbox_conversations";
-create policy conversations_read on "better_supabase"."inbox_conversations" for select to authenticated
+create policy conversations_read on "better_supabase"."inbox_conversations"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "contact_id" in (select "better_supabase"."inbox_contact_ids"()));
 
 -- When the contact last read the conversation, for staff read receipts.
@@ -14271,13 +14331,12 @@ create trigger message_deliveries_broadcast after insert or update of "status" o
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_inbox_receive" on realtime.messages;
-    create policy "bsb_inbox_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_inbox_receive on realtime.messages;
+create policy bsb_inbox_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'inbox:org:%'
-        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('inbox.read') x)
-      );
+        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('inbox.read') x));
     drop policy if exists "bsb_inbox_broadcast" on realtime.messages;
   end if;
 end;
@@ -14309,9 +14368,10 @@ grant execute on function "better_supabase"."inbox_file_allowed"(text, text) to 
 do $$
 begin
   if to_regclass('storage.objects') is not null then
-    drop policy if exists "bsb_inbox_files_read" on storage.objects;
-    create policy "bsb_inbox_files_read" on storage.objects for select to authenticated
-      using ("better_supabase"."inbox_file_allowed"(bucket_id, name));
+        drop policy if exists bsb_inbox_files_read on storage.objects;
+create policy bsb_inbox_files_read on storage.objects
+  for select to authenticated
+  using ("better_supabase"."inbox_file_allowed"(bucket_id, name));
     drop policy if exists "bsb_inbox_files_write" on storage.objects;
   end if;
 end;

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:76c6bdbaf54b1a9d30ffed567adc4ad4b2595b81d66b4d4838c547e71387a94e
+-- @bsb-hash sha256:3ed20cdc46eedb5212fdfc4cbc2434d822b8530826d1288bc7dfebf545420399
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -107,7 +107,8 @@ revoke all on "better_supabase"."memories" from anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
 drop policy if exists memories_read on "better_supabase"."memories";
-create policy memories_read on "better_supabase"."memories" for select to authenticated
+create policy memories_read on "better_supabase"."memories"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "workspace_id" in (select better_supabase.tenant_ids_with('ai.read'))));
 
 -- One embedding per message, so an assistant can recall earlier chats.
@@ -129,7 +130,8 @@ revoke all on "better_supabase"."ai_message_embeddings" from anon, authenticated
 grant select on "better_supabase"."ai_message_embeddings" to authenticated;
 grant all on "better_supabase"."ai_message_embeddings" to service_role;
 drop policy if exists ai_message_embeddings_read on "better_supabase"."ai_message_embeddings";
-create policy ai_message_embeddings_read on "better_supabase"."ai_message_embeddings" for select to authenticated
+create policy ai_message_embeddings_read on "better_supabase"."ai_message_embeddings"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A core memory file, or the files under a directory, or null.

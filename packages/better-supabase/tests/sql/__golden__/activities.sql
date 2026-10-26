@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:630809cc04e7001dcd1f7ae1c596381b4dd92f0542fec8776f5b25d48099dba0
+-- @bsb-hash sha256:075d38140c027a2ff088886e7b3e5da452a4876a0b35382a3909a768e5aa1861
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -104,11 +104,13 @@ grant all on "better_supabase"."engagement_subjects" to service_role;
 -- A link is visible when its record is; an engagement when one of its
 -- records is, or it has none.
 drop policy if exists engagement_subjects_read on "better_supabase"."engagement_subjects";
-create policy engagement_subjects_read on "better_supabase"."engagement_subjects" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+create policy engagement_subjects_read on "better_supabase"."engagement_subjects"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists engagements_read on "better_supabase"."engagements";
-create policy engagements_read on "better_supabase"."engagements" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+create policy engagements_read on "better_supabase"."engagements"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ));
@@ -486,7 +488,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:7da4904d0eeecdfbb2a59175dc6ecb5029316ee56bb1bb0f10f55529a0e17290
+-- @bsb-hash sha256:9557517163e1a3c0eae887c7671f71f2d350dc568d7ae75344947bfe9725d5f6
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -589,11 +591,13 @@ grant all on "better_supabase"."engagement_subjects" to service_role;
 -- A link is visible when its record is; an engagement when one of its
 -- records is, or it has none.
 drop policy if exists engagement_subjects_read on "better_supabase"."engagement_subjects";
-create policy engagement_subjects_read on "better_supabase"."engagement_subjects" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+create policy engagement_subjects_read on "better_supabase"."engagement_subjects"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists engagements_read on "better_supabase"."engagements";
-create policy engagements_read on "better_supabase"."engagements" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+create policy engagements_read on "better_supabase"."engagements"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ));
@@ -1005,7 +1009,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:a62b45058b6ac99fa3262d4b4b350373564a92cf11a3bd45d313f8887ba0357b
+-- @bsb-hash sha256:4ed198f5cb4ad0c83933f8b38b84b532909bee993fc99c2934eee60cfca03162
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1110,11 +1114,13 @@ grant all on "app_private"."engagement_subjects" to service_role;
 -- A link is visible when its record is; an engagement when one of its
 -- records is, or it has none.
 drop policy if exists engagement_subjects_read on "app_private"."engagement_subjects";
-create policy engagement_subjects_read on "app_private"."engagement_subjects" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+create policy engagement_subjects_read on "app_private"."engagement_subjects"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists engagements_read on "app_private"."engagements";
-create policy engagements_read on "app_private"."engagements" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+create policy engagements_read on "app_private"."engagements"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
   not exists (select 1 from "app_private"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "app_private"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ));
@@ -1492,7 +1498,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:81772ff1d55b15ad5ff10f0f1296a944dd5f2f157f3ebbfd9cc0b071fe01fb1c
+-- @bsb-hash sha256:0aabd500994b62ac780d75a8b9ae2a9633c816766b0429d6d2c50c12794da4ca
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1595,11 +1601,13 @@ grant all on "better_supabase"."engagement_subjects" to service_role;
 -- A link is visible when its record is; an engagement when one of its
 -- records is, or it has none.
 drop policy if exists engagement_subjects_read on "better_supabase"."engagement_subjects";
-create policy engagement_subjects_read on "better_supabase"."engagement_subjects" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+create policy engagement_subjects_read on "better_supabase"."engagement_subjects"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists engagements_read on "better_supabase"."engagements";
-create policy engagements_read on "better_supabase"."engagements" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+create policy engagements_read on "better_supabase"."engagements"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ));
@@ -2062,7 +2070,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:1a760ba23a9d22c3c1da52b058466df4eb29dd26b9aee744c1f47afa20d7dde9
+-- @bsb-hash sha256:d1d96cc038bc9cccd5f4fdd0aaf90d0f923c868fb9ff426170a9786a32f3c065
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2177,11 +2185,13 @@ grant all on "better_supabase"."engagement_subjects" to service_role;
 -- A link is visible when its record is; an engagement when one of its
 -- records is, or it has none.
 drop policy if exists bsb_engagement_subjects_select on "better_supabase"."engagement_subjects";
-create policy bsb_engagement_subjects_select on "better_supabase"."engagement_subjects" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+create policy bsb_engagement_subjects_select on "better_supabase"."engagement_subjects"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists bsb_engagements_select on "better_supabase"."engagements";
-create policy bsb_engagements_select on "better_supabase"."engagements" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+create policy bsb_engagements_select on "better_supabase"."engagements"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ));
@@ -2559,7 +2569,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:4fa0dcbd49932350aef63ce2b7cba6e112ab036551624bb698035c1498978e48
+-- @bsb-hash sha256:861e2ae9522df521eb1684c0e7b0b7f100b9abfbe9773bbe4d0ab09a58352fc5
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2662,11 +2672,13 @@ grant all on "better_supabase"."engagement_subjects" to service_role;
 -- A link is visible when its record is; an engagement when one of its
 -- records is, or it has none.
 drop policy if exists engagement_subjects_read on "better_supabase"."engagement_subjects";
-create policy engagement_subjects_read on "better_supabase"."engagement_subjects" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+create policy engagement_subjects_read on "better_supabase"."engagement_subjects"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists engagements_read on "better_supabase"."engagements";
-create policy engagements_read on "better_supabase"."engagements" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+create policy engagements_read on "better_supabase"."engagements"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ));

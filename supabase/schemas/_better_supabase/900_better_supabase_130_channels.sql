@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:c49fd453c01674bb32d6496d2d39d335298db897efc5806cff2344fd30979f94
+-- @bsb-hash sha256:d0dc779eb92fe28690c361634949ed9ee1d1f904a9f4375b311c486e6cf34e8a
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -84,8 +84,9 @@ grant all on "better_supabase"."channels" to service_role;
 -- A channel is visible when its conversation is: a public one to the tenant,
 -- a private one to its members.
 drop policy if exists channels_read on "better_supabase"."channels";
-create policy channels_read on "better_supabase"."channels" for select to authenticated
-using (exists (select 1 from "better_supabase"."conversations" c where c."id" = "better_supabase"."channels"."id"));
+create policy channels_read on "better_supabase"."channels"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."conversations" c where c."id" = "better_supabase"."channels"."id"));
 
 
 -- Creates a channel: a conversation of kind channel with a unique lowercase

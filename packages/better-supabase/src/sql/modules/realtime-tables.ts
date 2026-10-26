@@ -3,6 +3,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { DEFAULT_CLAIMS } from "../../core/claims.ts";
 import { sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { SCHEMA, triggerGrant } from "../shared.ts";
 
 const realtimeTablesSql = (claims: ClaimsMeta): string => `${SCHEMA}
@@ -242,10 +243,13 @@ revoke execute on function better_supabase.untrack_realtime(regclass) from publi
 -- Signed-in users receive unscoped topics, topics of their active tenant and
 -- their own user topics (bsb:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
-drop policy if exists bsb_realtime_tables_receive on realtime.messages;
-create policy bsb_realtime_tables_receive on realtime.messages for select to authenticated
-  using (
-    realtime.messages.extension = 'broadcast'
+${renderPolicy(
+  makePolicy({
+    table: "realtime.messages",
+    name: "bsb_realtime_tables_receive",
+    command: "select",
+    roles: ["authenticated"],
+    using: `realtime.messages.extension = 'broadcast'
     and (select realtime.topic()) like 'bsb:t:%'
     and not coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false)
     and (
@@ -257,8 +261,10 @@ create policy bsb_realtime_tables_receive on realtime.messages for select to aut
       ))
       or (split_part((select realtime.topic()), ':', 4) = 'u'
         and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
-    )
-  );`;
+    )`,
+  }),
+  { drop: true, target: "realtime.messages" },
+)}`;
 
 export const REALTIME_TABLES: BlockSqlDefinition = {
   name: "realtime-tables",

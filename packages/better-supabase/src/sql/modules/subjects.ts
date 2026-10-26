@@ -15,6 +15,7 @@ import type { RegisteredSubject } from "../subject-registry.ts";
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   SERVICE_CALLER,
   schemaPreamble,
@@ -597,16 +598,8 @@ ${userGrant(`${fn("subject_presence_allowed")}(text)`)}
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists ${receive} on realtime.messages;
-    create policy ${receive} on realtime.messages for select to authenticated
-      using (
-        ${check}
-      );
-    drop policy if exists ${send} on realtime.messages;
-    create policy ${send} on realtime.messages for insert to authenticated
-      with check (
-        ${check}
-      );
+        ${renderPolicy(makePolicy({ table: "realtime.messages", name: receive, command: "select", roles: ["authenticated"], using: check }), { drop: true, target: "realtime.messages" })}
+        ${renderPolicy(makePolicy({ table: "realtime.messages", name: send, command: "insert", roles: ["authenticated"], check }), { drop: true, target: "realtime.messages" })}
   end if;
 end;
 $$;

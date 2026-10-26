@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
 import { mailSyncFunctions } from "./mail-sync-functions.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -423,24 +424,12 @@ $$;
 revoke execute on function ${visible}(uuid) from public, anon;
 grant execute on function ${visible}(uuid) to authenticated, service_role;
 
-drop policy if exists ${policy("accounts")} on ${t("accounts")};
-create policy ${policy("accounts")} on ${t("accounts")} for select to authenticated
-using (${a("user")} = (select auth.uid()) or ${ctx.scope.check(a("tenant"), n.manage)});
-drop policy if exists ${policy("threads")} on ${t("threads")};
-create policy ${policy("threads")} on ${t("threads")} for select to authenticated
-using (${visible}(${h("id")}));
-drop policy if exists ${policy("messages")} on ${t("messages")};
-create policy ${policy("messages")} on ${t("messages")} for select to authenticated
-using (${visible}(${m("thread")}));
-drop policy if exists ${policy("links")} on ${t("links")};
-create policy ${policy("links")} on ${t("links")} for select to authenticated
-using (${visible}(${l("thread")}));
-drop policy if exists ${policy("trackedLinks")} on ${t("trackedLinks")};
-create policy ${policy("trackedLinks")} on ${t("trackedLinks")} for select to authenticated
-using (exists (select 1 from ${t("messages")} y where y.${m("id")} = ${k("message")} and ${visible}(y.${m("thread")})));
-drop policy if exists ${policy("tracking")} on ${t("tracking")};
-create policy ${policy("tracking")} on ${t("tracking")} for select to authenticated
-using (exists (select 1 from ${t("messages")} y where y.${m("id")} = ${e("message")} and ${visible}(y.${m("thread")})));
+${renderPolicy(makePolicy({ table: t("accounts"), name: policy("accounts"), command: "select", roles: ["authenticated"], using: `${a("user")} = (select auth.uid()) or ${ctx.scope.check(a("tenant"), n.manage)}` }), { drop: true, target: t("accounts") })}
+${renderPolicy(makePolicy({ table: t("threads"), name: policy("threads"), command: "select", roles: ["authenticated"], using: `${visible}(${h("id")})` }), { drop: true, target: t("threads") })}
+${renderPolicy(makePolicy({ table: t("messages"), name: policy("messages"), command: "select", roles: ["authenticated"], using: `${visible}(${m("thread")})` }), { drop: true, target: t("messages") })}
+${renderPolicy(makePolicy({ table: t("links"), name: policy("links"), command: "select", roles: ["authenticated"], using: `${visible}(${l("thread")})` }), { drop: true, target: t("links") })}
+${renderPolicy(makePolicy({ table: t("trackedLinks"), name: policy("trackedLinks"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("messages")} y where y.${m("id")} = ${k("message")} and ${visible}(y.${m("thread")}))` }), { drop: true, target: t("trackedLinks") })}
+${renderPolicy(makePolicy({ table: t("tracking"), name: policy("tracking"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("messages")} y where y.${m("id")} = ${e("message")} and ${visible}(y.${m("thread")}))` }), { drop: true, target: t("tracking") })}
 `;
 }
 

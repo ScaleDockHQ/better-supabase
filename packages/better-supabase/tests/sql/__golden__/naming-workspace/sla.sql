@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:bc7adf76b84c118e211643789b643af332001f43d01402eef4c8c6dd655c7b83
+-- @bsb-hash sha256:49253ba6373c588c5d3d80e387f6d62ae72e90e641c4627ea8a4f043e1e700eb
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -88,8 +88,9 @@ revoke all on "better_supabase"."sla_policies" from anon, authenticated;
 grant select on "better_supabase"."sla_policies" to authenticated;
 grant all on "better_supabase"."sla_policies" to service_role;
 drop policy if exists sla_policies_read on "better_supabase"."sla_policies";
-create policy sla_policies_read on "better_supabase"."sla_policies" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
+create policy sla_policies_read on "better_supabase"."sla_policies"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
 
 create table if not exists "better_supabase"."sla_clocks" (
   "id" uuid primary key default gen_random_uuid(),
@@ -115,8 +116,9 @@ revoke all on "better_supabase"."sla_clocks" from anon, authenticated;
 grant select on "better_supabase"."sla_clocks" to authenticated;
 grant all on "better_supabase"."sla_clocks" to service_role;
 drop policy if exists sla_clocks_read on "better_supabase"."sla_clocks";
-create policy sla_clocks_read on "better_supabase"."sla_clocks" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+create policy sla_clocks_read on "better_supabase"."sla_clocks"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
 -- The time minutes of working time after start: business hours on the
 -- configured weekdays in the configured time zone, or plain minutes.

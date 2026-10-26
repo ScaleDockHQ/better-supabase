@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:265cfb583bb8000955bb698015e49965ade9cfede56d85a38c0108bc3653feca
+-- @bsb-hash sha256:a7bb0ed7c57172470b899abc11645f8417d69743b0f1322033971cb77bba9725
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -89,7 +89,8 @@ revoke all on "better_supabase"."support_sessions" from anon, authenticated;
 grant select on "better_supabase"."support_sessions" to service_role;
 -- Platform staff read every session.
 drop policy if exists bsb_support_read on "better_supabase"."support_sessions";
-create policy bsb_support_read on "better_supabase"."support_sessions" for select to authenticated
+create policy bsb_support_read on "better_supabase"."support_sessions"
+  for select to authenticated
   using ((select "better_supabase"."is_platform"('support.read')));
 grant select on "better_supabase"."support_sessions" to authenticated;
 
@@ -121,7 +122,8 @@ revoke all on "better_supabase"."support_requests" from anon, authenticated;
 grant select on "better_supabase"."support_requests" to service_role;
 -- The requester reads their own requests; platform staff read every one.
 drop policy if exists bsb_support_requests_read on "better_supabase"."support_requests";
-create policy bsb_support_requests_read on "better_supabase"."support_requests" for select to authenticated
+create policy bsb_support_requests_read on "better_supabase"."support_requests"
+  for select to authenticated
   using ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('support.read')));
 grant select on "better_supabase"."support_requests" to authenticated;
@@ -849,7 +851,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:d00d275e5533c31549d5c1ff316ececb910f665615728675b9755377dc0ec290
+-- @bsb-hash sha256:4e42f8c762eb08ad596417c7d585888daa4ec70c7b87589ecc22ecbc2732376a
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -937,7 +939,8 @@ revoke all on "better_supabase"."support_sessions" from anon, authenticated;
 grant select on "better_supabase"."support_sessions" to service_role;
 -- Platform staff read every session.
 drop policy if exists bsb_support_read on "better_supabase"."support_sessions";
-create policy bsb_support_read on "better_supabase"."support_sessions" for select to authenticated
+create policy bsb_support_read on "better_supabase"."support_sessions"
+  for select to authenticated
   using ((select "better_supabase"."is_platform"('support.read')));
 grant select on "better_supabase"."support_sessions" to authenticated;
 
@@ -969,7 +972,8 @@ revoke all on "better_supabase"."support_requests" from anon, authenticated;
 grant select on "better_supabase"."support_requests" to service_role;
 -- The requester reads their own requests; platform staff read every one.
 drop policy if exists bsb_support_requests_read on "better_supabase"."support_requests";
-create policy bsb_support_requests_read on "better_supabase"."support_requests" for select to authenticated
+create policy bsb_support_requests_read on "better_supabase"."support_requests"
+  for select to authenticated
   using ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('support.read')));
 grant select on "better_supabase"."support_requests" to authenticated;
@@ -1738,7 +1742,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:98cb5f977e996fa6d71681e2f693f13c5c67460ee700210324e8022a18326ff8
+-- @bsb-hash sha256:6e65006e6b222be323cff440eeeabeb68d7741a24ef8f1b704b24cc4f52924cf
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1826,7 +1830,8 @@ revoke all on "app_private"."support_sessions" from anon, authenticated;
 grant select on "app_private"."support_sessions" to service_role;
 -- Platform staff read every session.
 drop policy if exists bsb_support_read on "app_private"."support_sessions";
-create policy bsb_support_read on "app_private"."support_sessions" for select to authenticated
+create policy bsb_support_read on "app_private"."support_sessions"
+  for select to authenticated
   using ((select "better_supabase"."is_platform"('support.read')));
 grant select on "app_private"."support_sessions" to authenticated;
 
@@ -1858,7 +1863,8 @@ revoke all on "app_private"."support_requests" from anon, authenticated;
 grant select on "app_private"."support_requests" to service_role;
 -- The requester reads their own requests; platform staff read every one.
 drop policy if exists bsb_support_requests_read on "app_private"."support_requests";
-create policy bsb_support_requests_read on "app_private"."support_requests" for select to authenticated
+create policy bsb_support_requests_read on "app_private"."support_requests"
+  for select to authenticated
   using ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('support.read')));
 grant select on "app_private"."support_requests" to authenticated;
@@ -2586,7 +2592,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:7e020eac6efcd0038fbf80ff3930f06878f49443a29164a1cb1b434909846dd5
+-- @bsb-hash sha256:17f92de7b35e0df984a8a3f1ac64e991ff5dadf86cf87f3afd6a775cb4b4fb67
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2674,7 +2680,8 @@ revoke all on "better_supabase"."support_sessions" from anon, authenticated;
 grant select on "better_supabase"."support_sessions" to service_role;
 -- Platform staff read every session.
 drop policy if exists bsb_support_read on "better_supabase"."support_sessions";
-create policy bsb_support_read on "better_supabase"."support_sessions" for select to authenticated
+create policy bsb_support_read on "better_supabase"."support_sessions"
+  for select to authenticated
   using ((select "better_supabase"."is_platform"('support.read')));
 grant select on "better_supabase"."support_sessions" to authenticated;
 
@@ -2706,7 +2713,8 @@ revoke all on "better_supabase"."support_requests" from anon, authenticated;
 grant select on "better_supabase"."support_requests" to service_role;
 -- The requester reads their own requests; platform staff read every one.
 drop policy if exists bsb_support_requests_read on "better_supabase"."support_requests";
-create policy bsb_support_requests_read on "better_supabase"."support_requests" for select to authenticated
+create policy bsb_support_requests_read on "better_supabase"."support_requests"
+  for select to authenticated
   using ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('support.read')));
 grant select on "better_supabase"."support_requests" to authenticated;
@@ -3546,7 +3554,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:f116b067a719a6c69614b45b4207113cf004b4473d0857d6f2e7375aeded06fc
+-- @bsb-hash sha256:d90c9d3b3da94dfbe63ea60d654bec54d7e60955cded0349772e863f7ed3df15
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3628,7 +3636,8 @@ alter table "better_supabase"."support_sessions" enable row level security;
 grant select on "better_supabase"."support_sessions" to service_role;
 -- Platform staff read every session.
 drop policy if exists bsb_support_read on "better_supabase"."support_sessions";
-create policy bsb_support_read on "better_supabase"."support_sessions" for select to authenticated
+create policy bsb_support_read on "better_supabase"."support_sessions"
+  for select to authenticated
   using ((select "better_supabase"."is_platform"('support.read')));
 grant select on "better_supabase"."support_sessions" to authenticated;
 
@@ -3654,7 +3663,8 @@ alter table "better_supabase"."support_requests" enable row level security;
 grant select on "better_supabase"."support_requests" to service_role;
 -- The requester reads their own requests; platform staff read every one.
 drop policy if exists bsb_support_requests_read on "better_supabase"."support_requests";
-create policy bsb_support_requests_read on "better_supabase"."support_requests" for select to authenticated
+create policy bsb_support_requests_read on "better_supabase"."support_requests"
+  for select to authenticated
   using ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('support.read')));
 grant select on "better_supabase"."support_requests" to authenticated;
@@ -4382,7 +4392,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:f99b37c6d65355b9db44acf0c8a5faefffa9bea5b90d28ae97c458500e5e5219
+-- @bsb-hash sha256:69f0dc2a4a13bff67fb1c50f5b268cf71faf061542a6f40eac76a7d9494373ad
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4470,7 +4480,8 @@ revoke all on "better_supabase"."support_sessions" from anon, authenticated;
 grant select on "better_supabase"."support_sessions" to service_role;
 -- Platform staff read every session.
 drop policy if exists bsb_support_read on "better_supabase"."support_sessions";
-create policy bsb_support_read on "better_supabase"."support_sessions" for select to authenticated
+create policy bsb_support_read on "better_supabase"."support_sessions"
+  for select to authenticated
   using ((select "better_supabase"."is_platform"('support.read')));
 grant select on "better_supabase"."support_sessions" to authenticated;
 
@@ -4502,7 +4513,8 @@ revoke all on "better_supabase"."support_requests" from anon, authenticated;
 grant select on "better_supabase"."support_requests" to service_role;
 -- The requester reads their own requests; platform staff read every one.
 drop policy if exists bsb_support_requests_read on "better_supabase"."support_requests";
-create policy bsb_support_requests_read on "better_supabase"."support_requests" for select to authenticated
+create policy bsb_support_requests_read on "better_supabase"."support_requests"
+  for select to authenticated
   using ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('support.read')));
 grant select on "better_supabase"."support_requests" to authenticated;

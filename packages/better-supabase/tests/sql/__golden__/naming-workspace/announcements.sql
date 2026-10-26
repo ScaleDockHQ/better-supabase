@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:ccef40dbc5a0470cd905c14d2f6a6fa2ca7127e7a2112c85d9ac64ef53523ac4
+-- @bsb-hash sha256:13b0241f31a9515cf009f50fbc5f237b67b89813c3614682bfde0edf13f16025
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -272,9 +272,10 @@ create trigger "bsb_announcements_broadcast" after insert or update or delete on
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_announcements_receive" on realtime.messages;
-    create policy "bsb_announcements_receive" on realtime.messages for select to authenticated
-      using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
+        drop policy if exists bsb_announcements_receive on realtime.messages;
+create policy bsb_announcements_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
   end if;
 end;
 $$;

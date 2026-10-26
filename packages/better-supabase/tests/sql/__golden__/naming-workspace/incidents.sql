@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:c203e31e9ab452725c5f38c11ba29fe353063857adf906912b44203d2995c84f
+-- @bsb-hash sha256:c6a8e9dcc35a7d85cefae8019ac186e1878487e2d1b3b5b6d0f9d2004843769c
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -128,8 +128,9 @@ alter table "better_supabase"."status_components" enable row level security;
 revoke all on "better_supabase"."status_components" from anon, authenticated;
 grant select on "better_supabase"."status_components" to authenticated;
 grant all on "better_supabase"."status_components" to service_role;
-drop policy if exists "status_components_read" on "better_supabase"."status_components";
-create policy "status_components_read" on "better_supabase"."status_components" for select to authenticated
+drop policy if exists status_components_read on "better_supabase"."status_components";
+create policy status_components_read on "better_supabase"."status_components"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One row per status a component held, for the uptime history.
@@ -149,8 +150,9 @@ alter table "better_supabase"."status_component_history" enable row level securi
 revoke all on "better_supabase"."status_component_history" from anon, authenticated;
 grant select on "better_supabase"."status_component_history" to authenticated;
 grant all on "better_supabase"."status_component_history" to service_role;
-drop policy if exists "status_component_history_read" on "better_supabase"."status_component_history";
-create policy "status_component_history_read" on "better_supabase"."status_component_history" for select to authenticated
+drop policy if exists status_component_history_read on "better_supabase"."status_component_history";
+create policy status_component_history_read on "better_supabase"."status_component_history"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 create table if not exists "better_supabase"."incidents" (
@@ -180,8 +182,9 @@ alter table "better_supabase"."incidents" enable row level security;
 revoke all on "better_supabase"."incidents" from anon, authenticated;
 grant select on "better_supabase"."incidents" to authenticated;
 grant all on "better_supabase"."incidents" to service_role;
-drop policy if exists "incidents_read" on "better_supabase"."incidents";
-create policy "incidents_read" on "better_supabase"."incidents" for select to authenticated
+drop policy if exists incidents_read on "better_supabase"."incidents";
+create policy incidents_read on "better_supabase"."incidents"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- The status timeline: each update sets the incident's status.
@@ -203,8 +206,9 @@ alter table "better_supabase"."incident_updates" enable row level security;
 revoke all on "better_supabase"."incident_updates" from anon, authenticated;
 grant select on "better_supabase"."incident_updates" to authenticated;
 grant all on "better_supabase"."incident_updates" to service_role;
-drop policy if exists "incident_updates_read" on "better_supabase"."incident_updates";
-create policy "incident_updates_read" on "better_supabase"."incident_updates" for select to authenticated
+drop policy if exists incident_updates_read on "better_supabase"."incident_updates";
+create policy incident_updates_read on "better_supabase"."incident_updates"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 create table if not exists "better_supabase"."incident_impacts" (
@@ -222,8 +226,9 @@ alter table "better_supabase"."incident_impacts" enable row level security;
 revoke all on "better_supabase"."incident_impacts" from anon, authenticated;
 grant select on "better_supabase"."incident_impacts" to authenticated;
 grant all on "better_supabase"."incident_impacts" to service_role;
-drop policy if exists "incident_impacts_read" on "better_supabase"."incident_impacts";
-create policy "incident_impacts_read" on "better_supabase"."incident_impacts" for select to authenticated
+drop policy if exists incident_impacts_read on "better_supabase"."incident_impacts";
+create policy incident_impacts_read on "better_supabase"."incident_impacts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 create table if not exists "better_supabase"."incident_postmortems" (
@@ -248,8 +253,9 @@ alter table "better_supabase"."incident_postmortems" enable row level security;
 revoke all on "better_supabase"."incident_postmortems" from anon, authenticated;
 grant select on "better_supabase"."incident_postmortems" to authenticated;
 grant all on "better_supabase"."incident_postmortems" to service_role;
-drop policy if exists "incident_postmortems_read" on "better_supabase"."incident_postmortems";
-create policy "incident_postmortems_read" on "better_supabase"."incident_postmortems" for select to authenticated
+drop policy if exists incident_postmortems_read on "better_supabase"."incident_postmortems";
+create policy incident_postmortems_read on "better_supabase"."incident_postmortems"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One status page per organization. Anonymous visitors read it only through
@@ -268,8 +274,9 @@ alter table "better_supabase"."status_pages" enable row level security;
 revoke all on "better_supabase"."status_pages" from anon, authenticated;
 grant select on "better_supabase"."status_pages" to authenticated;
 grant all on "better_supabase"."status_pages" to service_role;
-drop policy if exists "status_pages_read" on "better_supabase"."status_pages";
-create policy "status_pages_read" on "better_supabase"."status_pages" for select to authenticated
+drop policy if exists status_pages_read on "better_supabase"."status_pages";
+create policy status_pages_read on "better_supabase"."status_pages"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- Sets each component's status to the worst impact of the open incidents on

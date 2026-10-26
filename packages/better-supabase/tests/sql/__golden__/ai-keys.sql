@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:c150cb92febbb1ba5f17b3fabbbc529bf46e79570e06ee202d5edb0c3a9d9336
+-- @bsb-hash sha256:55177c35b984381ac43697eb8eebe589f8c7c453fec781ac6265c8550dd44530
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -95,7 +95,8 @@ revoke all on "better_supabase"."ai_provider_keys" from anon, authenticated;
 grant select on "better_supabase"."ai_provider_keys" to authenticated;
 grant all on "better_supabase"."ai_provider_keys" to service_role;
 drop policy if exists ai_provider_keys_read on "better_supabase"."ai_provider_keys";
-create policy ai_provider_keys_read on "better_supabase"."ai_provider_keys" for select to authenticated
+create policy ai_provider_keys_read on "better_supabase"."ai_provider_keys"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
@@ -128,7 +129,8 @@ revoke all on "better_supabase"."ai_batches" from anon, authenticated;
 grant select on "better_supabase"."ai_batches" to authenticated;
 grant all on "better_supabase"."ai_batches" to service_role;
 drop policy if exists ai_batches_read on "better_supabase"."ai_batches";
-create policy ai_batches_read on "better_supabase"."ai_batches" for select to authenticated
+create policy ai_batches_read on "better_supabase"."ai_batches"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 create table if not exists "better_supabase"."ai_batch_items" (
@@ -148,7 +150,8 @@ revoke all on "better_supabase"."ai_batch_items" from anon, authenticated;
 grant select on "better_supabase"."ai_batch_items" to authenticated;
 grant all on "better_supabase"."ai_batch_items" to service_role;
 drop policy if exists ai_batch_items_read on "better_supabase"."ai_batch_items";
-create policy ai_batch_items_read on "better_supabase"."ai_batch_items" for select to authenticated
+create policy ai_batch_items_read on "better_supabase"."ai_batch_items"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."ai_batches" y where y."id" = "batch_id"));
 
 create or replace function "better_supabase"."list_ai_provider_keys"(tenant uuid)
@@ -562,7 +565,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:df9d769969fcfb24ef49c2fa23ad449548bc2587fadaa6e4192ddd8a33bc8feb
+-- @bsb-hash sha256:5def5f137ba44d65cf3c266aae3da7f47b8ebb72ca0911b2cd92e0625360ee85
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -656,7 +659,8 @@ revoke all on "better_supabase"."ai_provider_keys" from anon, authenticated;
 grant select on "better_supabase"."ai_provider_keys" to authenticated;
 grant all on "better_supabase"."ai_provider_keys" to service_role;
 drop policy if exists ai_provider_keys_read on "better_supabase"."ai_provider_keys";
-create policy ai_provider_keys_read on "better_supabase"."ai_provider_keys" for select to authenticated
+create policy ai_provider_keys_read on "better_supabase"."ai_provider_keys"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
@@ -689,7 +693,8 @@ revoke all on "better_supabase"."ai_batches" from anon, authenticated;
 grant select on "better_supabase"."ai_batches" to authenticated;
 grant all on "better_supabase"."ai_batches" to service_role;
 drop policy if exists ai_batches_read on "better_supabase"."ai_batches";
-create policy ai_batches_read on "better_supabase"."ai_batches" for select to authenticated
+create policy ai_batches_read on "better_supabase"."ai_batches"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 create table if not exists "better_supabase"."ai_batch_items" (
@@ -709,7 +714,8 @@ revoke all on "better_supabase"."ai_batch_items" from anon, authenticated;
 grant select on "better_supabase"."ai_batch_items" to authenticated;
 grant all on "better_supabase"."ai_batch_items" to service_role;
 drop policy if exists ai_batch_items_read on "better_supabase"."ai_batch_items";
-create policy ai_batch_items_read on "better_supabase"."ai_batch_items" for select to authenticated
+create policy ai_batch_items_read on "better_supabase"."ai_batch_items"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."ai_batches" y where y."id" = "batch_id"));
 
 create or replace function "better_supabase"."list_ai_provider_keys"(tenant uuid)
@@ -1141,7 +1147,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:fa27cd51d5661d04557eab6c15248c73296844e6349b9f856c5c2e2bff9e177e
+-- @bsb-hash sha256:88aa270abbd350cd8706a8b72e17cc53f83748e604322ec55a5fd461b9cf1d3b
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1237,7 +1243,8 @@ revoke all on "app_private"."ai_provider_keys" from anon, authenticated;
 grant select on "app_private"."ai_provider_keys" to authenticated;
 grant all on "app_private"."ai_provider_keys" to service_role;
 drop policy if exists ai_provider_keys_read on "app_private"."ai_provider_keys";
-create policy ai_provider_keys_read on "app_private"."ai_provider_keys" for select to authenticated
+create policy ai_provider_keys_read on "app_private"."ai_provider_keys"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
@@ -1270,7 +1277,8 @@ revoke all on "app_private"."ai_batches" from anon, authenticated;
 grant select on "app_private"."ai_batches" to authenticated;
 grant all on "app_private"."ai_batches" to service_role;
 drop policy if exists ai_batches_read on "app_private"."ai_batches";
-create policy ai_batches_read on "app_private"."ai_batches" for select to authenticated
+create policy ai_batches_read on "app_private"."ai_batches"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 create table if not exists "app_private"."ai_batch_items" (
@@ -1290,7 +1298,8 @@ revoke all on "app_private"."ai_batch_items" from anon, authenticated;
 grant select on "app_private"."ai_batch_items" to authenticated;
 grant all on "app_private"."ai_batch_items" to service_role;
 drop policy if exists ai_batch_items_read on "app_private"."ai_batch_items";
-create policy ai_batch_items_read on "app_private"."ai_batch_items" for select to authenticated
+create policy ai_batch_items_read on "app_private"."ai_batch_items"
+  for select to authenticated
   using (exists (select 1 from "app_private"."ai_batches" y where y."id" = "batch_id"));
 
 create or replace function "app_private"."list_ai_provider_keys"(tenant uuid)
@@ -1704,7 +1713,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:718456be8e1e63643187da09555c27b149e9ffa3ef528a0a414a7a142d4d87bb
+-- @bsb-hash sha256:68cf9a09aaa34116adfdff8f106b145fef2fcfde90825a68d2aaac89b97ea2c8
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1798,7 +1807,8 @@ revoke all on "better_supabase"."ai_provider_keys" from anon, authenticated;
 grant select on "better_supabase"."ai_provider_keys" to authenticated;
 grant all on "better_supabase"."ai_provider_keys" to service_role;
 drop policy if exists ai_provider_keys_read on "better_supabase"."ai_provider_keys";
-create policy ai_provider_keys_read on "better_supabase"."ai_provider_keys" for select to authenticated
+create policy ai_provider_keys_read on "better_supabase"."ai_provider_keys"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
@@ -1831,7 +1841,8 @@ revoke all on "better_supabase"."ai_batches" from anon, authenticated;
 grant select on "better_supabase"."ai_batches" to authenticated;
 grant all on "better_supabase"."ai_batches" to service_role;
 drop policy if exists ai_batches_read on "better_supabase"."ai_batches";
-create policy ai_batches_read on "better_supabase"."ai_batches" for select to authenticated
+create policy ai_batches_read on "better_supabase"."ai_batches"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 create table if not exists "better_supabase"."ai_batch_items" (
@@ -1851,7 +1862,8 @@ revoke all on "better_supabase"."ai_batch_items" from anon, authenticated;
 grant select on "better_supabase"."ai_batch_items" to authenticated;
 grant all on "better_supabase"."ai_batch_items" to service_role;
 drop policy if exists ai_batch_items_read on "better_supabase"."ai_batch_items";
-create policy ai_batch_items_read on "better_supabase"."ai_batch_items" for select to authenticated
+create policy ai_batch_items_read on "better_supabase"."ai_batch_items"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."ai_batches" y where y."id" = "batch_id"));
 
 create or replace function "better_supabase"."list_ai_provider_keys"(tenant uuid)
@@ -2395,7 +2407,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:7a161385070c292925766fced0d8c8ac314ec20523d96d153e93cb45c3c27deb
+-- @bsb-hash sha256:67b26f9615529c58653bc9c8533c3d1874fc46c30d0365246b42dd9c5138fb65
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2503,7 +2515,8 @@ alter table "better_supabase"."ai_provider_keys" enable row level security;
 grant select on "better_supabase"."ai_provider_keys" to authenticated;
 grant all on "better_supabase"."ai_provider_keys" to service_role;
 drop policy if exists bsb_ai_provider_keys_select on "better_supabase"."ai_provider_keys";
-create policy bsb_ai_provider_keys_select on "better_supabase"."ai_provider_keys" for select to authenticated
+create policy bsb_ai_provider_keys_select on "better_supabase"."ai_provider_keys"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
@@ -2534,7 +2547,8 @@ alter table "better_supabase"."ai_batches" enable row level security;
 grant select on "better_supabase"."ai_batches" to authenticated;
 grant all on "better_supabase"."ai_batches" to service_role;
 drop policy if exists bsb_ai_batches_select on "better_supabase"."ai_batches";
-create policy bsb_ai_batches_select on "better_supabase"."ai_batches" for select to authenticated
+create policy bsb_ai_batches_select on "better_supabase"."ai_batches"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 -- better_supabase.ai_batch_items is the app's table: this block adds only the columns it needs.
@@ -2552,7 +2566,8 @@ alter table "better_supabase"."ai_batch_items" enable row level security;
 grant select on "better_supabase"."ai_batch_items" to authenticated;
 grant all on "better_supabase"."ai_batch_items" to service_role;
 drop policy if exists bsb_ai_batch_items_select on "better_supabase"."ai_batch_items";
-create policy bsb_ai_batch_items_select on "better_supabase"."ai_batch_items" for select to authenticated
+create policy bsb_ai_batch_items_select on "better_supabase"."ai_batch_items"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."ai_batches" y where y."id" = "batch_id"));
 
 create or replace function "better_supabase"."list_ai_provider_keys"(tenant uuid)
@@ -2966,7 +2981,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:b16583d4dc5416a1d6e2d97b2f7e74a5791c47a151c07dc47779b995cfff43af
+-- @bsb-hash sha256:9f4425d36353405fe9e894c59588ffaea8b77decccd76e97a35b529733883616
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3060,7 +3075,8 @@ revoke all on "better_supabase"."ai_provider_keys" from anon, authenticated;
 grant select on "better_supabase"."ai_provider_keys" to authenticated;
 grant all on "better_supabase"."ai_provider_keys" to service_role;
 drop policy if exists ai_provider_keys_read on "better_supabase"."ai_provider_keys";
-create policy ai_provider_keys_read on "better_supabase"."ai_provider_keys" for select to authenticated
+create policy ai_provider_keys_read on "better_supabase"."ai_provider_keys"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
@@ -3093,7 +3109,8 @@ revoke all on "better_supabase"."ai_batches" from anon, authenticated;
 grant select on "better_supabase"."ai_batches" to authenticated;
 grant all on "better_supabase"."ai_batches" to service_role;
 drop policy if exists ai_batches_read on "better_supabase"."ai_batches";
-create policy ai_batches_read on "better_supabase"."ai_batches" for select to authenticated
+create policy ai_batches_read on "better_supabase"."ai_batches"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 create table if not exists "better_supabase"."ai_batch_items" (
@@ -3113,7 +3130,8 @@ revoke all on "better_supabase"."ai_batch_items" from anon, authenticated;
 grant select on "better_supabase"."ai_batch_items" to authenticated;
 grant all on "better_supabase"."ai_batch_items" to service_role;
 drop policy if exists ai_batch_items_read on "better_supabase"."ai_batch_items";
-create policy ai_batch_items_read on "better_supabase"."ai_batch_items" for select to authenticated
+create policy ai_batch_items_read on "better_supabase"."ai_batch_items"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."ai_batches" y where y."id" = "batch_id"));
 
 create or replace function "better_supabase"."list_ai_provider_keys"(tenant uuid)

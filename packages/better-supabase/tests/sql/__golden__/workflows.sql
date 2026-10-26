@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:3f55ec526fe11d1141047aaab0f8b575d9d1575dafa91cc2f3324da5a8ce8f9d
+-- @bsb-hash sha256:c3c81a11e353f52b63872eba8b2658ba8785a175e0ed7e20afafaf3c9cd9a59f
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -123,11 +123,10 @@ revoke all on "better_supabase"."workflow_runs" from anon, authenticated;
 grant select on "better_supabase"."workflow_runs" to authenticated;
 grant all on "better_supabase"."workflow_runs" to service_role;
 drop policy if exists workflow_runs_read on "better_supabase"."workflow_runs";
-create policy workflow_runs_read on "better_supabase"."workflow_runs" for select to authenticated
-  using (
-    "actor_id" = (select auth.uid())
-    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read'))
-  );
+create policy workflow_runs_read on "better_supabase"."workflow_runs"
+  for select to authenticated
+  using ("actor_id" = (select auth.uid())
+    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
@@ -155,7 +154,8 @@ revoke all on "better_supabase"."workflow_schedules" from anon, authenticated;
 grant select on "better_supabase"."workflow_schedules" to authenticated;
 grant all on "better_supabase"."workflow_schedules" to service_role;
 drop policy if exists workflow_schedules_read on "better_supabase"."workflow_schedules";
-create policy workflow_schedules_read on "better_supabase"."workflow_schedules" for select to authenticated
+create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
@@ -859,10 +859,10 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_workflow_runs_receive" on realtime.messages;
-    create policy "bsb_workflow_runs_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_workflow_runs_receive on realtime.messages;
+create policy bsb_workflow_runs_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (
           (
             (select realtime.topic()) like 'workflow-run:%'
@@ -877,8 +877,7 @@ begin
               select t::text from better_supabase.tenant_ids_with('workflow.read') t
             )
           )
-        )
-      );
+        ));
   end if;
 end;
 $$;
@@ -972,7 +971,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:12687796870a83896851ae5435bf54da64a086f1bce17050c31824fc32195387
+-- @bsb-hash sha256:6b9e86a69722642a4db8e8a2ccff944d0519e4ff2b0610735c61a4b1eb5c6c93
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1094,11 +1093,10 @@ revoke all on "better_supabase"."workflow_runs" from anon, authenticated;
 grant select on "better_supabase"."workflow_runs" to authenticated;
 grant all on "better_supabase"."workflow_runs" to service_role;
 drop policy if exists workflow_runs_read on "better_supabase"."workflow_runs";
-create policy workflow_runs_read on "better_supabase"."workflow_runs" for select to authenticated
-  using (
-    "actor_id" = (select auth.uid())
-    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read'))
-  );
+create policy workflow_runs_read on "better_supabase"."workflow_runs"
+  for select to authenticated
+  using ("actor_id" = (select auth.uid())
+    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
@@ -1126,7 +1124,8 @@ revoke all on "better_supabase"."workflow_schedules" from anon, authenticated;
 grant select on "better_supabase"."workflow_schedules" to authenticated;
 grant all on "better_supabase"."workflow_schedules" to service_role;
 drop policy if exists workflow_schedules_read on "better_supabase"."workflow_schedules";
-create policy workflow_schedules_read on "better_supabase"."workflow_schedules" for select to authenticated
+create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
@@ -1844,10 +1843,10 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_workflow_runs_receive" on realtime.messages;
-    create policy "bsb_workflow_runs_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_workflow_runs_receive on realtime.messages;
+create policy bsb_workflow_runs_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (
           (
             (select realtime.topic()) like 'workflow-run:%'
@@ -1862,8 +1861,7 @@ begin
               select t::text from better_supabase.tenant_ids_with('workflow.read') t
             )
           )
-        )
-      );
+        ));
   end if;
 end;
 $$;
@@ -1957,7 +1955,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:c62346b33631ad02d573cd7c13cbd7a2c01b77d85baf1ddf696ff9bff3b5c1a7
+-- @bsb-hash sha256:0febb62d26a2ecc8a833f8aca7334f4d690f6d094e5b37d3427426343dd397ad
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2081,11 +2079,10 @@ revoke all on "app_private"."workflow_runs" from anon, authenticated;
 grant select on "app_private"."workflow_runs" to authenticated;
 grant all on "app_private"."workflow_runs" to service_role;
 drop policy if exists workflow_runs_read on "app_private"."workflow_runs";
-create policy workflow_runs_read on "app_private"."workflow_runs" for select to authenticated
-  using (
-    "actor_id" = (select auth.uid())
-    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read'))
-  );
+create policy workflow_runs_read on "app_private"."workflow_runs"
+  for select to authenticated
+  using ("actor_id" = (select auth.uid())
+    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
@@ -2113,7 +2110,8 @@ revoke all on "app_private"."workflow_schedules" from anon, authenticated;
 grant select on "app_private"."workflow_schedules" to authenticated;
 grant all on "app_private"."workflow_schedules" to service_role;
 drop policy if exists workflow_schedules_read on "app_private"."workflow_schedules";
-create policy workflow_schedules_read on "app_private"."workflow_schedules" for select to authenticated
+create policy workflow_schedules_read on "app_private"."workflow_schedules"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
@@ -2817,10 +2815,10 @@ grant execute on function "app_private"."mark_workflow_start_request"(uuid, text
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_workflow_runs_receive" on realtime.messages;
-    create policy "bsb_workflow_runs_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_workflow_runs_receive on realtime.messages;
+create policy bsb_workflow_runs_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (
           (
             (select realtime.topic()) like 'workflow-run:%'
@@ -2835,8 +2833,7 @@ begin
               select t::text from better_supabase.tenant_ids_with('workflow.read') t
             )
           )
-        )
-      );
+        ));
   end if;
 end;
 $$;
@@ -2930,7 +2927,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:19d0e680653f280e7a04e0ec8ba86bfb7ba2d7fa8e0edc517b5ed71f312d31a6
+-- @bsb-hash sha256:12b631d451bbb362ba4aff9b783a1cd3bbc8337330b3060fe15a4b20743c8537
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3052,11 +3049,10 @@ revoke all on "better_supabase"."workflow_runs" from anon, authenticated;
 grant select on "better_supabase"."workflow_runs" to authenticated;
 grant all on "better_supabase"."workflow_runs" to service_role;
 drop policy if exists workflow_runs_read on "better_supabase"."workflow_runs";
-create policy workflow_runs_read on "better_supabase"."workflow_runs" for select to authenticated
-  using (
-    "actor_id" = (select auth.uid())
-    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read'))
-  );
+create policy workflow_runs_read on "better_supabase"."workflow_runs"
+  for select to authenticated
+  using ("actor_id" = (select auth.uid())
+    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
@@ -3084,7 +3080,8 @@ revoke all on "better_supabase"."workflow_schedules" from anon, authenticated;
 grant select on "better_supabase"."workflow_schedules" to authenticated;
 grant all on "better_supabase"."workflow_schedules" to service_role;
 drop policy if exists workflow_schedules_read on "better_supabase"."workflow_schedules";
-create policy workflow_schedules_read on "better_supabase"."workflow_schedules" for select to authenticated
+create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
@@ -3788,10 +3785,10 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_workflow_runs_receive" on realtime.messages;
-    create policy "bsb_workflow_runs_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_workflow_runs_receive on realtime.messages;
+create policy bsb_workflow_runs_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (
           (
             (select realtime.topic()) like 'workflow-run:%'
@@ -3806,8 +3803,7 @@ begin
               select t::text from better_supabase.tenant_ids_with('workflow.read') t
             )
           )
-        )
-      );
+        ));
   end if;
 end;
 $$;
@@ -4080,7 +4076,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:c1d0e6cb1adb91e716aecfe4ce5c33f193c86c4a3b9a8ecb3457dd73977dfb3a
+-- @bsb-hash sha256:d5aec7f6a68ef03ac09f61dfff40afdcdf7f54c97bd1ecbc1bca2f7f9415102e
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4204,11 +4200,10 @@ alter table "better_supabase"."workflow_runs" enable row level security;
 grant select on "better_supabase"."workflow_runs" to authenticated;
 grant all on "better_supabase"."workflow_runs" to service_role;
 drop policy if exists bsb_workflow_runs_select on "better_supabase"."workflow_runs";
-create policy bsb_workflow_runs_select on "better_supabase"."workflow_runs" for select to authenticated
-  using (
-    "actor_id" = (select auth.uid())
-    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read'))
-  );
+create policy bsb_workflow_runs_select on "better_supabase"."workflow_runs"
+  for select to authenticated
+  using ("actor_id" = (select auth.uid())
+    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
@@ -4234,7 +4229,8 @@ alter table "better_supabase"."workflow_schedules" enable row level security;
 grant select on "better_supabase"."workflow_schedules" to authenticated;
 grant all on "better_supabase"."workflow_schedules" to service_role;
 drop policy if exists bsb_workflow_schedules_select on "better_supabase"."workflow_schedules";
-create policy bsb_workflow_schedules_select on "better_supabase"."workflow_schedules" for select to authenticated
+create policy bsb_workflow_schedules_select on "better_supabase"."workflow_schedules"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
@@ -4923,10 +4919,10 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_workflow_runs_receive" on realtime.messages;
-    create policy "bsb_workflow_runs_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_workflow_runs_receive on realtime.messages;
+create policy bsb_workflow_runs_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (
           (
             (select realtime.topic()) like 'workflow-run:%'
@@ -4941,8 +4937,7 @@ begin
               select t::text from better_supabase.tenant_ids_with('workflow.read') t
             )
           )
-        )
-      );
+        ));
   end if;
 end;
 $$;
@@ -5036,7 +5031,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:3f4e738b5e8b1dfd3980901ec8277f032c8ee4095c2b65cd9071d7e2d3cf8360
+-- @bsb-hash sha256:5b5ab37d909dccb39b1670cddd274888521e355b600f44aec929da685fce3228
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5158,11 +5153,10 @@ revoke all on "better_supabase"."workflow_runs" from anon, authenticated;
 grant select on "better_supabase"."workflow_runs" to authenticated;
 grant all on "better_supabase"."workflow_runs" to service_role;
 drop policy if exists workflow_runs_read on "better_supabase"."workflow_runs";
-create policy workflow_runs_read on "better_supabase"."workflow_runs" for select to authenticated
-  using (
-    "actor_id" = (select auth.uid())
-    or "org_id" in (select better_supabase.tenant_ids_with('workflow.read'))
-  );
+create policy workflow_runs_read on "better_supabase"."workflow_runs"
+  for select to authenticated
+  using ("actor_id" = (select auth.uid())
+    or "org_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
@@ -5190,7 +5184,8 @@ revoke all on "better_supabase"."workflow_schedules" from anon, authenticated;
 grant select on "better_supabase"."workflow_schedules" to authenticated;
 grant all on "better_supabase"."workflow_schedules" to service_role;
 drop policy if exists workflow_schedules_read on "better_supabase"."workflow_schedules";
-create policy workflow_schedules_read on "better_supabase"."workflow_schedules" for select to authenticated
+create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
@@ -5894,10 +5889,10 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_workflow_runs_receive" on realtime.messages;
-    create policy "bsb_workflow_runs_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_workflow_runs_receive on realtime.messages;
+create policy bsb_workflow_runs_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (
           (
             (select realtime.topic()) like 'workflow-run:%'
@@ -5912,8 +5907,7 @@ begin
               select t::text from better_supabase.tenant_ids_with('workflow.read') t
             )
           )
-        )
-      );
+        ));
   end if;
 end;
 $$;

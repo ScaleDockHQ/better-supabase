@@ -1,6 +1,6 @@
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:8a90adf36a7af84a9baf49f30594082d6ac95ff7e14757823ef3d40e8a7c38c1
+-- @bsb-hash sha256:5b46537e10b6467976ffeb330ae9d494b4b5bbfd483747d655c0d4771dba4733
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -42,8 +42,9 @@ revoke all on "better_supabase"."field_changes" from anon, authenticated;
 grant select on "better_supabase"."field_changes" to authenticated;
 grant all on "better_supabase"."field_changes" to service_role;
 drop policy if exists field_changes_read on "better_supabase"."field_changes";
-create policy field_changes_read on "better_supabase"."field_changes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+create policy field_changes_read on "better_supabase"."field_changes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
 -- Keeps the old and new value of each watched column of a deal on update.
 create or replace function better_supabase.bsb_field_history_deal()

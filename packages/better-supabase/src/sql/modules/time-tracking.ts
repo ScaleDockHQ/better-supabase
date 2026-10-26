@@ -9,6 +9,7 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -496,9 +497,7 @@ create unique index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_r
 create index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_user_idx`)} on ${entries} (${e("tenant")}, ${eOwner}, ${e("startedAt")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_subject_idx`)} on ${entries} (${e("tenant")}, ${e("subjectType")}, ${e("subjectId")}) where ${e("subjectType")} is not null;
 ${lockTable(entries, { read: true })}
-drop policy if exists ${ctx.naming.rename("time_entries_read")} on ${entries};
-create policy ${ctx.naming.rename("time_entries_read")} on ${entries} for select to authenticated
-  using (${e("user")} = (select auth.uid())${employeeMode ? ` or ${fn("time_is_my_employee")}(${e("tenant")}, ${e("employee")})` : ""} or ${ctx.scope.check(e("tenant"), read)});
+${renderPolicy(makePolicy({ table: entries, name: ctx.naming.rename("time_entries_read"), command: "select", roles: ["authenticated"], using: `${e("user")} = (select auth.uid())${employeeMode ? ` or ${fn("time_is_my_employee")}(${e("tenant")}, ${e("employee")})` : ""} or ${ctx.scope.check(e("tenant"), read)}` }), { drop: true, target: entries })}
 
 create table if not exists ${timesheets} (
   ${t("id")} uuid primary key default gen_random_uuid(),
@@ -527,9 +526,7 @@ ${
 );
 ${statusMode ? "" : `create index if not exists ${sqlIdent(`${ctx.tableName("timesheets").name}_approval_idx`)} on ${timesheets} (${t("approval")}) where ${t("approval")} is not null;\n`}create index if not exists ${sqlIdent(`${ctx.tableName("timesheets").name}_week_idx`)} on ${timesheets} (${t("tenant")}, ${t("week")} desc);
 ${lockTable(timesheets, { read: true })}
-drop policy if exists ${ctx.naming.rename("timesheets_read")} on ${timesheets};
-create policy ${ctx.naming.rename("timesheets_read")} on ${timesheets} for select to authenticated
-  using (${employeeMode ? `${sheetUser ? `${t("user")} = (select auth.uid()) or ` : ""}${fn("time_is_my_employee")}(${t("tenant")}, ${t("employee")})` : `${t("user")} = (select auth.uid())`} or ${ctx.scope.check(t("tenant"), read)});
+${renderPolicy(makePolicy({ table: timesheets, name: ctx.naming.rename("timesheets_read"), command: "select", roles: ["authenticated"], using: `${employeeMode ? `${sheetUser ? `${t("user")} = (select auth.uid()) or ` : ""}${fn("time_is_my_employee")}(${t("tenant")}, ${t("employee")})` : `${t("user")} = (select auth.uid())`} or ${ctx.scope.check(t("tenant"), read)}` }), { drop: true, target: timesheets })}
 `
     : "";
 

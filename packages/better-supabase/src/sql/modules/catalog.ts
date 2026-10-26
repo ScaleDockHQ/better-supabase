@@ -9,6 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Names } from "./catalog-functions.ts";
 
 import { currencyMinorUnitsFunction } from "../money-sql.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -387,11 +388,17 @@ function tables(ctx: BlockSqlContext, names: Names): string {
   const t = (name: string): string => ctx.table(name);
   const c = (table: string, column: string): string => ctx.col(table, column);
 
-  const read = (
-    table: string,
-  ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
-create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
-using (${c(table, "tenant")} in (select ${ctx.scope.ids(names.read)}));`;
+  const read = (table: string): string =>
+    renderPolicy(
+      makePolicy({
+        table: t(table),
+        name: `${ctx.tableName(table).name}_read`,
+        command: "select",
+        roles: ["authenticated"],
+        using: `${c(table, "tenant")} in (select ${ctx.scope.ids(names.read)})`,
+      }),
+      { drop: true, target: t(table) },
+    );
 
   return `
 create table if not exists ${t("products")} (
@@ -621,8 +628,7 @@ function storefrontPolicies(ctx: BlockSqlContext, names: Names): string {
 
       return `${drop}
 grant select on ${t(table)} to anon;
-create policy ${policy} on ${t(table)} for select to anon, authenticated
-using (${condition});`;
+${renderPolicy(makePolicy({ table: t(table), name: policy, command: "select", roles: ["anon", "authenticated"], using: condition }), { target: t(table) })}`;
     })
     .join("\n");
 }

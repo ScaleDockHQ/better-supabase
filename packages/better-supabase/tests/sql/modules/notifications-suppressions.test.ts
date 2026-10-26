@@ -53,7 +53,7 @@ describe("notification suppressions", () => {
       /grant (insert|update|delete)[^;]*notification_suppressions"? to authenticated/,
     );
     expect(sql).toContain(
-      `create policy "bsb_notification_suppressions_read" on ${TABLE} for select to authenticated using ("user_id" = (select auth.uid()));`,
+      `create policy bsb_notification_suppressions_read on ${TABLE}\n  for select to authenticated\n  using ("user_id" = (select auth.uid()));`,
     );
   });
 

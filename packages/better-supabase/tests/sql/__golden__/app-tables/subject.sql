@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:b8651c534debaa0f06fe19d0b4e3e2b0c67f2081331feca67f688e34475db667
+-- @bsb-hash sha256:5a2b8d7332cc802293889423e48e4a15f8f511e38494d953cd98b89f5590a74a
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -57,14 +57,23 @@ alter table "public"."projects" enable row level security;
 revoke all on "public"."projects" from anon, authenticated;
 grant select, insert, update, delete on "public"."projects" to authenticated;
 grant all on "public"."projects" to service_role;
-drop policy if exists "projects_select" on "public"."projects";
-create policy "projects_select" on "public"."projects" for select to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists "projects_insert" on "public"."projects";
-create policy "projects_insert" on "public"."projects" for insert to authenticated with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists "projects_update" on "public"."projects";
-create policy "projects_update" on "public"."projects" for update to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write())) with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists "projects_delete" on "public"."projects";
-create policy "projects_delete" on "public"."projects" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists projects_select on "public"."projects";
+create policy projects_select on "public"."projects"
+  for select to authenticated
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists projects_insert on "public"."projects";
+create policy projects_insert on "public"."projects"
+  for insert to authenticated
+  with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists projects_update on "public"."projects";
+create policy projects_update on "public"."projects"
+  for update to authenticated
+  using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()))
+  with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists projects_delete on "public"."projects";
+create policy projects_delete on "public"."projects"
+  for delete to authenticated
+  using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."projects";
 drop policy if exists bsb_tenant_scope_select on "public"."projects";
 create policy bsb_tenant_scope_select on "public"."projects" as restrictive
@@ -97,7 +106,7 @@ create trigger "bsb_search_project_index"
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- @bsb-hash sha256:c62116f2a302998bd66be0fa10bdf4aadc0d65bb078ec7bd175bc0b477d45d0d
+-- @bsb-hash sha256:34f1ff24d89215ed69dd84d73a65e072bf09da4f467ea6abd41e1adeaafbc0b9
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
@@ -119,7 +128,10 @@ with o as (
 insert into "public"."projects" ("organization_id", "name") select o.id, repeat('x', 1) from o;
 
 -- An app's own permissive policy can't widen the tenant scope.
-create policy bsb_test_app_widens on "public"."projects" for all to authenticated using (true) with check (true);
+create policy bsb_test_app_widens on "public"."projects"
+  for all to authenticated
+  using (true)
+  with check (true);
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:930f72902673546ee9806759e376483ea1b8a1f701d3cf38c6bbadc781622c98
+-- @bsb-hash sha256:a6da9f63da8343e833e8cc6c47e760339399bac953139adbb853bbfaf2259051
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -105,11 +105,13 @@ grant all on "better_supabase"."engagement_subjects" to service_role;
 -- A link is visible when its record is; an engagement when one of its
 -- records is, or it has none.
 drop policy if exists engagement_subjects_read on "better_supabase"."engagement_subjects";
-create policy engagement_subjects_read on "better_supabase"."engagement_subjects" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+create policy engagement_subjects_read on "better_supabase"."engagement_subjects"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists engagements_read on "better_supabase"."engagements";
-create policy engagements_read on "better_supabase"."engagements" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+create policy engagements_read on "better_supabase"."engagements"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ));

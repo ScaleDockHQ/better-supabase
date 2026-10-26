@@ -8,6 +8,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Columns } from "./module-columns.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   raise,
@@ -390,9 +391,7 @@ ${
 ${revokeTable(servers)}
 grant select on ${servers} to authenticated;
 grant all on ${servers} to service_role;
-drop policy if exists ${ctx.naming.rename("connector_servers_read")} on ${servers};
-create policy ${ctx.naming.rename("connector_servers_read")} on ${servers} for select to authenticated
-  using (${ctx.scope.check(v.tenant, read)});
+${renderPolicy(makePolicy({ table: servers, name: ctx.naming.rename("connector_servers_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(v.tenant, read) }), { drop: true, target: servers })}
 
 -- A user's connection to a server. credential_ref names where the provider
 -- keeps the token (Vault, Vercel Connect); the row holds none.
@@ -411,9 +410,7 @@ alter table ${grants} enable row level security;
 ${revokeTable(grants)}
 grant select on ${grants} to authenticated;
 grant all on ${grants} to service_role;
-drop policy if exists connector_grants_read on ${grants};
-create policy connector_grants_read on ${grants} for select to authenticated
-  using (${g.user} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: grants, name: "connector_grants_read", command: "select", roles: ["authenticated"], using: `${g.user} = (select auth.uid())` }), { drop: true, target: grants })}
 
 -- The MCP session a user holds with a server per chat, so a later request
 -- reuses it instead of initializing again.
@@ -431,9 +428,7 @@ alter table ${sessions} enable row level security;
 ${revokeTable(sessions)}
 grant select on ${sessions} to authenticated;
 grant all on ${sessions} to service_role;
-drop policy if exists connector_sessions_read on ${sessions};
-create policy connector_sessions_read on ${sessions} for select to authenticated
-  using (${n.user} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: sessions, name: "connector_sessions_read", command: "select", roles: ["authenticated"], using: `${n.user} = (select auth.uid())` }), { drop: true, target: sessions })}
 
 -- Fingerprints of a server's tool list. A list that changed waits for an
 -- admin before an assistant may call it.
@@ -452,9 +447,7 @@ ${
 ${revokeTable(fingerprints)}
 grant select on ${fingerprints} to authenticated;
 grant all on ${fingerprints} to service_role;
-drop policy if exists connector_tool_fingerprints_read on ${fingerprints};
-create policy connector_tool_fingerprints_read on ${fingerprints} for select to authenticated
-  using (exists (select 1 from ${servers} x where x.${v.id} = ${f.server}));
+${renderPolicy(makePolicy({ table: fingerprints, name: "connector_tool_fingerprints_read", command: "select", roles: ["authenticated"], using: `exists (select 1 from ${servers} x where x.${v.id} = ${f.server})` }), { drop: true, target: fingerprints })}
 
 -- Adds a server (id null) or changes one (${manage}).
 create or replace function ${fn("save_connector_server")}(tenant ${id}, id uuid default null, fields jsonb default '{}')

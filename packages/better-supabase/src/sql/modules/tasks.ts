@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { WorkItemNames } from "./tasks-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   fail,
@@ -207,11 +208,17 @@ function tables(ctx: BlockSqlContext, n: WorkItemNames): string {
   const w = (column: string): string => c("items", column);
   const a = (column: string): string => c("assignees", column);
 
-  const read = (
-    table: string,
-  ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
-create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
-using (${ctx.scope.check(c(table, "tenant"), n.read)});`;
+  const read = (table: string): string =>
+    renderPolicy(
+      makePolicy({
+        table: t(table),
+        name: `${ctx.tableName(table).name}_read`,
+        command: "select",
+        roles: ["authenticated"],
+        using: ctx.scope.check(c(table, "tenant"), n.read),
+      }),
+      { drop: true, target: t(table) },
+    );
 
   const p = (column: string): string => c("projects", column);
   const i = (column: string): string => c("iterations", column);

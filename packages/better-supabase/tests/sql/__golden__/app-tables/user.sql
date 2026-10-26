@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:2802b0763c449897ea7b427a1ae53958d23935ff6a151fada812497aa1d182be
+-- @bsb-hash sha256:bc6c8bfefe170d447807ba0e4c86aebd0eb719e28b8bdab7c8a8634190bd8d3b
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -69,14 +69,23 @@ alter table "public"."projects" enable row level security;
 revoke all on "public"."projects" from anon, authenticated;
 grant select, insert, update, delete on "public"."projects" to authenticated;
 grant all on "public"."projects" to service_role;
-drop policy if exists "projects_select" on "public"."projects";
-create policy "projects_select" on "public"."projects" for select to authenticated using ("user_id" = (select auth.uid()));
-drop policy if exists "projects_insert" on "public"."projects";
-create policy "projects_insert" on "public"."projects" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "projects_update" on "public"."projects";
-create policy "projects_update" on "public"."projects" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "projects_delete" on "public"."projects";
-create policy "projects_delete" on "public"."projects" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists projects_select on "public"."projects";
+create policy projects_select on "public"."projects"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
+drop policy if exists projects_insert on "public"."projects";
+create policy projects_insert on "public"."projects"
+  for insert to authenticated
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists projects_update on "public"."projects";
+create policy projects_update on "public"."projects"
+  for update to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists projects_delete on "public"."projects";
+create policy projects_delete on "public"."projects"
+  for delete to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 create index if not exists "projects_user_id_idx" on "public"."projects" ("user_id");
 create index if not exists "projects_owner_id_idx" on "public"."projects" ("owner_id");
 drop trigger if exists "bsb_updated_at" on "public"."projects";
@@ -87,14 +96,23 @@ alter table "public"."tasks" enable row level security;
 revoke all on "public"."tasks" from anon, authenticated;
 grant select, insert, update, delete on "public"."tasks" to authenticated;
 grant all on "public"."tasks" to service_role;
-drop policy if exists "tasks_select" on "public"."tasks";
-create policy "tasks_select" on "public"."tasks" for select to authenticated using ("user_id" = (select auth.uid()));
-drop policy if exists "tasks_insert" on "public"."tasks";
-create policy "tasks_insert" on "public"."tasks" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "tasks_update" on "public"."tasks";
-create policy "tasks_update" on "public"."tasks" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "tasks_delete" on "public"."tasks";
-create policy "tasks_delete" on "public"."tasks" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists tasks_select on "public"."tasks";
+create policy tasks_select on "public"."tasks"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
+drop policy if exists tasks_insert on "public"."tasks";
+create policy tasks_insert on "public"."tasks"
+  for insert to authenticated
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists tasks_update on "public"."tasks";
+create policy tasks_update on "public"."tasks"
+  for update to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists tasks_delete on "public"."tasks";
+create policy tasks_delete on "public"."tasks"
+  for delete to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 create index if not exists "tasks_user_id_idx" on "public"."tasks" ("user_id");
 create index if not exists "tasks_project_id_idx" on "public"."tasks" ("project_id");
 drop trigger if exists "bsb_updated_at" on "public"."tasks";

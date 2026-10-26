@@ -11,6 +11,7 @@ import { subjectTypeIdent } from "../../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { renamedInstances, rendersOwnInstance } from "../instance-names.ts";
 import { moduleContext } from "../module-context.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
   lockTable,
@@ -748,9 +749,7 @@ create index if not exists search_documents_tsv_idx on ${docs} using gin (${c("t
 create index if not exists search_documents_title_trgm_idx on ${docs} using gin (${c("titleSearch")} extensions.gin_trgm_ops);
 create index if not exists search_documents_tenant_idx on ${docs} (${c("tenant")}, ${c("subjectType")});${vector ? `\ncreate index if not exists search_documents_embedding_idx on ${docs} using hnsw (${c("embedding")} ${vector}.vector_cosine_ops);\ncreate index if not exists search_documents_pending_idx on ${docs} (${c("updatedAt")}) where ${c("embedding")} is null;` : ""}
 
-drop policy if exists "search_documents_read" on ${docs};
-create policy "search_documents_read" on ${docs} for select to authenticated
-  using (${ctx.scope.check(c("tenant"), read)});
+${renderPolicy(makePolicy({ table: docs, name: "search_documents_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { drop: true, target: docs })}
 `
     : "";
 

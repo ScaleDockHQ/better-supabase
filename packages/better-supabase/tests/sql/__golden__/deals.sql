@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:ba52f346c275600702aef4eb5d916cb6b5cf72a0d19222b6dbbe4b59ec1c6af8
+-- @bsb-hash sha256:544d34f7188422b5dfba6327cbb101125438fbd754c86e868e69e40a70486a7e
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -175,14 +175,17 @@ grant all on "better_supabase"."deal_members" to service_role;
 -- its owner, its team and members with deals.manage. The team policy reads
 -- no deal, so the two policies don't recurse.
 drop policy if exists deals_read on "better_supabase"."deals";
-create policy deals_read on "better_supabase"."deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
+create policy deals_read on "better_supabase"."deals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 drop policy if exists deal_contacts_read on "better_supabase"."deal_contacts";
-create policy deal_contacts_read on "better_supabase"."deal_contacts" for select to authenticated
-using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
+create policy deal_contacts_read on "better_supabase"."deal_contacts"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
 drop policy if exists deal_members_read on "better_supabase"."deal_members";
-create policy deal_members_read on "better_supabase"."deal_members" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
+create policy deal_members_read on "better_supabase"."deal_members"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 
 create or replace function better_supabase.bsb_deal_guard()
 returns trigger
@@ -1076,7 +1079,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:1d327e653438d576ccb5357bf0df9dedaf6f8eb9d28fa4145882caa0c79db497
+-- @bsb-hash sha256:69c033c1c66a74359d2a7b53304efe3adbc1fbc91e15e401233625a52dd5881b
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1250,14 +1253,17 @@ grant all on "better_supabase"."deal_members" to service_role;
 -- its owner, its team and members with deals.manage. The team policy reads
 -- no deal, so the two policies don't recurse.
 drop policy if exists deals_read on "better_supabase"."deals";
-create policy deals_read on "better_supabase"."deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
+create policy deals_read on "better_supabase"."deals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 drop policy if exists deal_contacts_read on "better_supabase"."deal_contacts";
-create policy deal_contacts_read on "better_supabase"."deal_contacts" for select to authenticated
-using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
+create policy deal_contacts_read on "better_supabase"."deal_contacts"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
 drop policy if exists deal_members_read on "better_supabase"."deal_members";
-create policy deal_members_read on "better_supabase"."deal_members" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
+create policy deal_members_read on "better_supabase"."deal_members"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 
 create or replace function better_supabase.bsb_deal_guard()
 returns trigger
@@ -2179,7 +2185,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:a074e779e111282f330107082d83b8d8c628114da1ba351894e6163591371ffc
+-- @bsb-hash sha256:203beaabdf8503af57c40bce90d182b2773ff08217a66c9712dae3a2b67235a5
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2355,14 +2361,17 @@ grant all on "app_private"."deal_members" to service_role;
 -- its owner, its team and members with deals.manage. The team policy reads
 -- no deal, so the two policies don't recurse.
 drop policy if exists deals_read on "app_private"."deals";
-create policy deals_read on "app_private"."deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
+create policy deals_read on "app_private"."deals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 drop policy if exists deal_contacts_read on "app_private"."deal_contacts";
-create policy deal_contacts_read on "app_private"."deal_contacts" for select to authenticated
-using (exists (select 1 from "app_private"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
+create policy deal_contacts_read on "app_private"."deal_contacts"
+  for select to authenticated
+  using (exists (select 1 from "app_private"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
 drop policy if exists deal_members_read on "app_private"."deal_members";
-create policy deal_members_read on "app_private"."deal_members" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
+create policy deal_members_read on "app_private"."deal_members"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 
 create or replace function better_supabase.bsb_deal_guard()
 returns trigger
@@ -3256,7 +3265,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:7d5fbe4a6142e986baaa835cb8be25b00e8594e0ba838bc7d08eebe0d33e7aeb
+-- @bsb-hash sha256:d262a5fde7b4e7fc1b42ea8ba46272db36067e2b4e02f3289d1391a70682998d
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3430,14 +3439,17 @@ grant all on "better_supabase"."deal_members" to service_role;
 -- its owner, its team and members with deals.manage. The team policy reads
 -- no deal, so the two policies don't recurse.
 drop policy if exists deals_read on "better_supabase"."deals";
-create policy deals_read on "better_supabase"."deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
+create policy deals_read on "better_supabase"."deals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 drop policy if exists deal_contacts_read on "better_supabase"."deal_contacts";
-create policy deal_contacts_read on "better_supabase"."deal_contacts" for select to authenticated
-using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
+create policy deal_contacts_read on "better_supabase"."deal_contacts"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
 drop policy if exists deal_members_read on "better_supabase"."deal_members";
-create policy deal_members_read on "better_supabase"."deal_members" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
+create policy deal_members_read on "better_supabase"."deal_members"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 
 create or replace function better_supabase.bsb_deal_guard()
 returns trigger
@@ -4452,7 +4464,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:c82f51f0d230497f942983d112ad244dadfc1273553a3c1d4fe432531fa697ae
+-- @bsb-hash sha256:bba1066f32b94cde3725c7e7f0284828d9a2257d7f8e5a0e3c44b7429d10a984
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4634,14 +4646,17 @@ grant all on "better_supabase"."deal_members" to service_role;
 -- its owner, its team and members with deals.manage. The team policy reads
 -- no deal, so the two policies don't recurse.
 drop policy if exists bsb_deals_select on "better_supabase"."deals";
-create policy bsb_deals_select on "better_supabase"."deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
+create policy bsb_deals_select on "better_supabase"."deals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 drop policy if exists bsb_deal_contacts_select on "better_supabase"."deal_contacts";
-create policy bsb_deal_contacts_select on "better_supabase"."deal_contacts" for select to authenticated
-using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
+create policy bsb_deal_contacts_select on "better_supabase"."deal_contacts"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
 drop policy if exists bsb_deal_members_select on "better_supabase"."deal_members";
-create policy bsb_deal_members_select on "better_supabase"."deal_members" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
+create policy bsb_deal_members_select on "better_supabase"."deal_members"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 
 create or replace function better_supabase.bsb_deal_guard()
 returns trigger
@@ -5534,7 +5549,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:c7fde66b216b9e9d334782acb1defc8efed3d869a76962d3866fa6b91069b28c
+-- @bsb-hash sha256:0fbadd9b9e09d3d450a49d8564c752a705ef0a40df3e44635fa52f6f4533899c
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5708,14 +5723,17 @@ grant all on "better_supabase"."deal_members" to service_role;
 -- its owner, its team and members with deals.manage. The team policy reads
 -- no deal, so the two policies don't recurse.
 drop policy if exists deals_read on "better_supabase"."deals";
-create policy deals_read on "better_supabase"."deals" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('deals.read')));
+create policy deals_read on "better_supabase"."deals"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('deals.read')));
 drop policy if exists deal_contacts_read on "better_supabase"."deal_contacts";
-create policy deal_contacts_read on "better_supabase"."deal_contacts" for select to authenticated
-using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
+create policy deal_contacts_read on "better_supabase"."deal_contacts"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
 drop policy if exists deal_members_read on "better_supabase"."deal_members";
-create policy deal_members_read on "better_supabase"."deal_members" for select to authenticated
-using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('deals.read')));
+create policy deal_members_read on "better_supabase"."deal_members"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('deals.read')));
 
 create or replace function better_supabase.bsb_deal_guard()
 returns trigger

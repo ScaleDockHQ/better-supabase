@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:99cbc23af287ad29b8ac4120dbcded23cf8d04f3d4ce39b89f248b1e6c92c20c
+-- @bsb-hash sha256:9a0df691d75850db7ea3d3071103bb55d7f3a4b0b6dac411a5f98f7b3c0276a0
 -- Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -88,7 +88,8 @@ revoke all on "better_supabase"."approval_requests" from anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
 drop policy if exists approval_requests_read on "better_supabase"."approval_requests";
-create policy approval_requests_read on "better_supabase"."approval_requests" for select to authenticated
+create policy approval_requests_read on "better_supabase"."approval_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
 
 create table if not exists "better_supabase"."approval_decisions" (
@@ -110,7 +111,8 @@ revoke all on "better_supabase"."approval_decisions" from anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
 drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
-create policy approval_decisions_read on "better_supabase"."approval_decisions" for select to authenticated
+create policy approval_decisions_read on "better_supabase"."approval_decisions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
 -- The policy a new request snapshots, from options.policies.

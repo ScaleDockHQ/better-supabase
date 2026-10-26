@@ -1,6 +1,6 @@
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:a87989a97ecd0fe5924ae850aeda3a464dd6db6044f0ad01b6cf95946666aa56
+-- @bsb-hash sha256:53e32708a4152e826726799a43e68b64d3ebad914da51ede6e4c4ae1b7a8407b
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,7 +77,8 @@ revoke all on "better_supabase"."access_requests" from anon, authenticated;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
 drop policy if exists access_requests_read on "better_supabase"."access_requests";
-create policy access_requests_read on "better_supabase"."access_requests" for select to authenticated
+create policy access_requests_read on "better_supabase"."access_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
 -- Asks for a role in an organization. Approvers come from options.policy;

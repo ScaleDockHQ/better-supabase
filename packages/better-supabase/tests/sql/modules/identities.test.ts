@@ -27,10 +27,10 @@ describe("identities module", () => {
     );
     expect(sql).not.toMatch(/grant (insert|update)[^;]*identity_links/);
     expect(sql).toContain(
-      'create policy "identity_links_own_read" on "better_supabase"."identity_links" for select to authenticated',
+      'create policy identity_links_own_read on "better_supabase"."identity_links"\n  for select to authenticated',
     );
     expect(sql).toContain(
-      'create policy "identity_links_own_delete" on "better_supabase"."identity_links" for delete to authenticated',
+      'create policy identity_links_own_delete on "better_supabase"."identity_links"\n  for delete to authenticated',
     );
     expect(sql).not.toMatch(/create policy[^;]*for (insert|update)/);
     expect(sql).toContain("check (num_nonnulls(");

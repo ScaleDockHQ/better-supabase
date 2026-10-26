@@ -1,6 +1,6 @@
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:db536b57f6a66ddb7b3722f32e8388c2580641202104c6a50f6354d48256205c
+-- @bsb-hash sha256:fc51d8262c94e41ad1b35f11bb249bbb5724e4f6ad4fe19ddf2b7d87befdfee9
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -94,7 +94,8 @@ revoke all on "better_supabase"."ai_provider_keys" from anon, authenticated;
 grant select on "better_supabase"."ai_provider_keys" to authenticated;
 grant all on "better_supabase"."ai_provider_keys" to service_role;
 drop policy if exists ai_provider_keys_read on "better_supabase"."ai_provider_keys";
-create policy ai_provider_keys_read on "better_supabase"."ai_provider_keys" for select to authenticated
+create policy ai_provider_keys_read on "better_supabase"."ai_provider_keys"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
@@ -127,7 +128,8 @@ revoke all on "better_supabase"."ai_batches" from anon, authenticated;
 grant select on "better_supabase"."ai_batches" to authenticated;
 grant all on "better_supabase"."ai_batches" to service_role;
 drop policy if exists ai_batches_read on "better_supabase"."ai_batches";
-create policy ai_batches_read on "better_supabase"."ai_batches" for select to authenticated
+create policy ai_batches_read on "better_supabase"."ai_batches"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 create table if not exists "better_supabase"."ai_batch_items" (
@@ -147,7 +149,8 @@ revoke all on "better_supabase"."ai_batch_items" from anon, authenticated;
 grant select on "better_supabase"."ai_batch_items" to authenticated;
 grant all on "better_supabase"."ai_batch_items" to service_role;
 drop policy if exists ai_batch_items_read on "better_supabase"."ai_batch_items";
-create policy ai_batch_items_read on "better_supabase"."ai_batch_items" for select to authenticated
+create policy ai_batch_items_read on "better_supabase"."ai_batch_items"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."ai_batches" y where y."id" = "batch_id"));
 
 create or replace function "better_supabase"."list_ai_provider_keys"(tenant uuid)

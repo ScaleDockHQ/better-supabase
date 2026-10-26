@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { PromotionsNames } from "./promotions-functions.ts";
 
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { columns } from "./orders-shared.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
@@ -141,12 +142,17 @@ function tables(ctx: BlockSqlContext, names: PromotionsNames): string {
   const tenantRead = (table: string): string =>
     `${ctx.col(table, "tenant")} in (select ${ctx.scope.ids(names.read)})`;
 
-  const policy = (
-    table: string,
-    using: string,
-  ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
-create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
-using (${using});`;
+  const policy = (table: string, using: string): string =>
+    renderPolicy(
+      makePolicy({
+        table: t(table),
+        name: `${ctx.tableName(table).name}_read`,
+        command: "select",
+        roles: ["authenticated"],
+        using,
+      }),
+      { drop: true, target: t(table) },
+    );
 
   // A column definition, left out when the app maps the column to null.
   const column = (

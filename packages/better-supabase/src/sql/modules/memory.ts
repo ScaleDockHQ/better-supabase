@@ -2,6 +2,7 @@ import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   raise,
   replaceColumnCheck,
@@ -302,9 +303,7 @@ alter table ${memories} enable row level security;
 ${revokeTable(memories)}
 grant select on ${memories} to authenticated;
 grant all on ${memories} to service_role;
-drop policy if exists ${ctx.naming.rename("memories_read")} on ${memories};
-create policy ${ctx.naming.rename("memories_read")} on ${memories} for select to authenticated
-  using (${m.owner} = (select auth.uid()) or (${m.scope} = 'organization' and ${ctx.scope.check(m.tenant, read)}));
+${renderPolicy(makePolicy({ table: memories, name: ctx.naming.rename("memories_read"), command: "select", roles: ["authenticated"], using: `${m.owner} = (select auth.uid()) or (${m.scope} = 'organization' and ${ctx.scope.check(m.tenant, read)})` }), { drop: true, target: memories })}
 
 -- One embedding per message, so an assistant can recall earlier chats.
 -- Temporary chats get none.
@@ -322,9 +321,7 @@ alter table ${messageEmbeddings} enable row level security;
 ${revokeTable(messageEmbeddings)}
 grant select on ${messageEmbeddings} to authenticated;
 grant all on ${messageEmbeddings} to service_role;
-drop policy if exists ai_message_embeddings_read on ${messageEmbeddings};
-create policy ai_message_embeddings_read on ${messageEmbeddings} for select to authenticated
-  using (${e.user} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: messageEmbeddings, name: "ai_message_embeddings_read", command: "select", roles: ["authenticated"], using: `${e.user} = (select auth.uid())` }), { drop: true, target: messageEmbeddings })}
 
 -- A core memory file, or the files under a directory, or null.
 create or replace function ${fn("memory_view")}(tenant ${id}, path text default '/memories', ns jsonb default '{}')

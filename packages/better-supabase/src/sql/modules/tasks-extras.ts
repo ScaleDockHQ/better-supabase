@@ -2,6 +2,7 @@ import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { WorkItemNames } from "./tasks-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { columnsObject, fail, serviceGrant, userGrant } from "../shared.ts";
 import { lockModuleTable } from "./over-app.ts";
@@ -91,9 +92,7 @@ create table if not exists ${t("checklist")} (
 );
 create index if not exists ${ctx.naming.rename("work_item_checklist_item_idx")} on ${t("checklist")} (${k("item")}, ${k("rank")});
 ${lockModuleTable(ctx, "checklist", { read: true })}
-drop policy if exists ${name}_read on ${t("checklist")};
-create policy ${name}_read on ${t("checklist")} for select to authenticated
-using (${ctx.scope.check(k("tenant"), n.read)});
+${renderPolicy(makePolicy({ table: t("checklist"), name: `${name}_read`, command: "select", roles: ["authenticated"], using: ctx.scope.check(k("tenant"), n.read) }), { drop: true, target: t("checklist") })}
 `;
 }
 

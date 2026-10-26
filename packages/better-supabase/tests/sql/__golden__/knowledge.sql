@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@2 managed
--- @bsb-hash sha256:b05f59d24c43044f7e3bc9228678961e33f29c37d3b903d588f62de855cf9d45
+-- @bsb-hash sha256:a5c063a3d087636b663f1515d9ff3d6f1ee316e443b1191d7f0f0b38f1f2f7f0
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -86,7 +86,8 @@ revoke all on "better_supabase"."knowledge_documents" from anon, authenticated;
 grant select on "better_supabase"."knowledge_documents" to authenticated;
 grant all on "better_supabase"."knowledge_documents" to service_role;
 drop policy if exists knowledge_documents_read on "better_supabase"."knowledge_documents";
-create policy knowledge_documents_read on "better_supabase"."knowledge_documents" for select to authenticated
+create policy knowledge_documents_read on "better_supabase"."knowledge_documents"
+  for select to authenticated
   using (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and false)));
 
 -- A chunk is visible when its document is, so search inherits the scopes.
@@ -109,7 +110,8 @@ revoke all on "better_supabase"."knowledge_chunks" from anon, authenticated;
 grant select on "better_supabase"."knowledge_chunks" to authenticated;
 grant all on "better_supabase"."knowledge_chunks" to service_role;
 drop policy if exists knowledge_chunks_read on "better_supabase"."knowledge_chunks";
-create policy knowledge_chunks_read on "better_supabase"."knowledge_chunks" for select to authenticated
+create policy knowledge_chunks_read on "better_supabase"."knowledge_chunks"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."knowledge_documents" doc where doc."id" = "document_id"));
 
 -- Creates a document for the caller (or for owner, as the service role).
@@ -542,7 +544,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@2 managed
--- @bsb-hash sha256:7dca20f81fa740500c806eb1592a1b1f0c94a037bd09b646eced76d9d496abf9
+-- @bsb-hash sha256:0b52b4fa1d4b32bcd64021b3eae55ec640b209365d8f511d31dcc70050092744
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -627,7 +629,8 @@ revoke all on "better_supabase"."knowledge_documents" from anon, authenticated;
 grant select on "better_supabase"."knowledge_documents" to authenticated;
 grant all on "better_supabase"."knowledge_documents" to service_role;
 drop policy if exists knowledge_documents_read on "better_supabase"."knowledge_documents";
-create policy knowledge_documents_read on "better_supabase"."knowledge_documents" for select to authenticated
+create policy knowledge_documents_read on "better_supabase"."knowledge_documents"
+  for select to authenticated
   using (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and ("scope_id" is not null and "better_supabase"."ai_chat_can_read"("scope_id")))));
 
 -- A chunk is visible when its document is, so search inherits the scopes.
@@ -650,7 +653,8 @@ revoke all on "better_supabase"."knowledge_chunks" from anon, authenticated;
 grant select on "better_supabase"."knowledge_chunks" to authenticated;
 grant all on "better_supabase"."knowledge_chunks" to service_role;
 drop policy if exists knowledge_chunks_read on "better_supabase"."knowledge_chunks";
-create policy knowledge_chunks_read on "better_supabase"."knowledge_chunks" for select to authenticated
+create policy knowledge_chunks_read on "better_supabase"."knowledge_chunks"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."knowledge_documents" doc where doc."id" = "document_id"));
 
 -- Creates a document for the caller (or for owner, as the service role).
@@ -1128,7 +1132,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@2 managed
--- @bsb-hash sha256:eb12b2d25ecf0453556f2d412f8241b1df6dd3e1a7bdf006fcc99c4f32e8ab25
+-- @bsb-hash sha256:86f1669e6de914eec630584ee369901bd2852e46eac8b3aadda7e6126763b0f5
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1215,7 +1219,8 @@ revoke all on "app_private"."knowledge_documents" from anon, authenticated;
 grant select on "app_private"."knowledge_documents" to authenticated;
 grant all on "app_private"."knowledge_documents" to service_role;
 drop policy if exists knowledge_documents_read on "app_private"."knowledge_documents";
-create policy knowledge_documents_read on "app_private"."knowledge_documents" for select to authenticated
+create policy knowledge_documents_read on "app_private"."knowledge_documents"
+  for select to authenticated
   using (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and false)));
 
 -- A chunk is visible when its document is, so search inherits the scopes.
@@ -1238,7 +1243,8 @@ revoke all on "app_private"."knowledge_chunks" from anon, authenticated;
 grant select on "app_private"."knowledge_chunks" to authenticated;
 grant all on "app_private"."knowledge_chunks" to service_role;
 drop policy if exists knowledge_chunks_read on "app_private"."knowledge_chunks";
-create policy knowledge_chunks_read on "app_private"."knowledge_chunks" for select to authenticated
+create policy knowledge_chunks_read on "app_private"."knowledge_chunks"
+  for select to authenticated
   using (exists (select 1 from "app_private"."knowledge_documents" doc where doc."id" = "document_id"));
 
 -- Creates a document for the caller (or for owner, as the service role).
@@ -1671,7 +1677,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@2 managed
--- @bsb-hash sha256:f609152d4080d64ae93a87d9913737f5bc628dea39945484a74f0cab4f8bed6e
+-- @bsb-hash sha256:33710250a3f3c53cc0595d34fbcc18b040a64af1e9ac182b7457be01631b4855
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1756,7 +1762,8 @@ revoke all on "better_supabase"."knowledge_documents" from anon, authenticated;
 grant select on "better_supabase"."knowledge_documents" to authenticated;
 grant all on "better_supabase"."knowledge_documents" to service_role;
 drop policy if exists knowledge_documents_read on "better_supabase"."knowledge_documents";
-create policy knowledge_documents_read on "better_supabase"."knowledge_documents" for select to authenticated
+create policy knowledge_documents_read on "better_supabase"."knowledge_documents"
+  for select to authenticated
   using (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and false)));
 
 -- A chunk is visible when its document is, so search inherits the scopes.
@@ -1779,7 +1786,8 @@ revoke all on "better_supabase"."knowledge_chunks" from anon, authenticated;
 grant select on "better_supabase"."knowledge_chunks" to authenticated;
 grant all on "better_supabase"."knowledge_chunks" to service_role;
 drop policy if exists knowledge_chunks_read on "better_supabase"."knowledge_chunks";
-create policy knowledge_chunks_read on "better_supabase"."knowledge_chunks" for select to authenticated
+create policy knowledge_chunks_read on "better_supabase"."knowledge_chunks"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."knowledge_documents" doc where doc."id" = "document_id"));
 
 -- Creates a document for the caller (or for owner, as the service role).
@@ -2333,7 +2341,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@2 managed
--- @bsb-hash sha256:1923b324f510179a81c1c9183e5f12364627b651df95f56af42ccc7388a6fea9
+-- @bsb-hash sha256:641413523d08dd6fc7c91d27b46e4d8557431ed8c7b20019f04786133751240e
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2431,7 +2439,8 @@ alter table "better_supabase"."knowledge_documents" enable row level security;
 grant select on "better_supabase"."knowledge_documents" to authenticated;
 grant all on "better_supabase"."knowledge_documents" to service_role;
 drop policy if exists bsb_knowledge_documents_select on "better_supabase"."knowledge_documents";
-create policy bsb_knowledge_documents_select on "better_supabase"."knowledge_documents" for select to authenticated
+create policy bsb_knowledge_documents_select on "better_supabase"."knowledge_documents"
+  for select to authenticated
   using (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and false)));
 
 -- A chunk is visible when its document is, so search inherits the scopes.
@@ -2452,7 +2461,8 @@ alter table "better_supabase"."knowledge_chunks" enable row level security;
 grant select on "better_supabase"."knowledge_chunks" to authenticated;
 grant all on "better_supabase"."knowledge_chunks" to service_role;
 drop policy if exists bsb_knowledge_chunks_select on "better_supabase"."knowledge_chunks";
-create policy bsb_knowledge_chunks_select on "better_supabase"."knowledge_chunks" for select to authenticated
+create policy bsb_knowledge_chunks_select on "better_supabase"."knowledge_chunks"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."knowledge_documents" doc where doc."id" = "document_id"));
 
 -- Creates a document for the caller (or for owner, as the service role).
@@ -2885,7 +2895,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@2 managed
--- @bsb-hash sha256:a735846fb9be8b175769cb8032504e4cac9531b0558e9bfd2a17a8297beae7c6
+-- @bsb-hash sha256:2c0591085cd463110fe6951fb62ba3207e3971bc7f342063a1374688f17a3a14
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2970,7 +2980,8 @@ revoke all on "better_supabase"."knowledge_documents" from anon, authenticated;
 grant select on "better_supabase"."knowledge_documents" to authenticated;
 grant all on "better_supabase"."knowledge_documents" to service_role;
 drop policy if exists knowledge_documents_read on "better_supabase"."knowledge_documents";
-create policy knowledge_documents_read on "better_supabase"."knowledge_documents" for select to authenticated
+create policy knowledge_documents_read on "better_supabase"."knowledge_documents"
+  for select to authenticated
   using (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "org_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "org_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and false)));
 
 -- A chunk is visible when its document is, so search inherits the scopes.
@@ -2993,7 +3004,8 @@ revoke all on "better_supabase"."knowledge_chunks" from anon, authenticated;
 grant select on "better_supabase"."knowledge_chunks" to authenticated;
 grant all on "better_supabase"."knowledge_chunks" to service_role;
 drop policy if exists knowledge_chunks_read on "better_supabase"."knowledge_chunks";
-create policy knowledge_chunks_read on "better_supabase"."knowledge_chunks" for select to authenticated
+create policy knowledge_chunks_read on "better_supabase"."knowledge_chunks"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."knowledge_documents" doc where doc."id" = "document_id"));
 
 -- Creates a document for the caller (or for owner, as the service role).

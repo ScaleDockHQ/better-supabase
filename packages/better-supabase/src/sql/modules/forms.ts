@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   extraFieldsJson,
@@ -417,9 +418,7 @@ ${handlers.map(([key, name]) => `        when ${sqlString(key)} then v_link := $
   unique (${f("tenant")}, ${f("key")})
 );${addExtraColumns(forms, extras)}
 ${lockTable(forms, { read: true })}
-drop policy if exists ${ctx.naming.rename("forms_read")} on ${forms};
-create policy ${ctx.naming.rename("forms_read")} on ${forms} for select to authenticated
-  using (${ctx.scope.check(f("tenant"), read)});
+${renderPolicy(makePolicy({ table: forms, name: ctx.naming.rename("forms_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(f("tenant"), read) }), { drop: true, target: forms })}
 
 create table if not exists ${versions} (
   ${v("id")} uuid primary key default gen_random_uuid(),
@@ -433,9 +432,7 @@ create table if not exists ${versions} (
   unique (${v("form")}, ${v("number")})
 );
 ${lockTable(versions, { read: true })}
-drop policy if exists ${ctx.naming.rename("form_versions_read")} on ${versions};
-create policy ${ctx.naming.rename("form_versions_read")} on ${versions} for select to authenticated
-  using (${ctx.scope.check(v("tenant"), read)});
+${renderPolicy(makePolicy({ table: versions, name: ctx.naming.rename("form_versions_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(v("tenant"), read) }), { drop: true, target: versions })}
 
 create table if not exists ${submissions} (
   ${s("id")} uuid primary key default gen_random_uuid(),
@@ -460,9 +457,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_vers
 create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_respondent_idx`)} on ${submissions} (${s("respondent")}) where ${s("respondent")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_subject_idx`)} on ${submissions} (${s("subjectType")}, ${s("subjectId")}) where ${s("subjectType")} is not null;
 ${lockTable(submissions, { read: true })}
-drop policy if exists ${ctx.naming.rename("form_submissions_read")} on ${submissions};
-create policy ${ctx.naming.rename("form_submissions_read")} on ${submissions} for select to authenticated
-  using (${ctx.scope.check(s("tenant"), review)} or ${s("respondent")} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: submissions, name: ctx.naming.rename("form_submissions_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(s("tenant"), review)} or ${s("respondent")} = (select auth.uid())` }), { drop: true, target: submissions })}
 alter table ${submissions} add column if not exists ${s("score")} numeric;
 alter table ${submissions} add column if not exists ${s("maxScore")} numeric;
 alter table ${submissions} add column if not exists ${s("passed")} boolean;

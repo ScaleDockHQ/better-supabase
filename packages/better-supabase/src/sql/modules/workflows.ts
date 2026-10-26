@@ -9,6 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { NOTHING } from "../context.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   schemaPreamble,
   SERVICE_CALLER,
@@ -328,12 +329,17 @@ create index if not exists workflow_runs_subject_idx on ${r} (${cr("tenant")}, $
       : ""
   }
 ${lockModuleTable(ctx, "runs", { read: true })}
-drop policy if exists workflow_runs_read on ${r};
-create policy workflow_runs_read on ${r} for select to authenticated
-  using (
-    ${cr("actor")} = (select auth.uid())
-    or ${ctx.scope.check(cr("tenant"), ctx.permission("read", permissions.read))}
-  );
+${renderPolicy(
+  makePolicy({
+    table: r,
+    name: "workflow_runs_read",
+    command: "select",
+    roles: ["authenticated"],
+    using: `${cr("actor")} = (select auth.uid())
+    or ${ctx.scope.check(cr("tenant"), ctx.permission("read", permissions.read))}`,
+  }),
+  { drop: true, target: r },
+)}
 
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
@@ -366,9 +372,7 @@ create unique index if not exists ${sqlIdent(`${ctx.tableName("schedules").name}
 create index if not exists workflow_schedules_due_idx on ${s} (${cs("nextRunAt")}) where not ${cs("paused")};
 create index if not exists workflow_schedules_created_by_idx on ${s} (${cs("createdBy")});
 ${lockModuleTable(ctx, "schedules", { read: true })}
-drop policy if exists workflow_schedules_read on ${s};
-create policy workflow_schedules_read on ${s} for select to authenticated
-  using (${ctx.scope.check(cs("tenant"), ctx.permission("read", permissions.read))});
+${renderPolicy(makePolicy({ table: s, name: "workflow_schedules_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(cs("tenant"), ctx.permission("read", permissions.read)) }), { drop: true, target: s })}
 
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
@@ -877,10 +881,13 @@ ${serviceGrant(`${fn("mark_workflow_start_request")}(uuid, text)`)}
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists ${receive} on realtime.messages;
-    create policy ${receive} on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        ${renderPolicy(
+          makePolicy({
+            table: "realtime.messages",
+            name: receive,
+            command: "select",
+            roles: ["authenticated"],
+            using: `realtime.messages.extension = 'broadcast'
         and (
           (
             (select realtime.topic()) like 'workflow-run:%'
@@ -895,8 +902,10 @@ begin
               select t::text from ${ctx.scope.ids(ctx.permission("read", permissions.read))} t
             )
           )
-        )
-      );
+        )`,
+          }),
+          { drop: true, target: "realtime.messages" },
+        )}
   end if;
 end;
 $$;`;

@@ -2,6 +2,7 @@ import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   raise,
   schemaPreamble,
@@ -354,9 +355,7 @@ alter table ${documents} enable row level security;
 ${revokeTable(documents)}
 grant select on ${documents} to authenticated;
 grant all on ${documents} to service_role;
-drop policy if exists ${ctx.naming.rename("knowledge_documents_read")} on ${documents};
-create policy ${ctx.naming.rename("knowledge_documents_read")} on ${documents} for select to authenticated
-  using (${readable});
+${renderPolicy(makePolicy({ table: documents, name: ctx.naming.rename("knowledge_documents_read"), command: "select", roles: ["authenticated"], using: readable }), { drop: true, target: documents })}
 
 -- A chunk is visible when its document is, so search inherits the scopes.
 create table if not exists ${chunks} (
@@ -372,9 +371,7 @@ alter table ${chunks} enable row level security;
 ${revokeTable(chunks)}
 grant select on ${chunks} to authenticated;
 grant all on ${chunks} to service_role;
-drop policy if exists knowledge_chunks_read on ${chunks};
-create policy knowledge_chunks_read on ${chunks} for select to authenticated
-  using (exists (select 1 from ${documents} doc where doc.${d.id} = ${c.document}));
+${renderPolicy(makePolicy({ table: chunks, name: "knowledge_chunks_read", command: "select", roles: ["authenticated"], using: `exists (select 1 from ${documents} doc where doc.${d.id} = ${c.document})` }), { drop: true, target: chunks })}
 
 -- Creates a document for the caller (or for owner, as the service role).
 -- Organization and agent knowledge needs the manage permission.

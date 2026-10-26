@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:b7b73a5a6ade61940a6bf1ce32da911641fa598bebf6cdcb7943bfd2fd0a3f05
+-- @bsb-hash sha256:d6f9a3ebb2d6552e02a466d59efffb800742236b10f2951c6a949c3511248602
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,8 +45,9 @@ create index if not exists search_documents_tsv_idx on "better_supabase"."search
 create index if not exists search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
 create index if not exists search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
 
-drop policy if exists "search_documents_read" on "better_supabase"."search_documents";
-create policy "search_documents_read" on "better_supabase"."search_documents" for select to authenticated
+drop policy if exists search_documents_read on "better_supabase"."search_documents";
+create policy search_documents_read on "better_supabase"."search_documents"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')));
 
 -- Lowercase and without accents. unaccent is stable because its dictionary
@@ -443,7 +444,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:6545dd77f78742471805e10ed9b128b9e343cbddbc28ccb1f10e9f1c5103bab0
+-- @bsb-hash sha256:bf281bf1ec8c52f77fdd061f76c44df8abb695b76b43d903688fbc57ae52d7ba
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -521,8 +522,9 @@ create index if not exists search_documents_tsv_idx on "better_supabase"."search
 create index if not exists search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
 create index if not exists search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
 
-drop policy if exists "search_documents_read" on "better_supabase"."search_documents";
-create policy "search_documents_read" on "better_supabase"."search_documents" for select to authenticated
+drop policy if exists search_documents_read on "better_supabase"."search_documents";
+create policy search_documents_read on "better_supabase"."search_documents"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')));
 
 -- Lowercase and without accents. unaccent is stable because its dictionary
@@ -931,7 +933,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:7efa4998e78e724774814fc3c3ccdbd8ca08e2ca555106409b9d8300a14988d8
+-- @bsb-hash sha256:3f4c30a034870131b6854213c646e399fdf118f1e81f80624e84d3bd692bd7cf
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -977,8 +979,9 @@ create index if not exists search_documents_tsv_idx on "app_private"."search_doc
 create index if not exists search_documents_title_trgm_idx on "app_private"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
 create index if not exists search_documents_tenant_idx on "app_private"."search_documents" ("tenant_id", "subject_type");
 
-drop policy if exists "search_documents_read" on "app_private"."search_documents";
-create policy "search_documents_read" on "app_private"."search_documents" for select to authenticated
+drop policy if exists search_documents_read on "app_private"."search_documents";
+create policy search_documents_read on "app_private"."search_documents"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')));
 
 -- Lowercase and without accents. unaccent is stable because its dictionary
@@ -1375,7 +1378,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:00250301680f8c5860af3acb62031e01fdee74bf8416d8a3ed48d1ca9d68f907
+-- @bsb-hash sha256:92ac3d7e0523392f306723da2a3f73fbcd71f0f43959aa64250d13efdd260114
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1419,8 +1422,9 @@ create index if not exists search_documents_tsv_idx on "better_supabase"."search
 create index if not exists search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
 create index if not exists search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
 
-drop policy if exists "search_documents_read" on "better_supabase"."search_documents";
-create policy "search_documents_read" on "better_supabase"."search_documents" for select to authenticated
+drop policy if exists search_documents_read on "better_supabase"."search_documents";
+create policy search_documents_read on "better_supabase"."search_documents"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')));
 
 -- Lowercase and without accents. unaccent is stable because its dictionary
@@ -1897,7 +1901,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:f4bd1504e8d838020bf1e6195a711bf4ea2fee3d05a1c30b308232cbb7c28437
+-- @bsb-hash sha256:cabfb32f9849fa49f57468cb1df93a49987631c8effd2d1cd855fe0e39dde10c
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1939,7 +1943,8 @@ create index if not exists search_documents_title_trgm_idx on "better_supabase".
 create index if not exists search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
 
 drop policy if exists bsb_search_documents_select on "better_supabase"."search_documents";
-create policy bsb_search_documents_select on "better_supabase"."search_documents" for select to authenticated
+create policy bsb_search_documents_select on "better_supabase"."search_documents"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')));
 
 -- Lowercase and without accents. unaccent is stable because its dictionary
@@ -2336,7 +2341,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:ee64f9f1b98ec7e020584418e64c619089c7c4f92b16566aa87aa72e00d2befa
+-- @bsb-hash sha256:d2195c0bc4f613fdaeb658ef108eb7478325b1a2baf569cbeab0ccd271054788
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2380,8 +2385,9 @@ create index if not exists search_documents_tsv_idx on "better_supabase"."search
 create index if not exists search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
 create index if not exists search_documents_tenant_idx on "better_supabase"."search_documents" ("org_id", "subject_type");
 
-drop policy if exists "search_documents_read" on "better_supabase"."search_documents";
-create policy "search_documents_read" on "better_supabase"."search_documents" for select to authenticated
+drop policy if exists search_documents_read on "better_supabase"."search_documents";
+create policy search_documents_read on "better_supabase"."search_documents"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('search.read')));
 
 -- Lowercase and without accents. unaccent is stable because its dictionary

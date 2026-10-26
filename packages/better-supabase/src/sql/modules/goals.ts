@@ -7,6 +7,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { int8Text } from "../money-sql.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   fail,
@@ -161,9 +162,7 @@ ${
 );${addExtraColumns(t, extras)}
 create index if not exists ${ctx.naming.rename("targets_period_idx")} on ${t} (${c("tenant")}, ${c("periodStart")}, ${c("periodEnd")})${has("archivedAt") ? ` where ${c("archivedAt")} is null` : ""};
 ${lockTable(t, { read: true })}
-drop policy if exists ${ctx.naming.rename("targets_read")} on ${t};
-create policy ${ctx.naming.rename("targets_read")} on ${t} for select to authenticated
-using (${ctx.scope.check(c("tenant"), read)});
+${renderPolicy(makePolicy({ table: t, name: ctx.naming.rename("targets_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { drop: true, target: t })}
 `
     : ""
 }

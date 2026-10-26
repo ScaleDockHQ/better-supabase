@@ -90,7 +90,8 @@ describe("invitations module", () => {
     expect(sql).not.toContain("extensions.digest(token");
     expect(sql).not.toContain("create policy bsb_platform_invitations_read");
     expect(sql).toContain(
-      `create policy bsb_invitations_read on "public"."organization_invitations" for select to authenticated
+      `create policy bsb_invitations_read on "public"."organization_invitations"
+  for select to authenticated
   using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()) or (select "better_supabase"."platform_invitations_readable"()));`,
     );
     expect(sql).toContain(

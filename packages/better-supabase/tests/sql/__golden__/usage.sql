@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:8be1b64e383c0f53c2019092184d0c5f2d7b1cbc9ebc289bbf865b9283f2b32d
+-- @bsb-hash sha256:a58b2259818b1c16deb160988be83af2dd01ca83110d214d5b4d5fb20cbaaf5c
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -99,8 +99,9 @@ alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-drop policy if exists "usage_counters_read" on "better_supabase"."usage_counters";
-create policy "usage_counters_read" on "better_supabase"."usage_counters" for select to authenticated
+drop policy if exists usage_counters_read on "better_supabase"."usage_counters";
+create policy usage_counters_read on "better_supabase"."usage_counters"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
@@ -140,8 +141,9 @@ alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-drop policy if exists "usage_quotas_read" on "better_supabase"."usage_quotas";
-create policy "usage_quotas_read" on "better_supabase"."usage_quotas" for select to authenticated
+drop policy if exists usage_quotas_read on "better_supabase"."usage_quotas";
+create policy usage_quotas_read on "better_supabase"."usage_quotas"
+  for select to authenticated
   using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
@@ -767,7 +769,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:f3e8a6476728e03e97c549cc8b035f646739d75280b60f6b4df30f00fd713645
+-- @bsb-hash sha256:cb1ee50ac25dfe78650d11d5e4e601dd3d50599d76e7851fae282505ea378b08
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -865,8 +867,9 @@ alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-drop policy if exists "usage_counters_read" on "better_supabase"."usage_counters";
-create policy "usage_counters_read" on "better_supabase"."usage_counters" for select to authenticated
+drop policy if exists usage_counters_read on "better_supabase"."usage_counters";
+create policy usage_counters_read on "better_supabase"."usage_counters"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
@@ -897,8 +900,9 @@ alter table "better_supabase"."usage_history" enable row level security;
 revoke all on "better_supabase"."usage_history" from anon, authenticated;
 grant select on "better_supabase"."usage_history" to authenticated;
 grant all on "better_supabase"."usage_history" to service_role;
-drop policy if exists "usage_history_read" on "better_supabase"."usage_history";
-create policy "usage_history_read" on "better_supabase"."usage_history" for select to authenticated
+drop policy if exists usage_history_read on "better_supabase"."usage_history";
+create policy usage_history_read on "better_supabase"."usage_history"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 create index if not exists usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
@@ -927,8 +931,9 @@ alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-drop policy if exists "usage_quotas_read" on "better_supabase"."usage_quotas";
-create policy "usage_quotas_read" on "better_supabase"."usage_quotas" for select to authenticated
+drop policy if exists usage_quotas_read on "better_supabase"."usage_quotas";
+create policy usage_quotas_read on "better_supabase"."usage_quotas"
+  for select to authenticated
   using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
@@ -1615,7 +1620,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:045ee49b619b247a90fcda53248dd531fce77c8448b7ca2b6d8e76ff7840c0ce
+-- @bsb-hash sha256:f8f88763b97a3da42f35a373abba93e9848de035a5f5e41bb411a763ab2e47ce
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1715,8 +1720,9 @@ alter table "app_private"."usage_counters" enable row level security;
 revoke all on "app_private"."usage_counters" from anon, authenticated;
 grant select on "app_private"."usage_counters" to authenticated;
 grant all on "app_private"."usage_counters" to service_role;
-drop policy if exists "usage_counters_read" on "app_private"."usage_counters";
-create policy "usage_counters_read" on "app_private"."usage_counters" for select to authenticated
+drop policy if exists usage_counters_read on "app_private"."usage_counters";
+create policy usage_counters_read on "app_private"."usage_counters"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
@@ -1756,8 +1762,9 @@ alter table "app_private"."usage_quotas" enable row level security;
 revoke all on "app_private"."usage_quotas" from anon, authenticated;
 grant select on "app_private"."usage_quotas" to authenticated;
 grant all on "app_private"."usage_quotas" to service_role;
-drop policy if exists "usage_quotas_read" on "app_private"."usage_quotas";
-create policy "usage_quotas_read" on "app_private"."usage_quotas" for select to authenticated
+drop policy if exists usage_quotas_read on "app_private"."usage_quotas";
+create policy usage_quotas_read on "app_private"."usage_quotas"
+  for select to authenticated
   using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
@@ -2383,7 +2390,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:bd3be05ccd0fae49615d7f97375383dc1ae2268f3e00cf196b44673b01bdc2b1
+-- @bsb-hash sha256:b8dc0a8c648fe811aef11a13603128032b571590aedcf47436ebccfa91f693a2
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2481,8 +2488,9 @@ alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-drop policy if exists "usage_counters_read" on "better_supabase"."usage_counters";
-create policy "usage_counters_read" on "better_supabase"."usage_counters" for select to authenticated
+drop policy if exists usage_counters_read on "better_supabase"."usage_counters";
+create policy usage_counters_read on "better_supabase"."usage_counters"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
@@ -2522,8 +2530,9 @@ alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-drop policy if exists "usage_quotas_read" on "better_supabase"."usage_quotas";
-create policy "usage_quotas_read" on "better_supabase"."usage_quotas" for select to authenticated
+drop policy if exists usage_quotas_read on "better_supabase"."usage_quotas";
+create policy usage_quotas_read on "better_supabase"."usage_quotas"
+  for select to authenticated
   using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
@@ -3333,7 +3342,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:ee93ec732266fe9dd9439ae0d3a9114d6eca905ef3fe41a7c96538a011a0c0ec
+-- @bsb-hash sha256:d39aba908fbb9e774a35afc90d8d970536cbb1735321880454e5cb37d8329ee5
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3427,7 +3436,8 @@ alter table "better_supabase"."usage_counters" enable row level security;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
 drop policy if exists bsb_usage_counters_select on "better_supabase"."usage_counters";
-create policy bsb_usage_counters_select on "better_supabase"."usage_counters" for select to authenticated
+create policy bsb_usage_counters_select on "better_supabase"."usage_counters"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
@@ -3457,7 +3467,8 @@ alter table "better_supabase"."usage_quotas" enable row level security;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
 drop policy if exists bsb_usage_quotas_select on "better_supabase"."usage_quotas";
-create policy bsb_usage_quotas_select on "better_supabase"."usage_quotas" for select to authenticated
+create policy bsb_usage_quotas_select on "better_supabase"."usage_quotas"
+  for select to authenticated
   using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
@@ -4083,7 +4094,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:bfc507154c4044ece9a7d27e0f5e1edcee52b3fdf924b20e56aaa49c03b7a762
+-- @bsb-hash sha256:5d32d8a6d4a45b696102cba6358b3962856844d5639b50ce58d9f7b814df1732
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4181,8 +4192,9 @@ alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-drop policy if exists "usage_counters_read" on "better_supabase"."usage_counters";
-create policy "usage_counters_read" on "better_supabase"."usage_counters" for select to authenticated
+drop policy if exists usage_counters_read on "better_supabase"."usage_counters";
+create policy usage_counters_read on "better_supabase"."usage_counters"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
@@ -4222,8 +4234,9 @@ alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-drop policy if exists "usage_quotas_read" on "better_supabase"."usage_quotas";
-create policy "usage_quotas_read" on "better_supabase"."usage_quotas" for select to authenticated
+drop policy if exists usage_quotas_read on "better_supabase"."usage_quotas";
+create policy usage_quotas_read on "better_supabase"."usage_quotas"
+  for select to authenticated
   using ("org_id" is null or "org_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
