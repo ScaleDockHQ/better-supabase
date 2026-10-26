@@ -30,6 +30,7 @@ export default defineConfig({
   webServer: {
     command: `pnpm --dir ../.. exec turbo run build --filter=marketing && pnpm exec next start -p ${String(port)}`,
     url: `http://127.0.0.1:${String(port)}/`,
+    env: { EXPOSE_TESTING_API: "1" },
     reuseExistingServer: false,
     timeout: 600_000,
   },

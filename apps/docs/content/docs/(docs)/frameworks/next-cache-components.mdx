@@ -1,6 +1,6 @@
 ---
 title: Cache Components
-description: Instant navigations, prefetching and role-aware UI with Next.js 16.3 Cache Components.
+description: Instant navigations, prefetching and role-aware UI with Next.js 16.4 Cache Components and Partial Prefetching.
 ---
 
 With `cacheComponents`, a page is a static shell that prerenders at build
@@ -20,6 +20,45 @@ implements all of it: ten menu items, five of which only admins see.
 ```ts title="next.config.ts"
 const config: NextConfig = { cacheComponents: true, partialPrefetching: true };
 ```
+
+## Partial Prefetching
+
+`partialPrefetching` requires `cacheComponents` and changes what a `<Link>`
+downloads. Next.js builds one shared App Shell per route and reuses it for
+every link to that route, instead of prefetching each link separately.
+
+| `<Link>`                            | What the prefetch contains                                                                                |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `<Link href="/x">`                  | The shared App Shell: static content plus cached content that does not depend on the URL.                 |
+| `<Link href="/x" prefetch>`         | The App Shell, plus per-link prefetching: cached content behind `params`, `searchParams` or the full URL. |
+| `<Link href="/x" prefetch={false}>` | Nothing.                                                                                                  |
+
+Session content read through `cookies()` or `headers()` is part of the App
+Shell, because it varies per session rather than per link. URL data varies per
+link, so it cannot be in the shared shell: read `params` or `searchParams`
+inside a child wrapped in `<Suspense>`.
+
+`prefetch={true}` is not free. It resolves URL-specific content with one
+server invocation per prefetchable link, so use it where the click must show
+that content immediately (a row that opens a detail page, a sidebar link to an
+article). The default App Shell prefetch is shared and costs one render per
+route. A list that adds `prefetch` to every row multiplies the cost by the
+number of rows; prefer the default and let the detail stream, or prefetch on
+intent.
+
+`prefetch={true}` no longer includes uncached dynamic content. If a
+destination needs that content ahead of the click, cache it with `"use cache"`
+or leave it behind `<Suspense>` to stream after the navigation.
+
+A segment can adopt Partial Prefetching on its own with
+`export const prefetch = "partial"` while the app-level flag is off. Once the
+flag is on everywhere, remove the per-segment exports with
+`npx @next/codemod@canary remove-partial-prefetch ./app` (pass `./src/app` in a
+`src/` project).
+
+The [Next.js example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/nextjs)
+uses the flag app-wide. Its customer rows keep `prefetch` because the detail
+reads `params`; the dashboard and the settings tabs use the shared App Shell.
 
 ## 1. Read the session once, privately cached
 

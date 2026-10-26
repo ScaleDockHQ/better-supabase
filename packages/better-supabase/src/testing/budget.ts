@@ -1,6 +1,7 @@
 import type { DbStats } from "../core/stats.ts";
 
 import { DB_CALLS_HEADER, parseDbStats } from "../server/entries/timing.ts";
+import { isPrefetch } from "../server/refresh.ts";
 
 /** The part of a Playwright `Request` the budget check reads. */
 export interface BudgetRequest {
@@ -68,14 +69,11 @@ export interface MeasuredRender {
   readonly stats: DbStats;
 }
 
-function isPrefetch(response: BudgetResponse): boolean {
-  const headers = response.request().headers();
+function isPrefetchResponse(response: BudgetResponse): boolean {
+  const request = response.request();
+  const headers = new Headers(request.headers());
 
-  return (
-    headers["next-router-prefetch"] !== undefined ||
-    headers["purpose"] === "prefetch" ||
-    (headers["sec-purpose"]?.includes("prefetch") ?? false)
-  );
+  return isPrefetch(new Request("http://budget.local/", { headers }));
 }
 
 function sleep(ms: number): Promise<void> {
@@ -175,7 +173,11 @@ async function expectPageBudget(
     const id = headers["x-bsb-request-id"];
     const stats = headers["x-bsb-stats"];
 
-    if (!id || !stats || (!expectation.prefetches && isPrefetch(response))) {
+    if (
+      !id ||
+      !stats ||
+      (!expectation.prefetches && isPrefetchResponse(response))
+    ) {
       return;
     }
 

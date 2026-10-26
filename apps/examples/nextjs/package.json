@@ -66,6 +66,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@better-supabase/next-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@next/playwright": "catalog:",
     "@playwright/test": "catalog:",

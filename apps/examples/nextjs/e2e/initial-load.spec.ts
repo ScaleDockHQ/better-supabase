@@ -5,6 +5,16 @@ import { heading, visibleTestId } from "./nav";
 import { baseURL } from "./server";
 import { users } from "./users";
 
+test("the app sends the shared security headers", async ({ request }) => {
+  const response = await request.get("/en/login");
+
+  expect(response.headers()["content-security-policy"]).toContain(
+    "frame-ancestors 'none'",
+  );
+  expect(response.headers()["x-frame-options"]).toBe("DENY");
+  expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+});
+
 for (const locale of ["en", "nl"] as const) {
   test.describe(`initial load in ${locale}`, () => {
     test.describe("signed in", () => {

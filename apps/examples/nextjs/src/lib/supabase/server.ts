@@ -11,6 +11,8 @@ const options: NextOptions = {
     // The e2e build checks each navigation's budget against `next start`.
     enabled: process.env["EXPOSE_TESTING_API"] === "1",
     budget: { calls: 8, waves: 2 },
+    // Matches `src/app/api/bs-stats/route.ts`, where `bsb.debugRoute()` is mounted.
+    route: "/api/bs-stats",
   },
   // Applies when SUPABASE_READ_URL is set: reads stay on the primary this long after a write.
   replicas: { pinMs: 5000 },

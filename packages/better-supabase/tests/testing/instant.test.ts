@@ -97,6 +97,7 @@ function locator(
   state: { visible?: boolean; count?: number },
   seen: string[],
   locked: () => boolean,
+  visibleCount?: number,
 ): InstantLocator {
   const fake = {
     toString: () => `getByText('${name}')`,
@@ -112,6 +113,9 @@ function locator(
 
       return Promise.resolve(state.count ?? 0);
     },
+    ...(visibleCount === undefined
+      ? {}
+      : { filter: () => locator(name, { count: visibleCount }, seen, locked) }),
   };
 
   return fake;
@@ -172,6 +176,19 @@ describe("expectInstant", () => {
     ).rejects.toThrow(
       "expectInstant: getByText('Unread') matched 2 elements under the instant() lock",
     );
+  });
+
+  it("counts only visible absent locators", async () => {
+    const fake = fakePage();
+    const seen: string[] = [];
+
+    await expectInstant(fake.page, {
+      during: () => Promise.resolve(),
+      visible: [],
+      absent: [locator("Unread", { count: 2 }, seen, fake.locked, 0)],
+    });
+
+    expect(seen).toEqual(["Unread count, locked=true"]);
   });
 
   it("scopes the lock to baseURL on a fresh page", async () => {

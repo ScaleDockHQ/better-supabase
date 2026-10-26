@@ -11,6 +11,7 @@
     "lint": "oxlint",
     "start": "next start",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "typecheck": "fumadocs-mdx && next typegen && tsc --noEmit"
   },
   "dependencies": {
@@ -38,6 +39,8 @@
     "@better-supabase/next-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@modelcontextprotocol/client": "catalog:",
+    "@next/playwright": "catalog:",
+    "@playwright/test": "catalog:",
     "@tailwindcss/postcss": "catalog:",
     "@types/mdx": "catalog:",
     "@types/node": "catalog:",

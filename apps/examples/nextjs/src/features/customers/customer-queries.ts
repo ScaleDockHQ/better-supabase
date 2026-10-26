@@ -11,7 +11,7 @@ import { bsb } from "@/lib/supabase/server";
  */
 export async function getCustomers() {
   "use cache: private";
-  const { db } = await bsb.cached();
+  const { db } = await bsb.cached({ tables: ["customers", "notes"] });
 
   const page = await customerList
     .run(db, customerList.defaults, {
@@ -42,7 +42,7 @@ export async function getCustomers() {
 /** One customer with its notes; `null` when RLS hides it or it is gone. */
 export async function getCustomer(id: string) {
   "use cache: private";
-  const { db } = await bsb.cached();
+  const { db } = await bsb.cached({ tables: ["customers", "notes"], id });
 
   const customer = await db.customers
     .get(
