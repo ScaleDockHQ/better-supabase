@@ -169,7 +169,13 @@ membership lasts until the next refresh. When that window matters:
 - `bsb.invalidateSession(userId)` reaches the server caches and the caller's
   router only; another user's browser keeps its private entries until they
   go stale.
-- After signing in or out: `useSessionChange(sessionChanged)` from
+- Sign in and out from a Server Action with `bsb.signIn`, `verifyOtp`,
+  `authorizeUrl` and `exchangeCode`, `verifyMfa` or `signOut`, then
+  `redirect(result.data.redirectTo)`. The result is plain data
+  (`redirectTo`, `mfa`); reads later in the action (`bsb.context()`,
+  `bsb.getRequestSession()`) see the new session, so build the landing
+  context from them.
+- After signing in or out in the browser client: `useSessionChange(sessionChanged)` from
   `better-supabase/next/client`. After switching the active organization:
   `useSessionChange(sessionChanged, router, { refreshToken: supabase })`, so
   the new token reaches the server before it renders.
@@ -206,6 +212,7 @@ before touching the hook, claims, tenant or entitlements.
 
 https://bettersupabase.com/docs/auth.md,
 https://bettersupabase.com/docs/frameworks/next.md (bearer callers),
+https://bettersupabase.com/docs/frameworks/next-auth.md (sign-in and sign-out),
 https://bettersupabase.com/docs/auth/account-deletion.md,
 https://bettersupabase.com/docs/frameworks/next-cache-components.md and
 https://bettersupabase.com/docs/extending/authorization-providers.md.

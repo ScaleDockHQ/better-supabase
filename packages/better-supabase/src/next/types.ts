@@ -2,6 +2,12 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { NextRequest } from "next/server.js";
 
 import type { AuthState } from "../auth/resolve.ts";
+import type { CookieScope } from "../auth/session.ts";
+import type {
+  AuthorizeUrlParams,
+  OtpParams,
+  SignOutScope,
+} from "../auth/sign-in.ts";
 import type { SessionSnapshot } from "../auth/snapshot.ts";
 import type { AuthSession } from "../auth/view.ts";
 import type {
@@ -55,6 +61,12 @@ export interface NextOptions extends ServerOptions {
   readonly exposeErrors?: boolean;
   /** Per-request database call counts. See the Budget docs. */
   readonly debug?: NextDebugOptions;
+  /**
+   * Cookie scopes (`domain`, `path`) earlier deploys wrote the session at.
+   * `signOut` also expires the session cookie at each of them. Never list the
+   * current scope.
+   */
+  readonly cookieScopes?: readonly CookieScope[];
 }
 
 export interface NextDebugOptions {
@@ -475,11 +487,60 @@ export interface BetterNext<
    * Signs in with an email and a password from a server action. It writes the
    * session cookies, stores the verified session for the next render and
    * returns `redirectTo`: `credentials.next` when it is a same-origin path,
-   * else `options.fallback` (`/`). The client then calls
-   * `router.replace(redirectTo)` once.
+   * else `options.fallback` (`/`). Reads later in the same request
+   * (`getRequestSession()`, `session()`, `context()`) see the new session.
    */
   signIn(
     credentials: SignInCredentials,
+    options?: SignInOptions,
+  ): Promise<ActionResult<SignedIn>>;
+  /** The same as `signIn`. */
+  signInWithPassword(
+    credentials: SignInCredentials,
+    options?: SignInOptions,
+  ): Promise<ActionResult<SignedIn>>;
+  /**
+   * Verifies an email link's `token_hash` (sign-up, invite, magic link,
+   * recovery, email change) or an emailed code, then commits the session like
+   * `signIn`. The new session replaces any session the request carried.
+   */
+  verifyOtp(
+    params: VerifyOtpParams,
+    options?: SignInOptions,
+  ): Promise<ActionResult<SignedIn>>;
+  /**
+   * The Auth server's OAuth URL for `provider`, for a `redirect()`. It writes
+   * the PKCE verifier cookie (httpOnly, `lax`, 10 minutes) that `exchangeCode`
+   * reads. `next` rides on `redirectTo` as `?next=` when it is a same-origin
+   * path.
+   */
+  authorizeUrl(params: OAuthStart): Promise<{ readonly url: string }>;
+  /**
+   * Exchanges the callback's `?code=` and the PKCE verifier cookie for a
+   * session, deletes the verifier cookie and commits the session like
+   * `signIn`.
+   */
+  exchangeCode(
+    params: CodeExchange,
+    options?: SignInOptions,
+  ): Promise<ActionResult<SignedIn>>;
+  /**
+   * Challenges and verifies an MFA factor for the signed-in user and commits
+   * the `aal2` session; `mfa` is then false.
+   */
+  verifyMfa(
+    params: MfaVerification,
+    options?: SignInOptions,
+  ): Promise<ActionResult<SignedIn>>;
+  /**
+   * Ends the session on the Auth server first (`scope`, `local` by default),
+   * then clears the session cookies (also at `cookieScopes`), forgets the
+   * verified sessions and expires its cache tags. `others` keeps this session
+   * and its cookies, and still forgets the verified sessions. Reads later in
+   * the same request are signed out.
+   */
+  signOut(
+    params?: SignOutParams,
     options?: SignInOptions,
   ): Promise<ActionResult<SignedIn>>;
 }
@@ -496,12 +557,50 @@ export interface SignInOptions {
   readonly fallback?: string;
 }
 
-/** What `signIn` returns: plain data, safe across the action boundary. */
+/** `verifyOtp` input: a link's `token_hash`, or an email and its code. */
+export type VerifyOtpParams = OtpParams & {
+  /** Checked before use, like `signIn`'s. */
+  readonly next?: string | null;
+};
+
+/** `authorizeUrl` input. */
+export interface OAuthStart extends AuthorizeUrlParams {
+  /** Where to go after the callback; checked before use. */
+  readonly next?: string | null;
+}
+
+/** `exchangeCode` input: the callback's `?code=` and `?next=`. */
+export interface CodeExchange {
+  readonly code: string;
+  readonly next?: string | null;
+}
+
+/** `verifyMfa` input. */
+export interface MfaVerification {
+  readonly factorId: string;
+  /** The code from the authenticator app. */
+  readonly code: string;
+  readonly next?: string | null;
+}
+
+/** `signOut` input. */
+export interface SignOutParams {
+  readonly scope?: SignOutScope;
+  readonly next?: string | null;
+}
+
+/**
+ * What the sign-in and sign-out helpers return: plain data, safe across the
+ * action boundary. The committed session is on `getRequestSession()` and
+ * `context()` for the rest of the request.
+ */
 export interface SignedIn {
+  /** `next` when it is a same-origin path, else `fallback` (`/`). */
   readonly redirectTo: string;
   /**
-   * The user has a verified MFA factor: send them to the challenge (with
-   * `redirectTo` as its `next`) before `redirectTo`.
+   * The user has a verified MFA factor and the session is not `aal2` yet: send
+   * them to the challenge (with `redirectTo` as its `next`) before
+   * `redirectTo`. Advisory: keep the proxy and `action({ aal: 2 })` gates.
    */
   readonly mfa: boolean;
 }

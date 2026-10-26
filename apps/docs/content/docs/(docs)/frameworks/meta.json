@@ -4,6 +4,7 @@
     "index",
     "---Supported adapters---",
     "next",
+    "next-auth",
     "next-cache-components",
     "next-islands",
     "hono",

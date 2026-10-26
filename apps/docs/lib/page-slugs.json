@@ -234,6 +234,7 @@
   "frameworks/mcp",
   "frameworks/nestjs",
   "frameworks/next",
+  "frameworks/next-auth",
   "frameworks/next-cache-components",
   "frameworks/next-islands",
   "frameworks/node",

@@ -1,49 +1,142 @@
-import type { ResolveAuthOptions } from "../auth/resolve.ts";
+import type {
+  AuthResolution,
+  AuthState,
+  ResolveAuthOptions,
+} from "../auth/resolve.ts";
+import type { CookieScope, StoredSession } from "../auth/session.ts";
+import type { PasswordGrantOptions } from "../auth/sign-in.ts";
+import type { SessionSnapshot } from "../auth/snapshot.ts";
+import type { Result } from "../core/result.ts";
 import type { ActionResult } from "../server/kit.ts";
-import type { SignInCredentials, SignInOptions, SignedIn } from "./types.ts";
+import type {
+  CodeExchange,
+  MfaVerification,
+  OAuthStart,
+  SignInCredentials,
+  SignInOptions,
+  SignOutParams,
+  SignedIn,
+  VerifyOtpParams,
+} from "./types.ts";
 
 import { clientIp } from "../auth/resolve.ts";
-import { sessionCookieName, writeSession } from "../auth/session.ts";
-import { needsMfa, passwordGrant, safeRedirectPath } from "../auth/sign-in.ts";
+import {
+  applyCookieWrites,
+  clearSessionAtScopes,
+  sessionCookieName,
+  writeSession,
+} from "../auth/session.ts";
+import {
+  authorizeUrlFor,
+  mfaGrant,
+  needsMfa,
+  otpGrant,
+  passwordGrant,
+  pkceGrant,
+  pkcePair,
+  revokeSession,
+  safeRedirectPath,
+} from "../auth/sign-in.ts";
+import { snapshotOf } from "../auth/snapshot.ts";
+import { dbError } from "../core/errors.ts";
+import { ok } from "../core/result.ts";
 
 interface CookieJar {
   getAll(): readonly { readonly name: string; readonly value: string }[];
   set(name: string, value: string, options: object): unknown;
 }
 
-export interface SignInDeps {
-  readonly env: {
+/** How long the PKCE verifier cookie lives, in seconds. */
+const VERIFIER_MAX_AGE = 600;
+
+export interface AuthFlowDeps<C, P> {
+  /** Read on each call: the env may load after `createNext`. */
+  readonly env: () => {
     readonly url: string;
     readonly publishableKey: string;
     readonly secretKey?: string | undefined;
   };
   readonly auth: Omit<ResolveAuthOptions, "env"> | undefined;
-  readonly request: Request;
-  readonly jar: CookieJar;
-  /** Stores the verified session, so the next render doesn't verify again. */
-  readonly seed: (accessToken: string) => Promise<void>;
+  readonly cookieScopes: readonly CookieScope[] | undefined;
+  /** The incoming request: its headers, cookies and the caller's IP. */
+  readonly request: () => Promise<Request>;
+  readonly jar: () => Promise<CookieJar>;
+  /** The request's current session, after any earlier commit. */
+  readonly current: () => Promise<SessionSnapshot<C> | null>;
+  /** Verifies a token like a request carrying it would be. */
+  readonly verify: (token: string | null) => Promise<AuthResolution<C, P>>;
+  /**
+   * Makes the committed session what later reads in the request see, and stores
+   * it for the next render.
+   */
+  readonly publish: (
+    resolution: AuthResolution<C, P>,
+    request: Request,
+  ) => Promise<void>;
+  /** Forgets a signed-out user's verified sessions and cache tags. */
+  readonly signedOut: (userId: string) => void;
+}
+
+export interface AuthFlows {
+  signIn(
+    credentials: SignInCredentials,
+    options?: SignInOptions,
+  ): Promise<ActionResult<SignedIn>>;
+  verifyOtp(
+    params: VerifyOtpParams,
+    options?: SignInOptions,
+  ): Promise<ActionResult<SignedIn>>;
+  authorizeUrl(params: OAuthStart): Promise<{ readonly url: string }>;
+  exchangeCode(
+    params: CodeExchange,
+    options?: SignInOptions,
+  ): Promise<ActionResult<SignedIn>>;
+  verifyMfa(
+    params: MfaVerification,
+    options?: SignInOptions,
+  ): Promise<ActionResult<SignedIn>>;
+  signOut(
+    params?: SignOutParams,
+    options?: SignInOptions,
+  ): Promise<ActionResult<SignedIn>>;
+}
+
+function refused(auth: AuthState): ActionResult<never> {
+  return {
+    ok: false,
+    data: null,
+    error:
+      auth.kind === "invalid"
+        ? auth.error
+        : dbError("unauthorized", "The new session did not verify"),
+  };
 }
 
 /**
- * Signs in on the server, writes the session cookies through the request's
- * cookie jar and returns the same-origin path to go to next.
+ * The server-side sign-in and sign-out flows. Each runs one Auth call, then one
+ * commit: it verifies the new token, writes or clears the session cookies
+ * through the request's cookie jar, and publishes the session to later reads in
+ * the same request. The result carries no token: it crosses the action
+ * boundary, and the session is on the request's reads.
  */
-export async function signInWithPassword(
-  credentials: SignInCredentials,
-  options: SignInOptions,
-  deps: SignInDeps,
-): Promise<ActionResult<SignedIn>> {
-  const { env, auth } = deps;
-  const secretKey = env.secretKey;
+export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
+  const { auth } = deps;
 
-  const ip =
-    secretKey && auth?.clientIp !== false
-      ? (auth?.clientIp ?? clientIp)(deps.request)
-      : undefined;
+  const cookieName = (): string =>
+    auth?.cookie?.name ?? sessionCookieName(deps.env().url);
 
-  const granted = await passwordGrant(
-    { email: credentials.email, password: credentials.password },
-    {
+  const verifierName = (): string => `${cookieName()}-code-verifier`;
+
+  const grantOptions = async (): Promise<PasswordGrantOptions> => {
+    const env = deps.env();
+    const secretKey = env.secretKey;
+
+    const ip =
+      secretKey && auth?.clientIp !== false
+        ? (auth?.clientIp ?? clientIp)(await deps.request())
+        : undefined;
+
+    return {
       url: env.url,
       publishableKey: env.publishableKey,
       ...(secretKey && ip ? { forwardedFor: { ip, secretKey } } : {}),
@@ -51,33 +144,218 @@ export async function signInWithPassword(
       ...(auth?.refreshTimeoutMs === undefined
         ? {}
         : { timeoutMs: auth.refreshTimeoutMs }),
-    },
-  );
+    };
+  };
 
-  if (!granted.ok) {
-    return granted;
-  }
+  /** Verifies, writes the cookies and publishes `stored` (`null` clears). */
+  const commit = async (
+    granted: Result<StoredSession | null>,
+    next: string | null | undefined,
+    options: SignInOptions,
+  ): Promise<ActionResult<SignedIn>> => {
+    if (!granted.ok) {
+      return granted;
+    }
 
-  const writes = writeSession(
-    deps.jar.getAll(),
-    auth?.cookie?.name ?? sessionCookieName(env.url),
-    granted.data,
-    auth?.cookie?.options,
-    auth?.cookie?.encode === undefined ? {} : { encode: auth.cookie.encode },
-  );
+    const stored = granted.data;
+    const resolution = await deps.verify(stored?.access_token ?? null);
 
-  for (const write of writes) {
-    deps.jar.set(write.name, write.value, write.options);
-  }
+    if (stored && resolution.auth.kind !== "user") {
+      return refused(resolution.auth);
+    }
 
-  await deps.seed(granted.data.access_token);
+    const jar = await deps.jar();
+    const existing = jar.getAll();
+
+    const writes = [
+      ...writeSession(
+        existing,
+        cookieName(),
+        stored,
+        auth?.cookie?.options,
+        auth?.cookie?.encode === undefined
+          ? {}
+          : { encode: auth.cookie.encode },
+      ),
+      ...(stored
+        ? []
+        : clearSessionAtScopes(
+            existing,
+            cookieName(),
+            deps.cookieScopes ?? [],
+          )),
+    ];
+
+    for (const write of writes) {
+      jar.set(write.name, write.value, write.options);
+    }
+
+    const headers = new Headers((await deps.request()).headers);
+
+    headers.set(
+      "cookie",
+      applyCookieWrites(existing, writes)
+        .map((cookie) => `${cookie.name}=${encodeURIComponent(cookie.value)}`)
+        .join("; "),
+    );
+
+    await deps.publish(
+      resolution,
+      new Request("http://next.local/", { headers }),
+    );
+
+    return {
+      ok: true,
+      data: {
+        redirectTo: safeRedirectPath(next, options.fallback ?? "/"),
+        mfa:
+          stored !== null &&
+          needsMfa(stored) &&
+          snapshotOf(resolution.auth)?.claims["aal"] !== "aal2",
+      },
+      error: null,
+    };
+  };
+
+  const signIn: AuthFlows["signIn"] = async (credentials, options = {}) =>
+    commit(
+      await passwordGrant(
+        { email: credentials.email, password: credentials.password },
+        await grantOptions(),
+      ),
+      credentials.next,
+      options,
+    );
 
   return {
-    ok: true,
-    data: {
-      redirectTo: safeRedirectPath(credentials.next, options.fallback ?? "/"),
-      mfa: needsMfa(granted.data),
+    signIn,
+
+    verifyOtp: async (params, options = {}) =>
+      commit(
+        await otpGrant(params, await grantOptions()),
+        params.next,
+        options,
+      ),
+
+    async authorizeUrl(params) {
+      const { verifier, challenge } = await pkcePair();
+      const jar = await deps.jar();
+
+      jar.set(verifierName(), verifier, {
+        path: "/",
+        ...auth?.cookie?.options,
+        httpOnly: true,
+        sameSite: "lax",
+        maxAge: VERIFIER_MAX_AGE,
+      });
+
+      const next = safeRedirectPath(params.next, "");
+      const redirectTo = new URL(params.redirectTo);
+
+      if (next) {
+        redirectTo.searchParams.set("next", next);
+      }
+
+      return {
+        url: authorizeUrlFor(
+          deps.env().url,
+          { ...params, redirectTo: redirectTo.href },
+          challenge,
+        ),
+      };
     },
-    error: null,
+
+    async exchangeCode(params, options = {}) {
+      const jar = await deps.jar();
+
+      const verifier = jar
+        .getAll()
+        .find((cookie) => cookie.name === verifierName())?.value;
+
+      jar.set(verifierName(), "", {
+        path: "/",
+        ...auth?.cookie?.options,
+        httpOnly: true,
+        sameSite: "lax",
+        maxAge: 0,
+      });
+
+      if (!verifier) {
+        return {
+          ok: false,
+          data: null,
+          error: dbError("unauthorized", "Code exchange failed", {
+            code: "code_verifier_missing",
+          }),
+        };
+      }
+
+      return commit(
+        await pkceGrant({ code: params.code, verifier }, await grantOptions()),
+        params.next,
+        options,
+      );
+    },
+
+    async verifyMfa(params, options = {}) {
+      const current = await deps.current();
+
+      if (!current) {
+        return {
+          ok: false,
+          data: null,
+          error: dbError("unauthorized", "MFA verification needs a session"),
+        };
+      }
+
+      return commit(
+        await mfaGrant(
+          {
+            accessToken: current.accessToken,
+            factorId: params.factorId,
+            code: params.code,
+          },
+          await grantOptions(),
+        ),
+        params.next,
+        options,
+      );
+    },
+
+    async signOut(params = {}, options = {}) {
+      const scope = params.scope ?? "local";
+      const current = await deps.current();
+
+      if (current) {
+        const revoked = await revokeSession(
+          current.accessToken,
+          scope,
+          await grantOptions(),
+        );
+
+        if (!revoked.ok) {
+          return revoked;
+        }
+      }
+
+      // The other sessions' tokens stay valid until they expire, so the memo
+      // and the cache tags built on them go for every scope.
+      if (current) {
+        deps.signedOut(current.userId);
+      }
+
+      if (scope === "others") {
+        return {
+          ok: true,
+          data: {
+            redirectTo: safeRedirectPath(params.next, options.fallback ?? "/"),
+            mfa: false,
+          },
+          error: null,
+        };
+      }
+
+      return commit(ok(null), params.next, options);
+    },
   };
 }

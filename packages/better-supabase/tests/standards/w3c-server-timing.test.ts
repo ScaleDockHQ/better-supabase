@@ -10,7 +10,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 vi.mock("next/headers.js", () => ({
   headers: () => Promise.resolve(new Headers()),
-  cookies: () => Promise.resolve({ set: () => undefined }),
+  cookies: () => Promise.resolve({ set: () => undefined, getAll: () => [] }),
 }));
 
 vi.mock("next/cache.js", () => ({

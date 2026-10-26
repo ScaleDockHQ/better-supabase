@@ -28,7 +28,18 @@ const mocks = vi.hoisted(() => ({
 vi.mock("next/headers.js", () => ({
   headers: () => Promise.resolve(mocks.headers),
   cookies: () =>
-    Promise.resolve({ set: mocks.setCookie, delete: mocks.deleteCookie }),
+    Promise.resolve({
+      set: mocks.setCookie,
+      delete: mocks.deleteCookie,
+      getAll: () =>
+        (mocks.headers.get("cookie") ?? "")
+          .split("; ")
+          .filter(Boolean)
+          .map((pair) => ({
+            name: pair.slice(0, pair.indexOf("=")),
+            value: decodeURIComponent(pair.slice(pair.indexOf("=") + 1)),
+          })),
+    }),
 }));
 
 vi.mock("next/cache.js", () => ({

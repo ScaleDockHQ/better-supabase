@@ -1782,6 +1782,18 @@ mail-sync needs its `MailProvider`s. No app source passes the instance one with
 `...providers` into `defineBlocks(blockConfig, { ...blocks, ...providers })`.
 Comments don't count, so the finding stays until the stub is real code.
 
+### BS506
+
+**Warning: server and browser Supabase URLs differ.** An env file sets
+`SUPABASE_URL` and a browser spelling such as `NEXT_PUBLIC_SUPABASE_URL` to
+different URLs. The session cookie name comes from the URL
+(`sb-<project-ref>-auth-token`), so the server and the browser client then
+read different cookies, and a sign-in on one side is invisible to the other.
+The finding shows each URL's host and port. Use one URL, or when the split
+is intended (a custom domain in the browser, the project URL on the server),
+set `auth.cookie.name` on `createNext` and on the browser client to the same
+name.
+
 ## Dependencies
 
 ### BS601
