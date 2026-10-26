@@ -1,6 +1,6 @@
 import { bsb } from "@/lib/supabase/server";
 
-// Compile-time only: the tables in `appTables` get typed repositories like
+// Compile-time only: the tables in your schema files get typed repositories like
 // the fixture's own tables.
 export const POST = bsb.route(async (_request, { db }) => {
   const project = await db.projects

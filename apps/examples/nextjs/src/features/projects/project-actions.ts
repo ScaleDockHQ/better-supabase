@@ -165,9 +165,9 @@ export const runTaskBulkAction = bsb.action(
 );
 
 /**
- * Sets one field on the selected tasks through the bulk block's
- * `appTables.set`. Each row runs as the caller, so the policies and column
- * grants decide what changes, and a failing row leaves the others.
+ * Sets one field on the selected tasks. Each row runs as the caller, so the
+ * policies and column grants decide what changes, and a failing row leaves the
+ * others.
  */
 export const setTaskField = bsb.action(
   {
@@ -181,24 +181,19 @@ export const setTaskField = bsb.action(
     requireOrganization: true,
     authorize: (session) => can(session, "bulk.run"),
   },
-  async ({ ids, values }, { tenant, db, auth }) => {
-    const applied = await db.bulk.apply({
-      organizationId: tenant,
-      subjectType: TASK_SUBJECT,
-      rows: ids,
-      action: "appTables.set",
-      args: { values },
-    });
+  async ({ ids, values }, { db, auth }) => {
+    const patch =
+      "due_on" in values
+        ? { dueOn: values.due_on }
+        : { assigneeId: values.assignee_id };
 
-    if (!applied.ok) {
-      return applied;
-    }
+    const results = await Promise.all(
+      ids.map((id) => db.tasks.update(id, patch)),
+    );
 
     refreshCaller(auth);
 
-    return ok(
-      applied.data.mode === "now" ? applied.data.succeeded : applied.data.total,
-    );
+    return ok(results.filter((result) => result.ok).length);
   },
 );
 

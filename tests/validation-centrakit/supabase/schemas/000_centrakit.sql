@@ -1099,3 +1099,8 @@ grant execute on function
   centrakit.authz_can_assign_for(uuid, uuid, text),
   centrakit.authz_organization_users_with(text, uuid)
   to service_role, supabase_auth_admin;
+
+-- The record types comments attach to, as @bsb subject tags.
+comment on table centrakit.tasks is '@bsb subject type=task id-type=uuid';
+comment on table centrakit.projects is '@bsb subject type=project id-type=uuid scope=project';
+comment on table centrakit.customers is '@bsb subject type=customer id-type=bigint';

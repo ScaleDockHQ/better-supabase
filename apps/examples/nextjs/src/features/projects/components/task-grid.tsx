@@ -345,8 +345,8 @@ const UNASSIGNED = "unassigned";
 type SetField = "due_on" | "assignee_id";
 
 /**
- * Sets one field on the selected tasks with the bulk block's `appTables.set`.
- * An empty value clears the field.
+ * Sets one field on the selected tasks through the typed repository. An empty
+ * value clears the field.
  */
 function SetFieldDialog({
   ids,
