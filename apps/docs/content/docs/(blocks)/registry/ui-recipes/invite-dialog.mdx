@@ -53,7 +53,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { assignableRoles } from "@/features/user/user-permissions";
 import { useInvitations } from "@/hooks/use-organizations";
 import { Role } from "@/lib/claims";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
@@ -69,10 +68,10 @@ import { useRoleLabel } from "../use-role-label";
  */
 export function InviteMemberDialog({
   organizationId,
-  myRole,
+  assignable,
 }: {
   organizationId: string;
-  myRole: Role;
+  assignable: readonly Role[];
 }) {
   const t = useExtracted("organization");
   const fieldId = useId();
@@ -83,7 +82,7 @@ export function InviteMemberDialog({
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("member");
 
-  const roles = assignableRoles(myRole).map((each) => ({
+  const roles = assignable.map((each) => ({
     value: each,
     label: roleLabel(each),
   }));

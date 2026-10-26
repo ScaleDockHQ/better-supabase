@@ -1,20 +1,20 @@
 import type { ReactNode } from "react";
 
+import { tenantOf } from "better-supabase/next";
 import {
   ActivityIcon,
-  NotebookPenIcon,
   UserPlusIcon,
   UsersIcon,
+  UsersRoundIcon,
 } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardDescription, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getMembers } from "@/features/organization/organization-queries";
+import { getPermissions } from "@/features/user/permission-snapshot";
+import { can } from "@/features/user/user-permissions";
+import { getSession } from "@/features/user/user-queries";
 
 import { getWorkspaceSummary } from "../dashboard-queries";
 
@@ -34,9 +34,9 @@ function Stat({
           {label}
           <span className="text-muted-foreground [&>svg]:size-4">{icon}</span>
         </CardDescription>
-        <CardTitle className="truncate text-2xl tabular-nums">
+        <p className="truncate text-2xl font-semibold tracking-tight tabular-nums">
           {value}
-        </CardTitle>
+        </p>
       </CardHeader>
     </Card>
   );
@@ -44,14 +44,23 @@ function Stat({
 
 /** Render inside `<Suspense>`; the fallback is `WorkspaceSummarySkeleton`. */
 export async function WorkspaceSummary() {
-  const [summary, t] = await Promise.all([
+  const [summary, t, session, permissions] = await Promise.all([
     getWorkspaceSummary(),
     getExtracted("dashboard"),
+    getSession(),
+    getPermissions(),
   ]);
 
   if (!summary) {
     return null;
   }
+
+  const tenant = tenantOf(session);
+
+  const members =
+    tenant && can(permissions, "members.read")
+      ? (await getMembers(tenant)).length
+      : undefined;
 
   return (
     <div
@@ -74,13 +83,9 @@ export async function WorkspaceSummary() {
         icon={<UserPlusIcon />}
       />
       <Stat
-        label={t("Latest note")}
-        value={
-          <span className="text-base font-medium">
-            {summary.latestNote[0]?.body ?? t("None yet")}
-          </span>
-        }
-        icon={<NotebookPenIcon />}
+        label={t("Members")}
+        value={members ?? "–"}
+        icon={<UsersRoundIcon />}
       />
     </div>
   );

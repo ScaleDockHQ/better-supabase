@@ -43,12 +43,12 @@ async function retry() {
  * only, so this checks `organization.update` before it reads.
  */
 export async function SigningKeysRotation() {
-  const [session, t] = await Promise.all([
-    getSession(),
+  const [t, permissions] = await Promise.all([
     getExtracted("signingKeys"),
+    getPermissions(),
   ]);
 
-  if (!can(session, SIGNING_KEYS_PERMISSION)) {
+  if (!can(permissions, SIGNING_KEYS_PERMISSION)) {
     forbidden();
   }
 

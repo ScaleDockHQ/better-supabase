@@ -43,8 +43,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import { getTemplates } from "../templates-queries";
 import { CreateTemplateDialog } from "./create-template-dialog";
@@ -58,18 +58,18 @@ async function retry() {
 
 /** The New template button, for members who may manage templates. */
 export async function TemplateManagerActions() {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  return can(session, "templates.manage") ? <CreateTemplateDialog /> : null;
+  return can(permissions, "templates.manage") ? <CreateTemplateDialog /> : null;
 }
 
 /** Render inside `<Suspense>`: the customer templates, each with Use template. */
 export async function TemplatesGallery() {
-  const [view, session, t, format] = await Promise.all([
+  const [view, t, format, permissions] = await Promise.all([
     getTemplates(),
-    getSession(),
     getExtracted("templates"),
     getFormatter(),
+    getPermissions(),
   ]);
 
   if (view.kind === "no-organization") {
@@ -77,7 +77,7 @@ export async function TemplatesGallery() {
   }
 
   const canApply =
-    can(session, "templates.apply") && can(session, "customers.write");
+    can(permissions, "templates.apply") && can(permissions, "customers.write");
 
   if (view.kind === "error") {
     return (
@@ -110,7 +110,7 @@ export async function TemplatesGallery() {
             )}
           </EmptyDescription>
         </EmptyHeader>
-        {can(session, "templates.manage") ? (
+        {can(permissions, "templates.manage") ? (
           <EmptyContent>
             <CreateTemplateDialog />
           </EmptyContent>

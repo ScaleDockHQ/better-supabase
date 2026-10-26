@@ -24,14 +24,17 @@ export async function KitchenDisplay({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, params] = await Promise.all([getSession(), searchParams]);
+  const [params, permissions] = await Promise.all([
+    searchParams,
+    getPermissions(),
+  ]);
 
-  if (!can(session, "orders.read") && !can(session, "orders.prepare")) {
+  if (!can(permissions, "orders.read") && !can(permissions, "orders.prepare")) {
     forbidden();
   }
 
   const canPrepare =
-    can(session, "orders.prepare") || can(session, "orders.manage");
+    can(permissions, "orders.prepare") || can(permissions, "orders.manage");
 
   const [kitchen, t] = await Promise.all([
     getKitchen(

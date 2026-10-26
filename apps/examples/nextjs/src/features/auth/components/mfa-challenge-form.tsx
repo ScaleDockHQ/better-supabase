@@ -64,9 +64,7 @@ export function MfaChallengeForm() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-xl">
-          {t("Two-factor authentication")}
-        </CardTitle>
+        <CardTitle>{t("Two-factor authentication")}</CardTitle>
         <CardDescription>
           {t("Enter the code from your authenticator app.")}
         </CardDescription>

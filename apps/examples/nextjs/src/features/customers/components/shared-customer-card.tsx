@@ -35,9 +35,7 @@ export async function SharedCustomerCard({
       <Card data-testid="shared-customer-missing">
         <CardHeader className="text-center">
           <Link2OffIcon className="mx-auto size-8 text-muted-foreground" />
-          <CardTitle className="text-xl">
-            {t("This link doesn't work")}
-          </CardTitle>
+          <CardTitle>{t("This link doesn't work")}</CardTitle>
           <CardDescription>
             {t("It expired, was revoked or never existed.")}
           </CardDescription>
@@ -58,7 +56,7 @@ export async function SharedCustomerCard({
     <Card data-testid="shared-customer">
       <CardHeader>
         <div className="flex items-center gap-2">
-          <CardTitle className="text-xl">{customer.name}</CardTitle>
+          <CardTitle>{customer.name}</CardTitle>
           <CustomerStatus status={customer.status} />
         </div>
         <CardDescription>

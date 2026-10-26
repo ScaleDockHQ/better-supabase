@@ -19,9 +19,9 @@ export async function CalendarView({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  if (!can(session, "calendar.read")) {
+  if (!can(permissions, "calendar.read")) {
     forbidden();
   }
 
@@ -32,8 +32,8 @@ export async function CalendarView({
     connection(),
   ]);
 
-  const canWrite = can(session, "calendar.write");
-  const canManage = can(session, "calendar.manage");
+  const canWrite = can(permissions, "calendar.write");
+  const canManage = can(permissions, "calendar.manage");
   const first = firstOfMonth(query["month"], "UTC");
   const weeks = weeksOf(first);
   const from = weeks[0]?.[0] ?? first;

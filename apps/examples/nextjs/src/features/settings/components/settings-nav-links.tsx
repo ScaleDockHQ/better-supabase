@@ -9,7 +9,7 @@ import type { SettingsTabId } from "../settings-tabs";
 
 import { settingsTabs } from "../settings-tabs";
 
-function useTabLabel() {
+export function useTabLabel(): (id: SettingsTabId) => string {
   const t = useExtracted("settings");
 
   return (id: SettingsTabId): string => {

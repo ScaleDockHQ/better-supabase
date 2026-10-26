@@ -1,10 +1,17 @@
 import { useExtracted } from "next-intl";
+import { Suspense } from "react";
 
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { HelpSheet } from "@/features/inbox/components/help-sheet";
 import { UnreadBadge } from "@/features/notifications/components/unread-badge";
+import {
+  ActiveOrganizationName,
+  ActiveOrganizationNameSkeleton,
+} from "@/features/organization/components/active-organization-name";
 import { CommandSearch } from "@/features/search/components/command-search";
+
+import { AppBreadcrumbs } from "./app-breadcrumbs";
 
 /** Synchronous, so it is part of the static shell of every page. */
 export function AppHeader() {
@@ -17,9 +24,15 @@ export function AppHeader() {
     >
       <SidebarTrigger className="-ml-1" aria-label={t("Toggle sidebar")} />
       <Separator orientation="vertical" className="mr-2 h-4" />
-      <span className="text-sm font-medium text-muted-foreground">
-        Acme Cloud
-      </span>
+      <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
+        <AppBreadcrumbs
+          organization={
+            <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
+              <ActiveOrganizationName />
+            </Suspense>
+          }
+        />
+      </Suspense>
       <div className="ml-auto flex items-center gap-1">
         <CommandSearch />
         <HelpSheet />

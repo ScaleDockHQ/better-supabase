@@ -20,7 +20,7 @@ npx shadcn add alert badge button card empty skeleton
  * with and whether they must sign in with SSO.
  */
 export async function SsoSettings() {
-  if (!can(await getSession(), "sso.manage")) {
+  if (!can(await getPermissions(), "sso.manage")) {
     forbidden();
   }
 

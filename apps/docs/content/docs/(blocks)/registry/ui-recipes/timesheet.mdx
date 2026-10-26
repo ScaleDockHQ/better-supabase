@@ -24,15 +24,15 @@ export async function Timesheet({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, t, format, query] = await Promise.all([
-    getSession(),
+  const [t, format, query, permissions] = await Promise.all([
     getExtracted("people"),
     getFormatter(),
     searchParams,
+    getPermissions(),
     connection(),
   ]);
 
-  if (!can(session, "time_tracking.track")) {
+  if (!can(permissions, "time_tracking.track")) {
     forbidden();
   }
 

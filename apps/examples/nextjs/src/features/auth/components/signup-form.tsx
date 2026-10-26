@@ -77,7 +77,7 @@ export function SignupForm() {
       <Card>
         <CardHeader className="text-center">
           <MailCheckIcon className="mx-auto size-8 text-primary" />
-          <CardTitle className="text-xl">{t("Check your email")}</CardTitle>
+          <CardTitle>{t("Check your email")}</CardTitle>
           <CardDescription>
             {t("We sent a confirmation link to {email}.", {
               email: state.confirm,
@@ -93,7 +93,7 @@ export function SignupForm() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-xl">{t("Create your account")}</CardTitle>
+        <CardTitle>{t("Create your account")}</CardTitle>
         <CardDescription>
           {t("Then create an organization or accept an invitation.")}
         </CardDescription>

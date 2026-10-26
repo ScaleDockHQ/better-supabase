@@ -60,7 +60,7 @@ export function LoginForm() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-xl">{t("Welcome back")}</CardTitle>
+        <CardTitle>{t("Welcome back")}</CardTitle>
         <CardDescription>{t("Sign in to your organization.")}</CardDescription>
       </CardHeader>
       <CardContent>

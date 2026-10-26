@@ -122,7 +122,7 @@ const ICONS = {
   settings: SettingsIcon,
 } satisfies Record<NavId, LucideIcon>;
 
-function useNavLabel() {
+export function useNavLabel(): (id: NavId) => string {
   const t = useExtracted("navigation");
 
   return (id: NavId): string => {

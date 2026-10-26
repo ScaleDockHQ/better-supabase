@@ -20,13 +20,13 @@ npx shadcn add alert badge button card empty skeleton table
  * caller is an approver of the current step.
  */
 export async function ApprovalsQueue() {
-  const [session, t, format] = await Promise.all([
-    getSession(),
+  const [t, format, permissions] = await Promise.all([
     getExtracted("approvals"),
     getFormatter(),
+    getPermissions(),
   ]);
 
-  if (!can(session, "approvals.read")) {
+  if (!can(permissions, "approvals.read")) {
     forbidden();
   }
 
@@ -36,8 +36,8 @@ export async function ApprovalsQueue() {
     return null;
   }
 
-  const canRequest = can(session, "approvals.request");
-  const canDecide = can(session, "approvals.manage");
+  const canRequest = can(permissions, "approvals.request");
+  const canDecide = can(permissions, "approvals.manage");
   const customers = queue.kind === "ok" ? queue.data.customers : [];
 
   const actionLabel = (action: string) =>
