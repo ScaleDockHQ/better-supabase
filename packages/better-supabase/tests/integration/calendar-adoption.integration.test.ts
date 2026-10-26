@@ -96,7 +96,7 @@ describe.skipIf(!live)("calendar adoption options", () => {
         },
       });
 
-      const org = await s.organization(owner, { member: alice, member2: bob });
+      const org = await s.organization(owner, { admin: alice, admin2: bob });
 
       const calendar = createCalendar({
         transport: sqlTransport(s.sql),

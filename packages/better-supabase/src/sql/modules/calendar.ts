@@ -193,6 +193,35 @@ ${addCheck({
       audit: false,
     });
 
+  const attendeesTable = (): string =>
+    ctx.hasTable("attendees")
+      ? `create table if not exists ${attendees} (
+  ${a("id")} uuid primary key default gen_random_uuid(),
+  ${a("tenant")} ${ctx.idType} not null,
+  ${a("event")} uuid not null references ${events} (${e("id")}) on delete cascade,
+  ${a("email")} text${features.anyAttendee ? "" : " not null"},
+  ${a("name")} text,
+  ${a("user")} uuid,
+  ${a("role")} text not null default 'required',
+  ${a("response")} text not null default 'needs-action' check (${a("response")} in ${RESPONSES}),
+  unique (${a("event")}, ${a("email")})
+);${attendeeColumns}
+${lockTable(attendees, { read: true })}
+${
+  ctx.has("attendees", "role")
+    ? addCheck({
+        table: attendees,
+        name: `${ctx.tableName("attendees").name}_role_check`,
+        expression: `${a("role")} in ${ROLES}`,
+      })
+    : ""
+}
+drop policy if exists ${ctx.tableName("attendees").name}_read on ${attendees};
+create policy ${ctx.tableName("attendees").name}_read on ${attendees} for select to authenticated
+using (${features.access ? eventAccessCall(ctx, a("event"), "read", me) : ctx.scope.check(a("tenant"), read)} or ${a("user")} = (select auth.uid()));
+`
+      : "";
+
   const tables = ctx.manages
     ? `create table if not exists ${calendars} (
   ${k("id")} uuid primary key default gen_random_uuid(),
@@ -258,31 +287,7 @@ ${lockTable(events, { read: true })}
 drop policy if exists ${ctx.tableName("events").name}_read on ${events};
 create policy ${ctx.tableName("events").name}_read on ${events} for select to authenticated
 using (${features.access ? eventAccessCall(ctx, e("id"), "read", me) : ctx.scope.check(e("tenant"), read)});
-create table if not exists ${attendees} (
-  ${a("id")} uuid primary key default gen_random_uuid(),
-  ${a("tenant")} ${ctx.idType} not null,
-  ${a("event")} uuid not null references ${events} (${e("id")}) on delete cascade,
-  ${a("email")} text${features.anyAttendee ? "" : " not null"},
-  ${a("name")} text,
-  ${a("user")} uuid,
-  ${a("role")} text not null default 'required',
-  ${a("response")} text not null default 'needs-action' check (${a("response")} in ${RESPONSES}),
-  unique (${a("event")}, ${a("email")})
-);${attendeeColumns}
-${lockTable(attendees, { read: true })}
-${
-  ctx.has("attendees", "role")
-    ? addCheck({
-        table: attendees,
-        name: `${ctx.tableName("attendees").name}_role_check`,
-        expression: `${a("role")} in ${ROLES}`,
-      })
-    : ""
-}
-drop policy if exists ${ctx.tableName("attendees").name}_read on ${attendees};
-create policy ${ctx.tableName("attendees").name}_read on ${attendees} for select to authenticated
-using (${features.access ? eventAccessCall(ctx, a("event"), "read", me) : ctx.scope.check(a("tenant"), read)} or ${a("user")} = (select auth.uid()));
-${workingHoursTable(ctx)}${grantsTable(ctx)}${recurrenceTables(ctx)}`
+${attendeesTable()}${workingHoursTable(ctx)}${grantsTable(ctx)}${recurrenceTables(ctx)}`
     : "";
 
   const attendeeFunctions = attendeesSql(ctx, writesEvent);
