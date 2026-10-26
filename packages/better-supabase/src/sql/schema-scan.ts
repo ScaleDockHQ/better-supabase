@@ -725,6 +725,8 @@ export function declaredUpdatedAtTriggers(
 
 /** An index a `create index` statement builds. */
 export interface IndexStatement {
+  /** The index name, unquoted, when the statement gives one. */
+  readonly name: string | undefined;
   /** `schema.table`. */
   readonly table: string;
   readonly unique: boolean;
@@ -739,7 +741,7 @@ export interface IndexStatement {
 }
 
 const INDEX_DEF = /* @__PURE__ */ new RegExp(
-  String.raw`\bcreate\s+(unique\s+)?index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?(?:(?!on\b)${NAME}\s+)?on\s+(?:only\s+)?(${TABLE_NAME})\s*(?:using\s+(\w+)\s*)?\(`,
+  String.raw`\bcreate\s+(unique\s+)?index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?(?:(?!on\b)(${NAME})\s+)?on\s+(?:only\s+)?(${TABLE_NAME})\s*(?:using\s+(\w+)\s*)?\(`,
   "gi",
 );
 
@@ -783,9 +785,10 @@ export function indexStatements(text: string): IndexStatement[] {
 
     return [
       {
-        table: qualified(match[2]!),
+        name: match[2] === undefined ? undefined : unquote(match[2]),
+        table: qualified(match[3]!),
         unique: match[1] !== undefined,
-        method: (match[3] ?? "btree").toLowerCase(),
+        method: (match[4] ?? "btree").toLowerCase(),
         partial: /\bwhere\b/i.test(rest),
         ...indexKeys(text.slice(open + 1, close)),
       },
@@ -798,6 +801,12 @@ const KEY_CONSTRAINT =
 
 const COLUMN_KEY = /\s(?:primary\s+key|unique)\b/i;
 
+/** A full btree index, by its name when it has one, and its leading columns. */
+export interface OwnIndex {
+  readonly name?: string;
+  readonly columns: readonly string[];
+}
+
 /**
  * The leading columns of every full btree index the files give each table in
  * `schemas`: `create index` statements, and the primary keys and unique
@@ -807,15 +816,22 @@ const COLUMN_KEY = /\s(?:primary\s+key|unique)\b/i;
 export function declaredIndexes(
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
-): ReadonlyMap<string, readonly (readonly string[])[]> {
-  const found = new Map<string, (readonly string[])[]>();
+): ReadonlyMap<string, readonly OwnIndex[]> {
+  const found = new Map<string, OwnIndex[]>();
 
-  const add = (table: string, columns: readonly string[]): void => {
+  const add = (
+    table: string,
+    columns: readonly string[],
+    name?: string,
+  ): void => {
     if (
       columns.length > 0 &&
       schemas.includes(table.slice(0, table.indexOf(".")))
     ) {
-      found.set(table, [...(found.get(table) ?? []), columns]);
+      found.set(table, [
+        ...(found.get(table) ?? []),
+        name === undefined ? { columns } : { name, columns },
+      ]);
     }
   };
 
@@ -824,7 +840,7 @@ export function declaredIndexes(
 
     for (const index of indexStatements(text)) {
       if (!index.partial && index.method === "btree") {
-        add(index.table, index.columns);
+        add(index.table, index.columns, index.name);
       }
     }
 

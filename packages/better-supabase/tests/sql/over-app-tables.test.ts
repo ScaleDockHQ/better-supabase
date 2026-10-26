@@ -375,8 +375,12 @@ create index if not exists other_idx on "public"."others" ("organization_id");
   it("drops a plain index an app index with the same leading columns covers", () => {
     const out = withoutCoveredIndexes(sql, new Set(["public.members"]), {
       "public.members": [
-        ["organization_id", "user_id", "team_id"],
-        ["team_id"],
+        {
+          name: "members_by_org",
+          columns: ["organization_id", "user_id", "team_id"],
+        },
+        { columns: ["team_id"] },
+        { name: "members_user_idx", columns: ["user_id"] },
       ],
     });
 
@@ -412,7 +416,9 @@ create index if not exists other_idx on "public"."others" ("organization_id");
         "public.team_members": "app.sql",
       },
       ownIndexes: {
-        "public.team_members": [["organization_id", "user_id", "team_id"]],
+        "public.team_members": [
+          { columns: ["organization_id", "user_id", "team_id"] },
+        ],
       },
     });
 

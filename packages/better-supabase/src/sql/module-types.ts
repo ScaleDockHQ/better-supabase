@@ -27,6 +27,7 @@ import type { DeclaredForeignKey } from "./foreign-keys.ts";
 import type { EntitlementsSource } from "./modules/entitlements-source.ts";
 import type { FunctionGrant, TableGrant } from "./modules/grants.ts";
 import type { VectorSearchTable } from "./modules/vector-search.ts";
+import type { OwnIndex } from "./schema-scan.ts";
 import type { JsonSchemaCheck } from "./shared.ts";
 
 /** The step from one module version to the next, for `upgrade`. */
@@ -337,9 +338,7 @@ export interface BlockSqlLayout {
    * The leading columns of each full btree index on a table in `ownTables`, by
    * `schema.table`. A block adds no plain index that one of them covers.
    */
-  readonly ownIndexes?: Readonly<
-    Record<string, readonly (readonly string[])[]>
-  >;
+  readonly ownIndexes?: Readonly<Record<string, readonly OwnIndex[]>>;
   /**
    * The entries of `ownTables` that are views or materialized views, by
    * `schema.view`, and whether Postgres can write through each one. A block

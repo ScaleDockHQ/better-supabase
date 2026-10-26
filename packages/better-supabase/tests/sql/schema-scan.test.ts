@@ -274,11 +274,11 @@ create index other_idx on private.things (id);`,
     );
 
     expect(indexes.get("public.members")).toEqual([
-      ["organization_id", "user_id"],
-      ["user_id"],
-      ["id"],
-      ["email"],
-      ["team_id", "user_id"],
+      { name: "members_org_idx", columns: ["organization_id", "user_id"] },
+      { name: "members_one", columns: ["user_id"] },
+      { columns: ["id"] },
+      { columns: ["email"] },
+      { columns: ["team_id", "user_id"] },
     ]);
     expect(indexes.has("private.things")).toBe(false);
   });

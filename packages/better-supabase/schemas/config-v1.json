@@ -4613,6 +4613,14 @@
               "auditReads": {
                 "type": "boolean",
                 "default": false
+              },
+              "rankType": {
+                "type": "string",
+                "default": "text"
+              },
+              "readAccess": {
+                "type": "string",
+                "default": "tenant"
               }
             }
           }

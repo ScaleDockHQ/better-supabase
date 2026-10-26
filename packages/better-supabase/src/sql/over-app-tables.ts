@@ -1,3 +1,5 @@
+import type { OwnIndex } from "./schema-scan.ts";
+
 import {
   closingParen,
   indexStatements,
@@ -373,16 +375,21 @@ export function overAppTables(
 /**
  * `sql` without the plain btree indexes it creates on the app's tables in
  * `appTables` that an index in `ownIndexes` already covers: one whose leading
- * columns are the same. Unique and partial indexes stay.
+ * columns are the same. An index named like one `sql` creates doesn't count,
+ * since the block made it. Unique and partial indexes stay.
  */
 export function withoutCoveredIndexes(
   sql: string,
   appTables: ReadonlySet<string>,
-  ownIndexes: Readonly<Record<string, readonly (readonly string[])[]>> = {},
+  ownIndexes: Readonly<Record<string, readonly OwnIndex[]>> = {},
 ): string {
   if (appTables.size === 0 || Object.keys(ownIndexes).length === 0) {
     return sql;
   }
+
+  const blockIndexes = new Set(
+    indexStatements(maskComments(sql)).map((index) => index.name),
+  );
 
   return statementSpans(sql)
     .map(([from, to]) => {
@@ -401,18 +408,19 @@ export function withoutCoveredIndexes(
       }
 
       const covered = (ownIndexes[index.table] ?? []).some(
-        (columns) =>
-          columns.length >= index.columns.length &&
-          index.columns.every((column, at) => columns[at] === column),
+        (own) =>
+          !blockIndexes.has(own.name) &&
+          own.columns.length >= index.columns.length &&
+          index.columns.every((column, at) => own.columns[at] === column),
       );
 
       if (!covered) {
         return statement;
       }
 
-      const lead = /^\s*/.exec(statement)![0];
+      const start = /\bcreate\b/i.exec(maskComments(statement))!.index;
 
-      return `${lead}-- ${index.table} already has an index on (${index.columns.join(", ")}), so this block adds none.`;
+      return `${statement.slice(0, start)}-- ${index.table} already has an index on (${index.columns.join(", ")}), so this block adds none.`;
     })
     .join("");
 }

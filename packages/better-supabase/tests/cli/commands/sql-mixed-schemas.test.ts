@@ -97,7 +97,9 @@ describe("an app's own declarative schema with blocks over it", () => {
       ],
       "public.notes": ["id", "body"],
     });
-    expect(layout.ownIndexes?.["public.contacts"]).toContainEqual(["id"]);
+    expect(layout.ownIndexes?.["public.contacts"]).toContainEqual({
+      columns: ["id"],
+    });
   });
 
   it("adds the saved snapshot's tables, while the app's files still win", async () => {
@@ -132,7 +134,9 @@ describe("an app's own declarative schema with blocks over it", () => {
       "public.notifications",
     );
     expect(layout.ownIndexes?.["public.customers"]).toBeInstanceOf(Array);
-    expect(layout.ownIndexes?.["public.contacts"]).toContainEqual(["id"]);
+    expect(layout.ownIndexes?.["public.contacts"]).toContainEqual({
+      columns: ["id"],
+    });
   });
 
   it("takes the snapshot's views as the app's, with whether Postgres writes through them", async () => {
