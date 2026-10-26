@@ -20,22 +20,11 @@ const withNextIntl = createNextIntlPlugin({
 });
 
 const config = createNextConfig({
-  cacheComponents: true,
-  // `next build` needs the TypeScript 6 compiler API; the Turbo `typecheck`
-  // task runs TypeScript 7 instead.
-  typescript: { ignoreBuildErrors: true },
-  partialPrefetching: true,
-  // Memoizes components and hooks at build time, so the example needs no
-  // `useMemo` or `useCallback` by hand.
-  reactCompiler: true,
-  // `pnpm dev:portless` serves the example at https://example.localhost.
-  allowedDevOrigins: ["127.0.0.1", "*.localhost"],
+  // `next build` type-checks with the project-local `tsc` (TypeScript 7,
+  // `experimental.useTypeScriptCli` is on by default), so this app proves
+  // the TypeScript 7 build path the other apps skip.
+  typescript: { ignoreBuildErrors: false },
   images: { loader: "custom", loaderFile: "./src/image-loader.ts" },
-  // Deferred: the example has no app/global-not-found.tsx, its next-intl
-  // Link accepts plain strings, and it reads process.env directly without
-  // an app env.ts.
-  typedRoutes: false,
-  experimental: { globalNotFound: false, typedEnv: false },
 });
 
 // Compiles the "use workflow" and "use step" functions and adds the
