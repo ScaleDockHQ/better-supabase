@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:c8043d77fbd438152151798f16706ed422c8b92dcdb523e8a8e2090709de39b8
+-- @bsb-hash sha256:75742f973d85e9c816c2edc5bb870da063bd309808de2dc451e8a0a9095fd1b4
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -91,7 +91,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   create_tag.tenant := null;
-  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null)) then
+  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true')) then
     raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   select max(t."rank" collate "C") into v_last from "better_supabase"."tags" t
@@ -124,7 +124,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   tag.tenant := null;
-  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null) or ((select auth.uid()) is not null)) then
+  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true') or ((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true')) then
     raise exception 'not allowed to apply tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   if not (true) then
@@ -187,7 +187,7 @@ begin
   if not found then
     raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null)) then
+  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true')) then
     raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   update "better_supabase"."tags" t set "name" = coalesce(update_tag.name, t."name"), "updated_at" = now() where t."id" = update_tag.tag_id;
@@ -218,7 +218,7 @@ begin
   if not found then
     raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null)) then
+  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true')) then
     raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   update "better_supabase"."tags" set "rank" = rank_tag.rank, "updated_at" = now() where "id" = rank_tag.tag_id;
@@ -244,7 +244,7 @@ begin
   if not found then
     raise exception 'tag not found' using errcode = 'P0002', hint = 'TAG_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null)) then
+  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true')) then
     raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   delete from "better_supabase"."tags" where "id" = delete_tag.tag_id;
@@ -266,7 +266,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   untag.tenant := null;
-  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null) or ((select auth.uid()) is not null)) then
+  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true') or ((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true')) then
     raise exception 'not allowed to apply tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   if not (true) then
@@ -294,7 +294,7 @@ set search_path = ''
 as $$
 begin
   list_tags.tenant := null;
-  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null) or ((select auth.uid()) is not null)) then
+  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true') or ((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true')) then
     raise exception 'not allowed to read tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   return coalesce((
@@ -320,7 +320,7 @@ declare
   v_ids uuid[];
 begin
   subject_tags.tenant := null;
-  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null) or ((select auth.uid()) is not null)) then
+  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true') or ((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true')) then
     raise exception 'not allowed to read tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   if not (true) then

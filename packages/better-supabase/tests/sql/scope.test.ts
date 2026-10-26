@@ -67,10 +67,10 @@ describe("moduleScope", () => {
   it("lets every signed-in user in the shared space", () => {
     const none = scope("none");
     expect(none.can("t.org", "'tags.manage'")).toBe(
-      "((select auth.uid()) is not null)",
+      "((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true')",
     );
     expect(none.check("org", "'tags.read'")).toBe(
-      "((select auth.uid()) is not null)",
+      "((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true')",
     );
     expect(none.column()).toBe("uuid");
     expect(none.value("f.tenant")).toBe("null::uuid");

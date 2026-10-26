@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:212d813d30d9f1ce289a6ddc6709bb1a2b83f4747bcef039c9045a618aeac7f0
+-- @bsb-hash sha256:be6956774fe9a8bb6d24ef7e658c9720940d906c38a11668a31ae90db2423a6d
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -316,7 +316,7 @@ revoke all on "public"."keys" from anon, authenticated;
 grant select ("id", "created_at", "updated_at") on "public"."keys" to authenticated;
 grant all on "public"."keys" to service_role;
 drop policy if exists "keys_select" on "public"."keys";
-create policy "keys_select" on "public"."keys" for select to authenticated using (((select auth.uid()) is not null));
+create policy "keys_select" on "public"."keys" for select to authenticated using (((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true'));
 drop trigger if exists "bsb_updated_at" on "public"."keys";
 create trigger "bsb_updated_at" before update on "public"."keys"
   for each row execute function better_supabase.set_updated_at();
@@ -373,7 +373,7 @@ begin
     with r as materialized (
       select t.id, 'app' as bsb_owner, t."secret"
       from "public"."keys" t
-      where t.id = any (keys_reveal.ids) and (v_service or (((select auth.uid()) is not null)))
+      where t.id = any (keys_reveal.ids) and (v_service or (((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true')))
     ),
     k as materialized (
       select o.bsb_owner, "better_supabase"."field_key"(o.bsb_owner, false) as bsb_key

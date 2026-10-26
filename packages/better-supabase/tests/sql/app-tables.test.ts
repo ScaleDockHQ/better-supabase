@@ -247,7 +247,7 @@ describe("appTables SQL", () => {
       '"user_id" uuid default auth.uid() references auth.users (id) on delete cascade',
     );
     expect(schema?.contents).toContain(
-      'create policy "settings_select" on "public"."settings" for select to authenticated using (((select auth.uid()) is not null));',
+      "create policy \"settings_select\" on \"public\".\"settings\" for select to authenticated using (((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true'));",
     );
     expect(schema?.contents).not.toContain('"settings_insert"');
     expect(schema?.contents).toContain(

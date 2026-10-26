@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:8adfcaa3c813ff20466f5536d8834ef7d01e4fad1f3ccf3bf33ac4745b1a7947
+-- @bsb-hash sha256:b772ab59e74def2167f6368bf9a430f31416e8a1209aca3232038e903421f33f
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -121,7 +121,7 @@ revoke all on "public"."rates" from anon, authenticated;
 grant select ("id", "created_at", "updated_at") on "public"."rates" to authenticated;
 grant all on "public"."rates" to service_role;
 drop policy if exists "rates_select" on "public"."rates";
-create policy "rates_select" on "public"."rates" for select to authenticated using (((select auth.uid()) is not null));
+create policy "rates_select" on "public"."rates" for select to authenticated using (((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true'));
 drop trigger if exists "bsb_updated_at" on "public"."rates";
 create trigger "bsb_updated_at" before update on "public"."rates"
   for each row execute function better_supabase.set_updated_at();
