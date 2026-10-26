@@ -323,8 +323,8 @@ may be your own enum or domain.
 - `inventory`
   - `better_supabase.inventory_locations`: `id`, `tenant_id`, `code`, `name`, `kind`, `active`, `created_at`, `updated_at`
   - `better_supabase.stock_levels`: `tenant_id`, `variant_id`, `location_id`, `on_hand`, `reserved`, `incoming`, `available`, `reorder_point`, `updated_at`
-  - `better_supabase.stock_reservations`: `id`, `tenant_id`, `variant_id`, `location_id`, `quantity`, `status`, `reference_type`, `reference_id`, `expires_at`, `created_at`, `updated_at`
-  - `better_supabase.stock_transfers`: `id`, `tenant_id`, `from_location_id`, `to_location_id`, `status`, `note`, `created_at`, `shipped_at`, `received_at`
+  - `better_supabase.stock_reservations`: `id`, `tenant_id`, `variant_id`, `location_id`, `quantity`, `status`, `reference_type`, `reference_id`, `expires_at`, `created_at`, `updated_at`; typed: `status`
+  - `better_supabase.stock_transfers`: `id`, `tenant_id`, `from_location_id`, `to_location_id`, `status`, `note`, `created_at`, `shipped_at`, `received_at`; typed: `status`
   - `better_supabase.stock_transfer_lines`: `tenant_id`, `transfer_id`, `variant_id`, `quantity`
   - `better_supabase.purchase_orders`: `id`, `tenant_id`, `location_id`, `supplier_type`, `supplier_id`, `status`, `currency`, `expected_at`, `note`, `created_at`, `updated_at`, `placed_at`; typed: `status`
   - `better_supabase.purchase_order_lines`: `id`, `tenant_id`, `purchase_order_id`, `variant_id`, `quantity_ordered`, `quantity_received`, `unit_cost`

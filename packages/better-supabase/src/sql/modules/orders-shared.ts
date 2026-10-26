@@ -202,7 +202,7 @@ as $$
 declare
   v_from text;
 begin
-  select x.${o("status")} into v_from from ${ctx.table("orders")} x where x.${o("id")} = p_order for update;
+  select ${ctx.label("orders", "status", `x.${o("status")}`)} into v_from from ${ctx.table("orders")} x where x.${o("id")} = p_order for update;
   if v_from = p_to then
     return v_from;
   end if;${
@@ -266,6 +266,10 @@ export function orderFields(ctx: BlockSqlContext, alias: string): string {
     ["invoice_number", "invoiceNumber"],
     ["placed_at", "placedAt"],
   ]
-    .map(([as, column]) => `${alias}.${o(column ?? "")} as ${as}`)
+    .map(([as, column]) =>
+      column === "status"
+        ? `${ctx.label("orders", "status", `${alias}.${o(column)}`)} as ${as}`
+        : `${alias}.${o(column ?? "")} as ${as}`,
+    )
     .join(", ");
 }

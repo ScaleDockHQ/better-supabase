@@ -165,6 +165,7 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      typed: ["status"],
     },
     transfers: {
       name: "stock_transfers",
@@ -182,6 +183,7 @@ const NAMES: BlockSqlNames = {
         shippedAt: "shipped_at",
         receivedAt: "received_at",
       },
+      typed: ["status"],
     },
     transferLines: {
       name: "stock_transfer_lines",

@@ -34,7 +34,7 @@ function ownCart(
       ? ""
       : ` or ${ctx.scope.can("v_cart.tenant", options.readers)}`;
 
-  return `select x.${c("tenant")} as tenant, x.${c("user")} as owner, x.${c("status")} as status,
+  return `select x.${c("tenant")} as tenant, x.${c("user")} as owner, ${ctx.label("carts", "status", `x.${c("status")}`)} as status,
     x.${c("currency")} as currency, x.${c("priceList")} as price_list, x.${c("shippingAddress")} as shipping_address
   into v_cart from ${ctx.table("carts")} x where x.${c("id")} = ${id}${options.lock ? " for update" : ""};
   if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()${readers}) then
@@ -56,7 +56,7 @@ function sellable(ctx: BlockSqlContext, variant: string): string {
 
   return `if not exists (
     select 1 from ${catalog.table("variants")} cv join ${catalog.table("products")} cp on cp.${p("id")} = cv.${v("product")}
-    where cv.${v("id")} = ${variant} and cv.${v("tenant")} = v_cart.tenant and cp.${p("status")} = 'active'
+    where cv.${v("id")} = ${variant} and cv.${v("tenant")} = v_cart.tenant and ${catalog.is("products", "status", `cp.${p("status")}`, ["active"])}
   ) then
     ${fail("ORDERS_VARIANT_UNAVAILABLE", "this variant is not for sale", "P0002")}
   end if;`;
@@ -241,11 +241,11 @@ declare
 begin
   select x.${c("tenant")} as tenant, x.${c("currency")} as currency, x.${c("priceList")} as price_list,
     x.${c("shippingAddress")} as shipping_address, x.${c("shippingRate")} as shipping_rate,
-    x.${c("user")} as owner, x.${c("status")} as status, ${or("carts", "x", "email", "text")} as email, ${or("carts", "x", "billingAddress", "jsonb")} as billing_address
+    x.${c("user")} as owner, ${ctx.label("carts", "status", `x.${c("status")}`)} as status, ${or("carts", "x", "email", "text")} as email, ${or("carts", "x", "billingAddress", "jsonb")} as billing_address
   into v_cart from ${ctx.table("carts")} x where x.${c("id")} = p_cart;
   for v_line in
     select l.${cl("id")} as id, l.${cl("variant")} as variant, l.${cl("quantity")} as quantity, l.${cl("unitAmount")} as unit_amount,
-      cv.${v("sku")} as sku, ${title} as title, cp.${p("id")} as product, cp.${p("status")} as status,
+      cv.${v("sku")} as sku, ${title} as title, cp.${p("id")} as product, ${catalog.label("products", "status", `cp.${p("status")}`)} as status,
       ${kind} as kind, ${weight} as weight
     from ${ctx.table("cartLines")} l
     join ${catalog.table("variants")} cv on cv.${v("id")} = l.${cl("variant")}
@@ -280,7 +280,7 @@ begin
   from jsonb_array_elements(v_lines) with ordinality as e(l, n);
   v_country := v_cart.shipping_address ->> 'country';
   if v_ships and v_cart.shipping_rate is not null then
-    select x.${s("id")} as id, x.${s("name")} as name, x.${s("countries")} as countries, x.${s("kind")} as kind,
+    select x.${s("id")} as id, x.${s("name")} as name, x.${s("countries")} as countries, ${ctx.label("shippingRates", "kind", `x.${s("kind")}`)} as kind,
       x.${s("amount")} as amount, x.${s("perKg")} as per_kg, ${or("shippingRates", "x", "freeOver", "bigint")} as free_over
     into v_rate from ${ctx.table("shippingRates")} x
     where x.${s("id")} = v_cart.shipping_rate and x.${s("active")} and x.${s("currency")} = v_cart.currency;
@@ -377,7 +377,7 @@ begin
   }
   insert into ${carts} as x (${c("tenant")}, ${c("user")}, ${c("currency")}, ${c("priceList")}${email ? `, ${c("email")}` : ""})
   values (create_cart.tenant, auth.uid(), create_cart.currency, create_cart.price_list${email ? ", create_cart.email" : ""})
-  on conflict (${c("tenant")}, ${c("user")}, ${c("currency")}) where ${c("status")} = 'open' do update
+  on conflict (${c("tenant")}, ${c("user")}, ${c("currency")}) where ${ctx.is("carts", "status", c("status"), ["open"])} do update
     set ${c("priceList")} = coalesce(excluded.${c("priceList")}, x.${c("priceList")}),${
       email
         ? `
@@ -551,14 +551,14 @@ begin
   v_weight := (v_totals ->> 'weightGrams')::bigint;
   return coalesce((
     select jsonb_agg(jsonb_build_object(
-      'id', x.${s("id")}, 'name', x.${s("name")}, 'kind', x.${s("kind")}, 'currency', x.${s("currency")},
+      'id', x.${s("id")}, 'name', x.${s("name")}, 'kind', ${ctx.label("shippingRates", "kind", `x.${s("kind")}`)}, 'currency', x.${s("currency")},
       'amount', (case
 ${
   ctx.has("shippingRates", "freeOver")
     ? `        when x.${s("freeOver")} is not null and v_after_discount >= x.${s("freeOver")} then 0
 `
     : ""
-}        else x.${s("amount")} + case when x.${s("kind")} = 'weight' then (x.${s("perKg")} * v_weight + 999) / 1000 else 0 end
+}        else x.${s("amount")} + case when ${ctx.is("shippingRates", "kind", `x.${s("kind")}`, ["weight"])} then (x.${s("perKg")} * v_weight + 999) / 1000 else 0 end
       end)::text) order by x.${s("amount")}, x.${s("name")})
     from ${ctx.table("shippingRates")} x
     where x.${s("tenant")} = v_cart.tenant and x.${s("active")} and x.${s("currency")} = v_cart.currency
@@ -607,12 +607,12 @@ begin
   end if;
   for v_from in
     select x.${c("id")} as id, x.${c("tenant")} as tenant, x.${c("currency")} as currency
-    from ${carts} x where x.${c("user")} = merge_carts.from_user and x.${c("status")} = 'open'
+    from ${carts} x where x.${c("user")} = merge_carts.from_user and ${ctx.is("carts", "status", `x.${c("status")}`, ["open"])}
     for update
   loop
     select x.${c("id")} into v_to from ${carts} x
     where x.${c("user")} = merge_carts.to_user and x.${c("tenant")} = v_from.tenant
-      and x.${c("currency")} = v_from.currency and x.${c("status")} = 'open'
+      and x.${c("currency")} = v_from.currency and ${ctx.is("carts", "status", `x.${c("status")}`, ["open"])}
     for update;
     if v_to is null then
       update ${carts} x set ${c("user")} = merge_carts.to_user, ${c("updatedAt")} = now() where x.${c("id")} = v_from.id;
@@ -622,7 +622,7 @@ begin
       from ${lines} l where l.${cl("cart")} = v_from.id
       on conflict (${cl("cart")}, ${cl("variant")}) do update
         set ${cl("quantity")} = least(x.${cl("quantity")} + excluded.${cl("quantity")}, ${MAX_QUANTITY}), ${cl("updatedAt")} = now();${moveCodes}
-      update ${carts} x set ${c("status")} = 'abandoned', ${c("updatedAt")} = now() where x.${c("id")} = v_from.id;
+      update ${carts} x set ${c("status")} = ${ctx.value("carts", "status", "abandoned")}, ${c("updatedAt")} = now() where x.${c("id")} = v_from.id;
     end if;
     v_to := null;
     v_count := v_count + 1;

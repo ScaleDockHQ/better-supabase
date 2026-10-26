@@ -108,7 +108,7 @@ export function afterSaleFunctions(
     });
 
   const loadFulfillment = (id: string): string =>
-    `select x.${f("id")} as id, x.${f("order")} as order_id, x.${f("status")} as status into v_fulfillment
+    `select x.${f("id")} as id, x.${f("order")} as order_id, ${ctx.label("fulfillments", "status", `x.${f("status")}`)} as status into v_fulfillment
   from ${fulfillments} x where x.${f("id")} = ${id} for update;
   if not found then
     ${fail("ORDERS_FULFILLMENT_NOT_FOUND", "fulfillment not found", "P0002")}
@@ -116,7 +116,7 @@ export function afterSaleFunctions(
   ${load("v_fulfillment.order_id")}`;
 
   const loadReturn = (id: string): string =>
-    `select x.${r("id")} as id, x.${r("order")} as order_id, x.${r("status")} as status into v_return
+    `select x.${r("id")} as id, x.${r("order")} as order_id, ${ctx.label("returns", "status", `x.${r("status")}`)} as status into v_return
   from ${returns} x where x.${r("id")} = ${id} for update;
   if not found then
     ${fail("ORDERS_RETURN_NOT_FOUND", "return not found", "P0002")}
@@ -197,7 +197,7 @@ begin
   if v_fulfillment.status <> 'pending' then
     ${fail("ORDERS_TRANSITION_INVALID", "only a pending fulfillment can ship", "55000")}
   end if;${unsupported(trackingUrl, "ship_fulfillment.tracking_url", "ORDERS_TRACKING_URL_UNSUPPORTED", "this fulfillment table has no tracking URL column")}
-  update ${fulfillments} x set ${f("status")} = 'shipped', ${f("shippedAt")} = now(),
+  update ${fulfillments} x set ${f("status")} = ${ctx.value("fulfillments", "status", "shipped")}, ${f("shippedAt")} = now(),
     ${f("carrier")} = coalesce(ship_fulfillment.carrier, x.${f("carrier")}),
     ${f("trackingNumber")} = coalesce(ship_fulfillment.tracking_number, x.${f("trackingNumber")})${
       trackingUrl
@@ -218,7 +218,7 @@ begin
   ])}
   if v_order.status = 'paid'
     and not exists (select 1 from ${lines} l where l.${ol("order")} = v_order.id and l.${ol("fulfilled")} < l.${ol("quantity")})
-    and not exists (select 1 from ${fulfillments} x where x.${f("order")} = v_order.id and x.${f("status")} = 'pending') then
+    and not exists (select 1 from ${fulfillments} x where x.${f("order")} = v_order.id and ${ctx.is("fulfillments", "status", `x.${f("status")}`, ["pending"])}) then
     perform ${fn("order_transition")}(v_order.id, 'fulfilled');
     ${event("order.fulfilled", [])}
   end if;
@@ -247,10 +247,10 @@ begin
   if v_fulfillment.status <> 'shipped' then
     ${fail("ORDERS_TRANSITION_INVALID", "only a shipped fulfillment can be delivered", "55000")}
   end if;
-  update ${fulfillments} x set ${f("status")} = 'delivered', ${f("deliveredAt")} = now() where x.${f("id")} = v_fulfillment.id;
+  update ${fulfillments} x set ${f("status")} = ${ctx.value("fulfillments", "status", "delivered")}, ${f("deliveredAt")} = now() where x.${f("id")} = v_fulfillment.id;
   ${partEvent("fulfillment.delivered", "v_fulfillment.id", [])}
   if v_order.status = 'fulfilled'
-    and not exists (select 1 from ${fulfillments} x where x.${f("order")} = v_order.id and x.${f("status")} in ('pending', 'shipped')) then
+    and not exists (select 1 from ${fulfillments} x where x.${f("order")} = v_order.id and ${ctx.is("fulfillments", "status", `x.${f("status")}`, ["pending", "shipped"])}) then
     perform ${fn("order_transition")}(v_order.id, 'completed');
     ${event("order.completed", [])}
   end if;
@@ -281,7 +281,7 @@ begin
   update ${lines} x set ${ol("fulfilled")} = x.${ol("fulfilled")} - y.${fl("quantity")}
   from ${fulfillmentLines} y
   where y.${fl("fulfillment")} = v_fulfillment.id and x.${ol("id")} = y.${fl("line")};
-  update ${fulfillments} x set ${f("status")} = 'cancelled' where x.${f("id")} = v_fulfillment.id;
+  update ${fulfillments} x set ${f("status")} = ${ctx.value("fulfillments", "status", "cancelled")} where x.${f("id")} = v_fulfillment.id;
   return true;
 end;
 $$;
@@ -323,7 +323,7 @@ begin
     end if;
     select coalesce(sum(y.${rl("quantity")}), 0) into v_open
     from ${returnLines} y join ${returns} z on z.${r("id")} = y.${rl("return")}
-    where y.${rl("line")} = v_item.line and z.${r("status")} = 'requested';
+    where y.${rl("line")} = v_item.line and ${ctx.is("returns", "status", `z.${r("status")}`, ["requested"])};
     if not exists (select 1 from ${lines} l where l.${ol("id")} = v_item.line and l.${ol("order")} = v_order.id
       and l.${ol("fulfilled")} - l.${ol("returned")} - v_open >= v_item.quantity) then
       ${fail("ORDERS_RETURN_INVALID", "a line isn't on this order or has fewer fulfilled units left to return", "22023")}
@@ -372,7 +372,7 @@ begin
     update ${lines} x set ${ol("returned")} = x.${ol("returned")} + v_line.quantity where x.${ol("id")} = v_line.line;${restock(ctx)}
     v_units := v_units + v_line.quantity;
   end loop;
-  update ${returns} x set ${r("status")} = 'received', ${r("receivedAt")} = now() where x.${r("id")} = v_return.id;
+  update ${returns} x set ${r("status")} = ${ctx.value("returns", "status", "received")}, ${r("receivedAt")} = now() where x.${r("id")} = v_return.id;
   ${partEvent("return.received", "v_return.id", [["quantity", "v_units::text"]])}
   return true;
 end;
@@ -394,7 +394,7 @@ begin
   if v_return.status <> 'requested' then
     ${fail("ORDERS_TRANSITION_INVALID", "only a requested return can be rejected", "55000")}
   end if;
-  update ${returns} x set ${r("status")} = 'rejected' where x.${r("id")} = v_return.id;
+  update ${returns} x set ${r("status")} = ${ctx.value("returns", "status", "rejected")} where x.${r("id")} = v_return.id;
   return true;
 end;
 $$;
@@ -425,7 +425,7 @@ begin
     ${fail("ORDERS_RETURN_NOT_FOUND", "return not found on this order", "P0002")}
   end if;
   select coalesce(sum(x.${rf("amount")}), 0) into v_pending from ${refunds} x
-  where x.${rf("order")} = v_order.id and x.${rf("status")} = 'pending';
+  where x.${rf("order")} = v_order.id and ${ctx.is("refunds", "status", `x.${rf("status")}`, ["pending"])};
   v_left := v_order.paid_total - v_order.refunded_total - v_pending;
   v_amount := coalesce(create_refund.amount, v_left);
   if v_amount <= 0 or v_amount > v_left then
@@ -433,9 +433,9 @@ begin
   end if;
   select y.${p("id")} as id, y.${p("provider")} as provider, y.${p("reference")} as reference into v_payment
   from ${payments} y
-  where y.${p("order")} = v_order.id and y.${p("status")} = 'succeeded'
+  where y.${p("order")} = v_order.id and ${ctx.is("payments", "status", `y.${p("status")}`, ["succeeded"])}
     and y.${p("captured")} - y.${p("refunded")} - coalesce((select sum(z.${rf("amount")}) from ${refunds} z
-      where z.${rf("payment")} = y.${p("id")} and z.${rf("status")} = 'pending'), 0) >= v_amount
+      where z.${rf("payment")} = y.${p("id")} and ${ctx.is("refunds", "status", `z.${rf("status")}`, ["pending"])}), 0) >= v_amount
   order by y.${p("createdAt")} desc
   limit 1;
   if not found then
@@ -472,7 +472,7 @@ begin
     ${fail("ORDERS_REFUND_STATUS_INVALID", "status is pending, succeeded or failed", "22023")}
   end if;
   select x.${rf("id")} as id, x.${rf("order")} as order_id, x.${rf("payment")} as payment, x.${rf("amount")} as amount,
-    x.${rf("status")} as status
+    ${ctx.label("refunds", "status", `x.${rf("status")}`)} as status
   into v_refund from ${refunds} x
   where (complete_refund.refund is not null and x.${rf("id")} = complete_refund.refund)
     or (complete_refund.refund is null and x.${rf("providerReference")} = complete_refund.provider_reference)
@@ -505,15 +505,15 @@ begin
           ["refundedTotal", "v_total::text"],
           [
             "status",
-            `(select x.${o("status")} from ${orders} x where x.${o("id")} = v_order.id)`,
+            `(select ${ctx.label("orders", "status", `x.${o("status")}`)} from ${orders} x where x.${o("id")} = v_order.id)`,
           ],
         ],
         "'order.refunded:' || v_refund.id::text",
       )}
     end if;
   end if;
-  return (select jsonb_build_object('id', x.${rf("id")}, 'orderId', x.${rf("order")}, 'status', x.${rf("status")},
-      'amount', x.${rf("amount")}::text, 'orderStatus', y.${o("status")}, 'refundedTotal', y.${o("refundedTotal")}::text)
+  return (select jsonb_build_object('id', x.${rf("id")}, 'orderId', x.${rf("order")}, 'status', ${ctx.label("refunds", "status", `x.${rf("status")}`)},
+      'amount', x.${rf("amount")}::text, 'orderStatus', ${ctx.label("orders", "status", `y.${o("status")}`)}, 'refundedTotal', y.${o("refundedTotal")}::text)
     from ${refunds} x join ${orders} y on y.${o("id")} = x.${rf("order")} where x.${rf("id")} = v_refund.id);
 end;
 $$;

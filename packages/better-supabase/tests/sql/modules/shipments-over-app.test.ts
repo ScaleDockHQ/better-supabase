@@ -117,17 +117,18 @@ const SERVICE = `perform set_config('request.jwt.claims', '{"role":"service_role
 /** Lite migrates and seeds PGlite in process; booting takes a second or more. */
 const BOOT = { timeout: 60_000 };
 
-async function run(check: string): Promise<void> {
-  const files = renderBlocks(["shipments"], {
-    modules: BLOCKS,
-    ownTables: OWN_TABLES,
-  });
+async function run(
+  check: string,
+  modules: AnyBlocksConfig = BLOCKS,
+  app: string = APP,
+): Promise<void> {
+  const files = renderBlocks(["shipments"], { modules, ownTables: OWN_TABLES });
 
   await using stack = await liteStack({
     driver: "pglite",
     migrations: [
       ROLES,
-      APP,
+      app,
       ...files
         .filter((file) => file.kind !== "data")
         .map((file) => file.contents),
@@ -173,6 +174,64 @@ begin
   end if;
 end;
 $$;`),
+    ).resolves.toBeUndefined();
+  });
+
+  it("tracks a shipment through status value maps", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_ship jsonb;
+  v_id uuid;
+  v_other uuid;
+begin
+  ${SERVICE}
+  v_id := (better_supabase.create_shipment('${TENANT}', ${ADDRESS}, ${ADDRESS}, '[{"weightGrams": 500}]'::jsonb, 'SHP-1') ->> 'id')::uuid;
+  perform better_supabase.set_shipment_label(v_id, 'dhl', 'express', 'TRK1', 'L1', 1200, 'EUR');
+  if (select state::text from public.parcels where id = v_id) <> 'labelled'
+    or (select string_agg(state::text, ',') from public.parcel_scans where parcel_id = v_id) <> 'labelled' then
+    raise exception 'labelled %', (select jsonb_agg(p) from public.parcels p);
+  end if;
+  v_ship := better_supabase.record_tracking_events(v_id, '[{"id": "e1", "status": "in_transit", "occurredAt": "2099-01-01T10:00:00Z"}]'::jsonb);
+  if v_ship ->> 'status' <> 'in_transit' or (select state::text from public.parcels where id = v_id) <> 'moving' then
+    raise exception 'tracked %', v_ship;
+  end if;
+  v_other := (better_supabase.create_shipment('${TENANT}', ${ADDRESS}, ${ADDRESS}, '[{"weightGrams": 500}]'::jsonb, 'SHP-2') ->> 'id')::uuid;
+  perform better_supabase.cancel_shipment(v_other);
+  if (select state::text from public.parcels where id = v_other) <> 'voided' then
+    raise exception 'cancel missed';
+  end if;
+end;
+$$;`,
+        {
+          shipments: {
+            ...BLOCKS["shipments"],
+            values: {
+              shipments: {
+                status: {
+                  draft: "new",
+                  label_created: "labelled",
+                  in_transit: "moving",
+                  cancelled: "voided",
+                },
+              },
+              trackingEvents: {
+                status: { label_created: "labelled", in_transit: "moving" },
+              },
+            },
+          },
+        },
+        APP.replace(
+          "('draft', 'label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'cancelled')",
+          "('new', 'labelled', 'moving', 'out_for_delivery', 'delivered', 'exception', 'returned', 'voided')",
+        )
+          .replace(
+            "('label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned')",
+            "('labelled', 'moving', 'out_for_delivery', 'delivered', 'exception', 'returned')",
+          )
+          .replace("not null default 'draft'", "not null default 'new'"),
+      ),
     ).resolves.toBeUndefined();
   });
 
