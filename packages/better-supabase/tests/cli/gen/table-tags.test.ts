@@ -126,4 +126,21 @@ describe("withTableTags", () => {
 
     expect(outside.realtime.tables).toEqual([]);
   });
+
+  it("reads realtime global and user arguments and subject url", async () => {
+    const { name, key } = await first();
+    const config = resolveConfig({ blocks: {} }, "/tmp");
+
+    const next = withTableTags(
+      config,
+      await tagged(
+        name,
+        "@bsb realtime global user=owner_id; subject url=/x/{id}",
+      ),
+    );
+
+    expect(next.realtime.global).toContain(key);
+    expect(next.realtime.users[key]).toBe("owner_id");
+    expect(next.subjects[name]?.url).toBe("/x/{id}");
+  });
 });
