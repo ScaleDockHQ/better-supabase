@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
--- @bsb-hash sha256:c965048271b4078dff1007bcc0e47677ea4c3cc6eb090eac635f4ff1362ba913
+-- @bsb-hash sha256:67f7bd100c555d058907f53d57d591c9886140dc3f3ddc83d8a5d598bc8b3be9
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -241,7 +241,8 @@ $$;
 revoke execute on function better_supabase.track_realtime(regclass, text, text) from public, anon, authenticated;
 revoke execute on function better_supabase.untrack_realtime(regclass) from public, anon, authenticated;
 
--- Signed-in users receive unscoped topics, topics of their active tenant and
+-- Signed-in users receive unscoped topics, topics of tenants they are members of
+-- right now (checked live, not from the token claim) and
 -- their own user topics (bsb:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
 drop policy if exists bsb_realtime_tables_receive on realtime.messages;
@@ -252,11 +253,6 @@ create policy bsb_realtime_tables_receive on realtime.messages
     and not coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false)
     and (
       split_part((select realtime.topic()), ':', 4) = ''
-      or (split_part((select realtime.topic()), ':', 5) = '' and split_part((select realtime.topic()), ':', 4) = coalesce(
-        (select auth.jwt()) ->> 'tenant_id',
-        (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id',
-        ''
-      ))
       or (split_part((select realtime.topic()), ':', 4) = 'u'
         and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
     ));
@@ -291,7 +287,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
--- @bsb-hash sha256:c965048271b4078dff1007bcc0e47677ea4c3cc6eb090eac635f4ff1362ba913
+-- @bsb-hash sha256:0af558ec917620c5bceb5a0a84bcfef1062ea8c2cccb438cdf48179d2fd7ec84
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -531,7 +527,8 @@ $$;
 revoke execute on function better_supabase.track_realtime(regclass, text, text) from public, anon, authenticated;
 revoke execute on function better_supabase.untrack_realtime(regclass) from public, anon, authenticated;
 
--- Signed-in users receive unscoped topics, topics of their active tenant and
+-- Signed-in users receive unscoped topics, topics of tenants they are members of
+-- right now (checked live, not from the token claim) and
 -- their own user topics (bsb:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
 drop policy if exists bsb_realtime_tables_receive on realtime.messages;
@@ -542,10 +539,8 @@ create policy bsb_realtime_tables_receive on realtime.messages
     and not coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false)
     and (
       split_part((select realtime.topic()), ':', 4) = ''
-      or (split_part((select realtime.topic()), ':', 5) = '' and split_part((select realtime.topic()), ':', 4) = coalesce(
-        (select auth.jwt()) ->> 'tenant_id',
-        (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id',
-        ''
+      or (split_part((select realtime.topic()), ':', 5) = '' and split_part((select realtime.topic()), ':', 4) in (
+        select t.m::text from (select better_supabase.member_organization_ids() as m) t
       ))
       or (split_part((select realtime.topic()), ':', 4) = 'u'
         and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
@@ -581,7 +576,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
--- @bsb-hash sha256:c965048271b4078dff1007bcc0e47677ea4c3cc6eb090eac635f4ff1362ba913
+-- @bsb-hash sha256:67f7bd100c555d058907f53d57d591c9886140dc3f3ddc83d8a5d598bc8b3be9
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -821,7 +816,8 @@ $$;
 revoke execute on function better_supabase.track_realtime(regclass, text, text) from public, anon, authenticated;
 revoke execute on function better_supabase.untrack_realtime(regclass) from public, anon, authenticated;
 
--- Signed-in users receive unscoped topics, topics of their active tenant and
+-- Signed-in users receive unscoped topics, topics of tenants they are members of
+-- right now (checked live, not from the token claim) and
 -- their own user topics (bsb:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
 drop policy if exists bsb_realtime_tables_receive on realtime.messages;
@@ -832,11 +828,6 @@ create policy bsb_realtime_tables_receive on realtime.messages
     and not coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false)
     and (
       split_part((select realtime.topic()), ':', 4) = ''
-      or (split_part((select realtime.topic()), ':', 5) = '' and split_part((select realtime.topic()), ':', 4) = coalesce(
-        (select auth.jwt()) ->> 'tenant_id',
-        (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id',
-        ''
-      ))
       or (split_part((select realtime.topic()), ':', 4) = 'u'
         and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
     ));
@@ -871,7 +862,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
--- @bsb-hash sha256:c965048271b4078dff1007bcc0e47677ea4c3cc6eb090eac635f4ff1362ba913
+-- @bsb-hash sha256:67f7bd100c555d058907f53d57d591c9886140dc3f3ddc83d8a5d598bc8b3be9
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1111,7 +1102,8 @@ $$;
 revoke execute on function better_supabase.track_realtime(regclass, text, text) from public, anon, authenticated;
 revoke execute on function better_supabase.untrack_realtime(regclass) from public, anon, authenticated;
 
--- Signed-in users receive unscoped topics, topics of their active tenant and
+-- Signed-in users receive unscoped topics, topics of tenants they are members of
+-- right now (checked live, not from the token claim) and
 -- their own user topics (bsb:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
 drop policy if exists bsb_realtime_tables_receive on realtime.messages;
@@ -1122,11 +1114,6 @@ create policy bsb_realtime_tables_receive on realtime.messages
     and not coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false)
     and (
       split_part((select realtime.topic()), ':', 4) = ''
-      or (split_part((select realtime.topic()), ':', 5) = '' and split_part((select realtime.topic()), ':', 4) = coalesce(
-        (select auth.jwt()) ->> 'tenant_id',
-        (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id',
-        ''
-      ))
       or (split_part((select realtime.topic()), ':', 4) = 'u'
         and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
     ));

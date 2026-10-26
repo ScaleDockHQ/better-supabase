@@ -118,7 +118,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Realtime table changes",
       "category": "database",
       "requires": [],
-      "integrates": [],
+      "integrates": [
+        "memberships"
+      ],
       "manifest": "realtime-tables"
     },
     {

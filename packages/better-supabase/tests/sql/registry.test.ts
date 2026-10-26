@@ -408,6 +408,18 @@ describe("sameBlockFile", () => {
     }
   });
 
+  it("checks tenant topics against live membership, not the token claim", () => {
+    const contents = renderBlocks(["memberships", "realtime-tables"]).find(
+      (file) => file.contents.includes("bsb_realtime_tables_receive"),
+    )!.contents;
+
+    expect(contents).toContain("member_organization_ids() as m");
+    expect(contents).not.toContain("app_metadata");
+    expect(renderBlocks(["realtime-tables"])[0]!.contents).not.toContain(
+      "member_organization_ids",
+    );
+  });
+
   it("registers realtime tables with the tenant column", () => {
     const [file] = renderBlocks(["realtime-tables"], {
       realtimeTables: ["customers", "billing.invoices", "plans"],

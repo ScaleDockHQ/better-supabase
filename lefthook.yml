@@ -12,6 +12,7 @@ pre-commit:
         - "tests/types/**/generated.*"
         - "**/database.types.ts"
         - "supabase/snapshot.json"
+        - "packages/better-supabase/src/preset/catalog.generated.ts"
       run: pnpm exec ultracite fix {staged_files}
       stage_fixed: true
     - name: lint

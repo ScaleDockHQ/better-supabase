@@ -1,12 +1,24 @@
-import type { ClaimsMeta } from "../../schema/types.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { DEFAULT_CLAIMS } from "../../core/claims.ts";
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { SCHEMA, triggerGrant } from "../shared.ts";
 
-const realtimeTablesSql = (claims: ClaimsMeta): string => `${SCHEMA}
+/**
+ * The branch for `bsb:t:<table>:<tenant>` topics: the tenant has to be one the
+ * caller belongs to right now, not the one in the token. Without the
+ * memberships module nothing says who belongs, so tenant topics stay closed.
+ */
+const tenantTopics = (ctx: BlockSqlContext): string =>
+  ctx.installed("memberships")
+    ? `      or (split_part((select realtime.topic()), ':', 5) = '' and split_part((select realtime.topic()), ':', 4) in (
+        select t.m::text from (select ${ctx.scope.members()} as m) t
+      ))
+`
+    : "";
+
+const realtimeTablesSql = (ctx: BlockSqlContext): string => `${SCHEMA}
 
 -- Clients refetch through RLS, so the payload carries no row data.
 create or replace function better_supabase.broadcast_changes()
@@ -240,7 +252,8 @@ $$;
 revoke execute on function better_supabase.track_realtime(regclass, text, text) from public, anon, authenticated;
 revoke execute on function better_supabase.untrack_realtime(regclass) from public, anon, authenticated;
 
--- Signed-in users receive unscoped topics, topics of their active tenant and
+-- Signed-in users receive unscoped topics, topics of tenants they are members of
+-- right now (checked live, not from the token claim) and
 -- their own user topics (bsb:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
 ${renderPolicy(
@@ -254,12 +267,7 @@ ${renderPolicy(
     and not coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false)
     and (
       split_part((select realtime.topic()), ':', 4) = ''
-      or (split_part((select realtime.topic()), ':', 5) = '' and split_part((select realtime.topic()), ':', 4) = coalesce(
-        (select auth.jwt()) ->> ${sqlString(claims.tenant)},
-        (select auth.jwt()) -> 'app_metadata' ->> ${sqlString(claims.tenant)},
-        ''
-      ))
-      or (split_part((select realtime.topic()), ':', 4) = 'u'
+${tenantTopics(ctx)}      or (split_part((select realtime.topic()), ':', 4) = 'u'
         and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
     )`,
   }),
@@ -272,8 +280,9 @@ export const REALTIME_TABLES: BlockSqlDefinition = {
   description:
     "Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.",
   requires: [],
+  integrates: ["memberships"],
   target: "schema",
-  build: (_ctx, layout) => realtimeTablesSql(layout.claims ?? DEFAULT_CLAIMS),
+  build: (ctx) => realtimeTablesSql(ctx),
   topics: () => ["bsb:t:*"],
   extras: (_ctx, layout) =>
     realtimeRegistrations(
