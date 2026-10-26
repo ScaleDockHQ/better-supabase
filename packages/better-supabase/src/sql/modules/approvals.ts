@@ -35,6 +35,7 @@ import {
 import { approverCheck } from "./approver.ts";
 import { driveSubjectGuard } from "./drive-kit.ts";
 import { providerMembers } from "./memberships.ts";
+import { roleValue } from "./organizations-roles.ts";
 import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 import { myWorkTenant } from "./subjects.ts";
@@ -239,6 +240,14 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const mu = members.col("memberships", "user");
   const mt = members.col("memberships", "tenant");
   const mr = members.col("memberships", "role");
+
+  // A policy names an approver role by key; the catalog stores its id.
+  const approverRole = roleValue(
+    ctx,
+    "v_approvers ->> 'role'",
+    `v_req.${c("tenant")}`,
+  );
+
   const memberIdsFor = providerMembers(ctx, layout).idsFor;
 
   const delegateMember =
@@ -378,7 +387,7 @@ ${indent}end if;`;
       select x::uuid from jsonb_array_elements_text(coalesce(v_approvers -> 'users', '[]'::jsonb)) x
       union
       select m.${mu} from ${members.table("memberships")} m
-      where m.${mt} = v_req.${c("tenant")} and m.${mr} = v_approvers ->> 'role'${teamMembers}${
+      where m.${mt} = v_req.${c("tenant")} and m.${mr} = ${approverRole}${teamMembers}${
         delegation
           ? `
       union
@@ -520,7 +529,7 @@ begin
     or (v_approvers ->> 'permission' is not null and ${ctx.can("tenant", `v_req.${c("tenant")}`, "v_approvers ->> 'permission'")})
     or (v_approvers ->> 'role' is not null and exists (
       select 1 from ${members.table("memberships")} m
-      where m.${mt} = v_req.${c("tenant")} and m.${mu} = v_me and m.${mr} = v_approvers ->> 'role'
+      where m.${mt} = v_req.${c("tenant")} and m.${mu} = v_me and m.${mr} = ${approverRole}
     ))
     or (v_approvers ->> 'team' is not null and ${teamMatch("v_me")})${
       delegation

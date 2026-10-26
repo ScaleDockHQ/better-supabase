@@ -227,7 +227,8 @@ ${
         ", jsonb",
         extras.length === 0 ? ", text, jsonb" : ", text",
       ])
-    : extra.drop(fn("create_team"), `${ctx.idType}, text, text`)
+    : `${extra.drop(fn("create_team"), `${ctx.idType}, text, text`)}
+${drops(fn("create_team"), `${ctx.idType}, text, text`, [", text", ", text, jsonb"])}`
 }
 create or replace function ${fn("create_team")}(tenant ${ctx.idType}, name text, description text${patching ? ", slug text default null" : ""}${extra.param})
 returns jsonb
@@ -482,7 +483,8 @@ function membershipFk(
 alter table ${members}
   add constraint ${ctx.naming.rename("team_members_membership_fkey")}
   foreign key (${tenant}, ${user})
-  references ${memberships.table("memberships")} (${memberships.col("memberships", "tenant")}, ${memberships.col("memberships", "user")});`;
+  references ${memberships.table("memberships")} (${memberships.col("memberships", "tenant")}, ${memberships.col("memberships", "user")})
+  on delete cascade;`;
 }
 
 function membershipCheck(

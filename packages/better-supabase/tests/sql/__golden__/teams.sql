@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:76afaa9d2d0fedf3407b5d463a119b2b4b6eb54438a8ce8ed6739299108cda50
+-- @bsb-hash sha256:194a8c1c4c9029c45510d21fa965932449ddba0ccf2f0d3b9430772a3116c7c0
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -107,7 +107,8 @@ alter table "better_supabase"."team_members" drop constraint if exists team_memb
 alter table "better_supabase"."team_members"
   add constraint team_members_membership_fkey
   foreign key ("tenant_id", "user_id")
-  references "better_supabase"."memberships" ("organization_id", "user_id");
+  references "better_supabase"."memberships" ("organization_id", "user_id")
+  on delete cascade;
 
 
 -- A signed-in caller may only read their own teams; the service role and
@@ -132,6 +133,8 @@ grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated
 
 -- fields: the extra columns (blocks.teams.options.extraColumns) to set.
 drop function if exists "better_supabase"."create_team"(uuid, text, text, jsonb);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text, jsonb);
 create or replace function "better_supabase"."create_team"(tenant uuid, name text, description text)
 returns jsonb
 language plpgsql
@@ -438,7 +441,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:16c3e98b26c35bd8061a5db4b58b08460b4ea1d8bde0ec36f4e6d4ee9bbde989
+-- @bsb-hash sha256:762f286c6720cd6c0f1a8c149d2f5ddbccef29f0c352e9fbb754e17266580930
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -544,7 +547,8 @@ alter table "better_supabase"."team_members" drop constraint if exists team_memb
 alter table "better_supabase"."team_members"
   add constraint team_members_membership_fkey
   foreign key ("tenant_id", "user_id")
-  references "better_supabase"."memberships" ("organization_id", "user_id");
+  references "better_supabase"."memberships" ("organization_id", "user_id")
+  on delete cascade;
 
 do $shared_teams$
 declare
@@ -601,6 +605,8 @@ grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated
 
 -- fields: the extra columns (blocks.teams.options.extraColumns) to set.
 drop function if exists "better_supabase"."create_team"(uuid, text, text, jsonb);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text, jsonb);
 create or replace function "better_supabase"."create_team"(tenant uuid, name text, description text)
 returns jsonb
 language plpgsql
@@ -955,7 +961,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:0dd78206ca116126322b6d80cbe61cb8e2149af1df6d678edea513785ba66c08
+-- @bsb-hash sha256:159226f79a37a45549c9ed78f769b5e34339419f6c35e07da4dcffeedb698809
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1066,7 +1072,8 @@ alter table "app_private"."team_members" drop constraint if exists team_members_
 alter table "app_private"."team_members"
   add constraint team_members_membership_fkey
   foreign key ("tenant_id", "user_id")
-  references "better_supabase"."memberships" ("organization_id", "user_id");
+  references "better_supabase"."memberships" ("organization_id", "user_id")
+  on delete cascade;
 
 
 -- A signed-in caller may only read their own teams; the service role and
@@ -1091,6 +1098,8 @@ grant execute on function "app_private"."team_ids_of"(uuid) to authenticated, se
 
 -- fields: the extra columns (blocks.teams.options.extraColumns) to set.
 drop function if exists "app_private"."create_team"(uuid, text, text, jsonb);
+drop function if exists "app_private"."create_team"(uuid, text, text, text);
+drop function if exists "app_private"."create_team"(uuid, text, text, text, jsonb);
 create or replace function "app_private"."create_team"(tenant uuid, name text, description text)
 returns jsonb
 language plpgsql
@@ -1397,7 +1406,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:4a62eea23ee3982a5cbde52aaa4016935f918725d3ad3a79fc4329b3746ecad3
+-- @bsb-hash sha256:f0930125b0a4560884625fb200d59ce379d3f7dc6c9cfb8981e4a483b4448e3b
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1503,7 +1512,8 @@ alter table "better_supabase"."team_members" drop constraint if exists team_memb
 alter table "better_supabase"."team_members"
   add constraint team_members_membership_fkey
   foreign key ("tenant_id", "user_id")
-  references "better_supabase"."memberships" ("organization_id", "user_id");
+  references "better_supabase"."memberships" ("organization_id", "user_id")
+  on delete cascade;
 
 
 -- A signed-in caller may only read their own teams; the service role and
@@ -1528,6 +1538,8 @@ grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated
 
 -- fields: the extra columns (blocks.teams.options.extraColumns) to set.
 drop function if exists "better_supabase"."create_team"(uuid, text, text, jsonb);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text, jsonb);
 create or replace function "better_supabase"."create_team"(tenant uuid, name text, description text)
 returns jsonb
 language plpgsql
@@ -1809,6 +1821,8 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."create_team"(uuid, text, text, jsonb);
+drop function if exists "api"."create_team"(uuid, text, text, text);
+drop function if exists "api"."create_team"(uuid, text, text, text, jsonb);
 drop function if exists "api"."update_team"(uuid, text, text, jsonb);
 
 create or replace function "api"."actor_may_write"()
@@ -1931,7 +1945,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:57cdd2eb4a246b332a6393aca6b64ee9e94e67d4d59476d3d56351c799dd545b
+-- @bsb-hash sha256:eb9454800c1a63bd8c173ccd75696956e5b54ffbe899e3a9f383a9d029faaa1c
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2051,6 +2065,8 @@ grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated
 
 -- fields: the extra columns (blocks.teams.options.extraColumns) to set.
 drop function if exists "better_supabase"."create_team"(uuid, text, text, jsonb);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text, jsonb);
 create or replace function "better_supabase"."create_team"(tenant uuid, name text, description text)
 returns jsonb
 language plpgsql
@@ -2357,7 +2373,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:909b5a97f73d03c3e2fefb003949f5af6dc08ce0ccb16349ef4e88632fd9de93
+-- @bsb-hash sha256:0770e4c61034b8207e877a56ac581b08f1df5f51d719f137f3cc1f3a8019a9f5
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2463,7 +2479,8 @@ alter table "better_supabase"."team_members" drop constraint if exists team_memb
 alter table "better_supabase"."team_members"
   add constraint team_members_membership_fkey
   foreign key ("org_id", "user_id")
-  references "better_supabase"."memberships" ("org_id", "user_id");
+  references "better_supabase"."memberships" ("org_id", "user_id")
+  on delete cascade;
 
 
 -- A signed-in caller may only read their own teams; the service role and
@@ -2488,6 +2505,8 @@ grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated
 
 -- fields: the extra columns (blocks.teams.options.extraColumns) to set.
 drop function if exists "better_supabase"."create_team"(uuid, text, text, jsonb);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text, jsonb);
 create or replace function "better_supabase"."create_team"(tenant uuid, name text, description text)
 returns jsonb
 language plpgsql
