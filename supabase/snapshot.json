@@ -227330,6 +227330,7 @@
           "search_path": "\"\""
         },
         "execute": [
+          "anon",
           "authenticated"
         ]
       },
@@ -229400,6 +229401,7 @@
           "search_path": "\"\""
         },
         "execute": [
+          "anon",
           "authenticated"
         ]
       },

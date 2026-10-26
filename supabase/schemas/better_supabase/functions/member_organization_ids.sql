@@ -10,6 +10,6 @@ as $$
   where m.user_id = auth.uid() and (roles is null or m.role = any (roles))
 $$;
 
-revoke execute on function better_supabase.member_organization_ids(text[]) from public, anon;
+revoke execute on function better_supabase.member_organization_ids(text[]) from public;
 
-grant execute on function better_supabase.member_organization_ids(text[]) to authenticated, service_role;
+grant execute on function better_supabase.member_organization_ids(text[]) to anon, authenticated, service_role;
