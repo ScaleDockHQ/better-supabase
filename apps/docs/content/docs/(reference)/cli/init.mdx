@@ -304,7 +304,9 @@ no env file lists, BS505 on a required provider that is still a comment.
 
 `add --preset <name|code|url>` applies a preset to the config you have
 (`--only`, `--package` and `--allow-breaking`), and `add --adopt <block>
---tables <schema.table>` maps a block onto tables you already have. Both read
+--tables <schema.table>` maps a block onto tables you already have;
+`add <block> --over <schema.table>` is the short form for one block over one
+table, and refuses `--adopt`, `--tables` and more than one block. They read
 the database through `--snapshot`, `--db-url-stdin` or `--project-ref` when
 they need it, and [Presets and blocks](/docs/cli/presets) describes them.
 
