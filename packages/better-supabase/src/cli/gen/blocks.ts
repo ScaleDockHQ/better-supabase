@@ -184,8 +184,10 @@ function namingOf(
  * builds them with these options.
  */
 export function blockConfigEntries(
-  config: Pick<ResolvedConfig, "blocks" | "blockNames" | "instances" | "sql"> &
-    Partial<Pick<ResolvedConfig, "subjects">>,
+  config: Pick<
+    ResolvedConfig,
+    "blocks" | "blockNames" | "instances" | "sql" | "subjects"
+  >,
 ): Readonly<Record<string, GeneratedBlock>> {
   const installed = resolveBlocks(config.blockNames, {
     modules: config.blocks,
@@ -217,7 +219,7 @@ export function blockConfigEntries(
       const layout = {
         modules: config.blocks,
         instances: config.instances,
-        ...(config.subjects === undefined ? {} : { subjects: config.subjects }),
+        subjects: config.subjects,
         ...(config.sql.scope === undefined ? {} : { scope: config.sql.scope }),
       };
 
@@ -448,8 +450,10 @@ function stampArgs(name: string, stamp: unknown): string {
 
 /** The installed blocks with their final names, for `GeneratorModel.blocks`. */
 export function generatorBlocks(
-  config: Pick<ResolvedConfig, "blocks" | "blockNames" | "instances" | "sql"> &
-    Partial<Pick<ResolvedConfig, "subjects">>,
+  config: Pick<
+    ResolvedConfig,
+    "blocks" | "blockNames" | "instances" | "sql" | "subjects"
+  >,
 ): GeneratorBlock[] {
   const own = Object.entries(blockConfigEntries(config)).filter(
     ([, entry]) => entry.block === undefined,

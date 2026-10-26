@@ -411,7 +411,7 @@ async function databaseTables(
         .filter(
           (index) =>
             !index.partial &&
-            (index.method ?? "btree") === "btree" &&
+            [undefined, "btree"].includes(index.method) &&
             !blockIndexes.has(index.name),
         )
         .map((index) => ({ name: index.name, columns: index.columns }));
