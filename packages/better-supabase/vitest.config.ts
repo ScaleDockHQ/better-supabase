@@ -8,6 +8,9 @@ export default defineConfig({
     // The contract runners in @chat-adapter/tests call describe at import time; loaded
     // natively, they get a second vitest instance with no runner.
     server: { deps: { inline: ["@chat-adapter/tests"] } },
+    // On a laptop, one worker per core is slower: the workers starve each other and the
+    // other Turbo tasks. CI runners have few cores and nothing else running.
+    maxWorkers: env.CI ? undefined : "50%",
     projects: [
       {
         extends: true,
@@ -39,7 +42,10 @@ export default defineConfig({
       provider: "v8",
       include: ["src/**/*.ts"],
       exclude: ["src/cli/bin.ts"],
-      reporter: ["text-summary", "json-summary", "json", "html"],
+      // Nothing in CI reads the report files.
+      reporter: env.CI
+        ? ["text-summary"]
+        : ["text-summary", "json-summary", "json", "html"],
       // Unit tests alone must hold these; the floor is 90/90/90/80.
       // autoUpdate raises them when coverage grows, in whole percents.
       // The top-level numbers count every file, CLI included; the src/cli set
