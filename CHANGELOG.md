@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.22.0 (2026-10-26)
+
+- `better-supabase/create/lite` adds `openSandbox` and `designDataApi`. `openSandbox(project)` applies a project's files to an in-memory PGlite database and offers `as({ sub, role, claims })` personas that run with row level security, plus a `rest(request)` handler for a subset of PostgREST (table reads and writes, filters, order, limit, offset, `rpc`). `designDataApi(preset, design)` returns the OpenAPI 3.1 document of the Data API a design produces. `validateDesign` now shares its file runner with the sandbox.
+- `importProject` in `better-supabase/create/lite` reads an existing project into a `Design` and a report. It takes a declarative schema or migrations folder (replayed in PGlite), any queryable database, or a Supabase project ref and access token (through the Management API read-only endpoint). The report lists what it modeled, what it kept as it is, the tables that belong to blocks, each table's adoption rung and the security findings. `catalogQuery` and `designFromCatalog` are exported for callers that run the query themselves.
+- One project pipeline for Create, the CLI and the cloud (ADR 0100). `better-supabase/create` adds `loadProject`, `checkProject` and a single `Issue` type with a `severity` and a `source`; `checkDesign`, `designIssues` and `validateDesign` now report `Issue` values, and the two `DesignIssue` types are gone (breaking: a lite issue has `table` and `file` where it had `module` and `path`). `previewFiles` takes `ownTables` and `ownColumns` to render over tables the project already has. `better-supabase/preset` exports the instance rules the cloud copied: `canAddInstance`, `blockRequires`, `instanceNameProblem`, `withInstance`, `withoutInstance`, `withEntityName`, `installedBlocks`, `presetKey`, `createQuery` and `presetArgumentOf`. Rename `DesignIssue` to `Issue` and read `issue.file` and `issue.table` for lite findings.
+- App table write policies now refuse a read-only support or agent session. The insert, update and delete policies that `appTables` renders carry the same `actor_may_write()` check as every block policy, and the SQL defines the function when the file needs it. Run `upgrade` and generate a migration to pick it up.
+- Doctor's BS345 check treats the `actor_may_write()` support-session guard as tenant membership, so app tables that carry the guard no longer raise a false warning for attachment subjects.
+
 ## 0.21.0 (2026-10-25)
 
 - Blocks run over the app's own tables everywhere, block calls return a `Result`, and Temporal values replace date strings. The upgrade guide is at [From 0.20 to 0.21](https://bettersupabase.com/docs/migration/0.20-to-0.21).

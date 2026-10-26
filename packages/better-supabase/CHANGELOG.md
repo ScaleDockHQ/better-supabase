@@ -1,5 +1,21 @@
 # better-supabase
 
+## 0.22.0
+
+### Minor Changes
+
+- [#400](https://github.com/ScaleDockHQ/better-supabase/pull/400) [`a13d583`](https://github.com/ScaleDockHQ/better-supabase/commit/a13d58312005e2a7866965d16dde119a674b5f16) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase/create/lite` adds `openSandbox` and `designDataApi`. `openSandbox(project)` applies a project's files to an in-memory PGlite database and offers `as({ sub, role, claims })` personas that run with row level security, plus a `rest(request)` handler for a subset of PostgREST (table reads and writes, filters, order, limit, offset, `rpc`). `designDataApi(preset, design)` returns the OpenAPI 3.1 document of the Data API a design produces. `validateDesign` now shares its file runner with the sandbox.
+
+- [#399](https://github.com/ScaleDockHQ/better-supabase/pull/399) [`c6975e7`](https://github.com/ScaleDockHQ/better-supabase/commit/c6975e7c29ee2ce7634757557ab3cccdbb27064c) Thanks [@martijn00](https://github.com/martijn00)! - `importProject` in `better-supabase/create/lite` reads an existing project into a `Design` and a report. It takes a declarative schema or migrations folder (replayed in PGlite), any queryable database, or a Supabase project ref and access token (through the Management API read-only endpoint). The report lists what it modeled, what it kept as it is, the tables that belong to blocks, each table's adoption rung and the security findings. `catalogQuery` and `designFromCatalog` are exported for callers that run the query themselves.
+
+- [#397](https://github.com/ScaleDockHQ/better-supabase/pull/397) [`f082fcf`](https://github.com/ScaleDockHQ/better-supabase/commit/f082fcfee84892d9cac37dd138181adce7ff39a6) Thanks [@martijn00](https://github.com/martijn00)! - One project pipeline for Create, the CLI and the cloud (ADR 0100). `better-supabase/create` adds `loadProject`, `checkProject` and a single `Issue` type with a `severity` and a `source`; `checkDesign`, `designIssues` and `validateDesign` now report `Issue` values, and the two `DesignIssue` types are gone (breaking: a lite issue has `table` and `file` where it had `module` and `path`). `previewFiles` takes `ownTables` and `ownColumns` to render over tables the project already has. `better-supabase/preset` exports the instance rules the cloud copied: `canAddInstance`, `blockRequires`, `instanceNameProblem`, `withInstance`, `withoutInstance`, `withEntityName`, `installedBlocks`, `presetKey`, `createQuery` and `presetArgumentOf`. Rename `DesignIssue` to `Issue` and read `issue.file` and `issue.table` for lite findings.
+
+### Patch Changes
+
+- [#392](https://github.com/ScaleDockHQ/better-supabase/pull/392) [`3143728`](https://github.com/ScaleDockHQ/better-supabase/commit/31437287be54689aa53b685ab261c5b7caee80ea) Thanks [@martijn00](https://github.com/martijn00)! - App table write policies now refuse a read-only support or agent session. The insert, update and delete policies that `appTables` renders carry the same `actor_may_write()` check as every block policy, and the SQL defines the function when the file needs it. Run `upgrade` and generate a migration to pick it up.
+
+- [#394](https://github.com/ScaleDockHQ/better-supabase/pull/394) [`9d6dd2e`](https://github.com/ScaleDockHQ/better-supabase/commit/9d6dd2e85787bb62f809d887dad8e0730e85f064) Thanks [@martijn00](https://github.com/martijn00)! - Doctor's BS345 check treats the `actor_may_write()` support-session guard as tenant membership, so app tables that carry the guard no longer raise a false warning for attachment subjects.
+
 ## 0.21.0
 
 ### Minor Changes
