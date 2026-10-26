@@ -4,7 +4,6 @@
   "type": "module",
   "scripts": {
     "lint": "oxlint",
-    "transit": "true",
     "typecheck:perf": "node bench.ts",
     "update": "BENCH_UPDATE=1 node bench.ts"
   },

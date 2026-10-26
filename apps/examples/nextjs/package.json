@@ -20,7 +20,6 @@
     "start": "next start -p 3100",
     "test": "vitest run",
     "test:e2e": "pnpm --dir ../../.. supabase:reset && playwright test",
-    "transit": "true",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {

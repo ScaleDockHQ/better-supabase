@@ -13,6 +13,8 @@ dist/
 coverage/
 tmp/
 packages/better-supabase/tmp/
+# Temp folders from Rust tools (`.tmpAbC123`) that would otherwise enter Turbo task hashes.
+.tmp*/
 
 # expo
 .expo/

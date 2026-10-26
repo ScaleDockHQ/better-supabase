@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "lint": "oxlint",
-    "transit": "true",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

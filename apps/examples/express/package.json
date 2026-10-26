@@ -13,7 +13,6 @@
     "lint": "oxlint",
     "start": "node src/main.ts",
     "test": "vitest run",
-    "transit": "true",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

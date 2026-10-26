@@ -8,7 +8,6 @@
     "dev": "next dev -p 3110",
     "dev:portless": "portless run --force --name eve next dev",
     "lint": "next typegen && oxlint",
-    "transit": "true",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {

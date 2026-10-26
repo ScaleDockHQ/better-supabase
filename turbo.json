@@ -14,8 +14,9 @@
   "envMode": "strict",
   "cacheMaxAge": "14d",
   "cacheMaxSize": "10GB",
-  "globalEnv": ["CI", "NODE_ENV", "EXPOSE_TESTING_API"],
   "globalPassThroughEnv": [
+    "CI",
+    "NODE_ENV",
     "SUPABASE_*",
     "VERCEL_*",
     "VERCEL",
@@ -70,10 +71,33 @@
   },
   "tasks": {
     "transit": {
-      "dependsOn": ["^transit"]
+      "dependsOn": ["^transit"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.md",
+        "!**/*.mdx",
+        "!tests/**",
+        "!e2e/**",
+        "!**/*.test.{ts,tsx}",
+        "!**/*.test-d.ts",
+        "!vitest.config.ts",
+        "!playwright.config.ts"
+      ]
     },
     "build": {
       "dependsOn": ["^build"],
+      "env": ["EXPOSE_TESTING_API"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.md",
+        "!**/*.mdx",
+        "!tests/**",
+        "!e2e/**",
+        "!**/*.test.{ts,tsx}",
+        "!**/*.test-d.ts",
+        "!vitest.config.ts",
+        "!playwright.config.ts"
+      ],
       "outputs": [
         "dist/**",
         ".next/**",
@@ -83,34 +107,22 @@
       ]
     },
     "lint": {
-      "dependsOn": ["transit"]
+      "dependsOn": ["transit"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!**/*.mdx"]
     },
     "//#format:check": {},
     "//#audit:high": {
       "cache": false
     },
     "//#lint:root": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!apps/**",
-        "!packages/**",
-        "!tests/**",
-        "!supabase/**",
-        "!docs/**"
-      ]
+      "inputs": ["*.ts", "*.mts", "scripts/**", "package.json"]
     },
     "typecheck": {
-      "dependsOn": ["transit"]
+      "dependsOn": ["transit"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!**/*.mdx"]
     },
     "//#typecheck:tooling": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!apps/**",
-        "!packages/**",
-        "!tests/**",
-        "!supabase/**",
-        "!docs/**"
-      ]
+      "inputs": ["*.ts", "*.mts", "scripts/**", "package.json"]
     },
     "typecheck:matrix": {
       "dependsOn": ["^build"],
@@ -242,7 +254,20 @@
       ]
     },
     "//#knip": {
-      "dependsOn": ["//#catalog", "//#recipes"]
+      "dependsOn": ["//#catalog", "//#recipes"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.md",
+        "!docs/**",
+        "!.agents/**",
+        "!.claude/**",
+        "!.cursor/**",
+        "!.opencode/**",
+        "!.kilo/**",
+        "!.gemini/**",
+        "!.changeset/**",
+        "!supabase/**"
+      ]
     },
     "test": {
       "dependsOn": ["transit"]

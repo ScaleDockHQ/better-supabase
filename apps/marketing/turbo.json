@@ -15,6 +15,7 @@
     "build": {
       "dependsOn": ["^build", "//#catalog", "//#recipes"],
       "env": [
+        "EXPOSE_TESTING_API",
         "DOCS_ORIGIN",
         "NEXT_PUBLIC_SITE_URL",
         "RESEND_API_KEY",
