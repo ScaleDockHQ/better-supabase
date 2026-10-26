@@ -90,7 +90,7 @@ blocks: {
 },
 ```
 
-`options.layout` is `normalized` (the default), `inline` or `keyed` ([below](#keyed-layout)). Inline layout stores the definition columns on the value row and skips the definitions table, which is how `asset_custom_attributes` is adopted.
+`options.layout` is `normalized` (the default), `inline` or `keyed` ([below](#keyed-layout)). Inline layout stores the definition columns on the value row and skips the definitions table, which fits an existing table that keeps one value per row.
 
 ## Keyed layout
 
@@ -158,6 +158,27 @@ export default defineConfig({
     },
   },
 });
+```
+
+Reading needs `custom_fields.read` in the tenant. With
+`options.readAccess: "record"`, `read_field_values` checks each record instead:
+the record is in the tenant and `can_subject(type, id, 'read')` passes, so the
+record's own policies and its `read` action decide, and `permissions.read` is
+not checked. It needs the `subjects` block. The keyed layout has no sensitive
+values, so `permissions.sensitive` is not checked either.
+
+`rank` is a fractional text key by default, ordered with `collate "C"`. With
+`options.rankType: "integer"`, the managed table's `rank` column is an
+`integer`, and over your own table the rank text is cast to the type of the
+column `rank` maps to, so an existing `position integer` column works. Pass the
+rank as a string of digits, such as `rank: "3"`; reads return it as a string too.
+`rankType` and `readAccess` apply only to the keyed layout.
+
+```ts title="better-supabase.config.ts"
+"custom-fields": {
+  columns: { values: { rank: "position" } },
+  options: { layout: "keyed", rankType: "integer", readAccess: "record" },
+},
 ```
 
 The normalized and inline layouts keep their functions. In them too,

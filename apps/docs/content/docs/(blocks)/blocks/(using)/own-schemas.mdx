@@ -24,8 +24,11 @@ yours:
   migration created. This covers tables that exist in the database but in
   none of your files.
 
-For each table it also keeps the columns your files declare and any trigger
-that already keeps `updated_at` current. A block table counts as yours when
+For each table it also keeps the columns your files declare, any trigger
+that already keeps `updated_at` current, and the leading columns of your full
+btree indexes, primary keys and unique constraints. A block adds no plain
+index on your table when one of yours already starts with the same columns,
+and writes a comment in its place. A block table counts as yours when
 one of these tables is at the block's default name, or at the name
 `blocks.<name>.tables` maps it to. A table you create only by hand in the
 dashboard, outside both your files and the snapshot, isn't seen; save a

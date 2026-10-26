@@ -5,6 +5,7 @@ import { fail, userGrant } from "../shared.ts";
 import { subjectTitle } from "../subject-check-sql.ts";
 import { splitName } from "./employees-options.ts";
 import { hiringCandidate } from "./hiring-adoption.ts";
+import { asText } from "./over-app.ts";
 import { createdFromLink } from "./quotes-functions.ts";
 
 export interface EmployeeNames {
@@ -533,6 +534,12 @@ function fromApplication(ctx: BlockSqlContext, n: EmployeeNames): string {
   const e = (column: string): string => n.c("employees", column);
   const candidate = hiringCandidate(hiring, "v_application");
 
+  const jobType = asText(
+    hiring,
+    "jobs",
+    hiring.label("jobs", "employmentType", `v_job.${j("employmentType")}`),
+  );
+
   return `
 -- The employee for a hired application, in preboarding: the name comes from
 -- the candidate's record in config.records, and the job title, team and
@@ -566,8 +573,8 @@ begin
   return ${n.fn("create_employee")}(v_application.${a("tenant")}, jsonb_strip_nulls(jsonb_build_object(
       'name', ${subjectTitle(ctx, candidate.type, candidate.id)},
       'jobTitle', v_job.${j("title")},
-      'teamId', v_job.${j("team")},
-      'employmentType', case when v_job.${j("employmentType")} = any (${n.types}) then v_job.${j("employmentType")} end,
+      'teamId', ${hiring.has("jobs", "team") ? `v_job.${j("team")}` : "null::uuid"},
+      'employmentType', ${hiring.has("jobs", "employmentType") ? `case when ${jobType} = any (${n.types}) then ${jobType} end` : "null::text"},
       'status', 'preboarding'))
     || coalesce(employee_from_application.attrs, '{}'::jsonb)
     || jsonb_build_object('origin', jsonb_build_object('type', 'application', 'id', v_application.${a("id")}::text)));

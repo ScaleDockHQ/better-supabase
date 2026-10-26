@@ -24,6 +24,7 @@ import {
   fieldSubjects,
   keyedContract,
   keyedFields,
+  keyedOptions,
 } from "./custom-fields-keyed.ts";
 import { FIELD_CIPHER_PREFIX } from "./field-encryption.ts";
 import { OPERATIONS } from "./permissions-model.ts";
@@ -59,7 +60,7 @@ const NAMES: BlockSqlNames = {
     field: { table: "definitions", singular: "field", primary: true },
   },
   events: EVENTS,
-  options: ["layout", "auditReads"],
+  options: ["layout", "auditReads", "rankType", "readAccess"],
   tables: {
     definitions: {
       name: "field_definitions",
@@ -158,12 +159,24 @@ function build(ctx: BlockSqlContext): string {
     OPERATIONS["custom-fields.manage"],
   );
 
+  const { rankType, readAccess } = keyedOptions(ctx);
+
   if (layout === "keyed") {
     return `${schemaPreamble(ctx)}
-${keyedFields(ctx, {
-  manage: manageKey,
-  read: ctx.permission("read", OPERATIONS["custom-fields.read"]),
-})}`;
+${keyedFields(
+  ctx,
+  {
+    manage: manageKey,
+    read: ctx.permission("read", OPERATIONS["custom-fields.read"]),
+  },
+  { rankType, readAccess },
+)}`;
+  }
+
+  if (rankType !== "text" || readAccess !== "tenant") {
+    throw new TypeError(
+      'blocks.custom-fields.options.rankType and readAccess apply only to layout "keyed"',
+    );
   }
 
   checkSubjectColumns(ctx, false);
@@ -680,4 +693,11 @@ alter table ${definitions} drop column if exists position;`;
   names: NAMES,
   contract,
   build,
+  unusedPermissions: (ctx) =>
+    ctx.text("layout", "normalized") === "keyed"
+      ? [
+          "sensitive",
+          ...(keyedOptions(ctx).readAccess === "record" ? ["read"] : []),
+        ]
+      : [],
 };

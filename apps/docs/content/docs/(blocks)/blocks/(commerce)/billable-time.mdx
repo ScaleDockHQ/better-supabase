@@ -25,6 +25,12 @@ units ([ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/
 and the choices behind locking billed time are in
 [ADR 0074](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0074-billable-time-rate-card.md).
 
+It reads entries the way time tracking stores them. When the entries table
+keeps a column per record type (`blocks.time-tracking.on.<type>.column`), an
+entry's record comes from that column; when it keeps a start and a duration
+(`endedAt` mapped to `null`), an entry ends at its start plus `seconds` and a
+running timer is never billed.
+
 ## Tables
 
 | Table                  | Holds                                                                                                                                                 |
@@ -129,8 +135,9 @@ start time), and `entryIds`. `groupBy` decides the lines:
 
 ## Billed time is locked
 
-A billed entry can't be deleted, and its start, end, billable flag and rate
-can't change: the database raises `TIME_ENTRY_INVOICED`. Its record can still
+A billed entry can't be deleted, and its start, end (or duration and running
+mark), billable flag and rate can't change: the database raises
+`TIME_ENTRY_INVOICED`. Its record can still
 change, so merging two records keeps working. Voiding the invoice releases
 its entries, and they show up in `unbilled` again.
 

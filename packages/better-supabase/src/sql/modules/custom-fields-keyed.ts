@@ -29,6 +29,31 @@ const VALUE_COLUMNS: Readonly<Record<string, readonly CustomFieldType[]>> = {
   valueEmail: ["email"],
 };
 
+/** `blocks.custom-fields.options.rankType` and `readAccess`. */
+export interface KeyedOptions {
+  readonly rankType: "text" | "integer";
+  readonly readAccess: "tenant" | "record";
+}
+
+export function keyedOptions(ctx: BlockSqlContext): KeyedOptions {
+  const rankType = ctx.text("rankType", "text");
+  const readAccess = ctx.text("readAccess", "tenant");
+
+  if (rankType !== "text" && rankType !== "integer") {
+    throw new TypeError(
+      'blocks.custom-fields.options.rankType must be "text" or "integer"',
+    );
+  }
+
+  if (readAccess !== "tenant" && readAccess !== "record") {
+    throw new TypeError(
+      'blocks.custom-fields.options.readAccess must be "tenant" or "record"',
+    );
+  }
+
+  return { rankType, readAccess };
+}
+
 /** `blocks.custom-fields.on`, with `column` read per subject. */
 export function fieldSubjects(
   ctx: BlockSqlContext,
@@ -122,7 +147,11 @@ function valueJson(ctx: BlockSqlContext, alias: string): string {
 }
 
 /** One value row `alias` as the JSON the keyed functions return. */
-function rowJson(ctx: BlockSqlContext, alias: string): string {
+function rowJson(
+  ctx: BlockSqlContext,
+  alias: string,
+  integerRank = false,
+): string {
   const v = (logical: string): string =>
     `${alias}.${ctx.col("values", logical)}`;
 
@@ -131,7 +160,7 @@ function rowJson(ctx: BlockSqlContext, alias: string): string {
 
   const subject = rowSubject(ctx, alias);
 
-  return `jsonb_build_object('id', ${v("id")}, 'subjectType', ${subject.type}, 'subjectId', ${subject.id}, 'key', ${v("key")}, 'label', ${v("label")}, 'type', ${typeOf(ctx, alias)}, 'rank', ${or("rank")}, 'value', ${valueJson(ctx, alias)}, 'createdAt', ${or("createdAt")}, 'updatedAt', ${or("updatedAt")})`;
+  return `jsonb_build_object('id', ${v("id")}, 'subjectType', ${subject.type}, 'subjectId', ${subject.id}, 'key', ${v("key")}, 'label', ${v("label")}, 'type', ${typeOf(ctx, alias)}, 'rank', ${integerRank && ctx.has("values", "rank") ? `${v("rank")}::text` : or("rank")}, 'value', ${valueJson(ctx, alias)}, 'createdAt', ${or("createdAt")}, 'updatedAt', ${or("updatedAt")})`;
 }
 
 /**
@@ -184,7 +213,7 @@ function valueAssignments(
 }
 
 /** The managed values table of the keyed layout. */
-function keyedTable(ctx: BlockSqlContext): string {
+function keyedTable(ctx: BlockSqlContext, options: KeyedOptions): string {
   const values = ctx.table("values");
   const c = (logical: string): string => ctx.col("values", logical);
 
@@ -213,7 +242,10 @@ function keyedTable(ctx: BlockSqlContext): string {
     ...optional("valueJson", "jsonb"),
     ...optional("valueUrl", "text"),
     ...optional("valueEmail", "text"),
-    ...optional("rank", 'text collate "C"'),
+    ...optional(
+      "rank",
+      options.rankType === "integer" ? "integer" : 'text collate "C"',
+    ),
     ...optional("createdAt", "timestamptz not null default now()"),
     ...optional("updatedAt", "timestamptz not null default now()"),
     ...(poly
@@ -238,8 +270,15 @@ ${lockTable(values, { read: true })}
 export function keyedFields(
   ctx: BlockSqlContext,
   keys: { readonly manage: string; readonly read: string },
+  options: KeyedOptions,
 ): string {
   checkSubjectColumns(ctx, true);
+
+  if (options.readAccess === "record" && !ctx.installed("subjects")) {
+    throw new TypeError(
+      'blocks.custom-fields.options.readAccess "record" checks can_subject; add the subjects block to blocks',
+    );
+  }
 
   for (const logical of ["key", "label", "type"]) {
     if (!ctx.has("values", logical)) {
@@ -266,6 +305,12 @@ export function keyedFields(
   const assignments = valueAssignments(ctx, "v_type", s("value"));
   const tableName = ctx.tableName("values");
   const qualified = `${sqlIdent(tableName.schema)}.${sqlIdent(tableName.name)}`;
+  const integerRank = options.rankType === "integer";
+
+  const rankValue = (value: string): string =>
+    integerRank
+      ? asColumnType(qualified, ctx.colName("values", "rank"), value)
+      : value;
 
   const insertColumns = [
     c("tenant"),
@@ -291,7 +336,7 @@ export function keyedFields(
     s("label"),
     ctx.cast("values", "type", "v_type"),
     ...assignments.map(([, expression]) => expression),
-    ...(ctx.has("values", "rank") ? [s("rank")] : []),
+    ...(ctx.has("values", "rank") ? [rankValue(s("rank"))] : []),
   ];
 
   const updates = [
@@ -299,18 +344,28 @@ export function keyedFields(
     `${c("type")} = ${ctx.cast("values", "type", "v_type")}`,
     ...assignments.map(([column, expression]) => `${column} = ${expression}`),
     ...(ctx.has("values", "rank")
-      ? [`${c("rank")} = coalesce(${s("rank")}, v.${c("rank")})`]
+      ? [`${c("rank")} = coalesce(${rankValue(s("rank"))}, v.${c("rank")})`]
       : []),
     ...(ctx.has("values", "updatedAt") ? [`${c("updatedAt")} = now()`] : []),
   ];
 
   const order = ctx.has("values", "rank")
-    ? `v.${c("rank")} collate "C" nulls last, v.${c("key")}`
+    ? `v.${c("rank")}${integerRank ? "" : ' collate "C"'} nulls last, v.${c("key")}`
     : `v.${c("key")}`;
+
+  const byRecord = options.readAccess === "record";
+
+  const readable = byRecord
+    ? `(auth.role() = 'service_role' or (${subjectReadable(ctx, subjects, {
+        type: "read_field_values.subject_type",
+        id: "read_field_values.subject_id",
+        tenant: "read_field_values.tenant",
+      })}) and coalesce(${ctx.of("subjects").fn("can_subject")}(read_field_values.subject_type, read_field_values.subject_id, 'read'), false))`
+    : `(auth.role() = 'service_role' or ${ctx.scope.can("read_field_values.tenant", keys.read)})`;
 
   const removed = rowSubject(ctx, "v");
 
-  return `${ctx.owns("values") ? keyedTable(ctx) : ""}
+  return `${ctx.owns("values") ? keyedTable(ctx, options) : ""}
 drop function if exists ${fn("set_field_value")}(${ctx.idType}, text, text, uuid, text);
 
 -- Sets one field of a subject by key: the value goes to the column of its
@@ -363,7 +418,7 @@ begin
     tenant: s("tenant"),
     audit: false,
   })}
-  return (select ${rowJson(ctx, "v")} from ${values} v where v.${c("id")} = v_id);
+  return (select ${rowJson(ctx, "v", integerRank)} from ${values} v where v.${c("id")} = v_id);
 end;
 $$;
 ${userGrant(`${fn("set_field_value")}(${ctx.idType}, text, text, text, text, text, jsonb, text, boolean)`)}
@@ -371,16 +426,16 @@ ${userGrant(`${fn("set_field_value")}(${ctx.idType}, text, text, text, text, tex
 -- Every field of a subject as typed rows, in rank order (then by key).
 create or replace function ${fn("read_field_values")}(tenant ${ctx.idType}, subject_type text, subject_id text)
 returns jsonb
-language sql
+language ${byRecord ? "plpgsql" : "sql"}
 stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(${rowJson(ctx, "v")} order by ${order}), '[]'::jsonb)
+${byRecord ? "begin\n  return (\n" : ""}  select coalesce(jsonb_agg(${rowJson(ctx, "v", integerRank)} order by ${order}), '[]'::jsonb)
   from ${values} v
   where v.${c("tenant")} = read_field_values.tenant
     and ${subjectMatch(ctx, "v", "read_field_values.subject_type", "read_field_values.subject_id")}
-    and (auth.role() = 'service_role' or ${ctx.scope.can("read_field_values.tenant", keys.read)})
+    and ${readable}${byRecord ? "\n  );\nend;" : ""}
 $$;
 ${userGrant(`${fn("read_field_values")}(${ctx.idType}, text, text)`)}
 

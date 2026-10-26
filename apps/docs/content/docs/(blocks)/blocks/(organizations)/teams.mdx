@@ -37,7 +37,7 @@ The inbox assigns a conversation to a `teams` row. Installing both drops `inbox_
 
 ## Over your own tables
 
-Map `tables.teams` and `tables.members` onto the app's tables. CentraKit's team ids are `bigint`, so set `teamIdType` to `bigint` and do not install the inbox module in that project.
+Map `tables.teams` and `tables.members` onto the app's tables. Team ids are `uuid` by default. When your team ids are `bigint`, set `options.teamIdType` to `bigint`; the inbox assigns teams by `uuid`, so it can't be installed next to `bigint` team ids.
 
 ## Your own columns
 

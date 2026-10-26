@@ -555,3 +555,10 @@ export const BLOCK_OPTION_SCHEMAS: {
   "workflow-sdk": workflowSdkSqlOptions,
   workflows: NO_OPTIONS,
 };
+
+/** The manifest's options schema of `module`, when it is a built-in module. */
+export function optionSchemaOf(module: string): BlockOptionsSchema | undefined {
+  return Object.entries(BLOCK_OPTION_SCHEMAS).find(
+    ([name]) => name === module,
+  )?.[1];
+}

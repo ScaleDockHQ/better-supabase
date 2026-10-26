@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { SubjectsConfig } from "../../../src/config/index.ts";
+import type {
+  AnyBlocksConfig,
+  SubjectsConfig,
+} from "../../../src/config/index.ts";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
@@ -59,11 +62,16 @@ const as = (
 
 const BOOT = { timeout: 60_000 };
 
-async function run(check: string): Promise<void> {
-  const files = renderBlocks(["comments"], {
-    subjects: SUBJECTS,
-    modules: { comments: { options: { follow: false, notify: false } } },
-  });
+const COMMENTS: AnyBlocksConfig = {
+  comments: { options: { follow: false, notify: false } },
+};
+
+async function run(
+  check: string,
+  modules: AnyBlocksConfig = COMMENTS,
+  subjects: SubjectsConfig = SUBJECTS,
+): Promise<void> {
+  const files = renderBlocks(["comments"], { subjects, modules });
 
   await using stack = await liteStack({
     driver: "pglite",
@@ -122,6 +130,45 @@ begin
   perform better_supabase.delete_message((v_comment ->> 'id')::uuid);
 end;
 $$;`),
+    ).resolves.toBeUndefined();
+  });
+
+  it("opens record conversations only on the types on allows", async () => {
+    const subjects: SubjectsConfig = {
+      file: { table: "public.files", idType: "uuid" },
+      folder: { table: "public.files", idType: "uuid" },
+    };
+
+    const refused = (call: string, hint: string): string => `begin
+    perform ${call};
+    v_hint := 'none';
+  exception when others then
+    get stacked diagnostics v_hint = pg_exception_hint;
+  end;
+  if v_hint <> '${hint}' then
+    raise exception 'expected ${hint}, got %', v_hint;
+  end if;`;
+
+    await expect(
+      run(
+        `do $$
+declare
+  v_hint text;
+begin
+  perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  perform set_config('request.jwt.claim.role', 'service_role', true);
+  perform better_supabase.create_comment('${TENANT}', 'file', '${FILE}', 'on a file');
+  perform better_supabase.open_conversation('${TENANT}', 'subject', jsonb_build_object('subjectType', 'file', 'subjectId', '${FILE}'));
+  ${refused(`better_supabase.create_comment('${TENANT}', 'folder', '${FILE}', 'on a folder')`, "COMMENT_SUBJECT_UNSUPPORTED")}
+  ${refused(`better_supabase.open_conversation('${TENANT}', 'subject', jsonb_build_object('subjectType', 'folder', 'subjectId', '${FILE}'))`, "MESSAGING_SUBJECT_UNSUPPORTED")}
+end;
+$$;`,
+        {
+          comments: { on: ["file"], options: { follow: false, notify: false } },
+          messaging: { on: { file: {} } },
+        },
+        subjects,
+      ),
     ).resolves.toBeUndefined();
   });
 });

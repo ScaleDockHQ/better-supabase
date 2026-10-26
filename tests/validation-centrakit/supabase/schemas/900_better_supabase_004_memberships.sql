@@ -1,6 +1,6 @@
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:de6eec6fd7346c1bd10b026a6592ec4038b8493e4648e2cb2978d3ce924fcda2
+-- @bsb-hash sha256:190bed0b461e861695a71f7c545debe783e499e9055302e6a65d3a29a2a1ea12
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,7 +25,7 @@ grant usage on schema better_supabase to supabase_auth_admin;
 set check_function_bodies = off;
 
 -- centrakit.organization_users is the app's table, and it has every column this block needs.
-create index if not exists memberships_user_idx on "centrakit"."organization_users" ("user_id");
+-- centrakit.organization_users already has an index on (user_id), so this block adds none.
 alter table "centrakit"."organization_users" add column if not exists "updated_at" timestamptz not null default now();
 drop trigger if exists bsb_updated_at on "centrakit"."organization_users";
 create trigger bsb_updated_at before update on "centrakit"."organization_users"

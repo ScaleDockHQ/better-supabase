@@ -27,6 +27,7 @@ import type { DeclaredForeignKey } from "./foreign-keys.ts";
 import type { EntitlementsSource } from "./modules/entitlements-source.ts";
 import type { FunctionGrant, TableGrant } from "./modules/grants.ts";
 import type { VectorSearchTable } from "./modules/vector-search.ts";
+import type { OwnIndex } from "./schema-scan.ts";
 import type { JsonSchemaCheck } from "./shared.ts";
 
 /** The step from one module version to the next, for `upgrade`. */
@@ -164,6 +165,11 @@ export interface BlockSql {
     readonly scope: "tenant" | "platform";
     readonly setting: string;
   }[];
+  /**
+   * Actions of the module's `OPERATIONS` this config never checks, so their
+   * keys aren't reported to the authorization provider.
+   */
+  readonly unusedPermissions?: (ctx: BlockSqlContext) => readonly string[];
   /**
    * Functions granted to `anon` or `authenticated` only so the module's
    * policies and triggers can call them as the client. `api` writes no entry
@@ -328,6 +334,11 @@ export interface BlockSqlLayout {
   readonly ownTables?: Readonly<Record<string, string>>;
   /** The columns of the tables in `ownTables`, where they are known. */
   readonly ownColumns?: Readonly<Record<string, readonly string[]>>;
+  /**
+   * The leading columns of each full btree index on a table in `ownTables`, by
+   * `schema.table`. A block adds no plain index that one of them covers.
+   */
+  readonly ownIndexes?: Readonly<Record<string, readonly OwnIndex[]>>;
   /**
    * The entries of `ownTables` that are views or materialized views, by
    * `schema.view`, and whether Postgres can write through each one. A block

@@ -8,6 +8,7 @@ import { runsOverAppTables } from "../../src/sql/module-types.ts";
 import {
   overAppTables,
   withoutAppTableEdits,
+  withoutCoveredIndexes,
   withoutUnmappedColumns,
   withoutUnmappedTables,
 } from "../../src/sql/over-app-tables.ts";
@@ -357,6 +358,76 @@ create function f() returns int language sql as $$ select 1; $$;
       ),
     ).toThrow(
       'Module "notes" needs table "extras", which blocks.notes.tables maps to null',
+    );
+  });
+});
+
+describe("withoutCoveredIndexes", () => {
+  const sql = `create index if not exists members_user_idx on "public"."members" ("user_id");
+create index if not exists members_pair_idx on "public"."members" ("organization_id", "user_id");
+create index if not exists members_lower_idx on "public"."members" (lower("email"));
+create unique index if not exists members_one on "public"."members" ("organization_id");
+create index if not exists members_partial on "public"."members" ("team_id") where "team_id" is not null;
+create index if not exists members_gin on "public"."members" using gin ("tags");
+create index if not exists other_idx on "public"."others" ("organization_id");
+`;
+
+  it("drops a plain index an app index with the same leading columns covers", () => {
+    const out = withoutCoveredIndexes(sql, new Set(["public.members"]), {
+      "public.members": [
+        {
+          name: "members_by_org",
+          columns: ["organization_id", "user_id", "team_id"],
+        },
+        { columns: ["team_id"] },
+        { name: "members_user_idx", columns: ["user_id"] },
+      ],
+    });
+
+    expect(out).toContain(
+      "-- public.members already has an index on (organization_id, user_id), so this block adds none.",
+    );
+    expect(out).toContain("members_user_idx");
+    expect(out).toContain("members_lower_idx");
+    expect(out).toContain("members_one");
+    expect(out).toContain("members_partial");
+    expect(out).toContain("members_gin");
+    expect(out).toContain("other_idx");
+    expect(out).not.toContain("members_pair_idx");
+  });
+
+  it("leaves the SQL alone without app tables or known indexes", () => {
+    expect(withoutCoveredIndexes(sql, new Set())).toBe(sql);
+    expect(withoutCoveredIndexes(sql, new Set(["public.members"]), {})).toBe(
+      sql,
+    );
+  });
+
+  it("skips the teams index the app's membership index covers", () => {
+    const files = renderBlocks(["teams"], {
+      modules: {
+        teams: {
+          tables: { teams: "public.teams", members: "public.team_members" },
+          columns: { members: { tenant: "organization_id" } },
+        },
+      },
+      ownTables: {
+        "public.teams": "app.sql",
+        "public.team_members": "app.sql",
+      },
+      ownIndexes: {
+        "public.team_members": [
+          { columns: ["organization_id", "user_id", "team_id"] },
+        ],
+      },
+    });
+
+    const out = files.map((file) => file.contents).join("\n");
+
+    expect(out).toContain("team_members_user_idx");
+    expect(out).not.toContain("team_members_membership_idx");
+    expect(out).toContain(
+      "-- public.team_members already has an index on (organization_id, user_id)",
     );
   });
 });

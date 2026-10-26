@@ -105,6 +105,20 @@ export function entrySubjects(
   };
 }
 
+/**
+ * Whether the entries table keeps a duration (`seconds` and `runningSince`)
+ * instead of `endedAt`.
+ */
+export const durationEntries = (ctx: BlockSqlContext): boolean =>
+  !ctx.has("entries", "endedAt");
+
+/** When entry row `alias` ended, null while it runs. */
+export function entryEnded(ctx: BlockSqlContext, alias: string): string {
+  return durationEntries(ctx)
+    ? `(case when ${alias}.${ctx.col("entries", "runningSince")} is null then ${alias}.${ctx.col("entries", "startedAt")} + make_interval(secs => coalesce(${alias}.${ctx.col("entries", "seconds")}, 0)) end)`
+    : `${alias}.${ctx.col("entries", "endedAt")}`;
+}
+
 export function byEmployee(ctx: BlockSqlContext): boolean {
   const raw = ctx.option("owner") ?? "user";
 

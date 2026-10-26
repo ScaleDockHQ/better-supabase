@@ -55,6 +55,7 @@ function defaultWrites(): ReadonlyMap<string, ReadonlySet<string>> {
 function configuredWrites(
   modules: AnyBlocksConfig,
   ownTables: Readonly<Record<string, string>> | undefined,
+  subjects: BlockSqlLayout["subjects"],
 ): ReadonlyMap<string, ReadonlySet<string>> {
   return computedWrites(
     Object.keys(modules)
@@ -63,6 +64,7 @@ function configuredWrites(
           moduleBody(name, {
             modules,
             ...(ownTables === undefined ? {} : { ownTables }),
+            ...(subjects === undefined ? {} : { subjects }),
           }),
         ),
       )
@@ -172,7 +174,7 @@ function contextOf(
 export function adoptedTables(
   modules: AnyBlocksConfig,
   ownTables?: Readonly<Record<string, string>>,
-  views: Pick<BlockSqlLayout, "ownViews" | "ownColumns"> = {},
+  views: Pick<BlockSqlLayout, "ownViews" | "ownColumns" | "subjects"> = {},
 ): readonly AdoptedTable[] {
   const tables: AdoptedTable[] = [];
 
@@ -200,7 +202,7 @@ export function adoptedTables(
 
   const written =
     contexts.length > 0
-      ? configuredWrites(modules, ownTables)
+      ? configuredWrites(modules, ownTables, views.subjects)
       : new Map<string, ReadonlySet<string>>();
 
   for (const [name, ctx] of contexts) {
@@ -281,30 +283,34 @@ export function adoptedColumnProblems(
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
   ownTables?: Readonly<Record<string, string>>,
+  subjects?: BlockSqlLayout["subjects"],
 ): readonly string[] {
   const declared = declaredTableColumns(files, schemas);
+  const context = subjects === undefined ? {} : { subjects };
 
-  const problems = adoptedTables(modules, ownTables).flatMap((table) => {
-    const columns = declared.get(`${table.schema}.${table.table}`);
+  const problems = adoptedTables(modules, ownTables, context).flatMap(
+    (table) => {
+      const columns = declared.get(`${table.schema}.${table.table}`);
 
-    if (
-      columns === undefined ||
-      SQL_MODULES[table.module]?.names?.tables[table.logical] !== undefined
-    ) {
-      return [];
-    }
+      if (
+        columns === undefined ||
+        SQL_MODULES[table.module]?.names?.tables[table.logical] !== undefined
+      ) {
+        return [];
+      }
 
-    return Object.entries(table.columns)
-      .filter(([, physical]) => !columns.has(physical))
-      .map(
-        ([column, physical]) =>
-          `blocks.${table.module} uses ${table.schema}.${table.table}.${physical} (${table.logical}.${column}), but that column is not in the table. Set blocks.${table.module}.on so that column matches the table, or add the column.`,
-      );
-  });
+      return Object.entries(table.columns)
+        .filter(([, physical]) => !columns.has(physical))
+        .map(
+          ([column, physical]) =>
+            `blocks.${table.module} uses ${table.schema}.${table.table}.${physical} (${table.logical}.${column}), but that column is not in the table. Set blocks.${table.module}.on so that column matches the table, or add the column.`,
+        );
+    },
+  );
 
   return [
     ...problems,
-    ...enumColumnProblems(modules, files, schemas, ownTables),
+    ...enumColumnProblems(modules, files, schemas, ownTables, context),
   ];
 }
 
@@ -313,6 +319,7 @@ function enumColumnProblems(
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
   ownTables: Readonly<Record<string, string>> | undefined,
+  context: Pick<BlockSqlLayout, "subjects">,
 ): readonly string[] {
   const enums = declaredEnums(files);
 
@@ -322,7 +329,7 @@ function enumColumnProblems(
 
   const types = declaredColumnTypes(files, schemas);
 
-  return adoptedTables(modules, ownTables).flatMap((table) => {
+  return adoptedTables(modules, ownTables, context).flatMap((table) => {
     const declared = types.get(`${table.schema}.${table.table}`);
 
     if (declared === undefined) {

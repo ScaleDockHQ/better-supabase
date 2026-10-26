@@ -184,10 +184,25 @@ function watchTriggers(
         const key = sqlIdent(watched.key);
         const table = quotedTable(watched.table);
 
+        const hops = watched.through ?? [];
+
+        const values = (row: "old" | "new"): string =>
+          hops.reduce(
+            (previous, hop, at) =>
+              `select h${String(at)}.${sqlIdent(hop.to)}::text from ${quotedTable(hop.table)} h${String(at)} where h${String(at)}.${sqlIdent(hop.from)}::text in (${previous})`,
+            `select ${row}.${key}::text`,
+          );
+
         const refresh = (row: "old" | "new"): string =>
-          watched.via === undefined
+          watched.via === undefined && hops.length === 0
             ? `perform ${ctx.fn("search_refresh")}(${sqlString(subject.type)}, ${row}.${key}::text);`
-            : `for v_id in select s.${subject.id}::text from ${subject.qualified} s where s.${sqlIdent(watched.via)}::text = ${row}.${key}::text loop
+            : `for v_id in ${
+                watched.via === undefined
+                  ? values(row)
+                  : hops.length === 0
+                    ? `select s.${subject.id}::text from ${subject.qualified} s where s.${sqlIdent(watched.via)}::text = ${row}.${key}::text`
+                    : `select s.${subject.id}::text from ${subject.qualified} s where s.${sqlIdent(watched.via)}::text in (${values(row)})`
+              } loop
       perform ${ctx.fn("search_refresh")}(${sqlString(subject.type)}, v_id);
     end loop;`;
 
@@ -237,11 +252,15 @@ function isAppTable(ctx: BlockSqlContext, subject: RegisteredSubject): boolean {
 /** The trigger that re-indexes a subject's row; `fn` is `search_index_row`. */
 function triggerSql(fn: string, subject: RegisteredSubject): string {
   const trigger = sqlIdent(`bsb_search_${subject.type}_index`.slice(0, 63));
-  const columns = watchedColumns(subject).map(sqlIdent).join(", ");
+
+  const update =
+    subject.config.search?.from === undefined
+      ? `update of ${watchedColumns(subject).map(sqlIdent).join(", ")}`
+      : "update";
 
   return `drop trigger if exists ${trigger} on ${subject.qualified};
 create trigger ${trigger}
-  after insert or delete or update of ${columns} on ${subject.qualified}
+  after insert or delete or ${update} on ${subject.qualified}
   for each row execute function ${fn}(${sqlString(subject.type)}, ${sqlString(subject.config.id ?? "id")});`;
 }
 
