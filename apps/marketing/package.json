@@ -38,6 +38,7 @@
     "@axe-core/playwright": "catalog:",
     "@better-supabase/next-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
+    "@next/playwright": "catalog:",
     "@playwright/test": "catalog:",
     "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",

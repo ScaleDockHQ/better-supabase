@@ -113,7 +113,7 @@ test("the blocks sheet opens and a link closes it", async ({ page }) => {
   await expect(sheet).toBeVisible();
   await sheet.getByRole("link", { name: "RLS on every new table" }).click();
 
-  await expect(page).toHaveURL(/\/blocks\/ensure-rls$/);
+  await expect(page).toHaveURL(/\/blocks\/rls-guard$/);
   await expect(sheet).toBeHidden();
 });
 

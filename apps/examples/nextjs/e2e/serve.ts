@@ -11,6 +11,12 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import { baseURL, fetchDelayMs, latencyPort, port } from "./server.ts";
 
+if (process.env["EXPOSE_TESTING_API"] !== "1") {
+  throw new Error(
+    "e2e/serve.ts must run with EXPOSE_TESTING_API=1; without it the instant() lock is ignored and every contract passes vacuously.",
+  );
+}
+
 execFileSync("next", ["build"], { stdio: "inherit" });
 
 const servers: ChildProcess[] = [];

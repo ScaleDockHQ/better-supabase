@@ -29,6 +29,8 @@ export interface InstantPage extends BudgetPage {
 export interface InstantLocator {
   waitFor(options: { state: "visible"; timeout?: number }): Promise<void>;
   count(): Promise<number>;
+  /** Playwright's `Locator.filter`; absent when a custom locator lacks it. */
+  filter?(options: { visible?: boolean }): InstantLocator;
 }
 
 export interface InstantExpectation {
@@ -97,7 +99,8 @@ async function assertUnderLock(expectation: InstantExpectation): Promise<void> {
   }
 
   for (const locator of expectation.absent ?? []) {
-    const count = await locator.count();
+    const visible = locator.filter?.({ visible: true }) ?? locator;
+    const count = await visible.count();
 
     if (count > 0) {
       throw new Error(

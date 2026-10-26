@@ -77,6 +77,16 @@ function fakePage(
       listener?.(
         respond("prefetch", "/inbox?_rsc=2", { "next-router-prefetch": "1" }),
       );
+      listener?.(
+        respond("segment", "/inbox?_rsc=3", {
+          "next-router-segment-prefetch": "1",
+        }),
+      );
+      listener?.(
+        respond("middleware", "/inbox?_rsc=4", {
+          "x-middleware-prefetch": "1",
+        }),
+      );
       listener?.({
         url: () => "https://app.test/logo.png",
         request: () => ({ headers: () => ({}) }),
@@ -120,6 +130,27 @@ describe("expectDbBudget", () => {
     ).toEqual([
       ["doc", 3],
       ["rsc", 1],
+    ]);
+  });
+
+  it("measures prefetches when asked", async () => {
+    const renders = await expectDbBudget(
+      fakePage({
+        doc: stats(1, 1),
+        rsc: stats(1, 1),
+        prefetch: stats(1, 1),
+        segment: stats(1, 1),
+        middleware: stats(1, 1),
+      }),
+      { prefetches: true },
+    );
+
+    expect(renders.map((render) => render.requestId)).toEqual([
+      "doc",
+      "rsc",
+      "prefetch",
+      "segment",
+      "middleware",
     ]);
   });
 

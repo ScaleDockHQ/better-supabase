@@ -55,10 +55,10 @@ mutation.
 to every mutation and declared RPC. Each call gets a `CacheTarget` with the
 table, the changed row ids, and `tables`, the full list to invalidate.
 
-| Adapter                                                | What it invalidates                                                                 |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `queryCache(queryClient)` from `better-supabase/query` | TanStack queries whose `meta.bsTables` overlaps `tables`                            |
-| `nextCache()` from `better-supabase/next`              | `tagFor(table)` for each table and `tagFor(table, id)` per row, via `revalidateTag` |
+| Adapter                                                | What it invalidates                                                                                                                                                                 |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `queryCache(queryClient)` from `better-supabase/query` | TanStack queries whose `meta.bsTables` overlaps `tables`                                                                                                                            |
+| `nextCache()` from `better-supabase/next`              | `tagFor(table)` for each table and `tagFor(table, id)` per row: `updateTag` in Server Actions, `revalidateTag(tag, { expire: 0 })` elsewhere, and a no-op outside a Next.js request |
 
 Your own adapter implements one method, and `testCacheAdapter` from
 `better-supabase/testing` checks it against the same cases.
