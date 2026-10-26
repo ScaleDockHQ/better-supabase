@@ -6,8 +6,12 @@ import type { ConsentRequest } from "../core/agent.ts";
 import type { AnyCommand, CliOptions } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
-import type { InStackDiffOptions } from "../in-stack-diff.ts";
+import type {
+  InStackDiffOptions,
+  InStackDiffResult,
+} from "../in-stack-diff.ts";
 
+import { parseRenameHints } from "../../create/index.ts";
 import { databaseUrl, stdinDatabaseUrl } from "../config.ts";
 import { databaseHost, isLocalDatabaseUrl } from "../core/agent.ts";
 import { defineCliCommand } from "../core/command.ts";
@@ -161,7 +165,12 @@ const DIFF_ARGS = {
   "in-stack": {
     type: "boolean",
     description:
-      "Diff inside the running stack with pg-delta, without the Supabase CLI's shadow database",
+      "Diff inside the running stack with pg-delta's library plan, without the Supabase CLI's shadow database",
+  },
+  "allow-data-loss": {
+    type: "boolean",
+    description:
+      "Write the migration even when it drops tables or columns, or changes a column type",
   },
 } as const;
 
@@ -177,17 +186,29 @@ export interface DbDiffDeps {
     readonly stdout: string;
     readonly stderr: string;
   }>;
-  readonly inStackDiff: (options: InStackDiffOptions) => Promise<string>;
-  readonly now: () => Date;
+  readonly inStackDiff: (
+    options: InStackDiffOptions,
+  ) => Promise<InStackDiffResult>;
   readonly log: (line: string) => void;
 }
 
 const DEFAULT_DIFF_DEPS: DbDiffDeps = {
   supabase: (args, root, env) => supabaseCli(args, root, env),
   inStackDiff,
-  now: () => new Date(),
   log: () => {},
 };
+
+/** The renames recorded as `-- bsb: rename old -> new` in the migrations. */
+async function renameHints(
+  root: string,
+  migrations: readonly string[],
+): Promise<ReturnType<typeof parseRenameHints>> {
+  const texts = await Promise.all(
+    migrations.map((file) => readFile(join(root, file), "utf-8")),
+  );
+
+  return texts.flatMap((text) => parseRenameHints(text));
+}
 
 /**
  * The Supabase CLI's diff for the workflow. pg-delta's `declarative sync`
@@ -251,8 +272,24 @@ export async function runDbDiff(
 
   let fellBack = false;
   const command = cliDiffCommand(workflow, name);
+  const stack = args.stack ?? env.BSB_STACK;
 
-  if (args["in-stack"] !== true && command !== undefined) {
+  // A local pg-delta project plans with the library, which gates renames and data loss.
+  const url: string | null = await databaseUrl(config, env, "", stack).catch(
+    (cause: unknown) => {
+      if (args["in-stack"] === true) {
+        throw cause;
+      }
+
+      return null;
+    },
+  );
+
+  const library =
+    args["in-stack"] === true ||
+    (workflow === "pg-delta" && url !== null && isLocalDatabaseUrl(url));
+
+  if (!library && command !== undefined) {
     const result = await deps.supabase(command, config.root, env);
 
     if (result.code === 0) {
@@ -280,33 +317,56 @@ export async function runDbDiff(
     );
   }
 
-  const url = await databaseUrl(
-    config,
-    env,
-    undefined,
-    args.stack ?? env.BSB_STACK,
-  );
-
-  if (!isLocalDatabaseUrl(url)) {
+  if (url === null || !isLocalDatabaseUrl(url)) {
     throw new CliError(
       "usage",
-      `db diff --in-stack works on a local stack, and the database is ${databaseHost(url)}.`,
+      `db diff --in-stack works on a local stack, and the database is ${url === null ? "unknown" : databaseHost(url)}.`,
     );
   }
 
   const dir = toml?.dir ?? "supabase";
 
-  const sql = await deps.inStackDiff({
+  const migrations = await migrationFiles(config.root, dir);
+
+  const result = await deps.inStackDiff({
     url,
     root: config.root,
     env,
     files: (await schemaPaths(config.root, toml, workflow)).files,
     schemasDir: declarativeSchemasDir(toml, workflow),
-    migrations: await migrationFiles(config.root, dir),
+    migrations,
+    allowDataLoss: args["allow-data-loss"] === true,
+    hints: await renameHints(config.root, migrations),
     log: deps.log,
   });
 
-  const data = { engine: "in-stack", fellBack, changes: sql !== "" };
+  const { sql } = result;
+
+  for (const issue of result.issues) {
+    if (issue.severity !== "error") {
+      deps.log(issue.message);
+    }
+  }
+
+  const data = {
+    engine: "in-stack",
+    fellBack,
+    changes: sql !== "",
+    issues: result.issues,
+  };
+
+  if (result.gate.blocked) {
+    return {
+      code: 1,
+      errorCode: "check_failed",
+      error: `The diff destroys data, so nothing was written:\n${result.gate.destructive
+        .map((action) => `  ${action.sql.split("\n")[0] ?? ""}`)
+        .join(
+          "\n",
+        )}\nRename with \`-- bsb: rename old -> new\` in a migration, or run again with --allow-data-loss.`,
+      data,
+    };
+  }
 
   if (sql === "") {
     return { code: 0, output: "No schema changes.", data };
@@ -320,7 +380,7 @@ export async function runDbDiff(
     config.root,
     dir,
     "migrations",
-    `${migrationVersion(deps.now())}_${name}.sql`,
+    `${migrationVersion(new Date())}_${name}.sql`,
   );
 
   await mkdir(dirname(path), { recursive: true });

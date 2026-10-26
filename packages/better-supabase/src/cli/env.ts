@@ -41,7 +41,6 @@ export interface CliEnv {
    * The directory with `pg_dump` and `psql` for `db diff --in-stack`; found
    * from the stack's postmaster otherwise.
    */
-  readonly BSB_PG_BIN?: string | undefined;
   /** Every variable of the run, for the processes the CLI starts. */
   readonly [PROCESS_ENV]?: Readonly<Record<string, string | undefined>>;
 }
@@ -100,7 +99,6 @@ export function parseEnv(
       BETTER_SUPABASE_ENV: optionalString,
       BETTER_SUPABASE_AGENT: optionalString,
       BSB_STACK: optionalString,
-      BSB_PG_BIN: optionalString,
     },
     runtimeEnv: env,
     isServer: true,

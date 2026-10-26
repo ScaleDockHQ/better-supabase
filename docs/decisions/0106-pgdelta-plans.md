@@ -32,6 +32,6 @@ The pin goes in "Pre-release pins" until pg-delta ships a stable release.
 to any plan shaped like pg-delta's `Plan` (`actions[].dataLoss`, `renameCandidates`), so the CLI and
 the cloud deploy planner share them. pg-delta 1.0.0-alpha.34 reports hazards on each action
 (`dataLoss`, `rewriteRisk`, `lockClass`) and rename candidates on the plan itself; there are no
-separate `renameCandidates` or `classifyPlanHazards` functions. Not wired yet: loading
-`@supabase/pg-delta` in `db diff`, the `--allow-data-loss` flag, `provisionCoLocatedShadow` in
-place of the `pg_dump` copy, and the pin in "Pre-release pins".
+separate `renameCandidates` or `classifyPlanHazards` functions. ADR 0108 wires them into
+`db diff`: the library plan, `--allow-data-loss`, `provisionCoLocatedShadow` in place of the
+`pg_dump` copy, and the pin in "Pre-release pins" (1.0.0-alpha.60).

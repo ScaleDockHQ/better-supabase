@@ -34,34 +34,40 @@ pnpm better-supabase db diff -f add_invoices
 pnpm better-supabase db diff --in-stack
 ```
 
-`db diff` turns the declarative schema files into a migration. It runs the
-Supabase CLI's command for the project's workflow first: `supabase db schema
-declarative sync --no-apply` under pg-delta, `supabase db diff` under migra.
-That command starts a shadow database, a second Postgres. When it can't
-start one, usually because every System V shared memory segment is in use
-(macOS allows 32, and each running stack holds one), `db diff` diffs inside
-the stack you already run instead.
+`db diff` turns the declarative schema files into a migration. On a local
+database under pg-delta, it plans with pg-delta's library: it creates a shadow
+database in the same Postgres as the stack, loads the files into it, and plans
+the changes from the stack to the shadow. The shadow is dropped afterwards,
+also when a step fails. The stack has to have applied every migration first
+(`supabase migration up`), or the diff would repeat them.
 
-The in-stack diff copies the stack's schema into a temporary database in the
-same Postgres and replaces the objects the files manage with the files.
-pg-delta then diffs the stack against the copy. The temporary database is
-dropped afterwards, also when a step fails. It needs `pg_dump` and `psql`
-from the stack's Postgres: `db diff` finds them next to the running
-postmaster, and `$BSB_PG_BIN` names their directory when it can't. The stack
-has to have applied every migration first (`supabase migration up`), or the
-diff would repeat them.
+Under migra, or on a database that isn't local, `db diff` runs the Supabase
+CLI's command for the workflow (`supabase db diff`). When that command can't
+start its shadow database, usually because every System V shared memory
+segment is in use (macOS allows 32, and each running stack holds one), `db
+diff` plans with the library on the stack you already run.
 
-| Flag             | Effect                                                                                 |
-| ---------------- | -------------------------------------------------------------------------------------- |
-| `-f, --file`     | Saves the diff as `supabase/migrations/<timestamp>_<name>.sql` instead of printing it. |
-| `--in-stack`     | Diffs inside the running stack without trying the Supabase CLI's shadow database.      |
-| `--stack <name>` | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BSB_STACK`).      |
+The plan is checked before anything is written:
 
-Under pg-delta, `declarative sync` always writes a file, so `db diff` without
-`--file` prints the in-stack diff. A migration from the in-stack diff starts
-with a comment that asks you to review it: it compares two databases, so
-check the order of the statements before you apply it. The JSON envelope
-names the engine in `data.engine` and sets `data.fellBack` when the shadow
+- A table or column that looks renamed is never guessed. Record the rename in
+  a migration as `-- bsb: rename old_name -> new_name` and the next diff plans
+  a rename that keeps the data. Without it, the diff plans a drop and a create
+  and tells you which rename it suspects.
+- An action that destroys data (dropping a table or column, narrowing a
+  column type) stops the diff with a `check_failed` error and writes nothing.
+  Run it again with `--allow-data-loss` once you have read the list.
+
+| Flag                | Effect                                                                                 |
+| ------------------- | -------------------------------------------------------------------------------------- |
+| `-f, --file`        | Saves the diff as `supabase/migrations/<timestamp>_<name>.sql` instead of printing it. |
+| `--in-stack`        | Plans with the library on the running stack, without the Supabase CLI.                 |
+| `--allow-data-loss` | Writes the migration even when it destroys data.                                       |
+| `--stack <name>`    | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BSB_STACK`).      |
+
+A migration from the library plan starts with a comment that asks you to
+review it: it compares two databases, so check the order of the statements
+before you apply it. The JSON envelope names the engine in `data.engine`, lists
+the plan's findings in `data.issues` and sets `data.fellBack` when the shadow
 database failed. `better-supabase dev stack prune` frees the segments that idle
 stacks hold.
 

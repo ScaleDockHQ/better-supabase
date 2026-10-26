@@ -501,7 +501,8 @@ Turns the declarative schema into a migration, diffing inside the running stack 
 
 Options
   -f, --file <name>  Save the diff as supabase/migrations/<timestamp>_<name>.sql instead of printing it
-  --in-stack         Diff inside the running stack with pg-delta, without the Supabase CLI's shadow database
+  --in-stack         Diff inside the running stack with pg-delta's library plan, without the Supabase CLI's shadow database
+  --allow-data-loss  Write the migration even when it drops tables or columns, or changes a column type
   --stack <name>     Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack
 
 Global options
