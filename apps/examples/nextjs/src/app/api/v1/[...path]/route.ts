@@ -1,29 +1,12 @@
-import { bsb } from "../../../../lib/supabase/server";
+import { API_BASE_PATH, apiResources } from "@/features/api/api-resources";
+import { bsb } from "@/lib/supabase/server";
 
 /**
- * The REST API for the API model, as the caller (RLS): `GET /api/v1/customers`,
- * `GET|PATCH|DELETE /api/v1/customers/{id}` and the `archive` action. Paths
- * outside the map answer 404 before auth resolves.
+ * The REST API as the caller (RLS): customers, projects, tasks and memberships
+ * from the app's tables, and the organization's teams and roles from the
+ * blocks. Paths outside the map answer 404 before auth resolves. The document
+ * is at `/api/v1/openapi.json`.
  */
-export const { GET, POST, PATCH, PUT, DELETE } = bsb.resources(
-  {
-    customers: {
-      operations: ["list", "get", "update", "delete"],
-      select: ["id", "name", "status", "organizationId"],
-      actions: {
-        archive: {
-          method: "POST",
-          path: "/{id}/archive",
-          summary: "Archive a customer",
-          handler: (ctx, { id }) =>
-            ctx.db.customers.update(
-              String(id),
-              { status: "archived" },
-              { select: ["id", "status"] },
-            ),
-        },
-      },
-    },
-  },
-  { basePath: "/api/v1" },
-);
+export const { GET, POST, PATCH, PUT, DELETE } = bsb.resources(apiResources, {
+  basePath: API_BASE_PATH,
+});
