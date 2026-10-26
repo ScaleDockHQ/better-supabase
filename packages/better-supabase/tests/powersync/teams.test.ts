@@ -46,8 +46,22 @@ describe("powersyncTeamsTransport", () => {
     await expect(
       transport.call("better_supabase", "list_teams", { tenant: "o1" }),
     ).resolves.toEqual([
-      { id: "t2", name: "Design", slug: "design", status: "active" },
-      { id: "t1", name: "Sales", slug: "sales", status: "active" },
+      {
+        id: "t2",
+        name: "Design",
+        slug: "design",
+        description: null,
+        status: "active",
+        member_ids: [],
+      },
+      {
+        id: "t1",
+        name: "Sales",
+        slug: "sales",
+        description: null,
+        status: "active",
+        member_ids: ["u1"],
+      },
     ]);
   });
 
@@ -61,7 +75,13 @@ describe("powersyncTeamsTransport", () => {
         description: null,
         patch: { slug: "revenue" },
       }),
-    ).resolves.toEqual({ id: "t1", name: "Revenue", slug: "revenue" });
+    ).resolves.toEqual({
+      id: "t1",
+      name: "Revenue",
+      slug: "revenue",
+      description: null,
+      status: "active",
+    });
 
     await transport.call("better_supabase", "archive_team", { team: "t2" });
 

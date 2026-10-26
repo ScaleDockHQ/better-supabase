@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:e2e505349e47e8a83df22906c69837f4b5ee3e30409927738e9efaa4ae07fea0
+-- @bsb-hash sha256:51bc3da49468b0043730913e35cd48f57d0674040a0d353eece5873e380d9095
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -180,7 +180,7 @@ begin
       "updated_at" = now()
   where t."id" = update_team.team;
   null;
-  return jsonb_build_object('id', update_team.team);
+  return (select jsonb_build_object('id', x."id", 'name', x."name", 'slug', x."slug", 'description', x."description", 'status', x."status") from "public"."teams" x where x."id" = update_team.team);
 end;
 $$;
 revoke execute on function "better_supabase"."update_team"(uuid, text, text) from public, anon;
@@ -315,8 +315,14 @@ as $$
     'id', t."id",
     'name', t."name",
     'slug', t."slug",
-    'status', t."status"
-  )), '[]'::jsonb)
+    'description', t."description",
+    'status', t."status",
+    'member_ids', coalesce((
+      select jsonb_agg(m."user_id" order by m."created_at")
+      from "public"."team_members" m
+      where m."team_id" = t."id"
+    ), '[]'::jsonb)
+  ) order by t."name"), '[]'::jsonb)
   from "public"."teams" t
   where t."organization_id" = list_teams.tenant
     and (

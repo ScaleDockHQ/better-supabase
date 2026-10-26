@@ -100,13 +100,23 @@ describe("block fields", () => {
   });
 
   it("leaves fields out of the call when there are none", async () => {
-    const fake = transport({ update_team: { id: "t1", slug: "ops" } });
+    const fake = transport({
+      update_team: { id: "t1", name: "Ops", slug: "ops", status: "active" },
+    });
 
     const team = await createTeams({ transport: fake.transport })
       .update("t1", "Ops")
       .orThrow();
 
-    expect(team).toEqual({ id: "t1", name: "Ops", slug: "ops", fields: {} });
+    expect(team).toEqual({
+      id: "t1",
+      name: "Ops",
+      slug: "ops",
+      description: null,
+      status: "active",
+      memberIds: [],
+      fields: {},
+    });
     expect(fake.calls[0]?.args["fields"]).toBeUndefined();
   });
 

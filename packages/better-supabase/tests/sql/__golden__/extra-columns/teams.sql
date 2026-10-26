@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:4f8bba199644b785097c9fb4fdb60c93ed31b37ca99293306f7c1193ef444af5
+-- @bsb-hash sha256:078871cb13229f194ae107217ad688d96e0b3c6e63015cb21f094a96ec908bae
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -178,7 +178,7 @@ begin
         using v_id, create_team.tenant;
     end if;
   end;
-  return (select jsonb_build_object('id', x."id", 'slug', x."slug", 'fields', jsonb_build_object('app_note', x."app_note")) from "better_supabase"."teams" x where x."id" = v_id);
+  return (select jsonb_build_object('id', x."id", 'name', x."name", 'slug', x."slug", 'description', x."description", 'status', x."status", 'fields', jsonb_build_object('app_note', x."app_note")) from "better_supabase"."teams" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."create_team"(uuid, text, text, jsonb) from public, anon;
@@ -213,7 +213,7 @@ begin
   from jsonb_populate_record(null::"better_supabase"."teams", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(update_team.fields) e where e.key in ('app_note'))) r
   where x."id" = update_team.team;
   null;
-  return (select jsonb_build_object('id', x."id", 'slug', x."slug", 'fields', jsonb_build_object('app_note', x."app_note")) from "better_supabase"."teams" x where x."id" = update_team.team);
+  return (select jsonb_build_object('id', x."id", 'name', x."name", 'slug', x."slug", 'description', x."description", 'status', x."status", 'fields', jsonb_build_object('app_note', x."app_note")) from "better_supabase"."teams" x where x."id" = update_team.team);
 end;
 $$;
 revoke execute on function "better_supabase"."update_team"(uuid, text, text, jsonb) from public, anon;
@@ -348,8 +348,14 @@ as $$
     'id', t."id",
     'name', t."name",
     'slug', t."slug",
-    'status', t."status", 'fields', jsonb_build_object('app_note', t."app_note")
-  )), '[]'::jsonb)
+    'description', t."description",
+    'status', t."status",
+    'member_ids', coalesce((
+      select jsonb_agg(m."user_id" order by m."created_at")
+      from "better_supabase"."team_members" m
+      where m."team_id" = t."id"
+    ), '[]'::jsonb), 'fields', jsonb_build_object('app_note', t."app_note")
+  ) order by t."name"), '[]'::jsonb)
   from "better_supabase"."teams" t
   where t."tenant_id" = list_teams.tenant
     and (

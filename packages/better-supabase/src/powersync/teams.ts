@@ -45,6 +45,21 @@ export interface PowerSyncTeamsOptions {
 
 type Row = Readonly<Record<string, unknown>>;
 
+/** `json_group_array` comes back as JSON text. */
+function memberIdsOf(value: unknown): readonly unknown[] {
+  if (typeof value !== "string") {
+    return [];
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 const isRow = (value: unknown): value is Row =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -66,7 +81,8 @@ const isRow = (value: unknown): value is Row =>
  *
  * The synced teams are the ones the signed-in user belongs to (the `powersync
  * streams` query filters by `auth.user_id()`), so `list` offline returns those,
- * not every team the user may read.
+ * not every team the user may read, and each team's `memberIds` holds only the
+ * synced member rows.
  */
 export function powersyncTeamsTransport(
   database: PowerSyncDatabaseLike,
@@ -93,11 +109,14 @@ export function powersyncTeamsTransport(
     switch (fn) {
       case "list_teams": {
         const rows = await database.getAll<Row>(
-          `SELECT id, name, slug, status FROM ${teams} WHERE ${tenant} = ? ORDER BY name`,
+          `SELECT t.id, t.name, t.slug, t.description, t.status, (SELECT json_group_array(m.user_id) FROM ${members} m WHERE m.team_id = t.id) AS member_ids FROM ${teams} t WHERE t.${tenant} = ? ORDER BY t.name`,
           [args["tenant"]],
         );
 
-        return rows;
+        return rows.map((row) => ({
+          ...row,
+          member_ids: memberIdsOf(row["member_ids"]),
+        }));
       }
 
       case "update_team": {
@@ -135,7 +154,7 @@ export function powersyncTeamsTransport(
         );
 
         const [row] = await database.getAll<Row>(
-          `SELECT id, name, slug FROM ${teams} WHERE id = ?`,
+          `SELECT id, name, slug, description, status FROM ${teams} WHERE id = ?`,
           [args["team"]],
         );
 

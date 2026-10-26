@@ -62,6 +62,11 @@ export const { useList: useTeams } = defineDataHooks(
 const rows = await db.teams.list(organizationId).orThrow();
 ```
 
+`list` returns the teams sorted by name. Each row has its `id`, `name`,
+`slug`, `description`, `status` (`active` or `archived`) and `memberIds`, the
+user ids on the team, so a page can show who is on a team or hide archived
+teams without reading `team_members`. `update` returns the stored row.
+
 ```tsx title="src/features/teams/list.tsx"
 "use client";
 
