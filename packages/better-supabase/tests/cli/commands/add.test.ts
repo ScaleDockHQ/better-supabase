@@ -30,6 +30,13 @@ describe("add", () => {
       "--tables works with --adopt and one block",
     ],
     [["audit", "--tables", "public.t"], "--tables works with --adopt"],
+    [["--over", "public.t"], "--over works with one block"],
+    [["audit", "tags", "--over", "public.t"], "--over works with one block"],
+    [["audit", "--over", "public.t", "--adopt"], "--over replaces --adopt"],
+    [
+      ["audit", "--over", "public.t", "--tables", "public.t"],
+      "--over replaces",
+    ],
   ])("refuses add %j", async (argv, message) => {
     const result = await run(["add", ...argv, "--cwd", dir]);
 

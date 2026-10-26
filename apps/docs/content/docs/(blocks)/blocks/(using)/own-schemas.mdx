@@ -944,8 +944,8 @@ Only files with a block marker count, so your own files are never removed.
    `ownership: "adopt"` from the config and keeps `tables` and `columns`; a
    config that still sets it fails to load.
 3. Add the blocks, map your names with `tables` and `columns`
-   (`better-supabase add --adopt <block> --tables <schema.table>` proposes
-   them), and add `tables.<name>` entries for the tables of your own that
+   (`better-supabase add <block> --over <schema.table>` proposes them for one
+   block over one table; `add --adopt <block> --tables ...` is the long form), and add `tables.<name>` entries for the tables of your own that
    need a scope.
 4. Run `better-supabase upgrade` and read the comment it writes over each of
    your tables (it says the table is the app's and which columns it adds),
