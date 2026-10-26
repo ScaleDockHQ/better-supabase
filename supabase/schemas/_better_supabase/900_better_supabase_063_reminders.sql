@@ -1,6 +1,6 @@
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:b36f2b2652eb22187e593bcc1f5c4712ad843e97039eced7387d729081a16447
+-- @bsb-hash sha256:3fd80857b4536956d7b3f9eeb93208686fefe01165d00792194bdf386b2b1228
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -74,7 +74,7 @@ create table if not exists "better_supabase"."recurrence_rules" (
   unique ("tenant_id", "subject_type", "subject_id")
 );
 alter table "better_supabase"."recurrence_rules" enable row level security;
-revoke all on "better_supabase"."recurrence_rules" from anon, authenticated;
+revoke all on "better_supabase"."recurrence_rules" from public, anon, authenticated;
 grant select on "better_supabase"."recurrence_rules" to authenticated;
 grant all on "better_supabase"."recurrence_rules" to service_role;
 create index if not exists "recurrence_rules_subject_idx" on "better_supabase"."recurrence_rules" ("subject_type", "subject_id");
@@ -88,7 +88,7 @@ create table if not exists "better_supabase"."reminders" (
   "offset_minutes" integer not null default 0
 );
 alter table "better_supabase"."reminders" enable row level security;
-revoke all on "better_supabase"."reminders" from anon, authenticated;
+revoke all on "better_supabase"."reminders" from public, anon, authenticated;
 grant select on "better_supabase"."reminders" to authenticated;
 grant all on "better_supabase"."reminders" to service_role;
 create index if not exists "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
@@ -119,7 +119,7 @@ create table if not exists "better_supabase"."reminder_deliveries" (
   unique ("reminder_id", "occurrence_at")
 );
 alter table "better_supabase"."reminder_deliveries" enable row level security;
-revoke all on "better_supabase"."reminder_deliveries" from anon, authenticated;
+revoke all on "better_supabase"."reminder_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
 
@@ -413,5 +413,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

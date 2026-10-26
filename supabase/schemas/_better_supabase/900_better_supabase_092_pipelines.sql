@@ -1,6 +1,6 @@
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:6deeaa6da81359f7f640efe7dc762bfe5f2d8cb8ea5f45715fdbb159599b3588
+-- @bsb-hash sha256:a5e7eeff9909ae57f0ecff28b1b6f38f699e66dd58c507a20b68ba85ba9407e1
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -99,7 +99,7 @@ create table if not exists "better_supabase"."pipelines" (
 create unique index if not exists pipelines_default_idx on "better_supabase"."pipelines" ("tenant_id", "subject_type", coalesce("scope_id", ''))
   where "is_default" and "archived_at" is null;
 alter table "better_supabase"."pipelines" enable row level security;
-revoke all on "better_supabase"."pipelines" from anon, authenticated;
+revoke all on "better_supabase"."pipelines" from public, anon, authenticated;
 grant select on "better_supabase"."pipelines" to authenticated;
 grant all on "better_supabase"."pipelines" to service_role;
 drop policy if exists pipelines_read on "better_supabase"."pipelines";
@@ -127,7 +127,7 @@ create table if not exists "better_supabase"."pipeline_stages" (
 );
 create index if not exists pipeline_stages_pipeline_idx on "better_supabase"."pipeline_stages" ("pipeline_id", "rank");
 alter table "better_supabase"."pipeline_stages" enable row level security;
-revoke all on "better_supabase"."pipeline_stages" from anon, authenticated;
+revoke all on "better_supabase"."pipeline_stages" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stages" to authenticated;
 grant all on "better_supabase"."pipeline_stages" to service_role;
 drop policy if exists pipeline_stages_read on "better_supabase"."pipeline_stages";
@@ -144,7 +144,7 @@ create table if not exists "better_supabase"."pipeline_transitions" (
 create index if not exists pipeline_transitions_pipeline_idx on "better_supabase"."pipeline_transitions" ("pipeline_id");
 create index if not exists pipeline_transitions_to_idx on "better_supabase"."pipeline_transitions" ("to_stage_id");
 alter table "better_supabase"."pipeline_transitions" enable row level security;
-revoke all on "better_supabase"."pipeline_transitions" from anon, authenticated;
+revoke all on "better_supabase"."pipeline_transitions" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_transitions" to authenticated;
 grant all on "better_supabase"."pipeline_transitions" to service_role;
 drop policy if exists pipeline_transitions_read on "better_supabase"."pipeline_transitions";
@@ -172,7 +172,7 @@ create index if not exists pipeline_stage_history_subject_idx on "better_supabas
 create index if not exists pipeline_stage_history_pipeline_idx on "better_supabase"."pipeline_stage_history" ("pipeline_id", "entered_at");
 create unique index if not exists pipeline_stage_history_open_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id") where "exited_at" is null;
 alter table "better_supabase"."pipeline_stage_history" enable row level security;
-revoke all on "better_supabase"."pipeline_stage_history" from anon, authenticated;
+revoke all on "better_supabase"."pipeline_stage_history" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stage_history" to authenticated;
 grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
@@ -1677,5 +1677,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

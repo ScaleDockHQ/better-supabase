@@ -154,7 +154,7 @@ describe("impersonation module", () => {
     expect(sql).toContain("now() + '1 hour'::interval");
     // The requests table is read-only for clients: no insert or update grant.
     expect(sql).toContain(
-      'revoke all on "better_supabase"."support_requests" from anon, authenticated;',
+      'revoke all on "better_supabase"."support_requests" from public, anon, authenticated;',
     );
     expect(sql).not.toMatch(/grant (insert|update)[^;]*support_requests/);
     expect(sql).toContain(

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:d2196363ccfb4f5e6917e6a66c3fdd33f63c7775fea785f956f087a1cd3df913
+-- @bsb-hash sha256:0d833fb636310a4f6d7852154dfe345e9b2ce444edeb3ba87c8053a27fa1e005
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -119,7 +119,7 @@ create table if not exists "better_supabase"."inventory_locations" (
   unique ("tenant_id", "code")
 );
 alter table "better_supabase"."inventory_locations" enable row level security;
-revoke all on "better_supabase"."inventory_locations" from anon, authenticated;
+revoke all on "better_supabase"."inventory_locations" from public, anon, authenticated;
 grant select on "better_supabase"."inventory_locations" to authenticated;
 grant all on "better_supabase"."inventory_locations" to service_role;
 drop policy if exists inventory_locations_read on "better_supabase"."inventory_locations";
@@ -140,7 +140,7 @@ create table if not exists "better_supabase"."stock_levels" (
 );
 create index if not exists stock_levels_location_idx on "better_supabase"."stock_levels" ("location_id");
 alter table "better_supabase"."stock_levels" enable row level security;
-revoke all on "better_supabase"."stock_levels" from anon, authenticated;
+revoke all on "better_supabase"."stock_levels" from public, anon, authenticated;
 grant select on "better_supabase"."stock_levels" to authenticated;
 grant all on "better_supabase"."stock_levels" to service_role;
 drop policy if exists stock_levels_read on "better_supabase"."stock_levels";
@@ -164,7 +164,7 @@ create index if not exists stock_reservations_active_idx on "better_supabase"."s
 create index if not exists stock_reservations_level_idx on "better_supabase"."stock_reservations" ("variant_id", "location_id");
 create index if not exists stock_reservations_location_idx on "better_supabase"."stock_reservations" ("location_id");
 alter table "better_supabase"."stock_reservations" enable row level security;
-revoke all on "better_supabase"."stock_reservations" from anon, authenticated;
+revoke all on "better_supabase"."stock_reservations" from public, anon, authenticated;
 grant select on "better_supabase"."stock_reservations" to authenticated;
 grant all on "better_supabase"."stock_reservations" to service_role;
 drop policy if exists stock_reservations_read on "better_supabase"."stock_reservations";
@@ -186,7 +186,7 @@ create table if not exists "better_supabase"."stock_transfers" (
 create index if not exists stock_transfers_from_idx on "better_supabase"."stock_transfers" ("from_location_id");
 create index if not exists stock_transfers_to_idx on "better_supabase"."stock_transfers" ("to_location_id");
 alter table "better_supabase"."stock_transfers" enable row level security;
-revoke all on "better_supabase"."stock_transfers" from anon, authenticated;
+revoke all on "better_supabase"."stock_transfers" from public, anon, authenticated;
 grant select on "better_supabase"."stock_transfers" to authenticated;
 grant all on "better_supabase"."stock_transfers" to service_role;
 drop policy if exists stock_transfers_read on "better_supabase"."stock_transfers";
@@ -202,7 +202,7 @@ create table if not exists "better_supabase"."stock_transfer_lines" (
 );
 create index if not exists stock_transfer_lines_variant_idx on "better_supabase"."stock_transfer_lines" ("variant_id");
 alter table "better_supabase"."stock_transfer_lines" enable row level security;
-revoke all on "better_supabase"."stock_transfer_lines" from anon, authenticated;
+revoke all on "better_supabase"."stock_transfer_lines" from public, anon, authenticated;
 grant select on "better_supabase"."stock_transfer_lines" to authenticated;
 grant all on "better_supabase"."stock_transfer_lines" to service_role;
 drop policy if exists stock_transfer_lines_read on "better_supabase"."stock_transfer_lines";
@@ -227,7 +227,7 @@ create table if not exists "better_supabase"."purchase_orders" (
 create index if not exists purchase_orders_location_idx on "better_supabase"."purchase_orders" ("location_id");
 create index if not exists purchase_orders_status_idx on "better_supabase"."purchase_orders" ("tenant_id", "status");
 alter table "better_supabase"."purchase_orders" enable row level security;
-revoke all on "better_supabase"."purchase_orders" from anon, authenticated;
+revoke all on "better_supabase"."purchase_orders" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_orders" to authenticated;
 grant all on "better_supabase"."purchase_orders" to service_role;
 drop policy if exists purchase_orders_read on "better_supabase"."purchase_orders";
@@ -246,7 +246,7 @@ create table if not exists "better_supabase"."purchase_order_lines" (
 );
 create index if not exists purchase_order_lines_variant_idx on "better_supabase"."purchase_order_lines" ("variant_id");
 alter table "better_supabase"."purchase_order_lines" enable row level security;
-revoke all on "better_supabase"."purchase_order_lines" from anon, authenticated;
+revoke all on "better_supabase"."purchase_order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 drop policy if exists purchase_order_lines_read on "better_supabase"."purchase_order_lines";
@@ -1310,7 +1310,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
@@ -1330,7 +1330,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:caf0fe168ba00d9c5dd0b80d29a0ad03b95c88c3345b2898d70cc2e1fcdc0830
+-- @bsb-hash sha256:aa7d21dde05c0ee1cc9a7bf3d91692ab920ec23e0c3144846221d0e0131083e1
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1448,7 +1448,7 @@ create table if not exists "better_supabase"."inventory_locations" (
   unique ("tenant_id", "code")
 );
 alter table "better_supabase"."inventory_locations" enable row level security;
-revoke all on "better_supabase"."inventory_locations" from anon, authenticated;
+revoke all on "better_supabase"."inventory_locations" from public, anon, authenticated;
 grant select on "better_supabase"."inventory_locations" to authenticated;
 grant all on "better_supabase"."inventory_locations" to service_role;
 drop policy if exists inventory_locations_read on "better_supabase"."inventory_locations";
@@ -1469,7 +1469,7 @@ create table if not exists "better_supabase"."stock_levels" (
 );
 create index if not exists stock_levels_location_idx on "better_supabase"."stock_levels" ("location_id");
 alter table "better_supabase"."stock_levels" enable row level security;
-revoke all on "better_supabase"."stock_levels" from anon, authenticated;
+revoke all on "better_supabase"."stock_levels" from public, anon, authenticated;
 grant select on "better_supabase"."stock_levels" to authenticated;
 grant all on "better_supabase"."stock_levels" to service_role;
 drop policy if exists stock_levels_read on "better_supabase"."stock_levels";
@@ -1493,7 +1493,7 @@ create index if not exists stock_reservations_active_idx on "better_supabase"."s
 create index if not exists stock_reservations_level_idx on "better_supabase"."stock_reservations" ("variant_id", "location_id");
 create index if not exists stock_reservations_location_idx on "better_supabase"."stock_reservations" ("location_id");
 alter table "better_supabase"."stock_reservations" enable row level security;
-revoke all on "better_supabase"."stock_reservations" from anon, authenticated;
+revoke all on "better_supabase"."stock_reservations" from public, anon, authenticated;
 grant select on "better_supabase"."stock_reservations" to authenticated;
 grant all on "better_supabase"."stock_reservations" to service_role;
 drop policy if exists stock_reservations_read on "better_supabase"."stock_reservations";
@@ -1515,7 +1515,7 @@ create table if not exists "better_supabase"."stock_transfers" (
 create index if not exists stock_transfers_from_idx on "better_supabase"."stock_transfers" ("from_location_id");
 create index if not exists stock_transfers_to_idx on "better_supabase"."stock_transfers" ("to_location_id");
 alter table "better_supabase"."stock_transfers" enable row level security;
-revoke all on "better_supabase"."stock_transfers" from anon, authenticated;
+revoke all on "better_supabase"."stock_transfers" from public, anon, authenticated;
 grant select on "better_supabase"."stock_transfers" to authenticated;
 grant all on "better_supabase"."stock_transfers" to service_role;
 drop policy if exists stock_transfers_read on "better_supabase"."stock_transfers";
@@ -1531,7 +1531,7 @@ create table if not exists "better_supabase"."stock_transfer_lines" (
 );
 create index if not exists stock_transfer_lines_variant_idx on "better_supabase"."stock_transfer_lines" ("variant_id");
 alter table "better_supabase"."stock_transfer_lines" enable row level security;
-revoke all on "better_supabase"."stock_transfer_lines" from anon, authenticated;
+revoke all on "better_supabase"."stock_transfer_lines" from public, anon, authenticated;
 grant select on "better_supabase"."stock_transfer_lines" to authenticated;
 grant all on "better_supabase"."stock_transfer_lines" to service_role;
 drop policy if exists stock_transfer_lines_read on "better_supabase"."stock_transfer_lines";
@@ -1556,7 +1556,7 @@ create table if not exists "better_supabase"."purchase_orders" (
 create index if not exists purchase_orders_location_idx on "better_supabase"."purchase_orders" ("location_id");
 create index if not exists purchase_orders_status_idx on "better_supabase"."purchase_orders" ("tenant_id", "status");
 alter table "better_supabase"."purchase_orders" enable row level security;
-revoke all on "better_supabase"."purchase_orders" from anon, authenticated;
+revoke all on "better_supabase"."purchase_orders" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_orders" to authenticated;
 grant all on "better_supabase"."purchase_orders" to service_role;
 drop policy if exists purchase_orders_read on "better_supabase"."purchase_orders";
@@ -1575,7 +1575,7 @@ create table if not exists "better_supabase"."purchase_order_lines" (
 );
 create index if not exists purchase_order_lines_variant_idx on "better_supabase"."purchase_order_lines" ("variant_id");
 alter table "better_supabase"."purchase_order_lines" enable row level security;
-revoke all on "better_supabase"."purchase_order_lines" from anon, authenticated;
+revoke all on "better_supabase"."purchase_order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 drop policy if exists purchase_order_lines_read on "better_supabase"."purchase_order_lines";
@@ -2639,7 +2639,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
@@ -2659,7 +2659,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:7f072c37f7438ed0628ab2e66e3d6793afeab012f93d4d8e43db711eb36bbb5f
+-- @bsb-hash sha256:c23afc2b466fa24dd3b5b6e5bd67143df1e7022ad292908b38450575b4b70f77
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2764,6 +2764,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Stock per catalog variant and location: movements posted to the ledger,
 -- reservations with expiry, transfers and purchase orders with receiving.
 
@@ -2779,7 +2782,7 @@ create table if not exists "app_private"."inventory_locations" (
   unique ("tenant_id", "code")
 );
 alter table "app_private"."inventory_locations" enable row level security;
-revoke all on "app_private"."inventory_locations" from anon, authenticated;
+revoke all on "app_private"."inventory_locations" from public, anon, authenticated;
 grant select on "app_private"."inventory_locations" to authenticated;
 grant all on "app_private"."inventory_locations" to service_role;
 drop policy if exists inventory_locations_read on "app_private"."inventory_locations";
@@ -2800,7 +2803,7 @@ create table if not exists "app_private"."stock_levels" (
 );
 create index if not exists stock_levels_location_idx on "app_private"."stock_levels" ("location_id");
 alter table "app_private"."stock_levels" enable row level security;
-revoke all on "app_private"."stock_levels" from anon, authenticated;
+revoke all on "app_private"."stock_levels" from public, anon, authenticated;
 grant select on "app_private"."stock_levels" to authenticated;
 grant all on "app_private"."stock_levels" to service_role;
 drop policy if exists stock_levels_read on "app_private"."stock_levels";
@@ -2824,7 +2827,7 @@ create index if not exists stock_reservations_active_idx on "app_private"."stock
 create index if not exists stock_reservations_level_idx on "app_private"."stock_reservations" ("variant_id", "location_id");
 create index if not exists stock_reservations_location_idx on "app_private"."stock_reservations" ("location_id");
 alter table "app_private"."stock_reservations" enable row level security;
-revoke all on "app_private"."stock_reservations" from anon, authenticated;
+revoke all on "app_private"."stock_reservations" from public, anon, authenticated;
 grant select on "app_private"."stock_reservations" to authenticated;
 grant all on "app_private"."stock_reservations" to service_role;
 drop policy if exists stock_reservations_read on "app_private"."stock_reservations";
@@ -2846,7 +2849,7 @@ create table if not exists "app_private"."stock_transfers" (
 create index if not exists stock_transfers_from_idx on "app_private"."stock_transfers" ("from_location_id");
 create index if not exists stock_transfers_to_idx on "app_private"."stock_transfers" ("to_location_id");
 alter table "app_private"."stock_transfers" enable row level security;
-revoke all on "app_private"."stock_transfers" from anon, authenticated;
+revoke all on "app_private"."stock_transfers" from public, anon, authenticated;
 grant select on "app_private"."stock_transfers" to authenticated;
 grant all on "app_private"."stock_transfers" to service_role;
 drop policy if exists stock_transfers_read on "app_private"."stock_transfers";
@@ -2862,7 +2865,7 @@ create table if not exists "app_private"."stock_transfer_lines" (
 );
 create index if not exists stock_transfer_lines_variant_idx on "app_private"."stock_transfer_lines" ("variant_id");
 alter table "app_private"."stock_transfer_lines" enable row level security;
-revoke all on "app_private"."stock_transfer_lines" from anon, authenticated;
+revoke all on "app_private"."stock_transfer_lines" from public, anon, authenticated;
 grant select on "app_private"."stock_transfer_lines" to authenticated;
 grant all on "app_private"."stock_transfer_lines" to service_role;
 drop policy if exists stock_transfer_lines_read on "app_private"."stock_transfer_lines";
@@ -2887,7 +2890,7 @@ create table if not exists "app_private"."purchase_orders" (
 create index if not exists purchase_orders_location_idx on "app_private"."purchase_orders" ("location_id");
 create index if not exists purchase_orders_status_idx on "app_private"."purchase_orders" ("tenant_id", "status");
 alter table "app_private"."purchase_orders" enable row level security;
-revoke all on "app_private"."purchase_orders" from anon, authenticated;
+revoke all on "app_private"."purchase_orders" from public, anon, authenticated;
 grant select on "app_private"."purchase_orders" to authenticated;
 grant all on "app_private"."purchase_orders" to service_role;
 drop policy if exists purchase_orders_read on "app_private"."purchase_orders";
@@ -2906,7 +2909,7 @@ create table if not exists "app_private"."purchase_order_lines" (
 );
 create index if not exists purchase_order_lines_variant_idx on "app_private"."purchase_order_lines" ("variant_id");
 alter table "app_private"."purchase_order_lines" enable row level security;
-revoke all on "app_private"."purchase_order_lines" from anon, authenticated;
+revoke all on "app_private"."purchase_order_lines" from public, anon, authenticated;
 grant select on "app_private"."purchase_order_lines" to authenticated;
 grant all on "app_private"."purchase_order_lines" to service_role;
 drop policy if exists purchase_order_lines_read on "app_private"."purchase_order_lines";
@@ -3970,7 +3973,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
@@ -3990,7 +3993,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:244b78bf92dec9458ec15a0f67b36a72403e13ba2780ff5e3f50d8fa2fc470a9
+-- @bsb-hash sha256:5c717a1bbc07a0280934c2ffbfd3180295dd4b589f8b8b44b7642dd8b72a281b
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4108,7 +4111,7 @@ create table if not exists "better_supabase"."inventory_locations" (
   unique ("tenant_id", "code")
 );
 alter table "better_supabase"."inventory_locations" enable row level security;
-revoke all on "better_supabase"."inventory_locations" from anon, authenticated;
+revoke all on "better_supabase"."inventory_locations" from public, anon, authenticated;
 grant select on "better_supabase"."inventory_locations" to authenticated;
 grant all on "better_supabase"."inventory_locations" to service_role;
 drop policy if exists inventory_locations_read on "better_supabase"."inventory_locations";
@@ -4129,7 +4132,7 @@ create table if not exists "better_supabase"."stock_levels" (
 );
 create index if not exists stock_levels_location_idx on "better_supabase"."stock_levels" ("location_id");
 alter table "better_supabase"."stock_levels" enable row level security;
-revoke all on "better_supabase"."stock_levels" from anon, authenticated;
+revoke all on "better_supabase"."stock_levels" from public, anon, authenticated;
 grant select on "better_supabase"."stock_levels" to authenticated;
 grant all on "better_supabase"."stock_levels" to service_role;
 drop policy if exists stock_levels_read on "better_supabase"."stock_levels";
@@ -4153,7 +4156,7 @@ create index if not exists stock_reservations_active_idx on "better_supabase"."s
 create index if not exists stock_reservations_level_idx on "better_supabase"."stock_reservations" ("variant_id", "location_id");
 create index if not exists stock_reservations_location_idx on "better_supabase"."stock_reservations" ("location_id");
 alter table "better_supabase"."stock_reservations" enable row level security;
-revoke all on "better_supabase"."stock_reservations" from anon, authenticated;
+revoke all on "better_supabase"."stock_reservations" from public, anon, authenticated;
 grant select on "better_supabase"."stock_reservations" to authenticated;
 grant all on "better_supabase"."stock_reservations" to service_role;
 drop policy if exists stock_reservations_read on "better_supabase"."stock_reservations";
@@ -4175,7 +4178,7 @@ create table if not exists "better_supabase"."stock_transfers" (
 create index if not exists stock_transfers_from_idx on "better_supabase"."stock_transfers" ("from_location_id");
 create index if not exists stock_transfers_to_idx on "better_supabase"."stock_transfers" ("to_location_id");
 alter table "better_supabase"."stock_transfers" enable row level security;
-revoke all on "better_supabase"."stock_transfers" from anon, authenticated;
+revoke all on "better_supabase"."stock_transfers" from public, anon, authenticated;
 grant select on "better_supabase"."stock_transfers" to authenticated;
 grant all on "better_supabase"."stock_transfers" to service_role;
 drop policy if exists stock_transfers_read on "better_supabase"."stock_transfers";
@@ -4191,7 +4194,7 @@ create table if not exists "better_supabase"."stock_transfer_lines" (
 );
 create index if not exists stock_transfer_lines_variant_idx on "better_supabase"."stock_transfer_lines" ("variant_id");
 alter table "better_supabase"."stock_transfer_lines" enable row level security;
-revoke all on "better_supabase"."stock_transfer_lines" from anon, authenticated;
+revoke all on "better_supabase"."stock_transfer_lines" from public, anon, authenticated;
 grant select on "better_supabase"."stock_transfer_lines" to authenticated;
 grant all on "better_supabase"."stock_transfer_lines" to service_role;
 drop policy if exists stock_transfer_lines_read on "better_supabase"."stock_transfer_lines";
@@ -4216,7 +4219,7 @@ create table if not exists "better_supabase"."purchase_orders" (
 create index if not exists purchase_orders_location_idx on "better_supabase"."purchase_orders" ("location_id");
 create index if not exists purchase_orders_status_idx on "better_supabase"."purchase_orders" ("tenant_id", "status");
 alter table "better_supabase"."purchase_orders" enable row level security;
-revoke all on "better_supabase"."purchase_orders" from anon, authenticated;
+revoke all on "better_supabase"."purchase_orders" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_orders" to authenticated;
 grant all on "better_supabase"."purchase_orders" to service_role;
 drop policy if exists purchase_orders_read on "better_supabase"."purchase_orders";
@@ -4235,7 +4238,7 @@ create table if not exists "better_supabase"."purchase_order_lines" (
 );
 create index if not exists purchase_order_lines_variant_idx on "better_supabase"."purchase_order_lines" ("variant_id");
 alter table "better_supabase"."purchase_order_lines" enable row level security;
-revoke all on "better_supabase"."purchase_order_lines" from anon, authenticated;
+revoke all on "better_supabase"."purchase_order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 drop policy if exists purchase_order_lines_read on "better_supabase"."purchase_order_lines";
@@ -5485,7 +5488,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
@@ -5505,7 +5508,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:1201a50c5be49f857f509087e2b7b77775805855836b7cb33e635358f7365968
+-- @bsb-hash sha256:60c986203850813a35e90518bf23de2394f677e5415372a035f85edd36531507
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6810,7 +6813,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
@@ -6830,7 +6833,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:bceffebad9a23360f7718e5ad9af6a558b9118776547dafffc01f64e86f358b3
+-- @bsb-hash sha256:03b6db111699bcb0d3b8c4d63f09623eb20ce26a263cac1d221c415af323c2f1
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6948,7 +6951,7 @@ create table if not exists "better_supabase"."inventory_locations" (
   unique ("org_id", "code")
 );
 alter table "better_supabase"."inventory_locations" enable row level security;
-revoke all on "better_supabase"."inventory_locations" from anon, authenticated;
+revoke all on "better_supabase"."inventory_locations" from public, anon, authenticated;
 grant select on "better_supabase"."inventory_locations" to authenticated;
 grant all on "better_supabase"."inventory_locations" to service_role;
 drop policy if exists inventory_locations_read on "better_supabase"."inventory_locations";
@@ -6969,7 +6972,7 @@ create table if not exists "better_supabase"."stock_levels" (
 );
 create index if not exists stock_levels_location_idx on "better_supabase"."stock_levels" ("location_id");
 alter table "better_supabase"."stock_levels" enable row level security;
-revoke all on "better_supabase"."stock_levels" from anon, authenticated;
+revoke all on "better_supabase"."stock_levels" from public, anon, authenticated;
 grant select on "better_supabase"."stock_levels" to authenticated;
 grant all on "better_supabase"."stock_levels" to service_role;
 drop policy if exists stock_levels_read on "better_supabase"."stock_levels";
@@ -6993,7 +6996,7 @@ create index if not exists stock_reservations_active_idx on "better_supabase"."s
 create index if not exists stock_reservations_level_idx on "better_supabase"."stock_reservations" ("variant_id", "location_id");
 create index if not exists stock_reservations_location_idx on "better_supabase"."stock_reservations" ("location_id");
 alter table "better_supabase"."stock_reservations" enable row level security;
-revoke all on "better_supabase"."stock_reservations" from anon, authenticated;
+revoke all on "better_supabase"."stock_reservations" from public, anon, authenticated;
 grant select on "better_supabase"."stock_reservations" to authenticated;
 grant all on "better_supabase"."stock_reservations" to service_role;
 drop policy if exists stock_reservations_read on "better_supabase"."stock_reservations";
@@ -7015,7 +7018,7 @@ create table if not exists "better_supabase"."stock_transfers" (
 create index if not exists stock_transfers_from_idx on "better_supabase"."stock_transfers" ("from_location_id");
 create index if not exists stock_transfers_to_idx on "better_supabase"."stock_transfers" ("to_location_id");
 alter table "better_supabase"."stock_transfers" enable row level security;
-revoke all on "better_supabase"."stock_transfers" from anon, authenticated;
+revoke all on "better_supabase"."stock_transfers" from public, anon, authenticated;
 grant select on "better_supabase"."stock_transfers" to authenticated;
 grant all on "better_supabase"."stock_transfers" to service_role;
 drop policy if exists stock_transfers_read on "better_supabase"."stock_transfers";
@@ -7031,7 +7034,7 @@ create table if not exists "better_supabase"."stock_transfer_lines" (
 );
 create index if not exists stock_transfer_lines_variant_idx on "better_supabase"."stock_transfer_lines" ("variant_id");
 alter table "better_supabase"."stock_transfer_lines" enable row level security;
-revoke all on "better_supabase"."stock_transfer_lines" from anon, authenticated;
+revoke all on "better_supabase"."stock_transfer_lines" from public, anon, authenticated;
 grant select on "better_supabase"."stock_transfer_lines" to authenticated;
 grant all on "better_supabase"."stock_transfer_lines" to service_role;
 drop policy if exists stock_transfer_lines_read on "better_supabase"."stock_transfer_lines";
@@ -7056,7 +7059,7 @@ create table if not exists "better_supabase"."purchase_orders" (
 create index if not exists purchase_orders_location_idx on "better_supabase"."purchase_orders" ("location_id");
 create index if not exists purchase_orders_status_idx on "better_supabase"."purchase_orders" ("org_id", "status");
 alter table "better_supabase"."purchase_orders" enable row level security;
-revoke all on "better_supabase"."purchase_orders" from anon, authenticated;
+revoke all on "better_supabase"."purchase_orders" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_orders" to authenticated;
 grant all on "better_supabase"."purchase_orders" to service_role;
 drop policy if exists purchase_orders_read on "better_supabase"."purchase_orders";
@@ -7075,7 +7078,7 @@ create table if not exists "better_supabase"."purchase_order_lines" (
 );
 create index if not exists purchase_order_lines_variant_idx on "better_supabase"."purchase_order_lines" ("variant_id");
 alter table "better_supabase"."purchase_order_lines" enable row level security;
-revoke all on "better_supabase"."purchase_order_lines" from anon, authenticated;
+revoke all on "better_supabase"."purchase_order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 drop policy if exists purchase_order_lines_read on "better_supabase"."purchase_order_lines";
@@ -8139,7 +8142,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql

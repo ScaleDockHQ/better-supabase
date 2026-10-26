@@ -1,6 +1,6 @@
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:ce6c6c393764fb8dc478c7952b79913c2491ef44add8bf4d871a8882cc440e68
+-- @bsb-hash sha256:e94ef239c09486fc50ac80af18287f62f30a3d16b0649091331f68920bb67c09
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -211,7 +211,7 @@ create table if not exists "better_supabase"."products" (
 );
 create index if not exists products_status_idx on "better_supabase"."products" ("tenant_id", "status");
 alter table "better_supabase"."products" enable row level security;
-revoke all on "better_supabase"."products" from anon, authenticated;
+revoke all on "better_supabase"."products" from public, anon, authenticated;
 grant select on "better_supabase"."products" to authenticated;
 grant all on "better_supabase"."products" to service_role;
 drop policy if exists products_read on "better_supabase"."products";
@@ -227,7 +227,7 @@ create table if not exists "better_supabase"."product_options" (
   unique ("product_id", "name")
 );
 alter table "better_supabase"."product_options" enable row level security;
-revoke all on "better_supabase"."product_options" from anon, authenticated;
+revoke all on "better_supabase"."product_options" from public, anon, authenticated;
 grant select on "better_supabase"."product_options" to authenticated;
 grant all on "better_supabase"."product_options" to service_role;
 drop policy if exists product_options_read on "better_supabase"."product_options";
@@ -243,7 +243,7 @@ create table if not exists "better_supabase"."product_option_values" (
   unique ("option_id", "value")
 );
 alter table "better_supabase"."product_option_values" enable row level security;
-revoke all on "better_supabase"."product_option_values" from anon, authenticated;
+revoke all on "better_supabase"."product_option_values" from public, anon, authenticated;
 grant select on "better_supabase"."product_option_values" to authenticated;
 grant all on "better_supabase"."product_option_values" to service_role;
 drop policy if exists product_option_values_read on "better_supabase"."product_option_values";
@@ -267,7 +267,7 @@ create table if not exists "better_supabase"."product_variants" (
 );
 create index if not exists product_variants_product_idx on "better_supabase"."product_variants" ("product_id");
 alter table "better_supabase"."product_variants" enable row level security;
-revoke all on "better_supabase"."product_variants" from anon, authenticated;
+revoke all on "better_supabase"."product_variants" from public, anon, authenticated;
 grant select on "better_supabase"."product_variants" to authenticated;
 grant all on "better_supabase"."product_variants" to service_role;
 drop policy if exists product_variants_read on "better_supabase"."product_variants";
@@ -282,7 +282,7 @@ create table if not exists "better_supabase"."product_variant_values" (
 );
 create index if not exists product_variant_values_value_idx on "better_supabase"."product_variant_values" ("option_value_id");
 alter table "better_supabase"."product_variant_values" enable row level security;
-revoke all on "better_supabase"."product_variant_values" from anon, authenticated;
+revoke all on "better_supabase"."product_variant_values" from public, anon, authenticated;
 grant select on "better_supabase"."product_variant_values" to authenticated;
 grant all on "better_supabase"."product_variant_values" to service_role;
 drop policy if exists product_variant_values_read on "better_supabase"."product_variant_values";
@@ -298,7 +298,7 @@ create table if not exists "better_supabase"."price_lists" (
   unique ("tenant_id", "name")
 );
 alter table "better_supabase"."price_lists" enable row level security;
-revoke all on "better_supabase"."price_lists" from anon, authenticated;
+revoke all on "better_supabase"."price_lists" from public, anon, authenticated;
 grant select on "better_supabase"."price_lists" to authenticated;
 grant all on "better_supabase"."price_lists" to service_role;
 drop policy if exists price_lists_read on "better_supabase"."price_lists";
@@ -321,7 +321,7 @@ create table if not exists "better_supabase"."product_prices" (
 create index if not exists product_prices_variant_idx on "better_supabase"."product_prices" ("variant_id", "currency");
 create index if not exists product_prices_price_list_idx on "better_supabase"."product_prices" ("price_list_id");
 alter table "better_supabase"."product_prices" enable row level security;
-revoke all on "better_supabase"."product_prices" from anon, authenticated;
+revoke all on "better_supabase"."product_prices" from public, anon, authenticated;
 grant select on "better_supabase"."product_prices" to authenticated;
 grant all on "better_supabase"."product_prices" to service_role;
 drop policy if exists product_prices_read on "better_supabase"."product_prices";
@@ -342,7 +342,7 @@ create table if not exists "better_supabase"."categories" (
 );
 create index if not exists categories_parent_idx on "better_supabase"."categories" ("parent_id");
 alter table "better_supabase"."categories" enable row level security;
-revoke all on "better_supabase"."categories" from anon, authenticated;
+revoke all on "better_supabase"."categories" from public, anon, authenticated;
 grant select on "better_supabase"."categories" to authenticated;
 grant all on "better_supabase"."categories" to service_role;
 drop policy if exists categories_read on "better_supabase"."categories";
@@ -357,7 +357,7 @@ create table if not exists "better_supabase"."product_categories" (
 );
 create index if not exists product_categories_category_idx on "better_supabase"."product_categories" ("category_id");
 alter table "better_supabase"."product_categories" enable row level security;
-revoke all on "better_supabase"."product_categories" from anon, authenticated;
+revoke all on "better_supabase"."product_categories" from public, anon, authenticated;
 grant select on "better_supabase"."product_categories" to authenticated;
 grant all on "better_supabase"."product_categories" to service_role;
 drop policy if exists product_categories_read on "better_supabase"."product_categories";
@@ -377,7 +377,7 @@ create table if not exists "better_supabase"."product_collections" (
   check (("kind" = 'rule') = ("rule" is not null))
 );
 alter table "better_supabase"."product_collections" enable row level security;
-revoke all on "better_supabase"."product_collections" from anon, authenticated;
+revoke all on "better_supabase"."product_collections" from public, anon, authenticated;
 grant select on "better_supabase"."product_collections" to authenticated;
 grant all on "better_supabase"."product_collections" to service_role;
 drop policy if exists product_collections_read on "better_supabase"."product_collections";
@@ -393,7 +393,7 @@ create table if not exists "better_supabase"."collection_products" (
 );
 create index if not exists collection_products_product_idx on "better_supabase"."collection_products" ("product_id");
 alter table "better_supabase"."collection_products" enable row level security;
-revoke all on "better_supabase"."collection_products" from anon, authenticated;
+revoke all on "better_supabase"."collection_products" from public, anon, authenticated;
 grant select on "better_supabase"."collection_products" to authenticated;
 grant all on "better_supabase"."collection_products" to service_role;
 drop policy if exists collection_products_read on "better_supabase"."collection_products";
@@ -405,7 +405,7 @@ create table if not exists "better_supabase"."storefronts" (
   "published_at" timestamptz
 );
 alter table "better_supabase"."storefronts" enable row level security;
-revoke all on "better_supabase"."storefronts" from anon, authenticated;
+revoke all on "better_supabase"."storefronts" from public, anon, authenticated;
 grant select on "better_supabase"."storefronts" to authenticated;
 grant all on "better_supabase"."storefronts" to service_role;
 drop policy if exists storefronts_read on "better_supabase"."storefronts";
@@ -426,7 +426,7 @@ create table if not exists "better_supabase"."catalog_channels" (
 );
 create index if not exists catalog_channels_price_list_idx on "better_supabase"."catalog_channels" ("price_list_id");
 alter table "better_supabase"."catalog_channels" enable row level security;
-revoke all on "better_supabase"."catalog_channels" from anon, authenticated;
+revoke all on "better_supabase"."catalog_channels" from public, anon, authenticated;
 grant select on "better_supabase"."catalog_channels" to authenticated;
 grant all on "better_supabase"."catalog_channels" to service_role;
 drop policy if exists catalog_channels_read on "better_supabase"."catalog_channels";
@@ -442,7 +442,7 @@ create table if not exists "better_supabase"."catalog_channel_products" (
 );
 create index if not exists catalog_channel_products_product_idx on "better_supabase"."catalog_channel_products" ("product_id");
 alter table "better_supabase"."catalog_channel_products" enable row level security;
-revoke all on "better_supabase"."catalog_channel_products" from anon, authenticated;
+revoke all on "better_supabase"."catalog_channel_products" from public, anon, authenticated;
 grant select on "better_supabase"."catalog_channel_products" to authenticated;
 grant all on "better_supabase"."catalog_channel_products" to service_role;
 drop policy if exists catalog_channel_products_read on "better_supabase"."catalog_channel_products";
@@ -459,7 +459,7 @@ create table if not exists "better_supabase"."product_translations" (
   primary key ("product_id", "locale")
 );
 alter table "better_supabase"."product_translations" enable row level security;
-revoke all on "better_supabase"."product_translations" from anon, authenticated;
+revoke all on "better_supabase"."product_translations" from public, anon, authenticated;
 grant select on "better_supabase"."product_translations" to authenticated;
 grant all on "better_supabase"."product_translations" to service_role;
 drop policy if exists product_translations_read on "better_supabase"."product_translations";
@@ -475,7 +475,7 @@ create table if not exists "better_supabase"."product_variant_translations" (
   primary key ("variant_id", "locale")
 );
 alter table "better_supabase"."product_variant_translations" enable row level security;
-revoke all on "better_supabase"."product_variant_translations" from anon, authenticated;
+revoke all on "better_supabase"."product_variant_translations" from public, anon, authenticated;
 grant select on "better_supabase"."product_variant_translations" to authenticated;
 grant all on "better_supabase"."product_variant_translations" to service_role;
 drop policy if exists product_variant_translations_read on "better_supabase"."product_variant_translations";
@@ -497,7 +497,7 @@ create index if not exists product_media_position_idx on "better_supabase"."prod
 create index if not exists product_media_attachment_idx on "better_supabase"."product_media" ("attachment_id");
 create index if not exists product_media_variant_idx on "better_supabase"."product_media" ("variant_id");
 alter table "better_supabase"."product_media" enable row level security;
-revoke all on "better_supabase"."product_media" from anon, authenticated;
+revoke all on "better_supabase"."product_media" from public, anon, authenticated;
 grant select on "better_supabase"."product_media" to authenticated;
 grant all on "better_supabase"."product_media" to service_role;
 drop policy if exists product_media_read on "better_supabase"."product_media";
@@ -2775,5 +2775,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

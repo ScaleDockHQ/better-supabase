@@ -1,6 +1,6 @@
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:9d25b4205134b51967ed9c0b4f09610c88b2e1ee3d2edc2d7880aca4d9aff164
+-- @bsb-hash sha256:48fe7a314fe93112dc259a3ddd9f0cc1fbe3a02d449e9f26ed741b60a105dee4
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -68,7 +68,7 @@ alter table "better_supabase"."announcements" add constraint bsb_announcements_a
 create index if not exists announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
 create index if not exists announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
 alter table "better_supabase"."announcements" enable row level security;
-revoke all on "better_supabase"."announcements" from anon, authenticated;
+revoke all on "better_supabase"."announcements" from public, anon, authenticated;
 grant all on "better_supabase"."announcements" to service_role;
 
 create table if not exists "better_supabase"."announcement_dismissals" (
@@ -79,7 +79,7 @@ create table if not exists "better_supabase"."announcement_dismissals" (
 );
 create index if not exists announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
 alter table "better_supabase"."announcement_dismissals" enable row level security;
-revoke all on "better_supabase"."announcement_dismissals" from anon, authenticated;
+revoke all on "better_supabase"."announcement_dismissals" from public, anon, authenticated;
 grant all on "better_supabase"."announcement_dismissals" to service_role;
 
 -- The caller's live, undismissed announcements, newest first. Pass the
@@ -380,5 +380,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

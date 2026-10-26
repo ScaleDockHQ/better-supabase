@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:4596b5cb5acc9d0b2e5da0be74f886145291be840c216c606e71f73fdf6a3e41
+-- @bsb-hash sha256:1c710efd589331adbdbcfba3ce4dd573d595b8081e0628059d565b3d6df6244b
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -90,7 +90,7 @@ create index if not exists api_keys_created_by_idx on "better_supabase"."api_key
 alter table "better_supabase"."api_keys" add column if not exists "kind" text;
 alter table "better_supabase"."api_keys" drop constraint if exists api_keys_kind_check;
 alter table "better_supabase"."api_keys" enable row level security;
-revoke all on "better_supabase"."api_keys" from anon, authenticated;
+revoke all on "better_supabase"."api_keys" from public, anon, authenticated;
 grant all on "better_supabase"."api_keys" to service_role;
 
 -- Creates a key. TypeScript generates the public id and the secret and sends
@@ -479,7 +479,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_028_api_keys.sql
@@ -499,7 +499,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:888f16d3e3f521db11f2a8176133b2889721010fc1e177a03db235acc4314488
+-- @bsb-hash sha256:206fdb43058deca87b01aba171c06ba5ab7eae6f566d82065589e57cde275296
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -588,7 +588,7 @@ create index if not exists api_keys_created_by_idx on "better_supabase"."api_key
 alter table "better_supabase"."api_keys" add column if not exists "kind" text;
 alter table "better_supabase"."api_keys" drop constraint if exists api_keys_kind_check;
 alter table "better_supabase"."api_keys" enable row level security;
-revoke all on "better_supabase"."api_keys" from anon, authenticated;
+revoke all on "better_supabase"."api_keys" from public, anon, authenticated;
 grant all on "better_supabase"."api_keys" to service_role;
 
 -- Creates a key. TypeScript generates the public id and the secret and sends
@@ -1004,7 +1004,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_028_api_keys.sql
@@ -1024,7 +1024,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:1ea149ef1b75108aad2977cc0661abe4664869148de9890594e70022ded452d1
+-- @bsb-hash sha256:59ec19b3e6f7bac87e00cb5de95e3a2e62ab0465a9b606d54975b1055e3d03b7
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1081,6 +1081,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- API keys: `<prefix>_<public id>_<secret>`. Only the SHA-256 of the secret
 -- is stored. A key acts as its user (user_id), as its tenant (organization_id
 -- without user_id), or as a user inside one tenant (both).
@@ -1115,7 +1118,7 @@ create index if not exists api_keys_created_by_idx on "app_private"."api_keys" (
 alter table "app_private"."api_keys" add column if not exists "kind" text;
 alter table "app_private"."api_keys" drop constraint if exists api_keys_kind_check;
 alter table "app_private"."api_keys" enable row level security;
-revoke all on "app_private"."api_keys" from anon, authenticated;
+revoke all on "app_private"."api_keys" from public, anon, authenticated;
 grant all on "app_private"."api_keys" to service_role;
 
 -- Creates a key. TypeScript generates the public id and the secret and sends
@@ -1504,7 +1507,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_028_api_keys.sql
@@ -1524,7 +1527,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:a187fd694fea61507970842457241b2019a6dbe53331e515a22f66705b9c7663
+-- @bsb-hash sha256:7b679ec1949908828c91ff2a5b9282f38d6aea85f40bd5175391cb801dc6d2fe
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1613,7 +1616,7 @@ create index if not exists api_keys_created_by_idx on "better_supabase"."api_key
 alter table "better_supabase"."api_keys" add column if not exists "kind" text;
 alter table "better_supabase"."api_keys" drop constraint if exists api_keys_kind_check;
 alter table "better_supabase"."api_keys" enable row level security;
-revoke all on "better_supabase"."api_keys" from anon, authenticated;
+revoke all on "better_supabase"."api_keys" from public, anon, authenticated;
 grant all on "better_supabase"."api_keys" to service_role;
 
 -- Creates a key. TypeScript generates the public id and the secret and sends
@@ -2091,7 +2094,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_028_api_keys.sql
@@ -2111,7 +2114,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:aa177948ac0d9bd88617baa90a6709248c1c72d2dc2f48e1558bb61db8d9399c
+-- @bsb-hash sha256:ee528354f42a80bb877468c4e8bf01ae18bc10eb6b5fddebb1ee6cad9f26a26a
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2598,7 +2601,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_028_api_keys.sql
@@ -2618,7 +2621,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:46daebe808f03269a29e6de55c149cb1baf1feeb8b99e24e92f4b8abbd649caf
+-- @bsb-hash sha256:e16d0a18adfc9cb46f7a951ef2f0c2770aae6ef38572ec70db9ba46bec67ac5e
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2707,7 +2710,7 @@ create index if not exists api_keys_created_by_idx on "better_supabase"."api_key
 alter table "better_supabase"."api_keys" add column if not exists "kind" text;
 alter table "better_supabase"."api_keys" drop constraint if exists api_keys_kind_check;
 alter table "better_supabase"."api_keys" enable row level security;
-revoke all on "better_supabase"."api_keys" from anon, authenticated;
+revoke all on "better_supabase"."api_keys" from public, anon, authenticated;
 grant all on "better_supabase"."api_keys" to service_role;
 
 -- Creates a key. TypeScript generates the public id and the secret and sends
@@ -3096,7 +3099,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_028_api_keys.sql

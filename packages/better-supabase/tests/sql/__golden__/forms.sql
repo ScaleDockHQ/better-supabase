@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:a531c2b1e74eeee3bff9e9efc023ab1e983ac7eef3be460157545cd673b90242
+-- @bsb-hash sha256:b599931dd3473a827f4e63be61e48db96b7ee73a6234c31f8fc318e37e93587f
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -94,7 +94,7 @@ create table if not exists "better_supabase"."forms" (
   unique ("tenant_id", "key")
 );
 alter table "better_supabase"."forms" enable row level security;
-revoke all on "better_supabase"."forms" from anon, authenticated;
+revoke all on "better_supabase"."forms" from public, anon, authenticated;
 grant select on "better_supabase"."forms" to authenticated;
 grant all on "better_supabase"."forms" to service_role;
 drop policy if exists forms_read on "better_supabase"."forms";
@@ -113,7 +113,7 @@ create table if not exists "better_supabase"."form_versions" (
   unique ("form_id", "number")
 );
 alter table "better_supabase"."form_versions" enable row level security;
-revoke all on "better_supabase"."form_versions" from anon, authenticated;
+revoke all on "better_supabase"."form_versions" from public, anon, authenticated;
 grant select on "better_supabase"."form_versions" to authenticated;
 grant all on "better_supabase"."form_versions" to service_role;
 drop policy if exists form_versions_read on "better_supabase"."form_versions";
@@ -143,7 +143,7 @@ create index if not exists "form_submissions_version_idx" on "better_supabase"."
 create index if not exists "form_submissions_respondent_idx" on "better_supabase"."form_submissions" ("respondent_id") where "respondent_id" is not null;
 create index if not exists "form_submissions_subject_idx" on "better_supabase"."form_submissions" ("subject_type", "subject_id") where "subject_type" is not null;
 alter table "better_supabase"."form_submissions" enable row level security;
-revoke all on "better_supabase"."form_submissions" from anon, authenticated;
+revoke all on "better_supabase"."form_submissions" from public, anon, authenticated;
 grant select on "better_supabase"."form_submissions" to authenticated;
 grant all on "better_supabase"."form_submissions" to service_role;
 drop policy if exists form_submissions_read on "better_supabase"."form_submissions";
@@ -161,7 +161,7 @@ create table if not exists "better_supabase"."form_answer_keys" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."form_answer_keys" enable row level security;
-revoke all on "better_supabase"."form_answer_keys" from anon, authenticated;
+revoke all on "better_supabase"."form_answer_keys" from public, anon, authenticated;
 grant all on "better_supabase"."form_answer_keys" to service_role;
 
 -- The schema of one field's answer. Mirrors fieldSchema in
@@ -1136,7 +1136,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_086_forms.sql
@@ -1156,7 +1156,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:8252c11d54f2638a45bea0afe1ab6cc3666256bf08cb4a38d37fcca6d626a24f
+-- @bsb-hash sha256:9c217f76477abfc1a7f0a5ee1a079750e43dea34eeaf1df27b2570b0732e7112
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1249,7 +1249,7 @@ create table if not exists "better_supabase"."forms" (
   unique ("tenant_id", "key")
 );
 alter table "better_supabase"."forms" enable row level security;
-revoke all on "better_supabase"."forms" from anon, authenticated;
+revoke all on "better_supabase"."forms" from public, anon, authenticated;
 grant select on "better_supabase"."forms" to authenticated;
 grant all on "better_supabase"."forms" to service_role;
 drop policy if exists forms_read on "better_supabase"."forms";
@@ -1268,7 +1268,7 @@ create table if not exists "better_supabase"."form_versions" (
   unique ("form_id", "number")
 );
 alter table "better_supabase"."form_versions" enable row level security;
-revoke all on "better_supabase"."form_versions" from anon, authenticated;
+revoke all on "better_supabase"."form_versions" from public, anon, authenticated;
 grant select on "better_supabase"."form_versions" to authenticated;
 grant all on "better_supabase"."form_versions" to service_role;
 drop policy if exists form_versions_read on "better_supabase"."form_versions";
@@ -1298,7 +1298,7 @@ create index if not exists "form_submissions_version_idx" on "better_supabase"."
 create index if not exists "form_submissions_respondent_idx" on "better_supabase"."form_submissions" ("respondent_id") where "respondent_id" is not null;
 create index if not exists "form_submissions_subject_idx" on "better_supabase"."form_submissions" ("subject_type", "subject_id") where "subject_type" is not null;
 alter table "better_supabase"."form_submissions" enable row level security;
-revoke all on "better_supabase"."form_submissions" from anon, authenticated;
+revoke all on "better_supabase"."form_submissions" from public, anon, authenticated;
 grant select on "better_supabase"."form_submissions" to authenticated;
 grant all on "better_supabase"."form_submissions" to service_role;
 drop policy if exists form_submissions_read on "better_supabase"."form_submissions";
@@ -1316,7 +1316,7 @@ create table if not exists "better_supabase"."form_answer_keys" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."form_answer_keys" enable row level security;
-revoke all on "better_supabase"."form_answer_keys" from anon, authenticated;
+revoke all on "better_supabase"."form_answer_keys" from public, anon, authenticated;
 grant all on "better_supabase"."form_answer_keys" to service_role;
 
 -- The schema of one field's answer. Mirrors fieldSchema in
@@ -2439,7 +2439,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_086_forms.sql
@@ -2459,7 +2459,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:f9f533c1321ff920596f71ae3a7e6f4c8235e1e836c476431eb4ddc58e730743
+-- @bsb-hash sha256:b2efb82bbaf1ccad323525f4179d24f42f9e00178b7ae297b5a67228b2e39775
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2540,6 +2540,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table if not exists "app_private"."forms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -2554,7 +2557,7 @@ create table if not exists "app_private"."forms" (
   unique ("tenant_id", "key")
 );
 alter table "app_private"."forms" enable row level security;
-revoke all on "app_private"."forms" from anon, authenticated;
+revoke all on "app_private"."forms" from public, anon, authenticated;
 grant select on "app_private"."forms" to authenticated;
 grant all on "app_private"."forms" to service_role;
 drop policy if exists forms_read on "app_private"."forms";
@@ -2573,7 +2576,7 @@ create table if not exists "app_private"."form_versions" (
   unique ("form_id", "number")
 );
 alter table "app_private"."form_versions" enable row level security;
-revoke all on "app_private"."form_versions" from anon, authenticated;
+revoke all on "app_private"."form_versions" from public, anon, authenticated;
 grant select on "app_private"."form_versions" to authenticated;
 grant all on "app_private"."form_versions" to service_role;
 drop policy if exists form_versions_read on "app_private"."form_versions";
@@ -2603,7 +2606,7 @@ create index if not exists "form_submissions_version_idx" on "app_private"."form
 create index if not exists "form_submissions_respondent_idx" on "app_private"."form_submissions" ("respondent_id") where "respondent_id" is not null;
 create index if not exists "form_submissions_subject_idx" on "app_private"."form_submissions" ("subject_type", "subject_id") where "subject_type" is not null;
 alter table "app_private"."form_submissions" enable row level security;
-revoke all on "app_private"."form_submissions" from anon, authenticated;
+revoke all on "app_private"."form_submissions" from public, anon, authenticated;
 grant select on "app_private"."form_submissions" to authenticated;
 grant all on "app_private"."form_submissions" to service_role;
 drop policy if exists form_submissions_read on "app_private"."form_submissions";
@@ -2621,7 +2624,7 @@ create table if not exists "app_private"."form_answer_keys" (
   "created_at" timestamptz not null default now()
 );
 alter table "app_private"."form_answer_keys" enable row level security;
-revoke all on "app_private"."form_answer_keys" from anon, authenticated;
+revoke all on "app_private"."form_answer_keys" from public, anon, authenticated;
 grant all on "app_private"."form_answer_keys" to service_role;
 
 -- The schema of one field's answer. Mirrors fieldSchema in
@@ -3596,7 +3599,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_086_forms.sql
@@ -3616,7 +3619,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:8e2628a1da170a04053700a33e8280f53badb06f6ad41f9908e5fb3b63a85b4f
+-- @bsb-hash sha256:013b2c8ff47d04f01f65b212a73627c3b22a53f28c0851391c8595c56cd7f9ce
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3709,7 +3712,7 @@ create table if not exists "better_supabase"."forms" (
   unique ("tenant_id", "key")
 );
 alter table "better_supabase"."forms" enable row level security;
-revoke all on "better_supabase"."forms" from anon, authenticated;
+revoke all on "better_supabase"."forms" from public, anon, authenticated;
 grant select on "better_supabase"."forms" to authenticated;
 grant all on "better_supabase"."forms" to service_role;
 drop policy if exists forms_read on "better_supabase"."forms";
@@ -3728,7 +3731,7 @@ create table if not exists "better_supabase"."form_versions" (
   unique ("form_id", "number")
 );
 alter table "better_supabase"."form_versions" enable row level security;
-revoke all on "better_supabase"."form_versions" from anon, authenticated;
+revoke all on "better_supabase"."form_versions" from public, anon, authenticated;
 grant select on "better_supabase"."form_versions" to authenticated;
 grant all on "better_supabase"."form_versions" to service_role;
 drop policy if exists form_versions_read on "better_supabase"."form_versions";
@@ -3758,7 +3761,7 @@ create index if not exists "form_submissions_version_idx" on "better_supabase"."
 create index if not exists "form_submissions_respondent_idx" on "better_supabase"."form_submissions" ("respondent_id") where "respondent_id" is not null;
 create index if not exists "form_submissions_subject_idx" on "better_supabase"."form_submissions" ("subject_type", "subject_id") where "subject_type" is not null;
 alter table "better_supabase"."form_submissions" enable row level security;
-revoke all on "better_supabase"."form_submissions" from anon, authenticated;
+revoke all on "better_supabase"."form_submissions" from public, anon, authenticated;
 grant select on "better_supabase"."form_submissions" to authenticated;
 grant all on "better_supabase"."form_submissions" to service_role;
 drop policy if exists form_submissions_read on "better_supabase"."form_submissions";
@@ -3776,7 +3779,7 @@ create table if not exists "better_supabase"."form_answer_keys" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."form_answer_keys" enable row level security;
-revoke all on "better_supabase"."form_answer_keys" from anon, authenticated;
+revoke all on "better_supabase"."form_answer_keys" from public, anon, authenticated;
 grant all on "better_supabase"."form_answer_keys" to service_role;
 
 -- The schema of one field's answer. Mirrors fieldSchema in
@@ -4884,7 +4887,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_086_forms.sql
@@ -4904,7 +4907,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:6758960676ec621feeb466accb347414caca7908be7492567f6a801c1b6eb369
+-- @bsb-hash sha256:9ded883cd9153e5db3d2c4b734d803f9b3a570d4509fd8c14c2efa5605f47e5f
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5071,7 +5074,7 @@ create table if not exists "better_supabase"."form_answer_keys" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."form_answer_keys" enable row level security;
-revoke all on "better_supabase"."form_answer_keys" from anon, authenticated;
+revoke all on "better_supabase"."form_answer_keys" from public, anon, authenticated;
 grant all on "better_supabase"."form_answer_keys" to service_role;
 
 -- The schema of one field's answer. Mirrors fieldSchema in
@@ -6046,7 +6049,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_086_forms.sql
@@ -6066,7 +6069,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:94c0a3f4d19049a6002228de65819c5379c22b0e4ec679b1068834c1555da40a
+-- @bsb-hash sha256:13fa1d955417309d6186fc12ffd1492cf4de95f67743be7033cacd45f5104c34
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6159,7 +6162,7 @@ create table if not exists "better_supabase"."forms" (
   unique ("org_id", "key")
 );
 alter table "better_supabase"."forms" enable row level security;
-revoke all on "better_supabase"."forms" from anon, authenticated;
+revoke all on "better_supabase"."forms" from public, anon, authenticated;
 grant select on "better_supabase"."forms" to authenticated;
 grant all on "better_supabase"."forms" to service_role;
 drop policy if exists forms_read on "better_supabase"."forms";
@@ -6178,7 +6181,7 @@ create table if not exists "better_supabase"."form_versions" (
   unique ("form_id", "number")
 );
 alter table "better_supabase"."form_versions" enable row level security;
-revoke all on "better_supabase"."form_versions" from anon, authenticated;
+revoke all on "better_supabase"."form_versions" from public, anon, authenticated;
 grant select on "better_supabase"."form_versions" to authenticated;
 grant all on "better_supabase"."form_versions" to service_role;
 drop policy if exists form_versions_read on "better_supabase"."form_versions";
@@ -6208,7 +6211,7 @@ create index if not exists "form_submissions_version_idx" on "better_supabase"."
 create index if not exists "form_submissions_respondent_idx" on "better_supabase"."form_submissions" ("respondent_id") where "respondent_id" is not null;
 create index if not exists "form_submissions_subject_idx" on "better_supabase"."form_submissions" ("subject_type", "subject_id") where "subject_type" is not null;
 alter table "better_supabase"."form_submissions" enable row level security;
-revoke all on "better_supabase"."form_submissions" from anon, authenticated;
+revoke all on "better_supabase"."form_submissions" from public, anon, authenticated;
 grant select on "better_supabase"."form_submissions" to authenticated;
 grant all on "better_supabase"."form_submissions" to service_role;
 drop policy if exists form_submissions_read on "better_supabase"."form_submissions";
@@ -6226,7 +6229,7 @@ create table if not exists "better_supabase"."form_answer_keys" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."form_answer_keys" enable row level security;
-revoke all on "better_supabase"."form_answer_keys" from anon, authenticated;
+revoke all on "better_supabase"."form_answer_keys" from public, anon, authenticated;
 grant all on "better_supabase"."form_answer_keys" to service_role;
 
 -- The schema of one field's answer. Mirrors fieldSchema in
@@ -7201,7 +7204,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_086_forms.sql

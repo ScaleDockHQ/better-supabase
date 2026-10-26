@@ -1,6 +1,6 @@
 -- better-supabase module: jsonb-schemas
 -- @bsb-block jsonb-schemas@1 managed
--- @bsb-hash sha256:ca850942946bb0bc992f8540fdbc3832544fc4a422924a6724fe58134c35e503
+-- @bsb-hash sha256:e83c876a98ecc994b5f55086757fda03aec4b9b9d17a9ac83335ca1d7c372edf
 -- pg_jsonschema check constraints for jsonb columns with a `schema` in the `json` config, so the database enforces the same shape as the types. A trigger reports what failed through jsonschema_validation_errors, which the client maps to a validation error.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -59,5 +59,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

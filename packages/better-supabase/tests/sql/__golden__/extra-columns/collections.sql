@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:a682042714e3ef713051999e873f942bbb86736776d521916646a6fe40325777
+-- @bsb-hash sha256:54893f82d45f6e3bc54bb7566f35fe11442be5a829beb25caec5d75de8913339
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -104,7 +104,7 @@ create index if not exists subject_collections_tenant_type_idx on "better_supaba
 create index if not exists subject_collections_owner_idx on "better_supabase"."subject_collections" ("owner_id") where "owner_id" is not null;
 alter table "better_supabase"."subject_collections" add column if not exists "app_note" text;
 alter table "better_supabase"."subject_collections" enable row level security;
-revoke all on "better_supabase"."subject_collections" from anon, authenticated;
+revoke all on "better_supabase"."subject_collections" from public, anon, authenticated;
 grant select on "better_supabase"."subject_collections" to authenticated;
 grant all on "better_supabase"."subject_collections" to service_role;
 
@@ -121,7 +121,7 @@ create table if not exists "better_supabase"."subject_collection_entries" (
 create index if not exists subject_collection_entries_rank_idx on "better_supabase"."subject_collection_entries" ("collection_id", "rank", "subject_id");
 create index if not exists subject_collection_entries_subject_idx on "better_supabase"."subject_collection_entries" ("subject_type", "subject_id");
 alter table "better_supabase"."subject_collection_entries" enable row level security;
-revoke all on "better_supabase"."subject_collection_entries" from anon, authenticated;
+revoke all on "better_supabase"."subject_collection_entries" from public, anon, authenticated;
 grant select on "better_supabase"."subject_collection_entries" to authenticated;
 grant all on "better_supabase"."subject_collection_entries" to service_role;
 
@@ -137,7 +137,7 @@ create table if not exists "better_supabase"."favorites" (
 create index if not exists favorites_user_rank_idx on "better_supabase"."favorites" ("user_id", "tenant_id", "rank");
 create index if not exists favorites_subject_idx on "better_supabase"."favorites" ("subject_type", "subject_id");
 alter table "better_supabase"."favorites" enable row level security;
-revoke all on "better_supabase"."favorites" from anon, authenticated;
+revoke all on "better_supabase"."favorites" from public, anon, authenticated;
 grant select on "better_supabase"."favorites" to authenticated;
 grant all on "better_supabase"."favorites" to service_role;
 
@@ -158,7 +158,7 @@ create index if not exists saved_items_user_idx on "better_supabase"."saved_item
 create index if not exists saved_items_subject_idx on "better_supabase"."saved_items" ("subject_type", "subject_id");
 create index if not exists saved_items_due_idx on "better_supabase"."saved_items" ("remind_at") where "reminded_at" is null and "completed_at" is null;
 alter table "better_supabase"."saved_items" enable row level security;
-revoke all on "better_supabase"."saved_items" from anon, authenticated;
+revoke all on "better_supabase"."saved_items" from public, anon, authenticated;
 grant select on "better_supabase"."saved_items" to authenticated;
 grant all on "better_supabase"."saved_items" to service_role;
 
@@ -1087,7 +1087,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_103_collections.sql

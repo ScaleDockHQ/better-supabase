@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:f4a5e79c67c47552ad3f4cf0af9fc84fa1372adc93c95755be811f4474fd0561
+-- @bsb-hash sha256:08fdad30ccedbeecb5dad9e55f78b811135f6b73ad96656e9f2211f1cf24cf8e
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -66,7 +66,7 @@ alter table "public"."tasks" add column if not exists "done" boolean not null de
 alter table "public"."tasks" add column if not exists "labels" text[] default '{}';
 
 alter table "public"."projects" enable row level security;
-revoke all on "public"."projects" from anon, authenticated;
+revoke all on "public"."projects" from public, anon, authenticated;
 grant select, insert, update, delete on "public"."projects" to authenticated;
 grant all on "public"."projects" to service_role;
 drop policy if exists "projects_select" on "public"."projects";
@@ -102,7 +102,7 @@ create trigger "bsb_updated_at" before update on "public"."projects"
   for each row execute function better_supabase.set_updated_at();
 
 alter table "public"."tasks" enable row level security;
-revoke all on "public"."tasks" from anon, authenticated;
+revoke all on "public"."tasks" from public, anon, authenticated;
 grant select, insert, update, delete on "public"."tasks" to authenticated;
 grant all on "public"."tasks" to service_role;
 drop policy if exists "tasks_select" on "public"."tasks";

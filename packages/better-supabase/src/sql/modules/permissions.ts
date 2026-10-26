@@ -237,7 +237,7 @@ begin
     .map((table) => sqlString(ctx.table(table)))
     .join(", ")}] loop
     execute format('alter table %s enable row level security', t);
-    execute format('revoke all on %s from anon, authenticated', t);
+    execute format('revoke all on %s from public, anon, authenticated', t);
     execute format('grant all on %s to service_role', t);
   end loop;
 end;

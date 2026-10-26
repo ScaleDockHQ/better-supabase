@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:e40be8b0c0cef4ad6a8c2252181fc8757a9a5b14c6093d05fbb5718e8288445b
+-- @bsb-hash sha256:22b30f1cc136058f4d91e51264bee44fcf13b5d8a5bbab654aa482518681a584
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -85,7 +85,7 @@ create index if not exists "drive_nodes_parent_fk_idx" on "better_supabase"."dri
 create index if not exists "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
 create index if not exists "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
 alter table "better_supabase"."drive_nodes" enable row level security;
-revoke all on "better_supabase"."drive_nodes" from anon, authenticated;
+revoke all on "better_supabase"."drive_nodes" from public, anon, authenticated;
 grant select on "better_supabase"."drive_nodes" to authenticated;
 grant all on "better_supabase"."drive_nodes" to service_role;
 
@@ -115,7 +115,7 @@ begin
 end;
 $$;
 alter table "better_supabase"."drive_grants" enable row level security;
-revoke all on "better_supabase"."drive_grants" from anon, authenticated;
+revoke all on "better_supabase"."drive_grants" from public, anon, authenticated;
 grant all on "better_supabase"."drive_grants" to service_role;
 
 -- The node's ancestors and itself, root first.
@@ -945,7 +945,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_032_drive.sql

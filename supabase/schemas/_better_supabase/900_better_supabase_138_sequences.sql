@@ -1,6 +1,6 @@
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:24bffbe9047a1fff7bc00cc64edded163714bc4bdf644452d46921cd0bf11352
+-- @bsb-hash sha256:7f8b00e582b687df5e51ea9f8440a3e48a1124d71b028dd5e0c5aa3b853d490c
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -124,14 +124,14 @@ create index if not exists "sequence_enrollments_account_idx" on "better_supabas
 create index if not exists "sequence_enrollments_thread_idx" on "better_supabase"."sequence_enrollments" ("mail_thread_id") where "mail_thread_id" is not null;
 
 alter table "better_supabase"."sequences" enable row level security;
-revoke all on "better_supabase"."sequences" from anon, authenticated;
+revoke all on "better_supabase"."sequences" from public, anon, authenticated;
 grant select on "better_supabase"."sequences" to authenticated;
 grant all on "better_supabase"."sequences" to service_role;
 drop policy if exists "sequences_read" on "better_supabase"."sequences";
 create policy "sequences_read" on "better_supabase"."sequences" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 alter table "better_supabase"."sequence_enrollments" enable row level security;
-revoke all on "better_supabase"."sequence_enrollments" from anon, authenticated;
+revoke all on "better_supabase"."sequence_enrollments" from public, anon, authenticated;
 grant select on "better_supabase"."sequence_enrollments" to authenticated;
 grant all on "better_supabase"."sequence_enrollments" to service_role;
 drop policy if exists "sequence_enrollments_read" on "better_supabase"."sequence_enrollments";
@@ -1198,5 +1198,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

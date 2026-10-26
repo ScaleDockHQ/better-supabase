@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@3 managed
--- @bsb-hash sha256:2983a3c0348fb023cd20544175f6bb27b8030ccc9972540a21af3882855f6ecc
+-- @bsb-hash sha256:1de299fe3273233c8fc4b87f7577b0d88fbf0a67fa671fc9ad9ce6eacdf36318
 -- Feature flags with variants, targeting rules over tenant, user, plan, role and custom contexts such as brand, overrides and a percentage rollout bucketed by SHA-256. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -80,7 +80,7 @@ create table if not exists "better_supabase"."flags" (
   check ("rollout_variant" is null or "variants" ? "rollout_variant")
 );
 alter table "better_supabase"."flags" enable row level security;
-revoke all on "better_supabase"."flags" from anon, authenticated;
+revoke all on "better_supabase"."flags" from public, anon, authenticated;
 grant all on "better_supabase"."flags" to service_role;
 
 -- A variant for one tenant, one user or one value of a custom context (such
@@ -123,7 +123,7 @@ end;
 $$;
 create index if not exists flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
 alter table "better_supabase"."flag_overrides" enable row level security;
-revoke all on "better_supabase"."flag_overrides" from anon, authenticated;
+revoke all on "better_supabase"."flag_overrides" from public, anon, authenticated;
 grant all on "better_supabase"."flag_overrides" to service_role;
 
 -- The rollout bucket of target for flag: the first 32 bits of
@@ -428,7 +428,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_032_flags.sql
@@ -450,7 +450,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@3 managed
--- @bsb-hash sha256:8aefd1b171efc422539b5f73f7e2b612e31872e890fc1a964d5402f51044d011
+-- @bsb-hash sha256:3b51483c93ce310e88f2c28052c629e691e6a6611195a5b5b457f61031d77047
 -- Feature flags with variants, targeting rules over tenant, user, plan, role and custom contexts such as brand, overrides and a percentage rollout bucketed by SHA-256. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -529,7 +529,7 @@ create table if not exists "better_supabase"."flags" (
   check ("rollout_variant" is null or "variants" ? "rollout_variant")
 );
 alter table "better_supabase"."flags" enable row level security;
-revoke all on "better_supabase"."flags" from anon, authenticated;
+revoke all on "better_supabase"."flags" from public, anon, authenticated;
 grant all on "better_supabase"."flags" to service_role;
 
 -- A variant for one tenant, one user or one value of a custom context (such
@@ -572,7 +572,7 @@ end;
 $$;
 create index if not exists flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
 alter table "better_supabase"."flag_overrides" enable row level security;
-revoke all on "better_supabase"."flag_overrides" from anon, authenticated;
+revoke all on "better_supabase"."flag_overrides" from public, anon, authenticated;
 grant all on "better_supabase"."flag_overrides" to service_role;
 
 -- The rollout bucket of target for flag: the first 32 bits of
@@ -907,7 +907,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_032_flags.sql
@@ -929,7 +929,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@3 managed
--- @bsb-hash sha256:5670c9a84a35cf6a38d685d040610b8b8873cac1558c19476806641122f5abce
+-- @bsb-hash sha256:d6f7b4a1efadf64f2a4540a27ef9ba1bfeb47dcf3d560bcdcf8da533d6162e3c
 -- Feature flags with variants, targeting rules over tenant, user, plan, role and custom contexts such as brand, overrides and a percentage rollout bucketed by SHA-256. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -986,6 +986,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create extension if not exists pgcrypto with schema extensions;
 
 -- Feature flags. variants maps a variant name to its value; rules is an
@@ -1010,7 +1013,7 @@ create table if not exists "app_private"."flags" (
   check ("rollout_variant" is null or "variants" ? "rollout_variant")
 );
 alter table "app_private"."flags" enable row level security;
-revoke all on "app_private"."flags" from anon, authenticated;
+revoke all on "app_private"."flags" from public, anon, authenticated;
 grant all on "app_private"."flags" to service_role;
 
 -- A variant for one tenant, one user or one value of a custom context (such
@@ -1053,7 +1056,7 @@ end;
 $$;
 create index if not exists flag_overrides_user_idx on "app_private"."flag_overrides" ("user_id");
 alter table "app_private"."flag_overrides" enable row level security;
-revoke all on "app_private"."flag_overrides" from anon, authenticated;
+revoke all on "app_private"."flag_overrides" from public, anon, authenticated;
 grant all on "app_private"."flag_overrides" to service_role;
 
 -- The rollout bucket of target for flag: the first 32 bits of
@@ -1358,7 +1361,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_032_flags.sql
@@ -1380,7 +1383,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@3 managed
--- @bsb-hash sha256:2f1e8314a196860bdf2b807efb55da3ba2dcad9c45d4f1dc3ac285b91e4bc5e1
+-- @bsb-hash sha256:a4a869366ffee1abf88c1a672ac1912974e4a0a5313270a821dbdd5ef1ed3161
 -- Feature flags with variants, targeting rules over tenant, user, plan, role and custom contexts such as brand, overrides and a percentage rollout bucketed by SHA-256. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1459,7 +1462,7 @@ create table if not exists "better_supabase"."flags" (
   check ("rollout_variant" is null or "variants" ? "rollout_variant")
 );
 alter table "better_supabase"."flags" enable row level security;
-revoke all on "better_supabase"."flags" from anon, authenticated;
+revoke all on "better_supabase"."flags" from public, anon, authenticated;
 grant all on "better_supabase"."flags" to service_role;
 
 -- A variant for one tenant, one user or one value of a custom context (such
@@ -1502,7 +1505,7 @@ end;
 $$;
 create index if not exists flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
 alter table "better_supabase"."flag_overrides" enable row level security;
-revoke all on "better_supabase"."flag_overrides" from anon, authenticated;
+revoke all on "better_supabase"."flag_overrides" from public, anon, authenticated;
 grant all on "better_supabase"."flag_overrides" to service_role;
 
 -- The rollout bucket of target for flag: the first 32 bits of
@@ -1913,7 +1916,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_032_flags.sql
@@ -1935,7 +1938,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@3 managed
--- @bsb-hash sha256:29a4ab31fd12dbebeeab61793ade1d0aaeef1426f135efaf2aa4b74ed25c4bc1
+-- @bsb-hash sha256:44081a3450c094c5d5ab465d6bb07cc53417b85ba0b1ceb4e2e8449e3a4d8b27
 -- Feature flags with variants, targeting rules over tenant, user, plan, role and custom contexts such as brand, overrides and a percentage rollout bucketed by SHA-256. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2351,7 +2354,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_032_flags.sql
@@ -2373,7 +2376,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@3 managed
--- @bsb-hash sha256:927b0eaec124cb7238d000fc6d1f29994524e057a157ea2fbaa813713e60eeb8
+-- @bsb-hash sha256:bbefba6748eb178cb24d74b2286bfb1d215a46450620e220ab215c8d6e46f112
 -- Feature flags with variants, targeting rules over tenant, user, plan, role and custom contexts such as brand, overrides and a percentage rollout bucketed by SHA-256. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2452,7 +2455,7 @@ create table if not exists "better_supabase"."flags" (
   check ("rollout_variant" is null or "variants" ? "rollout_variant")
 );
 alter table "better_supabase"."flags" enable row level security;
-revoke all on "better_supabase"."flags" from anon, authenticated;
+revoke all on "better_supabase"."flags" from public, anon, authenticated;
 grant all on "better_supabase"."flags" to service_role;
 
 -- A variant for one tenant, one user or one value of a custom context (such
@@ -2495,7 +2498,7 @@ end;
 $$;
 create index if not exists flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
 alter table "better_supabase"."flag_overrides" enable row level security;
-revoke all on "better_supabase"."flag_overrides" from anon, authenticated;
+revoke all on "better_supabase"."flag_overrides" from public, anon, authenticated;
 grant all on "better_supabase"."flag_overrides" to service_role;
 
 -- The rollout bucket of target for flag: the first 32 bits of
@@ -2800,7 +2803,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_032_flags.sql

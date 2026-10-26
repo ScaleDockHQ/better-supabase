@@ -26,7 +26,7 @@ describe("domains module", () => {
       'check (not "is_primary" or "verified_at" is not null)',
     );
     expect(sql).toContain(
-      'revoke all on "better_supabase"."organization_hostnames" from anon, authenticated;',
+      'revoke all on "better_supabase"."organization_hostnames" from public, anon, authenticated;',
     );
   });
 

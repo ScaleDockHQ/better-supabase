@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@1 managed
--- @bsb-hash sha256:7b0f57624e297bdddc36b7261e200d89530cf44d7ed06930bc5956b832e3f0df
+-- @bsb-hash sha256:5e1e0b7ded72d3f6d2500884fc3d8247f34da42fb0a530a26c76574bef45c6b7
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,7 +98,7 @@ create index if not exists rules_updated_by_idx on "better_supabase"."rules" ("u
 alter table "better_supabase"."rules" add column if not exists "default_key" text;
 create unique index if not exists rules_default_key_idx on "better_supabase"."rules" ("organization_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."rules" enable row level security;
-revoke all on "better_supabase"."rules" from anon, authenticated;
+revoke all on "better_supabase"."rules" from public, anon, authenticated;
 grant all on "better_supabase"."rules" to service_role;
 
 -- The automations blocks ship (defineBlock automations). Each organization
@@ -117,7 +117,7 @@ create table if not exists "better_supabase"."rule_defaults" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."rule_defaults" enable row level security;
-revoke all on "better_supabase"."rule_defaults" from anon, authenticated;
+revoke all on "better_supabase"."rule_defaults" from public, anon, authenticated;
 grant all on "better_supabase"."rule_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
@@ -134,7 +134,7 @@ create table if not exists "better_supabase"."rule_versions" (
 );
 create index if not exists rule_versions_tenant_idx on "better_supabase"."rule_versions" ("organization_id");
 alter table "better_supabase"."rule_versions" enable row level security;
-revoke all on "better_supabase"."rule_versions" from anon, authenticated;
+revoke all on "better_supabase"."rule_versions" from public, anon, authenticated;
 grant all on "better_supabase"."rule_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
@@ -156,7 +156,7 @@ create table if not exists "better_supabase"."rule_evaluations" (
 create index if not exists rule_evaluations_rule_idx on "better_supabase"."rule_evaluations" ("rule_id", "evaluated_at" desc);
 create index if not exists rule_evaluations_tenant_idx on "better_supabase"."rule_evaluations" ("organization_id", "evaluated_at" desc);
 alter table "better_supabase"."rule_evaluations" enable row level security;
-revoke all on "better_supabase"."rule_evaluations" from anon, authenticated;
+revoke all on "better_supabase"."rule_evaluations" from public, anon, authenticated;
 grant all on "better_supabase"."rule_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
@@ -178,7 +178,7 @@ create table if not exists "better_supabase"."rule_fields" (
   check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
 );
 alter table "better_supabase"."rule_fields" enable row level security;
-revoke all on "better_supabase"."rule_fields" from anon, authenticated;
+revoke all on "better_supabase"."rule_fields" from public, anon, authenticated;
 grant all on "better_supabase"."rule_fields" to service_role;
 
 -- A JSON value as text the way the TypeScript evaluator reads it:
@@ -1264,7 +1264,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_111_automations.sql
@@ -1284,7 +1284,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@1 managed
--- @bsb-hash sha256:42c51509e096b386164dd39e09c6c207c01890dab0f9bcfa7764a3b98c40317d
+-- @bsb-hash sha256:8e15b7605714acc181a930297381be60339bd39456b8ab37d56f8e5346a0343a
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1381,7 +1381,7 @@ create index if not exists rules_updated_by_idx on "better_supabase"."rules" ("u
 alter table "better_supabase"."rules" add column if not exists "default_key" text;
 create unique index if not exists rules_default_key_idx on "better_supabase"."rules" ("organization_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."rules" enable row level security;
-revoke all on "better_supabase"."rules" from anon, authenticated;
+revoke all on "better_supabase"."rules" from public, anon, authenticated;
 grant all on "better_supabase"."rules" to service_role;
 
 -- The automations blocks ship (defineBlock automations). Each organization
@@ -1400,7 +1400,7 @@ create table if not exists "better_supabase"."rule_defaults" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."rule_defaults" enable row level security;
-revoke all on "better_supabase"."rule_defaults" from anon, authenticated;
+revoke all on "better_supabase"."rule_defaults" from public, anon, authenticated;
 grant all on "better_supabase"."rule_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
@@ -1417,7 +1417,7 @@ create table if not exists "better_supabase"."rule_versions" (
 );
 create index if not exists rule_versions_tenant_idx on "better_supabase"."rule_versions" ("organization_id");
 alter table "better_supabase"."rule_versions" enable row level security;
-revoke all on "better_supabase"."rule_versions" from anon, authenticated;
+revoke all on "better_supabase"."rule_versions" from public, anon, authenticated;
 grant all on "better_supabase"."rule_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
@@ -1439,7 +1439,7 @@ create table if not exists "better_supabase"."rule_evaluations" (
 create index if not exists rule_evaluations_rule_idx on "better_supabase"."rule_evaluations" ("rule_id", "evaluated_at" desc);
 create index if not exists rule_evaluations_tenant_idx on "better_supabase"."rule_evaluations" ("organization_id", "evaluated_at" desc);
 alter table "better_supabase"."rule_evaluations" enable row level security;
-revoke all on "better_supabase"."rule_evaluations" from anon, authenticated;
+revoke all on "better_supabase"."rule_evaluations" from public, anon, authenticated;
 grant all on "better_supabase"."rule_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
@@ -1461,7 +1461,7 @@ create table if not exists "better_supabase"."rule_fields" (
   check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
 );
 alter table "better_supabase"."rule_fields" enable row level security;
-revoke all on "better_supabase"."rule_fields" from anon, authenticated;
+revoke all on "better_supabase"."rule_fields" from public, anon, authenticated;
 grant all on "better_supabase"."rule_fields" to service_role;
 
 -- A JSON value as text the way the TypeScript evaluator reads it:
@@ -2617,7 +2617,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_111_automations.sql
@@ -2637,7 +2637,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@1 managed
--- @bsb-hash sha256:43af85ce9e3c9b8c55eac59103101305f1f63ed2a9fd1d8577214bb422272242
+-- @bsb-hash sha256:ace4454f01f4f1d825294e47b91bb5d570c97c62e4d349c643285e96b0d932d1
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2710,6 +2710,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Tenant rules: a FilterQuery over a subject type's fields, tested when the
 -- trigger event happens, and the actions the app runs when it matches.
 create table if not exists "app_private"."rules" (
@@ -2736,7 +2739,7 @@ create index if not exists rules_updated_by_idx on "app_private"."rules" ("updat
 alter table "app_private"."rules" add column if not exists "default_key" text;
 create unique index if not exists rules_default_key_idx on "app_private"."rules" ("organization_id", "default_key") where "default_key" is not null;
 alter table "app_private"."rules" enable row level security;
-revoke all on "app_private"."rules" from anon, authenticated;
+revoke all on "app_private"."rules" from public, anon, authenticated;
 grant all on "app_private"."rules" to service_role;
 
 -- The automations blocks ship (defineBlock automations). Each organization
@@ -2755,7 +2758,7 @@ create table if not exists "app_private"."rule_defaults" (
   "updated_at" timestamptz not null default now()
 );
 alter table "app_private"."rule_defaults" enable row level security;
-revoke all on "app_private"."rule_defaults" from anon, authenticated;
+revoke all on "app_private"."rule_defaults" from public, anon, authenticated;
 grant all on "app_private"."rule_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
@@ -2772,7 +2775,7 @@ create table if not exists "app_private"."rule_versions" (
 );
 create index if not exists rule_versions_tenant_idx on "app_private"."rule_versions" ("organization_id");
 alter table "app_private"."rule_versions" enable row level security;
-revoke all on "app_private"."rule_versions" from anon, authenticated;
+revoke all on "app_private"."rule_versions" from public, anon, authenticated;
 grant all on "app_private"."rule_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
@@ -2794,7 +2797,7 @@ create table if not exists "app_private"."rule_evaluations" (
 create index if not exists rule_evaluations_rule_idx on "app_private"."rule_evaluations" ("rule_id", "evaluated_at" desc);
 create index if not exists rule_evaluations_tenant_idx on "app_private"."rule_evaluations" ("organization_id", "evaluated_at" desc);
 alter table "app_private"."rule_evaluations" enable row level security;
-revoke all on "app_private"."rule_evaluations" from anon, authenticated;
+revoke all on "app_private"."rule_evaluations" from public, anon, authenticated;
 grant all on "app_private"."rule_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
@@ -2816,7 +2819,7 @@ create table if not exists "app_private"."rule_fields" (
   check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
 );
 alter table "app_private"."rule_fields" enable row level security;
-revoke all on "app_private"."rule_fields" from anon, authenticated;
+revoke all on "app_private"."rule_fields" from public, anon, authenticated;
 grant all on "app_private"."rule_fields" to service_role;
 
 -- A JSON value as text the way the TypeScript evaluator reads it:
@@ -3902,7 +3905,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_111_automations.sql
@@ -3922,7 +3925,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@1 managed
--- @bsb-hash sha256:ea5b06fa63fdfbcb7d06d84bf88d9d61ba3c8d37dca0f6e3c8c41b9d7969590d
+-- @bsb-hash sha256:cccc2913cc2149ec97aeb92f6e30df12a78d1de2ec3ba72d09e5cc9e42244945
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4019,7 +4022,7 @@ create index if not exists rules_updated_by_idx on "better_supabase"."rules" ("u
 alter table "better_supabase"."rules" add column if not exists "default_key" text;
 create unique index if not exists rules_default_key_idx on "better_supabase"."rules" ("organization_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."rules" enable row level security;
-revoke all on "better_supabase"."rules" from anon, authenticated;
+revoke all on "better_supabase"."rules" from public, anon, authenticated;
 grant all on "better_supabase"."rules" to service_role;
 
 -- The automations blocks ship (defineBlock automations). Each organization
@@ -4038,7 +4041,7 @@ create table if not exists "better_supabase"."rule_defaults" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."rule_defaults" enable row level security;
-revoke all on "better_supabase"."rule_defaults" from anon, authenticated;
+revoke all on "better_supabase"."rule_defaults" from public, anon, authenticated;
 grant all on "better_supabase"."rule_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
@@ -4055,7 +4058,7 @@ create table if not exists "better_supabase"."rule_versions" (
 );
 create index if not exists rule_versions_tenant_idx on "better_supabase"."rule_versions" ("organization_id");
 alter table "better_supabase"."rule_versions" enable row level security;
-revoke all on "better_supabase"."rule_versions" from anon, authenticated;
+revoke all on "better_supabase"."rule_versions" from public, anon, authenticated;
 grant all on "better_supabase"."rule_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
@@ -4077,7 +4080,7 @@ create table if not exists "better_supabase"."rule_evaluations" (
 create index if not exists rule_evaluations_rule_idx on "better_supabase"."rule_evaluations" ("rule_id", "evaluated_at" desc);
 create index if not exists rule_evaluations_tenant_idx on "better_supabase"."rule_evaluations" ("organization_id", "evaluated_at" desc);
 alter table "better_supabase"."rule_evaluations" enable row level security;
-revoke all on "better_supabase"."rule_evaluations" from anon, authenticated;
+revoke all on "better_supabase"."rule_evaluations" from public, anon, authenticated;
 grant all on "better_supabase"."rule_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
@@ -4099,7 +4102,7 @@ create table if not exists "better_supabase"."rule_fields" (
   check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
 );
 alter table "better_supabase"."rule_fields" enable row level security;
-revoke all on "better_supabase"."rule_fields" from anon, authenticated;
+revoke all on "better_supabase"."rule_fields" from public, anon, authenticated;
 grant all on "better_supabase"."rule_fields" to service_role;
 
 -- A JSON value as text the way the TypeScript evaluator reads it:
@@ -5468,7 +5471,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_111_automations.sql
@@ -5488,7 +5491,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@1 managed
--- @bsb-hash sha256:4a95f19736368ecd485df0550762e1ad5716a2c4bcb4e0425521f16145bc2fa5
+-- @bsb-hash sha256:c6e2e16b8662a8dfb7e3f6012a87296ef7efb84b9452c470ff02e7cf8dcfaa79
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6757,7 +6760,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_111_automations.sql
@@ -6777,7 +6780,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@1 managed
--- @bsb-hash sha256:bec9e1d186116c93b4b72a92ff65077538fd4835f4ecd58ab30076882f71bfa1
+-- @bsb-hash sha256:bcd4bf3142ac784a70168cd26b37c17f350adb630e25ba9ff138cf8ec8eb952c
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6874,7 +6877,7 @@ create index if not exists rules_updated_by_idx on "better_supabase"."rules" ("u
 alter table "better_supabase"."rules" add column if not exists "default_key" text;
 create unique index if not exists rules_default_key_idx on "better_supabase"."rules" ("org_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."rules" enable row level security;
-revoke all on "better_supabase"."rules" from anon, authenticated;
+revoke all on "better_supabase"."rules" from public, anon, authenticated;
 grant all on "better_supabase"."rules" to service_role;
 
 -- The automations blocks ship (defineBlock automations). Each organization
@@ -6893,7 +6896,7 @@ create table if not exists "better_supabase"."rule_defaults" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."rule_defaults" enable row level security;
-revoke all on "better_supabase"."rule_defaults" from anon, authenticated;
+revoke all on "better_supabase"."rule_defaults" from public, anon, authenticated;
 grant all on "better_supabase"."rule_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
@@ -6910,7 +6913,7 @@ create table if not exists "better_supabase"."rule_versions" (
 );
 create index if not exists rule_versions_tenant_idx on "better_supabase"."rule_versions" ("org_id");
 alter table "better_supabase"."rule_versions" enable row level security;
-revoke all on "better_supabase"."rule_versions" from anon, authenticated;
+revoke all on "better_supabase"."rule_versions" from public, anon, authenticated;
 grant all on "better_supabase"."rule_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
@@ -6932,7 +6935,7 @@ create table if not exists "better_supabase"."rule_evaluations" (
 create index if not exists rule_evaluations_rule_idx on "better_supabase"."rule_evaluations" ("rule_id", "evaluated_at" desc);
 create index if not exists rule_evaluations_tenant_idx on "better_supabase"."rule_evaluations" ("org_id", "evaluated_at" desc);
 alter table "better_supabase"."rule_evaluations" enable row level security;
-revoke all on "better_supabase"."rule_evaluations" from anon, authenticated;
+revoke all on "better_supabase"."rule_evaluations" from public, anon, authenticated;
 grant all on "better_supabase"."rule_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
@@ -6954,7 +6957,7 @@ create table if not exists "better_supabase"."rule_fields" (
   check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
 );
 alter table "better_supabase"."rule_fields" enable row level security;
-revoke all on "better_supabase"."rule_fields" from anon, authenticated;
+revoke all on "better_supabase"."rule_fields" from public, anon, authenticated;
 grant all on "better_supabase"."rule_fields" to service_role;
 
 -- A JSON value as text the way the TypeScript evaluator reads it:
@@ -8040,7 +8043,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_111_automations.sql

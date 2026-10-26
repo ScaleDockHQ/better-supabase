@@ -1,6 +1,6 @@
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@8 managed
--- @bsb-hash sha256:9a24389bff02e87dd3703460ba245eb701584321038a806bed7c7f4e306bcd7c
+-- @bsb-hash sha256:1b7eaa15d1aa805718869832f74a71fa9ffe21ae181693818853c50ee75d7b05
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -270,5 +270,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

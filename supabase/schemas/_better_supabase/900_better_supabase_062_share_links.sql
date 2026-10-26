@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:838216292864bc4f649e90ca37a34ae40b298f269f14a7bb35efb7261f22b578
+-- @bsb-hash sha256:8d8b5fee27207513c146099290bcf4953de27c1715d015c5cf7bc21032982f74
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -72,7 +72,7 @@ create table if not exists "better_supabase"."share_links" (
 alter table "better_supabase"."share_links" add column if not exists "version_id" uuid;
 alter table "better_supabase"."share_links" add column if not exists "use_count" integer not null default 0;
 alter table "better_supabase"."share_links" enable row level security;
-revoke all on "better_supabase"."share_links" from anon, authenticated;
+revoke all on "better_supabase"."share_links" from public, anon, authenticated;
 grant select on "better_supabase"."share_links" to authenticated;
 grant all on "better_supabase"."share_links" to service_role;
 create index if not exists "share_links_subject_idx" on "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id");
@@ -90,7 +90,7 @@ create table if not exists "better_supabase"."subject_views" (
   unique ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
 );
 alter table "better_supabase"."subject_views" enable row level security;
-revoke all on "better_supabase"."subject_views" from anon, authenticated;
+revoke all on "better_supabase"."subject_views" from public, anon, authenticated;
 grant select on "better_supabase"."subject_views" to authenticated;
 grant all on "better_supabase"."subject_views" to service_role;
 
@@ -103,7 +103,7 @@ create table if not exists "better_supabase"."subject_user_state" (
   primary key ("subject_type", "subject_id", "user_id")
 );
 alter table "better_supabase"."subject_user_state" enable row level security;
-revoke all on "better_supabase"."subject_user_state" from anon, authenticated;
+revoke all on "better_supabase"."subject_user_state" from public, anon, authenticated;
 grant select on "better_supabase"."subject_user_state" to authenticated;
 grant all on "better_supabase"."subject_user_state" to service_role;
 
@@ -571,5 +571,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
