@@ -9,7 +9,7 @@ select ok(
   exists (
     select 1 from pg_catalog.pg_policies
     where schemaname = 'better_supabase' and tablename = 'tags'
-      and policyname = 'bsb_tenant_scope' and permissive = 'RESTRICTIVE'
+      and policyname = 'bsb_tenant_scope_select' and permissive = 'RESTRICTIVE'
   ),
   'better_supabase.tags has a restrictive tenant scope'
 );
@@ -17,7 +17,7 @@ select ok(
   exists (
     select 1 from pg_catalog.pg_policies
     where schemaname = 'better_supabase' and tablename = 'organization_settings'
-      and policyname = 'bsb_tenant_scope' and permissive = 'RESTRICTIVE'
+      and policyname = 'bsb_tenant_scope_select' and permissive = 'RESTRICTIVE'
   ),
   'better_supabase.organization_settings has a restrictive tenant scope'
 );
