@@ -240,6 +240,88 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("writes line extras in the insert, so a check across them holds", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_id uuid;
+begin
+  ${SERVICE}
+  v_id := (better_supabase.create_quote('${TENANT}', '{"title": "Website", "currency": "EUR"}'::jsonb, null) ->> 'id')::uuid;
+  perform better_supabase.set_quote_lines(v_id, '[{"description": "Intro", "quantity": 1, "unitAmount": "0", "fields": {"kind": "text"}}, {"description": "Build", "quantity": 1, "unitAmount": "100", "fields": {"line_type": "labor"}}]'::jsonb);
+  if (select string_agg(kind || ':' || coalesce(line_type, '-'), ',' order by position) from public.proposal_lines where proposal_id = v_id) <> 'text:-,line:labor' then
+    raise exception 'lines %', (select jsonb_agg(l) from public.proposal_lines l);
+  end if;
+end;
+$$;`,
+        {
+          app: `${APP}${APP_LINES}
+alter table public.proposal_lines add column kind text not null default 'line',
+  add column line_type text,
+  add constraint proposal_lines_kind check (kind <> 'line' or line_type is not null);`,
+          blocks: {
+            quotes: {
+              ...LINE_BLOCKS["quotes"],
+              options: {
+                lineExtraColumns: {
+                  kind: "text not null default 'line'",
+                  line_type: "text",
+                },
+              },
+            },
+          },
+          own: { ...OWN_TABLES, "public.proposal_lines": "app.sql" },
+        },
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("maps statuses and skips a viewed status the app lacks", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_id uuid;
+  v_sent jsonb;
+  v_public jsonb;
+begin
+  ${SERVICE}
+  v_id := (better_supabase.create_quote('${TENANT}', '{"title": "Website", "currency": "EUR"}'::jsonb,
+    '[{"description": "Design", "quantity": 1, "unitAmount": "5000"}]'::jsonb) ->> 'id')::uuid;
+  v_sent := better_supabase.send_quote(v_id);
+  if (select state::text from public.proposals where id = v_id) <> 'published' or v_sent ->> 'status' <> 'sent' then
+    raise exception 'sent %', v_sent;
+  end if;
+  v_public := better_supabase.public_quote(v_sent ->> 'token');
+  if v_public ->> 'status' <> 'sent' or (select state::text from public.proposals where id = v_id) <> 'published' then
+    raise exception 'viewed %', v_public;
+  end if;
+  perform better_supabase.decide_quote(v_id, 'accepted', null, 'Ann');
+  if (select state::text from public.proposals where id = v_id) <> 'accepted' then
+    raise exception 'decision missed';
+  end if;
+end;
+$$;`,
+        {
+          app: APP.replace(
+            "('draft', 'sent', 'viewed', 'accepted', 'rejected', 'changes_requested', 'expired', 'withdrawn')",
+            "('draft', 'published', 'accepted', 'rejected', 'changes_requested', 'expired', 'withdrawn')",
+          ),
+          blocks: {
+            quotes: {
+              ...BLOCKS["quotes"],
+              values: {
+                quotes: { status: { sent: "published", viewed: null } },
+              },
+            },
+          },
+          own: OWN_TABLES,
+        },
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("refuses terms the app's table has no column for", async () => {
     await expect(
       run(`do $$

@@ -353,6 +353,20 @@ function contractsSql(
     ...(has("createdBy") ? ["auth.uid()"] : []),
   ];
 
+  const insertWith = (skip: string | undefined): string =>
+    `insert into ${table} (${columns.filter((column) => column !== skip).join(", ")}${required.columns})
+    values (${values.filter((_, index) => columns[index] !== skip).join(", ")}${required.values})
+    returning * into v_row;`;
+
+  const insert =
+    currency && !ctx.owns("contracts")
+      ? `if add_employee_contract.attrs ? 'currency' then
+      ${insertWith(undefined).replaceAll("\n    ", "\n      ")}
+    else
+      ${insertWith(k("currency")).replaceAll("\n    ", "\n      ")}
+    end if;`
+      : insertWith(undefined);
+
   const updated = ctx.record({
     type: "employee.updated",
     payload: `jsonb_build_object('organizationId', v_employee.${e("tenant")}, 'employeeId', v_employee.${e("id")}, 'subjectType', 'employee', 'subjectId', v_employee.${e("id")}::text, 'name', ${n.name("v_employee")}, 'fields', jsonb_build_array('contract'))`,
@@ -409,9 +423,7 @@ begin${load("add_employee_contract", "employee", contractWriter(ctx, n, "v_emplo
     update ${table} x set ${k("endsOn")} = v_starts - 1
     where x.${k("employee")} = v_employee.${e("id")} and (x.${k("endsOn")} is null or x.${k("endsOn")} >= v_starts);`
     }
-    insert into ${table} (${columns.join(", ")}${required.columns})
-    values (${values.join(", ")}${required.values})
-    returning * into v_row;${writeExtraColumns(table, extras, fields, `x.${k("id")} = v_row.${k("id")}`, "v_row").replaceAll("\n  ", "\n    ")}
+    ${insert}${writeExtraColumns(table, extras, fields, `x.${k("id")} = v_row.${k("id")}`, "v_row").replaceAll("\n  ", "\n    ")}
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow or numeric_value_out_of_range then
     ${fail("EMPLOYEE_CONTRACT_INVALID", "a contract field has an invalid value", "22023")}
   end;

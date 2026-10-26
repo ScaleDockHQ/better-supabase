@@ -889,7 +889,7 @@ function trigger(ctx: BlockSqlContext, item: SequenceEntity): string {
     "42501",
   );
 
-  const issued = `(v_issued[1] = ${sqlString(item.name)} and new.${col}::text in (v_issued[2], v_issued[3])${sequence === undefined ? "" : ` and new.${sequence}::text = v_issued[2]`})`;
+  const issued = `coalesce(v_issued[1] = ${sqlString(item.name)} and new.${col}::text in (v_issued[2], v_issued[3])${sequence === undefined ? "" : ` and new.${sequence}::text = v_issued[2]`}, false)`;
 
   const manualSequence =
     sequence === undefined

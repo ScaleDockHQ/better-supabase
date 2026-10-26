@@ -3,7 +3,13 @@ import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import { int8Text } from "../money-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
-import { fail, pageSize, userGrant, writeExtraColumns } from "../shared.ts";
+import {
+  fail,
+  insertExtraColumns,
+  pageSize,
+  userGrant,
+  writeExtraColumns,
+} from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 import { asText } from "./over-app.ts";
 import {
@@ -162,6 +168,12 @@ export function workItemFunctions(
   end if;`,
       )
       .join("");
+
+  const extrasInsert = insertExtraColumns(
+    t("items"),
+    n.extras,
+    "(create_work_item.attrs -> 'fields')",
+  );
 
   const editable = (alias: string): string =>
     `(${n.service} or ${ctx.scope.can(`${alias}.${w("tenant")}`, n.write)})`;
@@ -440,7 +452,7 @@ begin
         w("stage"),
         column("createdBy"),
       ],
-    )})
+    )}${extrasInsert.columns})
     values (${lines(
       "      ",
       [
@@ -503,7 +515,7 @@ begin
         "(create_work_item.attrs ->> 'stageId')::uuid",
         present("items", "createdBy", "auth.uid()"),
       ],
-    )})
+    )}${extrasInsert.values})
     returning ${w("id")} into v_id;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range or foreign_key_violation then
     ${fail("WORK_ITEM_ATTRS_INVALID", "a work item field has an invalid value", "22023")}

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:f9c6dbee8182e5a9d1d4a3c2baff7a29fc809163656819498c64004e5cad21d6
+-- @bsb-hash sha256:72b1c3fb44b770d62f2910e669de2711717441fb04d08dfdc0a2b7bb5c965885
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -244,10 +244,10 @@ begin
   end if;
   begin
     if save_job.job is null then
-      insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status")
+      insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status", "app_note")
       values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
         save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
-        coalesce(save_job.attrs ->> 'status', 'draft'))
+        coalesce(save_job.attrs ->> 'status', 'draft'), (jsonb_populate_record(null::"better_supabase"."job_openings", coalesce(save_job.attrs -> 'fields', '{}'::jsonb)))."app_note")
       returning * into v_job;
     else
       update "better_supabase"."job_openings" x set

@@ -284,9 +284,10 @@ export interface BlockSqlValueMethods {
    * `to_jsonb(alias)` of a row of `table` keyed as on the module's own table:
    * each logical column the app renames also under the module's column name,
    * and each mapped typed column read back as its label, so a client parses the
-   * row the same way over the app's table. `as` gives the value of a renamed
-   * logical column from its column expression, such as an int8 as text.
-   * `to_jsonb(alias)` when nothing is renamed or mapped.
+   * row the same way over the app's table (a mapped column's own key holds the
+   * label too). `as` gives the value of a renamed logical column from its
+   * column expression, such as an int8 as text. `to_jsonb(alias)` when nothing
+   * is renamed or mapped.
    */
   rowJson(
     table: string,
@@ -394,15 +395,16 @@ export function valueMethods(input: {
           const value = `${alias}.${sqlIdent(app)}`;
           const as = options.as?.[logical];
 
-          return [
-            `${sqlString(own)}, ${
-              labelled
-                ? readValue(mapOf(table, logical), value)
-                : as === undefined
-                  ? value
-                  : as(value)
-            }`,
-          ];
+          if (labelled) {
+            const label = readValue(mapOf(table, logical), value);
+
+            return [
+              ...(app === own ? [] : [`${sqlString(app)}, ${label}`]),
+              `${sqlString(own)}, ${label}`,
+            ];
+          }
+
+          return [`${sqlString(own)}, ${as === undefined ? value : as(value)}`];
         },
       );
 

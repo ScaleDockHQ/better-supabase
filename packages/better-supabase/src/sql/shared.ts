@@ -82,30 +82,72 @@ export const writeExtraColumns = (
   where ${where}${into === undefined ? "" : `\n  returning x.* into ${into}`};`;
 
 /**
- * The extra columns an insert sets itself: those whose type is `not null`
- * without a `default`, which the update `writeExtraColumns` runs after the
- * insert would set too late. `columns` and `values` are `, a, b` lists for the
- * insert, reading `source` (a `jsonb` object keyed by column name); both are
- * empty when no extra column needs it, so the insert is unchanged.
+ * The `default` expression of an `extraColumns` type, such as `'en'` in `text
+ * not null default 'en'`, or undefined without one.
+ */
+export function extraColumnDefault(type: string): string | undefined {
+  let quoted = false;
+  let depth = 0;
+  let start: number | undefined;
+
+  for (let index = 0; index < type.length; index += 1) {
+    const char = type.charAt(index);
+
+    if (char === "'") {
+      quoted = !quoted;
+    }
+
+    if (quoted) {
+      continue;
+    }
+
+    depth += char === "(" ? 1 : char === ")" ? -1 : 0;
+
+    if (depth !== 0 || !/\s/u.test(type.charAt(index - 1) || " ")) {
+      continue;
+    }
+
+    const rest = type.slice(index);
+
+    if (start === undefined) {
+      const match = /^default\s+/iu.exec(rest);
+      start = match === null ? undefined : index + match[0].length;
+    } else if (CONSTRAINT_WORD.test(rest)) {
+      return type.slice(start, index).trim();
+    }
+  }
+
+  return start === undefined ? undefined : type.slice(start).trim();
+}
+
+const CONSTRAINT_WORD =
+  /^(?:not\s+null|null|check|references|unique|primary\s+key|constraint|generated|collate)\b/iu;
+
+/**
+ * The extra columns an insert sets itself: every one, read from `source` (a
+ * `jsonb` object keyed by column name), and the column's `default` when
+ * `source` leaves its key out. Writing them in the insert keeps a check across
+ * columns, or a `not null` column without a default, from failing before the
+ * update `writeExtraColumns` runs. `columns` and `values` are `, a, b` lists
+ * for the insert; both are empty without extra columns.
  */
 export const insertExtraColumns = (
   table: string,
   extras: readonly ExtraColumn[],
   source: string,
 ): { readonly columns: string; readonly values: string } => {
-  const required = extras.filter(
-    (extra) =>
-      /\bnot\s+null\b/iu.test(extra.type) && !/\bdefault\b/iu.test(extra.type),
-  );
+  const value = (extra: ExtraColumn): string => {
+    const read = `(jsonb_populate_record(null::${table}, coalesce(${source}, '{}'::jsonb))).${extra.ident}`;
+    const fallback = extraColumnDefault(extra.type);
+
+    return fallback === undefined
+      ? read
+      : `case when ${source} ? ${sqlString(extra.name)} then ${read} else ${fallback} end`;
+  };
 
   return {
-    columns: required.map((extra) => `, ${extra.ident}`).join(""),
-    values: required
-      .map(
-        (extra) =>
-          `, (jsonb_populate_record(null::${table}, coalesce(${source}, '{}'::jsonb))).${extra.ident}`,
-      )
-      .join(""),
+    columns: extras.map((extra) => `, ${extra.ident}`).join(""),
+    values: extras.map((extra) => `, ${value(extra)}`).join(""),
   };
 };
 

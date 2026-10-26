@@ -205,7 +205,7 @@ describe("tags module", () => {
     );
   });
 
-  it("writes a required extra column inside the insert", () => {
+  it("writes every extra column inside the insert", () => {
     const sql = sqlOf({
       modules: {
         tags: {
@@ -215,9 +215,9 @@ describe("tags module", () => {
     });
 
     expect(sql).toContain(
-      `(jsonb_populate_record(null::"better_supabase"."tags", coalesce(create_tag.fields, '{}'::jsonb)))."icon")`,
+      `(jsonb_populate_record(null::"better_supabase"."tags", coalesce(create_tag.fields, '{}'::jsonb)))."icon", `,
     );
-    expect(sql).not.toContain(`'{}'::jsonb)))."note"`);
+    expect(sql).toContain(`'{}'::jsonb)))."note")`);
   });
 
   it("checks the record's tag action when the record declares one", () => {

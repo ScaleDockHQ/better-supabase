@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:11d00f723dbc272df14e0d6ccdf6db48f5da1189e32f47eeb6d7ee39a7421585
+-- @bsb-hash sha256:ca2e998f6e7c1258eb146155b95642b93c3d6ad3aef23ab1b7dcc0e92255c072
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -191,10 +191,10 @@ begin
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
-    insert into "better_supabase"."saved_views" ("tenant_id", "list", "scope", "owner_id", "team_id", "name", "kind", "state", "rank")
+    insert into "better_supabase"."saved_views" ("tenant_id", "list", "scope", "owner_id", "team_id", "name", "kind", "state", "rank", "app_note")
     values (save_view.tenant, save_view.list, save_view.scope, auth.uid(),
       case when save_view.scope = 'team' then save_view.team end,
-      save_view.name, save_view.kind, save_view.state, v_rank)
+      save_view.name, save_view.kind, save_view.state, v_rank, (jsonb_populate_record(null::"better_supabase"."saved_views", coalesce(save_view.fields, '{}'::jsonb)))."app_note")
     returning "id" into v_id;
   else
     update "better_supabase"."saved_views" set
