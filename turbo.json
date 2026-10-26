@@ -115,14 +115,26 @@
       "cache": false
     },
     "//#lint:root": {
-      "inputs": ["*.ts", "*.mts", "scripts/**", "package.json"]
+      "inputs": [
+        "*.ts",
+        "*.mts",
+        "scripts/**",
+        "package.json",
+        "packages/better-supabase/src/**"
+      ]
     },
     "typecheck": {
       "dependsOn": ["transit"],
       "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!**/*.mdx"]
     },
     "//#typecheck:tooling": {
-      "inputs": ["*.ts", "*.mts", "scripts/**", "package.json"]
+      "inputs": [
+        "*.ts",
+        "*.mts",
+        "scripts/**",
+        "package.json",
+        "packages/better-supabase/src/**"
+      ]
     },
     "typecheck:matrix": {
       "dependsOn": ["^build"],

@@ -794,9 +794,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5
-      better-supabase:
-        specifier: workspace:*
-        version: link:packages/better-supabase
       dotenv-cli:
         specifier: 'catalog:'
         version: 11.0.0
