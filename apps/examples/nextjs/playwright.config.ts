@@ -5,6 +5,9 @@ import { stackStatus } from "./e2e/stack";
 
 const stack = stackStatus();
 
+// Destructured: typedEnv declares only the keys in local env files, in dev.
+const { SUPABASE_SECRET_KEY, WORKFLOW_POSTGRES_URL } = process.env;
+
 /**
  * The running stack for the build and the servers. The secret key is for
  * account deletion and is never written to a file. The developer settings
@@ -17,10 +20,8 @@ const stackEnv = {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
     stack["PUBLISHABLE_KEY"] ??
     "",
-  SUPABASE_SECRET_KEY:
-    process.env["SUPABASE_SECRET_KEY"] ?? stack["SECRET_KEY"] ?? "",
-  WORKFLOW_POSTGRES_URL:
-    process.env["WORKFLOW_POSTGRES_URL"] ?? stack["DB_URL"] ?? "",
+  SUPABASE_SECRET_KEY: SUPABASE_SECRET_KEY ?? stack["SECRET_KEY"] ?? "",
+  WORKFLOW_POSTGRES_URL: WORKFLOW_POSTGRES_URL ?? stack["DB_URL"] ?? "",
 };
 
 /**

@@ -8,6 +8,19 @@ const flag = v.optional(v.picklist(["0", "1"]), "0");
  * the literal `process.env.NAME` reads in `runtimeEnv`, and `typedEnv` checks
  * the `.env*` files against what Next loads.
  */
+// Destructured: typedEnv declares only the keys in local env files, in dev, so
+// neither dot nor bracket access lints the same in every checkout.
+const {
+  EXPOSE_TESTING_API,
+  SUPABASE_SECRET_KEY,
+  FLAGS_SECRET,
+  CRON_SECRET,
+  AI_GATEWAY_API_KEY,
+  WORKFLOW_POSTGRES_URL,
+  PDL_API_KEY,
+  BS_FETCH_DELAY_MS,
+} = process.env;
+
 export const env = createEnv({
   shared: {
     NODE_ENV: v.optional(
@@ -43,14 +56,14 @@ export const env = createEnv({
   },
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
-    EXPOSE_TESTING_API: process.env["EXPOSE_TESTING_API"],
-    SUPABASE_SECRET_KEY: process.env["SUPABASE_SECRET_KEY"],
-    FLAGS_SECRET: process.env["FLAGS_SECRET"],
-    CRON_SECRET: process.env["CRON_SECRET"],
-    AI_GATEWAY_API_KEY: process.env["AI_GATEWAY_API_KEY"],
-    WORKFLOW_POSTGRES_URL: process.env["WORKFLOW_POSTGRES_URL"],
-    PDL_API_KEY: process.env["PDL_API_KEY"],
-    BS_FETCH_DELAY_MS: process.env["BS_FETCH_DELAY_MS"],
+    EXPOSE_TESTING_API,
+    SUPABASE_SECRET_KEY,
+    FLAGS_SECRET,
+    CRON_SECRET,
+    AI_GATEWAY_API_KEY,
+    WORKFLOW_POSTGRES_URL,
+    PDL_API_KEY,
+    BS_FETCH_DELAY_MS,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
