@@ -1691,3 +1691,42 @@ for (const { module, action, key } of modulePermissionKeys(
   if (!scopeOnly.has(key)) console.error(`${module}.${action}: ${key}`);
 }
 ```
+
+## Policies
+
+`better-supabase/sql` builds, renders and reads row level security policies.
+`policy()` makes a typed `Policy`, `renderPolicy()` writes the `create policy`
+statement, and `readPolicies()` and `readGrants()` read them back from a script
+without being fooled by comments, strings or dollar-quoted bodies.
+
+```ts
+import { policy, renderPolicy } from "better-supabase/sql";
+
+renderPolicy(
+  policy({
+    table: "app.notes",
+    name: "notes_read",
+    command: "select",
+    roles: ["authenticated"],
+    using: "bsb.is_member(tenant_id)",
+  }),
+  { drop: true },
+);
+```
+
+### The rule DSL
+
+A `Rule` is a small tree: `public`, `owner`, `member`, `can`, `compare`,
+`null`, `and`, `or` and `not`. `rulePolicy()` renders it into a policy that
+calls only `bsb.is_member`, `bsb.can`, `bsb.owns` and `bsb.uid`, and
+`renderRulePolicy()` puts the tree in a `-- @bsb rule` comment above the
+statement. `readRulePolicies()` recovers the tree and reports `inSync: false`
+once someone edits the SQL by hand, so a UI knows to show the SQL instead of
+the tree.
+
+`policyFunctionsSql()` returns the `bsb` schema with the four functions.
+`uid()` and `owns()` are fixed. `is_member()` and `can()` delegate to the
+functions you name, so your own tables or an authorization library answer
+them. A hand written policy is kept as it is; `disallowedPolicyCalls()` lists
+the calls in it that are not one of the four functions, which is how you check
+it against the same rule.

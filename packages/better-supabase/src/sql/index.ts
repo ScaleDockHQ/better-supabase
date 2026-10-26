@@ -167,3 +167,43 @@ export {
   declaredPolicies,
   widenedCommands,
 } from "./policy-cover.ts";
+
+export {
+  catalogPolicy,
+  maskSql,
+  policy,
+  readGrants,
+  readPolicies,
+  readPolicy,
+  renderPolicy,
+} from "./policy.ts";
+
+export type {
+  Grant,
+  Policy,
+  PolicyCommand,
+  PolicyInput,
+  ReadPolicy,
+  RenderPolicyOptions,
+} from "./policy.ts";
+
+export {
+  disallowedPolicyCalls,
+  isRule,
+  POLICY_FUNCTIONS,
+  policyFunctionsSql,
+  readRulePolicies,
+  renderRule,
+  renderRulePolicy,
+  rulePolicy,
+} from "./policy-rule.ts";
+
+export type {
+  PolicyFunctionsOptions,
+  ReadRulePolicy,
+  Rule,
+  RuleOperator,
+  RulePolicy,
+  RulePolicyInput,
+  RuleValue,
+} from "./policy-rule.ts";
