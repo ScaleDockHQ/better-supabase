@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:09cbaa8a95b4934d9e43faad26a4346477035d8ffafd25ab0cf61bb37b200b39
+-- @bsb-hash sha256:b104a8fcbc4b16d180f33382c42658dc8e2b668c87cfabdd81b59a3fec768840
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,6 +12,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."outbox_events";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."outbox_events";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."outbox_events";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."outbox_events";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."outbox_events";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;

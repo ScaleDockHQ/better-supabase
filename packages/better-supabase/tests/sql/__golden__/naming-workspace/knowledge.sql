@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@2 managed
--- @bsb-hash sha256:65607d68fbe100c1b685b377dbd3dd14461fd7f61ed2e268582267479dcaa2be
+-- @bsb-hash sha256:9dcc64a6bbe5cda25e53af4c50447814bc925a40af54a21f67f1229962938479
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_documents";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."knowledge_documents";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."knowledge_documents";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."knowledge_documents";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_documents";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -487,13 +491,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_documents";
-create policy bsb_tenant_scope on "better_supabase"."knowledge_documents" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."knowledge_documents";
+create policy bsb_tenant_scope_select on "better_supabase"."knowledge_documents" as restrictive
+  for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
     or (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "workspace_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "workspace_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and false)))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."knowledge_documents";
+create policy bsb_tenant_scope_insert on "better_supabase"."knowledge_documents" as restrictive
+  for insert to public
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."knowledge_documents";
+create policy bsb_tenant_scope_update on "better_supabase"."knowledge_documents" as restrictive
+  for update to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_documents";
+create policy bsb_tenant_scope_delete on "better_supabase"."knowledge_documents" as restrictive
+  for delete to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:7965b61181fabcc4e36b2c93394d856d40497e1103f94a26b854059cccd4b5ca
+-- @bsb-hash sha256:b4a1294a4cc0ccad376737a77a96b23c1947c6d6a8501a9e0458f7a2de27a988
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invite_codes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;

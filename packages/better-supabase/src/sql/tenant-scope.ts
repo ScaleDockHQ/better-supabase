@@ -1,5 +1,5 @@
 import type { BlockSqlContext } from "./context.ts";
-import type { Policy } from "./policy.ts";
+import type { Policy, PolicyCommand } from "./policy.ts";
 
 import { sqlString } from "../core/template.ts";
 import { withoutComments } from "./audit-registrations.ts";
@@ -18,6 +18,15 @@ import {
  */
 export const TENANT_SCOPE_POLICY = "bsb_tenant_scope";
 
+/** The commands the tenant scope covers, one restrictive policy each (ADR 0104). */
+export type ScopeCommand = "select" | "insert" | "update" | "delete";
+
+/** The expressions a block's permissive policies grant for one command. */
+export interface Branches {
+  readonly using: readonly string[];
+  readonly check: readonly string[];
+}
+
 export interface TenantScopeTarget {
   /** The table, qualified and quoted as the module writes it. */
   readonly target: string;
@@ -26,13 +35,11 @@ export interface TenantScopeTarget {
   /** The set-returning call of the caller's organizations. */
   readonly members: string;
   /**
-   * The `using` expressions of the block's own permissive policies on the
-   * table, which may reach rows outside the caller's organizations (guests,
-   * platform staff, invitees, a user's own rows).
+   * What the block's own permissive policies grant on the table, per command.
+   * They may reach rows outside the caller's organizations (guests, platform
+   * staff, invitees, a user's own rows, anonymous readers).
    */
-  readonly using?: readonly string[];
-  /** The `with check` expressions of those policies. */
-  readonly check?: readonly string[];
+  readonly by?: Partial<Record<ScopeCommand, Branches>>;
 }
 
 function clause(base: string, extra: readonly string[]): string {
@@ -45,21 +52,54 @@ function clause(base: string, extra: readonly string[]): string {
     : `\n    ${[base, ...rest.map((entry) => `(${entry})`)].join("\n    or ")}\n  `;
 }
 
-/** `drop policy` and `create policy` for the table's tenant scope. */
+const SCOPE_COMMANDS: readonly ScopeCommand[] = [
+  "select",
+  "insert",
+  "update",
+  "delete",
+];
+
+/** The name of the tenant scope policy for one command. */
+function tenantScopeName(command: ScopeCommand): string {
+  return `${TENANT_SCOPE_POLICY}_${command}`;
+}
+
+/** Every name the tenant scope policies of a table carry. */
+export const TENANT_SCOPE_NAMES: readonly string[] =
+  SCOPE_COMMANDS.map(tenantScopeName);
+
+/**
+ * `drop policy` and `create policy` for the table's tenant scope: one
+ * restrictive policy per command, `to public`, so no role reaches past it and a
+ * branch one command grants never satisfies another (ADR 0104). The earlier
+ * `for all` policy is dropped first.
+ */
 export function tenantScopePolicy(table: TenantScopeTarget): string {
   const base = `${table.column} in (select ${table.members})`;
 
-  return renderPolicy(
-    buildPolicy({
-      table: table.target,
-      name: TENANT_SCOPE_POLICY,
-      permissive: false,
-      roles: ["authenticated"],
-      using: clause(base, table.using ?? []),
-      check: clause(base, table.check ?? []),
-    }),
-    { drop: true, target: table.target },
-  );
+  const make = (command: ScopeCommand): string => {
+    const branch = table.by?.[command];
+    const using = clause(base, branch?.using ?? []);
+    const check = clause(base, branch?.check ?? []);
+
+    return renderPolicy(
+      buildPolicy({
+        table: table.target,
+        name: tenantScopeName(command),
+        command,
+        permissive: false,
+        roles: ["public"],
+        using: command === "insert" ? null : using,
+        check: command === "insert" || command === "update" ? check : null,
+      }),
+      { drop: true, target: table.target },
+    );
+  };
+
+  return [
+    `drop policy if exists ${TENANT_SCOPE_POLICY} on ${table.target};`,
+    ...SCOPE_COMMANDS.map(make),
+  ].join("\n");
 }
 
 /** `schema.table` without quotes or spacing, for comparing table names. */
@@ -67,54 +107,64 @@ function tableKey(name: string): string {
   return name.replaceAll(/\s+/g, "").replaceAll('"', "").toLowerCase();
 }
 
-/** The tables the SQL grants a privilege on to `authenticated` or `public`. */
+/**
+ * The tables the SQL grants a privilege on to `anon`, `authenticated` or
+ * `public`.
+ */
 function grantedTables(sql: string): ReadonlySet<string> {
   return new Set(
     readGrants(sql)
       .filter((grant) =>
         grant.roles.some(
-          (role) => role === "authenticated" || role === "public",
+          (role) =>
+            role === "authenticated" || role === "public" || role === "anon",
         ),
       )
       .map((grant) => grant.table),
   );
 }
 
-const reachesAuthenticated = (entry: Policy): boolean =>
-  entry.roles.some((role) => role === "authenticated" || role === "public");
+const reachesClients = (entry: Policy): boolean =>
+  entry.roles.some(
+    (role) => role === "authenticated" || role === "public" || role === "anon",
+  );
+
+const COVERS: Record<ScopeCommand, readonly PolicyCommand[]> = {
+  select: ["select", "all"],
+  insert: ["insert", "all"],
+  update: ["update", "all"],
+  delete: ["delete", "all"],
+};
 
 /**
- * The expressions a restrictive tenant scope must let through so the block's
- * own permissive policies keep working: `using` of the policies that read,
- * update or delete, and `with check` of those that insert or update (an update
- * without one checks its `using`).
+ * The expressions a restrictive tenant scope must let through, per command, so
+ * the block's own permissive policies keep working: `using` of the policies
+ * that read, update or delete, and `with check` of those that insert or update
+ * (an update or insert without one checks its `using`).
  */
-function grantedBy(policies: readonly Policy[]): {
-  readonly using: readonly string[];
-  readonly check: readonly string[];
-} {
-  const using: string[] = [];
-  const check: string[] = [];
+function grantedBy(
+  policies: readonly Policy[],
+): Partial<Record<ScopeCommand, Branches>> {
+  const by: Partial<Record<ScopeCommand, Branches>> = {};
 
-  for (const policy of policies) {
-    if (policy.command !== "insert" && policy.using !== null) {
-      using.push(policy.using);
-    }
+  for (const command of SCOPE_COMMANDS) {
+    const own = policies.filter((entry) =>
+      COVERS[command].includes(entry.command),
+    );
 
-    if (
-      policy.command === "insert" ||
-      policy.command === "update" ||
-      policy.command === "all"
-    ) {
-      const checked = policy.check ?? policy.using;
+    by[command] = {
+      using: own.flatMap((entry) =>
+        entry.using === null ? [] : [entry.using],
+      ),
+      check: own.flatMap((entry) => {
+        const checked = entry.check ?? entry.using;
 
-      if (checked !== null) {
-        check.push(checked);
-      }
-    }
+        return checked === null ? [] : [checked];
+      }),
+    };
   }
 
-  return { using, check };
+  return by;
 }
 
 /**
@@ -179,9 +229,7 @@ export function applyTenantScope(sql: string, ctx: BlockSqlContext): string {
 
     const own = policies.filter(
       (policy) =>
-        policy.table === key &&
-        policy.permissive &&
-        reachesAuthenticated(policy),
+        policy.table === key && policy.permissive && reachesClients(policy),
     );
 
     if (source.includes(ctx.table(logical))) {
@@ -197,7 +245,7 @@ export function applyTenantScope(sql: string, ctx: BlockSqlContext): string {
         target: ctx.table(logical),
         column: ctx.col(logical, tenant),
         members: ctx.scope.members(),
-        ...grantedBy(own),
+        by: grantedBy(own),
       }),
     );
   }
@@ -224,6 +272,7 @@ ${targets
   .map(
     (target) => `  begin
     drop policy if exists ${TENANT_SCOPE_POLICY} on ${target};
+${TENANT_SCOPE_NAMES.map((name) => `    drop policy if exists ${name} on ${target};`).join("\n")}
   exception when undefined_table or invalid_schema_name then null;
   end;`,
   )

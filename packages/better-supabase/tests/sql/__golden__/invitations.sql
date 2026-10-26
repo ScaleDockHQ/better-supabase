@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:2cba758ec84d0e1958b22a4313caf865105d0bc5492678f5f5e25b8498bc2e08
+-- @bsb-hash sha256:962878e29d238198a73912565d7855467ff5e04b6b2e544cc41a91865fc0ee9f
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invitations";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -726,13 +730,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
-create policy bsb_tenant_scope on "better_supabase"."invitations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invitations";
+create policy bsb_tenant_scope_select on "better_supabase"."invitations" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invitations";
+create policy bsb_tenant_scope_insert on "better_supabase"."invitations" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invitations";
+create policy bsb_tenant_scope_update on "better_supabase"."invitations" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invitations";
+create policy bsb_tenant_scope_delete on "better_supabase"."invitations" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -764,7 +781,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:599230601111f6dd313756554d82f81ffa463f6e72abe305e3105375be6d63a2
+-- @bsb-hash sha256:c5c13bd18cb2b9a54dfd3fff7a75629a7aeeaccdf5b622b895e3ed66b95480de
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -809,6 +826,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invitations";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1582,13 +1603,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
-create policy bsb_tenant_scope on "better_supabase"."invitations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invitations";
+create policy bsb_tenant_scope_select on "better_supabase"."invitations" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invitations";
+create policy bsb_tenant_scope_insert on "better_supabase"."invitations" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invitations";
+create policy bsb_tenant_scope_update on "better_supabase"."invitations" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invitations";
+create policy bsb_tenant_scope_delete on "better_supabase"."invitations" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1620,7 +1654,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:77a4d79d583c574c57f60f7e5093879d8bffcf03120dd4ada5ad38a94ac4a73e
+-- @bsb-hash sha256:a3454f33dd86c208ab63a903d42d6a82e98c182c89fa8934c114c8c5af967818
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1665,6 +1699,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."invitations";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."invitations";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."invitations";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."invitations";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."invitations";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2347,13 +2385,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."invitations";
-create policy bsb_tenant_scope on "app_private"."invitations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."invitations";
+create policy bsb_tenant_scope_select on "app_private"."invitations" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select "app_private"."invitation_tenant_ids"()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."invitations";
+create policy bsb_tenant_scope_insert on "app_private"."invitations" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."invitations";
+create policy bsb_tenant_scope_update on "app_private"."invitations" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."invitations";
+create policy bsb_tenant_scope_delete on "app_private"."invitations" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2385,7 +2436,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:e51df1fbae87fb157d18caa6da363df75b64b3df718513733b254929266ceb56
+-- @bsb-hash sha256:837dda1b97fc099d415155c5fc3840d1dc2e7646b0f22cae65c1447bb15d40a0
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2430,6 +2481,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invitations";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3110,13 +3165,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
-create policy bsb_tenant_scope on "better_supabase"."invitations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invitations";
+create policy bsb_tenant_scope_select on "better_supabase"."invitations" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invitations";
+create policy bsb_tenant_scope_insert on "better_supabase"."invitations" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invitations";
+create policy bsb_tenant_scope_update on "better_supabase"."invitations" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invitations";
+create policy bsb_tenant_scope_delete on "better_supabase"."invitations" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.invitations.api: entry points for the Data API.
 create schema if not exists "api";
@@ -3275,7 +3343,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:2c538a2f972213f65cd1bed38db6a770ad5c8f6b9f986cfa8fb268c178b3627d
+-- @bsb-hash sha256:c6d01a01d2e3793e77100c58d2cfe1c3f349116fde386831acb6de72891a9fb0
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3320,6 +3388,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invitations";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3998,13 +4070,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
-create policy bsb_tenant_scope on "better_supabase"."invitations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invitations";
+create policy bsb_tenant_scope_select on "better_supabase"."invitations" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invitations";
+create policy bsb_tenant_scope_insert on "better_supabase"."invitations" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invitations";
+create policy bsb_tenant_scope_update on "better_supabase"."invitations" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invitations";
+create policy bsb_tenant_scope_delete on "better_supabase"."invitations" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -4036,7 +4121,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:8dd87d296a7f9db4801b5f5cf2bad431956fc2ebf32e1b14454687cb609be382
+-- @bsb-hash sha256:40b56a07e2f75d719a98f45d4df9bee0989a424bfdba6afc7012045b8c3f77c5
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4081,6 +4166,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invitations";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4761,13 +4850,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
-create policy bsb_tenant_scope on "better_supabase"."invitations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invitations";
+create policy bsb_tenant_scope_select on "better_supabase"."invitations" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select "better_supabase"."invitation_tenant_ids"()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invitations";
+create policy bsb_tenant_scope_insert on "better_supabase"."invitations" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invitations";
+create policy bsb_tenant_scope_update on "better_supabase"."invitations" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invitations";
+create policy bsb_tenant_scope_delete on "better_supabase"."invitations" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

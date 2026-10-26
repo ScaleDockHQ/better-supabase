@@ -1,6 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:bcfbb4dbd52186b8facf6214c2f0fcd12c95082ee9bae84c1e42457a7d3a3cac
+-- @bsb-hash sha256:bca9d645e8426e87e7095cc4f504f47227b6fe17520de983e84d0653364481dc
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,10 +45,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."quotes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."quotes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."quotes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."quotes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."quotes";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."quote_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."quote_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."quote_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."quote_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."quote_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -925,21 +933,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."quotes";
-create policy bsb_tenant_scope on "better_supabase"."quotes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."quotes";
+create policy bsb_tenant_scope_select on "better_supabase"."quotes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."quotes";
+create policy bsb_tenant_scope_insert on "better_supabase"."quotes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."quotes";
+create policy bsb_tenant_scope_update on "better_supabase"."quotes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."quotes";
+create policy bsb_tenant_scope_delete on "better_supabase"."quotes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."quote_lines";
-create policy bsb_tenant_scope on "better_supabase"."quote_lines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."quote_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."quote_lines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."quotes" x where x."id" = "parent_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."quote_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."quote_lines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."quote_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."quote_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."quote_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."quote_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.quotes.api: entry points for the Data API.
 create schema if not exists "api";

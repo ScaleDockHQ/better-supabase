@@ -1,6 +1,6 @@
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:5e96453ed6394d98668f15cc8fcae0db21d614f8922bc56237340b714212b4ec
+-- @bsb-hash sha256:d7441b560243ddc12b8fa73ed02c16387775d4dc145a6c1009011937ec5d04bf
 -- Jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,18 +45,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."job_openings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."job_openings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."job_openings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."job_openings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."job_openings";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."applications";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."applications";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."applications";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."applications";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."applications";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."application_scorecards";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."application_scorecards";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."application_scorecards";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."application_scorecards";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."application_scorecards";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."interviews";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."interviews";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."interviews";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."interviews";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."interviews";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -524,37 +540,89 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."job_openings";
-create policy bsb_tenant_scope on "better_supabase"."job_openings" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."job_openings";
+create policy bsb_tenant_scope_select on "better_supabase"."job_openings" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."job_openings";
+create policy bsb_tenant_scope_insert on "better_supabase"."job_openings" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."job_openings";
+create policy bsb_tenant_scope_update on "better_supabase"."job_openings" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."job_openings";
+create policy bsb_tenant_scope_delete on "better_supabase"."job_openings" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."applications";
-create policy bsb_tenant_scope on "better_supabase"."applications" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."applications";
+create policy bsb_tenant_scope_select on "better_supabase"."applications" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."applications";
+create policy bsb_tenant_scope_insert on "better_supabase"."applications" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."applications";
+create policy bsb_tenant_scope_update on "better_supabase"."applications" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."applications";
+create policy bsb_tenant_scope_delete on "better_supabase"."applications" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."application_scorecards";
-create policy bsb_tenant_scope on "better_supabase"."application_scorecards" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."application_scorecards";
+create policy bsb_tenant_scope_select on "better_supabase"."application_scorecards" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."application_scorecards";
+create policy bsb_tenant_scope_insert on "better_supabase"."application_scorecards" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."application_scorecards";
+create policy bsb_tenant_scope_update on "better_supabase"."application_scorecards" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."application_scorecards";
+create policy bsb_tenant_scope_delete on "better_supabase"."application_scorecards" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."interviews";
-create policy bsb_tenant_scope on "better_supabase"."interviews" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."interviews";
+create policy bsb_tenant_scope_select on "better_supabase"."interviews" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')) or (select auth.uid()) = any ("interviewer_user_ids"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."interviews";
+create policy bsb_tenant_scope_insert on "better_supabase"."interviews" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."interviews";
+create policy bsb_tenant_scope_update on "better_supabase"."interviews" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."interviews";
+create policy bsb_tenant_scope_delete on "better_supabase"."interviews" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.hiring.api: entry points for the Data API.
 create schema if not exists "api";

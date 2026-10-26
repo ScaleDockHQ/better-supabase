@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:d920307d79b1a0e678648e512fdabc6d65ed856f617edf10381179a0fcd308fe
+-- @bsb-hash sha256:ed898b0a98b2155f5a53b2667b80406cce06d7a9c04d4f39f683a65ef08044ca
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,6 +45,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."audit_events";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1451,14 +1455,27 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."audit_events";
-create policy bsb_tenant_scope on "better_supabase"."audit_events" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."audit_events";
+create policy bsb_tenant_scope_select on "better_supabase"."audit_events" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select "better_supabase"."audit_read_tenants"())
     or (select "better_supabase"."audit_reads_all"()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."audit_events";
+create policy bsb_tenant_scope_insert on "better_supabase"."audit_events" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."audit_events";
+create policy bsb_tenant_scope_update on "better_supabase"."audit_events" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."audit_events";
+create policy bsb_tenant_scope_delete on "better_supabase"."audit_events" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.audit.api: entry points for the Data API.
 create schema if not exists "api";

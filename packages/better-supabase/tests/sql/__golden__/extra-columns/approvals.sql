@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:8856e2e56d1de4cb82704f8845f6a090600f5f4fe074a5fb3234e96cf42c3156
+-- @bsb-hash sha256:95d395e1cf8c254ae575bf950210548c5cf10e6051d10d99df3fd4115fda27a3
 -- Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."approval_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."approval_decisions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_decisions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_decisions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_decisions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -597,21 +605,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."approval_requests";
-create policy bsb_tenant_scope on "better_supabase"."approval_requests" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_requests";
+create policy bsb_tenant_scope_select on "better_supabase"."approval_requests" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_requests";
+create policy bsb_tenant_scope_insert on "better_supabase"."approval_requests" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_requests";
+create policy bsb_tenant_scope_update on "better_supabase"."approval_requests" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_requests";
+create policy bsb_tenant_scope_delete on "better_supabase"."approval_requests" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."approval_decisions";
-create policy bsb_tenant_scope on "better_supabase"."approval_decisions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_decisions";
+create policy bsb_tenant_scope_select on "better_supabase"."approval_decisions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_decisions";
+create policy bsb_tenant_scope_insert on "better_supabase"."approval_decisions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_decisions";
+create policy bsb_tenant_scope_update on "better_supabase"."approval_decisions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
+create policy bsb_tenant_scope_delete on "better_supabase"."approval_decisions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

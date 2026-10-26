@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:989434fa17e30f4297fe1fc6db616cc2d42d5d1525522a6548bec08d3dbd7184
+-- @bsb-hash sha256:c8898058ad98e13ddba7acca9d271f7fbdfe83661441dfcab1748630dee8bb15
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,14 +46,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -667,29 +679,68 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
-create policy bsb_tenant_scope on "better_supabase"."enrollment_programs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_select on "better_supabase"."enrollment_programs" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_programs" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_update on "better_supabase"."enrollment_programs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_programs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
-create policy bsb_tenant_scope on "better_supabase"."enrollments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_select on "better_supabase"."enrollments" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrollments" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_update on "better_supabase"."enrollments" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrollments" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
-create policy bsb_tenant_scope on "better_supabase"."enrollment_steps" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_select on "better_supabase"."enrollment_steps" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_steps" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_update on "better_supabase"."enrollment_steps" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_steps" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -721,7 +772,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:2d3b3f25a3fe9109ae34571a029c0f98e4b566b4ddc6ebf3f22eb885c0043ea5
+-- @bsb-hash sha256:070ad475e63289ceb4ced149516b8e13749b665bd268d7da9a5e7b3997f8369b
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -766,14 +817,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1422,29 +1485,68 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
-create policy bsb_tenant_scope on "better_supabase"."enrollment_programs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_select on "better_supabase"."enrollment_programs" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_programs" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_update on "better_supabase"."enrollment_programs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_programs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
-create policy bsb_tenant_scope on "better_supabase"."enrollments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_select on "better_supabase"."enrollments" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrollments" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_update on "better_supabase"."enrollments" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrollments" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
-create policy bsb_tenant_scope on "better_supabase"."enrollment_steps" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_select on "better_supabase"."enrollment_steps" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_steps" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_update on "better_supabase"."enrollment_steps" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_steps" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1476,7 +1578,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:59ce6294a955e4c538bfc5ccccf5b81e86bcefc0a1fc6c1739fb7e4a6e494931
+-- @bsb-hash sha256:1e786d9559b4274fdd824f2f17657e897722cdd0195a369eb2d3d2a771a7ee9a
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1521,14 +1623,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."enrollment_programs";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."enrollments";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."enrollments";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."enrollments";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."enrollments";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."enrollments";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."enrollment_steps";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2144,29 +2258,68 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."enrollment_programs";
-create policy bsb_tenant_scope on "app_private"."enrollment_programs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."enrollment_programs";
+create policy bsb_tenant_scope_select on "app_private"."enrollment_programs" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."enrollment_programs";
+create policy bsb_tenant_scope_insert on "app_private"."enrollment_programs" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."enrollment_programs";
+create policy bsb_tenant_scope_update on "app_private"."enrollment_programs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."enrollment_programs";
+create policy bsb_tenant_scope_delete on "app_private"."enrollment_programs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."enrollments";
-create policy bsb_tenant_scope on "app_private"."enrollments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."enrollments";
+create policy bsb_tenant_scope_select on "app_private"."enrollments" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."enrollments";
+create policy bsb_tenant_scope_insert on "app_private"."enrollments" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."enrollments";
+create policy bsb_tenant_scope_update on "app_private"."enrollments" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."enrollments";
+create policy bsb_tenant_scope_delete on "app_private"."enrollments" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."enrollment_steps";
-create policy bsb_tenant_scope on "app_private"."enrollment_steps" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."enrollment_steps";
+create policy bsb_tenant_scope_select on "app_private"."enrollment_steps" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "app_private"."enrollments" x where x."id" = "app_private"."enrollment_steps"."enrollment_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."enrollment_steps";
+create policy bsb_tenant_scope_insert on "app_private"."enrollment_steps" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."enrollment_steps";
+create policy bsb_tenant_scope_update on "app_private"."enrollment_steps" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."enrollment_steps";
+create policy bsb_tenant_scope_delete on "app_private"."enrollment_steps" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2198,7 +2351,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:97cfae1c416df98aa3a190377970268019e06057c90a44734e8964f6dbf916ad
+-- @bsb-hash sha256:84844f5b3b7e95c4650db9b1cfd6518fa47b09345050f85f90a14eb51d200b48
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2243,14 +2396,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2864,29 +3029,68 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
-create policy bsb_tenant_scope on "better_supabase"."enrollment_programs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_select on "better_supabase"."enrollment_programs" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_programs" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_update on "better_supabase"."enrollment_programs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_programs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
-create policy bsb_tenant_scope on "better_supabase"."enrollments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_select on "better_supabase"."enrollments" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrollments" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_update on "better_supabase"."enrollments" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrollments" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
-create policy bsb_tenant_scope on "better_supabase"."enrollment_steps" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_select on "better_supabase"."enrollment_steps" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_steps" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_update on "better_supabase"."enrollment_steps" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_steps" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.enrollments.api: entry points for the Data API.
 create schema if not exists "api";
@@ -3021,7 +3225,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:4167bfe9b98d643f25414257540d4fee6afc973dd9e3a6aa43381c0a315512df
+-- @bsb-hash sha256:d5d502d1231ee5dff125dceb398e8b37f34893271ce046ccad474018b3c36fc4
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3082,14 +3286,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3692,29 +3908,68 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
-create policy bsb_tenant_scope on "better_supabase"."enrollment_programs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_select on "better_supabase"."enrollment_programs" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_programs" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_update on "better_supabase"."enrollment_programs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_programs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
-create policy bsb_tenant_scope on "better_supabase"."enrollments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_select on "better_supabase"."enrollments" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrollments" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_update on "better_supabase"."enrollments" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrollments" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
-create policy bsb_tenant_scope on "better_supabase"."enrollment_steps" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_select on "better_supabase"."enrollment_steps" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_steps" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_update on "better_supabase"."enrollment_steps" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_steps" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -3746,7 +4001,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:b35bff80c1e6087bb274764b07a16a63458c92b7ce7bf37654f3837ac70badee
+-- @bsb-hash sha256:50a9165600a2c9a1d3b94952444c9de419f562a0f20c64373842a7abb153e7c6
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3791,14 +4046,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4412,29 +4679,68 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
-create policy bsb_tenant_scope on "better_supabase"."enrollment_programs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_select on "better_supabase"."enrollment_programs" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_programs" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_update on "better_supabase"."enrollment_programs" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_programs" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
-create policy bsb_tenant_scope on "better_supabase"."enrollments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_select on "better_supabase"."enrollments" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrollments" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_update on "better_supabase"."enrollments" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrollments" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
-create policy bsb_tenant_scope on "better_supabase"."enrollment_steps" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_select on "better_supabase"."enrollment_steps" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_steps" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_update on "better_supabase"."enrollment_steps" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_steps" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

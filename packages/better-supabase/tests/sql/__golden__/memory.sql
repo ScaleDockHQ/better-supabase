@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:a7ca17156ca90462e02b5690e495518b4377d8c26746c1642a21daf0a979721a
+-- @bsb-hash sha256:f10e4e386b5be401c60f4b38e1505269f9599f852380999dbfe7cd8ec05062db
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memories";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -946,21 +954,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."memories";
-create policy bsb_tenant_scope on "better_supabase"."memories" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."memories";
+create policy bsb_tenant_scope_select on "better_supabase"."memories" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memories";
+create policy bsb_tenant_scope_insert on "better_supabase"."memories" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."memories";
+create policy bsb_tenant_scope_update on "better_supabase"."memories" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memories";
+create policy bsb_tenant_scope_delete on "better_supabase"."memories" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope on "better_supabase"."ai_message_embeddings" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -992,7 +1026,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:25bb3b0d92c512b0082ea7a4688cf28d5b599cca4f1b114e56dd4485d3f91a7a
+-- @bsb-hash sha256:db96a628567e229f93738d5675d5dc5daed9b376f30c6f3bba6e55812d4ba02e
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1037,10 +1071,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memories";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1940,21 +1982,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."memories";
-create policy bsb_tenant_scope on "better_supabase"."memories" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."memories";
+create policy bsb_tenant_scope_select on "better_supabase"."memories" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memories";
+create policy bsb_tenant_scope_insert on "better_supabase"."memories" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."memories";
+create policy bsb_tenant_scope_update on "better_supabase"."memories" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memories";
+create policy bsb_tenant_scope_delete on "better_supabase"."memories" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope on "better_supabase"."ai_message_embeddings" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1986,7 +2054,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:67421288486fe10c6c3a46ae835ccd96557063ed66fb33548b0176a88f8b6f54
+-- @bsb-hash sha256:164d68e9c525aa27120e41ff78fa268965b707e7d48d92cbfd80ee8804575aca
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2031,10 +2099,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."memories";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."memories";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."memories";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."memories";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."memories";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_message_embeddings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2933,21 +3009,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."memories";
-create policy bsb_tenant_scope on "app_private"."memories" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."memories";
+create policy bsb_tenant_scope_select on "app_private"."memories" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."memories";
+create policy bsb_tenant_scope_insert on "app_private"."memories" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."memories";
+create policy bsb_tenant_scope_update on "app_private"."memories" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."memories";
+create policy bsb_tenant_scope_delete on "app_private"."memories" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."ai_message_embeddings";
-create policy bsb_tenant_scope on "app_private"."ai_message_embeddings" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."ai_message_embeddings";
+create policy bsb_tenant_scope_select on "app_private"."ai_message_embeddings" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_message_embeddings";
+create policy bsb_tenant_scope_insert on "app_private"."ai_message_embeddings" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."ai_message_embeddings";
+create policy bsb_tenant_scope_update on "app_private"."ai_message_embeddings" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_message_embeddings";
+create policy bsb_tenant_scope_delete on "app_private"."ai_message_embeddings" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2979,7 +3081,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:54e8c071bdc50c28f1bb59e06a577d32740243fe7e226a10a1d2a178fe4cbb03
+-- @bsb-hash sha256:d4c247ffdd1aeaabde02a63e1ed11d4752907b4a66621f660b36958681b0ca08
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3024,10 +3126,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memories";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3924,21 +4034,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."memories";
-create policy bsb_tenant_scope on "better_supabase"."memories" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."memories";
+create policy bsb_tenant_scope_select on "better_supabase"."memories" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memories";
+create policy bsb_tenant_scope_insert on "better_supabase"."memories" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."memories";
+create policy bsb_tenant_scope_update on "better_supabase"."memories" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memories";
+create policy bsb_tenant_scope_delete on "better_supabase"."memories" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope on "better_supabase"."ai_message_embeddings" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.memory.api: entry points for the Data API.
 create schema if not exists "api";
@@ -4156,7 +4292,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:5cfe48b8dfbc4399407ea26b3630a9d019ca04be3ec6b584bbb9fd44a13874f5
+-- @bsb-hash sha256:1f8fd118dc8091b014fe31ea5cee20edf66121659f50c7c786d8a5857b42f716
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4217,10 +4353,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memories";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -5109,21 +5253,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."memories";
-create policy bsb_tenant_scope on "better_supabase"."memories" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."memories";
+create policy bsb_tenant_scope_select on "better_supabase"."memories" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memories";
+create policy bsb_tenant_scope_insert on "better_supabase"."memories" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."memories";
+create policy bsb_tenant_scope_update on "better_supabase"."memories" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memories";
+create policy bsb_tenant_scope_delete on "better_supabase"."memories" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope on "better_supabase"."ai_message_embeddings" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -5155,7 +5325,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:5b61866d1d1ebddcb69be9022b6b25084a54bde9f449c9506351b7bb972bef9d
+-- @bsb-hash sha256:f4ad2fc5eef38b86f5906fb9df2bb58a59879e4a70d7f1f59ec57ccb755241ef
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5200,10 +5370,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."memories";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memories";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -6100,21 +6278,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."memories";
-create policy bsb_tenant_scope on "better_supabase"."memories" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."memories";
+create policy bsb_tenant_scope_select on "better_supabase"."memories" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "org_id" in (select better_supabase.tenant_ids_with('ai.read'))))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memories";
+create policy bsb_tenant_scope_insert on "better_supabase"."memories" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."memories";
+create policy bsb_tenant_scope_update on "better_supabase"."memories" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memories";
+create policy bsb_tenant_scope_delete on "better_supabase"."memories" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope on "better_supabase"."ai_message_embeddings" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

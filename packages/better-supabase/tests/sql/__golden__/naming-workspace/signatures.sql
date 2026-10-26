@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:02c6992611adcab0e98489f74236ba7f27b7604f2ee5506f950c2af3c614fe29
+-- @bsb-hash sha256:93c0983da2c57a8ada20c59c562d7a56f39fde654996497ab1ec52363fcd6bdd
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."signature_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."signature_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signature_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."signature_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signature_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."signatures";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."signatures";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signatures";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."signatures";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signatures";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -469,21 +477,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."signature_requests";
-create policy bsb_tenant_scope on "better_supabase"."signature_requests" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."signature_requests";
+create policy bsb_tenant_scope_select on "better_supabase"."signature_requests" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signature_requests";
+create policy bsb_tenant_scope_insert on "better_supabase"."signature_requests" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."signature_requests";
+create policy bsb_tenant_scope_update on "better_supabase"."signature_requests" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signature_requests";
+create policy bsb_tenant_scope_delete on "better_supabase"."signature_requests" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."signatures";
-create policy bsb_tenant_scope on "better_supabase"."signatures" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."signatures";
+create policy bsb_tenant_scope_select on "better_supabase"."signatures" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signatures";
+create policy bsb_tenant_scope_insert on "better_supabase"."signatures" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."signatures";
+create policy bsb_tenant_scope_update on "better_supabase"."signatures" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signatures";
+create policy bsb_tenant_scope_delete on "better_supabase"."signatures" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

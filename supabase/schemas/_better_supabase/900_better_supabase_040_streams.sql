@@ -1,6 +1,6 @@
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:82ce3787de19d37ea489f394aa30d7b98d8f07edf457721d195f932d818fcd1e
+-- @bsb-hash sha256:4fa792ca84487ac37e21585ca3e35f87538563b76d234a2d9de2dbfaf87fa534
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,6 +45,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."streams";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."streams";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."streams";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."streams";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -342,13 +346,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
-create policy bsb_tenant_scope on "better_supabase"."streams" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."streams";
+create policy bsb_tenant_scope_select on "better_supabase"."streams" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."streams";
+create policy bsb_tenant_scope_insert on "better_supabase"."streams" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."streams";
+create policy bsb_tenant_scope_update on "better_supabase"."streams" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."streams";
+create policy bsb_tenant_scope_delete on "better_supabase"."streams" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.streams.api: entry points for the Data API.
 create schema if not exists "api";

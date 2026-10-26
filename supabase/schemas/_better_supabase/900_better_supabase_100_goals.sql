@@ -1,6 +1,6 @@
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:8121984d0c08562f6b3f4e8617ff2010bc51203baf105be48e46c05a94b509c8
+-- @bsb-hash sha256:bfdb9319c90ed056e145f30b41fa289983b42f41645c1fb4d002a739e0ceb977
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,6 +45,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."targets";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."targets";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."targets";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."targets";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."targets";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -179,13 +183,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."targets";
-create policy bsb_tenant_scope on "better_supabase"."targets" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."targets";
+create policy bsb_tenant_scope_select on "better_supabase"."targets" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."targets";
+create policy bsb_tenant_scope_insert on "better_supabase"."targets" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."targets";
+create policy bsb_tenant_scope_update on "better_supabase"."targets" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."targets";
+create policy bsb_tenant_scope_delete on "better_supabase"."targets" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.goals.api: entry points for the Data API.
 create schema if not exists "api";

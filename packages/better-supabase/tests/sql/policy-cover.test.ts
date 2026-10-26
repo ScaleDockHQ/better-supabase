@@ -338,9 +338,11 @@ create policy bsb_tenant_scope on public.t as restrictive for all to authenticat
     const app = contents({ modules, ownTables });
 
     expect(contents({ modules: {}, ownTables })).toContain(
-      `create policy bsb_tenant_scope on ${quoted}`,
+      `create policy bsb_tenant_scope_select on ${quoted}`,
     );
-    expect(app).not.toContain(`create policy bsb_tenant_scope on ${quoted}`);
+    expect(app).not.toContain(
+      `create policy bsb_tenant_scope_select on ${quoted}`,
+    );
     expect(app).not.toMatch(
       new RegExp(`create policy bsb_\\w+ on ${quoted.replaceAll(".", "\\.")}`),
     );
@@ -348,7 +350,7 @@ create policy bsb_tenant_scope on public.t as restrictive for all to authenticat
       `drop policy if exists bsb_tenant_scope on ${quoted}`,
     );
     expect(app).toContain(
-      `-- ${table}: the app's policies govern this table (ownTablePolicies "app"), so the block adds no restrictive bsb_tenant_scope.`,
+      `-- ${table}: the app's policies govern this table (ownTablePolicies "app"), so the block adds no restrictive bsb_tenant_scope_select.`,
     );
   });
 

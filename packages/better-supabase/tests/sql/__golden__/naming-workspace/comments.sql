@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@8 managed
--- @bsb-hash sha256:d3c7c8586cb1cc4dccddd3059eb21688e191d2229049b6a77a4df3170f7675df
+-- @bsb-hash sha256:e2185d033ef68dcb1e4d58b01bb5872dfb8791f026b712b0cf34500893bfd747
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."comment_tasks";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."comment_tasks";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."comment_tasks";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."comment_tasks";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."comment_tasks";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -374,16 +378,29 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."comment_tasks";
-create policy bsb_tenant_scope on "better_supabase"."comment_tasks" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."comment_tasks";
+create policy bsb_tenant_scope_select on "better_supabase"."comment_tasks" as restrictive
+  for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
     or ("better_supabase"."comment_message_readable"("message_id", "workspace_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."comment_tasks";
+create policy bsb_tenant_scope_insert on "better_supabase"."comment_tasks" as restrictive
+  for insert to public
   with check (
     "workspace_id" in (select better_supabase.member_workspace_ids())
     or ("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "workspace_id"))
   );
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."comment_tasks";
+create policy bsb_tenant_scope_update on "better_supabase"."comment_tasks" as restrictive
+  for update to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."comment_tasks";
+create policy bsb_tenant_scope_delete on "better_supabase"."comment_tasks" as restrictive
+  for delete to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

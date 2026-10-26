@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:8b555b88a293d729d8fcfc0932744143416ee6881020d2a40d18b523f918ea37
+-- @bsb-hash sha256:b7b73a5a6ade61940a6bf1ce32da911641fa598bebf6cdcb7943bfd2fd0a3f05
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,6 +12,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -385,13 +389,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
-create policy bsb_tenant_scope on "better_supabase"."search_documents" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_select on "better_supabase"."search_documents" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_insert on "better_supabase"."search_documents" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_update on "better_supabase"."search_documents" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -426,7 +443,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:b0e987f91d51144610d56f1024724beac1e04d78894b7828dece412b647f6cc1
+-- @bsb-hash sha256:6545dd77f78742471805e10ed9b128b9e343cbddbc28ccb1f10e9f1c5103bab0
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -471,6 +488,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -856,13 +877,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
-create policy bsb_tenant_scope on "better_supabase"."search_documents" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_select on "better_supabase"."search_documents" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_insert on "better_supabase"."search_documents" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_update on "better_supabase"."search_documents" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -897,7 +931,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:28c7dc9222fd42a67c0ee8cd5f9fa4c1acb0c65f630c777944d2f465a7efdba0
+-- @bsb-hash sha256:7efa4998e78e724774814fc3c3ccdbd8ca08e2ca555106409b9d8300a14988d8
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -908,6 +942,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."search_documents";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."search_documents";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."search_documents";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."search_documents";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."search_documents";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1283,13 +1321,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."search_documents";
-create policy bsb_tenant_scope on "app_private"."search_documents" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."search_documents";
+create policy bsb_tenant_scope_select on "app_private"."search_documents" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."search_documents";
+create policy bsb_tenant_scope_insert on "app_private"."search_documents" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."search_documents";
+create policy bsb_tenant_scope_update on "app_private"."search_documents" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."search_documents";
+create policy bsb_tenant_scope_delete on "app_private"."search_documents" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1324,7 +1375,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:533450f8797923a429537b336a4a2f261366344ec9923f662a9612daf4ce5077
+-- @bsb-hash sha256:00250301680f8c5860af3acb62031e01fdee74bf8416d8a3ed48d1ca9d68f907
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1335,6 +1386,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1708,13 +1763,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
-create policy bsb_tenant_scope on "better_supabase"."search_documents" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_select on "better_supabase"."search_documents" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_insert on "better_supabase"."search_documents" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_update on "better_supabase"."search_documents" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.search.api: entry points for the Data API.
 create schema if not exists "api";
@@ -1829,7 +1897,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:f4ed908d8bed767560b6b90e0427e5a398492b0eb978fe50f703b131581f4a98
+-- @bsb-hash sha256:f4bd1504e8d838020bf1e6195a711bf4ea2fee3d05a1c30b308232cbb7c28437
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1840,6 +1908,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2210,13 +2282,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
-create policy bsb_tenant_scope on "better_supabase"."search_documents" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_select on "better_supabase"."search_documents" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_insert on "better_supabase"."search_documents" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_update on "better_supabase"."search_documents" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2251,7 +2336,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:4cbee39fcf9cb0e76f64dd5aaed2f160a1276c5f5ea8e6932dbe16e953fc3889
+-- @bsb-hash sha256:ee64f9f1b98ec7e020584418e64c619089c7c4f92b16566aa87aa72e00d2befa
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2262,6 +2347,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2635,13 +2724,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
-create policy bsb_tenant_scope on "better_supabase"."search_documents" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_select on "better_supabase"."search_documents" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('search.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_insert on "better_supabase"."search_documents" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_update on "better_supabase"."search_documents" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
+create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

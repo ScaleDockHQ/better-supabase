@@ -1,6 +1,6 @@
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:10b0e77681738501737a5cc39abe26616e048de6a337db894c11d7426b6a4cab
+-- @bsb-hash sha256:674b3285ac84b434b3756ed56e98cac34bcbd136c7f01263a153aad0b6c6d00c
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,26 +45,50 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."mail_accounts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."mail_accounts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."mail_accounts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."mail_accounts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."mail_accounts";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."mail_threads";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."mail_threads";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."mail_threads";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."mail_threads";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."mail_threads";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."mail_messages";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."mail_messages";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."mail_messages";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."mail_messages";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."mail_messages";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."mail_tracked_links";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."mail_tracked_links";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."mail_tracked_links";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."mail_tracked_links";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."mail_tracked_links";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."mail_tracking_events";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."mail_tracking_events";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."mail_tracking_events";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."mail_tracking_events";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."mail_tracking_events";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."mail_thread_subjects";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."mail_thread_subjects";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."mail_thread_subjects";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."mail_thread_subjects";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."mail_thread_subjects";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1004,53 +1028,131 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."mail_accounts";
-create policy bsb_tenant_scope on "better_supabase"."mail_accounts" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."mail_accounts";
+create policy bsb_tenant_scope_select on "better_supabase"."mail_accounts" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."mail_accounts";
+create policy bsb_tenant_scope_insert on "better_supabase"."mail_accounts" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."mail_accounts";
+create policy bsb_tenant_scope_update on "better_supabase"."mail_accounts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."mail_accounts";
+create policy bsb_tenant_scope_delete on "better_supabase"."mail_accounts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."mail_threads";
-create policy bsb_tenant_scope on "better_supabase"."mail_threads" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."mail_threads";
+create policy bsb_tenant_scope_select on "better_supabase"."mail_threads" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("better_supabase"."mail_thread_visible"("id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."mail_threads";
+create policy bsb_tenant_scope_insert on "better_supabase"."mail_threads" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."mail_threads";
+create policy bsb_tenant_scope_update on "better_supabase"."mail_threads" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."mail_threads";
+create policy bsb_tenant_scope_delete on "better_supabase"."mail_threads" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."mail_messages";
-create policy bsb_tenant_scope on "better_supabase"."mail_messages" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."mail_messages";
+create policy bsb_tenant_scope_select on "better_supabase"."mail_messages" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("better_supabase"."mail_thread_visible"("thread_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."mail_messages";
+create policy bsb_tenant_scope_insert on "better_supabase"."mail_messages" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."mail_messages";
+create policy bsb_tenant_scope_update on "better_supabase"."mail_messages" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."mail_messages";
+create policy bsb_tenant_scope_delete on "better_supabase"."mail_messages" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."mail_tracked_links";
-create policy bsb_tenant_scope on "better_supabase"."mail_tracked_links" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."mail_tracked_links";
+create policy bsb_tenant_scope_select on "better_supabase"."mail_tracked_links" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."mail_tracked_links";
+create policy bsb_tenant_scope_insert on "better_supabase"."mail_tracked_links" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."mail_tracked_links";
+create policy bsb_tenant_scope_update on "better_supabase"."mail_tracked_links" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."mail_tracked_links";
+create policy bsb_tenant_scope_delete on "better_supabase"."mail_tracked_links" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."mail_tracking_events";
-create policy bsb_tenant_scope on "better_supabase"."mail_tracking_events" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."mail_tracking_events";
+create policy bsb_tenant_scope_select on "better_supabase"."mail_tracking_events" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."mail_tracking_events";
+create policy bsb_tenant_scope_insert on "better_supabase"."mail_tracking_events" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."mail_tracking_events";
+create policy bsb_tenant_scope_update on "better_supabase"."mail_tracking_events" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."mail_tracking_events";
+create policy bsb_tenant_scope_delete on "better_supabase"."mail_tracking_events" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."mail_thread_subjects";
-create policy bsb_tenant_scope on "better_supabase"."mail_thread_subjects" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."mail_thread_subjects";
+create policy bsb_tenant_scope_select on "better_supabase"."mail_thread_subjects" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("better_supabase"."mail_thread_visible"("thread_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."mail_thread_subjects";
+create policy bsb_tenant_scope_insert on "better_supabase"."mail_thread_subjects" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."mail_thread_subjects";
+create policy bsb_tenant_scope_update on "better_supabase"."mail_thread_subjects" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."mail_thread_subjects";
+create policy bsb_tenant_scope_delete on "better_supabase"."mail_thread_subjects" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.mail-sync.api: entry points for the Data API.
 create schema if not exists "api";

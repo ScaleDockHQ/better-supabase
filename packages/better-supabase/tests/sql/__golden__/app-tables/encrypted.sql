@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:be6956774fe9a8bb6d24ef7e658c9720940d906c38a11668a31ae90db2423a6d
+-- @bsb-hash sha256:f8bb85f5848d7e79eaaf769488b91fae87dd6990d3a2737d86d672fc8b092401
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -86,10 +86,23 @@ create policy "patients_update" on "public"."patients" for update to authenticat
 drop policy if exists "patients_delete" on "public"."patients";
 create policy "patients_delete" on "public"."patients" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."patients";
-create policy bsb_tenant_scope on "public"."patients" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "public"."patients";
+create policy bsb_tenant_scope_select on "public"."patients" as restrictive
+  for select to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "public"."patients";
+create policy bsb_tenant_scope_insert on "public"."patients" as restrictive
+  for insert to public
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "public"."patients";
+create policy bsb_tenant_scope_update on "public"."patients" as restrictive
+  for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "public"."patients";
+create policy bsb_tenant_scope_delete on "public"."patients" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "patients_organization_id_idx" on "public"."patients" ("organization_id");
 drop trigger if exists "bsb_updated_at" on "public"."patients";
 create trigger "bsb_updated_at" before update on "public"."patients"
@@ -400,7 +413,7 @@ grant execute on function "public"."keys_reveal"(bigint[]) to authenticated, ser
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- @bsb-hash sha256:a22b87aa8e92fb37917f8e55ed0840e013b50c4558b5017cc11c1731eb9c2da2
+-- @bsb-hash sha256:c944995e9704397e7b45d526a4da1fedbffb4269f788a0ec3499fc0edf556177
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
@@ -410,7 +423,7 @@ select extensions.plan(66);
 
 select extensions.has_table('public', 'patients', 'public.patients exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."patients"'::regclass), 'public.patients has row level security on');
-select extensions.policies_are('public', 'patients', array['patients_select', 'patients_insert', 'patients_update', 'patients_delete', 'bsb_tenant_scope'], 'public.patients has the policies for its scope');
+select extensions.policies_are('public', 'patients', array['patients_select', 'patients_insert', 'patients_update', 'patients_delete', 'bsb_tenant_scope_select', 'bsb_tenant_scope_insert', 'bsb_tenant_scope_update', 'bsb_tenant_scope_delete'], 'public.patients has the policies for its scope');
 select extensions.table_privs_are('public', 'patients', 'anon', array[]::text[], 'anon has no privileges on public.patients');
 select extensions.table_privs_are('public', 'patients', 'authenticated', array['DELETE'], 'authenticated has the privileges for its scope on public.patients');
 select extensions.ok(not has_column_privilege('authenticated', '"public"."patients"', 'diagnosis', 'SELECT'), 'authenticated may not select public.patients.diagnosis');

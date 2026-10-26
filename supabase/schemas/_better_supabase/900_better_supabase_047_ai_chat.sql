@@ -1,6 +1,6 @@
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@4 managed
--- @bsb-hash sha256:4f57bbc5387d6a0962eb6a66cc4d179f02699a1c46dc8664b7324857ba4f6f42
+-- @bsb-hash sha256:b4779aa257467321a9325ff6e3c838f7c4a679ab7ade739f19a7be9bf39f77d2
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,22 +45,42 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_projects";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_projects";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_projects";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_projects";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_projects";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_chats";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_chats";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_chats";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_chats";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_chats";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_tool_policies";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_tool_policies";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_tool_policies";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_tool_policies";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_tool_policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_moderation_events";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_moderation_events";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_moderation_events";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_moderation_events";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_moderation_events";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_sandboxes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_sandboxes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_sandboxes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2413,30 +2433,69 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."ai_projects";
-create policy bsb_tenant_scope on "better_supabase"."ai_projects" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_projects";
+create policy bsb_tenant_scope_select on "better_supabase"."ai_projects" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_projects";
+create policy bsb_tenant_scope_insert on "better_supabase"."ai_projects" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_projects";
+create policy bsb_tenant_scope_update on "better_supabase"."ai_projects" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_projects";
+create policy bsb_tenant_scope_delete on "better_supabase"."ai_projects" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."ai_chats";
-create policy bsb_tenant_scope on "better_supabase"."ai_chats" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_chats";
+create policy bsb_tenant_scope_select on "better_supabase"."ai_chats" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid())
     or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read'))))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_chats";
+create policy bsb_tenant_scope_insert on "better_supabase"."ai_chats" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_chats";
+create policy bsb_tenant_scope_update on "better_supabase"."ai_chats" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_chats";
+create policy bsb_tenant_scope_delete on "better_supabase"."ai_chats" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."ai_sandboxes";
-create policy bsb_tenant_scope on "better_supabase"."ai_sandboxes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_sandboxes";
+create policy bsb_tenant_scope_select on "better_supabase"."ai_sandboxes" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes";
+create policy bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_sandboxes";
+create policy bsb_tenant_scope_update on "better_supabase"."ai_sandboxes" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes";
+create policy bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.ai-chat.api: entry points for the Data API.
 create schema if not exists "api";

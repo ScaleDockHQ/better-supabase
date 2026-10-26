@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:154751baf46c1ac8daea61b8e878f6f641380ce21b1b2a288067549b82370116
+-- @bsb-hash sha256:e0be33020db4bbce9257135366421817eac0f794a11019b3aaedd755c1e81f43
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."field_definitions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_definitions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_definitions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_definitions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_definitions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."field_values";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_values";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_values";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_values";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_values";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -297,15 +305,41 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."field_definitions";
-create policy bsb_tenant_scope on "better_supabase"."field_definitions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_definitions";
+create policy bsb_tenant_scope_select on "better_supabase"."field_definitions" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_definitions";
+create policy bsb_tenant_scope_insert on "better_supabase"."field_definitions" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_definitions";
+create policy bsb_tenant_scope_update on "better_supabase"."field_definitions" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_definitions";
+create policy bsb_tenant_scope_delete on "better_supabase"."field_definitions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."field_values";
-create policy bsb_tenant_scope on "better_supabase"."field_values" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_values";
+create policy bsb_tenant_scope_select on "better_supabase"."field_values" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_values";
+create policy bsb_tenant_scope_insert on "better_supabase"."field_values" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_values";
+create policy bsb_tenant_scope_update on "better_supabase"."field_values" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_values";
+create policy bsb_tenant_scope_delete on "better_supabase"."field_values" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:0ddc7d1d2d0bef944bf8209cddabbc4d1eb570721d0934ea089f7fc385b06e5d
+-- @bsb-hash sha256:792ae2d7c01ecbcb15cdf6f23d5b1006fbbefa335751ca5fbbdf3f347a71427a
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."workspace_settings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workspace_settings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workspace_settings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workspace_settings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workspace_settings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -295,16 +299,36 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."workspace_settings";
-create policy bsb_tenant_scope on "better_supabase"."workspace_settings" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."workspace_settings";
+create policy bsb_tenant_scope_select on "better_supabase"."workspace_settings" as restrictive
+  for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
     or ("workspace_id" in (select better_supabase.tenant_ids_with('settings.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workspace_settings";
+create policy bsb_tenant_scope_insert on "better_supabase"."workspace_settings" as restrictive
+  for insert to public
+  with check (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or (coalesce(better_supabase.can('tenant', "workspace_id", 'settings.update'), false))
+  );
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."workspace_settings";
+create policy bsb_tenant_scope_update on "better_supabase"."workspace_settings" as restrictive
+  for update to public
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
     or ("workspace_id" in (select better_supabase.tenant_ids_with('settings.update')))
   )
   with check (
     "workspace_id" in (select better_supabase.member_workspace_ids())
-    or (coalesce(better_supabase.can('tenant', "workspace_id", 'settings.update'), false))
+    or ("workspace_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workspace_settings";
+create policy bsb_tenant_scope_delete on "better_supabase"."workspace_settings" as restrictive
+  for delete to public
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
     or ("workspace_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:e747aca4f9ca7c0b24bc34f33ef0ed328cf31565702afd257dbd1bca8324133d
+-- @bsb-hash sha256:8a6b51454f133071815664f352d44da476e9947f9988b9a732ade963b160ab40
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."share_links";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."share_links";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."share_links";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."share_links";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."share_links";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -302,10 +306,23 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."share_links";
-create policy bsb_tenant_scope on "better_supabase"."share_links" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."share_links";
+create policy bsb_tenant_scope_select on "better_supabase"."share_links" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."share_links";
+create policy bsb_tenant_scope_insert on "better_supabase"."share_links" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."share_links";
+create policy bsb_tenant_scope_update on "better_supabase"."share_links" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."share_links";
+create policy bsb_tenant_scope_delete on "better_supabase"."share_links" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

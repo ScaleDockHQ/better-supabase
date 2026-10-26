@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@2 managed tasks
--- @bsb-hash sha256:cd38235fdfb2941d7c40e0c22a78eb9cf8c7f7ae100e88015daa4987a91ed88b
+-- @bsb-hash sha256:c19e77abddfccfe3c5d4574f2f0725ec365829c8c40957f78d7b232e8bf38f94
 -- @bsb-names maintenance work_item=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -46,14 +46,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_request_checklist_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_request_checklist_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_request_checklist_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_request_checklist_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_request_checklist_items";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_request_assignees";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_request_assignees";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_request_assignees";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_request_assignees";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_request_assignees";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -828,29 +840,68 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_requests";
-create policy bsb_tenant_scope on "better_supabase"."maintenance_requests" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_requests";
+create policy bsb_tenant_scope_select on "better_supabase"."maintenance_requests" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_requests";
+create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_requests" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_requests";
+create policy bsb_tenant_scope_update on "better_supabase"."maintenance_requests" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_requests";
+create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_requests" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_request_checklist_items";
-create policy bsb_tenant_scope on "better_supabase"."maintenance_request_checklist_items" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_request_checklist_items";
+create policy bsb_tenant_scope_select on "better_supabase"."maintenance_request_checklist_items" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_request_checklist_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_request_checklist_items" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_request_checklist_items";
+create policy bsb_tenant_scope_update on "better_supabase"."maintenance_request_checklist_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_request_checklist_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_request_checklist_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_request_assignees";
-create policy bsb_tenant_scope on "better_supabase"."maintenance_request_assignees" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_request_assignees";
+create policy bsb_tenant_scope_select on "better_supabase"."maintenance_request_assignees" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_request_assignees";
+create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_request_assignees" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_request_assignees";
+create policy bsb_tenant_scope_update on "better_supabase"."maintenance_request_assignees" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_request_assignees";
+create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_request_assignees" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.tasks.api: entry points for the Data API.
 create schema if not exists "api";

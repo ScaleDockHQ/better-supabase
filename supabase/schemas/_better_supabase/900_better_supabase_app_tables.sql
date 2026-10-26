@@ -1,6 +1,6 @@
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:6175f5dbb151baf887cc6b5c636c1a2ce05277c8061ebafdaee1aeced393b457
+-- @bsb-hash sha256:1d2618efa09f894f30e8b488dfc0c8140ea0310167dd3ef021d95fced078fc22
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -106,10 +106,23 @@ create policy "projects_update" on "public"."projects" for update to authenticat
 drop policy if exists "projects_delete" on "public"."projects";
 create policy "projects_delete" on "public"."projects" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."projects";
-create policy bsb_tenant_scope on "public"."projects" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "public"."projects";
+create policy bsb_tenant_scope_select on "public"."projects" as restrictive
+  for select to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "public"."projects";
+create policy bsb_tenant_scope_insert on "public"."projects" as restrictive
+  for insert to public
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "public"."projects";
+create policy bsb_tenant_scope_update on "public"."projects" as restrictive
+  for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "public"."projects";
+create policy bsb_tenant_scope_delete on "public"."projects" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "projects_organization_id_idx" on "public"."projects" ("organization_id");
 create index if not exists "projects_lead_id_idx" on "public"."projects" ("lead_id");
 create index if not exists "projects_label_id_idx" on "public"."projects" ("label_id");
@@ -130,10 +143,23 @@ create policy "tasks_update" on "public"."tasks" for update to authenticated usi
 drop policy if exists "tasks_delete" on "public"."tasks";
 create policy "tasks_delete" on "public"."tasks" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."tasks";
-create policy bsb_tenant_scope on "public"."tasks" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "public"."tasks";
+create policy bsb_tenant_scope_select on "public"."tasks" as restrictive
+  for select to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "public"."tasks";
+create policy bsb_tenant_scope_insert on "public"."tasks" as restrictive
+  for insert to public
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "public"."tasks";
+create policy bsb_tenant_scope_update on "public"."tasks" as restrictive
+  for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "public"."tasks";
+create policy bsb_tenant_scope_delete on "public"."tasks" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 alter table "public"."tasks" drop constraint if exists "tasks_title_check";
 alter table "public"."tasks" add constraint "tasks_title_check" check (char_length("title") <= 200);
 alter table "public"."tasks" drop constraint if exists "tasks_status_check";
@@ -198,10 +224,23 @@ create policy "client_notes_update" on "public"."client_notes" for update to aut
 drop policy if exists "client_notes_delete" on "public"."client_notes";
 create policy "client_notes_delete" on "public"."client_notes" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."client_notes";
-create policy bsb_tenant_scope on "public"."client_notes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "public"."client_notes";
+create policy bsb_tenant_scope_select on "public"."client_notes" as restrictive
+  for select to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "public"."client_notes";
+create policy bsb_tenant_scope_insert on "public"."client_notes" as restrictive
+  for insert to public
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "public"."client_notes";
+create policy bsb_tenant_scope_update on "public"."client_notes" as restrictive
+  for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "public"."client_notes";
+create policy bsb_tenant_scope_delete on "public"."client_notes" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "client_notes_organization_id_idx" on "public"."client_notes" ("organization_id");
 drop trigger if exists "bsb_updated_at" on "public"."client_notes";
 create trigger "bsb_updated_at" before update on "public"."client_notes"

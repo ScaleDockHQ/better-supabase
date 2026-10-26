@@ -1,6 +1,6 @@
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- @bsb-hash sha256:ba3dc3d9133b8bc0d28ec4b0664f1ffe2df96052740d613c372e2ba0cf05de92
+-- @bsb-hash sha256:ef898bb1f095f6e0b6f1b211b03d7fa3aa6a23a2b080bc3ef2a6f9be0732daaf
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
@@ -10,7 +10,7 @@ select extensions.plan(70);
 
 select extensions.has_table('public', 'projects', 'public.projects exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."projects"'::regclass), 'public.projects has row level security on');
-select extensions.policies_are('public', 'projects', array['projects_select', 'projects_insert', 'projects_update', 'projects_delete', 'bsb_session_active', 'bsb_tenant_scope'], 'public.projects has the policies for its scope');
+select extensions.policies_are('public', 'projects', array['projects_select', 'projects_insert', 'projects_update', 'projects_delete', 'bsb_session_active', 'bsb_tenant_scope_select', 'bsb_tenant_scope_insert', 'bsb_tenant_scope_update', 'bsb_tenant_scope_delete'], 'public.projects has the policies for its scope');
 select extensions.table_privs_are('public', 'projects', 'anon', array[]::text[], 'anon has no privileges on public.projects');
 select extensions.table_privs_are('public', 'projects', 'authenticated', array['DELETE'], 'authenticated has the privileges for its scope on public.projects');
 select extensions.ok(not has_column_privilege('authenticated', '"public"."projects"', 'internal_notes', 'SELECT'), 'authenticated may not select public.projects.internal_notes');
@@ -46,7 +46,7 @@ reset role;
 
 select extensions.has_table('public', 'tasks', 'public.tasks exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."tasks"'::regclass), 'public.tasks has row level security on');
-select extensions.policies_are('public', 'tasks', array['tasks_select', 'tasks_insert', 'tasks_update', 'tasks_delete', 'bsb_session_active', 'bsb_tenant_scope'], 'public.tasks has the policies for its scope');
+select extensions.policies_are('public', 'tasks', array['tasks_select', 'tasks_insert', 'tasks_update', 'tasks_delete', 'bsb_session_active', 'bsb_tenant_scope_select', 'bsb_tenant_scope_insert', 'bsb_tenant_scope_update', 'bsb_tenant_scope_delete'], 'public.tasks has the policies for its scope');
 select extensions.col_has_check('public'::name, 'tasks'::name, 'title'::name, 'public.tasks.title has its check');
 select extensions.col_has_check('public'::name, 'tasks'::name, 'status'::name, 'public.tasks.status has its check');
 select extensions.col_is_unique('public'::name, 'tasks'::name, array['project_id', 'title']::name[], 'public.tasks is unique on project_id, title');
@@ -73,7 +73,7 @@ reset role;
 
 select extensions.has_table('public', 'client_notes', 'public.client_notes exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."client_notes"'::regclass), 'public.client_notes has row level security on');
-select extensions.policies_are('public', 'client_notes', array['client_notes_select', 'client_notes_insert', 'client_notes_update', 'client_notes_delete', 'bsb_session_active', 'bsb_tenant_scope'], 'public.client_notes has the policies for its scope');
+select extensions.policies_are('public', 'client_notes', array['client_notes_select', 'client_notes_insert', 'client_notes_update', 'client_notes_delete', 'bsb_session_active', 'bsb_tenant_scope_select', 'bsb_tenant_scope_insert', 'bsb_tenant_scope_update', 'bsb_tenant_scope_delete'], 'public.client_notes has the policies for its scope');
 select extensions.table_privs_are('public', 'client_notes', 'anon', array[]::text[], 'anon has no privileges on public.client_notes');
 select extensions.table_privs_are('public', 'client_notes', 'authenticated', array['DELETE'], 'authenticated has the privileges for its scope on public.client_notes');
 select extensions.ok(not has_column_privilege('authenticated', '"public"."client_notes"', 'diagnosis', 'SELECT'), 'authenticated may not select public.client_notes.diagnosis');

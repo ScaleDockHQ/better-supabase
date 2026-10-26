@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:096b7085115092d55dfdca0c2b1ca24c7c736099dbf09a283e526f81b2527769
+-- @bsb-hash sha256:f9bb7338b64ae9a3106b8aaf6c8e8e50e72a1db49f69f09f2752bdd562211de5
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."reviews";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reviews";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reviews";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reviews";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reviews";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."review_stats";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."review_stats";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."review_stats";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."review_stats";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."review_stats";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;

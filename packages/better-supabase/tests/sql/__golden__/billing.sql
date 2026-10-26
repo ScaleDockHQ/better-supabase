@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:2992fb2fb3d51c9d9f208dd00372c9a58e09d18c9933f850f65f5802a889cc53
+-- @bsb-hash sha256:fd2209e39992d7853ee57811a5d13a2e3c64de86eba61e27da122faab40b3d04
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,6 +12,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."billing_customers";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -659,13 +663,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
-create policy bsb_tenant_scope on "better_supabase"."billing_customers" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_select on "better_supabase"."billing_customers" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('billing.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_insert on "better_supabase"."billing_customers" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_update on "better_supabase"."billing_customers" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_delete on "better_supabase"."billing_customers" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -697,7 +714,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:5cec319828bb275c9856cb6d5129cfd30a181ae1e521bd311b7b25be71214464
+-- @bsb-hash sha256:b4ddb9df6d910419537cbd9ae1d0feb33ed4fa4de6c7c08bc6a639433fee9ccb
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -708,6 +725,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."billing_customers";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1390,13 +1411,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
-create policy bsb_tenant_scope on "better_supabase"."billing_customers" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_select on "better_supabase"."billing_customers" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('billing.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_insert on "better_supabase"."billing_customers" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_update on "better_supabase"."billing_customers" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_delete on "better_supabase"."billing_customers" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1428,7 +1462,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:1696ead24ebb0557e4e54e7d81e6ac3bfe08f1c99ccefa97ffd097969a67fcc0
+-- @bsb-hash sha256:1de43990de23f155df7fbe4981e64e47c7391384448e0e61cf0890b7ed1a2abd
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1439,6 +1473,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."billing_customers";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."billing_customers";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."billing_customers";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."billing_customers";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."billing_customers";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2088,13 +2126,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."billing_customers";
-create policy bsb_tenant_scope on "app_private"."billing_customers" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."billing_customers";
+create policy bsb_tenant_scope_select on "app_private"."billing_customers" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('billing.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."billing_customers";
+create policy bsb_tenant_scope_insert on "app_private"."billing_customers" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."billing_customers";
+create policy bsb_tenant_scope_update on "app_private"."billing_customers" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."billing_customers";
+create policy bsb_tenant_scope_delete on "app_private"."billing_customers" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2126,7 +2177,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:7bdf9e44238d2e439348bd235aaf29b53edec2e4034556a1ce1810a712f45eda
+-- @bsb-hash sha256:160c30b749c5a59c351ea2ca1061c85e16e8eb38924496fa0496c22ca983eb2e
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2137,6 +2188,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."billing_customers";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2784,13 +2839,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
-create policy bsb_tenant_scope on "better_supabase"."billing_customers" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_select on "better_supabase"."billing_customers" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('billing.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_insert on "better_supabase"."billing_customers" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_update on "better_supabase"."billing_customers" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_delete on "better_supabase"."billing_customers" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.billing.api: entry points for the Data API.
 create schema if not exists "api";
@@ -3065,7 +3133,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:92b9738d058426beb374bebf75a7d465895f7c025548998420aa65f417f47c51
+-- @bsb-hash sha256:01f326b87118833150db3da6192b0648d4209410845458260e7de177a719280b
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3076,6 +3144,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."billing_customers";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3718,13 +3790,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
-create policy bsb_tenant_scope on "better_supabase"."billing_customers" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_select on "better_supabase"."billing_customers" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('billing.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_insert on "better_supabase"."billing_customers" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_update on "better_supabase"."billing_customers" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_delete on "better_supabase"."billing_customers" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -3756,7 +3841,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:587c07d19f78d389b3d40c7c680e21fa6e34a317403affdd13f693777d875920
+-- @bsb-hash sha256:2f4447c876caeecc015c27ea7c110c485732a1b0fc15125e7dd821cf268503b2
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3767,6 +3852,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."billing_customers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."billing_customers";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4414,13 +4503,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
-create policy bsb_tenant_scope on "better_supabase"."billing_customers" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_select on "better_supabase"."billing_customers" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('billing.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_insert on "better_supabase"."billing_customers" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_update on "better_supabase"."billing_customers" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope_delete on "better_supabase"."billing_customers" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

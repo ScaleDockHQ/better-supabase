@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:024a4ada07e4da27fd375dfa6460b2e2658f60f8c696690e803cf5febaf662ac
+-- @bsb-hash sha256:9b06308b4641b2a0b0d171aad3195370e9fb3a4ac16cb6f8791d97ac98fe4ddf
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -613,21 +621,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
-create policy bsb_tenant_scope on "better_supabase"."time_rates" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_select on "better_supabase"."time_rates" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_insert on "better_supabase"."time_rates" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_update on "better_supabase"."time_rates" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_delete on "better_supabase"."time_rates" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
-create policy bsb_tenant_scope on "better_supabase"."time_invoice_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."time_invoice_entries" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."time_invoice_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -659,7 +693,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:25a174515656e99a12ff62fdea4394fd3cb505af9a9902d48044da058f42d209
+-- @bsb-hash sha256:98d9594d795a469f15c6e5990c11925a7748ddd02222b004c9f1a877946d5056
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -704,10 +738,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1280,21 +1322,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
-create policy bsb_tenant_scope on "better_supabase"."time_rates" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_select on "better_supabase"."time_rates" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_insert on "better_supabase"."time_rates" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_update on "better_supabase"."time_rates" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_delete on "better_supabase"."time_rates" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
-create policy bsb_tenant_scope on "better_supabase"."time_invoice_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."time_invoice_entries" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."time_invoice_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1326,7 +1394,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:ffd8b70d473a136c06a068fe2f3fdfc79173932a90a0dacda4a83aad8b3f737c
+-- @bsb-hash sha256:b6709de3d58da3a6f274721929bd8429dc15c6101749e4bc4c68680a7977f017
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1371,10 +1439,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."time_rates";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."time_rates";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."time_rates";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."time_rates";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."time_rates";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."time_invoice_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1940,21 +2016,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."time_rates";
-create policy bsb_tenant_scope on "app_private"."time_rates" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."time_rates";
+create policy bsb_tenant_scope_select on "app_private"."time_rates" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."time_rates";
+create policy bsb_tenant_scope_insert on "app_private"."time_rates" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."time_rates";
+create policy bsb_tenant_scope_update on "app_private"."time_rates" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."time_rates";
+create policy bsb_tenant_scope_delete on "app_private"."time_rates" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."time_invoice_entries";
-create policy bsb_tenant_scope on "app_private"."time_invoice_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."time_invoice_entries";
+create policy bsb_tenant_scope_select on "app_private"."time_invoice_entries" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."time_invoice_entries";
+create policy bsb_tenant_scope_insert on "app_private"."time_invoice_entries" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."time_invoice_entries";
+create policy bsb_tenant_scope_update on "app_private"."time_invoice_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."time_invoice_entries";
+create policy bsb_tenant_scope_delete on "app_private"."time_invoice_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1986,7 +2088,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:90d5cf2f261f2650359370db935a37a142b37b66458a1331691a5fd16c0efde4
+-- @bsb-hash sha256:31f24391266574a49a027cb5522b5a16c7b6e290e8b6be46108ad9eb465cb186
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2031,10 +2133,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2598,21 +2708,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
-create policy bsb_tenant_scope on "better_supabase"."time_rates" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_select on "better_supabase"."time_rates" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_insert on "better_supabase"."time_rates" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_update on "better_supabase"."time_rates" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_delete on "better_supabase"."time_rates" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
-create policy bsb_tenant_scope on "better_supabase"."time_invoice_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."time_invoice_entries" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."time_invoice_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.billable-time.api: entry points for the Data API.
 create schema if not exists "api";
@@ -2729,7 +2865,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:d902815d158950f476ab50d5068d6cc329eabbbb7719ea9ba62e69f5a8897e62
+-- @bsb-hash sha256:9f3981a6ec6eed0d042c63ae3a04a2d974ce7c123e42539ae4d8513db04ea91f
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2774,10 +2910,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3335,21 +3479,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
-create policy bsb_tenant_scope on "better_supabase"."time_rates" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_select on "better_supabase"."time_rates" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_insert on "better_supabase"."time_rates" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_update on "better_supabase"."time_rates" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_delete on "better_supabase"."time_rates" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
-create policy bsb_tenant_scope on "better_supabase"."time_invoice_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."time_invoice_entries" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."time_invoice_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -3381,7 +3551,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:66fe4e970ce81898ec6fb6b01c532eed4e49a6c98276a0e69d21b03b255362d2
+-- @bsb-hash sha256:9cbb149376e8a20070c9c02b5d6038cc8b954acf20d55c7884878d4f26ee741e
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3426,10 +3596,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3993,21 +4171,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
-create policy bsb_tenant_scope on "better_supabase"."time_rates" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_select on "better_supabase"."time_rates" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_insert on "better_supabase"."time_rates" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_update on "better_supabase"."time_rates" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
+create policy bsb_tenant_scope_delete on "better_supabase"."time_rates" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
-create policy bsb_tenant_scope on "better_supabase"."time_invoice_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."time_invoice_entries" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."time_invoice_entries" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

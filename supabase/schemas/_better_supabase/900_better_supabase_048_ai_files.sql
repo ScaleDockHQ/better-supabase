@@ -1,6 +1,6 @@
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:d9ff61f7133e80a495e7dcc3c010ea026fd43047a0909e187ff735349f4b67c4
+-- @bsb-hash sha256:97ac85ef15ce2fd6c817b13933ef4e7c4cea242fe6fc0747471fe18745146a4a
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,10 +45,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_files";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_files";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_files";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_files";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_files";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_documents";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_documents";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_documents";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_documents";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_documents";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -710,21 +718,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."ai_files";
-create policy bsb_tenant_scope on "better_supabase"."ai_files" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_files";
+create policy bsb_tenant_scope_select on "better_supabase"."ai_files" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_files";
+create policy bsb_tenant_scope_insert on "better_supabase"."ai_files" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_files";
+create policy bsb_tenant_scope_update on "better_supabase"."ai_files" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_files";
+create policy bsb_tenant_scope_delete on "better_supabase"."ai_files" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."ai_documents";
-create policy bsb_tenant_scope on "better_supabase"."ai_documents" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_documents";
+create policy bsb_tenant_scope_select on "better_supabase"."ai_documents" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_documents";
+create policy bsb_tenant_scope_insert on "better_supabase"."ai_documents" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_documents";
+create policy bsb_tenant_scope_update on "better_supabase"."ai_documents" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_documents";
+create policy bsb_tenant_scope_delete on "better_supabase"."ai_documents" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.ai-files.api: entry points for the Data API.
 create schema if not exists "api";

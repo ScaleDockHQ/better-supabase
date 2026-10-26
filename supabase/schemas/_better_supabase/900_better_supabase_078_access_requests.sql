@@ -1,6 +1,6 @@
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:2ff794c52d88dfe545fe806dd25a8d1748d9c52a5559d7a02a961ac1f526eafe
+-- @bsb-hash sha256:a87989a97ecd0fe5924ae850aeda3a464dd6db6044f0ad01b6cf95946666aa56
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,6 +45,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."access_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."access_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."access_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."access_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -397,13 +401,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
-create policy bsb_tenant_scope on "better_supabase"."access_requests" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."access_requests";
+create policy bsb_tenant_scope_select on "better_supabase"."access_requests" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."access_requests";
+create policy bsb_tenant_scope_insert on "better_supabase"."access_requests" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."access_requests";
+create policy bsb_tenant_scope_update on "better_supabase"."access_requests" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."access_requests";
+create policy bsb_tenant_scope_delete on "better_supabase"."access_requests" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.access-requests.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:b7ed514f2b28fab710da983dca33e357fefa3d402931ae0ec3d2916a72d1d35d
+-- @bsb-hash sha256:13aea22276d2a7ab578ebab4e2fb7436f4f3e91b9fd6b4789c8fbd241662b3ce
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -321,13 +325,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
-create policy bsb_tenant_scope on "better_supabase"."enrichments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_select on "better_supabase"."enrichments" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrichments" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_update on "better_supabase"."enrichments" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrichments" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -359,7 +376,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:1a8c822c137aa52d911560cc0c9da2db6250c986cbc2b9a2be2cba6a93c8da97
+-- @bsb-hash sha256:00d8473f93cdc70f64c4a0ecde197d8f72c860276178bf24c3c399d33568eb47
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -404,6 +421,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -679,13 +700,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
-create policy bsb_tenant_scope on "better_supabase"."enrichments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_select on "better_supabase"."enrichments" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrichments" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_update on "better_supabase"."enrichments" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrichments" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -717,7 +751,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:65a6983d957928e1b7e12c3b7c1ad0a6c21bccdd2e036f5fc8c61995c4970f94
+-- @bsb-hash sha256:db5ad59c3e350e60ece7fe0875dacda2fa7c2c8d8887e45514e212b23b601a24
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -762,6 +796,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."enrichments";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."enrichments";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."enrichments";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."enrichments";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."enrichments";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1039,13 +1077,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."enrichments";
-create policy bsb_tenant_scope on "app_private"."enrichments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."enrichments";
+create policy bsb_tenant_scope_select on "app_private"."enrichments" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."enrichments";
+create policy bsb_tenant_scope_insert on "app_private"."enrichments" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."enrichments";
+create policy bsb_tenant_scope_update on "app_private"."enrichments" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."enrichments";
+create policy bsb_tenant_scope_delete on "app_private"."enrichments" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1077,7 +1128,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:1405da20a2e7c0b95cf988771986959f2e246427eb174619209d4c0143175163
+-- @bsb-hash sha256:57887f287e5001d64c1cf2d86f366dfa13b21a7eb20dcf759c6161a20a30e19e
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1122,6 +1173,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1397,13 +1452,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
-create policy bsb_tenant_scope on "better_supabase"."enrichments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_select on "better_supabase"."enrichments" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrichments" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_update on "better_supabase"."enrichments" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrichments" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.enrichment.api: entry points for the Data API.
 create schema if not exists "api";
@@ -1493,7 +1561,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:2663af4751b02b960ac6b3b1dc0e3bebe131e45f86fc0d90399c8aaf01de316c
+-- @bsb-hash sha256:3129f90f194a733c352caa23b6e409a8ff190cf8146c41e23a1f1c0c830f7fb6
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1554,6 +1622,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1827,13 +1899,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
-create policy bsb_tenant_scope on "better_supabase"."enrichments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_select on "better_supabase"."enrichments" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrichments" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_update on "better_supabase"."enrichments" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrichments" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1865,7 +1950,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:c402a7bd31db91da39a1bd9b70373f22aae34c45a78adb19450ac37d5e9b172b
+-- @bsb-hash sha256:ec0290b31e78c5be3436f91e05fecb6e4aba83f4e760f6b502407f588ab6239b
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1910,6 +1995,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2185,13 +2274,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
-create policy bsb_tenant_scope on "better_supabase"."enrichments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_select on "better_supabase"."enrichments" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('enrichment.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_insert on "better_supabase"."enrichments" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_update on "better_supabase"."enrichments" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
+create policy bsb_tenant_scope_delete on "better_supabase"."enrichments" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

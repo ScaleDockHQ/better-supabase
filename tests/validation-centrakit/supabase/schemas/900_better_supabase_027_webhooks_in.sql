@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:03c8d2664df9d0d2bd67a0ee57c9ead183b2f9d0effb5bc2844ceeb90fe9ace1
+-- @bsb-hash sha256:815672af62940a4e625049cd250b7ccb8692a08e79e3187bb96f1e1b1a123e80
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,6 +45,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."inbound_webhooks";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."inbound_webhooks";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."inbound_webhooks";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."inbound_webhooks";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."inbound_webhooks";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;

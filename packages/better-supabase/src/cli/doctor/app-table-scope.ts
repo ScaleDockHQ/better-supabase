@@ -4,6 +4,7 @@ import {
   hasColumnAccess,
   notNullCheckName,
   scopePolicyName,
+  TENANT_SCOPE_NAMES,
   TENANT_SCOPE_POLICY,
 } from "../../sql/index.ts";
 import { errorText } from "../core/errors.ts";
@@ -198,7 +199,9 @@ export const APP_TABLE_SCOPE_RULES: readonly Rule[] = [
             app.scope === "tenant" &&
             table.policies.some(
               (policy) =>
-                !policy.permissive && policy.name === TENANT_SCOPE_POLICY,
+                !policy.permissive &&
+                (policy.name === TENANT_SCOPE_POLICY ||
+                  TENANT_SCOPE_NAMES.includes(policy.name)),
             );
 
           const names = extra.map((policy) => policy.name).join(", ");

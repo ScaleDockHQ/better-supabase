@@ -1,6 +1,6 @@
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:f890285d60378b8a5753af87b96a4d5665d43ddca6b191e150be00f8cc746cc7
+-- @bsb-hash sha256:942ddba686727c1cd0dcfd953447c0601add271952c57cc2661231c8a71b8dcc
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,10 +45,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."post_boards";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."post_boards";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."post_boards";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."post_boards";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."post_boards";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."posts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."posts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."posts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."posts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."posts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -699,16 +707,30 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."post_boards";
-create policy bsb_tenant_scope on "better_supabase"."post_boards" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."post_boards";
+create policy bsb_tenant_scope_select on "better_supabase"."post_boards" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."post_boards";
+create policy bsb_tenant_scope_insert on "better_supabase"."post_boards" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."post_boards";
+create policy bsb_tenant_scope_update on "better_supabase"."post_boards" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."post_boards";
+create policy bsb_tenant_scope_delete on "better_supabase"."post_boards" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."posts";
-create policy bsb_tenant_scope on "better_supabase"."posts" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."posts";
+create policy bsb_tenant_scope_select on "better_supabase"."posts" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')) and (
@@ -716,8 +738,20 @@ create policy bsb_tenant_scope on "better_supabase"."posts" as restrictive
     or "author_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('posts.moderate'))
   ))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."posts";
+create policy bsb_tenant_scope_insert on "better_supabase"."posts" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."posts";
+create policy bsb_tenant_scope_update on "better_supabase"."posts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."posts";
+create policy bsb_tenant_scope_delete on "better_supabase"."posts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 drop trigger if exists "bsb_search_post_index" on "better_supabase"."posts";
 create trigger "bsb_search_post_index"

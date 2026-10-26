@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:890de61e2f044218cada8590f75d09ee16d37b52398322bf02b5526d3b05018a
+-- @bsb-hash sha256:7272f181da67c5a387a630efd27faa933da004c55168ade7d6cc1615a38338ce
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,14 +46,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_provider_keys";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_provider_keys";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_provider_keys";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_provider_keys";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_provider_keys";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_batches";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_batches";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_batches";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_batches";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_batches";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_batch_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_batch_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_batch_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_batch_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_batch_items";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -457,29 +469,68 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."ai_provider_keys";
-create policy bsb_tenant_scope on "better_supabase"."ai_provider_keys" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_provider_keys";
+create policy bsb_tenant_scope_select on "better_supabase"."ai_provider_keys" as restrictive
+  for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
     or ("workspace_id" in (select better_supabase.tenant_ids_with('ai.admin')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_provider_keys";
+create policy bsb_tenant_scope_insert on "better_supabase"."ai_provider_keys" as restrictive
+  for insert to public
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_provider_keys";
+create policy bsb_tenant_scope_update on "better_supabase"."ai_provider_keys" as restrictive
+  for update to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_provider_keys";
+create policy bsb_tenant_scope_delete on "better_supabase"."ai_provider_keys" as restrictive
+  for delete to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."ai_batches";
-create policy bsb_tenant_scope on "better_supabase"."ai_batches" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_batches";
+create policy bsb_tenant_scope_select on "better_supabase"."ai_batches" as restrictive
+  for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
     or ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('ai.admin')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_batches";
+create policy bsb_tenant_scope_insert on "better_supabase"."ai_batches" as restrictive
+  for insert to public
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_batches";
+create policy bsb_tenant_scope_update on "better_supabase"."ai_batches" as restrictive
+  for update to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_batches";
+create policy bsb_tenant_scope_delete on "better_supabase"."ai_batches" as restrictive
+  for delete to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."ai_batch_items";
-create policy bsb_tenant_scope on "better_supabase"."ai_batch_items" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_batch_items";
+create policy bsb_tenant_scope_select on "better_supabase"."ai_batch_items" as restrictive
+  for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
     or (exists (select 1 from "better_supabase"."ai_batches" y where y."id" = "batch_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_batch_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."ai_batch_items" as restrictive
+  for insert to public
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_batch_items";
+create policy bsb_tenant_scope_update on "better_supabase"."ai_batch_items" as restrictive
+  for update to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_batch_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."ai_batch_items" as restrictive
+  for delete to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

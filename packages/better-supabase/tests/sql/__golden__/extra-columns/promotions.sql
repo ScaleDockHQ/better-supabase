@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:35786ed909b6e3ddaaaf28e9b20f8e49f268488cfc5f653b75fc6de18a992212
+-- @bsb-hash sha256:e6a0f6243db3d54427049e82813681451deb83b45c98d645aeed4f3d234204c9
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,18 +46,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."promotions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."promotions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."promotions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."promotions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."promotions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."promotion_codes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."promotion_codes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."promotion_codes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."promotion_codes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."promotion_codes";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."cart_promotion_codes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."cart_promotion_codes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."cart_promotion_codes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."cart_promotion_codes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."cart_promotion_codes";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."promotion_redemptions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."promotion_redemptions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."promotion_redemptions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."promotion_redemptions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."promotion_redemptions";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -846,37 +862,89 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."promotions";
-create policy bsb_tenant_scope on "better_supabase"."promotions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."promotions";
+create policy bsb_tenant_scope_select on "better_supabase"."promotions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."promotions";
+create policy bsb_tenant_scope_insert on "better_supabase"."promotions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."promotions";
+create policy bsb_tenant_scope_update on "better_supabase"."promotions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."promotions";
+create policy bsb_tenant_scope_delete on "better_supabase"."promotions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."promotion_codes";
-create policy bsb_tenant_scope on "better_supabase"."promotion_codes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."promotion_codes";
+create policy bsb_tenant_scope_select on "better_supabase"."promotion_codes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."promotion_codes";
+create policy bsb_tenant_scope_insert on "better_supabase"."promotion_codes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."promotion_codes";
+create policy bsb_tenant_scope_update on "better_supabase"."promotion_codes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."promotion_codes";
+create policy bsb_tenant_scope_delete on "better_supabase"."promotion_codes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."cart_promotion_codes";
-create policy bsb_tenant_scope on "better_supabase"."cart_promotion_codes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."cart_promotion_codes";
+create policy bsb_tenant_scope_select on "better_supabase"."cart_promotion_codes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."cart_promotion_codes";
+create policy bsb_tenant_scope_insert on "better_supabase"."cart_promotion_codes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."cart_promotion_codes";
+create policy bsb_tenant_scope_update on "better_supabase"."cart_promotion_codes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."cart_promotion_codes";
+create policy bsb_tenant_scope_delete on "better_supabase"."cart_promotion_codes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."promotion_redemptions";
-create policy bsb_tenant_scope on "better_supabase"."promotion_redemptions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."promotion_redemptions";
+create policy bsb_tenant_scope_select on "better_supabase"."promotion_redemptions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or "customer_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."promotion_redemptions";
+create policy bsb_tenant_scope_insert on "better_supabase"."promotion_redemptions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."promotion_redemptions";
+create policy bsb_tenant_scope_update on "better_supabase"."promotion_redemptions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."promotion_redemptions";
+create policy bsb_tenant_scope_delete on "better_supabase"."promotion_redemptions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
