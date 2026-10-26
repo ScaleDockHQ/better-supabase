@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent } from "../../core/template.ts";
+import { policy, renderPolicy } from "../policy.ts";
 import { fail, lockTable, userGrant } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -318,9 +319,16 @@ export function grantsTable(ctx: BlockSqlContext): string {
 );
 create index if not exists ${sqlIdent(`${name}_calendar_idx`)} on ${grants} (${g("calendar")}, ${g("user")});
 ${lockTable(grants, { read: true })}
-drop policy if exists ${name}_read on ${grants};
-create policy ${name}_read on ${grants} for select to authenticated
-using (${g("user")} = (select auth.uid()) or ${accessCall(ctx, g("calendar"), "manage", "(select auth.uid())")});
+${renderPolicy(
+  policy({
+    table: grants,
+    name: `${name}_read`,
+    command: "select",
+    roles: ["authenticated"],
+    using: `${g("user")} = (select auth.uid()) or ${accessCall(ctx, g("calendar"), "manage", "(select auth.uid())")}`,
+  }),
+  { drop: true, target: grants },
+)}
 `;
 }
 
@@ -601,10 +609,19 @@ export function recurrenceTables(ctx: BlockSqlContext): string {
     );
   }
 
-  const policy = (table: string, name: string, tenant: string) =>
-    `drop policy if exists ${name}_read on ${table};
-create policy ${name}_read on ${table} for select to authenticated
-using (${calendarFeatures(ctx).access ? eventAccessCall(ctx, tenant, "read", "(select auth.uid())") : ctx.scope.check(tenant, read)});`;
+  const readPolicy = (table: string, name: string, tenant: string) =>
+    renderPolicy(
+      policy({
+        table,
+        name: `${name}_read`,
+        command: "select",
+        roles: ["authenticated"],
+        using: calendarFeatures(ctx).access
+          ? eventAccessCall(ctx, tenant, "read", "(select auth.uid())")
+          : ctx.scope.check(tenant, read),
+      }),
+      { drop: true, target: table },
+    );
 
   const rulesName = ctx.tableName("rules").name;
   const datesName = ctx.tableName("recurrenceDates").name;
@@ -617,7 +634,7 @@ using (${calendarFeatures(ctx).access ? eventAccessCall(ctx, tenant, "read", "(s
 );
 create index if not exists ${sqlIdent(`${rulesName}_event_idx`)} on ${rules} (${r("event")});
 ${lockTable(rules, { read: true })}
-${policy(rules, rulesName, calendarFeatures(ctx).access ? r("event") : r("tenant"))}
+${readPolicy(rules, rulesName, calendarFeatures(ctx).access ? r("event") : r("tenant"))}
 create table if not exists ${dates} (
   ${d("id")} uuid primary key default gen_random_uuid(),
   ${d("tenant")} ${ctx.idType} not null,
@@ -627,6 +644,6 @@ create table if not exists ${dates} (
 );
 create index if not exists ${sqlIdent(`${datesName}_event_idx`)} on ${dates} (${d("event")});
 ${lockTable(dates, { read: true })}
-${policy(dates, datesName, calendarFeatures(ctx).access ? d("event") : d("tenant"))}
+${readPolicy(dates, datesName, calendarFeatures(ctx).access ? d("event") : d("tenant"))}
 `;
 }

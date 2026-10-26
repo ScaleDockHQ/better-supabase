@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { asColumnType } from "../column-type.ts";
+import { policy, renderPolicy } from "../policy.ts";
 import { fail } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { lockModuleTable } from "./over-app.ts";
@@ -71,7 +72,6 @@ export function scoresTable(ctx: BlockSqlContext, read: string): string {
   const t = ctx.table("scorecardScores");
   const c = (column: string): string => ctx.col("scorecardScores", column);
   const s = (column: string): string => ctx.col("scorecards", column);
-  const policy = sqlIdent(`${ctx.tableName("scorecardScores").name}_read`);
 
   const optional = (logical: string, type: string): string =>
     ctx.has("scorecardScores", logical) ? `\n  ${c(logical)} ${type},` : "";
@@ -84,9 +84,16 @@ create table if not exists ${t} (${optional("tenant", `${ctx.idType} not null`)}
   primary key (${c("scorecard")}, ${c("criterion")})
 );
 ${lockModuleTable(ctx, "scorecardScores", { read: true })}
-drop policy if exists ${policy} on ${t};
-create policy ${policy} on ${t} for select to authenticated
-using (exists (select 1 from ${ctx.table("scorecards")} c where c.${s("id")} = ${t}.${c("scorecard")} and ${ctx.scope.check(`c.${s("tenant")}`, read)}));
+${renderPolicy(
+  policy({
+    table: t,
+    name: `${ctx.tableName("scorecardScores").name}_read`,
+    command: "select",
+    roles: ["authenticated"],
+    using: `exists (select 1 from ${ctx.table("scorecards")} c where c.${s("id")} = ${t}.${c("scorecard")} and ${ctx.scope.check(`c.${s("tenant")}`, read)})`,
+  }),
+  { drop: true, target: t },
+)}
 `;
 }
 
@@ -121,7 +128,6 @@ export function interviewersTable(ctx: BlockSqlContext, read: string): string {
   const c = (column: string): string => ctx.col("interviewers", column);
   const v = (column: string): string => ctx.col("interviews", column);
   const name = ctx.tableName("interviewers").name;
-  const policy = sqlIdent(`${name}_read`);
 
   return `
 create table if not exists ${t} (${ctx.has("interviewers", "tenant") ? `\n  ${c("tenant")} ${ctx.idType} not null,` : ""}
@@ -131,9 +137,16 @@ create table if not exists ${t} (${ctx.has("interviewers", "tenant") ? `\n  ${c(
 );
 create index if not exists ${sqlIdent(`${name}_user_idx`)} on ${t} (${c("user")});
 ${lockModuleTable(ctx, "interviewers", { read: true })}
-drop policy if exists ${policy} on ${t};
-create policy ${policy} on ${t} for select to authenticated
-using (${c("user")} = (select auth.uid()) or exists (select 1 from ${ctx.table("interviews")} i where i.${v("id")} = ${t}.${c("interview")} and ${ctx.scope.check(`i.${v("tenant")}`, read)}));
+${renderPolicy(
+  policy({
+    table: t,
+    name: `${name}_read`,
+    command: "select",
+    roles: ["authenticated"],
+    using: `${c("user")} = (select auth.uid()) or exists (select 1 from ${ctx.table("interviews")} i where i.${v("id")} = ${t}.${c("interview")} and ${ctx.scope.check(`i.${v("tenant")}`, read)})`,
+  }),
+  { drop: true, target: t },
+)}
 `;
 }
 
