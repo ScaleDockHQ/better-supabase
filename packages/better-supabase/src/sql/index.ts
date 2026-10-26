@@ -207,3 +207,12 @@ export type {
   RulePolicyInput,
   RuleValue,
 } from "./policy-rule.ts";
+
+export {
+  commentOnTableSql,
+  formatBsbComment,
+  parseBsbComment,
+  setBsbTag,
+} from "./bsb-tags.ts";
+
+export type { BsbComment, BsbTag } from "./bsb-tags.ts";
