@@ -135,3 +135,45 @@ describe("policyFunctionsSql", () => {
     expect(sql).toContain("app.can('team', tenant, permission_key)");
   });
 });
+
+describe("rule edge cases", () => {
+  it("renders public, numbers and booleans, and refuses bad values", () => {
+    expect(renderRule({ kind: "public" })).toBe("true");
+    expect(
+      renderRule({ kind: "compare", column: "n", op: ">=", value: 3 }),
+    ).toBe(`"n" >= 3`);
+    expect(
+      renderRule({ kind: "compare", column: "b", op: "<>", value: false }),
+    ).toBe(`"b" <> false`);
+    expect(() =>
+      renderRule({ kind: "compare", column: "n", op: "=", value: Number.NaN }),
+    ).toThrow("finite");
+    expect(() =>
+      renderRule({ kind: "compare", column: "n", op: "like" as ">", value: 1 }),
+    ).toThrow("operator");
+    expect(isRule({ kind: "public" })).toBe(true);
+  });
+
+  it("skips rule comments that are not objects or hold bad rules", () => {
+    const plain = "create policy a on app.t for select using (true);";
+
+    expect(readRulePolicies(`-- @bsb rule [1]\n${plain}`)).toEqual([]);
+    expect(
+      readRulePolicies(`-- @bsb rule {"using":{"kind":"x"}}\n${plain}`),
+    ).toEqual([]);
+  });
+
+  it("reads rule policies that have only a check clause", () => {
+    const built = rulePolicy({
+      table: "app.t",
+      name: "c",
+      command: "insert",
+      check: { kind: "public" },
+    });
+
+    const [read] = readRulePolicies(renderRulePolicy(built));
+
+    expect(read?.check).toEqual({ kind: "public" });
+    expect(read?.using).toBeNull();
+  });
+});

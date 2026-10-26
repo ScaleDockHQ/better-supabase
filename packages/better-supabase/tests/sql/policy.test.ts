@@ -118,3 +118,27 @@ describe("maskSql", () => {
     expect(masked).not.toContain("x;y");
   });
 });
+
+describe("scanner edge cases", () => {
+  it("handles doubled quotes in names and nested block comments", () => {
+    const sql = `/* a /* nested */ create policy x on t */
+create policy "we""ird" on "s"."t""q" for select using (true);`;
+
+    const [read] = readPolicies(sql);
+
+    expect(read?.policy.name).toBe('we"ird');
+    expect(read?.policy.table).toBe('s.t"q');
+  });
+
+  it("skips escaped quotes in E strings and doubled quotes in strings", () => {
+    const sql = `select E'it\\'s; create policy z on t', 'a''b; create policy y on t';
+create policy ok on t for select using (true);`;
+
+    expect(readPolicies(sql).map((read) => read.policy.name)).toEqual(["ok"]);
+  });
+
+  it("closes an unterminated comment and dollar quote", () => {
+    expect(readPolicies("select 1 -- create policy a on t")).toEqual([]);
+    expect(readPolicies("select 1 /* create policy a on t")).toEqual([]);
+  });
+});
