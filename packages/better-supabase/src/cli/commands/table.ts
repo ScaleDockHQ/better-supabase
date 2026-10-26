@@ -12,7 +12,7 @@ import {
   isTableFeature,
   setTableFeature,
   TABLE_FEATURES,
-} from "../../sql/table-features.ts";
+} from "../../sql/index.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import { applyPlan, PLAN_ARGS, planResult } from "../core/files.ts";
