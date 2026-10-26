@@ -16,7 +16,10 @@ create statement, columns, policies, grants, indexes and triggers. Views go to
 
 The config's per-table features become `@bsb` tags in each table's comment: `subjects`
 become `subject`, `database.realtime` becomes `realtime`, and `vectorSearch` becomes
-`vector-search`. After the move, `gen` reads these tags from the database, so a project can drop the
+`vector-search`. A `json` entry becomes `json meta=Type` (or `meta=import:module#Name`), an
+`encrypted` column becomes `encrypted ssn=bigint`, and `events` becomes `events on="created, updated"`.
+The `audit`, `audit-reads` and `expose` tags change a table's SQL only, so `gen` does not read
+them. After the move, `gen` reads these tags from the database, so a project can drop the
 config keys one table at a time. A key the config still sets wins over a tag.
 
 The files are written once. A file that exists is left alone unless you pass `--force`.

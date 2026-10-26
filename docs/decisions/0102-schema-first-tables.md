@@ -34,3 +34,12 @@ user-owned file for each table fits the platform better than generated tables.
 ## Consequences
 
 A breaking release with a migration guide, a codemod and a changeset.
+
+## Addendum: tag formats `gen` reads
+
+- `subject`, `realtime` and `vector-search` keep their arguments from the config keys they replace.
+- `json` takes `column=Type` pairs, or `column=import:module#Name`; `encrypted` takes `column=type`
+  pairs (a bare column is text); `events` takes `on` and `include` as comma lists.
+- `audit`, `audit-reads` and `expose` change the table's SQL only (the audit trigger, the reveal
+  audit and the grants live in the table's own file), so `gen` reads nothing from them.
+- A key the config sets itself wins over a tag, so a project moves one table at a time.

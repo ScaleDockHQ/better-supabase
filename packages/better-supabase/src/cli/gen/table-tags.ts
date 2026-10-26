@@ -1,10 +1,17 @@
 import type {
+  AppColumnConfig,
+  AppColumnType,
+  AppTableConfig,
+  AppTableEventKind,
+  AppTableEvents,
+  JsonTypeConfig,
   ResolvedConfig,
   SubjectConfig,
   VectorDistance,
 } from "../../config/index.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
+import { APP_COLUMN_TYPES, APP_TABLE_EVENT_KINDS } from "../../config/index.ts";
 import { parseBsbComment } from "../../sql/index.ts";
 
 const DISTANCES: ReadonlySet<string> = new Set([
@@ -17,15 +24,37 @@ function isDistance(value: string): value is VectorDistance {
   return DISTANCES.has(value);
 }
 
+const IMPORT_PREFIX = "import:";
+
+function isColumnType(value: string): value is AppColumnType {
+  return APP_COLUMN_TYPES.some((type) => type === value);
+}
+
+function isEventKind(value: string): value is AppTableEventKind {
+  return APP_TABLE_EVENT_KINDS.some((kind) => kind === value);
+}
+
+function list(value: string | true | undefined): string[] {
+  return typeof value === "string"
+    ? value
+        .split(",")
+        .map((item) => item.trim())
+        .filter((item) => item !== "")
+    : [];
+}
+
 function text(value: string | true | undefined): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
 /**
  * `config` with the per-table features the schema's `@bsb` table comments turn
- * on (ADR 0102): `subject`, `realtime` and `vector-search`. A key the config
- * sets itself wins, so a project can move to tags one table at a time. Tables
- * outside `config.schemas` are ignored.
+ * on (ADR 0102): `subject`, `realtime`, `vector-search`, `json` (`column=Type`,
+ * or `column=import:module#Name`), `encrypted` (`column=type`, a bare column is
+ * text) and `events` (`on`, `include`). `audit`, `audit-reads` and `expose`
+ * change the table's SQL only, so `gen` has nothing to read from them. A key
+ * the config sets itself wins, so a project can move to tags one table at a
+ * time. Tables outside `config.schemas` are ignored.
  */
 export function withTableTags(
   config: ResolvedConfig,
@@ -36,6 +65,8 @@ export function withTableTags(
   const realtimeGlobal = [...config.realtime.global];
   const realtimeUsers = { ...config.realtime.users };
   const vectorSearch = [...config.vectorSearch];
+  const json: Record<string, JsonTypeConfig> = { ...config.json };
+  const appTables: Record<string, AppTableConfig> = { ...config.appTables };
   let changed = false;
 
   for (const table of snapshot.generator.tables) {
@@ -87,6 +118,56 @@ export function withTableTags(
         }
 
         changed = true;
+      } else if (tag.name === "json") {
+        for (const [column, value] of Object.entries(tag.args)) {
+          const key = `${short}.${column}`;
+
+          const taken = [key, `${qualified}.${column}`].some(
+            (each) => each in json,
+          );
+
+          if (typeof value === "string" && !taken) {
+            json[key] = value.startsWith(IMPORT_PREFIX)
+              ? { import: value.slice(IMPORT_PREFIX.length) }
+              : { type: value };
+
+            changed = true;
+          }
+        }
+      } else if (tag.name === "encrypted" && table.schema === "public") {
+        for (const [column, value] of Object.entries(tag.args)) {
+          const type = value === true ? "text" : value;
+          const own = appTables[table.name];
+
+          if (isColumnType(type) && own?.columns?.[column] === undefined) {
+            const entry: AppColumnConfig = { type, encrypted: true };
+
+            appTables[table.name] = {
+              ...own,
+              columns: { ...own?.columns, [column]: entry },
+            };
+
+            changed = true;
+          }
+        }
+      } else if (
+        tag.name === "events" &&
+        table.schema === "public" &&
+        appTables[table.name]?.events === undefined
+      ) {
+        const on = list(tag.args["on"]).filter(isEventKind);
+        const include = list(tag.args["include"]);
+
+        const events: true | AppTableEvents =
+          on.length === 0 && include.length === 0
+            ? true
+            : {
+                ...(on.length === 0 ? {} : { on }),
+                ...(include.length === 0 ? {} : { include }),
+              };
+
+        appTables[table.name] = { ...appTables[table.name], events };
+        changed = true;
       } else if (
         tag.name === "vector-search" &&
         !vectorSearch.some((each) => names.has(each.table))
@@ -107,6 +188,8 @@ export function withTableTags(
         ...config,
         subjects,
         vectorSearch,
+        json,
+        appTables,
         realtime: {
           ...config.realtime,
           tables: realtimeTables,
