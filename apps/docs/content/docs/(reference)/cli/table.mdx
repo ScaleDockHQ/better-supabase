@@ -1,0 +1,35 @@
+---
+title: table
+description: Turn a per-table feature on or off with the @bsb tag in the table comment.
+---
+
+```bash
+pnpm better-supabase table invoices enable realtime
+pnpm better-supabase table public.invoices disable audit
+```
+
+`table` edits the `comment on table` statement in the file under `supabase/schemas` that creates
+the table (ADR 0102). The free text of the comment stays, and the feature becomes a tag after
+`@bsb`. When the file has no comment yet, the command appends one. Run `db diff` afterwards to
+write the migration.
+
+| Feature         | Tag             |
+| --------------- | --------------- |
+| `realtime`      | `realtime`      |
+| `audit`         | `audit`         |
+| `audit-reads`   | `audit-reads`   |
+| `subject`       | `subject`       |
+| `json`          | `json`          |
+| `expose`        | `expose`        |
+| `encrypted`     | `encrypted`     |
+| `events`        | `events`        |
+| `vector-search` | `vector-search` |
+
+| Flag        | Effect                                            |
+| ----------- | ------------------------------------------------- |
+| `--dry-run` | Prints the diff and writes nothing.               |
+| `--check`   | Writes nothing and exits 1 when the file differs. |
+
+The command fails when no schema file creates the table, or when two files do.
+
+Side effects: Writes files.

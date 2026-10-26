@@ -193,6 +193,7 @@
   "cli/powersync",
   "cli/presets",
   "cli/spec",
+  "cli/table",
   "concepts",
   "concepts/better-result",
   "concepts/caching",

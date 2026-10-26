@@ -1,0 +1,106 @@
+import type { BsbTag } from "./bsb-tags.ts";
+
+import { commentOnTableSql, parseBsbComment, setBsbTag } from "./bsb-tags.ts";
+
+/** The per-table features a `@bsb` tag turns on (ADR 0102). */
+export const TABLE_FEATURES = [
+  "realtime",
+  "audit",
+  "audit-reads",
+  "subject",
+  "json",
+  "expose",
+  "encrypted",
+  "events",
+  "vector-search",
+] as const;
+
+export type TableFeature = (typeof TABLE_FEATURES)[number];
+
+export function isTableFeature(value: string): value is TableFeature {
+  return TABLE_FEATURES.some((feature) => feature === value);
+}
+
+function escaped(value: string): string {
+  return value.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
+}
+
+/** `comment on table [schema.]name is '...'` with the quotes `pg-delta` writes. */
+function commentPattern(schema: string, table: string): RegExp {
+  const name = `(?:"?${escaped(schema)}"?\\.)?"?${escaped(table)}"?`;
+
+  return new RegExp(
+    String.raw`comment\s+on\s+table\s+${name}\s+is\s+'((?:[^']|'')*)'\s*;`,
+    "iu",
+  );
+}
+
+/** Whether `sql` creates `table`, in `schema` or unqualified. */
+export function createsTable(
+  sql: string,
+  schema: string,
+  table: string,
+): boolean {
+  const name = `(?:"?${escaped(schema)}"?\\.)?"?${escaped(table)}"?`;
+
+  return new RegExp(
+    String.raw`create\s+table\s+(?:if\s+not\s+exists\s+)?${name}\s*\(`,
+    "iu",
+  ).test(sql);
+}
+
+/** The features the table's comment turns on, in `sql`. */
+export function tableFeatures(
+  sql: string,
+  schema: string,
+  table: string,
+): readonly string[] {
+  const match = commentPattern(schema, table).exec(sql);
+
+  return parseBsbComment(match?.[1]?.replaceAll("''", "'") ?? null).tags.map(
+    (tag) => tag.name,
+  );
+}
+
+/**
+ * `sql` with the `@bsb` tag `feature` on or off in `table`'s comment. The
+ * comment statement is rewritten in place, or appended when the file has none;
+ * the free text stays. Returns `sql` unchanged when the feature is already in
+ * the wanted state.
+ */
+export function setTableFeature(
+  sql: string,
+  schema: string,
+  table: string,
+  feature: TableFeature,
+  enabled: boolean,
+  tag?: BsbTag,
+): string {
+  const pattern = commentPattern(schema, table);
+  const match = pattern.exec(sql);
+  const current = match?.[1]?.replaceAll("''", "'") ?? null;
+
+  const next = setBsbTag(
+    current,
+    feature,
+    enabled ? (tag ?? { name: feature, args: {} }) : undefined,
+  );
+
+  if (match === null) {
+    if (!enabled) {
+      return sql;
+    }
+
+    const separator = sql.endsWith("\n") ? "\n" : "\n\n";
+
+    return `${sql}${separator}${commentOnTableSql(`${schema}.${table}`, next)}\n`;
+  }
+
+  if (next === (current ?? "")) {
+    return sql;
+  }
+
+  return sql.replace(pattern, () =>
+    commentOnTableSql(`${schema}.${table}`, next),
+  );
+}
