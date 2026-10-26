@@ -1,7 +1,8 @@
 import type { CatalogPolicy } from "../config/snapshot.ts";
 
 import { maskComments, statementSpans } from "./over-app-tables.ts";
-import { closingParen, NAME, qualified, unquote } from "./schema-scan.ts";
+import { catalogPolicy, readPolicy } from "./policy.ts";
+import { qualified, unquote, NAME } from "./schema-scan.ts";
 
 export type PolicyCommand = "select" | "insert" | "update" | "delete";
 
@@ -270,90 +271,18 @@ export function widenedCommands(
   );
 }
 
-const CREATE_POLICY = new RegExp(
-  String.raw`^\s*create\s+policy\s+(${NAME})\s+on\s+(${NAME}(?:\s*\.\s*${NAME})?)`,
-  "i",
-);
-
-const CLAUSE = /\b(using|with\s+check)\s*\(/i;
-
-const POLICY_COMMANDS: readonly CatalogPolicy["command"][] = [
-  "all",
-  ...COMMANDS,
-];
-
 /**
  * The policy a `create policy` statement creates, with its table as
- * `schema.table`; `undefined` for any other statement. Comments must be
- * masked.
+ * `schema.table`; `undefined` for any other statement.
  */
 export function parsePolicy(
   statement: string,
 ): { readonly table: string; readonly policy: CatalogPolicy } | undefined {
-  const head = CREATE_POLICY.exec(statement);
+  const read = readPolicy(statement);
 
-  if (head === null) {
-    return undefined;
-  }
-
-  const rest = statement.slice(head[0].length);
-
-  const expressions: { using: string | null; check: string | null } = {
-    using: null,
-    check: null,
-  };
-
-  let clausesEnd = rest.length;
-  const clause = new RegExp(CLAUSE.source, "gi");
-
-  for (
-    let match = clause.exec(rest);
-    match !== null;
-    match = clause.exec(rest)
-  ) {
-    const open = match.index + match[0].length - 1;
-    const close = closingParen(rest, open);
-
-    if (close === -1) {
-      return undefined;
-    }
-
-    clausesEnd = Math.min(clausesEnd, match.index);
-    const body = rest.slice(open + 1, close);
-
-    if (match[1]!.toLowerCase() === "using") {
-      expressions.using = body;
-    } else {
-      expressions.check = body;
-    }
-
-    clause.lastIndex = close + 1;
-  }
-
-  const clauses = rest.slice(0, clausesEnd).replace(/;\s*$/, "");
-
-  const named = /\bfor\s+(all|select|insert|update|delete)\b/i
-    .exec(clauses)?.[1]
-    ?.toLowerCase();
-
-  const command = POLICY_COMMANDS.find((entry) => entry === named) ?? "all";
-
-  const to = /\bto\s+([\s\S]+)$/i.exec(clauses)?.[1];
-
-  return {
-    table: qualified(head[2]!),
-    policy: {
-      name: unquote(head[1]!),
-      command,
-      roles: (to ?? "public")
-        .split(",")
-        .map((role) => unquote(role.trim()))
-        .filter((role) => role !== ""),
-      permissive: !/\bas\s+restrictive\b/i.test(clauses),
-      using: expressions.using,
-      check: expressions.check,
-    },
-  };
+  return read === undefined
+    ? undefined
+    : { table: read.table, policy: catalogPolicy(read) };
 }
 
 const BLOCK_PREFIX = "bsb_";

@@ -1,7 +1,14 @@
 import type { BlockSqlContext } from "./context.ts";
+import type { Policy } from "./policy.ts";
 
 import { sqlString } from "../core/template.ts";
-import { closingParen } from "./actor-guard.ts";
+import { withoutComments } from "./audit-registrations.ts";
+import {
+  policy as buildPolicy,
+  readGrants,
+  readPolicies,
+  renderPolicy,
+} from "./policy.ts";
 
 /**
  * The restrictive policy that keeps each organization's rows apart (ADR 0099).
@@ -42,186 +49,39 @@ function clause(base: string, extra: readonly string[]): string {
 export function tenantScopePolicy(table: TenantScopeTarget): string {
   const base = `${table.column} in (select ${table.members})`;
 
-  return `drop policy if exists ${TENANT_SCOPE_POLICY} on ${table.target};
-create policy ${TENANT_SCOPE_POLICY} on ${table.target} as restrictive
-  for all to authenticated
-  using (${clause(base, table.using ?? [])})
-  with check (${clause(base, table.check ?? [])});`;
+  return renderPolicy(
+    buildPolicy({
+      table: table.target,
+      name: TENANT_SCOPE_POLICY,
+      permissive: false,
+      roles: ["authenticated"],
+      using: clause(base, table.using ?? []),
+      check: clause(base, table.check ?? []),
+    }),
+    { drop: true, target: table.target },
+  );
 }
-
-const COMMANDS = ["all", "select", "insert", "update", "delete"] as const;
-
-type Command = (typeof COMMANDS)[number];
-
-const isCommand = (value: string): value is Command =>
-  COMMANDS.some((command) => command === value);
-
-interface ParsedPolicy {
-  readonly target: string;
-  readonly restrictive: boolean;
-  readonly command: Command;
-  readonly authenticated: boolean;
-  readonly using: string | undefined;
-  readonly check: string | undefined;
-}
-
-const COMMAND = /\bfor\s+(all|select|insert|update|delete)\b/i;
-const IDENT = String.raw`(?:"[^"]+"|[a-z_][\w$]*)`;
-
-const TARGET = new RegExp(
-  String.raw`^create\s+policy\s+${IDENT}\s+on\s+(${IDENT}(?:\s*\.\s*${IDENT})?)`,
-  "i",
-);
 
 /** `schema.table` without quotes or spacing, for comparing table names. */
 function tableKey(name: string): string {
   return name.replaceAll(/\s+/g, "").replaceAll('"', "").toLowerCase();
 }
 
-/** The SQL without `--` comments, so commented examples aren't read. */
-function withoutComments(sql: string): string {
-  return sql.replaceAll(/^\s*--.*$/gm, "");
-}
-
-/** The end of the statement that starts at `start`: its top-level `;`. */
-function statementEnd(sql: string, start: number): number {
-  let depth = 0;
-  let quote = false;
-
-  for (let i = start; i < sql.length; i += 1) {
-    const char = sql[i];
-
-    if (quote) {
-      if (char === "'" && sql[i + 1] === "'") {
-        i += 1;
-      } else if (char === "'") {
-        quote = false;
-      }
-    } else if (char === "'") {
-      quote = true;
-    } else if (char === "(") {
-      depth += 1;
-    } else if (char === ")") {
-      depth -= 1;
-    } else if (char === ";" && depth === 0) {
-      return i;
-    }
-  }
-
-  return sql.length;
-}
-
-/** The parenthesised expression after `keyword` at the statement's top level. */
-function topLevelClause(
-  statement: string,
-  keyword: RegExp,
-): { readonly at: number; readonly body: string } | undefined {
-  let depth = 0;
-  let quote = false;
-
-  for (let i = 0; i < statement.length; i += 1) {
-    const char = statement[i];
-
-    if (quote) {
-      if (char === "'") {
-        quote = false;
-      }
-
-      continue;
-    }
-
-    if (char === "'") {
-      quote = true;
-    } else if (char === "(") {
-      depth += 1;
-    } else if (char === ")") {
-      depth -= 1;
-    } else if (depth === 0 && /\w/.test(char ?? "")) {
-      keyword.lastIndex = i;
-      const match = keyword.exec(statement);
-
-      if (match !== null && (i === 0 || !/\w/.test(statement[i - 1] ?? ""))) {
-        const open = i + match[0].length - 1;
-        const close = closingParen(statement, open);
-
-        if (close !== -1) {
-          return { at: i, body: statement.slice(open + 1, close) };
-        }
-      }
-    }
-  }
-
-  return undefined;
-}
-
-const USING = /using\s*\(/iy;
-const WITH_CHECK = /with\s+check\s*\(/iy;
-
-function parsePolicy(statement: string): ParsedPolicy | undefined {
-  const target = TARGET.exec(statement)?.[1];
-
-  if (target === undefined) {
-    return undefined;
-  }
-
-  const using = topLevelClause(statement, USING);
-  const check = topLevelClause(statement, WITH_CHECK);
-
-  const header = statement.slice(
-    0,
-    Math.min(using?.at ?? statement.length, check?.at ?? statement.length),
-  );
-
-  const roles = /\bto\s+([\s\S]+)$/i.exec(header)?.[1];
-  const command = COMMAND.exec(header)?.[1]?.toLowerCase() ?? "all";
-
-  return {
-    target: tableKey(target),
-    restrictive: /\bas\s+restrictive\b/i.test(header),
-    command: isCommand(command) ? command : "all",
-    authenticated:
-      roles === undefined || /\b(authenticated|public)\b/i.test(roles),
-    using: using?.body,
-    check: check?.body,
-  };
-}
-
-const GRANT = new RegExp(
-  String.raw`\bgrant\s+[^;]+?\s+on\s+(?:table\s+)?(${IDENT}(?:\s*\.\s*${IDENT})?)\s+to\s+([^;]+);`,
-  "gi",
-);
-
 /** The tables the SQL grants a privilege on to `authenticated` or `public`. */
 function grantedTables(sql: string): ReadonlySet<string> {
-  const tables = new Set<string>();
-
-  for (const [, target, roles] of sql.matchAll(GRANT)) {
-    if (
-      target !== undefined &&
-      roles !== undefined &&
-      /\b(authenticated|public)\b/i.test(roles)
-    ) {
-      tables.add(tableKey(target));
-    }
-  }
-
-  return tables;
+  return new Set(
+    readGrants(sql)
+      .filter((grant) =>
+        grant.roles.some(
+          (role) => role === "authenticated" || role === "public",
+        ),
+      )
+      .map((grant) => grant.table),
+  );
 }
 
-function policiesOf(sql: string): readonly ParsedPolicy[] {
-  const policies: ParsedPolicy[] = [];
-
-  for (const match of sql.matchAll(/\bcreate\s+policy\b/gi)) {
-    const end = statementEnd(sql, match.index);
-    const policy = parsePolicy(sql.slice(match.index, end));
-
-    if (policy !== undefined) {
-      policies.push(policy);
-    }
-  }
-
-  return policies;
-}
+const reachesAuthenticated = (entry: Policy): boolean =>
+  entry.roles.some((role) => role === "authenticated" || role === "public");
 
 /**
  * The expressions a restrictive tenant scope must let through so the block's
@@ -229,7 +89,7 @@ function policiesOf(sql: string): readonly ParsedPolicy[] {
  * update or delete, and `with check` of those that insert or update (an update
  * without one checks its `using`).
  */
-function grantedBy(policies: readonly ParsedPolicy[]): {
+function grantedBy(policies: readonly Policy[]): {
   readonly using: readonly string[];
   readonly check: readonly string[];
 } {
@@ -237,7 +97,7 @@ function grantedBy(policies: readonly ParsedPolicy[]): {
   const check: string[] = [];
 
   for (const policy of policies) {
-    if (policy.command !== "insert" && policy.using !== undefined) {
+    if (policy.command !== "insert" && policy.using !== null) {
       using.push(policy.using);
     }
 
@@ -248,7 +108,7 @@ function grantedBy(policies: readonly ParsedPolicy[]): {
     ) {
       const checked = policy.check ?? policy.using;
 
-      if (checked !== undefined) {
+      if (checked !== null) {
         check.push(checked);
       }
     }
@@ -297,7 +157,7 @@ export function applyTenantScope(sql: string, ctx: BlockSqlContext): string {
   }
 
   const source = withoutComments(sql);
-  const policies = policiesOf(source);
+  const policies = readPolicies(source).map((read) => read.policy);
   const granted = grantedTables(source);
   const statements: string[] = [];
   const targets: string[] = [];
@@ -319,7 +179,9 @@ export function applyTenantScope(sql: string, ctx: BlockSqlContext): string {
 
     const own = policies.filter(
       (policy) =>
-        policy.target === key && !policy.restrictive && policy.authenticated,
+        policy.table === key &&
+        policy.permissive &&
+        reachesAuthenticated(policy),
     );
 
     if (source.includes(ctx.table(logical))) {
