@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:5c8e9eef244966035f7d730be0f7bdb2ede682e5e422ccf380e1bf9fb42ab934
+-- @bsb-hash sha256:4e8ad518c2cf77ea70b9219ca32079d9fff4c670c2231ef118f229b8479f4f6f
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -295,16 +299,36 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
-create policy bsb_tenant_scope on "better_supabase"."organization_settings" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_select on "better_supabase"."organization_settings" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_insert on "better_supabase"."organization_settings" as restrictive
+  for insert to public
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+  );
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_update on "better_supabase"."organization_settings" as restrictive
+  for update to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
   )
   with check (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_delete on "better_supabase"."organization_settings" as restrictive
+  for delete to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 
@@ -338,7 +362,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:77e443450ac6dd25fda5065cd0e24af990b206456c8e89f49d45825c112891d2
+-- @bsb-hash sha256:30bcad7aa0d8516e3174b33a6b89444585eb17e524a76df32f37c632469b60f3
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -383,6 +407,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -704,16 +732,36 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
-create policy bsb_tenant_scope on "better_supabase"."organization_settings" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_select on "better_supabase"."organization_settings" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_insert on "better_supabase"."organization_settings" as restrictive
+  for insert to public
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+  );
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_update on "better_supabase"."organization_settings" as restrictive
+  for update to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
   )
   with check (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_delete on "better_supabase"."organization_settings" as restrictive
+  for delete to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 
@@ -747,7 +795,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:3f8dc09db82ab8e9db9fd6fb43cfd23e20522aaf5a47632e9b201323cb992747
+-- @bsb-hash sha256:50593b2cd1adaa9b314ac710d0d9c2a96b53bddd6666bd90238fa91061ac6baf
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -792,6 +840,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."organization_settings";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."organization_settings";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."organization_settings";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."organization_settings";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."organization_settings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1043,16 +1095,36 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."organization_settings";
-create policy bsb_tenant_scope on "app_private"."organization_settings" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."organization_settings";
+create policy bsb_tenant_scope_select on "app_private"."organization_settings" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."organization_settings";
+create policy bsb_tenant_scope_insert on "app_private"."organization_settings" as restrictive
+  for insert to public
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+  );
+drop policy if exists bsb_tenant_scope_update on "app_private"."organization_settings";
+create policy bsb_tenant_scope_update on "app_private"."organization_settings" as restrictive
+  for update to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
   )
   with check (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
+drop policy if exists bsb_tenant_scope_delete on "app_private"."organization_settings";
+create policy bsb_tenant_scope_delete on "app_private"."organization_settings" as restrictive
+  for delete to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 
@@ -1086,7 +1158,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:77d71cc78b60cfa7e18202c0e5a86156552f0e160d9942316a97aad19e8ca738
+-- @bsb-hash sha256:0e608b98975ea42a0fea2c4d99bf0d778046af424377d144657d9857efc8dac2
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1131,6 +1203,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1380,16 +1456,36 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
-create policy bsb_tenant_scope on "better_supabase"."organization_settings" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_select on "better_supabase"."organization_settings" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_insert on "better_supabase"."organization_settings" as restrictive
+  for insert to public
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+  );
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_update on "better_supabase"."organization_settings" as restrictive
+  for update to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
   )
   with check (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_delete on "better_supabase"."organization_settings" as restrictive
+  for delete to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 
@@ -1526,7 +1622,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:5cc3588b25df5c26e9a122db58bad923d3ea80492ce10eafc941cd76bcd00e15
+-- @bsb-hash sha256:7f407b050cfa0dc7a2b4a56df367e84d99579960e7a7d03ad7681c1620d5750b
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1571,6 +1667,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1814,16 +1914,36 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
-create policy bsb_tenant_scope on "better_supabase"."organization_settings" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_select on "better_supabase"."organization_settings" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_insert on "better_supabase"."organization_settings" as restrictive
+  for insert to public
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+  );
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_update on "better_supabase"."organization_settings" as restrictive
+  for update to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
   )
   with check (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_delete on "better_supabase"."organization_settings" as restrictive
+  for delete to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 
@@ -1857,7 +1977,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:45d9b4d94b28b71813862e13e0e6d46723898b0d226e006d6bde397f9d6af887
+-- @bsb-hash sha256:e1359de799b38d744fafd07fb3b4a7b95f5876fd777158ab49cad518281c9cea
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1902,6 +2022,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2151,16 +2275,36 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
-create policy bsb_tenant_scope on "better_supabase"."organization_settings" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_select on "better_supabase"."organization_settings" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('settings.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_insert on "better_supabase"."organization_settings" as restrictive
+  for insert to public
+  with check (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "org_id", 'settings.update'), false))
+  );
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_update on "better_supabase"."organization_settings" as restrictive
+  for update to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('settings.update')))
   )
   with check (
     "org_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "org_id", 'settings.update'), false))
+    or ("org_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope_delete on "better_supabase"."organization_settings" as restrictive
+  for delete to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 

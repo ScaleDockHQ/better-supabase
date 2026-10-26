@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:0bac93db1aa159f54a9f4a8c7fc141851ce975703cfad8fe2eeda0ce30d5d76b
+-- @bsb-hash sha256:6738f012005f39b4e6a7e0f2cc976c5d5e85221be0643911c8da6a6367ba3eb4
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,22 +46,42 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."courses";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_modules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lessons";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lesson_progress";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_certificates";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1141,45 +1161,110 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."courses";
-create policy bsb_tenant_scope on "better_supabase"."courses" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."courses";
+create policy bsb_tenant_scope_select on "better_supabase"."courses" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("status" = 'published' and "tenant_id" in (select better_supabase.tenant_ids_with('courses.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."courses";
+create policy bsb_tenant_scope_insert on "better_supabase"."courses" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."courses";
+create policy bsb_tenant_scope_update on "better_supabase"."courses" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."courses";
+create policy bsb_tenant_scope_delete on "better_supabase"."courses" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_modules";
-create policy bsb_tenant_scope on "better_supabase"."course_modules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_select on "better_supabase"."course_modules" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."courses" x where x."id" = "better_supabase"."course_modules"."course_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_modules" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_update on "better_supabase"."course_modules" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_modules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_lessons";
-create policy bsb_tenant_scope on "better_supabase"."course_lessons" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_select on "better_supabase"."course_lessons" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_lessons" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_update on "better_supabase"."course_lessons" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_lessons" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_lesson_progress";
-create policy bsb_tenant_scope on "better_supabase"."course_lesson_progress" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_select on "better_supabase"."course_lesson_progress" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_lesson_progress" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_update on "better_supabase"."course_lesson_progress" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_lesson_progress" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_certificates";
-create policy bsb_tenant_scope on "better_supabase"."course_certificates" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_select on "better_supabase"."course_certificates" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_certificates" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_update on "better_supabase"."course_certificates" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_certificates" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1211,7 +1296,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:51bcda196240ca0c3c3fff994faa2aac67b84c3dd86da8858a740d24dbee2a76
+-- @bsb-hash sha256:b55e51d4b84e30ed893352c57ad9ead796deac5124da104acb6d575a1e8964b2
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1256,22 +1341,42 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."courses";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_modules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lessons";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lesson_progress";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_certificates";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2474,45 +2579,110 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."courses";
-create policy bsb_tenant_scope on "better_supabase"."courses" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."courses";
+create policy bsb_tenant_scope_select on "better_supabase"."courses" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("status" = 'published' and "tenant_id" in (select better_supabase.tenant_ids_with('courses.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."courses";
+create policy bsb_tenant_scope_insert on "better_supabase"."courses" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."courses";
+create policy bsb_tenant_scope_update on "better_supabase"."courses" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."courses";
+create policy bsb_tenant_scope_delete on "better_supabase"."courses" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_modules";
-create policy bsb_tenant_scope on "better_supabase"."course_modules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_select on "better_supabase"."course_modules" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."courses" x where x."id" = "better_supabase"."course_modules"."course_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_modules" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_update on "better_supabase"."course_modules" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_modules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_lessons";
-create policy bsb_tenant_scope on "better_supabase"."course_lessons" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_select on "better_supabase"."course_lessons" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_lessons" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_update on "better_supabase"."course_lessons" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_lessons" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_lesson_progress";
-create policy bsb_tenant_scope on "better_supabase"."course_lesson_progress" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_select on "better_supabase"."course_lesson_progress" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_lesson_progress" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_update on "better_supabase"."course_lesson_progress" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_lesson_progress" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_certificates";
-create policy bsb_tenant_scope on "better_supabase"."course_certificates" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_select on "better_supabase"."course_certificates" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_certificates" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_update on "better_supabase"."course_certificates" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_certificates" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2544,7 +2714,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:8c2ebe82a0c366b682080a2d964e37724845228b6b14574180a8ff1c3b2e11a8
+-- @bsb-hash sha256:7e651ec5951de4d576a2655a9b139666bc3867277cf486088c8b023013ed4c4a
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2589,22 +2759,42 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."courses";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."courses";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."courses";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."courses";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."courses";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."course_modules";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."course_modules";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."course_modules";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."course_modules";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."course_modules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."course_lessons";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."course_lessons";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."course_lessons";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."course_lessons";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."course_lessons";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."course_lesson_progress";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."course_certificates";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."course_certificates";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."course_certificates";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."course_certificates";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."course_certificates";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3686,45 +3876,110 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."courses";
-create policy bsb_tenant_scope on "app_private"."courses" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."courses";
+create policy bsb_tenant_scope_select on "app_private"."courses" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("status" = 'published' and "tenant_id" in (select better_supabase.tenant_ids_with('courses.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."courses";
+create policy bsb_tenant_scope_insert on "app_private"."courses" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."courses";
+create policy bsb_tenant_scope_update on "app_private"."courses" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."courses";
+create policy bsb_tenant_scope_delete on "app_private"."courses" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."course_modules";
-create policy bsb_tenant_scope on "app_private"."course_modules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."course_modules";
+create policy bsb_tenant_scope_select on "app_private"."course_modules" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "app_private"."courses" x where x."id" = "app_private"."course_modules"."course_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."course_modules";
+create policy bsb_tenant_scope_insert on "app_private"."course_modules" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."course_modules";
+create policy bsb_tenant_scope_update on "app_private"."course_modules" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."course_modules";
+create policy bsb_tenant_scope_delete on "app_private"."course_modules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."course_lessons";
-create policy bsb_tenant_scope on "app_private"."course_lessons" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."course_lessons";
+create policy bsb_tenant_scope_select on "app_private"."course_lessons" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."course_lessons";
+create policy bsb_tenant_scope_insert on "app_private"."course_lessons" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."course_lessons";
+create policy bsb_tenant_scope_update on "app_private"."course_lessons" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."course_lessons";
+create policy bsb_tenant_scope_delete on "app_private"."course_lessons" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."course_lesson_progress";
-create policy bsb_tenant_scope on "app_private"."course_lesson_progress" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."course_lesson_progress";
+create policy bsb_tenant_scope_select on "app_private"."course_lesson_progress" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."course_lesson_progress";
+create policy bsb_tenant_scope_insert on "app_private"."course_lesson_progress" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."course_lesson_progress";
+create policy bsb_tenant_scope_update on "app_private"."course_lesson_progress" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."course_lesson_progress";
+create policy bsb_tenant_scope_delete on "app_private"."course_lesson_progress" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."course_certificates";
-create policy bsb_tenant_scope on "app_private"."course_certificates" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."course_certificates";
+create policy bsb_tenant_scope_select on "app_private"."course_certificates" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."course_certificates";
+create policy bsb_tenant_scope_insert on "app_private"."course_certificates" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."course_certificates";
+create policy bsb_tenant_scope_update on "app_private"."course_certificates" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."course_certificates";
+create policy bsb_tenant_scope_delete on "app_private"."course_certificates" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -3756,7 +4011,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:5403dbd60de03e2a5b4b226f2200dad2f41044bc1322aa746f4b638353297c35
+-- @bsb-hash sha256:b62246307d5ac687e7963bea0a68e829ec52279e3f6233c7a9264619eb8f3e2d
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3801,22 +4056,42 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."courses";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_modules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lessons";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lesson_progress";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_certificates";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4896,45 +5171,110 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."courses";
-create policy bsb_tenant_scope on "better_supabase"."courses" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."courses";
+create policy bsb_tenant_scope_select on "better_supabase"."courses" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("status" = 'published' and "tenant_id" in (select better_supabase.tenant_ids_with('courses.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."courses";
+create policy bsb_tenant_scope_insert on "better_supabase"."courses" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."courses";
+create policy bsb_tenant_scope_update on "better_supabase"."courses" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."courses";
+create policy bsb_tenant_scope_delete on "better_supabase"."courses" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_modules";
-create policy bsb_tenant_scope on "better_supabase"."course_modules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_select on "better_supabase"."course_modules" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."courses" x where x."id" = "better_supabase"."course_modules"."course_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_modules" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_update on "better_supabase"."course_modules" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_modules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_lessons";
-create policy bsb_tenant_scope on "better_supabase"."course_lessons" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_select on "better_supabase"."course_lessons" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_lessons" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_update on "better_supabase"."course_lessons" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_lessons" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_lesson_progress";
-create policy bsb_tenant_scope on "better_supabase"."course_lesson_progress" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_select on "better_supabase"."course_lesson_progress" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_lesson_progress" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_update on "better_supabase"."course_lesson_progress" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_lesson_progress" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_certificates";
-create policy bsb_tenant_scope on "better_supabase"."course_certificates" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_select on "better_supabase"."course_certificates" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_certificates" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_update on "better_supabase"."course_certificates" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_certificates" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.courses.api: entry points for the Data API.
 create schema if not exists "api";
@@ -5141,7 +5481,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:6f1968c49e1965db9767d9496aaa47bdb7c95659f6ac17545f5fe6ac8bb18767
+-- @bsb-hash sha256:6b2d6c8ed29e68b9b2b07706c7b3442b16d50cc30c31defb78339df19d4c4c51
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5202,22 +5542,42 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."courses";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_modules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lessons";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lesson_progress";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_certificates";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -6281,45 +6641,110 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."courses";
-create policy bsb_tenant_scope on "better_supabase"."courses" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."courses";
+create policy bsb_tenant_scope_select on "better_supabase"."courses" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("status" = 'published' and "tenant_id" in (select better_supabase.tenant_ids_with('courses.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."courses";
+create policy bsb_tenant_scope_insert on "better_supabase"."courses" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."courses";
+create policy bsb_tenant_scope_update on "better_supabase"."courses" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."courses";
+create policy bsb_tenant_scope_delete on "better_supabase"."courses" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_modules";
-create policy bsb_tenant_scope on "better_supabase"."course_modules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_select on "better_supabase"."course_modules" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."courses" x where x."id" = "better_supabase"."course_modules"."course_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_modules" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_update on "better_supabase"."course_modules" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_modules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_lessons";
-create policy bsb_tenant_scope on "better_supabase"."course_lessons" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_select on "better_supabase"."course_lessons" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_lessons" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_update on "better_supabase"."course_lessons" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_lessons" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_lesson_progress";
-create policy bsb_tenant_scope on "better_supabase"."course_lesson_progress" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_select on "better_supabase"."course_lesson_progress" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_lesson_progress" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_update on "better_supabase"."course_lesson_progress" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_lesson_progress" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_certificates";
-create policy bsb_tenant_scope on "better_supabase"."course_certificates" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_select on "better_supabase"."course_certificates" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_certificates" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_update on "better_supabase"."course_certificates" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_certificates" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -6351,7 +6776,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:17b26ab0b015731874d2c959628b13163bc61b908e72dabb54c80af222da7f0c
+-- @bsb-hash sha256:663f9331c007b9b1a4e5387d1cd9e8e4f88ded7574205b340d8d8c3dd3442eb7
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6396,22 +6821,42 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."courses";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."courses";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_modules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_modules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lessons";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lessons";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lesson_progress";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lesson_progress";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_certificates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_certificates";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -7491,45 +7936,110 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."courses";
-create policy bsb_tenant_scope on "better_supabase"."courses" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."courses";
+create policy bsb_tenant_scope_select on "better_supabase"."courses" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (("status" = 'published' and "org_id" in (select better_supabase.tenant_ids_with('courses.read'))) or "org_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."courses";
+create policy bsb_tenant_scope_insert on "better_supabase"."courses" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."courses";
+create policy bsb_tenant_scope_update on "better_supabase"."courses" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."courses";
+create policy bsb_tenant_scope_delete on "better_supabase"."courses" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_modules";
-create policy bsb_tenant_scope on "better_supabase"."course_modules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_select on "better_supabase"."course_modules" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."courses" x where x."id" = "better_supabase"."course_modules"."course_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_modules" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_update on "better_supabase"."course_modules" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_modules";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_modules" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_lessons";
-create policy bsb_tenant_scope on "better_supabase"."course_lessons" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_select on "better_supabase"."course_lessons" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_lessons" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_update on "better_supabase"."course_lessons" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_lessons" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_lesson_progress";
-create policy bsb_tenant_scope on "better_supabase"."course_lesson_progress" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_select on "better_supabase"."course_lesson_progress" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "org_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_lesson_progress" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_update on "better_supabase"."course_lesson_progress" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_lesson_progress" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."course_certificates";
-create policy bsb_tenant_scope on "better_supabase"."course_certificates" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_select on "better_supabase"."course_certificates" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "org_id" in (select better_supabase.tenant_ids_with('courses.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_insert on "better_supabase"."course_certificates" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_update on "better_supabase"."course_certificates" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope_delete on "better_supabase"."course_certificates" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

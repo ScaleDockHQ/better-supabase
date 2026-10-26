@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:2cb1c5bdefb69dae0da9c9ccbdeb5f517f14b3e5bfbb6cadffe248cb5bcf10a1
+-- @bsb-hash sha256:91e445e3733cb5d9c8a6a0ab2d6a8c5a9272ec3ea02a1d16c92cb83e0f48d0a1
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timesheets";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -853,21 +861,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."time_entries";
-create policy bsb_tenant_scope on "better_supabase"."time_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."time_entries" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."time_entries" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."time_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."time_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."timesheets";
-create policy bsb_tenant_scope on "better_supabase"."timesheets" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_select on "better_supabase"."timesheets" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_insert on "better_supabase"."timesheets" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_update on "better_supabase"."timesheets" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_delete on "better_supabase"."timesheets" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -901,7 +935,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:fa2bfd35483f62f22f07ce690169e60cf03c68c7023d5ea54d29943e9f3e47e5
+-- @bsb-hash sha256:2e921c816affbb07f1f8e836d13c74c91c357a22abc5f7655a29dcf9b264afae
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -946,10 +980,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timesheets";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1780,21 +1822,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."time_entries";
-create policy bsb_tenant_scope on "better_supabase"."time_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."time_entries" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."time_entries" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."time_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."time_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."timesheets";
-create policy bsb_tenant_scope on "better_supabase"."timesheets" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_select on "better_supabase"."timesheets" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_insert on "better_supabase"."timesheets" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_update on "better_supabase"."timesheets" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_delete on "better_supabase"."timesheets" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1828,7 +1896,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:faff47b8e5b56d19caa7d9611f58ab139b8a7ae7e87a5a5ca8276c597786aad7
+-- @bsb-hash sha256:0e01ba0a45f50c16aaecaa348be3373b6cae0242aa5a786d5e8f7400c33e24e6
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1873,10 +1941,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."time_entries";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."time_entries";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."time_entries";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."time_entries";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."time_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."timesheets";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."timesheets";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."timesheets";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."timesheets";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."timesheets";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2682,21 +2758,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."time_entries";
-create policy bsb_tenant_scope on "app_private"."time_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."time_entries";
+create policy bsb_tenant_scope_select on "app_private"."time_entries" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."time_entries";
+create policy bsb_tenant_scope_insert on "app_private"."time_entries" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."time_entries";
+create policy bsb_tenant_scope_update on "app_private"."time_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."time_entries";
+create policy bsb_tenant_scope_delete on "app_private"."time_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."timesheets";
-create policy bsb_tenant_scope on "app_private"."timesheets" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."timesheets";
+create policy bsb_tenant_scope_select on "app_private"."timesheets" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."timesheets";
+create policy bsb_tenant_scope_insert on "app_private"."timesheets" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."timesheets";
+create policy bsb_tenant_scope_update on "app_private"."timesheets" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."timesheets";
+create policy bsb_tenant_scope_delete on "app_private"."timesheets" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2730,7 +2832,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:afc811576ce53198d76a09663676b1194687bb0976c926ec0dfc213eb47638a0
+-- @bsb-hash sha256:af7c484bb309e4b2e809f0e85eb740aef8b032acf8844321ae8427b215fe91d7
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2775,10 +2877,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timesheets";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3582,21 +3692,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."time_entries";
-create policy bsb_tenant_scope on "better_supabase"."time_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."time_entries" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."time_entries" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."time_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."time_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."timesheets";
-create policy bsb_tenant_scope on "better_supabase"."timesheets" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_select on "better_supabase"."timesheets" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_insert on "better_supabase"."timesheets" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_update on "better_supabase"."timesheets" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_delete on "better_supabase"."timesheets" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.time-tracking.api: entry points for the Data API.
 create schema if not exists "api";
@@ -3767,7 +3903,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:13461ff526fc65318f79c60403607fd065cc5a4ec19f45d03a722c2b8a036ab4
+-- @bsb-hash sha256:881d2f90e01376043aa553b2c3f5451d4dd0c31dc4883092a571e1d4fcccd257
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3812,10 +3948,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timesheets";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4598,21 +4742,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."time_entries";
-create policy bsb_tenant_scope on "better_supabase"."time_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."time_entries" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."time_entries" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."time_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."time_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."timesheets";
-create policy bsb_tenant_scope on "better_supabase"."timesheets" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_select on "better_supabase"."timesheets" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_insert on "better_supabase"."timesheets" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_update on "better_supabase"."timesheets" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_delete on "better_supabase"."timesheets" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -4646,7 +4816,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:ed14948b81ba24c3ef51cf59d8aabc987b4ce62c44cbd747c1b4ee2d56846692
+-- @bsb-hash sha256:16e1c6684d1154124cd1d6ce9181a92baf0a3b525161a749f9f9272e163d76af
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4691,10 +4861,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."timesheets";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timesheets";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -5498,21 +5676,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."time_entries";
-create policy bsb_tenant_scope on "better_supabase"."time_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."time_entries" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."time_entries" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."time_entries" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."time_entries" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."timesheets";
-create policy bsb_tenant_scope on "better_supabase"."timesheets" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_select on "better_supabase"."timesheets" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_insert on "better_supabase"."timesheets" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_update on "better_supabase"."timesheets" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timesheets";
+create policy bsb_tenant_scope_delete on "better_supabase"."timesheets" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
--- @bsb-hash sha256:27f226cf4be9b9a1f7b17687d3f74e0b8bb97962fda9141e101f8942e85bfec3
+-- @bsb-hash sha256:7879d8d6efedbea347c8df5256eda4be99e49db867fd6daf38e3be8ce3080031
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -159,10 +163,23 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
-create policy bsb_tenant_scope on "better_supabase"."import_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."import_runs" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."import_runs" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."import_runs" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."import_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -194,7 +211,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
--- @bsb-hash sha256:64e57e70d97c44b74f83788731b3815ea32ac77746e53499bf48fd5c50e7c26a
+-- @bsb-hash sha256:7cb62865e7b44fecd50e73f3e641ae2e31e3361de819180e74d850eeebd60f21
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -239,6 +256,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -352,10 +373,23 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
-create policy bsb_tenant_scope on "better_supabase"."import_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."import_runs" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."import_runs" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."import_runs" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."import_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -387,7 +421,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
--- @bsb-hash sha256:a35806a6530c74a32aafe612eaf6f45411926c9c3440b35027dbcbaae3009e6c
+-- @bsb-hash sha256:33ba3ab1969c124898745c069974b5dedb3f5a6e5df48abfb4943c112ba6b0ce
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -432,6 +466,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."import_runs";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."import_runs";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."import_runs";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."import_runs";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."import_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -547,10 +585,23 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."import_runs";
-create policy bsb_tenant_scope on "app_private"."import_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."import_runs";
+create policy bsb_tenant_scope_select on "app_private"."import_runs" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "app_private"."import_runs";
+create policy bsb_tenant_scope_insert on "app_private"."import_runs" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."import_runs";
+create policy bsb_tenant_scope_update on "app_private"."import_runs" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."import_runs";
+create policy bsb_tenant_scope_delete on "app_private"."import_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -582,7 +633,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
--- @bsb-hash sha256:25c8c3d9574b1591cda9864ec43c5e1f6f88d2b2f7dbd3038f509cce8a056b49
+-- @bsb-hash sha256:92552d3a423f2a2a9d5dd62e7509112c2a0f0fd76cb6aa86d25babd225d6c8a8
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -627,6 +678,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -740,10 +795,23 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
-create policy bsb_tenant_scope on "better_supabase"."import_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."import_runs" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."import_runs" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."import_runs" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."import_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.imports.api: entry points for the Data API.
 create schema if not exists "api";
@@ -824,7 +892,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
--- @bsb-hash sha256:d33c7ebca7dccaa90fcc3df2f4b0fae15cf54edfd186a60df6dab8bbd6a41422
+-- @bsb-hash sha256:a18500818fc1d9c4888be6bd937ea4edb63bf6b14bddce1c6f272a662d458cd5
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -885,6 +953,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -996,10 +1068,23 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
-create policy bsb_tenant_scope on "better_supabase"."import_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."import_runs" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."import_runs" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."import_runs" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."import_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1031,7 +1116,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
--- @bsb-hash sha256:801e370f90076b26a4fce15f0f0f164f46927a049d58a4558e03328a0b9a978d
+-- @bsb-hash sha256:da763b8fc59ad7a51c4a364e80b2ae63fe52df070dab9b14b3f76013f1e7016e
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1076,6 +1161,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1189,10 +1278,23 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
-create policy bsb_tenant_scope on "better_supabase"."import_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."import_runs" as restrictive
+  for select to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."import_runs" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."import_runs" as restrictive
+  for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."import_runs" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

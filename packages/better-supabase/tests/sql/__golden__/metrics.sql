@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:cf4bf7b92d205b45f47029afc364784ef170fd4a93e41430fbc72d8da19cd82e
+-- @bsb-hash sha256:3389eb592dcafc3ab2a9732d482250324dfd50643721778fea0a5a9230cfb379
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,6 +12,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."metric_points";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -167,7 +171,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:cf4bf7b92d205b45f47029afc364784ef170fd4a93e41430fbc72d8da19cd82e
+-- @bsb-hash sha256:3389eb592dcafc3ab2a9732d482250324dfd50643721778fea0a5a9230cfb379
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -178,6 +182,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."metric_points";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -333,7 +341,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:34a4b87e964bdee320dbbd67d389b518a5fa179924c4ee964467ca2fb760f834
+-- @bsb-hash sha256:0aafd6f6df4f4a9cb156c6eb2cd170e78587c68e1e27dce0c9976cecc427a256
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -344,6 +352,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."metric_points";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."metric_points";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."metric_points";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."metric_points";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."metric_points";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -501,7 +513,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:08f86bd1886e4cb3d09182ede977b290cfe91d06c078d3d1b62c7f81d710d766
+-- @bsb-hash sha256:6c89d463697c16099aa43004badfe679744ad651cc0596d137dc2befda2b80d5
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -512,6 +524,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."metric_points";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -707,7 +723,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:339670bde99bbfe5a7a7523d3c60d6158ada752973fadc20e6e14416de023e00
+-- @bsb-hash sha256:551d9d1d76a94e42782a55ab0b485c96f87bcd5ebc97c48d56449a4e68f3cc1b
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -718,6 +734,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."metric_points";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -870,7 +890,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:80917cf7c1cc7fe0ba080dffed8774247845d1000e503ff66d955811e75a4758
+-- @bsb-hash sha256:f7742f466540cf8261d231a0c48742744c97d1e0b80ba5350902043b40bb3a51
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -881,6 +901,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."metric_points";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."metric_points";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;

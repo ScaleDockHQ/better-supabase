@@ -1,6 +1,6 @@
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:07648ccbd402e2c79874123470fe97e4911e25ccb00c4a2daf56992794fa9aab
+-- @bsb-hash sha256:44318bd3a872f106c5b20ce3643c1bac4698f0068a17f208966449024e4d8f4c
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,14 +45,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."assignment_queues";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."assignment_queues";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assignment_queues";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."assignment_queues";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assignment_queues";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."assignment_queue_members";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."assignment_queue_members";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assignment_queue_members";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."assignment_queue_members";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assignment_queue_members";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."assignments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."assignments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assignments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."assignments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assignments";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -419,29 +431,68 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."assignment_queues";
-create policy bsb_tenant_scope on "better_supabase"."assignment_queues" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."assignment_queues";
+create policy bsb_tenant_scope_select on "better_supabase"."assignment_queues" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assignment_queues";
+create policy bsb_tenant_scope_insert on "better_supabase"."assignment_queues" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."assignment_queues";
+create policy bsb_tenant_scope_update on "better_supabase"."assignment_queues" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assignment_queues";
+create policy bsb_tenant_scope_delete on "better_supabase"."assignment_queues" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."assignment_queue_members";
-create policy bsb_tenant_scope on "better_supabase"."assignment_queue_members" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."assignment_queue_members";
+create policy bsb_tenant_scope_select on "better_supabase"."assignment_queue_members" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assignment_queue_members";
+create policy bsb_tenant_scope_insert on "better_supabase"."assignment_queue_members" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."assignment_queue_members";
+create policy bsb_tenant_scope_update on "better_supabase"."assignment_queue_members" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assignment_queue_members";
+create policy bsb_tenant_scope_delete on "better_supabase"."assignment_queue_members" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."assignments";
-create policy bsb_tenant_scope on "better_supabase"."assignments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."assignments";
+create policy bsb_tenant_scope_select on "better_supabase"."assignments" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assignments";
+create policy bsb_tenant_scope_insert on "better_supabase"."assignments" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."assignments";
+create policy bsb_tenant_scope_update on "better_supabase"."assignments" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assignments";
+create policy bsb_tenant_scope_delete on "better_supabase"."assignments" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.assignment.api: entry points for the Data API.
 create schema if not exists "api";

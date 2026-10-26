@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:d2e4ef8dc1002f11b20a2f778e8e750697e0594ab5a848fcdb925e37e9b3f05e
+-- @bsb-hash sha256:f8f083100141659dc6d46d3ac6418aaa9957ddf2d6fc1b0af07837a6aa99ce8c
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."channels";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -402,13 +406,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."channels";
-create policy bsb_tenant_scope on "better_supabase"."channels" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."channels";
+create policy bsb_tenant_scope_select on "better_supabase"."channels" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "better_supabase"."channels"."id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."channels";
+create policy bsb_tenant_scope_insert on "better_supabase"."channels" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."channels";
+create policy bsb_tenant_scope_update on "better_supabase"."channels" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."channels";
+create policy bsb_tenant_scope_delete on "better_supabase"."channels" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -440,7 +457,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:1359ea0de3a6a6892bab15a872f7a2e2c2bdc507b24239761f6c8fcb00b98e53
+-- @bsb-hash sha256:f7c0504dc9de4031e52d6a734edffc40ea2e966059cefb7715a552703b0f5487
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -485,6 +502,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."channels";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -859,13 +880,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."channels";
-create policy bsb_tenant_scope on "better_supabase"."channels" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."channels";
+create policy bsb_tenant_scope_select on "better_supabase"."channels" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "better_supabase"."channels"."id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."channels";
+create policy bsb_tenant_scope_insert on "better_supabase"."channels" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."channels";
+create policy bsb_tenant_scope_update on "better_supabase"."channels" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."channels";
+create policy bsb_tenant_scope_delete on "better_supabase"."channels" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -897,7 +931,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:3ec4eaab8d2b41cb6b726851b49d751f95f672a3e13b40db7b43f13a5d60180d
+-- @bsb-hash sha256:39a00f9a600a7958421314cd8671583fccb095260822cb4e82bdeaa9076a63ad
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -942,6 +976,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."channels";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."channels";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."channels";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."channels";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."channels";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1300,13 +1338,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."channels";
-create policy bsb_tenant_scope on "app_private"."channels" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."channels";
+create policy bsb_tenant_scope_select on "app_private"."channels" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "app_private"."channels"."id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."channels";
+create policy bsb_tenant_scope_insert on "app_private"."channels" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."channels";
+create policy bsb_tenant_scope_update on "app_private"."channels" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."channels";
+create policy bsb_tenant_scope_delete on "app_private"."channels" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1338,7 +1389,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:c27e6803ea47bb14c6bbaacef59a937e9dea7023b0d84cda38dd933db014e4eb
+-- @bsb-hash sha256:b0477c70a052d125327e3c7dc353c57c945f780e68f7be87f7883310dbb0297d
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1383,6 +1434,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."channels";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1739,13 +1794,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."channels";
-create policy bsb_tenant_scope on "better_supabase"."channels" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."channels";
+create policy bsb_tenant_scope_select on "better_supabase"."channels" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "better_supabase"."channels"."id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."channels";
+create policy bsb_tenant_scope_insert on "better_supabase"."channels" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."channels";
+create policy bsb_tenant_scope_update on "better_supabase"."channels" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."channels";
+create policy bsb_tenant_scope_delete on "better_supabase"."channels" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.channels.api: entry points for the Data API.
 create schema if not exists "api";
@@ -1889,7 +1957,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:931f4bd88669c6af33ed62f985560833675602bf0ac7ca20cf96644b88a9c83d
+-- @bsb-hash sha256:67b9d846b9d67a39de200b1efc6c04db75771e703cf585da57b76b99a5e9ebd1
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1950,6 +2018,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."channels";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2303,13 +2375,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."channels";
-create policy bsb_tenant_scope on "better_supabase"."channels" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."channels";
+create policy bsb_tenant_scope_select on "better_supabase"."channels" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "better_supabase"."channels"."id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."channels";
+create policy bsb_tenant_scope_insert on "better_supabase"."channels" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."channels";
+create policy bsb_tenant_scope_update on "better_supabase"."channels" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."channels";
+create policy bsb_tenant_scope_delete on "better_supabase"."channels" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2341,7 +2426,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:30e0ff9b4d99d1ee6483fb38d83ae2f5885962492801a61bba71e175e51ddcf6
+-- @bsb-hash sha256:33f7cb857bc481ad003a93773be9cfc2bc052dc696fa8e8b85e05d7dbb15532c
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2386,6 +2471,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."channels";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."channels";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2742,13 +2831,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."channels";
-create policy bsb_tenant_scope on "better_supabase"."channels" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."channels";
+create policy bsb_tenant_scope_select on "better_supabase"."channels" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "better_supabase"."channels"."id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."channels";
+create policy bsb_tenant_scope_insert on "better_supabase"."channels" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."channels";
+create policy bsb_tenant_scope_update on "better_supabase"."channels" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."channels";
+create policy bsb_tenant_scope_delete on "better_supabase"."channels" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

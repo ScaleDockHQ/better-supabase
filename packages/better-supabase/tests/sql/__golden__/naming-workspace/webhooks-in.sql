@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:e508f988b204ccf1b9df30d56478598968da4cf6c845ec295b0aefe22776ac82
+-- @bsb-hash sha256:03acbb36d56805b87b1d8c21a4675f6f9987fd27510b62219bd64783ad30bc0a
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."incoming_webhooks";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incoming_webhooks";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incoming_webhooks";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incoming_webhooks";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incoming_webhooks";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -515,14 +519,27 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."incoming_webhooks";
-create policy bsb_tenant_scope on "better_supabase"."incoming_webhooks" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."incoming_webhooks";
+create policy bsb_tenant_scope_select on "better_supabase"."incoming_webhooks" as restrictive
+  for select to public
   using (
     "tenant" in (select better_supabase.member_workspace_ids())
     or (tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
     and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incoming_webhooks";
+create policy bsb_tenant_scope_insert on "better_supabase"."incoming_webhooks" as restrictive
+  for insert to public
   with check ("tenant" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."incoming_webhooks";
+create policy bsb_tenant_scope_update on "better_supabase"."incoming_webhooks" as restrictive
+  for update to public
+  using ("tenant" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incoming_webhooks";
+create policy bsb_tenant_scope_delete on "better_supabase"."incoming_webhooks" as restrictive
+  for delete to public
+  using ("tenant" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

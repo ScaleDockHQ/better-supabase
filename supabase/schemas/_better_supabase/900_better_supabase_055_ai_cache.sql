@@ -1,6 +1,6 @@
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:ef304a6141fbe13e8f39faaef8e0079762e4c51a67a9781ec7b5b9f02bc04d42
+-- @bsb-hash sha256:23c45c9d097b488d69ca1e54c0cbd33e194f9a7c63df87440aad828e22c92e61
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,6 +11,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_cache_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_cache_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_cache_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_cache_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_cache_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;

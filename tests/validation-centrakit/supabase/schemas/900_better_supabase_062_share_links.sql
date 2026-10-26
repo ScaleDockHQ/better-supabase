@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:08c1bac17eb6735456377462d237cabf2fd14d3b5ce6e7e32070c02c3402cf12
+-- @bsb-hash sha256:7ba970ef93b36b2af386b737cdb8c57f53ac2af722aa5d22e76a0e4913928c3c
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,6 +45,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."share_links";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."share_links";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."share_links";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."share_links";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."share_links";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -281,10 +285,23 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "centrakit"."share_links";
-create policy bsb_tenant_scope on "centrakit"."share_links" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "centrakit"."share_links";
+create policy bsb_tenant_scope_select on "centrakit"."share_links" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "centrakit"."share_links";
+create policy bsb_tenant_scope_insert on "centrakit"."share_links" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "centrakit"."share_links";
+create policy bsb_tenant_scope_update on "centrakit"."share_links" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "centrakit"."share_links";
+create policy bsb_tenant_scope_delete on "centrakit"."share_links" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

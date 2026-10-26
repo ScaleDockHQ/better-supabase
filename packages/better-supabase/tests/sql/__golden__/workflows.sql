@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:9fd7896ef92d312efc5e07a323e5ee9a4287f9bb1e056a29a1769eaa931cb5d4
+-- @bsb-hash sha256:3f55ec526fe11d1141047aaab0f8b575d9d1575dafa91cc2f3324da5a8ce8f9d
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,14 +46,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_start_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -887,22 +899,48 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
-create policy bsb_tenant_scope on "better_supabase"."workflow_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("actor_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."workflow_runs" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."workflow_runs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."workflow_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
-create policy bsb_tenant_scope on "better_supabase"."workflow_schedules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_select on "better_supabase"."workflow_schedules" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_insert on "better_supabase"."workflow_schedules" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_update on "better_supabase"."workflow_schedules" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_delete on "better_supabase"."workflow_schedules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -934,7 +972,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:d2187c576d737cffaec2dd8ca970c63b11dd229cd9ecb729ec0439d9599e03d7
+-- @bsb-hash sha256:12687796870a83896851ae5435bf54da64a086f1bce17050c31824fc32195387
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -979,14 +1017,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_start_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1834,22 +1884,48 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
-create policy bsb_tenant_scope on "better_supabase"."workflow_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("actor_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."workflow_runs" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."workflow_runs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."workflow_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
-create policy bsb_tenant_scope on "better_supabase"."workflow_schedules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_select on "better_supabase"."workflow_schedules" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_insert on "better_supabase"."workflow_schedules" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_update on "better_supabase"."workflow_schedules" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_delete on "better_supabase"."workflow_schedules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1881,7 +1957,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:cc493d734cb2834bb347e0ea2555306767e19cc6f18249e7d0f22c19dcbc69be
+-- @bsb-hash sha256:c62346b33631ad02d573cd7c13cbd7a2c01b77d85baf1ddf696ff9bff3b5c1a7
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1926,14 +2002,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."workflow_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."workflow_schedules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."workflow_start_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2769,22 +2857,48 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."workflow_runs";
-create policy bsb_tenant_scope on "app_private"."workflow_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."workflow_runs";
+create policy bsb_tenant_scope_select on "app_private"."workflow_runs" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("actor_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."workflow_runs";
+create policy bsb_tenant_scope_insert on "app_private"."workflow_runs" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."workflow_runs";
+create policy bsb_tenant_scope_update on "app_private"."workflow_runs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."workflow_runs";
+create policy bsb_tenant_scope_delete on "app_private"."workflow_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."workflow_schedules";
-create policy bsb_tenant_scope on "app_private"."workflow_schedules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."workflow_schedules";
+create policy bsb_tenant_scope_select on "app_private"."workflow_schedules" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."workflow_schedules";
+create policy bsb_tenant_scope_insert on "app_private"."workflow_schedules" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."workflow_schedules";
+create policy bsb_tenant_scope_update on "app_private"."workflow_schedules" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."workflow_schedules";
+create policy bsb_tenant_scope_delete on "app_private"."workflow_schedules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2816,7 +2930,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:bd53f7b670414c2e7e29a7f89a792d607d4b96d2cdb8debdad67ff37b4129f6b
+-- @bsb-hash sha256:19d0e680653f280e7a04e0ec8ba86bfb7ba2d7fa8e0edc517b5ed71f312d31a6
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2861,14 +2975,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_start_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3702,22 +3828,48 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
-create policy bsb_tenant_scope on "better_supabase"."workflow_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("actor_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."workflow_runs" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."workflow_runs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."workflow_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
-create policy bsb_tenant_scope on "better_supabase"."workflow_schedules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_select on "better_supabase"."workflow_schedules" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_insert on "better_supabase"."workflow_schedules" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_update on "better_supabase"."workflow_schedules" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_delete on "better_supabase"."workflow_schedules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.workflows.api: entry points for the Data API.
 create schema if not exists "api";
@@ -3928,7 +4080,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:581d202fbb6d6d98c7357ff9b74f1b22b990e5f17e8b9350ab47e6caaaff475f
+-- @bsb-hash sha256:c1d0e6cb1adb91e716aecfe4ce5c33f193c86c4a3b9a8ecb3457dd73977dfb3a
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3989,14 +4141,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_start_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4799,22 +4963,48 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
-create policy bsb_tenant_scope on "better_supabase"."workflow_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("actor_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."workflow_runs" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."workflow_runs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."workflow_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
-create policy bsb_tenant_scope on "better_supabase"."workflow_schedules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_select on "better_supabase"."workflow_schedules" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_insert on "better_supabase"."workflow_schedules" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_update on "better_supabase"."workflow_schedules" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_delete on "better_supabase"."workflow_schedules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -4846,7 +5036,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:61d57deaec0d4cd7f766a04cb244d404f4db500accca74e7d0a9ce3f4a0c2a3e
+-- @bsb-hash sha256:3f4e738b5e8b1dfd3980901ec8277f032c8ee4095c2b65cd9071d7e2d3cf8360
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4891,14 +5081,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_start_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_start_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -5732,22 +5934,48 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
-create policy bsb_tenant_scope on "better_supabase"."workflow_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("actor_id" = (select auth.uid())
     or "org_id" in (select better_supabase.tenant_ids_with('workflow.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."workflow_runs" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."workflow_runs" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."workflow_runs" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
-create policy bsb_tenant_scope on "better_supabase"."workflow_schedules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_select on "better_supabase"."workflow_schedules" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('workflow.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_insert on "better_supabase"."workflow_schedules" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_update on "better_supabase"."workflow_schedules" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope_delete on "better_supabase"."workflow_schedules" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

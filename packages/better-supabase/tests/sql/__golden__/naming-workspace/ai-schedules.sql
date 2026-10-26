@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:ae8f8eb313f74c91f88f8f4143b41ff8df98d32f003a31e9703bf9f73e5b27f9
+-- @bsb-hash sha256:b8716b8e38256a2bbefcc9da30ba983886a6e38cdc4de6e0f0a827f1c02b46e7
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_task_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_task_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_task_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_task_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -376,21 +384,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
-create policy bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks";
+create policy bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks" as restrictive
+  for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
     or ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('ai.admin')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks";
+create policy bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks" as restrictive
+  for insert to public
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks";
+create policy bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks" as restrictive
+  for update to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks";
+create policy bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks" as restrictive
+  for delete to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
-create policy bsb_tenant_scope on "better_supabase"."ai_task_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_task_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."ai_task_runs" as restrictive
+  for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
     or ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('ai.admin')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_task_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."ai_task_runs" as restrictive
+  for insert to public
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_task_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."ai_task_runs" as restrictive
+  for update to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_task_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."ai_task_runs" as restrictive
+  for delete to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

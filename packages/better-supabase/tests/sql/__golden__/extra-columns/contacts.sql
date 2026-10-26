@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:840c2cb1b293ae263402437ed0a389c0f5c8e60cdce158869c1d5fbb7059a6d9
+-- @bsb-hash sha256:8775ec4e742aac6865c150d6dd0ce72be02b648cf4874fa9ae597b58d8c890b9
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,14 +77,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."companies";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."companies";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."companies";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."people";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."people";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."people";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."people";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."people";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."company_people";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."company_people";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."company_people";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -667,29 +679,68 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
-create policy bsb_tenant_scope on "better_supabase"."companies" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
+create policy bsb_tenant_scope_select on "better_supabase"."companies" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."companies";
+create policy bsb_tenant_scope_insert on "better_supabase"."companies" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."companies";
+create policy bsb_tenant_scope_update on "better_supabase"."companies" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."companies";
+create policy bsb_tenant_scope_delete on "better_supabase"."companies" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."people";
-create policy bsb_tenant_scope on "better_supabase"."people" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."people";
+create policy bsb_tenant_scope_select on "better_supabase"."people" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."people";
+create policy bsb_tenant_scope_insert on "better_supabase"."people" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."people";
+create policy bsb_tenant_scope_update on "better_supabase"."people" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."people";
+create policy bsb_tenant_scope_delete on "better_supabase"."people" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
-create policy bsb_tenant_scope on "better_supabase"."company_people" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."company_people";
+create policy bsb_tenant_scope_select on "better_supabase"."company_people" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."company_people";
+create policy bsb_tenant_scope_insert on "better_supabase"."company_people" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."company_people";
+create policy bsb_tenant_scope_update on "better_supabase"."company_people" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
+create policy bsb_tenant_scope_delete on "better_supabase"."company_people" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

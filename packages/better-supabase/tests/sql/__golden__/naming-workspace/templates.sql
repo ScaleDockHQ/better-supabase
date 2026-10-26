@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:d93565f5bb5d6d44d4a05955e17fefb54ec95a02f631339f0e704b41393b77b6
+-- @bsb-hash sha256:d23f6006fc5a3436dc281a13e0945ef0677d9f7e080c6b99e3db87abdc5356ad
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."templates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."templates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."templates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."templates";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_applications";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_applications";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_applications";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_applications";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -825,22 +833,48 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
-create policy bsb_tenant_scope on "better_supabase"."templates" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."templates";
+create policy bsb_tenant_scope_select on "better_supabase"."templates" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
     or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."templates";
+create policy bsb_tenant_scope_insert on "better_supabase"."templates" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."templates";
+create policy bsb_tenant_scope_update on "better_supabase"."templates" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."templates";
+create policy bsb_tenant_scope_delete on "better_supabase"."templates" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
-create policy bsb_tenant_scope on "better_supabase"."template_applications" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_applications";
+create policy bsb_tenant_scope_select on "better_supabase"."template_applications" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_applications";
+create policy bsb_tenant_scope_insert on "better_supabase"."template_applications" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_applications";
+create policy bsb_tenant_scope_update on "better_supabase"."template_applications" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_applications";
+create policy bsb_tenant_scope_delete on "better_supabase"."template_applications" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

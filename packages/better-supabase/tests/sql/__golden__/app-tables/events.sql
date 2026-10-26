@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:afde43f04f09df40ed7ffea891e7dce24bdf46067e313648feac7def9598a533
+-- @bsb-hash sha256:8c2639fd81ae98dcc667ec714ec69767646459b409c03be705c97d0f06f5a64d
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -73,10 +73,23 @@ create policy "tasks_update" on "public"."tasks" for update to authenticated usi
 drop policy if exists "tasks_delete" on "public"."tasks";
 create policy "tasks_delete" on "public"."tasks" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."tasks";
-create policy bsb_tenant_scope on "public"."tasks" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "public"."tasks";
+create policy bsb_tenant_scope_select on "public"."tasks" as restrictive
+  for select to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "public"."tasks";
+create policy bsb_tenant_scope_insert on "public"."tasks" as restrictive
+  for insert to public
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "public"."tasks";
+create policy bsb_tenant_scope_update on "public"."tasks" as restrictive
+  for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "public"."tasks";
+create policy bsb_tenant_scope_delete on "public"."tasks" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 alter table "public"."tasks" drop constraint if exists "tasks_status_check";
 alter table "public"."tasks" add constraint "tasks_status_check" check ("status" in ('todo', 'done'));
 create index if not exists "tasks_organization_id_idx" on "public"."tasks" ("organization_id");
@@ -132,10 +145,23 @@ create policy "notes_update" on "public"."notes" for update to authenticated usi
 drop policy if exists "notes_delete" on "public"."notes";
 create policy "notes_delete" on "public"."notes" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."notes";
-create policy bsb_tenant_scope on "public"."notes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "public"."notes";
+create policy bsb_tenant_scope_select on "public"."notes" as restrictive
+  for select to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "public"."notes";
+create policy bsb_tenant_scope_insert on "public"."notes" as restrictive
+  for insert to public
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "public"."notes";
+create policy bsb_tenant_scope_update on "public"."notes" as restrictive
+  for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "public"."notes";
+create policy bsb_tenant_scope_delete on "public"."notes" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "notes_organization_id_idx" on "public"."notes" ("organization_id");
 drop trigger if exists "bsb_updated_at" on "public"."notes";
 create trigger "bsb_updated_at" before update on "public"."notes"
@@ -165,7 +191,7 @@ create trigger "bsb_emit_event" after delete on "public"."notes"
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- @bsb-hash sha256:156d6918154013f9596f85fd921ec69dd55b0de5d838be1fa7292f11f7f47291
+-- @bsb-hash sha256:97a5cbfdeaeac54dc71fe397c33b6ecd48a3f696eadb75f1eb1678aa19a62503
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
@@ -175,7 +201,7 @@ select extensions.plan(18);
 
 select extensions.has_table('public', 'tasks', 'public.tasks exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."tasks"'::regclass), 'public.tasks has row level security on');
-select extensions.policies_are('public', 'tasks', array['tasks_select', 'tasks_insert', 'tasks_update', 'tasks_delete', 'bsb_tenant_scope'], 'public.tasks has the policies for its scope');
+select extensions.policies_are('public', 'tasks', array['tasks_select', 'tasks_insert', 'tasks_update', 'tasks_delete', 'bsb_tenant_scope_select', 'bsb_tenant_scope_insert', 'bsb_tenant_scope_update', 'bsb_tenant_scope_delete'], 'public.tasks has the policies for its scope');
 select extensions.col_has_check('public'::name, 'tasks'::name, 'status'::name, 'public.tasks.status has its check');
 select extensions.table_privs_are('public', 'tasks', 'anon', array[]::text[], 'anon has no privileges on public.tasks');
 select extensions.table_privs_are('public', 'tasks', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated has the privileges for its scope on public.tasks');
@@ -200,7 +226,7 @@ reset role;
 
 select extensions.has_table('public', 'notes', 'public.notes exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."notes"'::regclass), 'public.notes has row level security on');
-select extensions.policies_are('public', 'notes', array['notes_select', 'notes_insert', 'notes_update', 'notes_delete', 'bsb_tenant_scope'], 'public.notes has the policies for its scope');
+select extensions.policies_are('public', 'notes', array['notes_select', 'notes_insert', 'notes_update', 'notes_delete', 'bsb_tenant_scope_select', 'bsb_tenant_scope_insert', 'bsb_tenant_scope_update', 'bsb_tenant_scope_delete'], 'public.notes has the policies for its scope');
 select extensions.table_privs_are('public', 'notes', 'anon', array[]::text[], 'anon has no privileges on public.notes');
 select extensions.table_privs_are('public', 'notes', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated has the privileges for its scope on public.notes');
 

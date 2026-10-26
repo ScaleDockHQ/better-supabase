@@ -1,6 +1,6 @@
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:7c7fb0401aa568ce21465aefb048c5887c46c3e64ee2f585814d10d481dedd3c
+-- @bsb-hash sha256:bc0442938c379f383e472d0d7d33f360e9612916c1c493d63549a23b52d3ac08
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,14 +45,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."expense_categories";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."expense_categories";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."expense_categories";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."expense_categories";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."expense_categories";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."expense_reports";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."expense_reports";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."expense_reports";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."expense_reports";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."expense_reports";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."expense_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."expense_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."expense_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."expense_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."expense_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -807,30 +819,69 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."expense_categories";
-create policy bsb_tenant_scope on "better_supabase"."expense_categories" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."expense_categories";
+create policy bsb_tenant_scope_select on "better_supabase"."expense_categories" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."expense_categories";
+create policy bsb_tenant_scope_insert on "better_supabase"."expense_categories" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."expense_categories";
+create policy bsb_tenant_scope_update on "better_supabase"."expense_categories" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."expense_categories";
+create policy bsb_tenant_scope_delete on "better_supabase"."expense_categories" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."expense_reports";
-create policy bsb_tenant_scope on "better_supabase"."expense_reports" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."expense_reports";
+create policy bsb_tenant_scope_select on "better_supabase"."expense_reports" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."expense_reports";
+create policy bsb_tenant_scope_insert on "better_supabase"."expense_reports" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."expense_reports";
+create policy bsb_tenant_scope_update on "better_supabase"."expense_reports" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."expense_reports";
+create policy bsb_tenant_scope_delete on "better_supabase"."expense_reports" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."expense_lines";
-create policy bsb_tenant_scope on "better_supabase"."expense_lines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."expense_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."expense_lines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."expense_reports" p where p."id" = "report_id" and p."user_id" = (select auth.uid()))
     or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."expense_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."expense_lines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."expense_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."expense_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."expense_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."expense_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.expenses.api: entry points for the Data API.
 create schema if not exists "api";

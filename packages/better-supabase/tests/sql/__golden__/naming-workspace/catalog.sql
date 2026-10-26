@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:8f2acc5bede613347b4cfa056a072c29ac7b075d793cc67e4b53fd9839e2f9ef
+-- @bsb-hash sha256:87e6ca058464268304c323a8d4758c7ac79277bcbb11ee676b34f5a269e295e5
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,66 +46,130 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."products";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."products";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."products";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."products";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."products";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_options";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_options";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_options";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_options";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_options";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_option_values";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_option_values";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_option_values";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_option_values";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_option_values";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_variants";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_variants";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_variants";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_variants";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_variants";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_values";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_variant_values";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_variant_values";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_variant_values";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_variant_values";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."price_lists";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."price_lists";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."price_lists";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."price_lists";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."price_lists";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_prices";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_prices";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_prices";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_prices";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_prices";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."categories";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."categories";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."categories";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."categories";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."categories";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_categories";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_categories";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_categories";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_categories";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_categories";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_collections";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_collections";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_collections";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_collections";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_collections";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."collection_products";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."collection_products";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."collection_products";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."collection_products";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."collection_products";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."storefronts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."storefronts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."storefronts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."storefronts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."storefronts";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channels";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."catalog_channels";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."catalog_channels";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."catalog_channels";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."catalog_channels";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channel_products";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."catalog_channel_products";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."catalog_channel_products";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."catalog_channel_products";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."catalog_channel_products";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_translations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_translations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_translations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_translations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_translations";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_translations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_variant_translations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_variant_translations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_variant_translations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_variant_translations";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1756,133 +1820,341 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."products";
-create policy bsb_tenant_scope on "better_supabase"."products" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."products";
+create policy bsb_tenant_scope_select on "better_supabase"."products" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."products";
+create policy bsb_tenant_scope_insert on "better_supabase"."products" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."products";
+create policy bsb_tenant_scope_update on "better_supabase"."products" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."products";
+create policy bsb_tenant_scope_delete on "better_supabase"."products" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."product_options";
-create policy bsb_tenant_scope on "better_supabase"."product_options" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_options";
+create policy bsb_tenant_scope_select on "better_supabase"."product_options" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_options";
+create policy bsb_tenant_scope_insert on "better_supabase"."product_options" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_options";
+create policy bsb_tenant_scope_update on "better_supabase"."product_options" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_options";
+create policy bsb_tenant_scope_delete on "better_supabase"."product_options" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."product_option_values";
-create policy bsb_tenant_scope on "better_supabase"."product_option_values" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_option_values";
+create policy bsb_tenant_scope_select on "better_supabase"."product_option_values" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_option_values";
+create policy bsb_tenant_scope_insert on "better_supabase"."product_option_values" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_option_values";
+create policy bsb_tenant_scope_update on "better_supabase"."product_option_values" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_option_values";
+create policy bsb_tenant_scope_delete on "better_supabase"."product_option_values" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."product_variants";
-create policy bsb_tenant_scope on "better_supabase"."product_variants" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_variants";
+create policy bsb_tenant_scope_select on "better_supabase"."product_variants" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_variants";
+create policy bsb_tenant_scope_insert on "better_supabase"."product_variants" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_variants";
+create policy bsb_tenant_scope_update on "better_supabase"."product_variants" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_variants";
+create policy bsb_tenant_scope_delete on "better_supabase"."product_variants" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_values";
-create policy bsb_tenant_scope on "better_supabase"."product_variant_values" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_variant_values";
+create policy bsb_tenant_scope_select on "better_supabase"."product_variant_values" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_variant_values";
+create policy bsb_tenant_scope_insert on "better_supabase"."product_variant_values" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_variant_values";
+create policy bsb_tenant_scope_update on "better_supabase"."product_variant_values" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_variant_values";
+create policy bsb_tenant_scope_delete on "better_supabase"."product_variant_values" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."price_lists";
-create policy bsb_tenant_scope on "better_supabase"."price_lists" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."price_lists";
+create policy bsb_tenant_scope_select on "better_supabase"."price_lists" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."price_lists";
+create policy bsb_tenant_scope_insert on "better_supabase"."price_lists" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."price_lists";
+create policy bsb_tenant_scope_update on "better_supabase"."price_lists" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."price_lists";
+create policy bsb_tenant_scope_delete on "better_supabase"."price_lists" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."product_prices";
-create policy bsb_tenant_scope on "better_supabase"."product_prices" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_prices";
+create policy bsb_tenant_scope_select on "better_supabase"."product_prices" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_prices";
+create policy bsb_tenant_scope_insert on "better_supabase"."product_prices" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_prices";
+create policy bsb_tenant_scope_update on "better_supabase"."product_prices" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_prices";
+create policy bsb_tenant_scope_delete on "better_supabase"."product_prices" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."categories";
-create policy bsb_tenant_scope on "better_supabase"."categories" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."categories";
+create policy bsb_tenant_scope_select on "better_supabase"."categories" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."categories";
+create policy bsb_tenant_scope_insert on "better_supabase"."categories" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."categories";
+create policy bsb_tenant_scope_update on "better_supabase"."categories" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."categories";
+create policy bsb_tenant_scope_delete on "better_supabase"."categories" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."product_categories";
-create policy bsb_tenant_scope on "better_supabase"."product_categories" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_categories";
+create policy bsb_tenant_scope_select on "better_supabase"."product_categories" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_categories";
+create policy bsb_tenant_scope_insert on "better_supabase"."product_categories" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_categories";
+create policy bsb_tenant_scope_update on "better_supabase"."product_categories" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_categories";
+create policy bsb_tenant_scope_delete on "better_supabase"."product_categories" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."product_collections";
-create policy bsb_tenant_scope on "better_supabase"."product_collections" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_collections";
+create policy bsb_tenant_scope_select on "better_supabase"."product_collections" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_collections";
+create policy bsb_tenant_scope_insert on "better_supabase"."product_collections" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_collections";
+create policy bsb_tenant_scope_update on "better_supabase"."product_collections" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_collections";
+create policy bsb_tenant_scope_delete on "better_supabase"."product_collections" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."collection_products";
-create policy bsb_tenant_scope on "better_supabase"."collection_products" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."collection_products";
+create policy bsb_tenant_scope_select on "better_supabase"."collection_products" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."collection_products";
+create policy bsb_tenant_scope_insert on "better_supabase"."collection_products" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."collection_products";
+create policy bsb_tenant_scope_update on "better_supabase"."collection_products" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."collection_products";
+create policy bsb_tenant_scope_delete on "better_supabase"."collection_products" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."storefronts";
-create policy bsb_tenant_scope on "better_supabase"."storefronts" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."storefronts";
+create policy bsb_tenant_scope_select on "better_supabase"."storefronts" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."storefronts";
+create policy bsb_tenant_scope_insert on "better_supabase"."storefronts" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."storefronts";
+create policy bsb_tenant_scope_update on "better_supabase"."storefronts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."storefronts";
+create policy bsb_tenant_scope_delete on "better_supabase"."storefronts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channels";
-create policy bsb_tenant_scope on "better_supabase"."catalog_channels" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."catalog_channels";
+create policy bsb_tenant_scope_select on "better_supabase"."catalog_channels" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."catalog_channels";
+create policy bsb_tenant_scope_insert on "better_supabase"."catalog_channels" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."catalog_channels";
+create policy bsb_tenant_scope_update on "better_supabase"."catalog_channels" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."catalog_channels";
+create policy bsb_tenant_scope_delete on "better_supabase"."catalog_channels" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channel_products";
-create policy bsb_tenant_scope on "better_supabase"."catalog_channel_products" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."catalog_channel_products";
+create policy bsb_tenant_scope_select on "better_supabase"."catalog_channel_products" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."catalog_channel_products";
+create policy bsb_tenant_scope_insert on "better_supabase"."catalog_channel_products" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."catalog_channel_products";
+create policy bsb_tenant_scope_update on "better_supabase"."catalog_channel_products" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."catalog_channel_products";
+create policy bsb_tenant_scope_delete on "better_supabase"."catalog_channel_products" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."product_translations";
-create policy bsb_tenant_scope on "better_supabase"."product_translations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_translations";
+create policy bsb_tenant_scope_select on "better_supabase"."product_translations" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_translations";
+create policy bsb_tenant_scope_insert on "better_supabase"."product_translations" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_translations";
+create policy bsb_tenant_scope_update on "better_supabase"."product_translations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_translations";
+create policy bsb_tenant_scope_delete on "better_supabase"."product_translations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_translations";
-create policy bsb_tenant_scope on "better_supabase"."product_variant_translations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."product_variant_translations";
+create policy bsb_tenant_scope_select on "better_supabase"."product_variant_translations" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."product_variant_translations";
+create policy bsb_tenant_scope_insert on "better_supabase"."product_variant_translations" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."product_variant_translations";
+create policy bsb_tenant_scope_update on "better_supabase"."product_variant_translations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."product_variant_translations";
+create policy bsb_tenant_scope_delete on "better_supabase"."product_variant_translations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:b634567596af6ef354383c3407021a50c296a1033d29da87168a3b26c560b576
+-- @bsb-hash sha256:50a608ebdc2bc2c9e86a5e1b10cc8bbe90c85187b4e0d99112fab87e778d3a04
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tags";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tags";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tags";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tags";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."taggings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."taggings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."taggings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."taggings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -373,15 +381,41 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
-create policy bsb_tenant_scope on "better_supabase"."tags" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."tags";
+create policy bsb_tenant_scope_select on "better_supabase"."tags" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tags";
+create policy bsb_tenant_scope_insert on "better_supabase"."tags" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."tags";
+create policy bsb_tenant_scope_update on "better_supabase"."tags" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tags";
+create policy bsb_tenant_scope_delete on "better_supabase"."tags" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
-create policy bsb_tenant_scope on "better_supabase"."taggings" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."taggings";
+create policy bsb_tenant_scope_select on "better_supabase"."taggings" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."taggings";
+create policy bsb_tenant_scope_insert on "better_supabase"."taggings" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."taggings";
+create policy bsb_tenant_scope_update on "better_supabase"."taggings" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."taggings";
+create policy bsb_tenant_scope_delete on "better_supabase"."taggings" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

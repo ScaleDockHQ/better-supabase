@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:31e0d286037f2f5d9c4dd0055890edfb1e97a347427dc65555c3fbf8e005d164
+-- @bsb-hash sha256:8e3521fdc248e47bf6447c6394ad4f1821965e48cb17dcbb4722c61edec7de91
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -288,21 +296,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
-create policy bsb_tenant_scope on "better_supabase"."forecast_snapshots" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_select on "better_supabase"."forecast_snapshots" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_update on "better_supabase"."forecast_snapshots" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals";
-create policy bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -334,7 +368,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:20af2c594c28ca6c29299d1bc04b494293559a0ffd42b313bd59a7a6f34d0ce4
+-- @bsb-hash sha256:e2a8b9b0dbf7bd1368fe8e45664ca929fe2aae38e4c5e14fadb261aac0cad586
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -379,10 +413,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -621,21 +663,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
-create policy bsb_tenant_scope on "better_supabase"."forecast_snapshots" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_select on "better_supabase"."forecast_snapshots" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_update on "better_supabase"."forecast_snapshots" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals";
-create policy bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -667,7 +735,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:e4e6e4d78a4dda2e8abe3102e5951462a0b68ce8a95165a6e335bced736ff188
+-- @bsb-hash sha256:6d22105d472f6efb04a032905b73cc8d25a0be2969c46cb0a42edc20547083ff
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -712,10 +780,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."forecast_snapshots";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."forecast_snapshot_deals";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -956,21 +1032,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."forecast_snapshots";
-create policy bsb_tenant_scope on "app_private"."forecast_snapshots" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."forecast_snapshots";
+create policy bsb_tenant_scope_select on "app_private"."forecast_snapshots" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."forecast_snapshots";
+create policy bsb_tenant_scope_insert on "app_private"."forecast_snapshots" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."forecast_snapshots";
+create policy bsb_tenant_scope_update on "app_private"."forecast_snapshots" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."forecast_snapshots";
+create policy bsb_tenant_scope_delete on "app_private"."forecast_snapshots" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."forecast_snapshot_deals";
-create policy bsb_tenant_scope on "app_private"."forecast_snapshot_deals" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_select on "app_private"."forecast_snapshot_deals" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_insert on "app_private"."forecast_snapshot_deals" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_update on "app_private"."forecast_snapshot_deals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_delete on "app_private"."forecast_snapshot_deals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1002,7 +1104,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:8de40001ba7ea851daa50de232eb5d0fe39a8c2a11014969b77092a19d56bd29
+-- @bsb-hash sha256:cf287d4cbf9166b146910b59688c55ea3daa9cb7849f8c6830ee8de067473eb9
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1047,10 +1149,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1289,21 +1399,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
-create policy bsb_tenant_scope on "better_supabase"."forecast_snapshots" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_select on "better_supabase"."forecast_snapshots" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_update on "better_supabase"."forecast_snapshots" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals";
-create policy bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.forecasts.api: entry points for the Data API.
 create schema if not exists "api";
@@ -1393,7 +1529,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:6b3b1ae937985253f633793208b649f7234a8aab6d10bffe9557ab642f85ac71
+-- @bsb-hash sha256:ca60bc68d4993f3aaf919ca7a07a6129aae5c300cb503ec591cc20fb1a8def19
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1454,10 +1590,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1690,21 +1834,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
-create policy bsb_tenant_scope on "better_supabase"."forecast_snapshots" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_select on "better_supabase"."forecast_snapshots" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_update on "better_supabase"."forecast_snapshots" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals";
-create policy bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1736,7 +1906,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:d5671a16c85f3b19a4c16a1767a9ba48a279baae367e9ab8af62a77a18a5a64b
+-- @bsb-hash sha256:21f3e98b3ffd468e802ea7c9268430f61a7fd2ba0b42e2b10fe207c835d36bfb
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1781,10 +1951,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshots";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2023,21 +2201,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
-create policy bsb_tenant_scope on "better_supabase"."forecast_snapshots" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_select on "better_supabase"."forecast_snapshots" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_update on "better_supabase"."forecast_snapshots" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals";
-create policy bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

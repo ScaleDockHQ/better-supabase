@@ -1,6 +1,6 @@
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:a73dada437f3243e2f87748cc0041d127b9e05e8d85edafed5b2c113192e99b1
+-- @bsb-hash sha256:7661844e2e85af1355fc6ef9d6959b789b9c82cc6a6fbb27845a55bdf3dc7460
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,6 +45,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."versions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."versions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."versions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."versions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."versions";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -553,13 +557,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."versions";
-create policy bsb_tenant_scope on "better_supabase"."versions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."versions";
+create policy bsb_tenant_scope_select on "better_supabase"."versions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."versions";
+create policy bsb_tenant_scope_insert on "better_supabase"."versions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."versions";
+create policy bsb_tenant_scope_update on "better_supabase"."versions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."versions";
+create policy bsb_tenant_scope_delete on "better_supabase"."versions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.versions.api: entry points for the Data API.
 create schema if not exists "api";

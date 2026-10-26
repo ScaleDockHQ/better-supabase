@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:2ded4b7d53876d2ee460f8bd66a078caab7ea71574b61f5bbed0b575cce6fc33
+-- @bsb-hash sha256:a41865085f1fcc59fec3f0b9f287e7661828d17524ad154da85ffd9cb262363f
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,30 +46,58 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."conversations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversations";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."conversation_members";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversation_members";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversation_members";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversation_members";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversation_members";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."messages";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."messages";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."messages";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."messages";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."messages";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."message_edits";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_edits";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_edits";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_edits";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_edits";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."thread_reads";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_reads";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_reads";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_reads";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_reads";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."message_record_mentions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_record_mentions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_record_mentions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_record_mentions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_record_mentions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."thread_summaries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_summaries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_summaries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_summaries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_summaries";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1568,8 +1596,9 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."conversations";
-create policy bsb_tenant_scope on "better_supabase"."conversations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversations";
+create policy bsb_tenant_scope_select on "better_supabase"."conversations" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('messages.read'))
@@ -1579,58 +1608,148 @@ create policy bsb_tenant_scope on "better_supabase"."conversations" as restricti
       when 'subject' then coalesce("better_supabase"."can_subject"("better_supabase"."conversations"."subject_type", "better_supabase"."conversations"."subject_id", 'read'), false)
       else false
     end))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversations";
+create policy bsb_tenant_scope_insert on "better_supabase"."conversations" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversations";
+create policy bsb_tenant_scope_update on "better_supabase"."conversations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversations";
+create policy bsb_tenant_scope_delete on "better_supabase"."conversations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."conversation_members";
-create policy bsb_tenant_scope on "better_supabase"."conversation_members" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversation_members";
+create policy bsb_tenant_scope_select on "better_supabase"."conversation_members" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid())
   or exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversation_members";
+create policy bsb_tenant_scope_insert on "better_supabase"."conversation_members" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversation_members";
+create policy bsb_tenant_scope_update on "better_supabase"."conversation_members" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversation_members";
+create policy bsb_tenant_scope_delete on "better_supabase"."conversation_members" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."messages";
-create policy bsb_tenant_scope on "better_supabase"."messages" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."messages";
+create policy bsb_tenant_scope_select on "better_supabase"."messages" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("sent_at" is not null or "author_id" = (select auth.uid()))
   and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."messages";
+create policy bsb_tenant_scope_insert on "better_supabase"."messages" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."messages";
+create policy bsb_tenant_scope_update on "better_supabase"."messages" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."messages";
+create policy bsb_tenant_scope_delete on "better_supabase"."messages" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."message_edits";
-create policy bsb_tenant_scope on "better_supabase"."message_edits" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_edits";
+create policy bsb_tenant_scope_select on "better_supabase"."message_edits" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_edits";
+create policy bsb_tenant_scope_insert on "better_supabase"."message_edits" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_edits";
+create policy bsb_tenant_scope_update on "better_supabase"."message_edits" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_edits";
+create policy bsb_tenant_scope_delete on "better_supabase"."message_edits" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."thread_reads";
-create policy bsb_tenant_scope on "better_supabase"."thread_reads" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_reads";
+create policy bsb_tenant_scope_select on "better_supabase"."thread_reads" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_reads";
+create policy bsb_tenant_scope_insert on "better_supabase"."thread_reads" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_reads";
+create policy bsb_tenant_scope_update on "better_supabase"."thread_reads" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_reads";
+create policy bsb_tenant_scope_delete on "better_supabase"."thread_reads" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."message_record_mentions";
-create policy bsb_tenant_scope on "better_supabase"."message_record_mentions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_record_mentions";
+create policy bsb_tenant_scope_select on "better_supabase"."message_record_mentions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_record_mentions";
+create policy bsb_tenant_scope_insert on "better_supabase"."message_record_mentions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_record_mentions";
+create policy bsb_tenant_scope_update on "better_supabase"."message_record_mentions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_record_mentions";
+create policy bsb_tenant_scope_delete on "better_supabase"."message_record_mentions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."thread_summaries";
-create policy bsb_tenant_scope on "better_supabase"."thread_summaries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_summaries";
+create policy bsb_tenant_scope_select on "better_supabase"."thread_summaries" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_summaries";
+create policy bsb_tenant_scope_insert on "better_supabase"."thread_summaries" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_summaries";
+create policy bsb_tenant_scope_update on "better_supabase"."thread_summaries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_summaries";
+create policy bsb_tenant_scope_delete on "better_supabase"."thread_summaries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

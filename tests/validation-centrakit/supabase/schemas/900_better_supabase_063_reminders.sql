@@ -1,6 +1,6 @@
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:1f22710f05f9b328f4d8bbf8c62b8db9857930ffd201620a964d6f9ef6886881
+-- @bsb-hash sha256:c377ddb251eadaba9bd6d603364e69d9059b35289cc410c55a02dacc8ff20351
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,10 +45,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."recurrence_rules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."reminders";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."reminders";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."reminders";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."reminders";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."reminders";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -252,15 +260,41 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "centrakit"."recurrence_rules";
-create policy bsb_tenant_scope on "centrakit"."recurrence_rules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "centrakit"."recurrence_rules";
+create policy bsb_tenant_scope_select on "centrakit"."recurrence_rules" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "centrakit"."recurrence_rules";
+create policy bsb_tenant_scope_insert on "centrakit"."recurrence_rules" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "centrakit"."recurrence_rules";
+create policy bsb_tenant_scope_update on "centrakit"."recurrence_rules" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "centrakit"."recurrence_rules";
+create policy bsb_tenant_scope_delete on "centrakit"."recurrence_rules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "centrakit"."reminders";
-create policy bsb_tenant_scope on "centrakit"."reminders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "centrakit"."reminders";
+create policy bsb_tenant_scope_select on "centrakit"."reminders" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "centrakit"."reminders";
+create policy bsb_tenant_scope_insert on "centrakit"."reminders" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "centrakit"."reminders";
+create policy bsb_tenant_scope_update on "centrakit"."reminders" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "centrakit"."reminders";
+create policy bsb_tenant_scope_delete on "centrakit"."reminders" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

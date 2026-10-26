@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:256ff0e47c77c2b2a05859096a41c79efb565a7479b3455e604ea6387a5aafe7
+-- @bsb-hash sha256:0715a8d1fe0603d0d460883d890e510eb75901e1c081bb7561c8037327ea2a9c
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -282,15 +290,41 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
-create policy bsb_tenant_scope on "better_supabase"."recurrence_rules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_select on "better_supabase"."recurrence_rules" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_insert on "better_supabase"."recurrence_rules" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_update on "better_supabase"."recurrence_rules" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_delete on "better_supabase"."recurrence_rules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
-create policy bsb_tenant_scope on "better_supabase"."reminders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
+create policy bsb_tenant_scope_select on "better_supabase"."reminders" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
+create policy bsb_tenant_scope_insert on "better_supabase"."reminders" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
+create policy bsb_tenant_scope_update on "better_supabase"."reminders" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
+create policy bsb_tenant_scope_delete on "better_supabase"."reminders" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -322,7 +356,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:25e1e294bcd100ed416fb3d422187d6121b9a9b46e4e12fa5cff57a5e4b46f53
+-- @bsb-hash sha256:c961879736c001547c0340ae13ba30c6b18f30833528f9b08c7857d295a6d0cc
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -367,10 +401,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -603,15 +645,41 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
-create policy bsb_tenant_scope on "better_supabase"."recurrence_rules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_select on "better_supabase"."recurrence_rules" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_insert on "better_supabase"."recurrence_rules" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_update on "better_supabase"."recurrence_rules" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_delete on "better_supabase"."recurrence_rules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
-create policy bsb_tenant_scope on "better_supabase"."reminders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
+create policy bsb_tenant_scope_select on "better_supabase"."reminders" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
+create policy bsb_tenant_scope_insert on "better_supabase"."reminders" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
+create policy bsb_tenant_scope_update on "better_supabase"."reminders" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
+create policy bsb_tenant_scope_delete on "better_supabase"."reminders" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -643,7 +711,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:76ac837f163074503f6609074c3887e52d2a2901b8f25be95397a2578990def2
+-- @bsb-hash sha256:56bf4e1140329e52164ab16e29a20de58787cafff0c02b26110ededca06e5168
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -688,10 +756,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."recurrence_rules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."reminders";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."reminders";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."reminders";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."reminders";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."reminders";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -926,15 +1002,41 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."recurrence_rules";
-create policy bsb_tenant_scope on "app_private"."recurrence_rules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."recurrence_rules";
+create policy bsb_tenant_scope_select on "app_private"."recurrence_rules" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "app_private"."recurrence_rules";
+create policy bsb_tenant_scope_insert on "app_private"."recurrence_rules" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."recurrence_rules";
+create policy bsb_tenant_scope_update on "app_private"."recurrence_rules" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."recurrence_rules";
+create policy bsb_tenant_scope_delete on "app_private"."recurrence_rules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."reminders";
-create policy bsb_tenant_scope on "app_private"."reminders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."reminders";
+create policy bsb_tenant_scope_select on "app_private"."reminders" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "app_private"."reminders";
+create policy bsb_tenant_scope_insert on "app_private"."reminders" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."reminders";
+create policy bsb_tenant_scope_update on "app_private"."reminders" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."reminders";
+create policy bsb_tenant_scope_delete on "app_private"."reminders" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -966,7 +1068,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:fae7009e15962f78130d3a729098536f14d817476df5b44a3f8a49bc4e9300f6
+-- @bsb-hash sha256:cb20830f0781c34f3385afa30fbf8e3b7779d44e4958dbeabe48d4102598624a
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1011,10 +1113,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1247,15 +1357,41 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
-create policy bsb_tenant_scope on "better_supabase"."recurrence_rules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_select on "better_supabase"."recurrence_rules" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_insert on "better_supabase"."recurrence_rules" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_update on "better_supabase"."recurrence_rules" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_delete on "better_supabase"."recurrence_rules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
-create policy bsb_tenant_scope on "better_supabase"."reminders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
+create policy bsb_tenant_scope_select on "better_supabase"."reminders" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
+create policy bsb_tenant_scope_insert on "better_supabase"."reminders" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
+create policy bsb_tenant_scope_update on "better_supabase"."reminders" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
+create policy bsb_tenant_scope_delete on "better_supabase"."reminders" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.reminders.api: entry points for the Data API.
 create schema if not exists "api";
@@ -1365,7 +1501,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:dca33d626590bbf7d321a332bc74381fcc422c82646a8d5530f535c4503de7f7
+-- @bsb-hash sha256:ce875e1e80f19a750cc8cc3c61ca9e02b464c4dc9ffd9befd701d48dc15cd02a
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1410,10 +1546,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1635,15 +1779,41 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
-create policy bsb_tenant_scope on "better_supabase"."recurrence_rules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_select on "better_supabase"."recurrence_rules" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_insert on "better_supabase"."recurrence_rules" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_update on "better_supabase"."recurrence_rules" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_delete on "better_supabase"."recurrence_rules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
-create policy bsb_tenant_scope on "better_supabase"."reminders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
+create policy bsb_tenant_scope_select on "better_supabase"."reminders" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
+create policy bsb_tenant_scope_insert on "better_supabase"."reminders" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
+create policy bsb_tenant_scope_update on "better_supabase"."reminders" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
+create policy bsb_tenant_scope_delete on "better_supabase"."reminders" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1675,7 +1845,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:aeda88ef5c1d8033cf85fae354172b0ef500b3fb2cea65501315ae1349440a57
+-- @bsb-hash sha256:4d17d706ca5263ca308857966ed3cd0701a32532c3758b64ebd6a6731c68e7ba
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1720,10 +1890,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1956,15 +2134,41 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
-create policy bsb_tenant_scope on "better_supabase"."recurrence_rules" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_select on "better_supabase"."recurrence_rules" as restrictive
+  for select to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_insert on "better_supabase"."recurrence_rules" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_update on "better_supabase"."recurrence_rules" as restrictive
+  for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope_delete on "better_supabase"."recurrence_rules" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
-create policy bsb_tenant_scope on "better_supabase"."reminders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
+create policy bsb_tenant_scope_select on "better_supabase"."reminders" as restrictive
+  for select to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
+create policy bsb_tenant_scope_insert on "better_supabase"."reminders" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
+create policy bsb_tenant_scope_update on "better_supabase"."reminders" as restrictive
+  for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
+create policy bsb_tenant_scope_delete on "better_supabase"."reminders" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

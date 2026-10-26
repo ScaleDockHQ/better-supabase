@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
--- @bsb-hash sha256:98c6f7398cc0ad8f15d9549976418ed6f67d9c90ada0e215dd7be547a22f995c
+-- @bsb-hash sha256:127841b1f74cbd89e8b3ba80003ef2ba10e35cd500e60c7be9b8cb2d8780e3fc
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -61,6 +61,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."import_runs";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."import_runs";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."import_runs";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."import_runs";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."import_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -163,10 +167,23 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "centrakit"."import_runs";
-create policy bsb_tenant_scope on "centrakit"."import_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "centrakit"."import_runs";
+create policy bsb_tenant_scope_select on "centrakit"."import_runs" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "centrakit"."import_runs";
+create policy bsb_tenant_scope_insert on "centrakit"."import_runs" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "centrakit"."import_runs";
+create policy bsb_tenant_scope_update on "centrakit"."import_runs" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "centrakit"."import_runs";
+create policy bsb_tenant_scope_delete on "centrakit"."import_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

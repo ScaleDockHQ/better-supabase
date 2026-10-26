@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:241cffee6164ff5fcd14827d11c33a4bb47c0b5bb111331aeda925b46e2dee2c
+-- @bsb-hash sha256:4bfa9147a9ad34bce3d77c10c316f0e122f0f758d353561203cae6bc8d014bad
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,18 +46,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."calendars";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendars";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendars";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendars";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendars";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."calendar_events";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendar_events";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendar_events";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendar_events";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendar_events";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."calendar_attendees";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendar_attendees";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendar_attendees";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendar_attendees";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendar_attendees";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."calendar_working_hours";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendar_working_hours";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendar_working_hours";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendar_working_hours";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendar_working_hours";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1169,37 +1185,89 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."calendars";
-create policy bsb_tenant_scope on "better_supabase"."calendars" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendars";
+create policy bsb_tenant_scope_select on "better_supabase"."calendars" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendars";
+create policy bsb_tenant_scope_insert on "better_supabase"."calendars" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendars";
+create policy bsb_tenant_scope_update on "better_supabase"."calendars" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendars";
+create policy bsb_tenant_scope_delete on "better_supabase"."calendars" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."calendar_events";
-create policy bsb_tenant_scope on "better_supabase"."calendar_events" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendar_events";
+create policy bsb_tenant_scope_select on "better_supabase"."calendar_events" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendar_events";
+create policy bsb_tenant_scope_insert on "better_supabase"."calendar_events" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendar_events";
+create policy bsb_tenant_scope_update on "better_supabase"."calendar_events" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendar_events";
+create policy bsb_tenant_scope_delete on "better_supabase"."calendar_events" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."calendar_attendees";
-create policy bsb_tenant_scope on "better_supabase"."calendar_attendees" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendar_attendees";
+create policy bsb_tenant_scope_select on "better_supabase"."calendar_attendees" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendar_attendees";
+create policy bsb_tenant_scope_insert on "better_supabase"."calendar_attendees" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendar_attendees";
+create policy bsb_tenant_scope_update on "better_supabase"."calendar_attendees" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendar_attendees";
+create policy bsb_tenant_scope_delete on "better_supabase"."calendar_attendees" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."calendar_working_hours";
-create policy bsb_tenant_scope on "better_supabase"."calendar_working_hours" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendar_working_hours";
+create policy bsb_tenant_scope_select on "better_supabase"."calendar_working_hours" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendar_working_hours";
+create policy bsb_tenant_scope_insert on "better_supabase"."calendar_working_hours" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendar_working_hours";
+create policy bsb_tenant_scope_update on "better_supabase"."calendar_working_hours" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendar_working_hours";
+create policy bsb_tenant_scope_delete on "better_supabase"."calendar_working_hours" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

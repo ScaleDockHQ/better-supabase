@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:cd371263c396675e97b30acec601c75de138f893b8a8651e34a7725a23ddc36b
+-- @bsb-hash sha256:c5bf91b0a2ccef25cfbe45b747236559a08355a07f23723b5e58ec939ec8f576
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,10 +45,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."teams";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."teams";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."teams";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."teams";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."teams";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."team_members";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."team_members";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."team_members";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."team_members";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."team_members";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -379,21 +387,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "centrakit"."teams";
-create policy bsb_tenant_scope on "centrakit"."teams" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "centrakit"."teams";
+create policy bsb_tenant_scope_select on "centrakit"."teams" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "centrakit"."teams";
+create policy bsb_tenant_scope_insert on "centrakit"."teams" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "centrakit"."teams";
+create policy bsb_tenant_scope_update on "centrakit"."teams" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "centrakit"."teams";
+create policy bsb_tenant_scope_delete on "centrakit"."teams" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "centrakit"."team_members";
-create policy bsb_tenant_scope on "centrakit"."team_members" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "centrakit"."team_members";
+create policy bsb_tenant_scope_select on "centrakit"."team_members" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "centrakit"."team_members";
+create policy bsb_tenant_scope_insert on "centrakit"."team_members" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "centrakit"."team_members";
+create policy bsb_tenant_scope_update on "centrakit"."team_members" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "centrakit"."team_members";
+create policy bsb_tenant_scope_delete on "centrakit"."team_members" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

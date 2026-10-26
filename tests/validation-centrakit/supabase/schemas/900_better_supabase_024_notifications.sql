@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@9 managed
--- @bsb-hash sha256:74562d4ee326749a8858204eeaf97f0646673f2ce72b06a361e0a0db246248ac
+-- @bsb-hash sha256:fbf0f3070af6a6b9ba2a6cafd2118d89a5cf2a17e78c26fe0f2fd5cd2437a58c
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,26 +45,50 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."notification_events";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."notification_events";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."notification_events";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."notification_events";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."notification_events";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."notification_recipients";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."notification_recipients";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."notification_recipients";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."notification_recipients";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."notification_recipients";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."notification_deliveries";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."notification_deliveries";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."notification_deliveries";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."notification_deliveries";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."notification_deliveries";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."notification_delivery_events";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."notification_delivery_events";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."notification_delivery_events";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."notification_delivery_events";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."notification_delivery_events";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."notification_subscriptions";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."notification_subscriptions";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."notification_subscriptions";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."notification_subscriptions";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."notification_subscriptions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."notification_preferences";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."notification_preferences";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."notification_preferences";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."notification_preferences";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."notification_preferences";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1296,8 +1320,9 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "centrakit"."notification_events";
-create policy bsb_tenant_scope on "centrakit"."notification_events" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "centrakit"."notification_events";
+create policy bsb_tenant_scope_select on "centrakit"."notification_events" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (exists (
@@ -1305,11 +1330,35 @@ create policy bsb_tenant_scope on "centrakit"."notification_events" as restricti
     where r."event_id" = "centrakit"."notification_events"."id"
       and r."recipient_user_id" = (select auth.uid())
   ))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "centrakit"."notification_events";
+create policy bsb_tenant_scope_insert on "centrakit"."notification_events" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "centrakit"."notification_events";
+create policy bsb_tenant_scope_update on "centrakit"."notification_events" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "centrakit"."notification_events";
+create policy bsb_tenant_scope_delete on "centrakit"."notification_events" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "centrakit"."notification_recipients";
-create policy bsb_tenant_scope on "centrakit"."notification_recipients" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "centrakit"."notification_recipients";
+create policy bsb_tenant_scope_select on "centrakit"."notification_recipients" as restrictive
+  for select to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("recipient_user_id" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope_insert on "centrakit"."notification_recipients";
+create policy bsb_tenant_scope_insert on "centrakit"."notification_recipients" as restrictive
+  for insert to public
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "centrakit"."notification_recipients";
+create policy bsb_tenant_scope_update on "centrakit"."notification_recipients" as restrictive
+  for update to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("recipient_user_id" = (select auth.uid()))
@@ -1318,9 +1367,14 @@ create policy bsb_tenant_scope on "centrakit"."notification_recipients" as restr
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("recipient_user_id" = (select auth.uid()))
   );
+drop policy if exists bsb_tenant_scope_delete on "centrakit"."notification_recipients";
+create policy bsb_tenant_scope_delete on "centrakit"."notification_recipients" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "centrakit"."notification_deliveries";
-create policy bsb_tenant_scope on "centrakit"."notification_deliveries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "centrakit"."notification_deliveries";
+create policy bsb_tenant_scope_select on "centrakit"."notification_deliveries" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (exists (
@@ -1328,11 +1382,24 @@ create policy bsb_tenant_scope on "centrakit"."notification_deliveries" as restr
     where r."id" = "centrakit"."notification_deliveries"."recipient_id"
       and r."recipient_user_id" = (select auth.uid())
   ))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "centrakit"."notification_deliveries";
+create policy bsb_tenant_scope_insert on "centrakit"."notification_deliveries" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "centrakit"."notification_deliveries";
+create policy bsb_tenant_scope_update on "centrakit"."notification_deliveries" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "centrakit"."notification_deliveries";
+create policy bsb_tenant_scope_delete on "centrakit"."notification_deliveries" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."notification_delivery_events";
-create policy bsb_tenant_scope on "better_supabase"."notification_delivery_events" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."notification_delivery_events";
+create policy bsb_tenant_scope_select on "better_supabase"."notification_delivery_events" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (exists (
@@ -1341,11 +1408,38 @@ create policy bsb_tenant_scope on "better_supabase"."notification_delivery_event
     where d."id" = "better_supabase"."notification_delivery_events"."delivery_id"
       and r."recipient_user_id" = (select auth.uid())
   ))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."notification_delivery_events";
+create policy bsb_tenant_scope_insert on "better_supabase"."notification_delivery_events" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."notification_delivery_events";
+create policy bsb_tenant_scope_update on "better_supabase"."notification_delivery_events" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."notification_delivery_events";
+create policy bsb_tenant_scope_delete on "better_supabase"."notification_delivery_events" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "centrakit"."notification_subscriptions";
-create policy bsb_tenant_scope on "centrakit"."notification_subscriptions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "centrakit"."notification_subscriptions";
+create policy bsb_tenant_scope_select on "centrakit"."notification_subscriptions" as restrictive
+  for select to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope_insert on "centrakit"."notification_subscriptions";
+create policy bsb_tenant_scope_insert on "centrakit"."notification_subscriptions" as restrictive
+  for insert to public
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read'))))
+  );
+drop policy if exists bsb_tenant_scope_update on "centrakit"."notification_subscriptions";
+create policy bsb_tenant_scope_update on "centrakit"."notification_subscriptions" as restrictive
+  for update to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
@@ -1354,9 +1448,31 @@ create policy bsb_tenant_scope on "centrakit"."notification_subscriptions" as re
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read'))))
   );
+drop policy if exists bsb_tenant_scope_delete on "centrakit"."notification_subscriptions";
+create policy bsb_tenant_scope_delete on "centrakit"."notification_subscriptions" as restrictive
+  for delete to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  );
 drop policy if exists bsb_tenant_scope on "centrakit"."notification_preferences";
-create policy bsb_tenant_scope on "centrakit"."notification_preferences" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "centrakit"."notification_preferences";
+create policy bsb_tenant_scope_select on "centrakit"."notification_preferences" as restrictive
+  for select to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope_insert on "centrakit"."notification_preferences";
+create policy bsb_tenant_scope_insert on "centrakit"."notification_preferences" as restrictive
+  for insert to public
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read'))))
+  );
+drop policy if exists bsb_tenant_scope_update on "centrakit"."notification_preferences";
+create policy bsb_tenant_scope_update on "centrakit"."notification_preferences" as restrictive
+  for update to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
@@ -1364,6 +1480,13 @@ create policy bsb_tenant_scope on "centrakit"."notification_preferences" as rest
   with check (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read'))))
+  );
+drop policy if exists bsb_tenant_scope_delete on "centrakit"."notification_preferences";
+create policy bsb_tenant_scope_delete on "centrakit"."notification_preferences" as restrictive
+  for delete to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
   );
 
 create schema if not exists better_supabase;

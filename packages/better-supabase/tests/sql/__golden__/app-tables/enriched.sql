@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:1399a4faf5cdd273a7fe992ecd7001960c05ea1172ec4c51e58a7c3708d231c8
+-- @bsb-hash sha256:c63651e3647947f25e96cd9bc85afdd6ceaa440390520321232ebb796eb530e2
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -72,10 +72,23 @@ create policy "bsb_invoices_update" on "public"."invoices" for update to authent
 drop policy if exists "bsb_invoices_delete" on "public"."invoices";
 create policy "bsb_invoices_delete" on "public"."invoices" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."invoices";
-create policy bsb_tenant_scope on "public"."invoices" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "public"."invoices";
+create policy bsb_tenant_scope_select on "public"."invoices" as restrictive
+  for select to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "public"."invoices";
+create policy bsb_tenant_scope_insert on "public"."invoices" as restrictive
+  for insert to public
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "public"."invoices";
+create policy bsb_tenant_scope_update on "public"."invoices" as restrictive
+  for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "public"."invoices";
+create policy bsb_tenant_scope_delete on "public"."invoices" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "invoices_organization_id_idx" on "public"."invoices" ("organization_id");
 drop trigger if exists "bsb_updated_at" on "public"."invoices";
 create trigger "bsb_updated_at" before update on "public"."invoices"
@@ -119,7 +132,7 @@ create trigger "bsb_emit_event" after insert or update or delete on "public"."in
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- @bsb-hash sha256:3cf1f8e1b2fa0b599de0eb0af0d79b384624ad0c082a34f53c0c4fb411dec88d
+-- @bsb-hash sha256:d6724c655f68ce0c71ce83a2cbf87a05a841c53e618853d67de35cb6ae7b19e1
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
@@ -129,7 +142,7 @@ select extensions.plan(9);
 
 select extensions.has_table('public', 'invoices', 'public.invoices exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."invoices"'::regclass), 'public.invoices has row level security on');
-select extensions.ok(array['bsb_invoices_select', 'bsb_invoices_insert', 'bsb_invoices_update', 'bsb_invoices_delete', 'bsb_tenant_scope']::name[] <@ array(select p.policyname from pg_catalog.pg_policies p where p.schemaname = 'public' and p.tablename = 'invoices'), 'public.invoices has the policies for its scope');
+select extensions.ok(array['bsb_invoices_select', 'bsb_invoices_insert', 'bsb_invoices_update', 'bsb_invoices_delete', 'bsb_tenant_scope_select', 'bsb_tenant_scope_insert', 'bsb_tenant_scope_update', 'bsb_tenant_scope_delete']::name[] <@ array(select p.policyname from pg_catalog.pg_policies p where p.schemaname = 'public' and p.tablename = 'invoices'), 'public.invoices has the policies for its scope');
 select extensions.has_column('public', 'invoices', 'organization_id', 'public.invoices has the scope column organization_id');
 select extensions.ok(exists (select 1 from pg_catalog.pg_constraint k where k.conrelid = '"public"."invoices"'::regclass and k.conname = 'invoices_organization_id_not_null' and k.contype = 'c'), 'new rows of public.invoices must fill organization_id');
 select extensions.ok(array['DELETE', 'INSERT', 'SELECT', 'UPDATE']::text[] <@ array(select g.privilege_type::text from information_schema.role_table_grants g where g.table_schema = 'public' and g.table_name = 'invoices' and g.grantee = 'authenticated'), 'authenticated has the privileges for its scope on public.invoices');

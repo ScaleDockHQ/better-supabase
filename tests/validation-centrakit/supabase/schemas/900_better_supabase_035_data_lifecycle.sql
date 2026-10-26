@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:80d852fb6bd0a7821e17cb849c307d5e5b883306629752c435c32da25db690e3
+-- @bsb-hash sha256:8ed2793d42666090306c3097fb9d3028e730def0d19f0c473ece8ba0803136b3
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,6 +45,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."retention_policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;

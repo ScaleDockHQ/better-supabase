@@ -1,6 +1,6 @@
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:f3a0477f2120f6475e3da75f3621cd44d588f3aa8041dd80b4ddd8053379fba1
+-- @bsb-hash sha256:4e5e3f2a2bcf27c638dd5b5e54540be50d22b2942c87cce40c5100b4a0e7d5b1
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,6 +11,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."workflow_events";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."workflow_events";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."workflow_events";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."workflow_events";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."workflow_events";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;

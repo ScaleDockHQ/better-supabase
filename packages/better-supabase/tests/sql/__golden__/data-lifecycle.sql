@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:1da140c110c24e4467edf8f07765a77f7316a837adb81d0c7f4d2f3b8b2ef35e
+-- @bsb-hash sha256:fadee5a15ae5d0634080bfca074d6b38e23ff1221120723f9b947608106e835c
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."retention_policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -949,7 +953,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:aa95e9835b3d53f05832554db8c91147e0180cb9027fdfcf35d87676f9202471
+-- @bsb-hash sha256:311feaf0930f8b886428037ccf3f6e1319c564ce1924734d38b06df298d77744
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -994,6 +998,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."retention_policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2436,7 +2444,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:f5c98078415e7047049aab68dc41d790030f8efc94c9dc45f0aa3811d308d906
+-- @bsb-hash sha256:20b23e745ac1670b866fcaed5175c0da9736d5233b3139fbbc6f95ce78f8031d
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2481,6 +2489,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."retention_policies";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."retention_policies";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."retention_policies";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."retention_policies";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."retention_policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3386,7 +3398,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:d6faa91ce869004249fa4f28f04ed6b648d5a5d3aa96cdc3ada1e750f64a881a
+-- @bsb-hash sha256:8cfa6553a10cab438dba46ce4d1989655df0df4f883744eac293f6d22e231320
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3431,6 +3443,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."retention_policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4614,7 +4630,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:469f81f427cd156e821c30da2f897a1b7c310ed731ea416d9da6c69a3b8083e2
+-- @bsb-hash sha256:70a864f2d6b341ee1577a6cdc823376a3386ff959eca10c0035315428710e1b9
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4675,6 +4691,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."retention_policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -5568,7 +5588,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:385ae04ac457d8aee6f06b06221eb1ec3a5e7add121883c6687719ce9b7296c5
+-- @bsb-hash sha256:b803e1c2eb3b431703ba81a1e97d723154c2b9fc8d01e2d3ac61e30cdcd00816
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5613,6 +5633,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."retention_policies";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."retention_policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;

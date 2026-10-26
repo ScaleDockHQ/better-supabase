@@ -1,6 +1,6 @@
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:6d8c09c2b3adc3aaf1d0f659d1058b0195547a710959d88b80f028f12deba163
+-- @bsb-hash sha256:24bffbe9047a1fff7bc00cc64edded163714bc4bdf644452d46921cd0bf11352
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,10 +45,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."sequences";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sequences";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sequences";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sequences";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequences";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."sequence_enrollments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sequence_enrollments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sequence_enrollments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1026,21 +1034,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."sequences";
-create policy bsb_tenant_scope on "better_supabase"."sequences" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."sequences";
+create policy bsb_tenant_scope_select on "better_supabase"."sequences" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sequences";
+create policy bsb_tenant_scope_insert on "better_supabase"."sequences" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."sequences";
+create policy bsb_tenant_scope_update on "better_supabase"."sequences" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequences";
+create policy bsb_tenant_scope_delete on "better_supabase"."sequences" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."sequence_enrollments";
-create policy bsb_tenant_scope on "better_supabase"."sequence_enrollments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."sequence_enrollments";
+create policy bsb_tenant_scope_select on "better_supabase"."sequence_enrollments" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments";
+create policy bsb_tenant_scope_insert on "better_supabase"."sequence_enrollments" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."sequence_enrollments";
+create policy bsb_tenant_scope_update on "better_supabase"."sequence_enrollments" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments";
+create policy bsb_tenant_scope_delete on "better_supabase"."sequence_enrollments" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.sequences.api: entry points for the Data API.
 create schema if not exists "api";

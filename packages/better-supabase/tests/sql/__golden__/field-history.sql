@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:2f6bfcb6e398b429789ea595ced7bfccf9a21f54fc84a9436b99dd0fd1b6dea3
+-- @bsb-hash sha256:1f1b3077f26decfc1bb1480478dedd44707be178a7c51e9e626f10cdb527c42e
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,6 +12,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_changes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -94,13 +98,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
-create policy bsb_tenant_scope on "better_supabase"."field_changes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_select on "better_supabase"."field_changes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_insert on "better_supabase"."field_changes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_update on "better_supabase"."field_changes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_delete on "better_supabase"."field_changes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -132,7 +149,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:2f6bfcb6e398b429789ea595ced7bfccf9a21f54fc84a9436b99dd0fd1b6dea3
+-- @bsb-hash sha256:1f1b3077f26decfc1bb1480478dedd44707be178a7c51e9e626f10cdb527c42e
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -143,6 +160,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_changes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -225,13 +246,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
-create policy bsb_tenant_scope on "better_supabase"."field_changes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_select on "better_supabase"."field_changes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_insert on "better_supabase"."field_changes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_update on "better_supabase"."field_changes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_delete on "better_supabase"."field_changes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -263,7 +297,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:7f5f7c4fec60fbf5e99568d2ab062f49115c6fbae6608aa64e81601ebc32eb83
+-- @bsb-hash sha256:89876b21ed7faf569aa1300270c04e53a3bb6140bcf20dbe3f731fa557eb955b
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -274,6 +308,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."field_changes";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."field_changes";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."field_changes";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."field_changes";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."field_changes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -358,13 +396,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."field_changes";
-create policy bsb_tenant_scope on "app_private"."field_changes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."field_changes";
+create policy bsb_tenant_scope_select on "app_private"."field_changes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."field_changes";
+create policy bsb_tenant_scope_insert on "app_private"."field_changes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."field_changes";
+create policy bsb_tenant_scope_update on "app_private"."field_changes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."field_changes";
+create policy bsb_tenant_scope_delete on "app_private"."field_changes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -396,7 +447,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:0f3b9e8dae0062ea573d5d6bc40127d8a730fb5e5a721d2c8294575e9621b2e6
+-- @bsb-hash sha256:6f2781c921474d2ec4ada9bfb49e1e15cd74a0c607055b124386f9514e63fa5d
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -407,6 +458,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_changes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -489,13 +544,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
-create policy bsb_tenant_scope on "better_supabase"."field_changes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_select on "better_supabase"."field_changes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_insert on "better_supabase"."field_changes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_update on "better_supabase"."field_changes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_delete on "better_supabase"."field_changes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.field-history.api: entry points for the Data API.
 create schema if not exists "api";
@@ -540,7 +608,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:9ef613d6f03135a4a85efa76ee7000a3fff0305559717dacdc61f4821b8c07e8
+-- @bsb-hash sha256:c9af0cc76e7572e566b2c7ae317b4e65d6a24116946a283ceb9f071269e54584
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -551,6 +619,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_changes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -631,13 +703,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
-create policy bsb_tenant_scope on "better_supabase"."field_changes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_select on "better_supabase"."field_changes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_insert on "better_supabase"."field_changes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_update on "better_supabase"."field_changes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_delete on "better_supabase"."field_changes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -669,7 +754,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:553c3e10bcd376653aa8e14215c709cbc5e9e38ae9322f3feb33b7e3eaf4101f
+-- @bsb-hash sha256:5ddc383d5a0d8df9880ca13df2d6c531abf81fcc77c8b960ce47d987d2e20106
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -680,6 +765,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_changes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -762,13 +851,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
-create policy bsb_tenant_scope on "better_supabase"."field_changes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_select on "better_supabase"."field_changes" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_insert on "better_supabase"."field_changes" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_update on "better_supabase"."field_changes" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_delete on "better_supabase"."field_changes" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

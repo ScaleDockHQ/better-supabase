@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:4c41341bce3d04dd60dc5c70bb29bc9de2de62fa39ef52d3487fc7fcaedf1cf4
+-- @bsb-hash sha256:1719f0243d10e5e4418c771ef7ad47697f0b566bec7401eb524c5d939dbfeffc
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,6 +11,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."audit_logs";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."audit_logs";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."audit_logs";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."audit_logs";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."audit_logs";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1213,14 +1217,27 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "centrakit"."audit_logs";
-create policy bsb_tenant_scope on "centrakit"."audit_logs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "centrakit"."audit_logs";
+create policy bsb_tenant_scope_select on "centrakit"."audit_logs" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select "better_supabase"."audit_read_tenants"())
     or (select "better_supabase"."audit_reads_all"()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "centrakit"."audit_logs";
+create policy bsb_tenant_scope_insert on "centrakit"."audit_logs" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "centrakit"."audit_logs";
+create policy bsb_tenant_scope_update on "centrakit"."audit_logs" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "centrakit"."audit_logs";
+create policy bsb_tenant_scope_delete on "centrakit"."audit_logs" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

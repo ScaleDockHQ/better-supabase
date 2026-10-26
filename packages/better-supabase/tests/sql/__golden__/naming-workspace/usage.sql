@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:e2f7495bdb08d7b214f2ac3bb5782b171021f696f0a04fd3384d7720fc9cb01e
+-- @bsb-hash sha256:8da782b7d75fb1d24dad720e7230caf33ed9a63dc8d5e91cdca0adbf1c1fe5c4
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,18 +46,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."usage_events";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_events";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_events";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_events";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_events";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."usage_history";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_history";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_history";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_history";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_history";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -679,21 +695,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-create policy bsb_tenant_scope on "better_supabase"."usage_counters" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
+create policy bsb_tenant_scope_select on "better_supabase"."usage_counters" as restrictive
+  for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
     or ("workspace_id" in (select better_supabase.tenant_ids_with('usage.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
+create policy bsb_tenant_scope_insert on "better_supabase"."usage_counters" as restrictive
+  for insert to public
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
+create policy bsb_tenant_scope_update on "better_supabase"."usage_counters" as restrictive
+  for update to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
+create policy bsb_tenant_scope_delete on "better_supabase"."usage_counters" as restrictive
+  for delete to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-create policy bsb_tenant_scope on "better_supabase"."usage_quotas" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
+create policy bsb_tenant_scope_select on "better_supabase"."usage_quotas" as restrictive
+  for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
     or ("workspace_id" is null or "workspace_id" in (select better_supabase.tenant_ids_with('usage.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
+create policy bsb_tenant_scope_insert on "better_supabase"."usage_quotas" as restrictive
+  for insert to public
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
+create policy bsb_tenant_scope_update on "better_supabase"."usage_quotas" as restrictive
+  for update to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
+create policy bsb_tenant_scope_delete on "better_supabase"."usage_quotas" as restrictive
+  for delete to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

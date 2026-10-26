@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:d849931b5f2b4eed196b97929a9b49ea124cfd3b94252b408313ddbd50af2fb4
+-- @bsb-hash sha256:900ab42d9c0604f441997fe9715056c11d1e80c3487e7813eed4daacca930796
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,6 +12,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."audit_events";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1244,7 +1248,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:bddff2b7940d5b9abcce0eb33bf2acafb488558cb115e9b7ad255c4e24de0517
+-- @bsb-hash sha256:4c44133a205ba6a596697df0fb09ecad60ebdd5ac58ac18aefca17e687d335f1
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1255,6 +1259,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."audit_events";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2652,7 +2660,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:4b0f0ddba9a95a2253f8c54eda8236992d7d9cf08a5c5d561561208fb77f44a2
+-- @bsb-hash sha256:e81eebaf881109de9b794c025192d79ff3993f56bfcabf3c276582d3a7f24e16
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2663,6 +2671,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."audit_events";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."audit_events";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."audit_events";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."audit_events";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."audit_events";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3895,7 +3907,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:6d9262ab837dc424bc96bed6333afa76af4604e306f22f2be80ec18e2155489d
+-- @bsb-hash sha256:2a630048eedc35264c3c55825e24d8c6a2c7a4717de07970328c541186733bbc
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3906,6 +3918,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."audit_events";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -5225,7 +5241,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:cb8c5bc9ed7b5da8c7a2cefa271d5fbc3dd0b1d5fef4e496382763b83ca3427f
+-- @bsb-hash sha256:4a190e27d1f621a259f97ea68b429f169abc76e778aa0c44e8165bd0339d7e7c
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5236,6 +5252,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."audit_events";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -6357,7 +6377,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:18588455baabfad0a2e9f2cd79f1c55f8ff144a4fa8e2f9799785d64a6a49728
+-- @bsb-hash sha256:076102933211bba8d18aad20feb89f5c839b2558801c1ea7b2594ae9f70b210c
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6368,6 +6388,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."audit_events";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."audit_events";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;

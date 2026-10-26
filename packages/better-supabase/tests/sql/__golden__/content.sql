@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:4946ab2264a2a9cf5e05a35b13fe122b7507152bb53b60131d3158320561b703
+-- @bsb-hash sha256:81fa1d4d6eddc40ea6e92b6f991b3efea5bead0ceb96012fdd66779ead9c65b0
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."content_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -654,13 +658,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
-create policy bsb_tenant_scope on "better_supabase"."content_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."content_entries" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."content_entries" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."content_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."content_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -692,7 +709,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:15a45d4ac149fd682edba166bda03a1ea1ace3c270326b1b2cd4597269ed136d
+-- @bsb-hash sha256:e2ebad7de43dcac7221d851804305584f3c1b27dd1b0efb35542b5db744b1887
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -737,6 +754,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."content_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1409,13 +1430,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
-create policy bsb_tenant_scope on "better_supabase"."content_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."content_entries" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."content_entries" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."content_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."content_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1447,7 +1481,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:43b2108e8e381898704ff2b867b8fb01d94348c0c79eb78e9e260e23557233b1
+-- @bsb-hash sha256:dbd52b2feebc4a801f9d5d2d12b295469388961c954c130f9b7016a9a4c2de2b
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1492,6 +1526,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."content_entries";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."content_entries";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."content_entries";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."content_entries";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."content_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2102,13 +2140,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."content_entries";
-create policy bsb_tenant_scope on "app_private"."content_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."content_entries";
+create policy bsb_tenant_scope_select on "app_private"."content_entries" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."content_entries";
+create policy bsb_tenant_scope_insert on "app_private"."content_entries" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."content_entries";
+create policy bsb_tenant_scope_update on "app_private"."content_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."content_entries";
+create policy bsb_tenant_scope_delete on "app_private"."content_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2140,7 +2191,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:406e6397c965df136af141e7880665a266489cafbe43f991a1ba1edeb38d6442
+-- @bsb-hash sha256:d42336020a92d6001deb42eecc9485c0c148448bfa0db81b6b398d1ddc8ea335
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2185,6 +2236,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."content_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2793,13 +2848,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
-create policy bsb_tenant_scope on "better_supabase"."content_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."content_entries" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."content_entries" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."content_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."content_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.content.api: entry points for the Data API.
 create schema if not exists "api";
@@ -2943,7 +3011,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:f4eff10cc93e7f5faed672df7ecc49d248f39ff38be813ad3e8a20f07416e205
+-- @bsb-hash sha256:750105439b812b8963050918a23fee34fe6b4dbc85ed66a75ebb1b313c2e83c7
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3024,6 +3092,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."content_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3623,13 +3695,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
-create policy bsb_tenant_scope on "better_supabase"."content_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."content_entries" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."content_entries" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."content_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."content_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -3661,7 +3746,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:f572a1348c92a3e3e6266ac6e2533012cc2ad54f28850585f6aae15fccd5d6c0
+-- @bsb-hash sha256:e8f5054cc7bd44f5c3e4cb3bbab72518a9367c23f01cd10c71cf83da30766bb7
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3706,6 +3791,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."content_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."content_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4314,13 +4403,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
-create policy bsb_tenant_scope on "better_supabase"."content_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."content_entries" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('content.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."content_entries" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."content_entries" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."content_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."content_entries" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

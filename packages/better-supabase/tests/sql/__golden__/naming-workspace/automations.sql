@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@1 managed
--- @bsb-hash sha256:588f50e76b0b21fb985d690db2a6a7733c895a2b68b21e987a516c90ef7bb826
+-- @bsb-hash sha256:bbb84158b724d20505840a39d9b4a3ae0bec73ad7d857a20cb68372d342187ff
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,14 +46,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."rules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."rules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."rules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rules";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."rule_versions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."rule_versions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rule_versions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."rule_versions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rule_versions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."rule_evaluations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."rule_evaluations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rule_evaluations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."rule_evaluations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rule_evaluations";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;

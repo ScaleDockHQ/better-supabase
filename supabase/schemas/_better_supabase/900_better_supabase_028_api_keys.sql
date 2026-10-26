@@ -1,6 +1,6 @@
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:6ec67ce82d52258043226d1613ee06a8f262034d9bfaa0b919c3e57cef34533e
+-- @bsb-hash sha256:5a8ab886f7a201c27bdc7e0a8830245991a679ee18001dce4b28153c8d2acf89
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,6 +45,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."api_keys";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."api_keys";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."api_keys";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."api_keys";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."api_keys";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;

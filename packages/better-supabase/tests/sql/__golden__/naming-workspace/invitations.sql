@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:0f31f7bd472bc9c626b14baa9346b292166c18cd548b0abc578c8f3c3610573b
+-- @bsb-hash sha256:a71e8a7aa62078c9838c544f4a4167b5398634196fa503b872780b0884fae703
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invitations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invitations";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -726,13 +730,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
-create policy bsb_tenant_scope on "better_supabase"."invitations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invitations";
+create policy bsb_tenant_scope_select on "better_supabase"."invitations" as restrictive
+  for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
     or ("workspace_id" in (select "better_supabase"."invitation_tenant_ids"()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invitations";
+create policy bsb_tenant_scope_insert on "better_supabase"."invitations" as restrictive
+  for insert to public
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invitations";
+create policy bsb_tenant_scope_update on "better_supabase"."invitations" as restrictive
+  for update to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invitations";
+create policy bsb_tenant_scope_delete on "better_supabase"."invitations" as restrictive
+  for delete to public
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

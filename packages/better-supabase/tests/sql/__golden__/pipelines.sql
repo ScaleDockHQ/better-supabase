@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:f261a596a65d9acde4d1c7ac557482d61db73b71e7f27998192df6376c351ec5
+-- @bsb-hash sha256:0e96d297ac7165fc63c9b78d1e1ce6b8e8f9823cde7aa812f94016ff70d0073e
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,18 +46,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -632,37 +648,89 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
-create policy bsb_tenant_scope on "better_supabase"."pipelines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_select on "better_supabase"."pipelines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipelines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_update on "better_supabase"."pipelines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipelines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
-create policy bsb_tenant_scope on "better_supabase"."pipeline_stages" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stages" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stages" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stages" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stages" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
-create policy bsb_tenant_scope on "better_supabase"."pipeline_transitions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_select on "better_supabase"."pipeline_transitions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_update on "better_supabase"."pipeline_transitions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
-create policy bsb_tenant_scope on "better_supabase"."pipeline_stage_history" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -694,7 +762,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:80cc330c34a500279bb35fed61244137878d51a57bbbeef1a1d89f456137b85a
+-- @bsb-hash sha256:60a5e627acc5a23f332f954549c564122f4066eeee1140c7b9752b5aa0ba0faa
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -739,18 +807,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1955,37 +2039,89 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
-create policy bsb_tenant_scope on "better_supabase"."pipelines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_select on "better_supabase"."pipelines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipelines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_update on "better_supabase"."pipelines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipelines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
-create policy bsb_tenant_scope on "better_supabase"."pipeline_stages" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stages" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stages" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stages" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stages" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
-create policy bsb_tenant_scope on "better_supabase"."pipeline_transitions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_select on "better_supabase"."pipeline_transitions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_update on "better_supabase"."pipeline_transitions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
-create policy bsb_tenant_scope on "better_supabase"."pipeline_stage_history" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2017,7 +2153,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:fd8913359993ea9ab74e7e2fad0d08b5cf12c5beb0d28a5276dac7ddb2a7fe89
+-- @bsb-hash sha256:1d4a53963d7512b3c3988cae65c5ad57307ecda4ef67bf281ae6f09af108e2ca
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2062,18 +2198,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."pipelines";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."pipelines";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."pipelines";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."pipelines";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."pipelines";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."pipeline_stages";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."pipeline_transitions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."pipeline_stage_history";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2650,37 +2802,89 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."pipelines";
-create policy bsb_tenant_scope on "app_private"."pipelines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."pipelines";
+create policy bsb_tenant_scope_select on "app_private"."pipelines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."pipelines";
+create policy bsb_tenant_scope_insert on "app_private"."pipelines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."pipelines";
+create policy bsb_tenant_scope_update on "app_private"."pipelines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."pipelines";
+create policy bsb_tenant_scope_delete on "app_private"."pipelines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."pipeline_stages";
-create policy bsb_tenant_scope on "app_private"."pipeline_stages" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."pipeline_stages";
+create policy bsb_tenant_scope_select on "app_private"."pipeline_stages" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."pipeline_stages";
+create policy bsb_tenant_scope_insert on "app_private"."pipeline_stages" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."pipeline_stages";
+create policy bsb_tenant_scope_update on "app_private"."pipeline_stages" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."pipeline_stages";
+create policy bsb_tenant_scope_delete on "app_private"."pipeline_stages" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."pipeline_transitions";
-create policy bsb_tenant_scope on "app_private"."pipeline_transitions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."pipeline_transitions";
+create policy bsb_tenant_scope_select on "app_private"."pipeline_transitions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."pipeline_transitions";
+create policy bsb_tenant_scope_insert on "app_private"."pipeline_transitions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."pipeline_transitions";
+create policy bsb_tenant_scope_update on "app_private"."pipeline_transitions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."pipeline_transitions";
+create policy bsb_tenant_scope_delete on "app_private"."pipeline_transitions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."pipeline_stage_history";
-create policy bsb_tenant_scope on "app_private"."pipeline_stage_history" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."pipeline_stage_history";
+create policy bsb_tenant_scope_select on "app_private"."pipeline_stage_history" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."pipeline_stage_history";
+create policy bsb_tenant_scope_insert on "app_private"."pipeline_stage_history" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."pipeline_stage_history";
+create policy bsb_tenant_scope_update on "app_private"."pipeline_stage_history" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."pipeline_stage_history";
+create policy bsb_tenant_scope_delete on "app_private"."pipeline_stage_history" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2712,7 +2916,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:f9c29dd76666fa3f724f64a4d5cfb283f001fdd37a799b36c715f54858602623
+-- @bsb-hash sha256:f404f47b3fa0a845cbd80c8272c3f478db5421b933e3bf951a581ebda4928e70
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2757,18 +2961,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3343,37 +3563,89 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
-create policy bsb_tenant_scope on "better_supabase"."pipelines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_select on "better_supabase"."pipelines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipelines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_update on "better_supabase"."pipelines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipelines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
-create policy bsb_tenant_scope on "better_supabase"."pipeline_stages" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stages" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stages" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stages" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stages" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
-create policy bsb_tenant_scope on "better_supabase"."pipeline_transitions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_select on "better_supabase"."pipeline_transitions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_update on "better_supabase"."pipeline_transitions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
-create policy bsb_tenant_scope on "better_supabase"."pipeline_stage_history" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.pipelines.api: entry points for the Data API.
 create schema if not exists "api";
@@ -3528,7 +3800,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:dbbf8add69d16f72ec76f23c66e82991d0db5066cb132691db4c2b349c190f9e
+-- @bsb-hash sha256:e972d03d180734a213f09e620992febb5c78d87fa26e2e27f3d9883c5877fced
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3589,18 +3861,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4167,37 +4455,89 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
-create policy bsb_tenant_scope on "better_supabase"."pipelines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_select on "better_supabase"."pipelines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipelines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_update on "better_supabase"."pipelines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipelines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
-create policy bsb_tenant_scope on "better_supabase"."pipeline_stages" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stages" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stages" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stages" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stages" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
-create policy bsb_tenant_scope on "better_supabase"."pipeline_transitions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_select on "better_supabase"."pipeline_transitions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_update on "better_supabase"."pipeline_transitions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
-create policy bsb_tenant_scope on "better_supabase"."pipeline_stage_history" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -4229,7 +4569,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:f6e05666e6bf3956096a5848f5c1e5c90f0b0dc34615e18c846561bc5deccf5c
+-- @bsb-hash sha256:9b4369c8deadb6ddde3246c446d4a14a2fd3c43fbb5fd612490db091f66ec49b
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4274,18 +4614,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4860,37 +5216,89 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
-create policy bsb_tenant_scope on "better_supabase"."pipelines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_select on "better_supabase"."pipelines" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipelines" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_update on "better_supabase"."pipelines" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipelines" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
-create policy bsb_tenant_scope on "better_supabase"."pipeline_stages" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stages" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stages" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stages" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stages" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
-create policy bsb_tenant_scope on "better_supabase"."pipeline_transitions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_select on "better_supabase"."pipeline_transitions" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_update on "better_supabase"."pipeline_transitions" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
-create policy bsb_tenant_scope on "better_supabase"."pipeline_stage_history" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
+create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

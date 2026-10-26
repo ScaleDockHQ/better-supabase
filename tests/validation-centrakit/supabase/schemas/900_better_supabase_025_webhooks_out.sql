@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@5 managed
--- @bsb-hash sha256:c5a6a557f9cd60eff5e592f246f15cab43688e35cf451f88340bc1478fceefca
+-- @bsb-hash sha256:b834bdc1762f532e1641fbdbaa964385322972f9898ba73c0a18ad165e5393da
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,14 +45,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."webhook_destinations";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."webhook_destinations";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."webhook_destinations";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."webhook_destinations";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."webhook_destinations";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."webhook_destination_secrets";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."webhook_destination_secrets";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."webhook_destination_secrets";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."webhook_destination_secrets";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."webhook_destination_secrets";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."webhook_deliveries";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."webhook_deliveries";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."webhook_deliveries";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."webhook_deliveries";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."webhook_deliveries";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -543,25 +555,59 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "centrakit"."webhook_destinations";
-create policy bsb_tenant_scope on "centrakit"."webhook_destinations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "centrakit"."webhook_destinations";
+create policy bsb_tenant_scope_select on "centrakit"."webhook_destinations" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhook.view')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "centrakit"."webhook_destinations";
+create policy bsb_tenant_scope_insert on "centrakit"."webhook_destinations" as restrictive
+  for insert to public
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhook.manage')))
+  );
+drop policy if exists bsb_tenant_scope_update on "centrakit"."webhook_destinations";
+create policy bsb_tenant_scope_update on "centrakit"."webhook_destinations" as restrictive
+  for update to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhook.manage')))
   )
   with check (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhook.manage')))
   );
+drop policy if exists bsb_tenant_scope_delete on "centrakit"."webhook_destinations";
+create policy bsb_tenant_scope_delete on "centrakit"."webhook_destinations" as restrictive
+  for delete to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhook.manage')))
+  );
 drop policy if exists bsb_tenant_scope on "centrakit"."webhook_deliveries";
-create policy bsb_tenant_scope on "centrakit"."webhook_deliveries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "centrakit"."webhook_deliveries";
+create policy bsb_tenant_scope_select on "centrakit"."webhook_deliveries" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhook.view')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "centrakit"."webhook_deliveries";
+create policy bsb_tenant_scope_insert on "centrakit"."webhook_deliveries" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "centrakit"."webhook_deliveries";
+create policy bsb_tenant_scope_update on "centrakit"."webhook_deliveries" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "centrakit"."webhook_deliveries";
+create policy bsb_tenant_scope_delete on "centrakit"."webhook_deliveries" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

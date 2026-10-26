@@ -1,6 +1,6 @@
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:685d6798a4d8645bd51dbb91c4f53c43a27f542ecc23a6299b67f49ab2cf6387
+-- @bsb-hash sha256:3d42c0253691657ff5fd85a27642cf4cc2e3de377d5b25ecb74756ba6e6eebda
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,10 +45,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."segments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."segments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."segments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segments";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."segment_members";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."segment_members";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segment_members";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."segment_members";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segment_members";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -793,21 +801,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."segments";
-create policy bsb_tenant_scope on "better_supabase"."segments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."segments";
+create policy bsb_tenant_scope_select on "better_supabase"."segments" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segments";
+create policy bsb_tenant_scope_insert on "better_supabase"."segments" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."segments";
+create policy bsb_tenant_scope_update on "better_supabase"."segments" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segments";
+create policy bsb_tenant_scope_delete on "better_supabase"."segments" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."segment_members";
-create policy bsb_tenant_scope on "better_supabase"."segment_members" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."segment_members";
+create policy bsb_tenant_scope_select on "better_supabase"."segment_members" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segment_members";
+create policy bsb_tenant_scope_insert on "better_supabase"."segment_members" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."segment_members";
+create policy bsb_tenant_scope_update on "better_supabase"."segment_members" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segment_members";
+create policy bsb_tenant_scope_delete on "better_supabase"."segment_members" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.segments.api: entry points for the Data API.
 create schema if not exists "api";

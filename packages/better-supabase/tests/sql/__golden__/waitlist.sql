@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:192dd56a9d2bf1e2f0d4fe1634d06cb0e9e1f549dede6b0ab460486865411bb9
+-- @bsb-hash sha256:cc3d0c3c639fd7aaa079dd34651903d4a42f38ea78bf3005916d5f6b5087ec5b
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invite_codes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -477,7 +481,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:bc7a0e61d1df85c4f14f356979ad5fbbfab974e2bafc2c43d2e3944c70c133c1
+-- @bsb-hash sha256:2db69f47c2645466af5132e9f3eb40fcd94856edd2259824acde3b18b904aefe
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -522,6 +526,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invite_codes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -995,7 +1003,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:39e34478a557deeff11db6defb0321b6c630ee268bf83fe98a307a3e31e4f939
+-- @bsb-hash sha256:29d9dd9bea2cbb44d94161684dc2bd6c651d5922e8a32dc51dd4a4b49625c527
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1040,6 +1048,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."invite_codes";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."invite_codes";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."invite_codes";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."invite_codes";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."invite_codes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1473,7 +1485,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:8f7e44aafbc6ea24e359027319f9fd55c9e4dcdd77af0c5e20113c75733abbdc
+-- @bsb-hash sha256:5ccea2a1c2eaa630f33454954b2ab0bf9e9abc2fab8cbfb551b789bb3de65998
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1518,6 +1530,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invite_codes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2054,7 +2070,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:e5d3fb8b2c69737fbb30d1510b0539ee6bcdb8d95f93d0ad5a5ecb5e3212e943
+-- @bsb-hash sha256:9dc4e15994dcd343126d4a3a23d378182013c843fbe507630c998757d410dc84
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2115,6 +2131,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invite_codes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2543,7 +2563,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:e268ea09b0b9129d968ad4616e4302e3b059c80602f3526e7811e17426491241
+-- @bsb-hash sha256:b33ff985fa9e21c0e6971a58797e4e84223f7d4304af8cb3fea168af641ca212
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2588,6 +2608,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invite_codes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invite_codes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
