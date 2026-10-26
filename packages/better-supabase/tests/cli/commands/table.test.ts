@@ -94,4 +94,23 @@ describe("table", () => {
 
     expect(missing.code).not.toBe(0);
   });
+
+  it("refuses a table that two files create", async () => {
+    await writeFile(
+      join(dir, "supabase/schemas/public/copy.sql"),
+      "create table public.invoices (id uuid);\n",
+    );
+
+    const result = await run([
+      "table",
+      "invoices",
+      "enable",
+      "audit",
+      "--cwd",
+      dir,
+    ]);
+
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain("created in 2 files");
+  });
 });
