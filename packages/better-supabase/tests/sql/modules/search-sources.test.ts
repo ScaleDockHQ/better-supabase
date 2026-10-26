@@ -46,6 +46,23 @@ describe("search sources beyond the record's row", () => {
     );
   });
 
+  it("re-indexes a record read through a view on a change to any of its columns", () => {
+    expect(sqlOf()).toContain(
+      `after insert or delete or update on "public"."customers"`,
+    );
+    expect(
+      sqlOf({
+        customer: {
+          table: "public.customers",
+          title: "name",
+          search: { body: ["vat"] },
+        },
+      }),
+    ).toContain(
+      `after insert or delete or update of "id", "organization_id", "name", "vat" on "public"."customers"`,
+    );
+  });
+
   it("leaves the index as it was without the new keys", () => {
     const sql = sqlOf({
       customer: {

@@ -237,11 +237,15 @@ function isAppTable(ctx: BlockSqlContext, subject: RegisteredSubject): boolean {
 /** The trigger that re-indexes a subject's row; `fn` is `search_index_row`. */
 function triggerSql(fn: string, subject: RegisteredSubject): string {
   const trigger = sqlIdent(`bsb_search_${subject.type}_index`.slice(0, 63));
-  const columns = watchedColumns(subject).map(sqlIdent).join(", ");
+
+  const update =
+    subject.config.search?.from === undefined
+      ? `update of ${watchedColumns(subject).map(sqlIdent).join(", ")}`
+      : "update";
 
   return `drop trigger if exists ${trigger} on ${subject.qualified};
 create trigger ${trigger}
-  after insert or delete or update of ${columns} on ${subject.qualified}
+  after insert or delete or ${update} on ${subject.qualified}
   for each row execute function ${fn}(${sqlString(subject.type)}, ${sqlString(subject.config.id ?? "id")});`;
 }
 
