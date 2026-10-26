@@ -45,7 +45,6 @@ const Input = v.object({
   blocks: v.optional(v.array(v.string())),
   text: v.optional(v.string()),
   preset: v.optional(v.string()),
-  allow_breaking: v.optional(v.boolean()),
   confirm: v.optional(v.string()),
 });
 
@@ -182,20 +181,9 @@ const TOOLS: readonly DevTool[] = [
   write(
     "add_preset",
     "Applies a preset or Create URL: edits the config and writes the blocks' SQL.",
-    {
-      preset: PRESET,
-      allow_breaking: {
-        type: "boolean",
-        description: "Write breaking app table changes such as a rename",
-      },
-    },
+    { preset: PRESET },
     ["preset"],
-    ({ preset, allow_breaking: allowBreaking }) => [
-      "add",
-      "--preset",
-      preset ?? "",
-      ...(allowBreaking === true ? ["--allow-breaking"] : []),
-    ],
+    ({ preset }) => ["add", "--preset", preset ?? ""],
   ),
   write(
     "add",

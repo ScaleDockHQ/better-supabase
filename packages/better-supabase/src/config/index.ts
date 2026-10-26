@@ -13,12 +13,10 @@ export { resolveJsonSchema } from "./json.ts";
 export { CONFIG_SCHEMA_URL, defineConfig, resolveConfig } from "./resolve.ts";
 
 export type {
-  AppTableNames,
   BlockTableReference,
   BucketName,
   ConfigReferences,
   RoleNames,
-  TypedReference,
 } from "./references.ts";
 
 export type { ExpandedConfig } from "../preset/config.ts";
@@ -142,12 +140,13 @@ export type {
   ToolingConfig,
 } from "./types/config.ts";
 
+export type { ResolveInput } from "./resolve.ts";
+
 export {
   CONFIG_GROUPS,
   flattenConfig,
   groupConfig,
   groupEntries,
-  hasFlatTables,
   RENAMED_BLOCK_KEYS,
   blockEntrySource,
   RENAMED_CONFIG_KEYS,

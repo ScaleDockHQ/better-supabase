@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { parse as parseToml } from "smol-toml";
 
 import type {
+  AppTablesInput,
   BetterSupabaseConfig,
   EnvironmentConfig,
   ResolvedConfig,
@@ -114,6 +115,40 @@ function mergeConfig(
 }
 
 /**
+ * A config without the removed top-level `tables` and `records` keys: the
+ * tables as `appTables`, and the records merged into `subjects`. `migrate
+ * schema-first` reads them to write the tables as SQL.
+ */
+function takeLegacyTables(config: unknown): {
+  config?: unknown;
+  appTables?: AppTablesInput | undefined;
+} {
+  if (!isPlainObject(config)) {
+    return {};
+  }
+
+  const { tables, appTables, records, ...rest } = config;
+  const subjects = isPlainObject(records) ? records : undefined;
+
+  return {
+    config:
+      subjects === undefined
+        ? rest
+        : {
+            ...rest,
+            subjects: {
+              ...subjects,
+              ...(isPlainObject(rest["subjects"]) ? rest["subjects"] : {}),
+            },
+          },
+    // SAFETY: `resolveConfig` checks every table it is given.
+    appTables: (isPlainObject(tables) ? tables : appTables) as
+      | AppTablesInput
+      | undefined,
+  };
+}
+
+/**
  * The config with the `environment` blocks merged in: `$env.<name>`, then the
  * `$development`, `$production`, `$test` or `$ci` shorthand. Every `$` key is
  * dropped from the result.
@@ -191,6 +226,7 @@ export async function loadConfig(
   explicit?: string,
   environment?: string,
   path: string | undefined = discoverConfig(cwd, explicit),
+  options: { readonly legacyTables?: boolean } = {},
 ): Promise<ResolvedConfig> {
   const withEnvironment = (resolved: ResolvedConfig): ResolvedConfig =>
     environment === undefined ? resolved : { ...resolved, environment };
@@ -215,8 +251,11 @@ export async function loadConfig(
     giget: false,
   });
 
-  if (!isConfig(config)) {
-    const issues = configIssues(config);
+  const legacy = options.legacyTables === true ? takeLegacyTables(config) : {};
+  const current = legacy.config ?? config;
+
+  if (!isConfig(current)) {
+    const issues = configIssues(current);
     throw new CliError(
       "config_invalid",
       `${display(cwd, path)} is not a valid config:\n${issues.map((issue) => `  ${issue}`).join("\n")}`,
@@ -227,7 +266,12 @@ export async function loadConfig(
   return withEnvironment(
     await withSchemaTags(
       resolveConfig(
-        applyEnvironment(config, environment),
+        {
+          ...applyEnvironment(current, environment),
+          ...(legacy.appTables === undefined
+            ? {}
+            : { appTables: legacy.appTables }),
+        },
         explicit ? cwd : dirname(path),
       ),
     ),

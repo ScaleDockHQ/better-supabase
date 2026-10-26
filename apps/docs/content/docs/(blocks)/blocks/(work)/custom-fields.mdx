@@ -111,7 +111,7 @@ three functions instead of the definition ones:
 The client calls them as `setField(record, { key, label, type, value, rank?,
 ifAbsent? })`, `readFields(record)` and `deleteValue(id)`. Writing needs
 `custom_fields.manage`, a record that exists in the tenant, and the record's
-`fields` action when [`config.records`](/docs/blocks/sql#actions-granted-per-row)
+`fields` action when [`config.subjects`](/docs/blocks/sql#actions-granted-per-row)
 declares one (such as `fields: "product.update"`); a value that doesn't fit its type fails with
 `FIELD_VALUE_INVALID`.
 

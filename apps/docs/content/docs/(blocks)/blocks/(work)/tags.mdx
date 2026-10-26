@@ -3,7 +3,7 @@ title: Tags
 description: Tag definitions per kind, applied to subjects through one table or a link table per subject.
 ---
 
-`tags` keeps definitions (`kind`, `name`, `slug`, `color`) and applies them to records. Applying or removing a tag needs `tags.apply` (or `tags.manage`) in the tenant, the subject's own read permission, and a tag kind the subject allows. When the record type declares a `tag` action in [`config.records`](/docs/blocks/sql#actions-granted-per-row) (such as `tag: "task.update"`), applying or removing a tag also needs that action on the record, so a key, a per-row grant or the record's owner decides who may tag it.
+`tags` keeps definitions (`kind`, `name`, `slug`, `color`) and applies them to records. Applying or removing a tag needs `tags.apply` (or `tags.manage`) in the tenant, the subject's own read permission, and a tag kind the subject allows. When the record type declares a `tag` action in [`config.subjects`](/docs/blocks/sql#actions-granted-per-row) (such as `tag: "task.update"`), applying or removing a tag also needs that action on the record, so a key, a per-row grant or the record's owner decides who may tag it.
 
 With the [drive](/docs/blocks/drive#labels-and-approvals) installed, `drive_node` subjects follow the node's grants: reading a node's tags needs read access, and tagging or untagging needs write access, which is how the drive's labels work.
 
@@ -195,7 +195,7 @@ tags: {
 },
 ```
 
-`links` columns are `subject`, `tag` and optional `memberships` and `createdAt`. When [`config.records`](/docs/blocks/sql#actions-granted-per-row) registers the record type, its entry can leave out `table` and `idType`, which come from the registry.
+`links` columns are `subject`, `tag` and optional `memberships` and `createdAt`. When [`config.subjects`](/docs/blocks/sql#actions-granted-per-row) registers the record type, its entry can leave out `table` and `idType`, which come from the registry.
 
 Your `kind` and `subjectType` columns may be enums or domains, such as `kind public.organization_tag_kind`: the module casts the text it writes and compares to the column's type, so an unknown kind fails with the enum's `invalid input value` error.
 

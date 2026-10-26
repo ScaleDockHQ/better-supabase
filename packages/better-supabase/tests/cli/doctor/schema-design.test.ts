@@ -370,7 +370,7 @@ describe("schema design rules", () => {
         config: resolveConfig(
           {
             auth: { organization: { column: "organization_id" } },
-            tables: { notes: { columns } },
+            appTables: { notes: { columns } },
           },
           "/project",
         ),
@@ -427,7 +427,7 @@ describe("schema design rules", () => {
         config: resolveConfig(
           {
             auth: { organization: { column: "organization_id" } },
-            tables: {
+            appTables: {
               notes: { columns: { born: { type: "date", encrypted } } },
             },
           },
@@ -449,7 +449,7 @@ describe("schema design rules", () => {
       config: resolveConfig(
         {
           auth: { organization: { column: "organization_id" } },
-          tables: {
+          appTables: {
             notes: { columns: { plain: { type: "date", encrypted: true } } },
           },
         },

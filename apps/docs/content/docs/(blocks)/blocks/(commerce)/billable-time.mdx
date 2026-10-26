@@ -75,7 +75,7 @@ const rows = useBillableTime({ limit: 50 });
 ```
 
 A rate without `userId` and `subject` is the organization's rate. A rate can
-name a member, a record in `config.records`, or both. For each entry the most
+name a member, a record in `config.subjects`, or both. For each entry the most
 specific rate wins: the member on the record, then the record, then the
 member, then the organization. A rate takes effect on `effectiveFrom`
 (default today) and stays until a newer rate on the same key takes over, so a

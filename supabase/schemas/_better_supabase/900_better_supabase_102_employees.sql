@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:69bbbfc789214c3c2a7d85e7d1fa3ed067e1bd333db8eee43a7fac77ccde1fa5
+-- @bsb-hash sha256:39b625a6c3139623e663a4a2865d99a0f680c6d0c9f50f1a0a6d1765877e18ce
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -580,7 +580,7 @@ revoke execute on function "better_supabase"."reports_of"(uuid, boolean) from pu
 grant execute on function "better_supabase"."reports_of"(uuid, boolean) to authenticated, service_role;
 
 -- The employee for a hired application, in preboarding: the name comes from
--- the candidate's record in config.records, and the job title, team and
+-- the candidate's record in config.subjects, and the job title, team and
 -- employment type from the job. attrs overrides any of them. Calling it
 -- again returns the same employee, and with the relations module the
 -- employee is created_from the application.

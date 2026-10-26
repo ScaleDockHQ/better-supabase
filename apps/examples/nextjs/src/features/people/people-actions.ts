@@ -313,7 +313,7 @@ export const addCandidate = bsb.action(
 
 /**
  * Moves an application to another open stage. `rank.move` sets the stage as the
- * row's group, which needs `application` in `config.records`.
+ * row's group, which needs `application` in `config.subjects`.
  */
 export const moveApplication = bsb.action(
   {

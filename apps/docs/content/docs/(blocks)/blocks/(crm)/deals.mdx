@@ -59,7 +59,7 @@ import { useDeals } from "@/lib/supabase/hooks";
 const rows = useDeals({ limit: 50 });
 ```
 
-A deal needs a name and a close date. It gets a number per organization and an identifier such as `DEAL-1`, or the format of a `deal` entity in [numbering](/docs/blocks/numbering). Its company and contacts are records in `config.records` (the parties types `company` and `person` by default, or set `options.company` and `options.contact`). Each must be in the organization and readable by the caller (`DEAL_COMPANY_FORBIDDEN`, `DEAL_CONTACT_FORBIDDEN`), so an app can point deals at its own customers table.
+A deal needs a name and a close date. It gets a number per organization and an identifier such as `DEAL-1`, or the format of a `deal` entity in [numbering](/docs/blocks/numbering). Its company and contacts are records in `config.subjects` (the parties types `company` and `person` by default, or set `options.company` and `options.contact`). Each must be in the organization and readable by the caller (`DEAL_COMPANY_FORBIDDEN`, `DEAL_CONTACT_FORBIDDEN`), so an app can point deals at its own customers table.
 
 Amounts are `Money` values from [commerce](/docs/concepts/commerce): a `bigint` of minor units with its ISO 4217 currency. The database functions send them as text, so they stay exact past 2^53. A deal created without a `currency` takes the currency of its amount. Every amount on a deal, its lines and its forecast target must be in the deal's currency: the client returns `CURRENCY_MISMATCH` before calling the database, an unknown code returns `CURRENCY_INVALID`, and an `amount` change in `update` in another currency is rejected with `DEAL_CURRENCY_MISMATCH`. Changing the `currency` field keeps the amounts and lines as they are, in the new currency.
 

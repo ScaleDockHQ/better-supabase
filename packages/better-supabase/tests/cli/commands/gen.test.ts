@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type {
-  BetterSupabaseConfig,
+  ResolveInput,
   Generator,
   GeneratorModel,
 } from "../../../src/config/index.ts";
@@ -46,7 +46,7 @@ describe("gen", () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  const configure = (config: BetterSupabaseConfig) =>
+  const configure = (config: ResolveInput) =>
     resolveConfig(
       {
         ...config,
@@ -267,7 +267,7 @@ describe("gen", () => {
     const config = configure({
       gen: { readSets: ["src/read-sets.ts"] },
       blocks: { memberships: {} },
-      tables: { projects: { columns: { name: { type: "text" } } } },
+      appTables: { projects: { columns: { name: { type: "text" } } } },
     });
 
     const result = await runGen({ config, env: {}, check: false, snapshot });

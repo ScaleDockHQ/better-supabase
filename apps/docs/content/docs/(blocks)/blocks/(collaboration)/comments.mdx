@@ -18,7 +18,7 @@ better-supabase add comments   # adds tenant, access, subjects and messaging as 
 Comments need tenants: the module runs in the `memberships`
 [scope](/docs/blocks/sql#scope-and-naming) only, and `user` or `none` scope
 refuses it. The records come from the
-[subject registry](/docs/blocks/sql#subject-registry) (`config.records`).
+[subject registry](/docs/blocks/sql#subject-registry) (`config.subjects`).
 Whoever can read a record (`can_subject(type, id, 'read')`) and holds
 `messages.read` in the tenant reads its comments. A comment goes in the record's own
 tenant only: `create_comment` refuses a record whose tenant column names
@@ -54,7 +54,7 @@ its body and files are cleared.
 
 ### Records with their own checks
 
-A record type whose [`config.records`](/docs/blocks/sql#actions-granted-per-row)
+A record type whose [`config.subjects`](/docs/blocks/sql#actions-granted-per-row)
 entry declares a `comment` action keeps its comment threads on the record's
 own checks instead of the messaging keys: whoever may read the record reads
 its comments, whoever holds `comment` on it comments, replies and edits their
@@ -101,7 +101,7 @@ export default defineConfig({
 | `mentionGroups` | none    | Expands a mention of a group, such as a team, into its members                                              |
 | `notify`        | `true`  | Sends `comment.posted` to the record's followers (with notifications); `false` sends none                   |
 
-Comments go on every type in `config.records` by default. `blocks.comments.on`
+Comments go on every type in `config.subjects` by default. `blocks.comments.on`
 keeps them to the types it lists, such as `on: ["customer", "task"]`, and
 `create_comment` refuses any other type with `COMMENT_SUBJECT_UNSUPPORTED`.
 Registering a record type for another block then opens no comments on it.
@@ -354,7 +354,7 @@ notifies two groups:
 | `comment.posted`    | the record's followers, less the author and the members the mention already reached |
 
 `comment.posted` names the record as its subject, with the record's
-`subject_title` from `config.records` as its `subject_label`, the first 140
+`subject_title` from `config.subjects` as its `subject_label`, the first 140
 characters of the body as its `summary` and the commenter as the actor, and
 its data holds `messageId` and `conversationId`. It is sent only when the
 record has a follower besides the author and the mentioned members, or when a

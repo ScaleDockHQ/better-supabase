@@ -22,6 +22,7 @@ import {
   GLOBAL_ARGS,
   joinRepeated,
   listArgs,
+  readsLegacyTables,
   runsWithInvalidConfig,
 } from "./command.ts";
 import { CliError, toCliError } from "./errors.ts";
@@ -584,15 +585,15 @@ export function cliFromTree(
       const configFile = discoverConfig(cwd, globals.config);
 
       const loadWith = (path?: string): Promise<ResolvedConfig> =>
-        loadConfig(cwd, globals.config, environment, path).catch(
-          (cause: unknown) => {
-            throw cause instanceof CliError
-              ? cause
-              : new CliError("config_invalid", toCliError(cause).message, {
-                  cause,
-                });
-          },
-        );
+        loadConfig(cwd, globals.config, environment, path, {
+          legacyTables: readsLegacyTables(command),
+        }).catch((cause: unknown) => {
+          throw cause instanceof CliError
+            ? cause
+            : new CliError("config_invalid", toCliError(cause).message, {
+                cause,
+              });
+        });
 
       // Reloads discover the file again, so a config created under `--watch` is picked up.
       const reloadConfig = (): Promise<ResolvedConfig> => loadWith();

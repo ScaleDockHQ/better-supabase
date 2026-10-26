@@ -573,7 +573,7 @@ function fromApplication(ctx: BlockSqlContext, n: EmployeeNames): string {
 
   return `
 -- The employee for a hired application, in preboarding: the name comes from
--- the candidate's record in config.records, and the job title, team and
+-- the candidate's record in config.subjects, and the job title, team and
 -- employment type from the job. attrs overrides any of them. Calling it
 -- again returns the same employee, and with the relations module the
 -- employee is created_from the application.

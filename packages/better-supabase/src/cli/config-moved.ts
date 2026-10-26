@@ -14,6 +14,9 @@ const MOVED_KEYS: ReadonlyMap<string, string> = new Map([
   ]),
 ]);
 
+const TABLES_REMOVED =
+  "removed in 0.28: tables are SQL in `supabase/schemas` with `@bsb` tags in the table comment; run `better-supabase migrate schema-first`";
+
 /** `sql` keys that moved before 0.15, with where they went. */
 const MOVED_SQL_KEYS: readonly (readonly [string, string])[] = [
   [
@@ -58,6 +61,12 @@ const REMOVED_KEYS: ReadonlyMap<string, string> = new Map([
     "removed in 0.15: the updated-at, created-by, trash and memberships blocks carry these columns now; run `better-supabase codemod 0.15`",
   ],
   ["scaffold", SCAFFOLD_REMOVED],
+  ["tables", TABLES_REMOVED],
+  ["appTables", TABLES_REMOVED],
+  [
+    "records",
+    "renamed to `subjects` in 0.28; rename the key. A table's subject now comes from `@bsb subject` in its comment",
+  ],
 ]);
 
 const RECORD_TYPES_MOVED =

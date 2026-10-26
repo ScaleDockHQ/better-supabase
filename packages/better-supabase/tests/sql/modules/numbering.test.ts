@@ -63,7 +63,7 @@ describe("number sequences", () => {
     expect(sql).toContain("INV-{yyyy}-{n:5}");
   });
 
-  it("takes the tenant column of a numbered table from config.records", () => {
+  it("takes the tenant column of a numbered table from config.subjects", () => {
     const entities = {
       invoice: {
         period: "none",

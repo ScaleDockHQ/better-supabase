@@ -223,7 +223,7 @@ function matchingIds(ctx: BlockSqlContext, n: SegmentNames): string {
 
   const unknown = fail(
     "SEGMENT_SUBJECT_UNKNOWN",
-    "The segment's subject type is not registered in config.records",
+    "The segment's subject type is not registered in config.subjects",
     "22023",
   );
 
@@ -318,7 +318,7 @@ begin
   end if;
   v_type := coalesce(v_old.${s("subjectType")}, segment ->> 'subjectType');
   if v_type is null or v_type not in ${knownList} then
-    ${fail("SEGMENT_SUBJECT_UNKNOWN", "subjectType must be a type in config.records", "22023")}
+    ${fail("SEGMENT_SUBJECT_UNKNOWN", "subjectType must be a type in config.subjects", "22023")}
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old.${s("name")});
   if v_name is null or length(v_name) > 200 then

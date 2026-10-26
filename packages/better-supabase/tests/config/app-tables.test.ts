@@ -43,9 +43,7 @@ describe("resolveConfig appTables", () => {
       },
     } as const;
 
-    expect(resolveConfig({ tables: appTables }, "/app").appTables).toEqual(
-      appTables,
-    );
+    expect(resolveConfig({ appTables }, "/app").appTables).toEqual(appTables);
   });
 });
 
@@ -601,8 +599,8 @@ describe("isAppDefault", () => {
     const config = resolveConfig(
       {
         blocks: { memberships: { names: { organization: "workspace" } } },
-        records: { customer: { table: "public.customers" } },
-        tables: {
+        subjects: { customer: { table: "public.customers" } },
+        appTables: {
           projects: {
             id: "bigint",
             columns: {
@@ -651,8 +649,8 @@ describe("isAppDefault", () => {
     expect(() =>
       resolveConfig(
         {
-          records: { project: { table: "public.other" } },
-          tables: { projects: { subject: { type: "project" } } },
+          subjects: { project: { table: "public.other" } },
+          appTables: { projects: { subject: { type: "project" } } },
         },
         "/app",
       ),

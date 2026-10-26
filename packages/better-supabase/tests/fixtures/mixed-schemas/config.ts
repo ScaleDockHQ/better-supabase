@@ -1,7 +1,4 @@
-import type {
-  BetterSupabaseConfig,
-  BlocksConfig,
-} from "../../../src/config/index.ts";
+import type { ResolveInput, BlocksConfig } from "../../../src/config/index.ts";
 
 /** The blocks the fixture installs, the first five with their defaults. */
 export const MIXED_SCHEMAS_BLOCKS: BlocksConfig = {
@@ -26,7 +23,7 @@ export const MIXED_SCHEMAS_BLOCKS: BlocksConfig = {
  * (with an enum status), contacts and notes. The blocks run over the first
  * three and create the rest, and `tables.notes` enriches the app's notes.
  */
-export const MIXED_SCHEMAS_CONFIG: BetterSupabaseConfig = {
+export const MIXED_SCHEMAS_CONFIG: ResolveInput = {
   blocks: MIXED_SCHEMAS_BLOCKS,
-  tables: { notes: { columns: { body: { type: "text" } } } },
+  appTables: { notes: { columns: { body: { type: "text" } } } },
 };

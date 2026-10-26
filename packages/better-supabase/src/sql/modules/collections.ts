@@ -362,7 +362,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   return `${schemaPreamble(ctx)}
 -- Favorites (a member's starred records, ranked for a sidebar), lists (named,
 -- static collections of one subject type) and saved items (a member's records
--- to come back to, with a reminder) on config.records records.
+-- to come back to, with a reminder) on config.subjects records.
 ${tables(ctx, names)}${ctx.manages ? policies(ctx, names) : ""}${collectionFunctions(ctx, names)}${starFunctions(ctx, names)}${savedItemFunctions(ctx, names)}${subjectCascades(
     ctx,
     cascading(ctx),

@@ -845,7 +845,7 @@ export const STATE_MACHINE: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "State machine",
   description:
-    "Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.",
+    "Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.",
   requires: ["memberships", "permissions"],
   integrates: ["outbox", "audit", "approvals"],
   target: "schema",

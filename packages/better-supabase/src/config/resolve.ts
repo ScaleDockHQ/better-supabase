@@ -11,6 +11,7 @@ import type {
 } from "./types/config.ts";
 import type { SqlConfig, VectorSearchConfig } from "./types/database.ts";
 import type { EntitlementsConfig } from "./types/entitlements.ts";
+import type { AppTablesInput } from "./types/groups.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { tenantNames } from "../core/entity-naming.ts";
@@ -250,9 +251,18 @@ function authorizationOf(
   return provider;
 }
 
+/**
+ * The grouped config plus the app tables a Create design and `migrate
+ * schema-first` hand in. Tables are SQL files, so the public config has no key
+ * for them (ADR 0102).
+ */
+export type ResolveInput = BetterSupabaseConfig & {
+  readonly appTables?: AppTablesInput;
+};
+
 /** Applies defaults. Paths stay relative to `root`. */
 export function resolveConfig(
-  input: BetterSupabaseConfig,
+  input: ResolveInput,
   root: string,
 ): ResolvedConfig {
   const config = expandFlatPreset(flattenConfig(input));

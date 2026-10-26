@@ -143,7 +143,7 @@ function build(ctx: BlockSqlContext): string {
 
   const unknown = fail(
     "RANK_SUBJECT_UNKNOWN",
-    "this subject type has no rank column in config.records",
+    "this subject type has no rank column in config.subjects",
     "22023",
   );
 
@@ -301,7 +301,7 @@ export const RANK: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Rank",
   description:
-    "Fractional rank keys: rank_between, move() for every config.records entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.",
+    "Fractional rank keys: rank_between, move() for every config.subjects entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.",
   requires: ["permissions", "subjects"],
   integrates: ["queue"],
   target: "schema",

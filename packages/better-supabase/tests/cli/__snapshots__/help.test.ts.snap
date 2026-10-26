@@ -18,7 +18,6 @@ Options
   --package <dir>                           Workspace package whose config to edit, relative to --cwd; a Create URL's package= sets it too
   --only <blocks|conventions>               blocks: add the preset's blocks to blocks and leave the conventions; conventions: take the conventions and no blocks
   --adopt                                   Map existing tables onto a block (with --tables), the preset's blocks onto tables under their default names, or, alone, write the data rows migration for blocks over your tables
-  --allow-breaking                          Write a design with breaking app table changes (a rename, a retyped or required column, a tighter constraint); renames print their alter statements
   --dry-run                                 Print what would change, with a diff, and write nothing
   --check                                   Write nothing; exit 1 with a diff when a file would change
   --tables <schema.table,...>               The existing tables, as table or schema.table; the block's other tables are looked up by their default names

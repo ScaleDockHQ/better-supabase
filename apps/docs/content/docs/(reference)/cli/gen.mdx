@@ -73,7 +73,7 @@ the same generator behind `supabase gen types typescript`, and writes:
    It needs no database, only the config;
 5. with blocks that have a record binding installed, a
    [record type](/docs/repository/record-bindings#generated-record-types) per type in
-   `config.records`, in `records/<type>.ts` next to the main module, unless
+   `config.subjects`, in `records/<type>.ts` next to the main module, unless
    `gen.recordTypes` is `false`;
 6. with `gen.hooks` set, `hooks.ts` next to the main module: a list hook and a
    record hook per table (`useCustomers`, `useCustomer`) for the

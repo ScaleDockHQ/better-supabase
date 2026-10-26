@@ -863,7 +863,7 @@ export const topics = {
   "customers": "organization:{organizationId}:customers"
 } as const;
 
-/** The app's subject types, from `config.records`. */
+/** The app's subject types, from `config.subjects`. */
 export const subjectTypes = ["project", "task"] as const;
 export type SubjectType = (typeof subjectTypes)[number];
 /** One subject: its type and its id as text. */

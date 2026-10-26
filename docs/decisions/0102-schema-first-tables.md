@@ -59,3 +59,13 @@ A breaking release with a migration guide, a codemod and a changeset.
   for a config with app tables.
 - `server` lists the columns signed-in users can't read (the column grants already exclude them),
   so `gen` types them as not selectable.
+
+## Addendum: stage 3 removes `tables` and `records`
+
+- The grouped config has no `tables` key and `records` is `subjects` (0.28). Config loading refuses
+  both with a message that names the replacement; only `migrate schema-first` reads them.
+- Create keeps `appTables` inside its design format and `create/lite`, so the cloud app is
+  unchanged. `init --preset` and `add --preset` render the design's tables to SQL files with
+  `policy: "create"`, so a table file you edited is kept.
+- The preset breaking-change report goes with the config key: `db diff` plans renames and reports
+  data loss from the SQL files.

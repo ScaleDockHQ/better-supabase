@@ -441,7 +441,6 @@ const ADD_COMMAND_ARGS = {
 const PRESET_ONLY = [
   "package",
   "only",
-  "allow-breaking",
   ...Object.keys(CONVENTION_ARGS),
 ] as const;
 

@@ -82,7 +82,7 @@ const lease = await leases
 await leases.activate(lease.id).orThrow();
 ```
 
-`create` makes a draft. The party is any record in `config.records`, and the
+`create` makes a draft. The party is any record in `config.subjects`, and the
 deposit is in the rent's currency. `activate` starts the lease: it fails with
 `LEASE_OVERLAP` while another active lease of the unit overlaps the dates,
 posts the deposit on the lease's deposit account and holds it there. A lease
@@ -198,7 +198,7 @@ record.
 | ----------------------- | -------------------------------------------------------------------------------------------- |
 | `LEASES_FORBIDDEN`      | the caller lacks `leases.read` or `leases.manage`                                            |
 | `LEASE_UNIT_INVALID`    | the unit isn't an asset of the organization                                                  |
-| `LEASE_PARTY_INVALID`   | the party isn't a record of the organization in `config.records`                             |
+| `LEASE_PARTY_INVALID`   | the party isn't a record of the organization in `config.subjects`                            |
 | `LEASE_TERMS_INVALID`   | the rent isn't above zero, the dates don't make sense, or the deposit is in another currency |
 | `LEASE_DEPOSIT_INVALID` | the deposit deduction is negative or above the deposit                                       |
 | `LEASE_OVERLAP`         | another active lease of the unit overlaps these dates                                        |

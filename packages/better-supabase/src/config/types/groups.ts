@@ -254,15 +254,11 @@ export interface BetterSupabaseConfig {
   readonly database?: DatabaseConfig;
   readonly auth?: AuthConfig;
   /**
-   * The app's record types: the entities blocks attach tags, comments, fields
-   * and ranks to, keyed by type name.
+   * The app's subject types: the entities blocks attach tags, comments, fields
+   * and ranks to, keyed by type name. A table the app owns becomes a subject
+   * with an `@bsb subject` tag in its table comment (ADR 0102).
    */
-  readonly records?: SubjectsConfig;
-  /**
-   * Tables the app owns, keyed by name, created in `public` by `better-supabase
-   * upgrade`. ADR 0040.
-   */
-  readonly tables?: AppTablesInput;
+  readonly subjects?: SubjectsConfig;
   /**
    * The blocks to install and keep in sync: a list of names, or an object keyed
    * by block name whose values set each block's ownership, names and options.

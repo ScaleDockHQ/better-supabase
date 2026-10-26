@@ -26,7 +26,7 @@ export interface SubjectsOptions extends BlockOptions {
   readonly logger?: Logger;
 }
 
-/** A subject with its title and path, from `config.records`. */
+/** A subject with its title and path, from `config.subjects`. */
 export interface ResolvedSubject extends RecordRef {
   /** The `title` column's value, when the type names one. */
   readonly title?: string;

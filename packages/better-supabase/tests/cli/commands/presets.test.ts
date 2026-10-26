@@ -332,7 +332,7 @@ describe("apply", () => {
           "utf-8",
         ),
       ),
-    ).toEqual({ preset: "minimal" });
+    ).not.toHaveProperty("tables");
     expect(
       (
         await run([
@@ -385,9 +385,6 @@ describe("apply with a design", () => {
     await files({
       "better-supabase.config.json": json({
         blocks: { profiles: { options: { extraColumns: { bio: "text" } } } },
-        tables: {
-          links: { owner: "user", columns: { url: { type: "text" } } },
-        },
       }),
     });
 
@@ -411,15 +408,45 @@ describe("apply with a design", () => {
           options: { extraColumns: { bio: "text", nickname: "text" } },
         },
       },
-      tables: {
-        links: { owner: "user", columns: { url: { type: "text" } } },
-        notes: { owner: "user", columns: { body: { type: "text" } } },
-      },
       preset: "minimal",
     });
-    expect(await readFile(join(dir, APP_TABLES_FILE), "utf-8")).toContain(
-      '"public"."notes"',
-    );
+    expect(
+      await readFile(
+        join(dir, "supabase/schemas/public/tables/notes.sql"),
+        "utf-8",
+      ),
+    ).toContain('"public"."notes"');
+    expect(existsSync(join(dir, APP_TABLES_FILE))).toBe(false);
+  });
+
+  it("keeps a table file you edited when the design names the table again", async () => {
+    await files({ "better-supabase.config.json": json({}) });
+
+    const first = await run([
+      "add",
+      "--preset",
+      await designUrl(),
+      "--cwd",
+      dir,
+    ]);
+
+    expect(first.code).toBe(0);
+
+    const file = join(dir, "supabase/schemas/public/tables/notes.sql");
+    const edited = `${await readFile(file, "utf-8")}\n-- mine\n`;
+
+    await writeFile(file, edited);
+
+    const second = await run([
+      "add",
+      "--preset",
+      await designUrl(),
+      "--cwd",
+      dir,
+    ]);
+
+    expect(second.code).toBe(0);
+    expect(await readFile(file, "utf-8")).toBe(edited);
   });
 
   it("writes the design into a TypeScript config", async () => {
@@ -435,9 +462,9 @@ describe("apply with a design", () => {
     );
 
     expect(result.code).toBe(0);
-    expect(result.output).toContain("+  tables: {");
-    expect(result.output).toContain("+    notes: {");
+    expect(result.output).not.toContain("tables: {");
     expect(result.output).toContain("+          nickname: 'text',");
+    expect(result.output).toContain("notes.sql");
   });
 
   it("refuses a damaged design and an extra column without its block", async () => {
@@ -467,127 +494,6 @@ describe("apply with a design", () => {
     expect(
       await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
     ).toBe(json({}));
-  });
-
-  it("needs --allow-breaking to retype or drop a column of an app table", async () => {
-    const before = json({
-      tables: {
-        notes: {
-          owner: "user",
-          columns: { body: { type: "jsonb" }, pinned: { type: "boolean" } },
-        },
-      },
-    });
-
-    await files({ "better-supabase.config.json": before });
-    const url = await designUrl({ appTables: design.appTables ?? {} });
-
-    const refused = await run(["add", "--preset", url, "--cwd", dir]);
-
-    expect(refused.code).toBe(1);
-    expect(refused.stdout).toContain("Breaking changes to app tables:");
-    expect(refused.stdout).toContain("Changes notes.body from jsonb to text.");
-    expect(refused.stdout).toContain("Drops notes.pinned and its values.");
-    expect(refused.stdout).toContain("1. Add a text column next to body.");
-    expect(refused.stderr).toContain("2 breaking changes");
-    expect(refused.stderr).toContain("--allow-breaking");
-    expect(
-      await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
-    ).toBe(before);
-
-    const dry = await run(["add", "--preset", url, "--dry-run", "--cwd", dir]);
-
-    expect(dry.code).toBe(0);
-    expect(dry.stdout).toContain("Breaking changes to app tables:");
-
-    const allowed = await run([
-      "add",
-      "--preset",
-      url,
-      "--allow-breaking",
-      "--cwd",
-      dir,
-    ]);
-
-    expect(allowed.code).toBe(0);
-    expect(
-      JSON.parse(
-        await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
-      ),
-    ).toMatchObject({
-      tables: { notes: { owner: "user", columns: { body: { type: "text" } } } },
-    });
-  });
-
-  it("refuses a rename without --allow-breaking and prints its statements with it", async () => {
-    const before = json({
-      tables: {
-        memos: { owner: "user", columns: { body: { type: "text" } } },
-        links: { owner: "user", columns: { url: { type: "text" } } },
-      },
-    });
-
-    await files({ "better-supabase.config.json": before });
-    const url = await designUrl({ appTables: design.appTables ?? {} });
-
-    const refused = await run(["add", "--preset", url, "--cwd", dir]);
-
-    expect(refused.code).toBe(1);
-    expect(refused.stdout).toContain("Renames table memos to notes.");
-    expect(
-      await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
-    ).toBe(before);
-
-    const allowed = await run([
-      "add",
-      "--preset",
-      url,
-      "--allow-breaking",
-      "--json",
-      "--cwd",
-      dir,
-    ]);
-
-    expect(allowed.code).toBe(0);
-
-    const envelope = JSON.parse(allowed.stdout) as {
-      data: { renames?: string[]; kept: string[] };
-    };
-
-    expect(envelope.data.renames).toEqual([
-      'alter table public."memos" rename to "notes";',
-    ]);
-    expect(envelope.data.kept).toEqual(["links"]);
-  });
-
-  it("prints the statement for a renamed column", async () => {
-    await files({
-      "better-supabase.config.json": json({
-        tables: {
-          notes: { owner: "user", columns: { text: { type: "text" } } },
-        },
-      }),
-    });
-
-    const allowed = await run([
-      "add",
-      "--preset",
-      await designUrl({ appTables: design.appTables ?? {} }),
-      "--allow-breaking",
-      "--json",
-      "--cwd",
-      dir,
-    ]);
-
-    expect(allowed.code).toBe(0);
-
-    const envelope = JSON.parse(allowed.stdout) as {
-      data: { renames?: string[] };
-    };
-
-    expect(envelope.data.renames).toEqual([
-      'alter table public."notes" rename column "text" to "body";',
-    ]);
   });
 
   it("leaves the design out with --only conventions", async () => {
@@ -849,11 +755,16 @@ describe("init --preset", () => {
     expect(config).toContain(
       "        extraColumns: {\n          nickname: 'text',",
     );
-    expect(config).toContain("notes: {");
+    expect(config).not.toContain("notes");
     expect(config).not.toContain("positions");
 
-    const sql = await readFile(join(dir, APP_TABLES_FILE), "utf-8");
+    const sql = await readFile(
+      join(dir, "supabase/schemas/public/tables/notes.sql"),
+      "utf-8",
+    );
+
     expect(sql).toContain('"public"."notes"');
+    expect(existsSync(join(dir, APP_TABLES_FILE))).toBe(false);
     expect(
       await readFile(
         join(dir, "supabase/schemas/900_better_supabase_022_profiles.sql"),
@@ -912,10 +823,13 @@ describe("init --preset", () => {
 
     expect(
       await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
-    ).toContain(`${first}: {`);
-    expect(await readFile(join(dir, APP_TABLES_FILE), "utf-8")).toContain(
-      `"public"."${first}"`,
-    );
+    ).not.toContain(first);
+    expect(
+      await readFile(
+        join(dir, `supabase/schemas/public/tables/${first}.sql`),
+        "utf-8",
+      ),
+    ).toContain(`"public"."${first}"`);
   });
 
   it("refuses a missing or invalid design file", async () => {
@@ -961,9 +875,12 @@ describe("apply with a design file", () => {
       JSON.parse(
         await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
       ),
-    ).toMatchObject({
-      tables: { notes: { owner: "user", columns: { body: { type: "text" } } } },
-      preset: "minimal",
-    });
+    ).not.toHaveProperty("tables");
+    expect(
+      await readFile(
+        join(dir, "supabase/schemas/public/tables/notes.sql"),
+        "utf-8",
+      ),
+    ).toContain('"public"."notes"');
   });
 });
