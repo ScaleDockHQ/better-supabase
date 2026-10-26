@@ -7,7 +7,7 @@
     "analyze": "next experimental-analyze",
     "build": "next build",
     "dev": "next dev -p ${PORT:-3000}",
-    "dev:portless": "portless run --force --name www next dev",
+    "dev:portless": "portless run --name www next dev",
     "lint": "oxlint",
     "start": "next start -p ${PORT:-3000}",
     "test": "vitest run",

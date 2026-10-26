@@ -11,7 +11,7 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "dev:portless": "portless run --force --name vite-react vite",
+    "dev:portless": "portless run --name vite-react vite",
     "gen": "better-supabase gen",
     "gen:check": "better-supabase gen --check",
     "lint": "oxlint",

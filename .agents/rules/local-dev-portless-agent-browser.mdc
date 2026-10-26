@@ -16,7 +16,18 @@ paths:
 | apps/docs | `https://docs.localhost/docs` |
 | apps/examples/nextjs | `https://example.localhost` |
 
-Supabase runs on ports the CLI picks for each checkout and branch; `pnpm supabase:start` writes `SUPABASE_URL` to `.env.development.local`.
+In a linked git worktree, Portless puts the last segment of the branch name
+in front of each host: on `perf/dx-build-ci` the marketing site is
+`https://dx-build-ci.www.localhost`. `pnpm portless get www` prints the URL for
+the current checkout, and two worktrees never take over each other's hosts.
+
+Supabase runs on ports the CLI picks for each checkout and branch; `pnpm supabase:start` writes `SUPABASE_URL` and the checkout's site URLs to `.env.development.local`.
+
+A new worktree runs `node scripts/worktree-setup.ts` (Cursor runs it from
+`.cursor/worktrees.json`): it installs from the pnpm store and copies the main
+checkout's env files without its stack keys. Add `--db` to start the
+worktree's own stack. The docs app keeps port 3001, so only one checkout at a
+time can run it.
 
 - Open and test pages only through these URLs, with `agent-browser`. Never
   guess a `localhost:<port>`, and never use the IDE's built-in browser.
