@@ -130,6 +130,7 @@ const NAMES: BlockSqlNames = {
     checklist: {
       name: "work_item_checklist_items",
       app: {},
+      optionalTable: true,
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",

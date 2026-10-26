@@ -57,7 +57,6 @@ export function checklistTable(ctx: BlockSqlContext, n: WorkItemNames): string {
   const { t, c } = n;
   const k = (column: string): string => c("checklist", column);
   const w = (column: string): string => c("items", column);
-  const name = ctx.tableName("checklist").name;
 
   // A column definition, left out when the app maps the column to null.
   const column = (
@@ -71,6 +70,13 @@ export function checklistTable(ctx: BlockSqlContext, n: WorkItemNames): string {
 alter table ${t("items")} add column if not exists ${w("recursFrom")} uuid references ${t("items")} (${w("id")}) on delete set null;
 create unique index if not exists ${ctx.naming.rename("work_items_recurs_from_idx")} on ${t("items")} (${w("recursFrom")});`
     : "";
+
+  if (!ctx.hasTable("checklist")) {
+    return `${recurs}
+`;
+  }
+
+  const name = ctx.tableName("checklist").name;
 
   return `${recurs}
 
@@ -109,7 +115,11 @@ export function itemExtrasJson(
       ? ""
       : `, 'recurrence', (select jsonb_build_object('rrule', rr.${rules.col("rrule")}, 'tzid', rr.${rules.col("tzid")}, 'dtstart', rr.${rules.col("dtstart")}) from ${rules.table} rr where rr.${rules.col("tenant")} = ${alias}.${w("tenant")} and rr.${rules.col("subjectType")} = ${sqlString(n.e("work_item"))} and rr.${rules.col("subjectId")} = ${alias}.${w("id")}::text)`;
 
-  return `jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk.${k("done")})) from ${n.t("checklist")} rk where rk.${k("item")} = ${alias}.${w("id")})${recurrence})`;
+  const checklist = ctx.hasTable("checklist")
+    ? `(select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk.${k("done")})) from ${n.t("checklist")} rk where rk.${k("item")} = ${alias}.${w("id")})`
+    : "null";
+
+  return `jsonb_build_object('checklist', ${checklist}${recurrence})`;
 }
 
 /**
@@ -314,7 +324,9 @@ as $$
   from ${t("checklist")} y where y.${k("item")} = list_work_item_checklist.work_item
 $$;
 ${userGrant(`${fn("list_work_item_checklist")}(uuid)`)}
+`;
 
+  const getWorkItem = `
 -- One item the caller can read, or null.
 create or replace function ${fn("get_work_item")}(work_item uuid)
 returns jsonb
@@ -328,7 +340,7 @@ $$;
 ${userGrant(`${fn("get_work_item")}(uuid)`)}
 `;
 
-  return `${checklist}${recurrence(ctx, n, { row, record, editable, notFound, touched })}${watchers(ctx, n, readable)}`;
+  return `${ctx.hasTable("checklist") ? checklist : ""}${getWorkItem}${recurrence(ctx, n, { row, record, editable, notFound, touched })}${watchers(ctx, n, readable)}`;
 }
 
 function recurrence(
@@ -440,9 +452,13 @@ begin
     array(select y.${c("assignees", "user")} from ${t("assignees")} y where y.${c("assignees", "item")} = v_src.${w("id")}));
   v_id := (v_next ->> 'id')::uuid;
   update ${t("items")} x set ${w("recursFrom")} = v_src.${w("id")} where x.${w("id")} = v_id;
-  insert into ${t("checklist")} (${k("tenant")}, ${k("item")}, ${k("title")}, ${k("rank")}${ctx.has("checklist", "createdBy") ? `, ${k("createdBy")}` : ""})
+${
+  ctx.hasTable("checklist")
+    ? `  insert into ${t("checklist")} (${k("tenant")}, ${k("item")}, ${k("title")}, ${k("rank")}${ctx.has("checklist", "createdBy") ? `, ${k("createdBy")}` : ""})
   select y.${k("tenant")}, v_id, y.${k("title")}, y.${k("rank")}${ctx.has("checklist", "createdBy") ? `, y.${k("createdBy")}` : ""} from ${t("checklist")} y where y.${k("item")} = v_src.${w("id")};
-  update ${rules.table} rr set ${r("subjectId")} = v_id::text
+`
+    : ""
+}  update ${rules.table} rr set ${r("subjectId")} = v_id::text
   where rr.${r("tenant")} = v_src.${w("tenant")} and rr.${r("subjectType")} = ${item} and rr.${r("subjectId")} = v_src.${w("id")}::text;
   return (select ${helpers.row("x")} from ${t("items")} x where x.${w("id")} = v_id);
 end;
@@ -517,17 +533,25 @@ export function workItemExtrasContract(
   ctx: BlockSqlContext,
 ): readonly BlockSqlContractFunction[] {
   return [
-    {
-      name: "save_work_item_checklist_item",
-      args: ["uuid", "uuid", "jsonb"],
-      returns: "jsonb",
-    },
-    {
-      name: "delete_work_item_checklist_item",
-      args: ["uuid"],
-      returns: "boolean",
-    },
-    { name: "list_work_item_checklist", args: ["uuid"], returns: "jsonb" },
+    ...(ctx.hasTable("checklist")
+      ? [
+          {
+            name: "save_work_item_checklist_item",
+            args: ["uuid", "uuid", "jsonb"],
+            returns: "jsonb",
+          },
+          {
+            name: "delete_work_item_checklist_item",
+            args: ["uuid"],
+            returns: "boolean",
+          },
+          {
+            name: "list_work_item_checklist",
+            args: ["uuid"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
     { name: "get_work_item", args: ["uuid"], returns: "jsonb" },
     ...(recurrenceRules(ctx) === undefined
       ? []

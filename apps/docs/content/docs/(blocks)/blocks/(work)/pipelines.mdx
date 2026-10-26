@@ -50,18 +50,18 @@ blocks: {
 },
 ```
 
-| Key           | Meaning                                                                                                      |
-| ------------- | ------------------------------------------------------------------------------------------------------------ |
-| `categories`  | Each category of this type and its outcome: `open`, `success` or `failure`. At least one is `open`           |
-| `stage`       | The stage column, `stage_id` by default                                                                      |
-| `pipeline`    | The pipeline column, `pipeline_id` by default                                                                |
-| `enteredAt`   | A `timestamptz` column the module sets whenever the stage changes                                            |
-| `amount`      | A `bigint` column of minor units the board totals. Needs `currency`, a `char(3)` column                      |
-| `probability` | A record's own win probability (0 to 100), which overrides the stage's in weighted totals                    |
-| `owner`       | A user id column. The owner watches the record and `board` can filter by it                                  |
-| `scope`       | A column whose value picks one pipeline per scope, such as `job_id` for a pipeline per job                   |
-| `status`      | A status column and the value each category sets in it                                                       |
-| `stages`      | The first pipeline's stages: `key`, `name`, `category` and `probability`. Without it, one stage per category |
+| Key           | Meaning                                                                                                           |
+| ------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `categories`  | Each category of this type and its outcome: `open`, `success` or `failure`. At least one is `open`                |
+| `stage`       | The stage column, `stage_id` by default                                                                           |
+| `pipeline`    | The pipeline column, `pipeline_id` by default                                                                     |
+| `enteredAt`   | A `timestamptz` column the module sets whenever the stage changes                                                 |
+| `amount`      | A `bigint` column of minor units the board totals. Needs `currency`, a `char(3)` column                           |
+| `probability` | A record's own win probability (0 to 100), which overrides the stage's in weighted totals                         |
+| `owner`       | A user id column. The owner watches the record and `board` can filter by it                                       |
+| `scope`       | A column whose value picks one pipeline per scope, such as `job_id` for a pipeline per job                        |
+| `status`      | A status column and the value each category sets in it, and `follow` to move the stage when the status is written |
+| `stages`      | The first pipeline's stages: `key`, `name`, `category` and `probability`. Without it, one stage per category      |
 
 An insert without a pipeline lands in the organization's default pipeline for the type and scope, created from `stages` the first time. An insert without a stage lands in the first open stage. The first pipeline an admin creates for a type and scope becomes its default.
 
@@ -131,6 +131,30 @@ await rank
 ```
 
 With `status` set, a stage in a mapped category also writes the status column in a separate update, so a [state machine](/docs/blocks/state-machine) on that column checks the change and records `status.changed`. Moving a deal to `Closed won` sets `outcome` to `won`, and moving it back to an open stage sets `open` again.
+
+The binding can work the other way too. With `status.follow: true`, a write to the status column that doesn't come from a stage change moves the record to the first active stage, in rank order, of its pipeline whose category maps to the new status. A status no category maps to leaves the stage alone, and a mapped status the pipeline has no active stage for fails with `PIPELINE_STAGE_INVALID`. Code that still writes the status column directly then keeps the stage, its history and the time in stage right:
+
+```ts title="better-supabase.config.ts"
+pipelines: {
+  on: {
+    task: {
+      categories: { todo: "open", doing: "open", done: "success" },
+      status: {
+        column: "status",
+        values: { todo: "todo", doing: "doing", done: "done" },
+        follow: true,
+      },
+      stages: [
+        { key: "todo", name: "To do", category: "todo" },
+        { key: "doing", name: "Doing", category: "doing" },
+        { key: "done", name: "Done", category: "done" },
+      ],
+    },
+  },
+},
+```
+
+The stage change the follow writes sets the status it already has, so the two never loop.
 
 ## Board, stats and health
 
