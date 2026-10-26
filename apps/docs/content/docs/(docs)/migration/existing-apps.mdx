@@ -9,6 +9,34 @@ existing tables, the access contract reads your permission model, and the
 session cookie is the one `@supabase/ssr` already writes. You move one module
 at a time and keep the rest of your code as it is.
 
+## Adopt one rung at a time
+
+Each rung stands on its own, so stop at the one you need
+([ADR 0101](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0101-adopt-one-rung-at-a-time.md)).
+
+1. **Detect.** `better-supabase init` reads your `supabase` folder and the
+   saved snapshot, finds the schema workflow, the schemas and the tables you
+   have, and writes a config that matches. Pass `--from <snapshot.json>` to
+   read tables from a snapshot file instead of the local database.
+2. **Helpers for every table.** `better-supabase gen` writes typed clients
+   and name constants for all your tables. Nothing changes in the database.
+3. **Table features.** Turn a feature on for one table with an `@bsb` tag in
+   its comment or a `tables.<name>` entry (see
+   [Table tags](/docs/cli/table)).
+4. **Blocks over your tables.** `better-supabase add <block> --over
+   <schema.table>` installs one block over a table you already have. It is
+shorthand for `add --adopt <block> --tables <schema.table>`, takes one
+block, and takes the table list in place of `--tables`.
+
+`better-supabase doctor --adoption` prints one row per table: created by a
+block, one of yours that a block runs over, or yours alone, with the features
+it has turned on. Run it after each rung to see what moved.
+
+A table you create in the Supabase dashboard is invisible to detection until
+it reaches the saved snapshot or a schema file. Run `supabase db pull` or
+`better-supabase gen --save-snapshot` after dashboard changes, then `init`
+or `doctor --adoption` sees it.
+
 ## Move the schema into files
 
 SQL modules are written into `supabase/schemas`, and pg-delta (Declarative
