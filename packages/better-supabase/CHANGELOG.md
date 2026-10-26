@@ -1,5 +1,11 @@
 # better-supabase
 
+## 0.27.1
+
+### Patch Changes
+
+- [#433](https://github.com/ScaleDockHQ/better-supabase/pull/433) [`6b1cd87`](https://github.com/ScaleDockHQ/better-supabase/commit/6b1cd87588a85c9588149beb7ee74b422022b094) Thanks [@martijn00](https://github.com/martijn00)! - Block modules now emit every row level security policy as a typed `Policy` value, so the installed SQL is laid out one clause per line. The policies, their names and their drops are unchanged, and a module that writes `create policy` by hand now fails the test suite.
+
 ## 0.27.0
 
 ### Minor Changes
