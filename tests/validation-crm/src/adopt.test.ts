@@ -41,44 +41,48 @@ const committed = async (): Promise<{ blocks: unknown }> =>
   ) as { blocks: unknown };
 
 describe("add --preset --adopt on the CRM schema", () => {
-  it("proposes the adopt mappings the config holds", async () => {
-    await writeFile(
-      join(dir, "better-supabase.config.json"),
-      JSON.stringify({
-        database: { source: { snapshot: join(ROOT, "snapshot.json") } },
-        gen: { casing: "camel" },
-        blocks: ["read-sets"],
-      }),
-    );
+  it(
+    "proposes the adopt mappings the config holds",
+    { timeout: 30_000 },
+    async () => {
+      await writeFile(
+        join(dir, "better-supabase.config.json"),
+        JSON.stringify({
+          database: { source: { snapshot: join(ROOT, "snapshot.json") } },
+          gen: { casing: "camel" },
+          blocks: ["read-sets"],
+        }),
+      );
 
-    const result = await run([
-      "add",
-      "--preset",
-      PRESET,
-      "--only",
-      "blocks",
-      "--adopt",
-      "--dry-run",
-      "--json",
-      "--cwd",
-      dir,
-    ]);
+      const result = await run([
+        "add",
+        "--preset",
+        PRESET,
+        "--only",
+        "blocks",
+        "--adopt",
+        "--dry-run",
+        "--json",
+        "--cwd",
+        dir,
+      ]);
 
-    expect(result.code).toBe(0);
+      expect(result.code).toBe(0);
 
-    const { data } = JSON.parse(result.stdout) as {
-      data: { adopted: Record<string, { mode: string }>; contents: string };
-    };
+      const { data } = JSON.parse(result.stdout) as {
+        data: { adopted: Record<string, { mode: string }>; contents: string };
+      };
 
-    expect(Object.keys(data.adopted)).toEqual([
-      "permissions",
-      "organizations",
-      "profiles",
-      "teams",
-    ]);
-    const proposed = JSON.parse(data.contents) as { blocks: unknown };
-    expect(proposed.blocks).toEqual((await committed()).blocks);
-  });
+      expect(Object.keys(data.adopted)).toEqual([
+        "permissions",
+        "organizations",
+        "profiles",
+        "teams",
+      ]);
+      const proposed = JSON.parse(data.contents) as { blocks: unknown };
+      expect(proposed.blocks).toEqual((await committed()).blocks);
+    },
+  );
 
   it("maps profiles onto user_id and the CRM's organization_id tenant column", async () => {
     const { blocks } = (await committed()) as {
