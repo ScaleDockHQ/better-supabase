@@ -77,6 +77,13 @@ function checkSearchSources(where: string, entry: SubjectConfig): void {
     if (watched.via !== undefined) {
       column(`${at}.via`, watched.via);
     }
+
+    for (const [hop, through] of (watched.through ?? []).entries()) {
+      const step = `${at}.through[${String(hop)}]`;
+      table(`${step}.table`, through.table);
+      column(`${step}.from`, through.from);
+      column(`${step}.to`, through.to);
+    }
   }
 }
 

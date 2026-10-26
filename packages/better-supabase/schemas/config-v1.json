@@ -1465,6 +1465,25 @@
                     },
                     "via": {
                       "type": "string"
+                    },
+                    "through": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "table": {
+                            "type": "string"
+                          },
+                          "from": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["table", "from", "to"],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": ["table", "key"],

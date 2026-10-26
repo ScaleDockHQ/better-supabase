@@ -46,6 +46,65 @@ describe("search sources beyond the record's row", () => {
     );
   });
 
+  it("follows a watched table across a junction table to the records", () => {
+    const sql = sqlOf({
+      customer: {
+        table: "public.customers",
+        title: "name",
+        search: {
+          body: ["tag_names"],
+          from: { view: "public.customer_search", key: "customer_id" },
+          watch: [
+            {
+              table: "public.tags",
+              key: "id",
+              through: [
+                {
+                  table: "public.customer_tags",
+                  from: "tag_id",
+                  to: "customer_id",
+                },
+              ],
+            },
+            {
+              table: "public.regions",
+              key: "id",
+              via: "account_id",
+              through: [
+                { table: "public.accounts", from: "region_id", to: "id" },
+              ],
+            },
+          ],
+        },
+      },
+    });
+
+    expect(sql).toContain(
+      `for v_id in select h0."customer_id"::text from "public"."customer_tags" h0 where h0."tag_id"::text in (select new."id"::text) loop`,
+    );
+    expect(sql).toContain(
+      `where s."account_id"::text in (select h0."id"::text from "public"."accounts" h0 where h0."region_id"::text in (select old."id"::text)) loop`,
+    );
+    expect(() =>
+      sqlOf({
+        customer: {
+          table: "public.customers",
+          search: {
+            watch: [
+              {
+                table: "public.tags",
+                key: "id",
+                through: [
+                  { table: "public.customer_tags", from: "x;y", to: "id" },
+                ],
+              },
+            ],
+          },
+        },
+      }),
+    ).toThrow(/through\[0\]\.from/u);
+  });
+
   it("re-indexes a record read through a view on a change to any of its columns", () => {
     expect(sqlOf()).toContain(
       `after insert or delete or update on "public"."customers"`,

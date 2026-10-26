@@ -184,10 +184,25 @@ function watchTriggers(
         const key = sqlIdent(watched.key);
         const table = quotedTable(watched.table);
 
+        const hops = watched.through ?? [];
+
+        const values = (row: "old" | "new"): string =>
+          hops.reduce(
+            (previous, hop, at) =>
+              `select h${String(at)}.${sqlIdent(hop.to)}::text from ${quotedTable(hop.table)} h${String(at)} where h${String(at)}.${sqlIdent(hop.from)}::text in (${previous})`,
+            `select ${row}.${key}::text`,
+          );
+
         const refresh = (row: "old" | "new"): string =>
-          watched.via === undefined
+          watched.via === undefined && hops.length === 0
             ? `perform ${ctx.fn("search_refresh")}(${sqlString(subject.type)}, ${row}.${key}::text);`
-            : `for v_id in select s.${subject.id}::text from ${subject.qualified} s where s.${sqlIdent(watched.via)}::text = ${row}.${key}::text loop
+            : `for v_id in ${
+                watched.via === undefined
+                  ? values(row)
+                  : hops.length === 0
+                    ? `select s.${subject.id}::text from ${subject.qualified} s where s.${sqlIdent(watched.via)}::text = ${row}.${key}::text`
+                    : `select s.${subject.id}::text from ${subject.qualified} s where s.${sqlIdent(watched.via)}::text in (${values(row)})`
+              } loop
       perform ${ctx.fn("search_refresh")}(${sqlString(subject.type)}, v_id);
     end loop;`;
 

@@ -56,7 +56,12 @@ type SubjectSearchInput = {
   exclude?: string | undefined;
   from?: { view: string; key: string } | undefined;
   watch?:
-    | { table: string; key: string; via?: string | undefined }[]
+    | {
+        table: string;
+        key: string;
+        via?: string | undefined;
+        through?: { table: string; from: string; to: string }[] | undefined;
+      }[]
     | undefined;
 };
 
@@ -74,6 +79,15 @@ export const subjectSearchSchema: v.GenericSchema<SubjectSearchInput> =
           table: v.string(),
           key: v.string(),
           via: v.optional(v.string()),
+          through: v.optional(
+            v.array(
+              v.strictObject({
+                table: v.string(),
+                from: v.string(),
+                to: v.string(),
+              }),
+            ),
+          ),
         }),
       ),
     ),
