@@ -130,6 +130,7 @@ export const customersRow: TableSchema<RowOf<'customers'>> = tableSchema({
     updatedAt: { kind: "datetime", readOnly: true },
     logoPath: { kind: "string", nullable: true },
     createdBy: { kind: "uuid", nullable: true, readOnly: true },
+    ownerTeamId: { kind: "uuid", nullable: true },
   },
 });
 
@@ -150,6 +151,7 @@ export const customersInsert: TableSchema<InsertOf<'customers'>> = tableSchema({
     updatedAt: { kind: "datetime", optional: true, readOnly: true },
     logoPath: { kind: "string", nullable: true, optional: true },
     createdBy: { kind: "uuid", nullable: true, optional: true, readOnly: true },
+    ownerTeamId: { kind: "uuid", nullable: true, optional: true },
   },
 });
 
@@ -170,6 +172,20 @@ export const customersUpdate: TableSchema<UpdateOf<'customers'>> = tableSchema({
     updatedAt: { kind: "datetime", optional: true, readOnly: true },
     logoPath: { kind: "string", nullable: true, optional: true },
     createdBy: { kind: "uuid", nullable: true, optional: true, readOnly: true },
+    ownerTeamId: { kind: "uuid", nullable: true, optional: true },
+  },
+});
+
+export const customersWithOwnerRow: TableSchema<RowOf<'customersWithOwner'>> = tableSchema({
+  title: "Customers with owner",
+  description: "Open customers with the name of the team that owns them, read with the caller's row level security on both tables.",
+  fields: {
+    id: { kind: "uuid" },
+    organizationId: { kind: "uuid" },
+    name: { kind: "string" },
+    status: { kind: "string" },
+    ownerTeamId: { kind: "uuid", nullable: true },
+    ownerTeamName: { kind: "string", nullable: true },
   },
 });
 

@@ -95,6 +95,7 @@ export const customersRow: v.GenericSchema<RowOf<'customers'>> = v.pipe(v.object
   updatedAt: v.pipe(v.string(), v.isoTimestamp()),
   logoPath: v.nullable((v.string() as unknown as v.GenericSchema<NonNullable<RowOf<'customers'>['logoPath']>>)),
   createdBy: v.nullable(v.pipe(v.string(), v.uuid())),
+  ownerTeamId: v.nullable(v.pipe(v.string(), v.uuid())),
 }), v.title("Customers"), v.description("Companies the organization sells to."));
 export const customersInsert: v.GenericSchema<InsertOf<'customers'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -110,6 +111,7 @@ export const customersInsert: v.GenericSchema<InsertOf<'customers'>> = v.pipe(v.
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
   logoPath: v.exactOptional(v.nullable((v.string() as unknown as v.GenericSchema<NonNullable<RowOf<'customers'>['logoPath']>>))),
   createdBy: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
+  ownerTeamId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
 }), v.title("Customers insert"), v.description("Companies the organization sells to."));
 export const customersUpdate: v.GenericSchema<UpdateOf<'customers'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -125,7 +127,17 @@ export const customersUpdate: v.GenericSchema<UpdateOf<'customers'>> = v.pipe(v.
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
   logoPath: v.exactOptional(v.nullable((v.string() as unknown as v.GenericSchema<NonNullable<RowOf<'customers'>['logoPath']>>))),
   createdBy: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
+  ownerTeamId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
 }), v.title("Customers update"), v.description("Companies the organization sells to."));
+
+export const customersWithOwnerRow: v.GenericSchema<RowOf<'customersWithOwner'>> = v.pipe(v.object({
+  id: v.pipe(v.string(), v.uuid()),
+  organizationId: v.pipe(v.string(), v.uuid()),
+  name: v.string(),
+  status: v.string(),
+  ownerTeamId: v.nullable(v.pipe(v.string(), v.uuid())),
+  ownerTeamName: v.nullable(v.string()),
+}), v.title("Customers with owner"), v.description("Open customers with the name of the team that owns them, read with the caller's row level security on both tables."));
 
 export const locationsRow: v.GenericSchema<RowOf<'locations'>> = v.pipe(v.object({
   id: v.pipe(v.string(), v.uuid()),

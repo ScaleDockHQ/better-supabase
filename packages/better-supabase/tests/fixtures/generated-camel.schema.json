@@ -428,6 +428,13 @@
           ],
           "format": "uuid",
           "readOnly": true
+        },
+        "ownerTeamId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
         }
       },
       "required": [
@@ -443,7 +450,8 @@
         "createdAt",
         "updatedAt",
         "logoPath",
-        "createdBy"
+        "createdBy",
+        "ownerTeamId"
       ],
       "additionalProperties": false
     },
@@ -534,6 +542,13 @@
           ],
           "format": "uuid",
           "readOnly": true
+        },
+        "ownerTeamId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
         }
       },
       "required": [
@@ -629,8 +644,58 @@
           ],
           "format": "uuid",
           "readOnly": true
+        },
+        "ownerTeamId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
         }
       },
+      "additionalProperties": false
+    },
+    "customersWithOwnerRow": {
+      "title": "Customers with owner",
+      "description": "Open customers with the name of the team that owns them, read with the caller's row level security on both tables.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "ownerTeamId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "ownerTeamName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "name",
+        "status",
+        "ownerTeamId",
+        "ownerTeamName"
+      ],
       "additionalProperties": false
     },
     "locationsRow": {

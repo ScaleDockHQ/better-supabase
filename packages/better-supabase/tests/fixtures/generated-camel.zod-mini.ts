@@ -91,6 +91,7 @@ export const customersRow: z.ZodMiniType<RowOf<'customers'>> = z.object({
   updatedAt: z.iso.datetime({ offset: true }),
   logoPath: z.nullable((z.string() as unknown as z.ZodMiniType<NonNullable<RowOf<'customers'>['logoPath']>>)),
   createdBy: z.nullable(z.guid()),
+  ownerTeamId: z.nullable(z.guid()),
 }).check(z.meta({ title: "Customers", description: "Companies the organization sells to." }));
 export const customersInsert: z.ZodMiniType<InsertOf<'customers'>> = z.object({
   id: z.exactOptional(z.guid()),
@@ -106,6 +107,7 @@ export const customersInsert: z.ZodMiniType<InsertOf<'customers'>> = z.object({
   updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
   logoPath: z.exactOptional(z.nullable((z.string() as unknown as z.ZodMiniType<NonNullable<RowOf<'customers'>['logoPath']>>))),
   createdBy: z.exactOptional(z.nullable(z.guid())),
+  ownerTeamId: z.exactOptional(z.nullable(z.guid())),
 }).check(z.meta({ title: "Customers insert", description: "Companies the organization sells to." }));
 export const customersUpdate: z.ZodMiniType<UpdateOf<'customers'>> = z.object({
   id: z.exactOptional(z.guid()),
@@ -121,7 +123,17 @@ export const customersUpdate: z.ZodMiniType<UpdateOf<'customers'>> = z.object({
   updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
   logoPath: z.exactOptional(z.nullable((z.string() as unknown as z.ZodMiniType<NonNullable<RowOf<'customers'>['logoPath']>>))),
   createdBy: z.exactOptional(z.nullable(z.guid())),
+  ownerTeamId: z.exactOptional(z.nullable(z.guid())),
 }).check(z.meta({ title: "Customers update", description: "Companies the organization sells to." }));
+
+export const customersWithOwnerRow: z.ZodMiniType<RowOf<'customersWithOwner'>> = z.object({
+  id: z.guid(),
+  organizationId: z.guid(),
+  name: z.string(),
+  status: z.string(),
+  ownerTeamId: z.nullable(z.guid()),
+  ownerTeamName: z.nullable(z.string()),
+}).check(z.meta({ title: "Customers with owner", description: "Open customers with the name of the team that owns them, read with the caller's row level security on both tables." }));
 
 export const locationsRow: z.ZodMiniType<RowOf<'locations'>> = z.object({
   id: z.guid(),

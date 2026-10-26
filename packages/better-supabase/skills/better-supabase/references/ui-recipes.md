@@ -2210,7 +2210,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { RoleBadge } from "@/features/user/components/role-badge";
-import { assignableRoles } from "@/features/user/user-permissions";
 import { useMembers } from "@/hooks/use-organizations";
 import { Role } from "@/lib/claims";
 import { initials } from "@/lib/initials";
@@ -2240,14 +2239,14 @@ export function MemberTable({
   organizationId,
   initial,
   currentUserId,
-  myRole,
+  assignable,
   canUpdateRole,
   canRemove,
 }: {
   organizationId: string;
   initial: readonly Member[];
   currentUserId: string;
-  myRole: Role;
+  assignable: readonly Role[];
   canUpdateRole: boolean;
   canRemove: boolean;
 }) {
@@ -2265,8 +2264,6 @@ export function MemberTable({
       await memberChanged({ userId });
     },
   });
-
-  const assignable = assignableRoles(myRole);
 
   const roleItems = assignable.map((role) => ({
     value: role,
@@ -2541,7 +2538,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { assignableRoles } from "@/features/user/user-permissions";
 import { useInvitations } from "@/hooks/use-organizations";
 import { Role } from "@/lib/claims";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
@@ -2557,10 +2553,10 @@ import { useRoleLabel } from "../use-role-label";
  */
 export function InviteMemberDialog({
   organizationId,
-  myRole,
+  assignable,
 }: {
   organizationId: string;
-  myRole: Role;
+  assignable: readonly Role[];
 }) {
   const t = useExtracted("organization");
   const fieldId = useId();
@@ -2571,7 +2567,7 @@ export function InviteMemberDialog({
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("member");
 
-  const roles = assignableRoles(myRole).map((each) => ({
+  const roles = assignable.map((each) => ({
     value: each,
     label: roleLabel(each),
   }));
@@ -9570,7 +9566,7 @@ npx shadcn add alert badge button card empty skeleton
  * with and whether they must sign in with SSO.
  */
 export async function SsoSettings() {
-  if (!can(await getSession(), "sso.manage")) {
+  if (!can(await getPermissions(), "sso.manage")) {
     forbidden();
   }
 
@@ -9775,7 +9771,7 @@ npx shadcn add alert badge button card empty skeleton table
  * back to the previous one when the duration runs out.
  */
 export async function AccessRequestsInbox() {
-  if (!can(await getSession(), "access_requests.create")) {
+  if (!can(await getPermissions(), "access_requests.create")) {
     forbidden();
   }
 
@@ -11353,13 +11349,13 @@ export async function ContactDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const [{ id }, session, t] = await Promise.all([
+  const [{ id }, t, permissions] = await Promise.all([
     params,
-    getSession(),
     getExtracted("crm"),
+    getPermissions(),
   ]);
 
-  if (!can(session, "parties.read")) {
+  if (!can(permissions, "parties.read")) {
     forbidden();
   }
 
@@ -11490,7 +11486,7 @@ export async function ContactDetail({
                 ))}
               </ul>
             )}
-            {can(session, "parties.write") ? (
+            {can(permissions, "parties.write") ? (
               <LinkPersonForm
                 companyId={contact.id}
                 people={contact.candidates.map((person) => ({
@@ -11541,9 +11537,12 @@ npx shadcn add card empty skeleton
  * pipeline. Dragging a deal saves its new stage through `moveDeal`.
  */
 export async function DealBoard() {
-  const [session, t] = await Promise.all([getSession(), getExtracted("crm")]);
+  const [t, permissions] = await Promise.all([
+    getExtracted("crm"),
+    getPermissions(),
+  ]);
 
-  if (!can(session, "deals.read")) {
+  if (!can(permissions, "deals.read")) {
     forbidden();
   }
 
@@ -11569,7 +11568,7 @@ export async function DealBoard() {
         <CardDescription>
           {t("Drag a deal to another stage to move it.")}
         </CardDescription>
-        {pipeline && can(session, "deals.write") ? (
+        {pipeline && can(permissions, "deals.write") ? (
           <CardAction>
             <CreateDealDialog pipelineId={pipeline.id} stages={openStages} />
           </CardAction>
@@ -11586,14 +11585,14 @@ export async function DealBoard() {
               </EmptyMedia>
               <EmptyTitle>{t("No pipeline yet")}</EmptyTitle>
               <EmptyDescription>
-                {can(session, "pipelines.manage")
+                {can(permissions, "pipelines.manage")
                   ? t(
                       "Start with six stages, from qualified to closed won or lost.",
                     )
                   : t("Ask an admin to create the sales pipeline.")}
               </EmptyDescription>
             </EmptyHeader>
-            {can(session, "pipelines.manage") ? (
+            {can(permissions, "pipelines.manage") ? (
               <EmptyContent>
                 <CreatePipelineButton />
               </EmptyContent>
@@ -11606,7 +11605,7 @@ export async function DealBoard() {
               .join(",")}
             stages={board.data.stages}
             deals={board.data.deals}
-            canMove={can(session, "deals.write")}
+            canMove={can(permissions, "deals.write")}
           />
         )}
       </CardContent>
@@ -11641,10 +11640,10 @@ const stepIcons = {
 
 /** Render inside `<Suspense>`: the organization's sequences and their steps. */
 export async function SequenceBuilder() {
-  const [view, session, t] = await Promise.all([
+  const [view, t, permissions] = await Promise.all([
     getSequences(),
-    getSession(),
     getExtracted("sequences"),
+    getPermissions(),
   ]);
 
   if (view.kind === "no-organization") {
@@ -11668,7 +11667,7 @@ export async function SequenceBuilder() {
     );
   }
 
-  const manage = can(session, "sequences.manage");
+  const manage = can(permissions, "sequences.manage");
 
   if (view.data.length === 0) {
     return (
@@ -11824,13 +11823,13 @@ export async function ActivityTimeline({
 }: {
   subject: { type: ContactKind; id: string };
 }) {
-  const [session, t, format] = await Promise.all([
-    getSession(),
+  const [t, format, permissions] = await Promise.all([
     getExtracted("crm"),
     getFormatter(),
+    getPermissions(),
   ]);
 
-  if (!can(session, "engagements.read")) {
+  if (!can(permissions, "engagements.read")) {
     return null;
   }
 
@@ -11840,7 +11839,7 @@ export async function ActivityTimeline({
     return null;
   }
 
-  const canLog = can(session, "engagements.write");
+  const canLog = can(permissions, "engagements.write");
 
   const types = new Map([
     ["call", t("Call")],
@@ -11955,14 +11954,14 @@ export async function QuoteBuilder({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const [{ id }, session, t, locale] = await Promise.all([
+  const [{ id }, t, locale, permissions] = await Promise.all([
     params,
-    getSession(),
     getExtracted("crm"),
     getLocale(),
+    getPermissions(),
   ]);
 
-  if (!can(session, "quotes.read")) {
+  if (!can(permissions, "quotes.read")) {
     forbidden();
   }
 
@@ -11982,7 +11981,7 @@ export async function QuoteBuilder({
     notFound();
   }
 
-  const canWrite = can(session, "quotes.write");
+  const canWrite = can(permissions, "quotes.write");
 
   const editable =
     canWrite &&
@@ -12117,14 +12116,14 @@ npx shadcn add badge card empty progress skeleton
  * are.
  */
 export async function TargetsProgress() {
-  const [session, t, format, locale] = await Promise.all([
-    getSession(),
+  const [t, format, locale, permissions] = await Promise.all([
     getExtracted("crm"),
     getFormatter(),
     getLocale(),
+    getPermissions(),
   ]);
 
-  if (!can(session, "targets.read")) {
+  if (!can(permissions, "targets.read")) {
     return null;
   }
 
@@ -12134,7 +12133,7 @@ export async function TargetsProgress() {
     return null;
   }
 
-  const canManage = can(session, "targets.manage");
+  const canManage = can(permissions, "targets.manage");
 
   const amountOf = (target: TargetRow, value: bigint) =>
     target.currency === null
@@ -13063,13 +13062,13 @@ npx shadcn add alert badge button card empty skeleton table
  * caller is an approver of the current step.
  */
 export async function ApprovalsQueue() {
-  const [session, t, format] = await Promise.all([
-    getSession(),
+  const [t, format, permissions] = await Promise.all([
     getExtracted("approvals"),
     getFormatter(),
+    getPermissions(),
   ]);
 
-  if (!can(session, "approvals.read")) {
+  if (!can(permissions, "approvals.read")) {
     forbidden();
   }
 
@@ -13079,8 +13078,8 @@ export async function ApprovalsQueue() {
     return null;
   }
 
-  const canRequest = can(session, "approvals.request");
-  const canDecide = can(session, "approvals.manage");
+  const canRequest = can(permissions, "approvals.request");
+  const canDecide = can(permissions, "approvals.manage");
   const customers = queue.kind === "ok" ? queue.data.customers : [];
 
   const actionLabel = (action: string) =>
@@ -13633,13 +13632,13 @@ export async function CustomFieldsEditor({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, t, params] = await Promise.all([
-    getSession(),
+  const [t, params, permissions] = await Promise.all([
     getExtracted("custom-fields"),
     searchParams,
+    getPermissions(),
   ]);
 
-  if (!can(session, "custom_fields.read")) {
+  if (!can(permissions, "custom_fields.read")) {
     forbidden();
   }
 
@@ -13651,7 +13650,7 @@ export async function CustomFieldsEditor({
     return null;
   }
 
-  const canManage = can(session, "custom_fields.manage");
+  const canManage = can(permissions, "custom_fields.manage");
 
   return (
     <Card data-recipe="custom-fields-editor">
@@ -14299,12 +14298,12 @@ npx shadcn add card empty skeleton
  * with `employees.view_sensitive`.
  */
 export async function EmployeeDirectory() {
-  const [session, t] = await Promise.all([
-    getSession(),
+  const [t, permissions] = await Promise.all([
     getExtracted("people"),
+    getPermissions(),
   ]);
 
-  if (!can(session, "employees.read")) {
+  if (!can(permissions, "employees.read")) {
     forbidden();
   }
 
@@ -14314,8 +14313,8 @@ export async function EmployeeDirectory() {
     return null;
   }
 
-  const canWrite = can(session, "employees.write");
-  const canViewSensitive = can(session, "employees.view_sensitive");
+  const canWrite = can(permissions, "employees.write");
+  const canViewSensitive = can(permissions, "employees.view_sensitive");
 
   const managers =
     directory.kind === "ok"
@@ -14394,13 +14393,13 @@ export async function HiringBoard({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, t, query] = await Promise.all([
-    getSession(),
+  const [t, query, permissions] = await Promise.all([
     getExtracted("people"),
     searchParams,
+    getPermissions(),
   ]);
 
-  if (!can(session, "hiring.read")) {
+  if (!can(permissions, "hiring.read")) {
     forbidden();
   }
 
@@ -14410,8 +14409,8 @@ export async function HiringBoard({
     return null;
   }
 
-  const canManage = can(session, "hiring.manage");
-  const canWrite = can(session, "hiring.write");
+  const canManage = can(permissions, "hiring.manage");
+  const canWrite = can(permissions, "hiring.write");
   const jobs = board.kind === "ok" ? board.data.jobs : [];
   const job = jobs.find((item) => item.id === query["job"]) ?? jobs[0];
 
@@ -14547,15 +14546,15 @@ export async function Timesheet({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, t, format, query] = await Promise.all([
-    getSession(),
+  const [t, format, query, permissions] = await Promise.all([
     getExtracted("people"),
     getFormatter(),
     searchParams,
+    getPermissions(),
     connection(),
   ]);
 
-  if (!can(session, "time_tracking.track")) {
+  if (!can(permissions, "time_tracking.track")) {
     forbidden();
   }
 
@@ -14760,19 +14759,19 @@ export async function DispatchBoard({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, t, format, query] = await Promise.all([
-    getSession(),
+  const [t, format, query, permissions] = await Promise.all([
     getExtracted("field"),
     getFormatter(),
     searchParams,
+    getPermissions(),
     connection(),
   ]);
 
-  if (!can(session, "dispatch.read")) {
+  if (!can(permissions, "dispatch.read")) {
     forbidden();
   }
 
-  const manage = can(session, "dispatch.manage");
+  const manage = can(permissions, "dispatch.manage");
   const monday = mondayOf(query["week"]);
   const board = await settle(() => loadDispatchWeek(monday.toString()));
 
@@ -14977,15 +14976,15 @@ export async function TechnicianDay({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, t, format, query] = await Promise.all([
-    getSession(),
+  const [t, format, query, permissions] = await Promise.all([
     getExtracted("field"),
     getFormatter(),
     searchParams,
+    getPermissions(),
     connection(),
   ]);
 
-  if (!can(session, "dispatch.work")) {
+  if (!can(permissions, "dispatch.work")) {
     forbidden();
   }
 
@@ -15117,15 +15116,15 @@ export async function ShipmentTracking({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, t, format, query] = await Promise.all([
-    getSession(),
+  const [t, format, query, permissions] = await Promise.all([
     getExtracted("field"),
     getFormatter(),
     searchParams,
+    getPermissions(),
     connection(),
   ]);
 
-  if (!can(session, "shipments.read")) {
+  if (!can(permissions, "shipments.read")) {
     forbidden();
   }
 
@@ -15139,7 +15138,7 @@ export async function ShipmentTracking({
     return null;
   }
 
-  const newShipment = can(session, "shipments.manage") ? (
+  const newShipment = can(permissions, "shipments.manage") ? (
     <NewShipmentDialog />
   ) : null;
 
@@ -15316,9 +15315,9 @@ async function retry() {
  * billing page still shows the plan.
  */
 export async function InvoicesTable() {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  if (!can(session, "invoices.read")) {
+  if (!can(permissions, "invoices.read")) {
     return null;
   }
 
@@ -15333,7 +15332,7 @@ export async function InvoicesTable() {
     return null;
   }
 
-  const canWrite = can(session, "invoices.write");
+  const canWrite = can(permissions, "invoices.write");
 
   const status = (value: InvoiceStatus, overdue: boolean) => {
     if (overdue) {
@@ -15500,9 +15499,9 @@ async function retry() {
 
 /** Render inside `<Suspense>`: the organization's products as cards. */
 export async function ProductCatalogGrid() {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  if (!can(session, "catalog.read")) {
+  if (!can(permissions, "catalog.read")) {
     forbidden();
   }
 
@@ -15516,7 +15515,7 @@ export async function ProductCatalogGrid() {
     return null;
   }
 
-  const canManage = can(session, "catalog.manage");
+  const canManage = can(permissions, "catalog.manage");
 
   const status = (product: Product) => {
     switch (product.status) {
@@ -15581,7 +15580,7 @@ export async function ProductCatalogGrid() {
               })}
             </p>
             <div className="flex items-center gap-2">
-              {can(session, "promotions.manage") ? (
+              {can(permissions, "promotions.manage") ? (
                 <CreatePromotionCodeDialog />
               ) : null}
               {canManage ? <CreateProductDialog variant="outline" /> : null}
@@ -15642,9 +15641,9 @@ async function retry() {
 
 /** Render inside `<Suspense>`: stock per tracked variant and active location. */
 export async function InventoryTable() {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  if (!can(session, "inventory.read")) {
+  if (!can(permissions, "inventory.read")) {
     forbidden();
   }
 
@@ -15657,7 +15656,7 @@ export async function InventoryTable() {
     return null;
   }
 
-  const canManage = can(session, "inventory.manage");
+  const canManage = can(permissions, "inventory.manage");
 
   const locationName = new Map(
     stock.kind === "ok"
@@ -15825,9 +15824,9 @@ export async function OrderDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const [{ id }, session] = await Promise.all([params, getSession()]);
+  const [{ id }, permissions] = await Promise.all([params, getPermissions()]);
 
-  if (!can(session, "orders.read")) {
+  if (!can(permissions, "orders.read")) {
     forbidden();
   }
 
@@ -15860,7 +15859,7 @@ export async function OrderDetail({
   }
 
   const view = detail.data;
-  const canManage = can(session, "orders.manage");
+  const canManage = can(permissions, "orders.manage");
   const amount = (value: Money) => formatMoney(value, locale);
 
   const problemLabel = (problem: string) => {
@@ -16098,7 +16097,7 @@ export async function OrderDetail({
                       ]
                     : [],
                 )}
-                canCreate={can(session, "promotions.manage")}
+                canCreate={can(permissions, "promotions.manage")}
               />
             ) : view.promotions.length === 0 ? (
               <p className="text-sm text-muted-foreground">
@@ -16157,14 +16156,17 @@ export async function KitchenDisplay({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, params] = await Promise.all([getSession(), searchParams]);
+  const [params, permissions] = await Promise.all([
+    searchParams,
+    getPermissions(),
+  ]);
 
-  if (!can(session, "orders.read") && !can(session, "orders.prepare")) {
+  if (!can(permissions, "orders.read") && !can(permissions, "orders.prepare")) {
     forbidden();
   }
 
   const canPrepare =
-    can(session, "orders.prepare") || can(session, "orders.manage");
+    can(permissions, "orders.prepare") || can(permissions, "orders.manage");
 
   const [kitchen, t] = await Promise.all([
     getKitchen(
@@ -16609,9 +16611,9 @@ export async function CalendarView({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  if (!can(session, "calendar.read")) {
+  if (!can(permissions, "calendar.read")) {
     forbidden();
   }
 
@@ -16622,8 +16624,8 @@ export async function CalendarView({
     connection(),
   ]);
 
-  const canWrite = can(session, "calendar.write");
-  const canManage = can(session, "calendar.manage");
+  const canWrite = can(permissions, "calendar.write");
+  const canManage = can(permissions, "calendar.manage");
   const first = firstOfMonth(query["month"], "UTC");
   const weeks = weeksOf(first);
   const from = weeks[0]?.[0] ?? first;
@@ -16932,9 +16934,9 @@ npx shadcn add badge card empty skeleton
 
 ```tsx title="apps/examples/nextjs/src/features/bookings/components/availability-editor.tsx"
 export async function AvailabilityEditor() {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  if (!can(session, "bookings.manage")) {
+  if (!can(permissions, "bookings.manage")) {
     forbidden();
   }
 
@@ -16965,7 +16967,9 @@ export async function AvailabilityEditor() {
                 { count: page.liveLinks },
               )}
             </Badge>
-            {can(session, "share_links.create") ? <BookingLinkButton /> : null}
+            {can(permissions, "share_links.create") ? (
+              <BookingLinkButton />
+            ) : null}
           </CardAction>
         ) : null}
       </CardHeader>
@@ -17018,9 +17022,9 @@ npx shadcn add card empty skeleton
  * offset before every occurrence of the event, once per occurrence.
  */
 export async function RemindersList() {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  if (!can(session, "reminders.manage")) {
+  if (!can(permissions, "reminders.manage")) {
     return null;
   }
 
@@ -17063,7 +17067,7 @@ export async function RemindersList() {
                 {t("Add an event, then set a reminder for it here.")}
               </EmptyDescription>
             </EmptyHeader>
-            {calendars.length > 0 && can(session, "calendar.write") ? (
+            {calendars.length > 0 && can(permissions, "calendar.write") ? (
               <EmptyContent>
                 <CreateEventDialog
                   calendars={calendars}
@@ -17753,8 +17757,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import { getTrash } from "../trash-queries";
@@ -17771,11 +17775,11 @@ async function retry() {
  * forever.
  */
 export async function TrashBin() {
-  const [view, session, t, format] = await Promise.all([
+  const [view, t, format, permissions] = await Promise.all([
     getTrash(),
-    getSession(),
     getExtracted("trash"),
     getFormatter(),
+    getPermissions(),
   ]);
 
   if (view.kind === "no-organization") {
@@ -17787,7 +17791,7 @@ export async function TrashBin() {
     ["drive_node", t("Drive item")],
   ]);
 
-  const canPurge = can(session, "trash.manage");
+  const canPurge = can(permissions, "trash.manage");
 
   return (
     <Card data-recipe="trash-bin">
@@ -18165,10 +18169,10 @@ const moderationVariants = {
 
 /** Render inside `<Suspense>`: the board's posts, top voted first. */
 export async function PostBoard() {
-  const [view, session, t] = await Promise.all([
+  const [view, t, permissions] = await Promise.all([
     getBoard(),
-    getSession(),
     getExtracted("community"),
+    getPermissions(),
   ]);
 
   if (view.kind === "no-organization") {
@@ -18195,7 +18199,7 @@ export async function PostBoard() {
   const board = view.data;
 
   if (board === null) {
-    const manage = can(session, "posts.manage");
+    const manage = can(permissions, "posts.manage");
 
     return (
       <Empty className="border">
@@ -18223,7 +18227,7 @@ export async function PostBoard() {
     );
   }
 
-  const write = can(session, "posts.write");
+  const write = can(permissions, "posts.write");
 
   const statusLabels: Record<PostStatus, string> = {
     open: t("Open"),
@@ -19489,8 +19493,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import { getTemplates } from "../templates-queries";
 import { CreateTemplateDialog } from "./create-template-dialog";
@@ -19504,18 +19508,18 @@ async function retry() {
 
 /** The New template button, for members who may manage templates. */
 export async function TemplateManagerActions() {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  return can(session, "templates.manage") ? <CreateTemplateDialog /> : null;
+  return can(permissions, "templates.manage") ? <CreateTemplateDialog /> : null;
 }
 
 /** Render inside `<Suspense>`: the customer templates, each with Use template. */
 export async function TemplatesGallery() {
-  const [view, session, t, format] = await Promise.all([
+  const [view, t, format, permissions] = await Promise.all([
     getTemplates(),
-    getSession(),
     getExtracted("templates"),
     getFormatter(),
+    getPermissions(),
   ]);
 
   if (view.kind === "no-organization") {
@@ -19523,7 +19527,7 @@ export async function TemplatesGallery() {
   }
 
   const canApply =
-    can(session, "templates.apply") && can(session, "customers.write");
+    can(permissions, "templates.apply") && can(permissions, "customers.write");
 
   if (view.kind === "error") {
     return (
@@ -19556,7 +19560,7 @@ export async function TemplatesGallery() {
             )}
           </EmptyDescription>
         </EmptyHeader>
-        {can(session, "templates.manage") ? (
+        {can(permissions, "templates.manage") ? (
           <EmptyContent>
             <CreateTemplateDialog />
           </EmptyContent>
@@ -20309,14 +20313,14 @@ function EndpointStatusBadge({
  * delete endpoints, and retry finished deliveries.
  */
 export async function WebhookEndpoints() {
-  const [session, state, t, format] = await Promise.all([
-    getSession(),
+  const [state, t, format, permissions] = await Promise.all([
     loadWebhooksState(),
     getExtracted("webhooks"),
     getFormatter(),
+    getPermissions(),
   ]);
 
-  if (!can(session, "webhooks.read")) {
+  if (!can(permissions, "webhooks.read")) {
     forbidden();
   }
 
@@ -20324,7 +20328,7 @@ export async function WebhookEndpoints() {
     return null;
   }
 
-  const manage = can(session, "webhooks.manage");
+  const manage = can(permissions, "webhooks.manage");
 
   const firstEnabled =
     state.kind === "ok"
@@ -20592,13 +20596,13 @@ async function retry() {
  * them. Members without `service_principals.read` see nothing.
  */
 export async function ServicePrincipalsTable() {
-  const [session, t, format] = await Promise.all([
-    getSession(),
+  const [t, format, permissions] = await Promise.all([
     getExtracted("servicePrincipals"),
     getFormatter(),
+    getPermissions(),
   ]);
 
-  if (!can(session, "service_principals.read")) {
+  if (!can(permissions, "service_principals.read")) {
     return null;
   }
 
@@ -20608,7 +20612,7 @@ export async function ServicePrincipalsTable() {
     return null;
   }
 
-  const manage = can(session, "service_principals.manage");
+  const manage = can(permissions, "service_principals.manage");
 
   const roles = new Map([
     ["owner", t("Owner")],
@@ -20770,12 +20774,12 @@ async function retry() {
  * only, so this checks `organization.update` before it reads.
  */
 export async function SigningKeysRotation() {
-  const [session, t] = await Promise.all([
-    getSession(),
+  const [t, permissions] = await Promise.all([
     getExtracted("signingKeys"),
+    getPermissions(),
   ]);
 
-  if (!can(session, SIGNING_KEYS_PERMISSION)) {
+  if (!can(permissions, SIGNING_KEYS_PERMISSION)) {
     forbidden();
   }
 
@@ -21159,13 +21163,13 @@ function JobStatusBadge({ status, t }: { status: JobRunStatus; t: Translate }) {
  * it reads with the database owner.
  */
 export async function JobRunsTable() {
-  const [session, t, format] = await Promise.all([
-    getSession(),
+  const [t, format, permissions] = await Promise.all([
     getExtracted("jobs"),
     getFormatter(),
+    getPermissions(),
   ]);
 
-  if (!can(session, JOBS_PERMISSION)) {
+  if (!can(permissions, JOBS_PERMISSION)) {
     forbidden();
   }
 
@@ -22905,7 +22909,12 @@ export async function ProjectPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const [{ id }, session] = await Promise.all([params, getSession()]);
+  const [{ id }, session, permissions] = await Promise.all([
+    params,
+    getSession(),
+    getPermissions(),
+  ]);
+
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
@@ -23020,7 +23029,7 @@ export async function ProjectPage({
               authors={Object.fromEntries(
                 members.data.map((member) => [member.userId, member.name]),
               )}
-              canComment={can(session, "messages.send")}
+              canComment={can(permissions, "messages.send")}
             />
           </CardContent>
         </Card>
@@ -23055,8 +23064,8 @@ export async function ProjectPage({
           <ProjectHistory
             projectId={record.id}
             versions={history.data}
-            canSave={can(session, "versions.create")}
-            canRestore={can(session, "versions.restore")}
+            canSave={can(permissions, "versions.create")}
+            canRestore={can(permissions, "versions.restore")}
           />
         ) : (
           <ProjectLoadError title={t("The history didn't load")} />

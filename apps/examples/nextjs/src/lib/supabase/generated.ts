@@ -176,6 +176,7 @@ export type Models = {
       updatedAt: string;
       logoPath: StoragePath<"customer-logos"> | null;
       createdBy: string | null;
+      ownerTeamId: string | null;
     };
     Insert: {
       id?: string;
@@ -191,6 +192,7 @@ export type Models = {
       updatedAt?: string;
       logoPath?: StoragePath<"customer-logos"> | null;
       createdBy?: string | null;
+      ownerTeamId?: string | null;
     };
     Update: {
       id?: string;
@@ -206,6 +208,7 @@ export type Models = {
       updatedAt?: string;
       logoPath?: StoragePath<"customer-logos"> | null;
       createdBy?: string | null;
+      ownerTeamId?: string | null;
     };
     Relations: {
       customerTags: { table: "customerTags"; kind: "many"; nullable: true };
@@ -220,10 +223,30 @@ export type Models = {
       customers_organization_id_kvk_key: readonly ["organizationId", "kvk"];
     };
     Checks: "customers_archived_check" | "customers_name_check" | "customers_status_check";
-    ForeignKeys: "customers_organization_id_fkey" | "customers_primary_contact_id_fkey";
+    ForeignKeys: "customers_organization_id_fkey" | "customers_owner_team_id_fkey" | "customers_primary_contact_id_fkey";
     Flags: {
       softDelete: "archivedAt";
       timestamps: true;
+      tenant: "organizationId";
+    };
+  };
+  customersWithOwner: {
+    Row: {
+      id: string;
+      organizationId: string;
+      name: string;
+      status: string;
+      ownerTeamId: string | null;
+      ownerTeamName: string | null;
+    };
+    Insert: never;
+    Update: never;
+    Relations: Record<never, never>;
+    PrimaryKey: never;
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: never;
+    Flags: {
       tenant: "organizationId";
     };
   };

@@ -121,6 +121,13 @@ export type Database = {
             referencedColumns: ["id", "organization_id"]
           },
           {
+            foreignKeyName: "customer_tags_customer_id_fkey"
+            columns: ["customer_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "customers_with_owner"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
             foreignKeyName: "customer_tags_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -147,6 +154,7 @@ export type Database = {
           metadata: NonNullable<Json>
           name: string
           organization_id: string
+          owner_team_id: string | null
           primary_contact_id: string | null
           status: string
           updated_at: string
@@ -163,6 +171,7 @@ export type Database = {
           metadata?: NonNullable<Json>
           name: string
           organization_id: string
+          owner_team_id?: string | null
           primary_contact_id?: string | null
           status?: string
           updated_at?: string
@@ -178,6 +187,7 @@ export type Database = {
           metadata?: NonNullable<Json>
           name?: string
           organization_id?: string
+          owner_team_id?: string | null
           primary_contact_id?: string | null
           status?: string
           updated_at?: string
@@ -238,6 +248,13 @@ export type Database = {
             columns: ["customer_id", "organization_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "locations_customer_id_fkey"
+            columns: ["customer_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "customers_with_owner"
             referencedColumns: ["id", "organization_id"]
           },
           {
@@ -326,6 +343,13 @@ export type Database = {
             columns: ["customer_id", "organization_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "notes_customer_id_fkey"
+            columns: ["customer_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "customers_with_owner"
             referencedColumns: ["id", "organization_id"]
           },
           {
@@ -639,6 +663,26 @@ export type Database = {
       }
     }
     Views: {
+      customers_with_owner: {
+        Row: {
+          id: string
+          name: string
+          organization_id: string
+          owner_team_id: string | null
+          owner_team_name: string | null
+          status: string
+        }
+        ComputedFields: never
+        Relationships: [
+          {
+            foreignKeyName: "customers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects_view: {
         Row: {
           budget_minor: number
@@ -745,6 +789,7 @@ export type Database = {
           metadata: NonNullable<Json>
           name: string
           organization_id: string
+          owner_team_id: string | null
           primary_contact_id: string | null
           status: string
           updated_at: string
