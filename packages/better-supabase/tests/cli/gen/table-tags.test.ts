@@ -172,6 +172,21 @@ describe("withTableTags", () => {
       include: ["a", "b"],
     });
 
+    const hidden = withTableTags(
+      config,
+      await tagged(name, "@bsb encrypted note=text; server note secret"),
+    );
+
+    expect(hidden.appTables[name]?.columns?.["note"]).toEqual({
+      type: "text",
+      encrypted: true,
+      access: "server",
+    });
+    expect(hidden.appTables[name]?.columns?.["secret"]).toEqual({
+      type: "text",
+      access: "server",
+    });
+
     const all = withTableTags(config, await tagged(name, "@bsb events"));
 
     expect(all.appTables[name]?.events).toBe(true);

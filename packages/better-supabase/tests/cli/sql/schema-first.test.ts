@@ -121,7 +121,10 @@ describe("splitAppTables", () => {
       },
       appTables: {
         a: {
-          columns: { ssn: { type: "bigint" as const, encrypted: true } },
+          columns: {
+            ssn: { type: "bigint" as const, encrypted: true },
+            notes: { type: "text" as const, access: "server" as const },
+          },
           events: { on: ["created" as const], include: ["x"] },
         },
         b: { events: true as const },
@@ -137,6 +140,7 @@ describe("splitAppTables", () => {
 
     expect(a).toContain("json meta=Meta doc=import:@/t#Doc");
     expect(a).toContain("encrypted ssn=bigint");
+    expect(a).toContain("server notes");
     expect(a).toContain("events on=created include=x");
     expect(b).toContain("events");
   });

@@ -74,6 +74,7 @@ export function withTableTags(
   const vectorSearch = [...config.vectorSearch];
   const json: Record<string, JsonTypeConfig> = { ...config.json };
   const appTables: Record<string, AppTableConfig> = { ...config.appTables };
+  const fromTags = new Set<string>();
   let changed = false;
 
   for (const table of tables) {
@@ -136,8 +137,45 @@ export function withTableTags(
           const type = value === true ? "text" : value;
           const own = appTables[table.name];
 
-          if (isColumnType(type) && own?.columns?.[column] === undefined) {
-            const entry: AppColumnConfig = { type, encrypted: true };
+          const existing = own?.columns?.[column];
+
+          const key = `${table.name}.${column}`;
+
+          if (
+            isColumnType(type) &&
+            (existing === undefined || fromTags.has(key))
+          ) {
+            fromTags.add(key);
+
+            const entry: AppColumnConfig = {
+              ...existing,
+              type,
+              encrypted: true,
+            };
+
+            appTables[table.name] = {
+              ...own,
+              columns: { ...own?.columns, [column]: entry },
+            };
+
+            changed = true;
+          }
+        }
+      } else if (tag.name === "server" && table.schema === "public") {
+        for (const column of Object.keys(tag.args)) {
+          const own = appTables[table.name];
+          const existing = own?.columns?.[column];
+
+          const key = `${table.name}.${column}`;
+
+          if (existing === undefined || fromTags.has(key)) {
+            fromTags.add(key);
+
+            const entry: AppColumnConfig = {
+              type: "text",
+              ...existing,
+              access: "server",
+            };
 
             appTables[table.name] = {
               ...own,

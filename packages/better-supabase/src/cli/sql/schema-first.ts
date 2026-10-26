@@ -130,8 +130,9 @@ function targetOf(
 
 /**
  * The tags `config` implies for `table`: `subject`, `realtime`,
- * `vector-search`, `json`, `encrypted` and `events`. `audit`, `audit-reads` and
- * `expose` change the table's SQL only, which the split keeps as written.
+ * `vector-search`, `json`, `encrypted`, `server` and `events`. `audit`,
+ * `audit-reads` and `expose` change the table's SQL only, which the split keeps
+ * as written.
  */
 function tagsFor(
   config: ResolvedConfig,
@@ -211,6 +212,20 @@ function tagsFor(
     tags.push({
       feature: "encrypted",
       tag: { name: "encrypted", args: Object.fromEntries(sealed) },
+    });
+  }
+
+  const hidden = Object.entries(app?.columns ?? {}).flatMap(([name, column]) =>
+    column.access === "server" ? [name] : [],
+  );
+
+  if (hidden.length > 0) {
+    tags.push({
+      feature: "server",
+      tag: {
+        name: "server",
+        args: Object.fromEntries(hidden.map((name) => [name, true as const])),
+      },
     });
   }
 

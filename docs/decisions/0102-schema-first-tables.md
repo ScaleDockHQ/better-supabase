@@ -57,3 +57,5 @@ A breaking release with a migration guide, a codemod and a changeset.
   `subjects`.
 - Dropping `tables` removes the `appTables.set` bulk action, because the bulk module adds it only
   for a config with app tables.
+- `server` lists the columns signed-in users can't read (the column grants already exclude them),
+  so `gen` types them as not selectable.
