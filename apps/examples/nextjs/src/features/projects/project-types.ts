@@ -3,13 +3,16 @@ import * as v from "valibot";
 /** The saved views list the task screens share. */
 export const TASK_LIST = "tasks";
 
-/** The subject type `appTables.tasks.subject` registers. */
+/** The subject type `subject` tag on `tasks` registers. */
 export const TASK_SUBJECT = "task";
 
-/** The subject type `appTables.projects.subject` registers. */
+/** The subject type `subject` tag on `projects` registers. */
 export const PROJECT_SUBJECT = "project";
 
-/** The columns `appTables.projects.subject.versions` keeps, by database name. */
+/**
+ * The columns `versions` argument of the `projects` subject tag keeps, by
+ * database name.
+ */
 export const PROJECT_HISTORY_FIELDS = [
   "name",
   "budget_minor",

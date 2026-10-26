@@ -5,8 +5,8 @@ import { WEB_APP } from "./types.ts";
 const PROJECTS = `${WEB_APP}/src/features/projects/components`;
 
 /**
- * Screens over the app's own tables (`appTables`), shown on `projects` and
- * `tasks` in the example.
+ * Screens over the app's own tables, declared in your schema files, shown on
+ * `projects` and `tasks` in the example.
  */
 export const RECORD_RECIPES: readonly RecipeSource[] = [
   {
@@ -16,7 +16,7 @@ export const RECORD_RECIPES: readonly RecipeSource[] = [
     category: "App tables",
     kind: "screen",
     description:
-      "An app table as a data grid with search, filters, saved views and bulk actions on the selected rows, including Set field through `appTables.set`.",
+      "An app table as a data grid with search, filters, saved views and bulk actions on the selected rows, including a Set field action.",
     web: {
       file: `${PROJECTS}/task-grid.tsx`,
       components: [

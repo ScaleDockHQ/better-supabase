@@ -22062,7 +22062,7 @@ export function StatusPageSkeleton() {
 
 ## Record grid
 
-An app table as a data grid with search, filters, saved views and bulk actions on the selected rows, including Set field through `appTables.set`. It loads its data on the server through the block's client; the [saved-views block](https://bettersupabase.com/blocks/saved-views) must be installed (`npx better-supabase add saved-views`). Page: https://bettersupabase.com/recipes/record-grid.
+An app table as a data grid with search, filters, saved views and bulk actions on the selected rows, including a Set field action. It loads its data on the server through the block's client; the [saved-views block](https://bettersupabase.com/blocks/saved-views) must be installed (`npx better-supabase add saved-views`). Page: https://bettersupabase.com/recipes/record-grid.
 
 Web, with shadcn components:
 
@@ -22339,8 +22339,8 @@ const UNASSIGNED = "unassigned";
 type SetField = "due_on" | "assignee_id";
 
 /**
- * Sets one field on the selected tasks with the bulk block's `appTables.set`.
- * An empty value clears the field.
+ * Sets one field on the selected tasks through the typed repository. An empty
+ * value clears the field.
  */
 function SetFieldDialog({
   ids,

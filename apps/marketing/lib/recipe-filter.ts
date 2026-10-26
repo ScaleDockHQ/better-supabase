@@ -10,7 +10,7 @@ export const recipeKinds: readonly RecipeKind[] = ["component", "screen"];
 
 /**
  * Recipe categories that no block has: recipes over the app's own tables
- * (`appTables`) group here.
+ * (tables in your schema files) group here.
  */
 export const RECIPE_CATEGORY_NAMES = ["App tables"] as const;
 

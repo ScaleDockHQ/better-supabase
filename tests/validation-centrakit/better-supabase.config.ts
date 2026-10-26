@@ -12,12 +12,7 @@ export default defineConfig({
   // add finds CentraKit's own tables in these schemas.
   database: { schemas: ["public", "centrakit"] },
   auth: { authorization: centrakitProvider() },
-  // The records comments attach to.
-  records: {
-    task: { table: "centrakit.tasks", idType: "uuid" },
-    project: { table: "centrakit.projects", idType: "uuid", scope: "project" },
-    customer: { table: "centrakit.customers", idType: "bigint" },
-  },
+  // The record types comments attach to are @bsb subject tags in 000_centrakit.sql.
   blocks: {
     permissions: {
       model: "provider",
