@@ -38,7 +38,7 @@ export function fieldSubjects(
 }
 
 /** The subjects that name a column of the values table (`on.<type>.column`). */
-export function boundSubjects(ctx: BlockSqlContext): readonly BoundSubject[] {
+function boundSubjects(ctx: BlockSqlContext): readonly BoundSubject[] {
   return fieldSubjects(ctx).flatMap(([type, subject]) => {
     const column = subject.extra["column"];
 
@@ -95,7 +95,7 @@ function boundMatch(subject: BoundSubject, alias: string, id: string): string {
 }
 
 /** Whether row `alias` belongs to the subject `type`/`id` (text expressions). */
-export function subjectMatch(
+function subjectMatch(
   ctx: BlockSqlContext,
   alias: string,
   type: string,

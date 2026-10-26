@@ -138,14 +138,14 @@ export function appValues(
 }
 
 /** Whether the map changes `label` (maps it to another value, several or none). */
-export function mapsLabel(map: ValueMap | undefined, label: string): boolean {
+function mapsLabel(map: ValueMap | undefined, label: string): boolean {
   const values = appValues(map, label);
 
   return values.length !== 1 || values[0] !== label;
 }
 
 /** SQL that raises `VALUE_UNSUPPORTED` for `label`, as a text expression. */
-export function unsupportedValue(label: string): string {
+function unsupportedValue(label: string): string {
   return `better_supabase.value_unsupported(${sqlString(label)})`;
 }
 
