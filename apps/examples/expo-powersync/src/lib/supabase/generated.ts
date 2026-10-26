@@ -54,8 +54,8 @@ export type Models = {
       created_at: string;
       updated_at: string;
       client_name: string;
-      diagnosis: string | null;
-      birth_date: string | null;
+      diagnosis?: string | null;
+      birth_date?: string | null;
     };
     Insert: {
       id?: string;
@@ -461,7 +461,7 @@ export type Models = {
       lead_id: string | null;
       label_id: string | null;
       deleted_at: string | null;
-      internal_notes: string | null;
+      internal_notes?: string | null;
     };
     Insert: {
       id?: string;
@@ -500,6 +500,7 @@ export type Models = {
     Checks: never;
     ForeignKeys: "projects_label_id_fkey" | "projects_lead_id_fkey" | "projects_organization_id_fkey";
     Flags: {
+      softDelete: "deleted_at";
       tenant: "organization_id";
     };
   };
@@ -825,7 +826,7 @@ type Extensions = readonly [ReturnType<typeof membershipsExtension>];
 const extensions: Extensions = [membershipsExtension()];
 
 /** The app's subject types, from `config.records`. */
-export const subjectTypes = ["message", "conversation"] as const;
+export const subjectTypes = ["message", "conversation", "project", "task"] as const;
 export type SubjectType = (typeof subjectTypes)[number];
 /** One subject: its type and its id as text. */
 export type RecordRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };

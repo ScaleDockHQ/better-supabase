@@ -124,7 +124,11 @@ const config: KnipConfig = {
         "src/**/*.native.{ts,tsx}",
       ],
       // The src/hooks files are copied from the registry, which knip checks.
-      ignore: [...exampleIgnore, "src/hooks/use-*.ts"],
+      ignore: [
+        ...exampleIgnore,
+        "src/hooks/use-*.ts",
+        "src/lib/supabase/records/**",
+      ],
       // @react-native/metro-config pins the optional peer of React Native's
       // CLI plugin to the React Native version.
       ignoreDependencies: [

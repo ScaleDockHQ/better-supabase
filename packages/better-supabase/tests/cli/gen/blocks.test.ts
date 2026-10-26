@@ -633,7 +633,7 @@ describe("schemaExtensions", () => {
     ).find((file) => file.path === "src/db/generated.ts")?.contents;
 
     expect(bare).toContain(
-      "export const schema: Schema<Models, Database, Functions> = defineSchema(meta);",
+      "export const schema: Schema<Models, Database, Functions, SubjectType> = defineSchema(meta);",
     );
     expect(bare).not.toContain("trashExtension");
   });

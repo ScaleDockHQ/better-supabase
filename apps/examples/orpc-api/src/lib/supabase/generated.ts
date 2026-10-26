@@ -53,8 +53,8 @@ export type Models = {
       createdAt: string;
       updatedAt: string;
       clientName: string;
-      diagnosis: string | null;
-      birthDate: string | null;
+      diagnosis?: string | null;
+      birthDate?: string | null;
     };
     Insert: {
       id?: string;
@@ -446,7 +446,7 @@ export type Models = {
       leadId: string | null;
       labelId: string | null;
       deletedAt: string | null;
-      internalNotes: string | null;
+      internalNotes?: string | null;
     };
     Insert: {
       id?: string;
@@ -484,7 +484,9 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "projects_label_id_fkey" | "projects_lead_id_fkey" | "projects_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      softDelete: "deletedAt";
+    };
   };
   projectsView: {
     Row: {
@@ -793,4 +795,10 @@ export type WritableColumnOf<T extends TableName> = WritableColumns<Models, T>;
 /** Columns of `T` the database fills (generated columns): in `Row`, never writable. */
 export type GeneratedColumnOf<T extends TableName> = GeneratedColumns<Models, T>;
 
-export const schema: Schema<Models, Database, Functions> = defineSchema(meta);
+/** The app's subject types, from `config.records`. */
+export const subjectTypes = ["project", "task"] as const;
+export type SubjectType = (typeof subjectTypes)[number];
+/** One subject: its type and its id as text. */
+export type RecordRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };
+
+export const schema: Schema<Models, Database, Functions, SubjectType> = defineSchema(meta);

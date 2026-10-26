@@ -6,6 +6,7 @@ import type { InsertOf, Json, RowOf, UpdateOf } from "./generated-camel.ts";
 
 export const clientNotesRow: TableSchema<RowOf<'clientNotes'>> = tableSchema({
   title: "Client notes",
+  description: "@bsb encrypted diagnosis=text birth_date=date",
   fields: {
     id: { kind: "uuid" },
     organizationId: { kind: "uuid" },
@@ -19,6 +20,7 @@ export const clientNotesRow: TableSchema<RowOf<'clientNotes'>> = tableSchema({
 
 export const clientNotesInsert: TableSchema<InsertOf<'clientNotes'>> = tableSchema({
   title: "Client notes insert",
+  description: "@bsb encrypted diagnosis=text birth_date=date",
   fields: {
     id: { kind: "uuid", optional: true },
     organizationId: { kind: "uuid" },
@@ -32,6 +34,7 @@ export const clientNotesInsert: TableSchema<InsertOf<'clientNotes'>> = tableSche
 
 export const clientNotesUpdate: TableSchema<UpdateOf<'clientNotes'>> = tableSchema({
   title: "Client notes update",
+  description: "@bsb encrypted diagnosis=text birth_date=date",
   fields: {
     id: { kind: "uuid", optional: true },
     organizationId: { kind: "uuid", optional: true },
@@ -386,6 +389,7 @@ export const plansUpdate: TableSchema<UpdateOf<'plans'>> = tableSchema({
 
 export const projectsRow: TableSchema<RowOf<'projects'>> = tableSchema({
   title: "Projects",
+  description: "@bsb subject type=project id-type=uuid tenant=organization_id title=name url=/projects/{id} deleted-at=deleted_at search versions=name,budget_minor,currency; server internal_notes",
   fields: {
     id: { kind: "uuid" },
     organizationId: { kind: "uuid" },
@@ -396,13 +400,14 @@ export const projectsRow: TableSchema<RowOf<'projects'>> = tableSchema({
     currency: { kind: "string" },
     leadId: { kind: "uuid", nullable: true },
     labelId: { kind: "uuid", nullable: true },
-    deletedAt: { kind: "datetime", nullable: true },
+    deletedAt: { kind: "datetime", nullable: true, readOnly: true },
     internalNotes: { kind: "string", nullable: true },
   },
 });
 
 export const projectsInsert: TableSchema<InsertOf<'projects'>> = tableSchema({
   title: "Projects insert",
+  description: "@bsb subject type=project id-type=uuid tenant=organization_id title=name url=/projects/{id} deleted-at=deleted_at search versions=name,budget_minor,currency; server internal_notes",
   fields: {
     id: { kind: "uuid", optional: true },
     organizationId: { kind: "uuid" },
@@ -413,13 +418,14 @@ export const projectsInsert: TableSchema<InsertOf<'projects'>> = tableSchema({
     currency: { kind: "string", optional: true },
     leadId: { kind: "uuid", nullable: true, optional: true },
     labelId: { kind: "uuid", nullable: true, optional: true },
-    deletedAt: { kind: "datetime", nullable: true, optional: true },
+    deletedAt: { kind: "datetime", nullable: true, optional: true, readOnly: true },
     internalNotes: { kind: "string", nullable: true, optional: true },
   },
 });
 
 export const projectsUpdate: TableSchema<UpdateOf<'projects'>> = tableSchema({
   title: "Projects update",
+  description: "@bsb subject type=project id-type=uuid tenant=organization_id title=name url=/projects/{id} deleted-at=deleted_at search versions=name,budget_minor,currency; server internal_notes",
   fields: {
     id: { kind: "uuid", optional: true },
     organizationId: { kind: "uuid", optional: true },
@@ -430,7 +436,7 @@ export const projectsUpdate: TableSchema<UpdateOf<'projects'>> = tableSchema({
     currency: { kind: "string", optional: true },
     leadId: { kind: "uuid", nullable: true, optional: true },
     labelId: { kind: "uuid", nullable: true, optional: true },
-    deletedAt: { kind: "datetime", nullable: true, optional: true },
+    deletedAt: { kind: "datetime", nullable: true, optional: true, readOnly: true },
     internalNotes: { kind: "string", nullable: true, optional: true },
   },
 });
@@ -562,6 +568,7 @@ export const tagsUpdate: TableSchema<UpdateOf<'tags'>> = tableSchema({
 
 export const tasksRow: TableSchema<RowOf<'tasks'>> = tableSchema({
   title: "Tasks",
+  description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"",
   fields: {
     id: { kind: "uuid" },
     organizationId: { kind: "uuid" },
@@ -579,6 +586,7 @@ export const tasksRow: TableSchema<RowOf<'tasks'>> = tableSchema({
 
 export const tasksInsert: TableSchema<InsertOf<'tasks'>> = tableSchema({
   title: "Tasks insert",
+  description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"",
   fields: {
     id: { kind: "uuid", optional: true },
     organizationId: { kind: "uuid" },
@@ -596,6 +604,7 @@ export const tasksInsert: TableSchema<InsertOf<'tasks'>> = tableSchema({
 
 export const tasksUpdate: TableSchema<UpdateOf<'tasks'>> = tableSchema({
   title: "Tasks update",
+  description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"",
   fields: {
     id: { kind: "uuid", optional: true },
     organizationId: { kind: "uuid", optional: true },

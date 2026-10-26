@@ -55,8 +55,8 @@ export type Models = {
       created_at: string;
       updated_at: string;
       client_name: string;
-      diagnosis: string | null;
-      birth_date: string | null;
+      diagnosis?: string | null;
+      birth_date?: string | null;
     };
     Insert: {
       id?: string;
@@ -473,7 +473,7 @@ export type Models = {
       lead_id: string | null;
       label_id: string | null;
       deleted_at: string | null;
-      internal_notes: string | null;
+      internal_notes?: string | null;
     };
     Insert: {
       id?: string;
@@ -512,6 +512,7 @@ export type Models = {
     Checks: never;
     ForeignKeys: "projects_label_id_fkey" | "projects_lead_id_fkey" | "projects_organization_id_fkey";
     Flags: {
+      softDelete: "deleted_at";
       timestamps: true;
       tenant: "organization_id";
     };
@@ -862,4 +863,10 @@ export const topics = {
   "customers": "organization:{organizationId}:customers"
 } as const;
 
-export const schema: Schema<Models, Database, Functions> = defineSchema(meta);
+/** The app's subject types, from `config.records`. */
+export const subjectTypes = ["project", "task"] as const;
+export type SubjectType = (typeof subjectTypes)[number];
+/** One subject: its type and its id as text. */
+export type RecordRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };
+
+export const schema: Schema<Models, Database, Functions, SubjectType> = defineSchema(meta);
