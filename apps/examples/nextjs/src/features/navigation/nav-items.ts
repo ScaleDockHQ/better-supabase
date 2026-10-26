@@ -1,4 +1,5 @@
 import type { Permission } from "@/features/user/user-permissions";
+import type { AppHref } from "@/i18n/navigation";
 
 export type NavId =
   | "dashboard"
@@ -54,7 +55,7 @@ export type NavId =
 export interface NavItem {
   readonly id: NavId;
   /** Without the locale prefix. */
-  readonly href: string;
+  readonly href: AppHref;
   readonly group: "workspace" | "organization";
   /** Hidden from the menu (and redirected by the proxy) without it. */
   readonly requires?: Permission;

@@ -3,6 +3,8 @@ import type { Temporal } from "temporal-polyfill";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
 
+import type { AppHref } from "@/i18n/navigation";
+
 import { buttonVariants } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
@@ -17,7 +19,7 @@ export async function WindowNav({
 }: {
   from: Temporal.PlainDate;
   today: Temporal.PlainDate;
-  windowHref: (from: string) => string;
+  windowHref: (from: string) => AppHref;
 }) {
   const t = await getExtracted("projects");
 

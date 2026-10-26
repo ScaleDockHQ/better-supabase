@@ -57,7 +57,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Link, usePathname, useRouter } from "@/i18n/navigation";
+import { Link, usePathname, useRouter, withSearch } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type {
@@ -151,7 +151,7 @@ export function TaskToolbar({
 
   const go = (next: TaskQuery) => {
     startTransition(() => {
-      router.replace(`${pathname}${taskSearch(next)}`);
+      router.replace(withSearch(pathname, taskSearch(next)));
     });
   };
 

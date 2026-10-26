@@ -3,6 +3,8 @@ import type { Temporal } from "temporal-polyfill";
 
 import { getExtracted } from "next-intl/server";
 
+import type { AppHref } from "@/i18n/navigation";
+
 import { Badge } from "@/components/reui/badge";
 import {
   Card,
@@ -42,7 +44,7 @@ export async function TaskGantt({
   projects: readonly ProjectOption[];
   from: Temporal.PlainDate;
   today: Temporal.PlainDate;
-  windowHref: (from: string) => string;
+  windowHref: (from: string) => AppHref;
 }) {
   const t = await getExtracted("projects");
 

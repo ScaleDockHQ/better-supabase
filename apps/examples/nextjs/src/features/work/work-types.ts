@@ -2,6 +2,8 @@ import type { WorkItem, WorkItemState } from "better-supabase/blocks/tasks";
 
 import * as v from "valibot";
 
+import type { Search } from "@/i18n/navigation";
+
 export const WORK_ITEM_SUBJECT = "work_item";
 
 /** The list key the grid's saved views are stored under. */
@@ -109,7 +111,7 @@ export function parseWorkGridQuery(
 }
 
 /** The URL search string for a grid query, leaving out defaults. */
-export function workGridSearch(query: WorkGridQuery): string {
+export function workGridSearch(query: WorkGridQuery): Search {
   const params = new URLSearchParams();
 
   if (query.q !== "") {

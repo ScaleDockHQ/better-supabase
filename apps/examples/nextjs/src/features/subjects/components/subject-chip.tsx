@@ -8,7 +8,7 @@ import { useExtracted } from "next-intl";
 import { Badge } from "@/components/reui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSubject } from "@/hooks/use-subjects";
-import { Link } from "@/i18n/navigation";
+import { Link, toAppHref } from "@/i18n/navigation";
 
 /**
  * A compact badge for a subject: its type and title, linking to its page. Rows
@@ -37,7 +37,7 @@ export function SubjectChip({ subject }: { subject: RecordRef }) {
     <Badge
       variant="outline"
       className="transition-colors hover:bg-accent"
-      render={<Link href={resolved.url} />}
+      render={<Link href={toAppHref(resolved.url)} />}
     >
       {content}
     </Badge>

@@ -3,6 +3,8 @@ import type { Temporal } from "temporal-polyfill";
 
 import { getExtracted } from "next-intl/server";
 
+import type { AppHref } from "@/i18n/navigation";
+
 import {
   Card,
   CardAction,
@@ -37,7 +39,7 @@ export async function TaskTimeline({
   members: readonly MemberOption[];
   from: Temporal.PlainDate;
   today: Temporal.PlainDate;
-  windowHref: (from: string) => string;
+  windowHref: (from: string) => AppHref;
 }) {
   const t = await getExtracted("projects");
   const lanes = new Map<string, TaskRow[]>();

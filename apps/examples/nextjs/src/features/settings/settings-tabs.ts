@@ -1,4 +1,5 @@
 import type { Permission } from "@/features/user/user-permissions";
+import type { AppHref } from "@/i18n/navigation";
 
 export type SettingsTabId =
   | "profile"
@@ -20,7 +21,7 @@ export type SettingsTabId =
 
 export interface SettingsTab {
   readonly id: SettingsTabId;
-  readonly href: string;
+  readonly href: AppHref;
   readonly requires?: Permission;
 }
 

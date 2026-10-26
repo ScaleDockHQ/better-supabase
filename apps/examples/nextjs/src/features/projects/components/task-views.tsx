@@ -4,6 +4,8 @@ import { getExtracted } from "next-intl/server";
 import { connection } from "next/server";
 import { Temporal } from "temporal-polyfill";
 
+import type { AppHref } from "@/i18n/navigation";
+
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -17,7 +19,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
-import { Link } from "@/i18n/navigation";
+import { Link, toSearch, withSearch } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 
 import {
@@ -87,12 +89,12 @@ export async function TaskViews({
 
   const today = Temporal.Now.plainDateISO("UTC");
 
-  const hrefWith = (key: string, value: string) => {
+  const hrefWith = (key: string, value: string): AppHref => {
     const next = new URLSearchParams(taskSearch(query));
 
     next.set(key, value);
 
-    return `/projects?${next.toString()}`;
+    return withSearch("/projects", toSearch(next));
   };
 
   const filtered =

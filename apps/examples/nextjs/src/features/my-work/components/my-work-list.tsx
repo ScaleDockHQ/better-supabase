@@ -27,7 +27,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link } from "@/i18n/navigation";
+import { Link, toAppHref } from "@/i18n/navigation";
 
 import { retryMyWork } from "../my-work-actions";
 import { getMyWork } from "../my-work-queries";
@@ -139,7 +139,7 @@ export async function MyWorkList() {
                   <span className="truncate">{row.title}</span>
                 ) : (
                   <Link
-                    href={row.url}
+                    href={toAppHref(row.url)}
                     className="truncate font-medium underline-offset-4 transition-colors hover:underline"
                   >
                     {row.title}
