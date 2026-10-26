@@ -84,3 +84,11 @@ BS107, the schema scan for grants and the splinter multiple permissive
 lint count only permissive policies, so their findings don't change.
 Revisit this if a module needs a tenant table whose access must not follow
 `lifecycle.tenant`.
+
+## Update: realtime tenant topics check live membership
+
+The `realtime-tables` receive policy no longer compares the tenant segment of a
+topic with the tenant claim in the token, which stays valid until the token
+expires. It asks `member_organization_ids()`, so a removed member stops
+receiving at once. Each module already owns one receive policy per topic
+family on `realtime.messages`; the remaining gap was this stale claim.
