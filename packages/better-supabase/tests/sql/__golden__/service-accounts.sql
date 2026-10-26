@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:b919eed64949c776f72ccd58da3b922f8eededd5cf2f263e438e99e051210990
+-- @bsb-hash sha256:ca5671937a7b2f93fd0f63393869b9d83748b02c1480206e1c7e0a0ff4cb90cc
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -43,13 +43,14 @@ create index if not exists service_principals_created_by_idx on "better_supabase
 create unique index if not exists service_principals_default_idx on "better_supabase"."service_principals" ("tenant_id")
   where "is_default" and "disabled_at" is null;
 alter table "better_supabase"."service_principals" enable row level security;
-revoke all on "better_supabase"."service_principals" from anon, authenticated;
+revoke all on "better_supabase"."service_principals" from public, anon, authenticated;
 grant select on "better_supabase"."service_principals" to authenticated;
 grant all on "better_supabase"."service_principals" to service_role;
 
 drop policy if exists service_principals_read on "better_supabase"."service_principals";
-create policy service_principals_read on "better_supabase"."service_principals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
+create policy service_principals_read on "better_supabase"."service_principals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry
@@ -256,7 +257,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_090_service_accounts.sql
@@ -276,7 +277,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:b19ddba949de1da54cf1482cc0c8f2dbc32b858116df1671c840a4297522a493
+-- @bsb-hash sha256:1d550eb26d92438ad50b453928fc26e73e270d472698f2a9d492ba0a528e8515
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -318,13 +319,14 @@ create index if not exists service_principals_created_by_idx on "better_supabase
 create unique index if not exists service_principals_default_idx on "better_supabase"."service_principals" ("tenant_id")
   where "is_default" and "disabled_at" is null;
 alter table "better_supabase"."service_principals" enable row level security;
-revoke all on "better_supabase"."service_principals" from anon, authenticated;
+revoke all on "better_supabase"."service_principals" from public, anon, authenticated;
 grant select on "better_supabase"."service_principals" to authenticated;
 grant all on "better_supabase"."service_principals" to service_role;
 
 drop policy if exists service_principals_read on "better_supabase"."service_principals";
-create policy service_principals_read on "better_supabase"."service_principals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
+create policy service_principals_read on "better_supabase"."service_principals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry
@@ -561,7 +563,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_090_service_accounts.sql
@@ -581,7 +583,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:ceac6accd0e8740553d61079d6a35d6d275d7d9493c678e7392a90c89bd93c89
+-- @bsb-hash sha256:68ed6d646d792756b9f4e4a967d54c240b29378e8e626e381417a72b10b04126
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -604,6 +606,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Non-human members of a tenant. Each row is an auth.users row that can't
 -- sign in (no password, banned, app_metadata.bsb_service_principal),
 -- created through the Auth admin API, and holds its role through a tenant
@@ -625,13 +630,14 @@ create index if not exists service_principals_created_by_idx on "app_private"."s
 create unique index if not exists service_principals_default_idx on "app_private"."service_principals" ("tenant_id")
   where "is_default" and "disabled_at" is null;
 alter table "app_private"."service_principals" enable row level security;
-revoke all on "app_private"."service_principals" from anon, authenticated;
+revoke all on "app_private"."service_principals" from public, anon, authenticated;
 grant select on "app_private"."service_principals" to authenticated;
 grant all on "app_private"."service_principals" to service_role;
 
 drop policy if exists service_principals_read on "app_private"."service_principals";
-create policy service_principals_read on "app_private"."service_principals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
+create policy service_principals_read on "app_private"."service_principals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry
@@ -838,7 +844,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_090_service_accounts.sql
@@ -858,7 +864,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:2f294d5b5555ce805e2f1cb2967697df8dbb5167793cb4721331689b9d98c176
+-- @bsb-hash sha256:dfc70df8571f6958cea6663ec76566f0fb4a9ef6e1d4d2b67592b3394bf2aeeb
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -900,13 +906,14 @@ create index if not exists service_principals_created_by_idx on "better_supabase
 create unique index if not exists service_principals_default_idx on "better_supabase"."service_principals" ("tenant_id")
   where "is_default" and "disabled_at" is null;
 alter table "better_supabase"."service_principals" enable row level security;
-revoke all on "better_supabase"."service_principals" from anon, authenticated;
+revoke all on "better_supabase"."service_principals" from public, anon, authenticated;
 grant select on "better_supabase"."service_principals" to authenticated;
 grant all on "better_supabase"."service_principals" to service_role;
 
 drop policy if exists service_principals_read on "better_supabase"."service_principals";
-create policy service_principals_read on "better_supabase"."service_principals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
+create policy service_principals_read on "better_supabase"."service_principals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry
@@ -1164,7 +1171,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_090_service_accounts.sql
@@ -1184,7 +1191,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:37b14644e10e6fff125d29a50badaf5d0007089b42cef76b6f3514f5eeceecc4
+-- @bsb-hash sha256:0ee7afac0096457ab3c2968a4f845cd8e0f4c50ba7209669b7df88d6c956079d
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1228,8 +1235,9 @@ grant select on "better_supabase"."service_principals" to authenticated;
 grant all on "better_supabase"."service_principals" to service_role;
 
 drop policy if exists bsb_service_principals_select on "better_supabase"."service_principals";
-create policy bsb_service_principals_select on "better_supabase"."service_principals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
+create policy bsb_service_principals_select on "better_supabase"."service_principals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry
@@ -1436,7 +1444,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_090_service_accounts.sql
@@ -1456,7 +1464,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:97da54be4ef4d06ba45bc9bb13819e7dbcdea155f83f0df91f199ad068e66180
+-- @bsb-hash sha256:60049a9f01953582794f2731e35cadebbd5de06ff4c731af285ac625209071ea
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1498,13 +1506,14 @@ create index if not exists service_principals_created_by_idx on "better_supabase
 create unique index if not exists service_principals_default_idx on "better_supabase"."service_principals" ("org_id")
   where "is_default" and "disabled_at" is null;
 alter table "better_supabase"."service_principals" enable row level security;
-revoke all on "better_supabase"."service_principals" from anon, authenticated;
+revoke all on "better_supabase"."service_principals" from public, anon, authenticated;
 grant select on "better_supabase"."service_principals" to authenticated;
 grant all on "better_supabase"."service_principals" to service_role;
 
 drop policy if exists service_principals_read on "better_supabase"."service_principals";
-create policy service_principals_read on "better_supabase"."service_principals" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
+create policy service_principals_read on "better_supabase"."service_principals"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry
@@ -1711,7 +1720,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_090_service_accounts.sql

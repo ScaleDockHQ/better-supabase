@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:9646882964d1acc9af8774691f5192c063dddbc4efa70e6fc68dacf96068664a
+-- @bsb-hash sha256:02ccea64e6f4ca4285d37f1bc0546c3b520bb4649d38a60503097a832b8fd0da
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -91,11 +91,12 @@ create unique index if not exists "guests_email_idx" on "better_supabase"."guest
 create unique index if not exists "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
 create index if not exists "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
 alter table "better_supabase"."guests" enable row level security;
-revoke all on "better_supabase"."guests" from anon, authenticated;
+revoke all on "better_supabase"."guests" from public, anon, authenticated;
 grant select on "better_supabase"."guests" to authenticated;
 grant all on "better_supabase"."guests" to service_role;
 drop policy if exists "guests_read" on "better_supabase"."guests";
-create policy "guests_read" on "better_supabase"."guests" for select to authenticated
+create policy guests_read on "better_supabase"."guests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read')) or "user_id" = (select auth.uid()));
 
 create table if not exists "better_supabase"."guest_grants" (
@@ -113,11 +114,12 @@ create table if not exists "better_supabase"."guest_grants" (
 );
 create index if not exists "guest_grants_subject_idx" on "better_supabase"."guest_grants" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."guest_grants" enable row level security;
-revoke all on "better_supabase"."guest_grants" from anon, authenticated;
+revoke all on "better_supabase"."guest_grants" from public, anon, authenticated;
 grant select on "better_supabase"."guest_grants" to authenticated;
 grant all on "better_supabase"."guest_grants" to service_role;
 drop policy if exists "guest_grants_read" on "better_supabase"."guest_grants";
-create policy "guest_grants_read" on "better_supabase"."guest_grants" for select to authenticated
+create policy guest_grants_read on "better_supabase"."guest_grants"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read'))
     or "guest_id" in (select x."id" from "better_supabase"."guests" x where x."user_id" = (select auth.uid())));
 
@@ -558,7 +560,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_032_guests.sql

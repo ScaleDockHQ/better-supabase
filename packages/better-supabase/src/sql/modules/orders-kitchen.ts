@@ -2,6 +2,7 @@ import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { OrdersNames } from "./orders-shared.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, pageSize, userGrant } from "../shared.ts";
 import { columns, orderFields, orderPayload } from "./orders-shared.ts";
 import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
@@ -97,11 +98,17 @@ export function kitchenSql(ctx: BlockSqlContext, names: OrdersNames): string {
   const readable = (column: string): string =>
     `${column} in (select ${scope.ids(read)}) or ${column} in (select ${scope.ids(prepare)})`;
 
-  const policy = (
-    table: string,
-  ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
-create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
-using (${readable(ctx.col(table, "tenant"))});`;
+  const policy = (table: string): string =>
+    renderPolicy(
+      makePolicy({
+        table: t(table),
+        name: `${ctx.tableName(table).name}_read`,
+        command: "select",
+        roles: ["authenticated"],
+        using: readable(ctx.col(table, "tenant")),
+      }),
+      { drop: true, target: t(table) },
+    );
 
   const guard = (tenant: string, permissions: readonly string[]): string =>
     `if not (auth.role() = 'service_role' or ${permissions.map((permission) => scope.can(tenant, permission)).join(" or ")}) then
@@ -239,17 +246,22 @@ create trigger ${changed} after insert or update on ${t("preparations")}
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists ${receive} on realtime.messages;
-    create policy ${receive} on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        ${renderPolicy(
+          makePolicy({
+            table: "realtime.messages",
+            name: receive,
+            command: "select",
+            roles: ["authenticated"],
+            using: `realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like ${sqlString(`${prefix}%`)}
         and substr((select realtime.topic()), ${String(prefix.length + 1)}) in (
           select t::text from ${scope.ids(read)} t
           union all
           select t::text from ${scope.ids(prepare)} t
-        )
-      );
+        )`,
+          }),
+          { drop: true, target: "realtime.messages" },
+        )}
   end if;
 end;
 $$;

@@ -27,12 +27,13 @@ type SubjectPermissionsInput = Record<
       key?: string | undefined;
       rows?: string | undefined;
       owner?: string | undefined;
+      also?: string | undefined;
     }
 >;
 
 /**
- * `records.<type>.permissions`: action to a key, or to `{ key, rows, owner }`.
- * The subject registry checks the names.
+ * `records.<type>.permissions`: action to a key, or to `{ key, rows, owner,
+ * also }`. The subject registry checks the names.
  */
 export const subjectPermissionsSchema: v.GenericSchema<SubjectPermissionsInput> =
   v.record(
@@ -43,6 +44,7 @@ export const subjectPermissionsSchema: v.GenericSchema<SubjectPermissionsInput> 
         key: v.optional(v.string()),
         rows: v.optional(v.string()),
         owner: v.optional(v.string()),
+        also: v.optional(v.string()),
       }),
     ]),
   );
@@ -54,7 +56,12 @@ type SubjectSearchInput = {
   exclude?: string | undefined;
   from?: { view: string; key: string } | undefined;
   watch?:
-    | { table: string; key: string; via?: string | undefined }[]
+    | {
+        table: string;
+        key: string;
+        via?: string | undefined;
+        through?: { table: string; from: string; to: string }[] | undefined;
+      }[]
     | undefined;
 };
 
@@ -72,6 +79,15 @@ export const subjectSearchSchema: v.GenericSchema<SubjectSearchInput> =
           table: v.string(),
           key: v.string(),
           via: v.optional(v.string()),
+          through: v.optional(
+            v.array(
+              v.strictObject({
+                table: v.string(),
+                from: v.string(),
+                to: v.string(),
+              }),
+            ),
+          ),
         }),
       ),
     ),

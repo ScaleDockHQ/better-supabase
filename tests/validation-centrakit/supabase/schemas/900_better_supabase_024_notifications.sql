@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@9 managed
--- @bsb-hash sha256:fbf0f3070af6a6b9ba2a6cafd2118d89a5cf2a17e78c26fe0f2fd5cd2437a58c
+-- @bsb-hash sha256:b2a9f39bd02ec7620c6c63d7679eca301d5ba59fce5d0dc3a4faf89d057d95a3
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -140,12 +140,19 @@ alter table "centrakit"."notification_recipients" enable row level security;
 grant select on "centrakit"."notification_recipients" to authenticated;
 grant update ("read_at", "dismissed_at") on "centrakit"."notification_recipients" to authenticated;
 grant all on "centrakit"."notification_recipients" to service_role;
-drop policy if exists "bsb_notification_recipients_read" on "centrakit"."notification_recipients";
-create policy "bsb_notification_recipients_read" on "centrakit"."notification_recipients" for select to authenticated using ("recipient_user_id" = (select auth.uid()));
-drop policy if exists "bsb_notification_recipients_update" on "centrakit"."notification_recipients";
-create policy "bsb_notification_recipients_update" on "centrakit"."notification_recipients" for update to authenticated using (("recipient_user_id" = (select auth.uid())) and (select centrakit.authz_actor_may_write())) with check (("recipient_user_id" = (select auth.uid())) and (select centrakit.authz_actor_may_write()));
-drop policy if exists "bsb_notification_events_read" on "centrakit"."notification_events";
-create policy "bsb_notification_events_read" on "centrakit"."notification_events" for select to authenticated using (
+drop policy if exists bsb_notification_recipients_read on "centrakit"."notification_recipients";
+create policy bsb_notification_recipients_read on "centrakit"."notification_recipients"
+  for select to authenticated
+  using ("recipient_user_id" = (select auth.uid()));
+drop policy if exists bsb_notification_recipients_update on "centrakit"."notification_recipients";
+create policy bsb_notification_recipients_update on "centrakit"."notification_recipients"
+  for update to authenticated
+  using (("recipient_user_id" = (select auth.uid())) and (select centrakit.authz_actor_may_write()))
+  with check (("recipient_user_id" = (select auth.uid())) and (select centrakit.authz_actor_may_write()));
+drop policy if exists bsb_notification_events_read on "centrakit"."notification_events";
+create policy bsb_notification_events_read on "centrakit"."notification_events"
+  for select to authenticated
+  using (
   exists (
     select 1 from "centrakit"."notification_recipients" r
     where r."event_id" = "centrakit"."notification_events"."id"
@@ -159,8 +166,10 @@ create index if not exists notification_deliveries_leased_idx on "centrakit"."no
 alter table "centrakit"."notification_deliveries" enable row level security;
 grant select on "centrakit"."notification_deliveries" to authenticated;
 grant all on "centrakit"."notification_deliveries" to service_role;
-drop policy if exists "bsb_notification_deliveries_read" on "centrakit"."notification_deliveries";
-create policy "bsb_notification_deliveries_read" on "centrakit"."notification_deliveries" for select to authenticated using (
+drop policy if exists bsb_notification_deliveries_read on "centrakit"."notification_deliveries";
+create policy bsb_notification_deliveries_read on "centrakit"."notification_deliveries"
+  for select to authenticated
+  using (
   exists (
     select 1 from "centrakit"."notification_recipients" r
     where r."id" = "centrakit"."notification_deliveries"."recipient_id"
@@ -212,11 +221,13 @@ create table if not exists "better_supabase"."notification_suppressions" (
 );
 create index if not exists notification_suppressions_user_idx on "better_supabase"."notification_suppressions" ("user_id");
 alter table "better_supabase"."notification_suppressions" enable row level security;
-revoke all on "better_supabase"."notification_suppressions" from anon, authenticated;
+revoke all on "better_supabase"."notification_suppressions" from public, anon, authenticated;
 grant select on "better_supabase"."notification_suppressions" to authenticated;
 grant all on "better_supabase"."notification_suppressions" to service_role;
-drop policy if exists "bsb_notification_suppressions_read" on "better_supabase"."notification_suppressions";
-create policy "bsb_notification_suppressions_read" on "better_supabase"."notification_suppressions" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists bsb_notification_suppressions_read on "better_supabase"."notification_suppressions";
+create policy bsb_notification_suppressions_read on "better_supabase"."notification_suppressions"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
 
 alter table "centrakit"."notification_deliveries" add column if not exists "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
 alter table "centrakit"."notification_deliveries" add column if not exists "provider_status_at" timestamptz;
@@ -236,18 +247,18 @@ create table if not exists "better_supabase"."notification_delivery_events" (
 );
 create index if not exists notification_delivery_events_delivery_idx on "better_supabase"."notification_delivery_events" ("delivery_id", "occurred_at");
 alter table "better_supabase"."notification_delivery_events" enable row level security;
-revoke all on "better_supabase"."notification_delivery_events" from anon, authenticated;
+revoke all on "better_supabase"."notification_delivery_events" from public, anon, authenticated;
 grant select on "better_supabase"."notification_delivery_events" to authenticated;
 grant all on "better_supabase"."notification_delivery_events" to service_role;
-drop policy if exists "bsb_notification_delivery_events_read" on "better_supabase"."notification_delivery_events";
-create policy "bsb_notification_delivery_events_read" on "better_supabase"."notification_delivery_events" for select to authenticated using (
-  exists (
+drop policy if exists bsb_notification_delivery_events_read on "better_supabase"."notification_delivery_events";
+create policy bsb_notification_delivery_events_read on "better_supabase"."notification_delivery_events"
+  for select to authenticated
+  using (exists (
     select 1 from "centrakit"."notification_deliveries" d
     join "centrakit"."notification_recipients" r on r."id" = d."recipient_id"
     where d."id" = "better_supabase"."notification_delivery_events"."delivery_id"
       and r."recipient_user_id" = (select auth.uid())
-  )
-);
+  ));
 
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
@@ -1297,9 +1308,10 @@ create trigger "bsb_notification_broadcast_update" after update of "read_at", "d
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_notifications_receive" on realtime.messages;
-    create policy "bsb_notifications_receive" on realtime.messages for select to authenticated
-      using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'organization:' || '[^:]+' || ':notifications:' || (select auth.uid())::text || '$'));
+        drop policy if exists bsb_notifications_receive on realtime.messages;
+create policy bsb_notifications_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'organization:' || '[^:]+' || ':notifications:' || (select auth.uid())::text || '$'));
   end if;
 end;
 $$;
@@ -1499,5 +1511,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

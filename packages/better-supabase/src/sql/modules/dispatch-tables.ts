@@ -5,6 +5,7 @@ import {
   WORK_ORDER_STATUSES,
 } from "../../blocks/dispatch/statuses.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, addForeignKey } from "../shared.ts";
 import { locationsOf } from "./inventory-stock.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
@@ -176,8 +177,7 @@ create index if not exists ${index("workOrders", "asset_idx")} on ${orders} (${w
 ${ctx.has("workOrders", "booking") ? `create index if not exists ${index("workOrders", "booking_idx")} on ${orders} (${w("booking")});\n` : ""}create index if not exists ${index("workOrders", "subject_idx")} on ${orders} (${w("tenant")}, ${w("subjectType")}, ${w("subjectId")});
 ${lockModuleTable(ctx, "workOrders", { read: true })}
 drop policy if exists ${index("workOrders", "read")} on ${orders};
-create policy ${index("workOrders", "read")} on ${orders} for select to authenticated
-  using (${w("technician")} = (select auth.uid()) or ${readable(w("tenant"))});
+${renderPolicy(makePolicy({ table: orders, name: index("workOrders", "read"), command: "select", roles: ["authenticated"], using: `${w("technician")} = (select auth.uid()) or ${readable(w("tenant"))}` }), { target: orders })}
 -- A technician's plan for one day: the work orders in the order they drive to
 -- them.
 create table if not exists ${routes} (
@@ -191,8 +191,7 @@ create table if not exists ${routes} (
 create index if not exists ${index("routes", "technician_idx")} on ${routes} (${r("technician")}, ${r("routeDate")});
 ${lockModuleTable(ctx, "routes", { read: true })}
 drop policy if exists ${index("routes", "read")} on ${routes};
-create policy ${index("routes", "read")} on ${routes} for select to authenticated
-  using (${r("technician")} = (select auth.uid()) or ${readable(r("tenant"))});
+${renderPolicy(makePolicy({ table: routes, name: index("routes", "read"), command: "select", roles: ["authenticated"], using: `${r("technician")} = (select auth.uid()) or ${readable(r("tenant"))}` }), { target: routes })}
 create table if not exists ${stops} (
   ${s("id")} uuid primary key default gen_random_uuid(),
   ${s("tenant")} ${ctx.idType} not null,
@@ -205,8 +204,7 @@ create table if not exists ${stops} (
 create index if not exists ${index("stops", "job_idx")} on ${stops} (${s("workOrder")});
 ${lockModuleTable(ctx, "stops", { read: true })}
 drop policy if exists ${index("stops", "read")} on ${stops};
-create policy ${index("stops", "read")} on ${stops} for select to authenticated
-  using (${readable(s("tenant"))});
+${renderPolicy(makePolicy({ table: stops, name: index("stops", "read"), command: "select", roles: ["authenticated"], using: readable(s("tenant")) }), { target: stops })}
 -- The parts a job used: free text, or an asset, or a catalog variant taken
 -- from an inventory location.
 create table if not exists ${parts} (
@@ -227,8 +225,7 @@ create index if not exists ${index("parts", "variant_idx")} on ${parts} (${q("va
 create index if not exists ${index("parts", "location_idx")} on ${parts} (${q("location")});
 ${lockModuleTable(ctx, "parts", { read: true })}
 drop policy if exists ${index("parts", "read")} on ${parts};
-create policy ${index("parts", "read")} on ${parts} for select to authenticated
-  using (${readable(q("tenant"))});
+${renderPolicy(makePolicy({ table: parts, name: index("parts", "read"), command: "select", roles: ["authenticated"], using: readable(q("tenant")) }), { target: parts })}
 ${keys}
 `;
 }

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:9b06308b4641b2a0b0d171aad3195370e9fb3a4ac16cb6f8791d97ac98fe4ddf
+-- @bsb-hash sha256:32a8040058574438f09880ebe7411f6832d78813a8000514640c266468e2505c
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -84,11 +84,12 @@ create table if not exists "better_supabase"."time_rates" (
 );
 create index if not exists "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
-revoke all on "better_supabase"."time_rates" from anon, authenticated;
+revoke all on "better_supabase"."time_rates" from public, anon, authenticated;
 grant select on "better_supabase"."time_rates" to authenticated;
 grant all on "better_supabase"."time_rates" to service_role;
 drop policy if exists "time_rates_read" on "better_supabase"."time_rates";
-create policy "time_rates_read" on "better_supabase"."time_rates" for select to authenticated
+create policy time_rates_read on "better_supabase"."time_rates"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- One row per billed time entry: the invoice and the rate it was billed at.
@@ -104,11 +105,12 @@ create table if not exists "better_supabase"."time_invoice_entries" (
 create index if not exists "time_invoice_entries_invoice_idx" on "better_supabase"."time_invoice_entries" ("invoice_id");
 create index if not exists "time_invoice_entries_tenant_idx" on "better_supabase"."time_invoice_entries" ("tenant_id");
 alter table "better_supabase"."time_invoice_entries" enable row level security;
-revoke all on "better_supabase"."time_invoice_entries" from anon, authenticated;
+revoke all on "better_supabase"."time_invoice_entries" from public, anon, authenticated;
 grant select on "better_supabase"."time_invoice_entries" to authenticated;
 grant all on "better_supabase"."time_invoice_entries" to service_role;
 drop policy if exists "time_invoice_entries_read" on "better_supabase"."time_invoice_entries";
-create policy "time_invoice_entries_read" on "better_supabase"."time_invoice_entries" for select to authenticated
+create policy time_invoice_entries_read on "better_supabase"."time_invoice_entries"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- A billed entry keeps what it was billed for: it can't be deleted, and its
@@ -673,7 +675,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_119_billable_time.sql
@@ -693,7 +695,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:98d9594d795a469f15c6e5990c11925a7748ddd02222b004c9f1a877946d5056
+-- @bsb-hash sha256:5c4133d1db4d3ce8dffb4a15ba9b68c5a7c2d3a1b7243c9b65743a444f02cb36
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -776,11 +778,12 @@ create table if not exists "better_supabase"."time_rates" (
 );
 create index if not exists "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
-revoke all on "better_supabase"."time_rates" from anon, authenticated;
+revoke all on "better_supabase"."time_rates" from public, anon, authenticated;
 grant select on "better_supabase"."time_rates" to authenticated;
 grant all on "better_supabase"."time_rates" to service_role;
 drop policy if exists "time_rates_read" on "better_supabase"."time_rates";
-create policy "time_rates_read" on "better_supabase"."time_rates" for select to authenticated
+create policy time_rates_read on "better_supabase"."time_rates"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- One row per billed time entry: the invoice and the rate it was billed at.
@@ -796,11 +799,12 @@ create table if not exists "better_supabase"."time_invoice_entries" (
 create index if not exists "time_invoice_entries_invoice_idx" on "better_supabase"."time_invoice_entries" ("invoice_id");
 create index if not exists "time_invoice_entries_tenant_idx" on "better_supabase"."time_invoice_entries" ("tenant_id");
 alter table "better_supabase"."time_invoice_entries" enable row level security;
-revoke all on "better_supabase"."time_invoice_entries" from anon, authenticated;
+revoke all on "better_supabase"."time_invoice_entries" from public, anon, authenticated;
 grant select on "better_supabase"."time_invoice_entries" to authenticated;
 grant all on "better_supabase"."time_invoice_entries" to service_role;
 drop policy if exists "time_invoice_entries_read" on "better_supabase"."time_invoice_entries";
-create policy "time_invoice_entries_read" on "better_supabase"."time_invoice_entries" for select to authenticated
+create policy time_invoice_entries_read on "better_supabase"."time_invoice_entries"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- A billed entry keeps what it was billed for: it can't be deleted, and its
@@ -1374,7 +1378,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_119_billable_time.sql
@@ -1394,7 +1398,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:b6709de3d58da3a6f274721929bd8429dc15c6101749e4bc4c68680a7977f017
+-- @bsb-hash sha256:2714d4ac2ba618d26c41bfb7ff9bc50cb8e9def48028da8b0dd198f9a755a091
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1459,6 +1463,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Billable time: a rate card for time entries and invoices drafted from
 -- unbilled time, in bigint minor units.
 
@@ -1479,11 +1486,12 @@ create table if not exists "app_private"."time_rates" (
 );
 create index if not exists "time_rates_lookup_idx" on "app_private"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "app_private"."time_rates" enable row level security;
-revoke all on "app_private"."time_rates" from anon, authenticated;
+revoke all on "app_private"."time_rates" from public, anon, authenticated;
 grant select on "app_private"."time_rates" to authenticated;
 grant all on "app_private"."time_rates" to service_role;
 drop policy if exists "time_rates_read" on "app_private"."time_rates";
-create policy "time_rates_read" on "app_private"."time_rates" for select to authenticated
+create policy time_rates_read on "app_private"."time_rates"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- One row per billed time entry: the invoice and the rate it was billed at.
@@ -1499,11 +1507,12 @@ create table if not exists "app_private"."time_invoice_entries" (
 create index if not exists "time_invoice_entries_invoice_idx" on "app_private"."time_invoice_entries" ("invoice_id");
 create index if not exists "time_invoice_entries_tenant_idx" on "app_private"."time_invoice_entries" ("tenant_id");
 alter table "app_private"."time_invoice_entries" enable row level security;
-revoke all on "app_private"."time_invoice_entries" from anon, authenticated;
+revoke all on "app_private"."time_invoice_entries" from public, anon, authenticated;
 grant select on "app_private"."time_invoice_entries" to authenticated;
 grant all on "app_private"."time_invoice_entries" to service_role;
 drop policy if exists "time_invoice_entries_read" on "app_private"."time_invoice_entries";
-create policy "time_invoice_entries_read" on "app_private"."time_invoice_entries" for select to authenticated
+create policy time_invoice_entries_read on "app_private"."time_invoice_entries"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- A billed entry keeps what it was billed for: it can't be deleted, and its
@@ -2068,7 +2077,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_119_billable_time.sql
@@ -2088,7 +2097,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:31f24391266574a49a027cb5522b5a16c7b6e290e8b6be46108ad9eb465cb186
+-- @bsb-hash sha256:25bab17f80793a0394d10e03d3e061a0d2f2b44902ff68dec06925f75f03fef1
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2171,11 +2180,12 @@ create table if not exists "better_supabase"."time_rates" (
 );
 create index if not exists "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
-revoke all on "better_supabase"."time_rates" from anon, authenticated;
+revoke all on "better_supabase"."time_rates" from public, anon, authenticated;
 grant select on "better_supabase"."time_rates" to authenticated;
 grant all on "better_supabase"."time_rates" to service_role;
 drop policy if exists "time_rates_read" on "better_supabase"."time_rates";
-create policy "time_rates_read" on "better_supabase"."time_rates" for select to authenticated
+create policy time_rates_read on "better_supabase"."time_rates"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- One row per billed time entry: the invoice and the rate it was billed at.
@@ -2191,11 +2201,12 @@ create table if not exists "better_supabase"."time_invoice_entries" (
 create index if not exists "time_invoice_entries_invoice_idx" on "better_supabase"."time_invoice_entries" ("invoice_id");
 create index if not exists "time_invoice_entries_tenant_idx" on "better_supabase"."time_invoice_entries" ("tenant_id");
 alter table "better_supabase"."time_invoice_entries" enable row level security;
-revoke all on "better_supabase"."time_invoice_entries" from anon, authenticated;
+revoke all on "better_supabase"."time_invoice_entries" from public, anon, authenticated;
 grant select on "better_supabase"."time_invoice_entries" to authenticated;
 grant all on "better_supabase"."time_invoice_entries" to service_role;
 drop policy if exists "time_invoice_entries_read" on "better_supabase"."time_invoice_entries";
-create policy "time_invoice_entries_read" on "better_supabase"."time_invoice_entries" for select to authenticated
+create policy time_invoice_entries_read on "better_supabase"."time_invoice_entries"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- A billed entry keeps what it was billed for: it can't be deleted, and its
@@ -2845,7 +2856,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_119_billable_time.sql
@@ -2865,7 +2876,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:9f3981a6ec6eed0d042c63ae3a04a2d974ce7c123e42539ae4d8513db04ea91f
+-- @bsb-hash sha256:5d31d6cd25ab7418aed3099264820dbc771873521e4d87041278de9152da4977
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2948,7 +2959,8 @@ alter table "better_supabase"."time_rates" enable row level security;
 grant select on "better_supabase"."time_rates" to authenticated;
 grant all on "better_supabase"."time_rates" to service_role;
 drop policy if exists bsb_time_rates_select on "better_supabase"."time_rates";
-create policy bsb_time_rates_select on "better_supabase"."time_rates" for select to authenticated
+create policy bsb_time_rates_select on "better_supabase"."time_rates"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- One row per billed time entry: the invoice and the rate it was billed at.
@@ -2966,7 +2978,8 @@ alter table "better_supabase"."time_invoice_entries" enable row level security;
 grant select on "better_supabase"."time_invoice_entries" to authenticated;
 grant all on "better_supabase"."time_invoice_entries" to service_role;
 drop policy if exists bsb_time_invoice_entries_select on "better_supabase"."time_invoice_entries";
-create policy bsb_time_invoice_entries_select on "better_supabase"."time_invoice_entries" for select to authenticated
+create policy bsb_time_invoice_entries_select on "better_supabase"."time_invoice_entries"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- A billed entry keeps what it was billed for: it can't be deleted, and its
@@ -3531,7 +3544,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_119_billable_time.sql
@@ -3551,7 +3564,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:9cbb149376e8a20070c9c02b5d6038cc8b954acf20d55c7884878d4f26ee741e
+-- @bsb-hash sha256:54ab5540906a6222a22921b44bec210107f78b555a7998cf3fba544d7a737b46
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3634,11 +3647,12 @@ create table if not exists "better_supabase"."time_rates" (
 );
 create index if not exists "time_rates_lookup_idx" on "better_supabase"."time_rates" ("org_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
-revoke all on "better_supabase"."time_rates" from anon, authenticated;
+revoke all on "better_supabase"."time_rates" from public, anon, authenticated;
 grant select on "better_supabase"."time_rates" to authenticated;
 grant all on "better_supabase"."time_rates" to service_role;
 drop policy if exists "time_rates_read" on "better_supabase"."time_rates";
-create policy "time_rates_read" on "better_supabase"."time_rates" for select to authenticated
+create policy time_rates_read on "better_supabase"."time_rates"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- One row per billed time entry: the invoice and the rate it was billed at.
@@ -3654,11 +3668,12 @@ create table if not exists "better_supabase"."time_invoice_entries" (
 create index if not exists "time_invoice_entries_invoice_idx" on "better_supabase"."time_invoice_entries" ("invoice_id");
 create index if not exists "time_invoice_entries_tenant_idx" on "better_supabase"."time_invoice_entries" ("org_id");
 alter table "better_supabase"."time_invoice_entries" enable row level security;
-revoke all on "better_supabase"."time_invoice_entries" from anon, authenticated;
+revoke all on "better_supabase"."time_invoice_entries" from public, anon, authenticated;
 grant select on "better_supabase"."time_invoice_entries" to authenticated;
 grant all on "better_supabase"."time_invoice_entries" to service_role;
 drop policy if exists "time_invoice_entries_read" on "better_supabase"."time_invoice_entries";
-create policy "time_invoice_entries_read" on "better_supabase"."time_invoice_entries" for select to authenticated
+create policy time_invoice_entries_read on "better_supabase"."time_invoice_entries"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- A billed entry keeps what it was billed for: it can't be deleted, and its
@@ -4223,7 +4238,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_119_billable_time.sql

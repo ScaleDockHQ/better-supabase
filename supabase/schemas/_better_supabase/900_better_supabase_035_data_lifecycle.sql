@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:7fcb2a971c3a31e9313fe2bee6950ecf5a9d58ac14fa0bddd62f9a3629395597
+-- @bsb-hash sha256:2f89f58ca68ccdae60684b96afafd3a4b5ff5bda3041fe839f3e71d6d58c7113
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -78,11 +78,12 @@ create unique index if not exists data_exports_open_tenant_idx on "better_supaba
 create index if not exists data_exports_requested_by_idx on "better_supabase"."data_exports" ("requested_by");
 create index if not exists data_exports_user_idx on "better_supabase"."data_exports" ("user_id") where "user_id" is not null;
 alter table "better_supabase"."data_exports" enable row level security;
-revoke all on "better_supabase"."data_exports" from anon, authenticated;
+revoke all on "better_supabase"."data_exports" from public, anon, authenticated;
 grant select on "better_supabase"."data_exports" to authenticated;
 grant all on "better_supabase"."data_exports" to service_role;
-drop policy if exists "data_exports_read" on "better_supabase"."data_exports";
-create policy "data_exports_read" on "better_supabase"."data_exports" for select to authenticated
+drop policy if exists data_exports_read on "better_supabase"."data_exports";
+create policy data_exports_read on "better_supabase"."data_exports"
+  for select to authenticated
   using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('organization.export')));
 
 -- Organizations waiting for their purge. Requesting disables the tenant
@@ -100,7 +101,7 @@ create table if not exists "better_supabase"."organization_deletions" (
 create index if not exists organization_deletions_due_idx on "better_supabase"."organization_deletions" ("purge_after") where "cancelled_at" is null and "purged_at" is null;
 create index if not exists organization_deletions_requested_by_idx on "better_supabase"."organization_deletions" ("requested_by") where "requested_by" is not null;
 alter table "better_supabase"."organization_deletions" enable row level security;
-revoke all on "better_supabase"."organization_deletions" from anon, authenticated;
+revoke all on "better_supabase"."organization_deletions" from public, anon, authenticated;
 grant all on "better_supabase"."organization_deletions" to service_role;
 
 -- How long each kind of record is kept: for one tenant, for the tenants
@@ -118,7 +119,7 @@ create table if not exists "better_supabase"."retention_policies" (
 );
 create index if not exists retention_policies_tenant_idx on "better_supabase"."retention_policies" ("organization_id") where "organization_id" is not null;
 alter table "better_supabase"."retention_policies" enable row level security;
-revoke all on "better_supabase"."retention_policies" from anon, authenticated;
+revoke all on "better_supabase"."retention_policies" from public, anon, authenticated;
 grant all on "better_supabase"."retention_policies" to service_role;
 
 -- Legal holds: while one is active (released_at null), no purge deletes
@@ -138,7 +139,7 @@ create index if not exists legal_holds_active_idx on "better_supabase"."legal_ho
 create index if not exists legal_holds_placed_by_idx on "better_supabase"."legal_holds" ("placed_by") where "placed_by" is not null;
 create index if not exists legal_holds_released_by_idx on "better_supabase"."legal_holds" ("released_by") where "released_by" is not null;
 alter table "better_supabase"."legal_holds" enable row level security;
-revoke all on "better_supabase"."legal_holds" from anon, authenticated;
+revoke all on "better_supabase"."legal_holds" from public, anon, authenticated;
 grant all on "better_supabase"."legal_holds" to service_role;
 
 -- The tenant's policy for a kind, else its plan's (the shortest when it has
@@ -925,8 +926,9 @@ $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
 grant execute on function "better_supabase"."data_export_object_allowed"(text) to authenticated, service_role;
 
-drop policy if exists "bsb_data_exports_select" on storage.objects;
-create policy "bsb_data_exports_select" on storage.objects for select to authenticated
+drop policy if exists bsb_data_exports_select on storage.objects;
+create policy bsb_data_exports_select on storage.objects
+  for select to authenticated
   using (bucket_id = 'data-exports' and "better_supabase"."data_export_object_allowed"(name));
 
 -- The caller's own data (subject 'user') or a tenant's (needs the export
@@ -1738,5 +1740,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

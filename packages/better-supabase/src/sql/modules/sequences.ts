@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
 import { sequenceFunctions } from "./sequences-functions.ts";
 import { sequenceRunner } from "./sequences-runner.ts";
@@ -196,12 +197,10 @@ create index if not exists ${name("members", "thread_idx")} on ${members} (${r("
 
 ${lockTable(sequences, { read: true })}
 drop policy if exists ${name("sequences", "read")} on ${sequences};
-create policy ${name("sequences", "read")} on ${sequences} for select to authenticated
-  using (${ctx.scope.check(s("tenant"), q.read)});
+${renderPolicy(makePolicy({ table: sequences, name: name("sequences", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(s("tenant"), q.read) }), { target: sequences })}
 ${lockTable(members, { read: true })}
 drop policy if exists ${name("members", "read")} on ${members};
-create policy ${name("members", "read")} on ${members} for select to authenticated
-  using (${ctx.scope.check(r("tenant"), q.read)});
+${renderPolicy(makePolicy({ table: members, name: name("members", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(r("tenant"), q.read) }), { target: members })}
 `;
 }
 

@@ -9,6 +9,7 @@ import type { RegisteredSubject } from "../subject-registry.ts";
 import { isRecord } from "../../core/guards.ts";
 import { subjectTypeIdent } from "../../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   lockTable,
   pageSize,
@@ -158,9 +159,7 @@ create index if not exists ${ctx.naming.rename("field_changes_tenant_idx")} on $
       : ""
   }
 ${lockTable(t, { read: true })}
-drop policy if exists ${policy} on ${t};
-create policy ${policy} on ${t} for select to authenticated
-using (${ctx.scope.check(c("tenant"), read)} and coalesce(${canSubject}(${c("subjectType")}, ${c("subjectId")}, 'read'), false));
+${renderPolicy(makePolicy({ table: t, name: policy, command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} and coalesce(${canSubject}(${c("subjectType")}, ${c("subjectId")}, 'read'), false)` }), { drop: true, target: t })}
 ${bindings.map((binding) => bindingTrigger(ctx, binding, c)).join("\n")}
 
 -- A record's changes, newest first, optionally of one field. before is the id

@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:252815b317c615ce899efe7fbbd90adf15c7579669fe16c9c13e58f90ab1f673
+-- @bsb-hash sha256:26531b0747d39e3eb3ffa2170b8533cc791f52fb79f754f3b022e08f5e7fa74e
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -198,7 +198,8 @@ $$;
 revoke execute on function "better_supabase"."drive_node_json"("centrakit"."file_node") from public, anon, authenticated;
 
 drop policy if exists bsb_file_node_select on "centrakit"."file_node";
-create policy bsb_file_node_select on "centrakit"."file_node" for select to authenticated
+create policy bsb_file_node_select on "centrakit"."file_node"
+  for select to authenticated
   using ("id" in (select "better_supabase"."drive_readable_ids"()));
 
 create or replace function "better_supabase"."drive_clean_name"(name text)
@@ -880,5 +881,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

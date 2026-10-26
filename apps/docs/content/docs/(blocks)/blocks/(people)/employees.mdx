@@ -7,6 +7,15 @@ description: Employees with or without an account, a manager, team and status, a
 
 Reading the directory needs `employees.read`, which members have. Creating, editing and offboarding needs `employees.write`, and the private details and contracts need `employees.view_sensitive`; admins have both. A manager without `employees.read` still reads the employees under them through `reportsOf` and `orgChart`, and every employee reads their own row, details and contracts.
 
+Some actions take their own key when you set one, and fall back otherwise:
+
+| Key                               | Gates                                                       | Without it                                    |
+| --------------------------------- | ----------------------------------------------------------- | --------------------------------------------- |
+| `permissions.create`              | `create`                                                    | the `write` key                               |
+| `permissions.contractsRead`       | reading contracts                                           | the `viewSensitive` key                       |
+| `permissions.contractsWrite`      | adding, changing and deleting contracts, on its own         | the `write` and `viewSensitive` keys together |
+| `permissions.privateDetailsWrite` | saving someone else's private details, with `viewSensitive` | the `viewSensitive` key alone                 |
+
 ```bash
 better-supabase add employees
 ```
@@ -56,7 +65,7 @@ export default defineConfig({
 
 ## Editing
 
-`update(changes)` applies a batch of `{ employeeId, field, value }` cells, each on its own, as an editable grid sends them. A change that fails comes back in `rejected` with its hint and the others stay. The fields are `name`, `email`, `userId`, `jobTitle`, `teamId`, `managerId`, `employmentType`, `status`, `startDate`, `endDate` and the extra columns by name; `null` clears one. `status` takes `preboarding`, `active` or `on_leave`; setting it on an offboarded employee rehires them and clears the end date.
+`update(changes)` applies a batch of `{ employeeId, field, value }` cells, each on its own, as an editable grid sends them. A change that fails comes back in `rejected` with its hint and the others stay. The fields are `name`, `email`, `userId`, `jobTitle`, `teamId`, `managerId`, `employmentType`, `status`, `startDate`, `endDate` and the extra columns by name; `null` clears one. `status` takes `preboarding`, `active` or `on_leave`; setting it on an offboarded employee rehires them and clears the end date. An app status that a label maps to next to its first value, such as `offboarding` in `values: { employees: { status: { active: ["active", "offboarding"] } } }`, is accepted and written as it is, and counts as that label where the block checks the status.
 
 ```ts
 const { accepted, rejected } = await employees
@@ -103,7 +112,7 @@ employee keeps `employee_id` null.
 
 ## From a hired application
 
-With the [hiring](/docs/blocks/hiring) module, `fromApplication(applicationId)` makes the employee for a hired application, in `preboarding`. The name comes from the candidate's `title` column in `config.records`, and the job title, team and employment type from the job; pass overrides such as `{ startDate }` as the second argument. The employee's origin is the application, so calling it again returns the same employee, and with `relations` it gets a `created_from` relation to the application. Call it from an `application.hired` handler:
+With the [hiring](/docs/blocks/hiring) module, `fromApplication(applicationId)` makes the employee for a hired application, in `preboarding`. The name comes from the candidate's `title` column in `config.records`, and the job title, team and employment type from the job (an employment type the job's column stores as an enum, or under another label through `blocks.hiring.values`, is compared by its block label, and a team or employment type the job's table has no column for is left empty); pass overrides such as `{ startDate }` as the second argument. The employee's origin is the application, so calling it again returns the same employee, and with `relations` it gets a `created_from` relation to the application. Call it from an `application.hired` handler:
 
 ```ts
 onBlockEvent(bsb, hiringEvents, "application.hired", async (event) => {
@@ -150,12 +159,24 @@ too: `updateContract(contractId, patch)` sets the keys the patch names
 and `deleteContract(contractId)` removes one (`update_employee_contract` and
 `delete_employee_contract` in SQL). Both need the same keys as adding one,
 record `employee.updated` with `fields: ["contract"]`, and fail with
-`EMPLOYEE_CONTRACT_NOT_FOUND` for a contract the caller can't change. An
+`EMPLOYEE_CONTRACT_NOT_FOUND` for a contract the caller can't change. With
+`options.contractOverlap: "allow"` next to it, `addContract` skips the
+overlap check and leaves the previous contract as it is, for apps that keep
+contracts side by side. An
 app's own salary period column maps its labels through
 [`values`](/docs/blocks/own-schemas#your-columns-values), as in
 `values: { contracts: { salaryPeriod: { hour: "hourly", month: "monthly" } } }`.
 
+An app's own contracts table can map `salary` and `currency` to `null`, and
+the module then reads and writes contracts without them. When its salary
+column holds major units, such as a `numeric` of euros, set
+`options.salaryUnits: "major"`: the module divides by the currency's minor
+units on write and multiplies on read, so `salary` stays minor units in the
+API.
+
 ## Adopting a table
+
+An app's own employment type column, such as an enum, maps the labels of `options.employmentTypes` through [`values`](/docs/blocks/own-schemas#your-columns-values): `values: { employees: { employmentType: { intern: "trainee" } } }`, or `{}` when the enum uses the labels as they are.
 
 An app with its own employees table keeps it: the module runs over it, maps its columns, and adds the columns it lacks unless you map them to `null`: `email`, `jobTitle`, `team`, `employmentType`, `startDate`, `endDate`, `offboardReason`, the origin columns and the timestamps are optional, and the module leaves out what needs them. `privateDetails` and `contracts` can be `null` as whole tables, and the private details' `user` and `iban` columns can be `null`.
 

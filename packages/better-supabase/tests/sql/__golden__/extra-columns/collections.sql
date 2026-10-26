@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:a682042714e3ef713051999e873f942bbb86736776d521916646a6fe40325777
+-- @bsb-hash sha256:fc282e31eb997cd5b2bd103bbd9e2904a10eb7ab8d04d8f0b0b4223482fbe93f
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -104,7 +104,7 @@ create index if not exists subject_collections_tenant_type_idx on "better_supaba
 create index if not exists subject_collections_owner_idx on "better_supabase"."subject_collections" ("owner_id") where "owner_id" is not null;
 alter table "better_supabase"."subject_collections" add column if not exists "app_note" text;
 alter table "better_supabase"."subject_collections" enable row level security;
-revoke all on "better_supabase"."subject_collections" from anon, authenticated;
+revoke all on "better_supabase"."subject_collections" from public, anon, authenticated;
 grant select on "better_supabase"."subject_collections" to authenticated;
 grant all on "better_supabase"."subject_collections" to service_role;
 
@@ -121,7 +121,7 @@ create table if not exists "better_supabase"."subject_collection_entries" (
 create index if not exists subject_collection_entries_rank_idx on "better_supabase"."subject_collection_entries" ("collection_id", "rank", "subject_id");
 create index if not exists subject_collection_entries_subject_idx on "better_supabase"."subject_collection_entries" ("subject_type", "subject_id");
 alter table "better_supabase"."subject_collection_entries" enable row level security;
-revoke all on "better_supabase"."subject_collection_entries" from anon, authenticated;
+revoke all on "better_supabase"."subject_collection_entries" from public, anon, authenticated;
 grant select on "better_supabase"."subject_collection_entries" to authenticated;
 grant all on "better_supabase"."subject_collection_entries" to service_role;
 
@@ -137,7 +137,7 @@ create table if not exists "better_supabase"."favorites" (
 create index if not exists favorites_user_rank_idx on "better_supabase"."favorites" ("user_id", "tenant_id", "rank");
 create index if not exists favorites_subject_idx on "better_supabase"."favorites" ("subject_type", "subject_id");
 alter table "better_supabase"."favorites" enable row level security;
-revoke all on "better_supabase"."favorites" from anon, authenticated;
+revoke all on "better_supabase"."favorites" from public, anon, authenticated;
 grant select on "better_supabase"."favorites" to authenticated;
 grant all on "better_supabase"."favorites" to service_role;
 
@@ -158,7 +158,7 @@ create index if not exists saved_items_user_idx on "better_supabase"."saved_item
 create index if not exists saved_items_subject_idx on "better_supabase"."saved_items" ("subject_type", "subject_id");
 create index if not exists saved_items_due_idx on "better_supabase"."saved_items" ("remind_at") where "reminded_at" is null and "completed_at" is null;
 alter table "better_supabase"."saved_items" enable row level security;
-revoke all on "better_supabase"."saved_items" from anon, authenticated;
+revoke all on "better_supabase"."saved_items" from public, anon, authenticated;
 grant select on "better_supabase"."saved_items" to authenticated;
 grant all on "better_supabase"."saved_items" to service_role;
 
@@ -167,25 +167,29 @@ grant all on "better_supabase"."saved_items" to service_role;
 -- read its record, so a shared list never shows a record to someone who
 -- can't open it. Stars and saved items are the caller's own.
 drop policy if exists subject_collections_read on "better_supabase"."subject_collections";
-create policy subject_collections_read on "better_supabase"."subject_collections" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read')) and (
+create policy subject_collections_read on "better_supabase"."subject_collections"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read')) and (
   ("scope" = 'user' and "owner_id" = (select auth.uid()))
   or ("scope" = 'team' and false)
   or "scope" = 'tenant'
 ));
 drop policy if exists subject_collection_entries_read on "better_supabase"."subject_collection_entries";
-create policy subject_collection_entries_read on "better_supabase"."subject_collection_entries" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
+create policy subject_collection_entries_read on "better_supabase"."subject_collection_entries"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and exists (select 1 from "better_supabase"."subject_collections" c where c."id" = "collection_id")
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists favorites_read on "better_supabase"."favorites";
-create policy favorites_read on "better_supabase"."favorites" for select to authenticated
-using ("user_id" = (select auth.uid())
+create policy favorites_read on "better_supabase"."favorites"
+  for select to authenticated
+  using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists saved_items_read on "better_supabase"."saved_items";
-create policy saved_items_read on "better_supabase"."saved_items" for select to authenticated
-using ("user_id" = (select auth.uid())
+create policy saved_items_read on "better_supabase"."saved_items"
+  for select to authenticated
+  using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -1087,7 +1091,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_103_collections.sql

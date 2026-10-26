@@ -1,0 +1,36 @@
+---
+title: migrate
+description: Move a project to a newer model, starting with tables you own.
+---
+
+```bash
+pnpm better-supabase migrate schema-first --dry-run
+pnpm better-supabase migrate schema-first
+```
+
+`migrate schema-first` writes the tables that `tables` (the old `appTables`) renders as files you
+own under `supabase/schemas` (ADR 0102). Each table gets `public/tables/<name>.sql` with its
+create statement, columns, policies, grants, indexes and triggers. Views go to
+`public/views/<name>.sql`. A statement that belongs to no single table goes to
+`public/_custom/app_tables.sql`.
+
+The config's per-table features become `@bsb` tags in each table's comment: `subjects`
+become `subject`, `database.realtime` becomes `realtime`, and `vectorSearch` becomes
+`vector-search`. A `json` entry becomes `json meta=Type` (or `meta=import:module#Name`), an
+`encrypted` column becomes `encrypted ssn=bigint`, a column with `access: "server"` joins `server notes`, and `events` becomes `events on="created, updated"`.
+The `audit`, `audit-reads` and `expose` tags change a table's SQL only, so `gen` does not read
+them. After the move, `gen` reads these tags from the database, so a project can drop the
+config keys one table at a time. A key the config still sets wins over a tag.
+
+The files are written once. A file that exists is left alone unless you pass `--force`.
+
+After the command, delete `tables` (and `records`) from the config, run `better-supabase upgrade`
+to remove the old app tables file, then `better-supabase db diff` to check that the schema
+did not change.
+
+| Flag        | Effect                                               |
+| ----------- | ---------------------------------------------------- |
+| `--dry-run` | Prints the diff and writes nothing.                  |
+| `--check`   | Writes nothing and exits 1 when a file would change. |
+
+Side effects: Writes files.

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:c63651e3647947f25e96cd9bc85afdd6ceaa440390520321232ebb796eb530e2
+-- @bsb-hash sha256:75c751b671f820a2136c0b9cb79833cf240fd6ed38089cba3f83e71ea1a7489d
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -63,14 +63,23 @@ alter table "public"."invoices" enable row level security;
 -- "public"."invoices" keeps the app's own grants; these add what the scope needs.
 grant select, insert, update, delete on "public"."invoices" to authenticated;
 grant all on "public"."invoices" to service_role;
-drop policy if exists "bsb_invoices_select" on "public"."invoices";
-create policy "bsb_invoices_select" on "public"."invoices" for select to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists "bsb_invoices_insert" on "public"."invoices";
-create policy "bsb_invoices_insert" on "public"."invoices" for insert to authenticated with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_invoices_update" on "public"."invoices";
-create policy "bsb_invoices_update" on "public"."invoices" for update to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write())) with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_invoices_delete" on "public"."invoices";
-create policy "bsb_invoices_delete" on "public"."invoices" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists bsb_invoices_select on "public"."invoices";
+create policy bsb_invoices_select on "public"."invoices"
+  for select to authenticated
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_invoices_insert on "public"."invoices";
+create policy bsb_invoices_insert on "public"."invoices"
+  for insert to authenticated
+  with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists bsb_invoices_update on "public"."invoices";
+create policy bsb_invoices_update on "public"."invoices"
+  for update to authenticated
+  using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()))
+  with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists bsb_invoices_delete on "public"."invoices";
+create policy bsb_invoices_delete on "public"."invoices"
+  for delete to authenticated
+  using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."invoices";
 drop policy if exists bsb_tenant_scope_select on "public"."invoices";
 create policy bsb_tenant_scope_select on "public"."invoices" as restrictive
@@ -132,7 +141,7 @@ create trigger "bsb_emit_event" after insert or update or delete on "public"."in
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- @bsb-hash sha256:d6724c655f68ce0c71ce83a2cbf87a05a841c53e618853d67de35cb6ae7b19e1
+-- @bsb-hash sha256:1cd61040bf7594bdd20477d56a39766dcf9204b6f6f4fd2460d986aabc358704
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
@@ -149,7 +158,10 @@ select extensions.ok(array['DELETE', 'INSERT', 'SELECT', 'UPDATE']::text[] <@ ar
 select extensions.has_trigger('public'::name, 'invoices'::name, 'bsb_emit_event'::name, 'public.invoices emits outbox events');
 
 -- An app's own permissive policy can't widen the tenant scope.
-create policy bsb_test_app_widens on "public"."invoices" for all to authenticated using (true) with check (true);
+create policy bsb_test_app_widens on "public"."invoices"
+  for all to authenticated
+  using (true)
+  with check (true);
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;

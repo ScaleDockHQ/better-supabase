@@ -8,6 +8,7 @@ import type { BlockSqlDefinition, BlockSqlUpgrade } from "../module-types.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   SERVICE_CALLER,
   schemaPreamble,
@@ -18,7 +19,11 @@ import {
   userGrant,
   quotedTable,
 } from "../shared.ts";
-import { subjectCascades, subjectsOption } from "../subjects.ts";
+import {
+  subjectCascades,
+  subjectsOption,
+  subjectTypeGuard,
+} from "../subjects.ts";
 import { followersSql, watchSql } from "../watch-sql.ts";
 import { messagingSql } from "./messaging-names.ts";
 import { messagingTableDdl } from "./messaging-tables.ts";
@@ -331,12 +336,8 @@ end;
 $$;
 ${userGrant(`${fn("comment_message_readable")}(uuid, uuid)`)}
 
-drop policy if exists ${sqlIdent(`${ctx.tableName("tasks").name}_read`)} on ${tasks};
-create policy ${sqlIdent(`${ctx.tableName("tasks").name}_read`)} on ${tasks} for select to authenticated
-  using (${fn("comment_message_readable")}(${k("message")}, ${k("tenant")}));
-drop policy if exists ${sqlIdent(`${ctx.tableName("tasks").name}_insert`)} on ${tasks};
-create policy ${sqlIdent(`${ctx.tableName("tasks").name}_insert`)} on ${tasks} for insert to authenticated
-  with check (${ctx.has("tasks", "createdBy") ? `${k("createdBy")} = (select auth.uid()) and ` : ""}${fn("comment_message_readable")}(${k("message")}, ${k("tenant")}));
+${renderPolicy(makePolicy({ table: tasks, name: sqlIdent(`${ctx.tableName("tasks").name}_read`), command: "select", roles: ["authenticated"], using: `${fn("comment_message_readable")}(${k("message")}, ${k("tenant")})` }), { drop: true, target: tasks })}
+${renderPolicy(makePolicy({ table: tasks, name: sqlIdent(`${ctx.tableName("tasks").name}_insert`), command: "insert", roles: ["authenticated"], check: `${ctx.has("tasks", "createdBy") ? `${k("createdBy")} = (select auth.uid()) and ` : ""}${fn("comment_message_readable")}(${k("message")}, ${k("tenant")})` }), { drop: true, target: tasks })}
 
 -- A record's conversation, or null before its first comment.
 create or replace function ${fn("comment_conversation")}(tenant ${id}, subject_type text, subject_id text)
@@ -417,7 +418,7 @@ declare
   v_raw uuid[];
   v_mentions uuid[];
   v_msg jsonb;
-begin
+begin${subjectTypeGuard(ctx, "create_comment.subject_type", "COMMENT_SUBJECT_UNSUPPORTED", "  ")}
   v_conv := (${m.fn("open_conversation")}(
     create_comment.tenant,
     'subject',

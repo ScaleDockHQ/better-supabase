@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, triggerGrant, schemaPreamble } from "../shared.ts";
 import {
   assetsFunctions,
@@ -287,18 +288,21 @@ create unique index if not exists ${name("assignments", "open_idx")} on ${assign
 create index if not exists ${name("assignments", "history_idx")} on ${assignments} (${g("asset")}, ${g("assignedAt")} desc);
 
 ${lockModuleTable(ctx, "locations", { read: true })}
-drop policy if exists ${policyName("locations")} on ${locations};
-create policy ${policyName("locations")} on ${locations} for select to authenticated
-  using (${ctx.scope.check(l("tenant"), read)});
+${renderPolicy(makePolicy({ table: locations, name: policyName("locations"), command: "select", roles: ["authenticated"], using: ctx.scope.check(l("tenant"), read) }), { drop: true, target: locations })}
 ${lockModuleTable(ctx, "assets", { read: true })}
-drop policy if exists ${policyName("assets")} on ${assets};
-create policy ${policyName("assets")} on ${assets} for select to authenticated
-  using (${ctx.scope.check(s("tenant"), read)}
-    or (${s("assigneeType")} = 'member' and ${s("assigneeId")} = (select auth.uid())::text));
+${renderPolicy(
+  makePolicy({
+    table: assets,
+    name: policyName("assets"),
+    command: "select",
+    roles: ["authenticated"],
+    using: `${ctx.scope.check(s("tenant"), read)}
+    or (${s("assigneeType")} = 'member' and ${s("assigneeId")} = (select auth.uid())::text)`,
+  }),
+  { drop: true, target: assets },
+)}
 ${lockModuleTable(ctx, "assignments", { read: true })}
-drop policy if exists ${policyName("assignments")} on ${assignments};
-create policy ${policyName("assignments")} on ${assignments} for select to authenticated
-  using (${g("asset")} in (select y.${s("id")} from ${assets} y));
+${renderPolicy(makePolicy({ table: assignments, name: policyName("assignments"), command: "select", roles: ["authenticated"], using: `${g("asset")} in (select y.${s("id")} from ${assets} y)` }), { drop: true, target: assignments })}
 
 -- A location's parent is in the same organization and never one of its own
 -- descendants, so the hierarchy stays a tree.

@@ -2,6 +2,7 @@ import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { NotifyNames } from "./notifications-sql.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, pageSize, revokeTable, serviceGrant } from "../shared.ts";
 
 /**
@@ -45,8 +46,7 @@ alter table ${t} enable row level security;
 ${revokeTable(t)}
 grant select on ${t} to authenticated;
 grant all on ${t} to service_role;
-drop policy if exists ${policy} on ${t};
-create policy ${policy} on ${t} for select to authenticated using (${c("user")} = (select auth.uid()));`;
+${renderPolicy(makePolicy({ table: t, name: policy, command: "select", roles: ["authenticated"], using: `${c("user")} = (select auth.uid())` }), { drop: true, target: t })}`;
 }
 
 /**

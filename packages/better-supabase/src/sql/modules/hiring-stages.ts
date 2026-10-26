@@ -172,6 +172,15 @@ export function stageTriggers(ctx: BlockSqlContext, stages: JobStages): string {
 
   const isOpen = open.length === 0 ? "" : ` and not (${open.join(" or ")})`;
 
+  const unmarked = OUTCOMES.filter(
+    (outcome) => stages.markers[outcome] === undefined,
+  );
+
+  const keep =
+    unmarked.length === 0
+      ? ""
+      : ` and not (v_state = 'active' and ${ctx.is("applications", "state", `new.${a("state")}`, unmarked)})`;
+
   const entered = ctx.has("applications", "stageEnteredAt")
     ? `
   if tg_op = 'INSERT' or new.${a("stage")} is distinct from old.${a("stage")} then
@@ -212,7 +221,8 @@ create trigger ${name} before insert or update of ${a("stage")}, ${a("job")} on 
 for each row execute function better_supabase.${name}();
 
 -- A move to a stage that marks hired, rejected or withdrawn sets that state,
--- and a move back to an open stage makes the application active again.
+-- and a move back to an open stage makes the application active again. A
+-- state no stage marks stays when the application moves.
 create or replace function better_supabase.${state}()
 returns trigger
 language plpgsql
@@ -223,7 +233,7 @@ declare
   v_state text;
 begin
   select ${outcomeOf(stages, "s")} into v_state from ${stages.table} s where s.${stages.id} = new.${a("stage")};
-  if v_state is not null and v_state is distinct from (${ctx.label("applications", "state", `new.${a("state")}`)})::text then
+  if v_state is not null and v_state is distinct from (${ctx.label("applications", "state", `new.${a("state")}`)})::text${keep} then
     update ${t} x set ${a("state")} = ${ctx.cast("applications", "state", "v_state")} where x.${a("id")} = new.${a("id")};
   end if;
   return null;

@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:88bafc3ed530e8146b04a8e68d4f0a9737c43557edd9f8f96e3aedc3a04270fb
+-- @bsb-hash sha256:0ab12b3e5da0957bea0569496a9b569808fa411d7e0bac5331919edf773b9d8e
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -111,12 +111,13 @@ create index if not exists invoices_origin_idx on "better_supabase"."invoices" (
 create index if not exists invoices_original_idx on "better_supabase"."invoices" ("original_id");
 create index if not exists invoices_company_idx on "better_supabase"."invoices" ("company_type", "company_id");
 alter table "better_supabase"."invoices" enable row level security;
-revoke all on "better_supabase"."invoices" from anon, authenticated;
+revoke all on "better_supabase"."invoices" from public, anon, authenticated;
 grant select on "better_supabase"."invoices" to authenticated;
 grant all on "better_supabase"."invoices" to service_role;
 drop policy if exists invoices_read on "better_supabase"."invoices";
-create policy invoices_read on "better_supabase"."invoices" for select to authenticated
-using (("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read'))) or (("tenant_id")::text, ('invoice')::text, ("id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or (("tenant_id")::text, ("company_type")::text, ("company_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g) or (("tenant_id")::text, ("contact_type")::text, ("contact_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g));
+create policy invoices_read on "better_supabase"."invoices"
+  for select to authenticated
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read'))) or (("tenant_id")::text, ('invoice')::text, ("id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or (("tenant_id")::text, ("company_type")::text, ("company_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g) or (("tenant_id")::text, ("contact_type")::text, ("contact_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g));
 
 
 -- Creates a draft invoice. attrs: title (required), currency, company and
@@ -286,7 +287,7 @@ create table if not exists "better_supabase"."invoice_lines" (
 );
 create index if not exists "invoice_lines_parent_idx" on "better_supabase"."invoice_lines" ("parent_id", "position");
 alter table "better_supabase"."invoice_lines" enable row level security;
-revoke all on "better_supabase"."invoice_lines" from anon, authenticated;
+revoke all on "better_supabase"."invoice_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_lines" to authenticated;
 grant all on "better_supabase"."invoice_lines" to service_role;
 drop policy if exists "invoice_lines_read" on "better_supabase"."invoice_lines";
@@ -1032,5 +1033,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

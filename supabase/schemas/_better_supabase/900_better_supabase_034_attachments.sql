@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:cd73d56ff8992e11dbdf1a3c067fa46dccf0852602c60a12e051ce86d7948792
+-- @bsb-hash sha256:37fe9b65d18b0b90b23326106030a32ffb3091428f1632b9e88607c02a3e4ff9
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -143,7 +143,7 @@ create unique index if not exists attachments_object_idx on "better_supabase"."a
 create index if not exists attachments_subject_idx on "better_supabase"."attachments" ("organization_id", "subject_type", "subject_id");
 create index if not exists attachments_uploaded_by_idx on "better_supabase"."attachments" ("uploaded_by");
 alter table "better_supabase"."attachments" enable row level security;
-revoke all on "better_supabase"."attachments" from anon, authenticated;
+revoke all on "better_supabase"."attachments" from public, anon, authenticated;
 grant select, delete on "better_supabase"."attachments" to authenticated;
 grant insert ("organization_id", "bucket", "subject_type", "subject_id", "name", "mime_type", "size", "metadata", "width", "height", "pages") on "better_supabase"."attachments" to authenticated;
 grant all on "better_supabase"."attachments" to service_role;
@@ -206,18 +206,19 @@ $$;
 revoke execute on function "better_supabase"."attachment_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."attachment_subject_readable"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists "attachments_read" on "better_supabase"."attachments";
-create policy "attachments_read" on "better_supabase"."attachments" for select to authenticated
+drop policy if exists attachments_read on "better_supabase"."attachments";
+create policy attachments_read on "better_supabase"."attachments"
+  for select to authenticated
   using (("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"));
-drop policy if exists "attachments_insert" on "better_supabase"."attachments";
-create policy "attachments_insert" on "better_supabase"."attachments" for insert to authenticated
-  with check ((
-    "uploaded_by" = (select auth.uid())
+drop policy if exists attachments_insert on "better_supabase"."attachments";
+create policy attachments_insert on "better_supabase"."attachments"
+  for insert to authenticated
+  with check (("uploaded_by" = (select auth.uid())
     and (coalesce(better_supabase.can('tenant', "organization_id", case "subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
-    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id")
-  ) and (select better_supabase.actor_may_write()));
-drop policy if exists "attachments_delete" on "better_supabase"."attachments";
-create policy "attachments_delete" on "better_supabase"."attachments" for delete to authenticated
+    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id")) and (select better_supabase.actor_may_write()));
+drop policy if exists attachments_delete on "better_supabase"."attachments";
+create policy attachments_delete on "better_supabase"."attachments"
+  for delete to authenticated
   using (("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage'))) and (select better_supabase.actor_may_write()));
 
 -- The earlier versions of each file, written by replace_attachment() and
@@ -247,11 +248,12 @@ create table if not exists "better_supabase"."attachment_versions" (
 );
 create index if not exists attachment_versions_uploaded_by_idx on "better_supabase"."attachment_versions" ("uploaded_by");
 alter table "better_supabase"."attachment_versions" enable row level security;
-revoke all on "better_supabase"."attachment_versions" from anon, authenticated;
+revoke all on "better_supabase"."attachment_versions" from public, anon, authenticated;
 grant select on "better_supabase"."attachment_versions" to authenticated;
 grant all on "better_supabase"."attachment_versions" to service_role;
-drop policy if exists "attachment_versions_read" on "better_supabase"."attachment_versions";
-create policy "attachment_versions_read" on "better_supabase"."attachment_versions" for select to authenticated
+drop policy if exists attachment_versions_read on "better_supabase"."attachment_versions";
+create policy attachment_versions_read on "better_supabase"."attachment_versions"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."attachments" a where a."id" = "attachment_id"));
 
 -- Whether the caller may run action (insert, select or delete) on the
@@ -321,11 +323,14 @@ drop trigger if exists "bsb_attachments_object_uploaded" on storage.objects;
 drop trigger if exists "bsb_attachments_object_removed" on storage.objects;
 drop trigger if exists "bsb_attachments_queue_cleanup" on "better_supabase"."attachments";
 
-create policy "bsb_attachments_insert" on storage.objects for insert to authenticated
+create policy bsb_attachments_insert on storage.objects
+  for insert to authenticated
   with check ((bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
-create policy "bsb_attachments_select" on storage.objects for select to authenticated
+create policy bsb_attachments_select on storage.objects
+  for select to authenticated
   using (bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'select') and "better_supabase"."attachment_object_visible"(bucket_id, name));
-create policy "bsb_attachments_delete" on storage.objects for delete to authenticated
+create policy bsb_attachments_delete on storage.objects
+  for delete to authenticated
   using ((bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'delete')) and (select better_supabase.actor_may_write()));
 
 -- The caller's new record, for a signed upload URL to its object_path.
@@ -656,7 +661,7 @@ create table if not exists "better_supabase"."scanned_objects" (
   primary key ("bucket", "object_path")
 );
 alter table "better_supabase"."scanned_objects" enable row level security;
-revoke all on "better_supabase"."scanned_objects" from anon, authenticated;
+revoke all on "better_supabase"."scanned_objects" from public, anon, authenticated;
 grant all on "better_supabase"."scanned_objects" to service_role;
 
 -- For storage policies: whether the object was scanned and found clean.
@@ -995,5 +1000,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

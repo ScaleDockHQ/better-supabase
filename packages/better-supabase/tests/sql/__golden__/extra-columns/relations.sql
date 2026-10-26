@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:0900669164abb507ccbeb5c89fb578ddff2a27d5839bb4d8f3a94afa864ca219
+-- @bsb-hash sha256:2bd13b61c60b22c6ea8b82b662f83117bbe925ad3ec698c07fc967045955d0b5
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -73,13 +73,14 @@ create table if not exists "better_supabase"."relations" (
 create index if not exists relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
 alter table "better_supabase"."relations" add column if not exists "app_note" text;
 alter table "better_supabase"."relations" enable row level security;
-revoke all on "better_supabase"."relations" from anon, authenticated;
+revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
 drop policy if exists relations_read on "better_supabase"."relations";
-create policy relations_read on "better_supabase"."relations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
+create policy relations_read on "better_supabase"."relations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
 
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
@@ -511,7 +512,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_068_relations.sql

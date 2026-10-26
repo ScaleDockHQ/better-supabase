@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:13aea22276d2a7ab578ebab4e2fb7436f4f3e91b9fd6b4789c8fbd241662b3ce
+-- @bsb-hash sha256:68e809fca9a3a9d281f1d06eb216addbd5236c6415bcbaf6dc726575d56bd6fa
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -76,12 +76,13 @@ create table if not exists "better_supabase"."enrichments" (
 create index if not exists enrichments_tenant_idx on "better_supabase"."enrichments" ("tenant_id", "fetched_at");
 create index if not exists enrichments_requested_by_idx on "better_supabase"."enrichments" ("requested_by") where "requested_by" is not null;
 alter table "better_supabase"."enrichments" enable row level security;
-revoke all on "better_supabase"."enrichments" from anon, authenticated;
+revoke all on "better_supabase"."enrichments" from public, anon, authenticated;
 grant select on "better_supabase"."enrichments" to authenticated;
 grant all on "better_supabase"."enrichments" to service_role;
 drop policy if exists enrichments_read on "better_supabase"."enrichments";
-create policy enrichments_read on "better_supabase"."enrichments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
+create policy enrichments_read on "better_supabase"."enrichments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
 
 -- What a provider looks up for one company or person: its name and the
 -- domain, website or email it can be matched by. Needs enrichment.run.
@@ -356,7 +357,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_135_enrichment.sql
@@ -376,7 +377,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:00d8473f93cdc70f64c4a0ecde197d8f72c860276178bf24c3c399d33568eb47
+-- @bsb-hash sha256:69deb30566f5381cc9dedfe545b72035d5d9c9f6b66f7e993ac47d906c6c348e
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -451,12 +452,13 @@ create table if not exists "better_supabase"."enrichments" (
 create index if not exists enrichments_tenant_idx on "better_supabase"."enrichments" ("tenant_id", "fetched_at");
 create index if not exists enrichments_requested_by_idx on "better_supabase"."enrichments" ("requested_by") where "requested_by" is not null;
 alter table "better_supabase"."enrichments" enable row level security;
-revoke all on "better_supabase"."enrichments" from anon, authenticated;
+revoke all on "better_supabase"."enrichments" from public, anon, authenticated;
 grant select on "better_supabase"."enrichments" to authenticated;
 grant all on "better_supabase"."enrichments" to service_role;
 drop policy if exists enrichments_read on "better_supabase"."enrichments";
-create policy enrichments_read on "better_supabase"."enrichments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
+create policy enrichments_read on "better_supabase"."enrichments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
 
 -- What a provider looks up for one company or person: its name and the
 -- domain, website or email it can be matched by. Needs enrichment.run.
@@ -731,7 +733,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_135_enrichment.sql
@@ -751,7 +753,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:db5ad59c3e350e60ece7fe0875dacda2fa7c2c8d8887e45514e212b23b601a24
+-- @bsb-hash sha256:5e9b2eeed4addb6fe5fd2600c4b0e22dfbe469c38efb144479fa9e2b86df0390
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -808,6 +810,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Enrichment: what a provider returned for a company or a person, one result
 -- per provider, and the empty columns a match filled.
 create table if not exists "app_private"."enrichments" (
@@ -828,12 +833,13 @@ create table if not exists "app_private"."enrichments" (
 create index if not exists enrichments_tenant_idx on "app_private"."enrichments" ("tenant_id", "fetched_at");
 create index if not exists enrichments_requested_by_idx on "app_private"."enrichments" ("requested_by") where "requested_by" is not null;
 alter table "app_private"."enrichments" enable row level security;
-revoke all on "app_private"."enrichments" from anon, authenticated;
+revoke all on "app_private"."enrichments" from public, anon, authenticated;
 grant select on "app_private"."enrichments" to authenticated;
 grant all on "app_private"."enrichments" to service_role;
 drop policy if exists enrichments_read on "app_private"."enrichments";
-create policy enrichments_read on "app_private"."enrichments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
+create policy enrichments_read on "app_private"."enrichments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
 
 -- What a provider looks up for one company or person: its name and the
 -- domain, website or email it can be matched by. Needs enrichment.run.
@@ -1108,7 +1114,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_135_enrichment.sql
@@ -1128,7 +1134,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:57887f287e5001d64c1cf2d86f366dfa13b21a7eb20dcf759c6161a20a30e19e
+-- @bsb-hash sha256:4c8c3c05b09ac103540dca0ecb6ff3d54897ed32048e2379d4a9a6b29315be35
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1203,12 +1209,13 @@ create table if not exists "better_supabase"."enrichments" (
 create index if not exists enrichments_tenant_idx on "better_supabase"."enrichments" ("tenant_id", "fetched_at");
 create index if not exists enrichments_requested_by_idx on "better_supabase"."enrichments" ("requested_by") where "requested_by" is not null;
 alter table "better_supabase"."enrichments" enable row level security;
-revoke all on "better_supabase"."enrichments" from anon, authenticated;
+revoke all on "better_supabase"."enrichments" from public, anon, authenticated;
 grant select on "better_supabase"."enrichments" to authenticated;
 grant all on "better_supabase"."enrichments" to service_role;
 drop policy if exists enrichments_read on "better_supabase"."enrichments";
-create policy enrichments_read on "better_supabase"."enrichments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
+create policy enrichments_read on "better_supabase"."enrichments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
 
 -- What a provider looks up for one company or person: its name and the
 -- domain, website or email it can be matched by. Needs enrichment.run.
@@ -1541,7 +1548,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_135_enrichment.sql
@@ -1561,7 +1568,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:3129f90f194a733c352caa23b6e409a8ff190cf8146c41e23a1f1c0c830f7fb6
+-- @bsb-hash sha256:dab91dee229bef0c0525fa1ba16d84a8b2bcfea86729de1068cc00191d4f15a9
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1653,8 +1660,9 @@ alter table "better_supabase"."enrichments" enable row level security;
 grant select on "better_supabase"."enrichments" to authenticated;
 grant all on "better_supabase"."enrichments" to service_role;
 drop policy if exists bsb_enrichments_select on "better_supabase"."enrichments";
-create policy bsb_enrichments_select on "better_supabase"."enrichments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
+create policy bsb_enrichments_select on "better_supabase"."enrichments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
 
 -- What a provider looks up for one company or person: its name and the
 -- domain, website or email it can be matched by. Needs enrichment.run.
@@ -1930,7 +1938,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_135_enrichment.sql
@@ -1950,7 +1958,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:ec0290b31e78c5be3436f91e05fecb6e4aba83f4e760f6b502407f588ab6239b
+-- @bsb-hash sha256:039cdd788fd7d3df9033e4dc677231aa7a676c28a72ef392aff83a803ab16bb8
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2025,12 +2033,13 @@ create table if not exists "better_supabase"."enrichments" (
 create index if not exists enrichments_tenant_idx on "better_supabase"."enrichments" ("org_id", "fetched_at");
 create index if not exists enrichments_requested_by_idx on "better_supabase"."enrichments" ("requested_by") where "requested_by" is not null;
 alter table "better_supabase"."enrichments" enable row level security;
-revoke all on "better_supabase"."enrichments" from anon, authenticated;
+revoke all on "better_supabase"."enrichments" from public, anon, authenticated;
 grant select on "better_supabase"."enrichments" to authenticated;
 grant all on "better_supabase"."enrichments" to service_role;
 drop policy if exists enrichments_read on "better_supabase"."enrichments";
-create policy enrichments_read on "better_supabase"."enrichments" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
+create policy enrichments_read on "better_supabase"."enrichments"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
 
 -- What a provider looks up for one company or person: its name and the
 -- domain, website or email it can be matched by. Needs enrichment.run.
@@ -2305,7 +2314,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_135_enrichment.sql

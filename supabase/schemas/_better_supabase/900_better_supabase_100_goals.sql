@@ -1,6 +1,6 @@
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:bfdb9319c90ed056e145f30b41fa289983b42f41645c1fb4d002a739e0ceb977
+-- @bsb-hash sha256:95b89e0554707b57b7d5074eaaaa841c8abd9ea0975653f5bef44d365365b7cb
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -76,12 +76,13 @@ create table if not exists "better_supabase"."targets" (
 );
 create index if not exists targets_period_idx on "better_supabase"."targets" ("tenant_id", "period_start", "period_end") where "archived_at" is null;
 alter table "better_supabase"."targets" enable row level security;
-revoke all on "better_supabase"."targets" from anon, authenticated;
+revoke all on "better_supabase"."targets" from public, anon, authenticated;
 grant select on "better_supabase"."targets" to authenticated;
 grant all on "better_supabase"."targets" to service_role;
 drop policy if exists targets_read on "better_supabase"."targets";
-create policy targets_read on "better_supabase"."targets" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
+create policy targets_read on "better_supabase"."targets"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
 
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
@@ -254,5 +255,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

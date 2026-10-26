@@ -1,6 +1,6 @@
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:dbbb4b5c5a305e84176815285568139c520510e7b4c291787c7d08da0910f0eb
+-- @bsb-hash sha256:09ca628b50caccca3ed21a0f28986fab572dbff62a80f368cca4a4b5d04f3884
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -84,13 +84,14 @@ create index if not exists "shared_views_list_idx" on "better_supabase"."shared_
 create index if not exists "shared_views_owner_idx" on "better_supabase"."shared_views" ("owner_id") where "owner_id" is not null;
 create unique index if not exists "shared_views_default_idx" on "better_supabase"."shared_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
 alter table "better_supabase"."shared_views" enable row level security;
-revoke all on "better_supabase"."shared_views" from anon, authenticated;
+revoke all on "better_supabase"."shared_views" from public, anon, authenticated;
 grant select on "better_supabase"."shared_views" to authenticated;
 grant all on "better_supabase"."shared_views" to service_role;
 
 drop policy if exists saved_views_read on "better_supabase"."shared_views";
-create policy saved_views_read on "better_supabase"."shared_views" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
+create policy saved_views_read on "better_supabase"."shared_views"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
   and (
     ("scope" = 'user' and "owner_id" = (select auth.uid()))
     or ("scope" = 'team' and "team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t))
@@ -108,12 +109,13 @@ create table if not exists "better_supabase"."saved_view_preferences" (
 );
 create index if not exists "saved_view_preferences_user_idx" on "better_supabase"."saved_view_preferences" ("user_id", "tenant_id");
 alter table "better_supabase"."saved_view_preferences" enable row level security;
-revoke all on "better_supabase"."saved_view_preferences" from anon, authenticated;
+revoke all on "better_supabase"."saved_view_preferences" from public, anon, authenticated;
 grant select on "better_supabase"."saved_view_preferences" to authenticated;
 grant all on "better_supabase"."saved_view_preferences" to service_role;
 drop policy if exists saved_view_preferences_read on "better_supabase"."saved_view_preferences";
-create policy saved_view_preferences_read on "better_supabase"."saved_view_preferences" for select to authenticated
-using ("user_id" = (select auth.uid()));
+create policy saved_view_preferences_read on "better_supabase"."saved_view_preferences"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
 
 
 drop function if exists "better_supabase"."save_view"(uuid, text, text, text, text, text, jsonb, uuid, jsonb);
@@ -590,5 +592,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

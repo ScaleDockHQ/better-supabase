@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:c5bf91b0a2ccef25cfbe45b747236559a08355a07f23723b5e58ec939ec8f576
+-- @bsb-hash sha256:97350601b343fba19e70583563010e1222f94577236273f79035cfc43011ace3
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -69,8 +69,9 @@ alter table "centrakit"."teams" enable row level security;
 grant select on "centrakit"."teams" to authenticated;
 grant all on "centrakit"."teams" to service_role;
 drop policy if exists bsb_teams_select on "centrakit"."teams";
-create policy bsb_teams_select on "centrakit"."teams" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
+create policy bsb_teams_select on "centrakit"."teams"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
 
 -- centrakit.team_members is the app's table, and it has every column this block needs.
 create index if not exists team_members_user_idx on "centrakit"."team_members" ("user_id");
@@ -79,8 +80,9 @@ alter table "centrakit"."team_members" enable row level security;
 grant select on "centrakit"."team_members" to authenticated;
 grant all on "centrakit"."team_members" to service_role;
 drop policy if exists bsb_team_members_select on "centrakit"."team_members";
-create policy bsb_team_members_select on "centrakit"."team_members" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
+create policy bsb_team_members_select on "centrakit"."team_members"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
 
 
 -- A signed-in caller may only read their own teams; the service role and
@@ -439,5 +441,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

@@ -15,6 +15,7 @@ import {
   lineTableSpec,
   totalColumnsSql,
 } from "../line-items-sql.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   fail,
@@ -290,15 +291,9 @@ ${lockTable(t("members"), { read: true })}
 -- A deal is visible to members with deals.read; with readAll off, only to
 -- its owner, its team and members with deals.manage. The team policy reads
 -- no deal, so the two policies don't recurse.
-drop policy if exists ${ctx.naming.rename("deals_read")} on ${t("deals")};
-create policy ${ctx.naming.rename("deals_read")} on ${t("deals")} for select to authenticated
-using (${visible});
-drop policy if exists ${ctx.naming.rename("deal_contacts_read")} on ${t("contacts")};
-create policy ${ctx.naming.rename("deal_contacts_read")} on ${t("contacts")} for select to authenticated
-using (exists (select 1 from ${t("deals")} x where x.${d("id")} = ${k("deal")}) and ${canSubject}(${k("contactType")}, ${k("contactId")}, 'read'));
-drop policy if exists ${ctx.naming.rename("deal_members_read")} on ${t("members")};
-create policy ${ctx.naming.rename("deal_members_read")} on ${t("members")} for select to authenticated
-using (${m("user")} = (select auth.uid()) or ${ctx.scope.check(m("tenant"), n.read)});
+${renderPolicy(makePolicy({ table: t("deals"), name: ctx.naming.rename("deals_read"), command: "select", roles: ["authenticated"], using: visible }), { drop: true, target: t("deals") })}
+${renderPolicy(makePolicy({ table: t("contacts"), name: ctx.naming.rename("deal_contacts_read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("deals")} x where x.${d("id")} = ${k("deal")}) and ${canSubject}(${k("contactType")}, ${k("contactId")}, 'read')` }), { drop: true, target: t("contacts") })}
+${renderPolicy(makePolicy({ table: t("members"), name: ctx.naming.rename("deal_members_read"), command: "select", roles: ["authenticated"], using: `${m("user")} = (select auth.uid()) or ${ctx.scope.check(m("tenant"), n.read)}` }), { drop: true, target: t("members") })}
 `;
 }
 

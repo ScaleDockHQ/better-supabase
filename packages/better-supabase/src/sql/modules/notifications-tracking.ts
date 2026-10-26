@@ -2,6 +2,7 @@ import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { NotifyNames } from "./notifications-sql.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   defaultPartition,
   defaultPartitionName,
@@ -125,15 +126,21 @@ alter table ${t} enable row level security;
 ${revokeTable(t)}
 grant select on ${t} to authenticated;
 grant all on ${t} to service_role;
-drop policy if exists ${policy} on ${t};
-create policy ${policy} on ${t} for select to authenticated using (
-  exists (
+${renderPolicy(
+  makePolicy({
+    table: t,
+    name: policy,
+    command: "select",
+    roles: ["authenticated"],
+    using: `exists (
     select 1 from ${deliveries} d
     join ${n.table("recipients")} r on r.${n.col("recipients", "id")} = d.${d("recipient")}
     where d.${d("id")} = ${t}.${e("delivery")}
       and r.${n.col("recipients", "user")} = (select auth.uid())
-  )
-);${partitioned ? `\n\n${MONTHLY_PARTITIONS}\n${registerPartitions(t)}` : ""}`;
+  )`,
+  }),
+  { drop: true, target: t },
+)}${partitioned ? `\n\n${MONTHLY_PARTITIONS}\n${registerPartitions(t)}` : ""}`;
 }
 
 /** The SQL for one kind's outbox event, inside `record_delivery_event`. */

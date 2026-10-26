@@ -1398,7 +1398,7 @@ export default defineConfig({
 | `tenant`      | `organization_id` | The tenant column, or `false` for a subject without one                                                                                                        |
 | `title`       | none              | The column `subject_title` returns                                                                                                                             |
 | `url`         | none              | A path template whose `{column}` placeholders `subject_url` fills from the row                                                                                 |
-| `permissions` | none              | Action to permission key, or to `{ key, rows, owner }` (see below); `read` is the key modules check before they attach to the row                              |
+| `permissions` | none              | Action to permission key, or to `{ key, rows, owner, also }` (see below); `read` is the key modules check before they attach to the row                        |
 | `scope`       | none              | A record scope to check the keys in, for subjects without a tenant                                                                                             |
 | `cascade`     | none              | Delete a module's rows when the subject row is deleted                                                                                                         |
 | `deletedAt`   | none              | A soft-delete column; rows where it is set count as gone                                                                                                       |
@@ -1412,7 +1412,9 @@ A block's `on` works three ways:
 - a list of names, `on: ["task"]`: the block uses those registered types, and
   an unknown name fails `gen` (doctor reports it as BS346).
 - an object: each entry merges onto the registered one, and the block's
-  keys win. A type the registry lacks needs its own `table`.
+  keys win, so an entry for a registered type can leave out `table` and
+  `idType`. `add`, `upgrade`, `gen` and doctor read the merged entry. A type
+  the registry lacks needs its own `table`.
 
 `webhooks-in` never falls back to the registry, because its subjects are the
 tables that inbound events write to.
@@ -1466,8 +1468,12 @@ export default defineConfig({
 | `key`   | the caller holds the key in the row's tenant, or on the record through `scope`, as a plain key does              |
 | `rows`  | the authorization provider lists the row among the rows of that resource the caller holds `key` on (needs `key`) |
 | `owner` | the uuid column it names holds the caller's id                                                                   |
+| `also`  | never alone: the caller must also hold this key in the row's tenant (or on `scope`)                              |
 
-Any one of them grants the action. `rows` is the resource as the provider
+Any one of `key`, `rows` and `owner` grants the action. With `also`, the
+caller needs that key too, so `{ key: "file.read", rows: "file", also:
+"files.access" }` asks for a row grant (or the key) and the tenant key both.
+`rows` is the resource as the provider
 names it in SQL (`file_node`); it needs `blocks.permissions.model: "provider"`
 and a provider with the `rowsWith` template (see
 [Authorization providers](/docs/extending/authorization-providers)). For
@@ -1481,6 +1487,12 @@ it sets or deletes a value, `share-links` checks `share` before it creates,
 lists or revokes a link, and `comments` follows `read`, `comment` and
 `moderate`. A record type that declares none of them keeps the block's own
 checks.
+
+A block that checks whether the caller may read a record (tags, attachments,
+share links, versions, relations and the others that take `on`) reads the
+same `read` entry: with `rows` or `owner`, the key, the provider's row grants
+and the owner column each grant the read, as in `can_subject`. An `on` entry
+that sets its own `permission` keeps that key.
 
 With a registry, `gen` also emits the types in `database.types.ts`:
 

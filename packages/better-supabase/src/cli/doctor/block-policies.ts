@@ -9,9 +9,9 @@ export const BLOCK_PREFIX = "bsb_";
 /** The app tables (`schema.table`) that blocks run over. */
 export function blockTargets(context: DoctorContext): ReadonlySet<string> {
   return new Set(
-    adoptedTables(context.config.blocks, appTablesOf(context)).map(
-      (table) => `${table.schema}.${table.table}`,
-    ),
+    adoptedTables(context.config.blocks, appTablesOf(context), {
+      subjects: context.config.subjects,
+    }).map((table) => `${table.schema}.${table.table}`),
   );
 }
 

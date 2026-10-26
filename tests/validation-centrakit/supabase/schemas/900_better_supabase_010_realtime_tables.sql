@@ -1,6 +1,6 @@
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
--- @bsb-hash sha256:53cdc7c04bfce7626b05b9109f3b43d69ea98a96a5e653c0aa1bb22d962d2175
+-- @bsb-hash sha256:c965048271b4078dff1007bcc0e47677ea4c3cc6eb090eac635f4ff1362ba913
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -244,9 +244,9 @@ revoke execute on function better_supabase.untrack_realtime(regclass) from publi
 -- their own user topics (bsb:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
 drop policy if exists bsb_realtime_tables_receive on realtime.messages;
-create policy bsb_realtime_tables_receive on realtime.messages for select to authenticated
-  using (
-    realtime.messages.extension = 'broadcast'
+create policy bsb_realtime_tables_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
     and (select realtime.topic()) like 'bsb:t:%'
     and not coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false)
     and (
@@ -258,8 +258,7 @@ create policy bsb_realtime_tables_receive on realtime.messages for select to aut
       ))
       or (split_part((select realtime.topic()), ':', 4) = 'u'
         and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
-    )
-  );
+    ));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -271,5 +270,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

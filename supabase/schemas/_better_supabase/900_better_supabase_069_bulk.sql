@@ -1,6 +1,6 @@
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:bfcd636702210f597eaa27466bc738717237b0fa31727ab01a65f0f7c533f54f
+-- @bsb-hash sha256:6eafaba2e071e3dee288892f25b38c62bf77d35ec25d65e23dc52205a4a9de90
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -74,11 +74,12 @@ create table if not exists "better_supabase"."bulk_runs" (
 create index if not exists bulk_runs_created_by_idx on "better_supabase"."bulk_runs" ("created_by", "created_at" desc);
 create index if not exists "bulk_runs_tenant_idx" on "better_supabase"."bulk_runs" ("tenant_id");
 alter table "better_supabase"."bulk_runs" enable row level security;
-revoke all on "better_supabase"."bulk_runs" from anon, authenticated;
+revoke all on "better_supabase"."bulk_runs" from public, anon, authenticated;
 grant select on "better_supabase"."bulk_runs" to authenticated;
 grant all on "better_supabase"."bulk_runs" to service_role;
 drop policy if exists bulk_runs_read on "better_supabase"."bulk_runs";
-create policy bulk_runs_read on "better_supabase"."bulk_runs" for select to authenticated
+create policy bulk_runs_read on "better_supabase"."bulk_runs"
+  for select to authenticated
   using ("created_by" = (select auth.uid()));
 
 create or replace function "better_supabase"."bulk_row"(tenant uuid, subject_type text, subject_id text, action text, args jsonb)
@@ -400,5 +401,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

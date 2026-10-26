@@ -722,3 +722,162 @@ export function declaredUpdatedAtTriggers(
 
   return found;
 }
+
+/** An index a `create index` statement builds. */
+export interface IndexStatement {
+  /** The index name, unquoted, when the statement gives one. */
+  readonly name: string | undefined;
+  /** `schema.table`. */
+  readonly table: string;
+  readonly unique: boolean;
+  /** `btree` unless the statement names another access method. */
+  readonly method: string;
+  /** Whether it has a `where`. */
+  readonly partial: boolean;
+  /** The plain columns it leads with, up to the first expression or option. */
+  readonly columns: readonly string[];
+  /** Whether every key is a plain column. */
+  readonly plain: boolean;
+}
+
+const INDEX_DEF = /* @__PURE__ */ new RegExp(
+  String.raw`\bcreate\s+(unique\s+)?index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?(?:(?!on\b)(${NAME})\s+)?on\s+(?:only\s+)?(${TABLE_NAME})\s*(?:using\s+(\w+)\s*)?\(`,
+  "gi",
+);
+
+const PLAIN_KEY = /* @__PURE__ */ new RegExp(
+  String.raw`^(${NAME})(?:\s+(?:asc|desc))?(?:\s+nulls\s+(?:first|last))?$`,
+  "i",
+);
+
+/** The plain leading columns of an index key list, and whether all are plain. */
+function indexKeys(list: string): {
+  readonly columns: readonly string[];
+  readonly plain: boolean;
+} {
+  const columns: string[] = [];
+
+  for (const part of splitTopLevel(list)) {
+    const key = PLAIN_KEY.exec(part.trim());
+
+    if (key === null) {
+      return { columns, plain: false };
+    }
+
+    columns.push(unquote(key[1]!));
+  }
+
+  return { columns, plain: true };
+}
+
+/** Each `create index` in `text`, which has no comments. */
+export function indexStatements(text: string): IndexStatement[] {
+  return [...text.matchAll(INDEX_DEF)].flatMap((match): IndexStatement[] => {
+    const open = match.index + match[0].length - 1;
+    const close = closingParen(text, open);
+
+    if (close === -1) {
+      return [];
+    }
+
+    const end = text.indexOf(";", close);
+    const rest = text.slice(close + 1, end === -1 ? text.length : end);
+
+    return [
+      {
+        name: match[2] === undefined ? undefined : unquote(match[2]),
+        table: qualified(match[3]!),
+        unique: match[1] !== undefined,
+        method: (match[4] ?? "btree").toLowerCase(),
+        partial: /\bwhere\b/i.test(rest),
+        ...indexKeys(text.slice(open + 1, close)),
+      },
+    ];
+  });
+}
+
+const KEY_CONSTRAINT =
+  /^(?:constraint\s+\S+\s+)?(?:primary\s+key|unique)\s*\(/i;
+
+const COLUMN_KEY = /\s(?:primary\s+key|unique)\b/i;
+
+/** A full btree index, by its name when it has one, and its leading columns. */
+export interface OwnIndex {
+  readonly name?: string;
+  readonly columns: readonly string[];
+}
+
+/**
+ * The leading columns of every full btree index the files give each table in
+ * `schemas`: `create index` statements, and the primary keys and unique
+ * constraints in `create table`. Partial indexes and other methods are left
+ * out, since they don't answer every lookup.
+ */
+export function declaredIndexes(
+  files: readonly { readonly text: string }[],
+  schemas: readonly string[],
+): ReadonlyMap<string, readonly OwnIndex[]> {
+  const found = new Map<string, OwnIndex[]>();
+
+  const add = (
+    table: string,
+    columns: readonly string[],
+    name?: string,
+  ): void => {
+    if (
+      columns.length > 0 &&
+      schemas.includes(table.slice(0, table.indexOf(".")))
+    ) {
+      found.set(table, [
+        ...(found.get(table) ?? []),
+        name === undefined ? { columns } : { name, columns },
+      ]);
+    }
+  };
+
+  for (const file of files) {
+    const text = withoutComments(file.text);
+
+    for (const index of indexStatements(text)) {
+      if (!index.partial && index.method === "btree") {
+        add(index.table, index.columns, index.name);
+      }
+    }
+
+    for (const match of text.matchAll(TABLE)) {
+      const table = qualified(match[1]!);
+      const open = match.index + match[0].length - 1;
+      const close = closingParen(text, open);
+
+      if (close === -1) {
+        continue;
+      }
+
+      for (const part of splitTopLevel(text.slice(open + 1, close))) {
+        const definition = part.trim();
+        const key = KEY_CONSTRAINT.exec(definition);
+
+        if (key !== null) {
+          const keyOpen = key.index + key[0].length - 1;
+          const keyClose = closingParen(definition, keyOpen);
+
+          add(
+            table,
+            indexKeys(definition.slice(keyOpen + 1, keyClose)).columns,
+          );
+        } else if (
+          !TABLE_CONSTRAINT.test(definition) &&
+          COLUMN_KEY.test(definition)
+        ) {
+          const first = new RegExp(`^${NAME}`).exec(definition)?.[0];
+
+          if (first !== undefined) {
+            add(table, [unquote(first)]);
+          }
+        }
+      }
+    }
+  }
+
+  return found;
+}

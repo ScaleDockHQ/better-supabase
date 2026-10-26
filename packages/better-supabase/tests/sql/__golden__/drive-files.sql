@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@1 managed
--- @bsb-hash sha256:efb2908d0928c99689bebd534c76529a1de76579e70b93a05ea37b6ecd03db8c
+-- @bsb-hash sha256:fc83c3fc850eb162e2bee332e6c04c6879155cea6bb4eb43bb0f69db2c528f64
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -18,7 +18,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_083_drive_files.sql
@@ -38,7 +38,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@1 managed
--- @bsb-hash sha256:42548ac3b62afd6b4e2a8b8efc38c93c7451363c736e45227e104e4bd621703e
+-- @bsb-hash sha256:e670833afa61c3aeed45fe7d5c4b7d076d9248b0131b3024a113b1f70c79d4d7
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -303,26 +303,33 @@ grant execute on function "better_supabase"."drive_attachment_allowed"(text, tex
 
 -- Restrictive policies: the attachments policies still apply, and a node's
 -- files also need its grants.
-drop policy if exists "bsb_drive_attachments_read" on "better_supabase"."attachments";
-create policy "bsb_drive_attachments_read" on "better_supabase"."attachments" as restrictive for select to authenticated
+drop policy if exists bsb_drive_attachments_read on "better_supabase"."attachments";
+create policy bsb_drive_attachments_read on "better_supabase"."attachments" as restrictive
+  for select to authenticated
   using ("better_supabase"."drive_attachment_allowed"("subject_type", "subject_id", false));
-drop policy if exists "bsb_drive_attachments_insert" on "better_supabase"."attachments";
-create policy "bsb_drive_attachments_insert" on "better_supabase"."attachments" as restrictive for insert to authenticated
+drop policy if exists bsb_drive_attachments_insert on "better_supabase"."attachments";
+create policy bsb_drive_attachments_insert on "better_supabase"."attachments" as restrictive
+  for insert to authenticated
   with check (("better_supabase"."drive_attachment_allowed"("subject_type", "subject_id", true)) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_drive_attachments_delete" on "better_supabase"."attachments";
-create policy "bsb_drive_attachments_delete" on "better_supabase"."attachments" as restrictive for delete to authenticated
+drop policy if exists bsb_drive_attachments_delete on "better_supabase"."attachments";
+create policy bsb_drive_attachments_delete on "better_supabase"."attachments" as restrictive
+  for delete to authenticated
   using (("better_supabase"."drive_attachment_allowed"("subject_type", "subject_id", true)) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_drive_objects_read" on storage.objects;
-create policy "bsb_drive_objects_read" on storage.objects as restrictive for select to authenticated
+drop policy if exists bsb_drive_objects_read on storage.objects;
+create policy bsb_drive_objects_read on storage.objects as restrictive
+  for select to authenticated
   using ("better_supabase"."drive_object_allowed"(bucket_id, name, 'select'));
-drop policy if exists "bsb_drive_objects_insert" on storage.objects;
-create policy "bsb_drive_objects_insert" on storage.objects as restrictive for insert to authenticated
+drop policy if exists bsb_drive_objects_insert on storage.objects;
+create policy bsb_drive_objects_insert on storage.objects as restrictive
+  for insert to authenticated
   with check (("better_supabase"."drive_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_drive_objects_update" on storage.objects;
-create policy "bsb_drive_objects_update" on storage.objects as restrictive for update to authenticated
+drop policy if exists bsb_drive_objects_update on storage.objects;
+create policy bsb_drive_objects_update on storage.objects as restrictive
+  for update to authenticated
   using (("better_supabase"."drive_object_allowed"(bucket_id, name, 'update')) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_drive_objects_delete" on storage.objects;
-create policy "bsb_drive_objects_delete" on storage.objects as restrictive for delete to authenticated
+drop policy if exists bsb_drive_objects_delete on storage.objects;
+create policy bsb_drive_objects_delete on storage.objects as restrictive
+  for delete to authenticated
   using (("better_supabase"."drive_object_allowed"(bucket_id, name, 'delete')) and (select better_supabase.actor_may_write()));
 
 -- Attachments of nodes that are not the current content and not a saved
@@ -693,7 +700,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_083_drive_files.sql
@@ -713,7 +720,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@1 managed
--- @bsb-hash sha256:efb2908d0928c99689bebd534c76529a1de76579e70b93a05ea37b6ecd03db8c
+-- @bsb-hash sha256:fc83c3fc850eb162e2bee332e6c04c6879155cea6bb4eb43bb0f69db2c528f64
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -730,7 +737,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_083_drive_files.sql
@@ -750,7 +757,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@1 managed
--- @bsb-hash sha256:efb2908d0928c99689bebd534c76529a1de76579e70b93a05ea37b6ecd03db8c
+-- @bsb-hash sha256:fc83c3fc850eb162e2bee332e6c04c6879155cea6bb4eb43bb0f69db2c528f64
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -767,7 +774,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_083_drive_files.sql

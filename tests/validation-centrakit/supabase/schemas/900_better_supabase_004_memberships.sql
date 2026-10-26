@@ -1,6 +1,6 @@
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:0408d6977dfa999b27fe69f78290c7aa3780f9da73822c7db5d517597412ebd1
+-- @bsb-hash sha256:190bed0b461e861695a71f7c545debe783e499e9055302e6a65d3a29a2a1ea12
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,7 +25,7 @@ grant usage on schema better_supabase to supabase_auth_admin;
 set check_function_bodies = off;
 
 -- centrakit.organization_users is the app's table, and it has every column this block needs.
-create index if not exists memberships_user_idx on "centrakit"."organization_users" ("user_id");
+-- centrakit.organization_users already has an index on (user_id), so this block adds none.
 alter table "centrakit"."organization_users" add column if not exists "updated_at" timestamptz not null default now();
 drop trigger if exists bsb_updated_at on "centrakit"."organization_users";
 create trigger bsb_updated_at before update on "centrakit"."organization_users"
@@ -221,11 +221,11 @@ create policy bsb_memberships_read on "centrakit"."organization_users"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
 
-revoke execute on function better_supabase.member_organization_ids(text[]) from public, anon;
-revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public, anon;
+revoke execute on function better_supabase.member_organization_ids(text[]) from public;
+revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public;
 revoke execute on function better_supabase.organization_member_role(uuid, uuid) from public, anon, authenticated;
-grant execute on function better_supabase.member_organization_ids(text[]) to authenticated, service_role;
-grant execute on function better_supabase.has_organization_role(uuid, text[]) to authenticated, service_role;
+grant execute on function better_supabase.member_organization_ids(text[]) to anon, authenticated, service_role;
+grant execute on function better_supabase.has_organization_role(uuid, text[]) to anon, authenticated, service_role;
 grant execute on function better_supabase.organization_member_role(uuid, uuid) to service_role;
 
 -- The memberships claim. `claimFormat: 'array'` (the default) is
@@ -292,5 +292,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

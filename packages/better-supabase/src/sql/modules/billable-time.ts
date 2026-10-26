@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
   pageSize,
@@ -18,8 +19,14 @@ import {
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
+import { subjectsOption } from "../subjects.ts";
 import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
+import {
+  durationEntries,
+  entryEnded,
+  entrySubjects,
+} from "./time-tracking-owner.ts";
 
 const GROUPINGS = ["subject", "member", "entry"] as const;
 
@@ -140,8 +147,7 @@ create table if not exists ${rates} (
 create index if not exists ${index("rates", "lookup_idx")} on ${rates} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("user")}, ${r("effectiveFrom")} desc);
 ${lockModuleTable(ctx, "rates", { read: true })}
 drop policy if exists ${index("rates", "read")} on ${rates};
-create policy ${index("rates", "read")} on ${rates} for select to authenticated
-  using (${ctx.scope.check(r("tenant"), read)});
+${renderPolicy(makePolicy({ table: rates, name: index("rates", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(r("tenant"), read) }), { target: rates })}
 
 -- One row per billed time entry: the invoice and the rate it was billed at.
 create table if not exists ${billed} (
@@ -156,8 +162,7 @@ create index if not exists ${index("billed", "invoice_idx")} on ${billed} (${b("
 create index if not exists ${index("billed", "tenant_idx")} on ${billed} (${b("tenant")});
 ${lockModuleTable(ctx, "billed", { read: true })}
 drop policy if exists ${index("billed", "read")} on ${billed};
-create policy ${index("billed", "read")} on ${billed} for select to authenticated
-  using (${ctx.scope.check(b("tenant"), read)});
+${renderPolicy(makePolicy({ table: billed, name: index("billed", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(b("tenant"), read) }), { target: billed })}
 `;
 }
 
@@ -204,12 +209,15 @@ function functions(ctx: BlockSqlContext): string {
   const rateJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'userId', ${row}.${r("user")}, 'subjectType', ${row}.${r("subjectType")}, 'subjectId', ${row}.${r("subjectId")}, 'rate', ${row}.${r("rate")}::text, 'currency', ${row}.${r("currency")}, 'effectiveFrom', ${row}.${r("effectiveFrom")}, 'createdBy', ${or("rates", row, "createdBy")}, 'createdAt', ${or("rates", row, "createdAt")})`;
 
+  const { rowSubject } = entrySubjects(time, subjectsOption(time, ["column"]));
+  const ended = (row: string): string => entryEnded(time, row);
+
   const seconds = (row: string): string =>
-    `extract(epoch from ${row}.${e("endedAt")} - ${row}.${e("startedAt")})`;
+    `extract(epoch from ${ended(row)} - ${row}.${e("startedAt")})`;
 
   const billingChanged = [
     "startedAt",
-    "endedAt",
+    ...(durationEntries(time) ? ["seconds", "runningSince"] : ["endedAt"]),
     "billable",
     "rate",
     "rateCurrency",
@@ -220,7 +228,7 @@ function functions(ctx: BlockSqlContext): string {
   // The entries a scope selects that are billable, finished and not billed,
   // each with the rate that applies: its own, else the rate card's.
   const unbilled = (tenant: string, scope: string): string => `
-    select x.${e("id")} as id, x.${e("user")} as user_id, x.${e("subjectType")} as subject_type, x.${e("subjectId")} as subject_id,
+    select x.${e("id")} as id, x.${e("user")} as user_id, ${rowSubject("x").type} as subject_type, ${rowSubject("x").id} as subject_id,
       x.${e("startedAt")} as started_at, x.${e("note")} as note, ${seconds("x")} as seconds,
       coalesce(x.${e("rate")}, card.rate) as rate, coalesce(x.${e("rateCurrency")}, card.currency) as currency
     from ${entries} x
@@ -229,15 +237,15 @@ function functions(ctx: BlockSqlContext): string {
       from ${rates} c
       where c.${r("tenant")} = x.${e("tenant")}
         and (c.${r("user")} is null or c.${r("user")} = x.${e("user")})
-        and (c.${r("subjectType")} is null or (c.${r("subjectType")} = x.${e("subjectType")} and c.${r("subjectId")} = x.${e("subjectId")}))
+        and (c.${r("subjectType")} is null or (c.${r("subjectType")} = ${rowSubject("x").type} and c.${r("subjectId")} = ${rowSubject("x").id}))
         and c.${r("effectiveFrom")} <= (x.${e("startedAt")} at time zone ${zone})::date
       order by (c.${r("subjectType")} is not null) desc, (c.${r("user")} is not null) desc, c.${r("effectiveFrom")} desc
       limit 1
     ) card on x.${e("rate")} is null
     where x.${e("tenant")} = ${tenant}
-      and x.${e("billable")} and x.${e("endedAt")} is not null
+      and x.${e("billable")} and ${ended("x")} is not null
       and not exists (select 1 from ${billed} d where d.${b("entry")} = x.${e("id")})
-      and (${scope} -> 'subject' is null or (x.${e("subjectType")} = ${scope} -> 'subject' ->> 'type' and x.${e("subjectId")} = ${scope} -> 'subject' ->> 'id'))
+      and (${scope} -> 'subject' is null or (${rowSubject("x").type} = ${scope} -> 'subject' ->> 'type' and ${rowSubject("x").id} = ${scope} -> 'subject' ->> 'id'))
       and (${scope} ->> 'userId' is null or x.${e("user")} = (${scope} ->> 'userId')::uuid)
       and (${scope} ->> 'starts' is null or x.${e("startedAt")} >= (${scope} ->> 'starts')::timestamptz)
       and (${scope} ->> 'ends' is null or x.${e("startedAt")} < (${scope} ->> 'ends')::timestamptz)
@@ -565,7 +573,7 @@ begin
       'subjectType', q.subject_type, 'subjectId', q.subject_id, 'startedAt', q.started_at, 'seconds', q.${b("seconds")},
       'rate', q.${b("rate")}::text, 'currency', q.${b("currency")}, 'createdAt', ${or("billed", "q", "createdAt")}) order by q.started_at, q.${b("entry")}), '[]'::jsonb)
     from (
-      select ${billedColumns}, x.${e("user")} as user_id, x.${e("subjectType")} as subject_type, x.${e("subjectId")} as subject_id, x.${e("startedAt")} as started_at
+      select ${billedColumns}, x.${e("user")} as user_id, ${rowSubject("x").type} as subject_type, ${rowSubject("x").id} as subject_id, x.${e("startedAt")} as started_at
       from ${billed} d join ${entries} x on x.${e("id")} = d.${b("entry")}
       where d.${b("invoice")} = list_invoiced_time.invoice
       order by x.${e("startedAt")}

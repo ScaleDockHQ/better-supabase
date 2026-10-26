@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
@@ -175,8 +176,7 @@ create index if not exists ${index("leases", "party_idx")} on ${leases} (${l("te
 create index if not exists ${index("leases", "deposit_hold_idx")} on ${leases} (${l("depositHold")}) where ${l("depositHold")} is not null;
 ${lockModuleTable(ctx, "leases", { read: true })}
 drop policy if exists ${index("leases", "read")} on ${leases};
-create policy ${index("leases", "read")} on ${leases} for select to authenticated
-  using (${ctx.scope.check(l("tenant"), read)});
+${renderPolicy(makePolicy({ table: leases, name: index("leases", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(l("tenant"), read) }), { target: leases })}
 
 -- One row per rent period posted to the ledger, so each period posts once.
 create table if not exists ${charges} (
@@ -195,8 +195,7 @@ create index if not exists ${index("charges", "tenant_idx")} on ${charges} (${c(
 create index if not exists ${index("charges", "transaction_idx")} on ${charges} (${c("transaction")});
 ${lockModuleTable(ctx, "charges", { read: true })}
 drop policy if exists ${index("charges", "read")} on ${charges};
-create policy ${index("charges", "read")} on ${charges} for select to authenticated
-  using (${ctx.scope.check(c("tenant"), read)});
+${renderPolicy(makePolicy({ table: charges, name: index("charges", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { target: charges })}
 
 `;
 }

@@ -9,6 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, schemaPreamble, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import {
@@ -246,7 +247,7 @@ create table if not exists ${scores} (
 );
 create index if not exists ${sqlIdent(`${scoresName}_rank_idx`)} on ${scores} (${sc("tenant")}, ${sc("subjectType")}, ${sc("score")} desc);${uniqueOverApp("scores", scoresName, "subject", ["tenant", "subjectType", "subjectId"])}
 alter table ${scores} enable row level security;
-revoke all on ${scores} from anon, authenticated;
+revoke all on ${scores} from public, anon, authenticated;
 grant select on ${scores} to authenticated;
 grant all on ${scores} to service_role;
 
@@ -259,12 +260,10 @@ create table if not exists ${emojiTable} (
   check (${attaches ? `${e("attachment")} is not null or ` : ""}${e("url")} is not null)
 );${uniqueOverApp("emoji", emojiName, "shortcode", ["tenant", "shortcode"])}
 alter table ${emojiTable} enable row level security;
-revoke all on ${emojiTable} from anon, authenticated;
+revoke all on ${emojiTable} from public, anon, authenticated;
 grant select on ${emojiTable} to authenticated;
 grant all on ${emojiTable} to service_role;
-drop policy if exists "custom_emoji_read" on ${emojiTable};
-create policy "custom_emoji_read" on ${emojiTable} for select to authenticated
-  using (${ctx.scope.check(e("tenant"), read)});
+${renderPolicy(makePolicy({ table: emojiTable, name: "custom_emoji_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(e("tenant"), read) }), { drop: true, target: emojiTable })}
 `
     : "";
 
@@ -287,26 +286,25 @@ $$;
 revoke execute on function ${visible}(text, text, ${ctx.idType}) from public, anon;
 grant execute on function ${visible}(text, text, ${ctx.idType}) to authenticated, service_role;
 
-drop policy if exists ${sqlIdent(`${ctx.tableName("reactions").name}_read`)} on ${reactions};
-create policy ${sqlIdent(`${ctx.tableName("reactions").name}_read`)} on ${reactions} for select to authenticated
-  using (${ctx.scope.check(c("tenant"), read)} and ${visible}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")}));
-drop policy if exists ${sqlIdent(`${ctx.tableName("reactions").name}_insert`)} on ${reactions};
-create policy ${sqlIdent(`${ctx.tableName("reactions").name}_insert`)} on ${reactions} for insert to authenticated
-  with check (
-    ${c("user")} = (select auth.uid())
+${renderPolicy(makePolicy({ table: reactions, name: sqlIdent(`${ctx.tableName("reactions").name}_read`), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} and ${visible}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})` }), { drop: true, target: reactions })}
+${renderPolicy(
+  makePolicy({
+    table: reactions,
+    name: sqlIdent(`${ctx.tableName("reactions").name}_insert`),
+    command: "insert",
+    roles: ["authenticated"],
+    check: `${c("user")} = (select auth.uid())
     and ${c("actor")} = (select auth.uid())::text
     and ${ctx.scope.check(c("tenant"), create)}
-    and ${visible}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})
-  );
-drop policy if exists ${sqlIdent(`${ctx.tableName("reactions").name}_delete`)} on ${reactions};
-create policy ${sqlIdent(`${ctx.tableName("reactions").name}_delete`)} on ${reactions} for delete to authenticated
-  using (${c("user")} = (select auth.uid()));
+    and ${visible}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})`,
+  }),
+  { drop: true, target: reactions },
+)}
+${renderPolicy(makePolicy({ table: reactions, name: sqlIdent(`${ctx.tableName("reactions").name}_delete`), command: "delete", roles: ["authenticated"], using: `${c("user")} = (select auth.uid())` }), { drop: true, target: reactions })}
 
 ${
   ctx.manages
-    ? `drop policy if exists ${sqlIdent(`${scoresName}_read`)} on ${scores};
-create policy ${sqlIdent(`${scoresName}_read`)} on ${scores} for select to authenticated
-  using (${ctx.scope.check(sc("tenant"), read)} and ${visible}(${sc("subjectType")}, ${sc("subjectId")}, ${sc("tenant")}));
+    ? `${renderPolicy(makePolicy({ table: scores, name: sqlIdent(`${scoresName}_read`), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(sc("tenant"), read)} and ${visible}(${sc("subjectType")}, ${sc("subjectId")}, ${sc("tenant")})` }), { drop: true, target: scores })}
 `
     : ""
 }
@@ -655,13 +653,18 @@ ${userGrant(`${fn("list_custom_emoji")}(${ctx.idType})`)}
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists ${ctx.trigger("reactions_receive")} on realtime.messages;
-    create policy ${ctx.trigger("reactions_receive")} on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        ${renderPolicy(
+          makePolicy({
+            table: "realtime.messages",
+            name: ctx.trigger("reactions_receive"),
+            command: "select",
+            roles: ["authenticated"],
+            using: `realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like ${sqlString(`${topic}:%`)}
-        and substr((select realtime.topic()), ${String(topic.length + 2)}) in (select x::text from ${ctx.scope.ids(read)} x)
-      );
+        and substr((select realtime.topic()), ${String(topic.length + 2)}) in (select x::text from ${ctx.scope.ids(read)} x)`,
+          }),
+          { drop: true, target: "realtime.messages" },
+        )}
   end if;
 end;
 $do$;

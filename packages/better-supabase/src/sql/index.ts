@@ -111,6 +111,8 @@ export type { AuditedTable } from "./audit-registrations.ts";
 
 export {
   declaredColumnTypes,
+  declaredIndexes,
+  type OwnIndex,
   declaredTableColumns,
   declaredTables,
   declaredUpdatedAtTriggers,
@@ -223,6 +225,7 @@ export {
   setTableFeature,
   TABLE_FEATURES,
   tableFeatures,
+  tableTagComments,
 } from "./table-features.ts";
 
 export type { TableFeature } from "./table-features.ts";

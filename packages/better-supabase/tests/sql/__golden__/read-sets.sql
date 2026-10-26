@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_014_read_sets.sql
 -- better-supabase module: read-sets
 -- @bsb-block read-sets@1 managed
--- @bsb-hash sha256:3076b48effb102bcac78bfcc9aca935cf41e359807b1dc20c0c129f6ca60209f
+-- @bsb-hash sha256:0e2d189b78eaea2440d356588f2d06f68fad17356f9a13361d937d6875517790
 -- One `stable` function per `defineReadSet` in `readSets`, so `db.$many(readSet, params)` is a single GET.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19,7 +19,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_014_read_sets.sql
@@ -39,7 +39,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_014_read_sets.sql
 -- better-supabase module: read-sets
 -- @bsb-block read-sets@1 managed
--- @bsb-hash sha256:3076b48effb102bcac78bfcc9aca935cf41e359807b1dc20c0c129f6ca60209f
+-- @bsb-hash sha256:0e2d189b78eaea2440d356588f2d06f68fad17356f9a13361d937d6875517790
 -- One `stable` function per `defineReadSet` in `readSets`, so `db.$many(readSet, params)` is a single GET.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -57,7 +57,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_014_read_sets.sql
@@ -77,7 +77,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_014_read_sets.sql
 -- better-supabase module: read-sets
 -- @bsb-block read-sets@1 managed
--- @bsb-hash sha256:3076b48effb102bcac78bfcc9aca935cf41e359807b1dc20c0c129f6ca60209f
+-- @bsb-hash sha256:0e2d189b78eaea2440d356588f2d06f68fad17356f9a13361d937d6875517790
 -- One `stable` function per `defineReadSet` in `readSets`, so `db.$many(readSet, params)` is a single GET.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -95,7 +95,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_014_read_sets.sql
@@ -115,7 +115,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_014_read_sets.sql
 -- better-supabase module: read-sets
 -- @bsb-block read-sets@1 managed
--- @bsb-hash sha256:3076b48effb102bcac78bfcc9aca935cf41e359807b1dc20c0c129f6ca60209f
+-- @bsb-hash sha256:0e2d189b78eaea2440d356588f2d06f68fad17356f9a13361d937d6875517790
 -- One `stable` function per `defineReadSet` in `readSets`, so `db.$many(readSet, params)` is a single GET.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -133,7 +133,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_014_read_sets.sql

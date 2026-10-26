@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:aa2b47f4a9963f9b300b89e57edbccf7f38a8b8393861c3533c37655abb725df
+-- @bsb-hash sha256:52460e523fc27a1850ec785dac12393ccbcb4375fc6a21e07551f6dd253500ef
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -109,12 +109,13 @@ create index if not exists quotes_tenant_status_idx on "better_supabase"."quotes
 create index if not exists quotes_origin_idx on "better_supabase"."quotes" ("origin_type", "origin_id");
 create index if not exists quotes_supersedes_idx on "better_supabase"."quotes" ("supersedes_id");
 alter table "better_supabase"."quotes" enable row level security;
-revoke all on "better_supabase"."quotes" from anon, authenticated;
+revoke all on "better_supabase"."quotes" from public, anon, authenticated;
 grant select on "better_supabase"."quotes" to authenticated;
 grant all on "better_supabase"."quotes" to service_role;
 drop policy if exists quotes_read on "better_supabase"."quotes";
-create policy quotes_read on "better_supabase"."quotes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
+create policy quotes_read on "better_supabase"."quotes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
 
 -- Creates a draft quote. attrs: title (required), currency, company and
 -- contact ({ type, id }), ownerId, validUntil, terms, note, origin ({ type,
@@ -248,7 +249,7 @@ create table if not exists "better_supabase"."quote_lines" (
 );
 create index if not exists "quote_lines_parent_idx" on "better_supabase"."quote_lines" ("parent_id", "position");
 alter table "better_supabase"."quote_lines" enable row level security;
-revoke all on "better_supabase"."quote_lines" from anon, authenticated;
+revoke all on "better_supabase"."quote_lines" from public, anon, authenticated;
 grant select on "better_supabase"."quote_lines" to authenticated;
 grant all on "better_supabase"."quote_lines" to service_role;
 drop policy if exists "quote_lines_read" on "better_supabase"."quote_lines";
@@ -741,7 +742,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_097_quotes.sql
@@ -761,7 +762,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:0fe950b4dac00757e3559a6ec18ce5428a67782d114c278e49e51737ec560cb5
+-- @bsb-hash sha256:e9232cd2a91792f307996eeba05cf0d2fe93709c596f1e59e8db60905872885e
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -869,12 +870,13 @@ create index if not exists quotes_tenant_status_idx on "better_supabase"."quotes
 create index if not exists quotes_origin_idx on "better_supabase"."quotes" ("origin_type", "origin_id");
 create index if not exists quotes_supersedes_idx on "better_supabase"."quotes" ("supersedes_id");
 alter table "better_supabase"."quotes" enable row level security;
-revoke all on "better_supabase"."quotes" from anon, authenticated;
+revoke all on "better_supabase"."quotes" from public, anon, authenticated;
 grant select on "better_supabase"."quotes" to authenticated;
 grant all on "better_supabase"."quotes" to service_role;
 drop policy if exists quotes_read on "better_supabase"."quotes";
-create policy quotes_read on "better_supabase"."quotes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
+create policy quotes_read on "better_supabase"."quotes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
 
 -- Creates a draft quote. attrs: title (required), currency, company and
 -- contact ({ type, id }), ownerId, validUntil, terms, note, origin ({ type,
@@ -1013,7 +1015,7 @@ create table if not exists "better_supabase"."quote_lines" (
 );
 create index if not exists "quote_lines_parent_idx" on "better_supabase"."quote_lines" ("parent_id", "position");
 alter table "better_supabase"."quote_lines" enable row level security;
-revoke all on "better_supabase"."quote_lines" from anon, authenticated;
+revoke all on "better_supabase"."quote_lines" from public, anon, authenticated;
 grant select on "better_supabase"."quote_lines" to authenticated;
 grant all on "better_supabase"."quote_lines" to service_role;
 drop policy if exists "quote_lines_read" on "better_supabase"."quote_lines";
@@ -1582,7 +1584,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_097_quotes.sql
@@ -1606,7 +1608,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:708b606881a2e8c21d8a22f589aa4e608f6f92432eb8578bf8f75ee947f88250
+-- @bsb-hash sha256:d76817e8b8740ca2b4190cdbe010cdafd33dec9c644946bf73cfbc4cd919656d
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1671,6 +1673,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Quotes: line items and totals, a revision chain, sending with a public
 -- link the customer accepts, rejects or asks changes through, and expiry.
 
@@ -1716,12 +1721,13 @@ create index if not exists quotes_tenant_status_idx on "app_private"."quotes" ("
 create index if not exists quotes_origin_idx on "app_private"."quotes" ("origin_type", "origin_id");
 create index if not exists quotes_supersedes_idx on "app_private"."quotes" ("supersedes_id");
 alter table "app_private"."quotes" enable row level security;
-revoke all on "app_private"."quotes" from anon, authenticated;
+revoke all on "app_private"."quotes" from public, anon, authenticated;
 grant select on "app_private"."quotes" to authenticated;
 grant all on "app_private"."quotes" to service_role;
 drop policy if exists quotes_read on "app_private"."quotes";
-create policy quotes_read on "app_private"."quotes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
+create policy quotes_read on "app_private"."quotes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
 
 -- Creates a draft quote. attrs: title (required), currency, company and
 -- contact ({ type, id }), ownerId, validUntil, terms, note, origin ({ type,
@@ -1855,7 +1861,7 @@ create table if not exists "app_private"."quote_lines" (
 );
 create index if not exists "quote_lines_parent_idx" on "app_private"."quote_lines" ("parent_id", "position");
 alter table "app_private"."quote_lines" enable row level security;
-revoke all on "app_private"."quote_lines" from anon, authenticated;
+revoke all on "app_private"."quote_lines" from public, anon, authenticated;
 grant select on "app_private"."quote_lines" to authenticated;
 grant all on "app_private"."quote_lines" to service_role;
 drop policy if exists "quote_lines_read" on "app_private"."quote_lines";
@@ -2348,7 +2354,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_097_quotes.sql
@@ -2368,7 +2374,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:48993ada061d952d20983c174923563dca61cfea052aa58f050405a802e1477f
+-- @bsb-hash sha256:ebc6eccc4572f1b42a0f606f9240c62e1add3a9f4f8a003b1eaa636a605051c1
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2476,12 +2482,13 @@ create index if not exists quotes_tenant_status_idx on "better_supabase"."quotes
 create index if not exists quotes_origin_idx on "better_supabase"."quotes" ("origin_type", "origin_id");
 create index if not exists quotes_supersedes_idx on "better_supabase"."quotes" ("supersedes_id");
 alter table "better_supabase"."quotes" enable row level security;
-revoke all on "better_supabase"."quotes" from anon, authenticated;
+revoke all on "better_supabase"."quotes" from public, anon, authenticated;
 grant select on "better_supabase"."quotes" to authenticated;
 grant all on "better_supabase"."quotes" to service_role;
 drop policy if exists quotes_read on "better_supabase"."quotes";
-create policy quotes_read on "better_supabase"."quotes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
+create policy quotes_read on "better_supabase"."quotes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
 
 -- Creates a draft quote. attrs: title (required), currency, company and
 -- contact ({ type, id }), ownerId, validUntil, terms, note, origin ({ type,
@@ -2615,7 +2622,7 @@ create table if not exists "better_supabase"."quote_lines" (
 );
 create index if not exists "quote_lines_parent_idx" on "better_supabase"."quote_lines" ("parent_id", "position");
 alter table "better_supabase"."quote_lines" enable row level security;
-revoke all on "better_supabase"."quote_lines" from anon, authenticated;
+revoke all on "better_supabase"."quote_lines" from public, anon, authenticated;
 grant select on "better_supabase"."quote_lines" to authenticated;
 grant all on "better_supabase"."quote_lines" to service_role;
 drop policy if exists "quote_lines_read" on "better_supabase"."quote_lines";
@@ -3211,7 +3218,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_097_quotes.sql
@@ -3231,7 +3238,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:5fcc1a365c79111fb0748caec72b738d7dc10777a6cefd4ffdb7d1a1bebe9071
+-- @bsb-hash sha256:f903c698f0e6bf793d7338c0160942242d65b4a82e9d9acae3c42f96911bf152
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3355,8 +3362,9 @@ alter table "better_supabase"."quotes" enable row level security;
 grant select on "better_supabase"."quotes" to authenticated;
 grant all on "better_supabase"."quotes" to service_role;
 drop policy if exists bsb_quotes_select on "better_supabase"."quotes";
-create policy bsb_quotes_select on "better_supabase"."quotes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
+create policy bsb_quotes_select on "better_supabase"."quotes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
 
 -- Creates a draft quote. attrs: title (required), currency, company and
 -- contact ({ type, id }), ownerId, validUntil, terms, note, origin ({ type,
@@ -3982,7 +3990,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_097_quotes.sql
@@ -4002,7 +4010,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:9122aeb5c059d1515b32bc8cd067c12c0db497674827300779cd26fa1fcaf236
+-- @bsb-hash sha256:58c62fbde3d9b6b49610847eeed9890c47c8952436304debb153197c0e6bce73
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4110,12 +4118,13 @@ create index if not exists quotes_tenant_status_idx on "better_supabase"."quotes
 create index if not exists quotes_origin_idx on "better_supabase"."quotes" ("origin_type", "origin_id");
 create index if not exists quotes_supersedes_idx on "better_supabase"."quotes" ("supersedes_id");
 alter table "better_supabase"."quotes" enable row level security;
-revoke all on "better_supabase"."quotes" from anon, authenticated;
+revoke all on "better_supabase"."quotes" from public, anon, authenticated;
 grant select on "better_supabase"."quotes" to authenticated;
 grant all on "better_supabase"."quotes" to service_role;
 drop policy if exists quotes_read on "better_supabase"."quotes";
-create policy quotes_read on "better_supabase"."quotes" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('quotes.read')));
+create policy quotes_read on "better_supabase"."quotes"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('quotes.read')));
 
 -- Creates a draft quote. attrs: title (required), currency, company and
 -- contact ({ type, id }), ownerId, validUntil, terms, note, origin ({ type,
@@ -4249,7 +4258,7 @@ create table if not exists "better_supabase"."quote_lines" (
 );
 create index if not exists "quote_lines_parent_idx" on "better_supabase"."quote_lines" ("parent_id", "position");
 alter table "better_supabase"."quote_lines" enable row level security;
-revoke all on "better_supabase"."quote_lines" from anon, authenticated;
+revoke all on "better_supabase"."quote_lines" from public, anon, authenticated;
 grant select on "better_supabase"."quote_lines" to authenticated;
 grant all on "better_supabase"."quote_lines" to service_role;
 drop policy if exists "quote_lines_read" on "better_supabase"."quote_lines";
@@ -4742,7 +4751,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_097_quotes.sql

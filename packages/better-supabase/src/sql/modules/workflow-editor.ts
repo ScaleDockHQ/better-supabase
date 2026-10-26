@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -324,9 +325,7 @@ create index if not exists ${ctx.naming.rename("workflow_definitions_created_by_
 -- row (or workflow.admin).
 ${definitionColumnsSql(ctx, s)}${addExtraColumns(d, extras)}
 ${lockModuleTable(ctx, "definitions", { read: true })}
-drop policy if exists ${ctx.naming.rename("workflow_definitions_read")} on ${d};
-create policy ${ctx.naming.rename("workflow_definitions_read")} on ${d} for select to authenticated
-  using (${scoped ? `${readable(cd("tenant"))} or (${cd("scope")} = 'system' and exists (select ${ctx.scope.ids(s.permission("read"))}))` : readable(cd("tenant"))});
+${renderPolicy(makePolicy({ table: d, name: ctx.naming.rename("workflow_definitions_read"), command: "select", roles: ["authenticated"], using: scoped ? `${readable(cd("tenant"))} or (${cd("scope")} = 'system' and exists (select ${ctx.scope.ids(s.permission("read"))}))` : readable(cd("tenant")) }), { drop: true, target: d })}
 
 -- The tenants that opted out of a definition, usually a system one: its
 -- triggers and starts skip them (WORKFLOW_OPTED_OUT).
@@ -340,9 +339,7 @@ create table if not exists ${o} (
 create index if not exists workflow_opt_outs_definition_idx on ${o} (${co("definition")});
 create index if not exists workflow_opt_outs_created_by_idx on ${o} (${co("createdBy")});
 ${lockModuleTable(ctx, "optOuts", { read: true })}
-drop policy if exists workflow_opt_outs_read on ${o};
-create policy workflow_opt_outs_read on ${o} for select to authenticated
-  using (${readable(co("tenant"))});
+${renderPolicy(makePolicy({ table: o, name: "workflow_opt_outs_read", command: "select", roles: ["authenticated"], using: readable(co("tenant")) }), { drop: true, target: o })}
 
 -- Who may run or edit a restricted definition: a user, a team or an
 -- organization role. An edit grant also runs it.
@@ -359,9 +356,7 @@ create table if not exists ${g} (
 create index if not exists ${ctx.naming.rename("workflow_definition_grants_principal_idx")} on ${g} (${cg("principalKind")}, ${cg("principalId")});
 create index if not exists ${ctx.naming.rename("workflow_definition_grants_created_by_idx")} on ${g} (${cg("createdBy")});
 ${lockModuleTable(ctx, "grants", { read: true })}
-drop policy if exists ${ctx.naming.rename("workflow_definition_grants_read")} on ${g};
-create policy ${ctx.naming.rename("workflow_definition_grants_read")} on ${g} for select to authenticated
-  using (${definitionReadable(cg("definition"))});
+${renderPolicy(makePolicy({ table: g, name: ctx.naming.rename("workflow_definition_grants_read"), command: "select", roles: ["authenticated"], using: definitionReadable(cg("definition")) }), { drop: true, target: g })}
 
 create table if not exists ${v} (
   ${cv("id")} uuid primary key default gen_random_uuid(),
@@ -391,9 +386,7 @@ create unique index if not exists workflow_versions_one_draft_idx on ${v} (${cv(
 create unique index if not exists workflow_versions_one_published_idx on ${v} (${cv("definition")}) where ${cv("status")} = 'published';
 create index if not exists workflow_versions_created_by_idx on ${v} (${cv("createdBy")});
 ${lockModuleTable(ctx, "versions", { read: true })}
-drop policy if exists workflow_versions_read on ${v};
-create policy workflow_versions_read on ${v} for select to authenticated
-  using (${definitionReadable(cv("definition"))});
+${renderPolicy(makePolicy({ table: v, name: "workflow_versions_read", command: "select", roles: ["authenticated"], using: definitionReadable(cv("definition")) }), { drop: true, target: v })}
 
 -- How runs of a definition start. A webhook trigger's token is stored as its
 -- SHA-256 only; schedule, form and chat triggers keep their settings
@@ -409,9 +402,7 @@ create table if not exists ${t} (
 );
 create index if not exists workflow_triggers_definition_idx on ${t} (${ct("definition")});${s.tableExtras.triggers}
 ${lockModuleTable(ctx, "triggers", { read: true })}
-drop policy if exists workflow_triggers_read on ${t};
-create policy workflow_triggers_read on ${t} for select to authenticated
-  using (${definitionReadable(ct("definition"))});
+${renderPolicy(makePolicy({ table: t, name: "workflow_triggers_read", command: "select", roles: ["authenticated"], using: definitionReadable(ct("definition")) }), { drop: true, target: t })}
 
 create table if not exists ${w} (
   ${cw("tokenHash")} bytea primary key,
@@ -436,9 +427,7 @@ create table if not exists ${c} (
 );${s.tableExtras.credentials}
 create index if not exists workflow_credentials_created_by_idx on ${c} (${cc("createdBy")});
 ${lockModuleTable(ctx, "credentials", { read: true })}
-drop policy if exists workflow_credentials_read on ${c};
-create policy workflow_credentials_read on ${c} for select to authenticated
-  using (${readable(cc("tenant"))});
+${renderPolicy(makePolicy({ table: c, name: "workflow_credentials_read", command: "select", roles: ["authenticated"], using: readable(cc("tenant")) }), { drop: true, target: c })}
 
 -- The steps the deployment provides, synced from code: the palette of the
 -- builder and the names a published graph may use.
@@ -458,8 +447,7 @@ create table if not exists ${l} (
 alter table ${l} add column if not exists ${cl("operation")} text
   check (length(${cl("operation")}) between 1 and 200);
 ${lockModuleTable(ctx, "steps", { read: true })}
-drop policy if exists workflow_step_library_read on ${l};
-create policy workflow_step_library_read on ${l} for select to authenticated using (true);
+${renderPolicy(makePolicy({ table: l, name: "workflow_step_library_read", command: "select", roles: ["authenticated"], using: "true" }), { drop: true, target: l })}
 
 -- The status of each node of a run, by node id, written by the engine.
 create table if not exists ${n} (
@@ -474,9 +462,7 @@ create table if not exists ${n} (
   primary key (${cn("run")}, ${cn("node")})
 );${appUniqueIndex(ctx, "nodeRuns", ["run", "node"])}
 ${lockModuleTable(ctx, "nodeRuns", { read: true })}
-drop policy if exists workflow_node_runs_read on ${n};
-create policy workflow_node_runs_read on ${n} for select to authenticated
-  using (${cn("run")} in (select x.${cr("id")} from ${r} x));
+${renderPolicy(makePolicy({ table: n, name: "workflow_node_runs_read", command: "select", roles: ["authenticated"], using: `${cn("run")} in (select x.${cr("id")} from ${r} x)` }), { drop: true, target: n })}
 
 -- Alerts on a definition's runs: failed fires when a run fails, slow when a
 -- run is still unfinished after threshold (check_workflow_alerts). Each
@@ -494,9 +480,7 @@ create table if not exists ${a} (
 create index if not exists workflow_alerts_definition_idx on ${a} (${ca("definition")});
 create index if not exists workflow_alerts_created_by_idx on ${a} (${ca("createdBy")});
 ${lockModuleTable(ctx, "alerts", { read: true })}
-drop policy if exists workflow_alerts_read on ${a};
-create policy workflow_alerts_read on ${a} for select to authenticated
-  using (${definitionReadable(ca("definition"))});
+${renderPolicy(makePolicy({ table: a, name: "workflow_alerts_read", command: "select", roles: ["authenticated"], using: definitionReadable(ca("definition")) }), { drop: true, target: a })}
 
 create table if not exists ${f} (
   ${cf("alert")} uuid not null references ${a} (${ca("id")}) on delete cascade,

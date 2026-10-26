@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 import type { PartyNames } from "./contacts-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, userGrant } from "../shared.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 
@@ -40,9 +41,7 @@ create table if not exists ${t("personContacts")} (
   primary key (${pc("person")}, ${pc("contact")})
 );${appUniqueIndex(ctx, "personContacts", ["contact"])}
 ${lockModuleTable(ctx, "personContacts", { read: true })}
-drop policy if exists ${ctx.naming.rename("person_inbox_contacts_read")} on ${t("personContacts")};
-create policy ${ctx.naming.rename("person_inbox_contacts_read")} on ${t("personContacts")} for select to authenticated
-using (${ctx.scope.check(pc("tenant"), names.read)});
+${renderPolicy(makePolicy({ table: t("personContacts"), name: ctx.naming.rename("person_inbox_contacts_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(pc("tenant"), names.read) }), { drop: true, target: t("personContacts") })}
 `
     : "";
 

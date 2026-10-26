@@ -36,8 +36,13 @@ export interface BlockSqlPermissionKey {
 export function modulePermissionKeys(
   config: AnyBlocksConfig,
   names: readonly string[],
+  subjects?: BlockSqlLayout["subjects"],
 ): BlockSqlPermissionKey[] {
-  const layout: BlockSqlLayout = { modules: config };
+  const layout: BlockSqlLayout = {
+    modules: config,
+    ...(subjects === undefined ? {} : { subjects }),
+  };
+
   checkModules(config);
   const modules = resolveBlocks(names, layout);
   const installed = modules.map((module) => module.name);
@@ -66,10 +71,13 @@ export function modulePermissionKeys(
       return key === "" ? [] : [{ module: name, action, key, scope }];
     });
 
+    const unused = new Set(SQL_MODULES[name]?.unusedPermissions?.(ctx));
+
     return [
       ...Object.entries(moduleOperations(name)).flatMap(
         ([action, fallback]): BlockSqlPermissionKey[] =>
-          action === "invitePlatform" && !hasPlatformRoles(ctx)
+          unused.has(action) ||
+          (action === "invitePlatform" && !hasPlatformRoles(ctx))
             ? []
             : [
                 {

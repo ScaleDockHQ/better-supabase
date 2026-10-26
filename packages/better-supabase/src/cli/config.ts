@@ -18,6 +18,7 @@ import { databaseUrlCredential } from "./core/credentials.ts";
 import { CliError } from "./core/errors.ts";
 import { display, readStdin } from "./core/io.ts";
 import { importFresh } from "./fresh-import.ts";
+import { withSchemaTags } from "./schema-tags.ts";
 import { readStackStatus } from "./stack-status.ts";
 import { findUp, readSupabaseToml, tomlNumber } from "./supabase-toml.ts";
 
@@ -224,9 +225,11 @@ export async function loadConfig(
   }
 
   return withEnvironment(
-    resolveConfig(
-      applyEnvironment(config, environment),
-      explicit ? cwd : dirname(path),
+    await withSchemaTags(
+      resolveConfig(
+        applyEnvironment(config, environment),
+        explicit ? cwd : dirname(path),
+      ),
     ),
   );
 }

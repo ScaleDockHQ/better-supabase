@@ -45,7 +45,13 @@ describe("the block names registry", () => {
       "iterations",
     ]);
     expect(names.functions).toContain("list_work_items");
-    expect(names.actions).toEqual(["read", "write", "manage"]);
+    expect(names.actions).toEqual([
+      "read",
+      "write",
+      "manage",
+      "create",
+      "delete",
+    ]);
   });
 });
 

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:2b04e6c4a048f4a4ce2c0c0df0911d8e192f682c21787ad45d0e038fa9f7f6fb
+-- @bsb-hash sha256:efde51b7c62aac18ddbba96f4d6e5266dca00b425338b9397010b4636164b1d7
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -93,11 +93,12 @@ create table if not exists "better_supabase"."documents" (
 );
 create index if not exists "documents_tenant_idx" on "better_supabase"."documents" ("tenant_id", "updated_at" desc);
 alter table "better_supabase"."documents" enable row level security;
-revoke all on "better_supabase"."documents" from anon, authenticated;
+revoke all on "better_supabase"."documents" from public, anon, authenticated;
 grant select on "better_supabase"."documents" to authenticated;
 grant all on "better_supabase"."documents" to service_role;
-drop policy if exists "documents_read" on "better_supabase"."documents";
-create policy "documents_read" on "better_supabase"."documents" for select to authenticated
+drop policy if exists documents_read on "better_supabase"."documents";
+create policy documents_read on "better_supabase"."documents"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')));
 
 create table if not exists "better_supabase"."document_updates" (
@@ -110,7 +111,7 @@ create table if not exists "better_supabase"."document_updates" (
 );
 create index if not exists "document_updates_document_idx" on "better_supabase"."document_updates" ("document_id", "seq");
 alter table "better_supabase"."document_updates" enable row level security;
-revoke all on "better_supabase"."document_updates" from anon, authenticated;
+revoke all on "better_supabase"."document_updates" from public, anon, authenticated;
 grant all on "better_supabase"."document_updates" to service_role;
 
 create table if not exists "better_supabase"."document_snapshots" (
@@ -121,7 +122,7 @@ create table if not exists "better_supabase"."document_snapshots" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."document_snapshots" enable row level security;
-revoke all on "better_supabase"."document_snapshots" from anon, authenticated;
+revoke all on "better_supabase"."document_snapshots" from public, anon, authenticated;
 grant all on "better_supabase"."document_snapshots" to service_role;
 
 create table if not exists "better_supabase"."document_suggestions" (
@@ -139,7 +140,7 @@ create table if not exists "better_supabase"."document_suggestions" (
 );
 create index if not exists "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
 alter table "better_supabase"."document_suggestions" enable row level security;
-revoke all on "better_supabase"."document_suggestions" from anon, authenticated;
+revoke all on "better_supabase"."document_suggestions" from public, anon, authenticated;
 grant all on "better_supabase"."document_suggestions" to service_role;
 
 -- Whether the caller may read (or, with write, edit) a document. The
@@ -569,18 +570,16 @@ grant execute on function "better_supabase"."documents_to_compact"(integer, inte
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_documents_receive" on realtime.messages;
-    create policy "bsb_documents_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension in ('broadcast', 'presence')
-        and "better_supabase"."document_topic_access"((select realtime.topic()), false)
-      );
-    drop policy if exists "bsb_documents_send" on realtime.messages;
-    create policy "bsb_documents_send" on realtime.messages for insert to authenticated
-      with check ((
-        (realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
-        or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))
-      ) and (select better_supabase.actor_may_write()));
+        drop policy if exists bsb_documents_receive on realtime.messages;
+create policy bsb_documents_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension in ('broadcast', 'presence')
+        and "better_supabase"."document_topic_access"((select realtime.topic()), false));
+        drop policy if exists bsb_documents_send on realtime.messages;
+create policy bsb_documents_send on realtime.messages
+  for insert to authenticated
+  with check (((realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
+        or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))) and (select better_supabase.actor_may_write()));
   end if;
 end;
 $do$;
@@ -632,7 +631,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_079_documents.sql

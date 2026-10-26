@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:e6a0f6243db3d54427049e82813681451deb83b45c98d645aeed4f3d234204c9
+-- @bsb-hash sha256:ce904028c5c6cab063b9d40c7217917fea04d27ffe0559ececb222eb15afefbc
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -114,12 +114,13 @@ create table if not exists "better_supabase"."promotions" (
 create index if not exists promotions_tenant_idx on "better_supabase"."promotions" ("tenant_id", "active", "automatic");
 alter table "better_supabase"."promotions" add column if not exists "app_note" text;
 alter table "better_supabase"."promotions" enable row level security;
-revoke all on "better_supabase"."promotions" from anon, authenticated;
+revoke all on "better_supabase"."promotions" from public, anon, authenticated;
 grant select on "better_supabase"."promotions" to authenticated;
 grant all on "better_supabase"."promotions" to service_role;
 drop policy if exists promotions_read on "better_supabase"."promotions";
-create policy promotions_read on "better_supabase"."promotions" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
+create policy promotions_read on "better_supabase"."promotions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
 
 create table if not exists "better_supabase"."promotion_codes" (
   "id" uuid primary key default gen_random_uuid(),
@@ -133,12 +134,13 @@ create table if not exists "better_supabase"."promotion_codes" (
 );
 create index if not exists promotion_codes_promotion_idx on "better_supabase"."promotion_codes" ("promotion_id");
 alter table "better_supabase"."promotion_codes" enable row level security;
-revoke all on "better_supabase"."promotion_codes" from anon, authenticated;
+revoke all on "better_supabase"."promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_codes" to authenticated;
 grant all on "better_supabase"."promotion_codes" to service_role;
 drop policy if exists promotion_codes_read on "better_supabase"."promotion_codes";
-create policy promotion_codes_read on "better_supabase"."promotion_codes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
+create policy promotion_codes_read on "better_supabase"."promotion_codes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
 
 create table if not exists "better_supabase"."cart_promotion_codes" (
   "tenant_id" uuid not null,
@@ -149,12 +151,13 @@ create table if not exists "better_supabase"."cart_promotion_codes" (
 );
 create index if not exists cart_promotion_codes_code_idx on "better_supabase"."cart_promotion_codes" ("code_id");
 alter table "better_supabase"."cart_promotion_codes" enable row level security;
-revoke all on "better_supabase"."cart_promotion_codes" from anon, authenticated;
+revoke all on "better_supabase"."cart_promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."cart_promotion_codes" to authenticated;
 grant all on "better_supabase"."cart_promotion_codes" to service_role;
 drop policy if exists cart_promotion_codes_read on "better_supabase"."cart_promotion_codes";
-create policy cart_promotion_codes_read on "better_supabase"."cart_promotion_codes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
+create policy cart_promotion_codes_read on "better_supabase"."cart_promotion_codes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."promotion_redemptions" (
   "id" uuid primary key default gen_random_uuid(),
@@ -175,12 +178,13 @@ create index if not exists promotion_redemptions_promotion_idx on "better_supaba
 create index if not exists promotion_redemptions_customer_idx on "better_supabase"."promotion_redemptions" ("customer_id");
 create index if not exists promotion_redemptions_code_idx on "better_supabase"."promotion_redemptions" ("code_id");
 alter table "better_supabase"."promotion_redemptions" enable row level security;
-revoke all on "better_supabase"."promotion_redemptions" from anon, authenticated;
+revoke all on "better_supabase"."promotion_redemptions" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_redemptions" to authenticated;
 grant all on "better_supabase"."promotion_redemptions" to service_role;
 drop policy if exists promotion_redemptions_read on "better_supabase"."promotion_redemptions";
-create policy promotion_redemptions_read on "better_supabase"."promotion_redemptions" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or "customer_id" = (select auth.uid()));
+create policy promotion_redemptions_read on "better_supabase"."promotion_redemptions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or "customer_id" = (select auth.uid()));
 
 -- Creates or updates a promotion. data holds name, description, kind
 -- (percentage, fixed or free_shipping), percent, currency, amount and
@@ -956,7 +960,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_085_promotions.sql

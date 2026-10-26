@@ -39,3 +39,7 @@ The block modules still write 279 `create policy` statements by hand, in 118
 files. `tests/sql/raw-policies.test.ts` ratchets that count against
 `raw-policies.baseline.json`: it refuses new raw policies and asks for the
 baseline to drop as a module moves to `renderPolicy`.
+
+## Update: every block module emits `Policy` values
+
+The raw `create policy` statements in block modules now go through `policy()` and `renderPolicy()`, and the ratchet baseline is gone: `tests/sql/raw-policies.test.ts` allows none. The installed SQL changes layout only (one clause per line); the set of `drop policy` statements is the same.

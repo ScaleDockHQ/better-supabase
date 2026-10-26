@@ -282,3 +282,16 @@ end $$;
 ${sql.trimEnd()}${scope}
 `;
 }
+
+/** A `drop` and `create` of one policy `to authenticated` on `table`. */
+export function authenticatedPolicy(
+  table: string,
+  name: string,
+  command: PolicyCommand,
+  spec: { using?: string; check?: string },
+): string {
+  return renderPolicy(
+    buildPolicy({ table, name, command, roles: ["authenticated"], ...spec }),
+    { drop: true, target: table },
+  );
+}

@@ -247,7 +247,7 @@ describe("appTables SQL", () => {
       '"user_id" uuid default auth.uid() references auth.users (id) on delete cascade',
     );
     expect(schema?.contents).toContain(
-      "create policy \"settings_select\" on \"public\".\"settings\" for select to authenticated using (((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true'));",
+      "create policy settings_select on \"public\".\"settings\"\n  for select to authenticated\n  using (((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true'));",
     );
     expect(schema?.contents).not.toContain('"settings_insert"');
     expect(schema?.contents).toContain(
@@ -648,7 +648,7 @@ describe("appTables SQL errors", () => {
       expect(schema).not.toContain("not valid");
       expect(schema).not.toContain("bsb_tenant_scope");
       expect(schema).toContain(
-        'create policy "bsb_invoices_select" on "public"."invoices" for select to authenticated',
+        'create policy bsb_invoices_select on "public"."invoices"\n  for select to authenticated',
       );
     });
 
@@ -657,13 +657,13 @@ describe("appTables SQL errors", () => {
 
       for (const command of ["select", "insert", "update", "delete"]) {
         expect(schema).toContain(
-          `drop policy if exists "bsb_invoices_${command}" on "public"."invoices";`,
+          `drop policy if exists bsb_invoices_${command} on "public"."invoices";`,
         );
         expect(schema).not.toContain(`"invoices_${command}"`);
       }
 
       expect(schemaOf(BLOCKS, { appTables: { invoices: {} } })).toContain(
-        'create policy "invoices_select" on "public"."invoices"',
+        'create policy invoices_select on "public"."invoices"',
       );
     });
 
@@ -742,7 +742,7 @@ grant select, insert, update, delete on "public"."invoices" to authenticated;`,
         "public.invoices is the app''s table, so the read test can''t insert a row of another tenant",
       );
       expect(test).toContain(
-        'create policy bsb_test_app_widens on "public"."invoices"',
+        'create policy bsb_test_app_widens on "public"."invoices"\n  for all to authenticated',
       );
     });
   });

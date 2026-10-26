@@ -2,6 +2,7 @@ import type { BlockSqlContractFunction } from "../context.ts";
 import type { Parts } from "./bookings-public.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, lockTable, serviceGrant, userGrant } from "../shared.ts";
 import {
   allowed,
@@ -82,9 +83,7 @@ create index if not exists ${index("service_idx")} on ${series} (${e("service")}
 create index if not exists ${index("resource_idx")} on ${series} (${e("resource")});
 create index if not exists ${index("customer_idx")} on ${series} (${e("customerUser")});
 ${lockTable(series, { read: true })}
-drop policy if exists booking_series_read on ${series};
-create policy booking_series_read on ${series} for select to authenticated
-using (${ctx.scope.check(e("tenant"), p.read)} or ${e("customerUser")} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: series, name: "booking_series_read", command: "select", roles: ["authenticated"], using: `${ctx.scope.check(e("tenant"), p.read)} or ${e("customerUser")} = (select auth.uid())` }), { drop: true, target: series })}
 alter table ${p.bookings} add column if not exists ${b("series")} uuid references ${series} (${e("id")}) on delete set null;
 create index if not exists bookings_series_idx on ${p.bookings} (${b("series")}, ${b("during")});
 `;

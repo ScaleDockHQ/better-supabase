@@ -30,5 +30,6 @@ CI time grows with the matrix; the matrix runs offline in PGlite and online in p
 ## Status note
 
 `verifyCatalog`, `verifyFiles`, `accessMatrix` and the `verify_*` findings ship in
-`better-supabase/create/lite`. The matrix is computed from grants and policies, not from generated
-pgTAP files; the per-persona pgTAP emission and the random-project property test are not built yet.
+`better-supabase/create/lite`. The matrix is computed from grants and policies. `accessMatrixTests` turns it into one pgTAP file per
+persona (anon, signed-in, two members, support, service), and a seeded property test checks the
+matrix against the engine for random projects.

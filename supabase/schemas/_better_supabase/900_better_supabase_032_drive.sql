@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:c597799399e770436aa9609d0cabd3966703559be4160b56f778afa94c97a22a
+-- @bsb-hash sha256:2f4a0acc9aeb79c2a5482b35506f9f0d6c3358885383fccc6e43b6511710991d
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -83,7 +83,7 @@ create index if not exists "drive_nodes_parent_fk_idx" on "better_supabase"."dri
 create index if not exists "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
 create index if not exists "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
 alter table "better_supabase"."drive_nodes" enable row level security;
-revoke all on "better_supabase"."drive_nodes" from anon, authenticated;
+revoke all on "better_supabase"."drive_nodes" from public, anon, authenticated;
 grant select on "better_supabase"."drive_nodes" to authenticated;
 grant all on "better_supabase"."drive_nodes" to service_role;
 
@@ -113,7 +113,7 @@ begin
 end;
 $$;
 alter table "better_supabase"."drive_grants" enable row level security;
-revoke all on "better_supabase"."drive_grants" from anon, authenticated;
+revoke all on "better_supabase"."drive_grants" from public, anon, authenticated;
 grant all on "better_supabase"."drive_grants" to service_role;
 
 -- The node's ancestors and itself, root first.
@@ -237,7 +237,8 @@ $$;
 revoke execute on function "better_supabase"."drive_node_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
 
 drop policy if exists drive_nodes_read on "better_supabase"."drive_nodes";
-create policy drive_nodes_read on "better_supabase"."drive_nodes" for select to authenticated
+create policy drive_nodes_read on "better_supabase"."drive_nodes"
+  for select to authenticated
   using ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()));
 
 -- Keeps path, the ids from the root to the node, in step with parent, so
@@ -1141,5 +1142,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

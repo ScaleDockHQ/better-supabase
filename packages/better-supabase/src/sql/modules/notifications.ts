@@ -10,6 +10,7 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { NotifyNames } from "./notifications-sql.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addCheck,
   addExtraColumns,
@@ -313,9 +314,24 @@ function tables(ctx: BlockSqlContext, n: NotifyNames): string {
 
   const parts: string[] = [];
 
-  const policy = (table: string, name: string, body: string) => `
-drop policy if exists ${sqlIdent(name)} on ${n.table(table)};
-create policy ${sqlIdent(name)} on ${n.table(table)} ${body};`;
+  const policy = (
+    table: string,
+    name: string,
+    spec: {
+      command: "select" | "insert" | "update" | "delete";
+      using?: string;
+      check?: string;
+    },
+  ) =>
+    `\n${renderPolicy(
+      makePolicy({
+        table: n.table(table),
+        name,
+        roles: ["authenticated"],
+        ...spec,
+      }),
+      { drop: true, target: n.table(table) },
+    )}`;
 
   parts.push(`
 create table if not exists ${n.table("events")} (
@@ -385,22 +401,21 @@ grant update (${c("recipients", "readAt")}, ${c("recipients", "dismissedAt")}) o
 grant all on ${n.table("recipients")} to service_role;${policy(
     "recipients",
     "bsb_notification_recipients_read",
-    `for select to authenticated using (${own(n, "recipients", "user")})`,
-  )}${policy(
-    "recipients",
-    "bsb_notification_recipients_update",
-    `for update to authenticated using (${own(n, "recipients", "user")}) with check (${own(n, "recipients", "user")})`,
-  )}${policy(
-    "events",
-    "bsb_notification_events_read",
-    `for select to authenticated using (
+    { command: "select", using: own(n, "recipients", "user") },
+  )}${policy("recipients", "bsb_notification_recipients_update", {
+    command: "update",
+    using: own(n, "recipients", "user"),
+    check: own(n, "recipients", "user"),
+  })}${policy("events", "bsb_notification_events_read", {
+    command: "select",
+    using: `
   exists (
     select 1 from ${n.table("recipients")} r
     where r.${c("recipients", "event")} = ${n.table("events")}.${c("events", "id")}
       and r.${own(n, "recipients", "user")}
   )
-)`,
-  )}`);
+`,
+  })}`);
 
   if (ctx.hasTable("deliveries")) {
     parts.push(`
@@ -430,13 +445,16 @@ grant select on ${n.table("deliveries")} to authenticated;
 grant all on ${n.table("deliveries")} to service_role;${policy(
       "deliveries",
       "bsb_notification_deliveries_read",
-      `for select to authenticated using (
+      {
+        command: "select",
+        using: `
   exists (
     select 1 from ${n.table("recipients")} r
     where r.${c("recipients", "id")} = ${n.table("deliveries")}.${c("deliveries", "recipient")}
       and r.${own(n, "recipients", "user")}
   )
-)`,
+`,
+      },
     )}`);
   }
 
@@ -650,9 +668,7 @@ create trigger ${updateTrigger} after update of ${changed.join(", ")} on ${t}
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists ${receive} on realtime.messages;
-    create policy ${receive} on realtime.messages for select to authenticated
-      using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ (${pattern}));
+        ${renderPolicy(makePolicy({ table: "realtime.messages", name: receive, command: "select", roles: ["authenticated"], using: `realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ (${pattern})` }), { drop: true, target: "realtime.messages" })}
   end if;
 end;
 $$;`;

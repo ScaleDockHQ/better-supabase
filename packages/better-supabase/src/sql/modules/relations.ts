@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   columnsObject,
@@ -405,9 +406,7 @@ ${lockTable(relations, { read: true })}
 
   return `${schemaPreamble(ctx)}
 ${tables}
-drop policy if exists ${ctx.naming.rename("relations_read")} on ${relations};
-create policy ${ctx.naming.rename("relations_read")} on ${relations} for select to authenticated
-using (${tenant} in (select ${ctx.scope.ids(read)}));
+${renderPolicy(makePolicy({ table: relations, name: ctx.naming.rename("relations_read"), command: "select", roles: ["authenticated"], using: `${tenant} in (select ${ctx.scope.ids(read)})` }), { drop: true, target: relations })}
 
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then

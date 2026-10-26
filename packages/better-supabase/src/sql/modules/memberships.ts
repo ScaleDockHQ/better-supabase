@@ -6,6 +6,7 @@ import { DEFAULT_ACTIVE_TENANT } from "../../config/blocks.ts";
 import { fillTemplate } from "../../core/access-sql.ts";
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   activeMembership,
   columnRef,
@@ -466,10 +467,7 @@ grant all on ${m} to service_role;
 
   const policy = ctx.manages
     ? `
-drop policy if exists bsb_memberships_read on ${m};
-create policy bsb_memberships_read on ${m}
-  for select to authenticated
-  using (${user} = (select auth.uid()) or ${tenant} in (select ${ctx.scope.members()}));
+${renderPolicy(makePolicy({ table: m, name: "bsb_memberships_read", command: "select", roles: ["authenticated"], using: `${user} = (select auth.uid()) or ${tenant} in (select ${ctx.scope.members()})` }), { drop: true, target: m })}
 `
     : "";
 
@@ -530,11 +528,11 @@ as $$
   select ${role} from ${m} m where m.${tenant} = organization_member_role.organization and m.${user} = organization_member_role.member${memberRoleFilter}
 $$;
 ${memberRolesFunction(ctx, role, memberRoleFilter.replaceAll("organization_member_role.member", "organization_member_roles.member"))}${policy}${membershipRolesPolicy(ctx)}
-revoke execute on function ${ctx.fn("member_organization_ids")}(text[]) from public, anon;
-revoke execute on function ${ctx.fn("has_organization_role")}(${id}, text[]) from public, anon;
+revoke execute on function ${ctx.fn("member_organization_ids")}(text[]) from public;
+revoke execute on function ${ctx.fn("has_organization_role")}(${id}, text[]) from public;
 revoke execute on function ${ctx.fn("organization_member_role")}(${id}, uuid) from public, anon, authenticated;
-grant execute on function ${ctx.fn("member_organization_ids")}(text[]) to authenticated, service_role;
-grant execute on function ${ctx.fn("has_organization_role")}(${id}, text[]) to authenticated, service_role;
+grant execute on function ${ctx.fn("member_organization_ids")}(text[]) to anon, authenticated, service_role;
+grant execute on function ${ctx.fn("has_organization_role")}(${id}, text[]) to anon, authenticated, service_role;
 grant execute on function ${ctx.fn("organization_member_role")}(${id}, uuid) to service_role;
 
 -- The memberships claim. \`claimFormat: 'array'\` (the default) is

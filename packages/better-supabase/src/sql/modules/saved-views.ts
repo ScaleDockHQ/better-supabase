@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import {
   addExtraColumns,
@@ -200,9 +201,7 @@ ${lockTable(views, { read: true })}
 
   return `${schemaPreamble(ctx)}
 ${tables}
-drop policy if exists ${ctx.naming.rename("saved_views_read")} on ${views};
-create policy ${ctx.naming.rename("saved_views_read")} on ${views} for select to authenticated
-using (${visible});
+${renderPolicy(makePolicy({ table: views, name: ctx.naming.rename("saved_views_read"), command: "select", roles: ["authenticated"], using: visible }), { drop: true, target: views })}
 ${preferences?.ddl ?? ""}
 
 ${extraFieldsArg(extras).drop(fn("save_view"), `${ctx.idType}, text, text, text, text, text, jsonb, uuid`)}
@@ -524,9 +523,7 @@ ${lockTable(prefs, { read: true })}
     `jsonb_build_object('isDefault', coalesce(${alias}.${isDefault}, false), 'hidden', coalesce(${alias}.${hidden}, false), 'pinned', coalesce(${alias}.${pinned}, false))`;
 
   return {
-    ddl: `${table}drop policy if exists ${ctx.naming.rename("saved_view_preferences_read")} on ${prefs};
-create policy ${ctx.naming.rename("saved_view_preferences_read")} on ${prefs} for select to authenticated
-using (${user} = (select auth.uid()));
+    ddl: `${table}${renderPolicy(makePolicy({ table: prefs, name: ctx.naming.rename("saved_view_preferences_read"), command: "select", roles: ["authenticated"], using: `${user} = (select auth.uid())` }), { drop: true, target: prefs })}
 `,
     functions: `
 -- The caller's own default, hidden and pinned flags for a view they see, so

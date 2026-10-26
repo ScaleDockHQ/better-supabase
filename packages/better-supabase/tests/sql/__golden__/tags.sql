@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:d3da96b4fce5ab73dadf62ef93ebc422691aa620c43017dc2d2329798999b690
+-- @bsb-hash sha256:efe90c2e686a300673e3e9e55fb1aca4c58d5e7cde399581a1c5604c85f6d957
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -78,7 +78,7 @@ create table if not exists "better_supabase"."tags" (
   unique ("tenant_id", "kind", "slug")
 );
 alter table "better_supabase"."tags" enable row level security;
-revoke all on "better_supabase"."tags" from anon, authenticated;
+revoke all on "better_supabase"."tags" from public, anon, authenticated;
 grant select on "better_supabase"."tags" to authenticated;
 grant all on "better_supabase"."tags" to service_role;
 create table if not exists "better_supabase"."taggings" (
@@ -91,7 +91,7 @@ create table if not exists "better_supabase"."taggings" (
 );
 create index if not exists "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."taggings" enable row level security;
-revoke all on "better_supabase"."taggings" from anon, authenticated;
+revoke all on "better_supabase"."taggings" from public, anon, authenticated;
 grant select on "better_supabase"."taggings" to authenticated;
 grant all on "better_supabase"."taggings" to service_role;
 
@@ -420,7 +420,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_059_tags.sql
@@ -440,7 +440,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:e659d287cc5307fd2c00faeead9a081b8acd940301351f08c46708392503cd5c
+-- @bsb-hash sha256:2f4bd7f8e0a5c38f387bd0c724b1483c5c2cfc0c786e338bd67283b47958b2da
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -517,7 +517,7 @@ create table if not exists "better_supabase"."tags" (
   unique ("tenant_id", "kind", "slug")
 );
 alter table "better_supabase"."tags" enable row level security;
-revoke all on "better_supabase"."tags" from anon, authenticated;
+revoke all on "better_supabase"."tags" from public, anon, authenticated;
 grant select on "better_supabase"."tags" to authenticated;
 grant all on "better_supabase"."tags" to service_role;
 create table if not exists "better_supabase"."taggings" (
@@ -530,7 +530,7 @@ create table if not exists "better_supabase"."taggings" (
 );
 create index if not exists "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."taggings" enable row level security;
-revoke all on "better_supabase"."taggings" from anon, authenticated;
+revoke all on "better_supabase"."taggings" from public, anon, authenticated;
 grant select on "better_supabase"."taggings" to authenticated;
 grant all on "better_supabase"."taggings" to service_role;
 
@@ -859,7 +859,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_059_tags.sql
@@ -879,7 +879,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:995e7669819a9978814fc7a7493d37ecaff2d63960e8a4fc7de46dacbdf4c3bd
+-- @bsb-hash sha256:9bc79faed4b28a383c3612858aa2e59d0bf0e204dc5da3ac32677cfb2824b0a8
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -944,6 +944,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table if not exists "app_private"."tags" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -958,7 +961,7 @@ create table if not exists "app_private"."tags" (
   unique ("tenant_id", "kind", "slug")
 );
 alter table "app_private"."tags" enable row level security;
-revoke all on "app_private"."tags" from anon, authenticated;
+revoke all on "app_private"."tags" from public, anon, authenticated;
 grant select on "app_private"."tags" to authenticated;
 grant all on "app_private"."tags" to service_role;
 create table if not exists "app_private"."taggings" (
@@ -971,7 +974,7 @@ create table if not exists "app_private"."taggings" (
 );
 create index if not exists "taggings_subject_idx" on "app_private"."taggings" ("tenant_id", "subject_type", "subject_id");
 alter table "app_private"."taggings" enable row level security;
-revoke all on "app_private"."taggings" from anon, authenticated;
+revoke all on "app_private"."taggings" from public, anon, authenticated;
 grant select on "app_private"."taggings" to authenticated;
 grant all on "app_private"."taggings" to service_role;
 
@@ -1300,7 +1303,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_059_tags.sql
@@ -1320,7 +1323,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:4697945b1a19b6c6d48a64a9ad12a82534908850dfcc5d1a2c5f4f21936c83c8
+-- @bsb-hash sha256:0f3f80e70a748f4e8fd4f31ad270aab34564ef01760965a66a3033d3b230352f
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1397,7 +1400,7 @@ create table if not exists "better_supabase"."tags" (
   unique ("tenant_id", "kind", "slug")
 );
 alter table "better_supabase"."tags" enable row level security;
-revoke all on "better_supabase"."tags" from anon, authenticated;
+revoke all on "better_supabase"."tags" from public, anon, authenticated;
 grant select on "better_supabase"."tags" to authenticated;
 grant all on "better_supabase"."tags" to service_role;
 create table if not exists "better_supabase"."taggings" (
@@ -1410,7 +1413,7 @@ create table if not exists "better_supabase"."taggings" (
 );
 create index if not exists "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."taggings" enable row level security;
-revoke all on "better_supabase"."taggings" from anon, authenticated;
+revoke all on "better_supabase"."taggings" from public, anon, authenticated;
 grant select on "better_supabase"."taggings" to authenticated;
 grant all on "better_supabase"."taggings" to service_role;
 
@@ -1836,7 +1839,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_059_tags.sql
@@ -1856,7 +1859,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:26c634239766c92d3f29c4019696795b0dfa72d3c1a05d457ef69d8ab462c3e7
+-- @bsb-hash sha256:52ccab58a9e3ca18b95624e3fa058f320356b638d1fc03fe8421a888bf69b1fb
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2285,7 +2288,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_059_tags.sql
@@ -2305,7 +2308,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:4a915f64bf7ff4d2695e4749b2baefdb7692e2db86d242c9720ebf559a7dc293
+-- @bsb-hash sha256:d9ced6c1449d7ba7dc72c9377af3f21253bdfbd83541729467401f8a8817b562
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2382,7 +2385,7 @@ create table if not exists "better_supabase"."tags" (
   unique ("org_id", "kind", "slug")
 );
 alter table "better_supabase"."tags" enable row level security;
-revoke all on "better_supabase"."tags" from anon, authenticated;
+revoke all on "better_supabase"."tags" from public, anon, authenticated;
 grant select on "better_supabase"."tags" to authenticated;
 grant all on "better_supabase"."tags" to service_role;
 create table if not exists "better_supabase"."taggings" (
@@ -2395,7 +2398,7 @@ create table if not exists "better_supabase"."taggings" (
 );
 create index if not exists "taggings_subject_idx" on "better_supabase"."taggings" ("org_id", "subject_type", "subject_id");
 alter table "better_supabase"."taggings" enable row level security;
-revoke all on "better_supabase"."taggings" from anon, authenticated;
+revoke all on "better_supabase"."taggings" from public, anon, authenticated;
 grant select on "better_supabase"."taggings" to authenticated;
 grant all on "better_supabase"."taggings" to service_role;
 
@@ -2724,7 +2727,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_059_tags.sql

@@ -3,6 +3,7 @@ import type { MessagingSql } from "./messaging-names.ts";
 import { sqlString } from "../../core/template.ts";
 import { fail, pageSize, userGrant } from "../shared.ts";
 import { subjectTenant } from "../subject-check-sql.ts";
+import { subjectTypeGuard } from "../subjects.ts";
 import { conversationTopic } from "./messaging-names.ts";
 import { conversationReadable, guestOnRecord } from "./messaging-tables.ts";
 import { asText } from "./over-app.ts";
@@ -241,7 +242,7 @@ begin
     when 'subject' then
       if nullif(open_conversation.attrs ->> 'subjectType', '') is null or nullif(open_conversation.attrs ->> 'subjectId', '') is null then
         ${fail("MESSAGING_SUBJECT_REQUIRED", "a record conversation needs attrs.subjectType and attrs.subjectId", "22023")}
-      end if;
+      end if;${subjectTypeGuard(ctx, "(open_conversation.attrs ->> 'subjectType')", "MESSAGING_SUBJECT_UNSUPPORTED", "      ")}
       if not (${q.service}${guestOpen.or} or coalesce(${subjects.fn("can_subject")}(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
         ${fail("MESSAGING_NOT_FOUND", "no such record you can read", "P0002")}
       end if;

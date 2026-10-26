@@ -163,7 +163,7 @@ describe("notifications to profiles with an enum locale", BOOT, () => {
       queryRaw: query,
       transaction: <T>(fn: (client: SqlClient) => Promise<T>) => fn(sql),
     };
-  });
+  }, 120_000);
 
   afterAll(async () => {
     await connection?.close();

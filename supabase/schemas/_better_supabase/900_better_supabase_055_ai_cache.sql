@@ -1,6 +1,6 @@
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:23c45c9d097b488d69ca1e54c0cbd33e194f9a7c63df87440aad828e22c92e61
+-- @bsb-hash sha256:b88b269d165141c56fe96a352481f58d6eed03746558b1c32cdc76bdb722bbfe
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -38,7 +38,7 @@ create table if not exists "better_supabase"."ai_cache_entries" (
 create index if not exists ai_cache_entries_expires_idx on "better_supabase"."ai_cache_entries" ("expires_at");
 create index if not exists ai_cache_entries_tenant_idx on "better_supabase"."ai_cache_entries" ("organization_id");
 alter table "better_supabase"."ai_cache_entries" enable row level security;
-revoke all on "better_supabase"."ai_cache_entries" from anon, authenticated;
+revoke all on "better_supabase"."ai_cache_entries" from public, anon, authenticated;
 grant all on "better_supabase"."ai_cache_entries" to service_role;
 
 -- The entry under key, or null when there is none or it expired; counts the hit.
@@ -195,5 +195,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

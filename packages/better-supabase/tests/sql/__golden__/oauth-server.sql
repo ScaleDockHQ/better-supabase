@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:852f38d1a0d4c4cbccdfdaa862466ed46899faa4771f7981256b7c2d803163ea
+-- @bsb-hash sha256:8e8a9f38db3cc3f4bd335a0ae66dbfe8853d0b8dd72c35a24eae8c4962795bda
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -66,7 +66,7 @@ create table if not exists "better_supabase"."oauth_clients" (
 );
 create index if not exists oauth_clients_created_by_idx on "better_supabase"."oauth_clients" ("created_by");
 alter table "better_supabase"."oauth_clients" enable row level security;
-revoke all on "better_supabase"."oauth_clients" from anon, authenticated;
+revoke all on "better_supabase"."oauth_clients" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_clients" to service_role;
 
 create table if not exists "better_supabase"."oauth_grants" (
@@ -84,7 +84,7 @@ create index if not exists oauth_grants_client_idx on "better_supabase"."oauth_g
 alter table "better_supabase"."oauth_grants" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_grants_user_idx on "better_supabase"."oauth_grants" ("user_id");
 alter table "better_supabase"."oauth_grants" enable row level security;
-revoke all on "better_supabase"."oauth_grants" from anon, authenticated;
+revoke all on "better_supabase"."oauth_grants" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_grants" to service_role;
 
 create table if not exists "better_supabase"."oauth_authorization_codes" (
@@ -107,7 +107,7 @@ create index if not exists oauth_authorization_codes_client_idx on "better_supab
 alter table "better_supabase"."oauth_authorization_codes" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_authorization_codes_user_idx on "better_supabase"."oauth_authorization_codes" ("user_id");
 alter table "better_supabase"."oauth_authorization_codes" enable row level security;
-revoke all on "better_supabase"."oauth_authorization_codes" from anon, authenticated;
+revoke all on "better_supabase"."oauth_authorization_codes" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_authorization_codes" to service_role;
 
 create table if not exists "better_supabase"."oauth_device_codes" (
@@ -133,7 +133,7 @@ create index if not exists oauth_device_codes_client_idx on "better_supabase"."o
 alter table "better_supabase"."oauth_device_codes" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_device_codes_user_idx on "better_supabase"."oauth_device_codes" ("user_id");
 alter table "better_supabase"."oauth_device_codes" enable row level security;
-revoke all on "better_supabase"."oauth_device_codes" from anon, authenticated;
+revoke all on "better_supabase"."oauth_device_codes" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_device_codes" to service_role;
 
 create table if not exists "better_supabase"."oauth_revocations" (
@@ -144,7 +144,7 @@ create table if not exists "better_supabase"."oauth_revocations" (
 );
 create index if not exists oauth_revocations_expires_idx on "better_supabase"."oauth_revocations" ("expires_at");
 alter table "better_supabase"."oauth_revocations" enable row level security;
-revoke all on "better_supabase"."oauth_revocations" from anon, authenticated;
+revoke all on "better_supabase"."oauth_revocations" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_revocations" to service_role;
 
 -- The user's active grant for the client, widened to the scopes; a new one
@@ -849,7 +849,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_106_oauth_server.sql
@@ -869,7 +869,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:c1228648814492a4c9319f605f2567efe545d0b38552ed7918eaab45ce2dae34
+-- @bsb-hash sha256:6a7e4f83ff5c7da2de1cb0605aaaf2af7da045723435738124401abbfc6233ba
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -934,7 +934,7 @@ create table if not exists "better_supabase"."oauth_clients" (
 );
 create index if not exists oauth_clients_created_by_idx on "better_supabase"."oauth_clients" ("created_by");
 alter table "better_supabase"."oauth_clients" enable row level security;
-revoke all on "better_supabase"."oauth_clients" from anon, authenticated;
+revoke all on "better_supabase"."oauth_clients" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_clients" to service_role;
 
 create table if not exists "better_supabase"."oauth_grants" (
@@ -952,7 +952,7 @@ create index if not exists oauth_grants_client_idx on "better_supabase"."oauth_g
 alter table "better_supabase"."oauth_grants" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_grants_user_idx on "better_supabase"."oauth_grants" ("user_id");
 alter table "better_supabase"."oauth_grants" enable row level security;
-revoke all on "better_supabase"."oauth_grants" from anon, authenticated;
+revoke all on "better_supabase"."oauth_grants" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_grants" to service_role;
 
 create table if not exists "better_supabase"."oauth_authorization_codes" (
@@ -975,7 +975,7 @@ create index if not exists oauth_authorization_codes_client_idx on "better_supab
 alter table "better_supabase"."oauth_authorization_codes" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_authorization_codes_user_idx on "better_supabase"."oauth_authorization_codes" ("user_id");
 alter table "better_supabase"."oauth_authorization_codes" enable row level security;
-revoke all on "better_supabase"."oauth_authorization_codes" from anon, authenticated;
+revoke all on "better_supabase"."oauth_authorization_codes" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_authorization_codes" to service_role;
 
 create table if not exists "better_supabase"."oauth_device_codes" (
@@ -1001,7 +1001,7 @@ create index if not exists oauth_device_codes_client_idx on "better_supabase"."o
 alter table "better_supabase"."oauth_device_codes" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_device_codes_user_idx on "better_supabase"."oauth_device_codes" ("user_id");
 alter table "better_supabase"."oauth_device_codes" enable row level security;
-revoke all on "better_supabase"."oauth_device_codes" from anon, authenticated;
+revoke all on "better_supabase"."oauth_device_codes" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_device_codes" to service_role;
 
 create table if not exists "better_supabase"."oauth_revocations" (
@@ -1012,7 +1012,7 @@ create table if not exists "better_supabase"."oauth_revocations" (
 );
 create index if not exists oauth_revocations_expires_idx on "better_supabase"."oauth_revocations" ("expires_at");
 alter table "better_supabase"."oauth_revocations" enable row level security;
-revoke all on "better_supabase"."oauth_revocations" from anon, authenticated;
+revoke all on "better_supabase"."oauth_revocations" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_revocations" to service_role;
 
 -- The user's active grant for the client, widened to the scopes; a new one
@@ -1763,7 +1763,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_106_oauth_server.sql
@@ -1783,7 +1783,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:c16e9bc47885b92f7530aa4b4f6c6b323d3e829b18afb72e96ff2d2c10790e9e
+-- @bsb-hash sha256:1d72d0250ef85316877acdc30d51453eae37e8483e8212b73e9ea88dffcc765d
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1826,6 +1826,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- OAuth 2.1 authorization server storage: registered clients (RFC 7591)
 -- with hashed secrets, a user's grant per client, single-use authorization
 -- codes bound to a PKCE S256 challenge (RFC 7636), device codes (RFC 8628)
@@ -1850,7 +1853,7 @@ create table if not exists "app_private"."oauth_clients" (
 );
 create index if not exists oauth_clients_created_by_idx on "app_private"."oauth_clients" ("created_by");
 alter table "app_private"."oauth_clients" enable row level security;
-revoke all on "app_private"."oauth_clients" from anon, authenticated;
+revoke all on "app_private"."oauth_clients" from public, anon, authenticated;
 grant all on "app_private"."oauth_clients" to service_role;
 
 create table if not exists "app_private"."oauth_grants" (
@@ -1868,7 +1871,7 @@ create index if not exists oauth_grants_client_idx on "app_private"."oauth_grant
 alter table "app_private"."oauth_grants" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_grants_user_idx on "app_private"."oauth_grants" ("user_id");
 alter table "app_private"."oauth_grants" enable row level security;
-revoke all on "app_private"."oauth_grants" from anon, authenticated;
+revoke all on "app_private"."oauth_grants" from public, anon, authenticated;
 grant all on "app_private"."oauth_grants" to service_role;
 
 create table if not exists "app_private"."oauth_authorization_codes" (
@@ -1891,7 +1894,7 @@ create index if not exists oauth_authorization_codes_client_idx on "app_private"
 alter table "app_private"."oauth_authorization_codes" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_authorization_codes_user_idx on "app_private"."oauth_authorization_codes" ("user_id");
 alter table "app_private"."oauth_authorization_codes" enable row level security;
-revoke all on "app_private"."oauth_authorization_codes" from anon, authenticated;
+revoke all on "app_private"."oauth_authorization_codes" from public, anon, authenticated;
 grant all on "app_private"."oauth_authorization_codes" to service_role;
 
 create table if not exists "app_private"."oauth_device_codes" (
@@ -1917,7 +1920,7 @@ create index if not exists oauth_device_codes_client_idx on "app_private"."oauth
 alter table "app_private"."oauth_device_codes" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_device_codes_user_idx on "app_private"."oauth_device_codes" ("user_id");
 alter table "app_private"."oauth_device_codes" enable row level security;
-revoke all on "app_private"."oauth_device_codes" from anon, authenticated;
+revoke all on "app_private"."oauth_device_codes" from public, anon, authenticated;
 grant all on "app_private"."oauth_device_codes" to service_role;
 
 create table if not exists "app_private"."oauth_revocations" (
@@ -1928,7 +1931,7 @@ create table if not exists "app_private"."oauth_revocations" (
 );
 create index if not exists oauth_revocations_expires_idx on "app_private"."oauth_revocations" ("expires_at");
 alter table "app_private"."oauth_revocations" enable row level security;
-revoke all on "app_private"."oauth_revocations" from anon, authenticated;
+revoke all on "app_private"."oauth_revocations" from public, anon, authenticated;
 grant all on "app_private"."oauth_revocations" to service_role;
 
 -- The user's active grant for the client, widened to the scopes; a new one
@@ -2633,7 +2636,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_106_oauth_server.sql
@@ -2653,7 +2656,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:4994bffe03fa64f4d465261a566901434f3ecb4b04ecf5ce8cf52a30de4e8f30
+-- @bsb-hash sha256:92b5f411594edc0e98dd57a73e4a13bb44b431746feec8ab9cd3397b96d1f998
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2718,7 +2721,7 @@ create table if not exists "better_supabase"."oauth_clients" (
 );
 create index if not exists oauth_clients_created_by_idx on "better_supabase"."oauth_clients" ("created_by");
 alter table "better_supabase"."oauth_clients" enable row level security;
-revoke all on "better_supabase"."oauth_clients" from anon, authenticated;
+revoke all on "better_supabase"."oauth_clients" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_clients" to service_role;
 
 create table if not exists "better_supabase"."oauth_grants" (
@@ -2736,7 +2739,7 @@ create index if not exists oauth_grants_client_idx on "better_supabase"."oauth_g
 alter table "better_supabase"."oauth_grants" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_grants_user_idx on "better_supabase"."oauth_grants" ("user_id");
 alter table "better_supabase"."oauth_grants" enable row level security;
-revoke all on "better_supabase"."oauth_grants" from anon, authenticated;
+revoke all on "better_supabase"."oauth_grants" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_grants" to service_role;
 
 create table if not exists "better_supabase"."oauth_authorization_codes" (
@@ -2759,7 +2762,7 @@ create index if not exists oauth_authorization_codes_client_idx on "better_supab
 alter table "better_supabase"."oauth_authorization_codes" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_authorization_codes_user_idx on "better_supabase"."oauth_authorization_codes" ("user_id");
 alter table "better_supabase"."oauth_authorization_codes" enable row level security;
-revoke all on "better_supabase"."oauth_authorization_codes" from anon, authenticated;
+revoke all on "better_supabase"."oauth_authorization_codes" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_authorization_codes" to service_role;
 
 create table if not exists "better_supabase"."oauth_device_codes" (
@@ -2785,7 +2788,7 @@ create index if not exists oauth_device_codes_client_idx on "better_supabase"."o
 alter table "better_supabase"."oauth_device_codes" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_device_codes_user_idx on "better_supabase"."oauth_device_codes" ("user_id");
 alter table "better_supabase"."oauth_device_codes" enable row level security;
-revoke all on "better_supabase"."oauth_device_codes" from anon, authenticated;
+revoke all on "better_supabase"."oauth_device_codes" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_device_codes" to service_role;
 
 create table if not exists "better_supabase"."oauth_revocations" (
@@ -2796,7 +2799,7 @@ create table if not exists "better_supabase"."oauth_revocations" (
 );
 create index if not exists oauth_revocations_expires_idx on "better_supabase"."oauth_revocations" ("expires_at");
 alter table "better_supabase"."oauth_revocations" enable row level security;
-revoke all on "better_supabase"."oauth_revocations" from anon, authenticated;
+revoke all on "better_supabase"."oauth_revocations" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_revocations" to service_role;
 
 -- The user's active grant for the client, widened to the scopes; a new one
@@ -3708,7 +3711,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_106_oauth_server.sql
@@ -3728,7 +3731,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:40d32ecbdf04b6dc98949327c020251fc5ca9e8f8fdab89d625b022dcaa36647
+-- @bsb-hash sha256:f3b2db264efc1d2b18be89abfba6ddbfd268c560bbe2587f1298a719353a24c3
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4577,7 +4580,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_106_oauth_server.sql

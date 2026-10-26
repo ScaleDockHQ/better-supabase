@@ -1,6 +1,6 @@
 -- better-supabase module: timeline
 -- @bsb-block timeline@1 managed
--- @bsb-hash sha256:4db7f0b954f0b992b5dc11ef1d94418010a6b86b17f8a537d3d8c93117a7c02d
+-- @bsb-hash sha256:961b35b1133ee4ffde39664454c682944cbcb3b07bfd5147f152d2595ff9141d
 -- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -38,7 +38,7 @@ create index if not exists activity_entries_feed_idx on "better_supabase"."activ
 create index if not exists activity_entries_subject_idx on "better_supabase"."activity_entries" ("organization_id", "subject_type", "subject_id");
 create index if not exists activity_entries_actor_idx on "better_supabase"."activity_entries" ("actor_id");
 alter table "better_supabase"."activity_entries" enable row level security;
-revoke all on "better_supabase"."activity_entries" from anon, authenticated;
+revoke all on "better_supabase"."activity_entries" from public, anon, authenticated;
 grant select on "better_supabase"."activity_entries" to authenticated;
 grant all on "better_supabase"."activity_entries" to service_role;
 -- Whether the caller can read a registered subject (can_subject).
@@ -56,7 +56,8 @@ $$;
 revoke execute on function "better_supabase"."activity_subject_readable"(text, text) from public, anon;
 grant execute on function "better_supabase"."activity_subject_readable"(text, text) to authenticated, service_role;
 drop policy if exists activity_entries_read on "better_supabase"."activity_entries";
-create policy activity_entries_read on "better_supabase"."activity_entries" for select to authenticated
+create policy activity_entries_read on "better_supabase"."activity_entries"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('activity.read'))
     and ("subject_type" is null or "subject_id" is null
       or not ("subject_type" = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,customer,drive_node,application,project,task}'::text[]))
@@ -327,5 +328,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

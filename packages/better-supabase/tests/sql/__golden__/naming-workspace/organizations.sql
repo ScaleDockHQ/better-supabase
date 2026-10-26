@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:f48ab21260ff92cf9fe9b265a1c6b579e7f35f3f6b0afc7ec509cc5a283a43c5
+-- @bsb-hash sha256:3c5db17ae9e0be35b11cddf9d09f91d4e20e59d38890a27f5fc3d4558e2af5b5
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -59,11 +59,12 @@ drop trigger if exists bsb_updated_at on "better_supabase"."workspaces";
 create trigger bsb_updated_at before update on "better_supabase"."workspaces"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."workspaces" enable row level security;
-revoke all on "better_supabase"."workspaces" from anon, authenticated;
+revoke all on "better_supabase"."workspaces" from public, anon, authenticated;
 grant select on "better_supabase"."workspaces" to authenticated;
 grant all on "better_supabase"."workspaces" to service_role;
 drop policy if exists bsb_workspaces_read on "better_supabase"."workspaces";
-create policy bsb_workspaces_read on "better_supabase"."workspaces" for select to authenticated
+create policy bsb_workspaces_read on "better_supabase"."workspaces"
+  for select to authenticated
   using ("id" in (select better_supabase.member_workspace_ids()));
 
 do $$
@@ -743,7 +744,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_021_organizations.sql

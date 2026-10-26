@@ -1,6 +1,7 @@
 import type { MessagingSql } from "./messaging-names.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, triggerGrant } from "../shared.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 
@@ -318,32 +319,42 @@ revoke execute on function ${fn("is_conversation_member")}(uuid) from public, an
 grant execute on function ${fn("is_conversation_member")}(uuid) to authenticated, service_role;
 
 drop policy if exists ${policy("conversations", "read")} on ${t("conversations")};
-create policy ${policy("conversations", "read")} on ${t("conversations")} for select to authenticated
-using (${conversationReadable(q, t("conversations"), { policy: true })});
+${renderPolicy(makePolicy({ table: t("conversations"), name: policy("conversations", "read"), command: "select", roles: ["authenticated"], using: conversationReadable(q, t("conversations"), { policy: true }) }), { target: t("conversations") })}
 
 drop policy if exists ${policy("members", "read")} on ${t("members")};
-create policy ${policy("members", "read")} on ${t("members")} for select to authenticated
-using (
-  ${mb("user")} = (select auth.uid())
-  or exists (select 1 from ${t("conversations")} c where c.${cv("id")} = ${mb("conversation")})
-);
+${renderPolicy(
+  makePolicy({
+    table: t("members"),
+    name: policy("members", "read"),
+    command: "select",
+    roles: ["authenticated"],
+    using: `${mb("user")} = (select auth.uid())
+  or exists (select 1 from ${t("conversations")} c where c.${cv("id")} = ${mb("conversation")})`,
+  }),
+  { target: t("members") },
+)}
 
 ${ddl.messages}
 
 -- A message shows to whoever reads its conversation once it is sent; a
 -- scheduled one shows to its author only.
 drop policy if exists ${policy("messages", "read")} on ${t("messages")};
-create policy ${policy("messages", "read")} on ${t("messages")} for select to authenticated
-using (
-  (${ms("sentAt")} is not null or ${ms("author")} = (select auth.uid()))
-  and exists (select 1 from ${t("conversations")} c where c.${cv("id")} = ${ms("conversation")})${noteReadable(q, ms("conversation"))}
-);
+${renderPolicy(
+  makePolicy({
+    table: t("messages"),
+    name: policy("messages", "read"),
+    command: "select",
+    roles: ["authenticated"],
+    using: `(${ms("sentAt")} is not null or ${ms("author")} = (select auth.uid()))
+  and exists (select 1 from ${t("conversations")} c where c.${cv("id")} = ${ms("conversation")})${noteReadable(q, ms("conversation"))}`,
+  }),
+  { target: t("messages") },
+)}
 
 ${ddl.edits}
 
 drop policy if exists ${policy("edits", "read")} on ${t("edits")};
-create policy ${policy("edits", "read")} on ${t("edits")} for select to authenticated
-using (exists (select 1 from ${t("messages")} m where m.${ms("id")} = ${ed("message")}));
+${renderPolicy(makePolicy({ table: t("edits"), name: policy("edits", "read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("messages")} m where m.${ms("id")} = ${ed("message")})` }), { target: t("edits") })}
 
 -- Where a user has read to, per conversation (thread null) or per thread
 -- root. Members keep the conversation marker on their member row too; a
@@ -351,24 +362,21 @@ using (exists (select 1 from ${t("messages")} m where m.${ms("id")} = ${ed("mess
 ${ddl.reads}
 
 drop policy if exists ${policy("reads", "read")} on ${t("reads")};
-create policy ${policy("reads", "read")} on ${t("reads")} for select to authenticated
-using (${rd("user")} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: t("reads"), name: policy("reads", "read"), command: "select", roles: ["authenticated"], using: `${rd("user")} = (select auth.uid())` }), { target: t("reads") })}
 
 -- The records a sent message mentions, for a record's backlinks. A row shows
 -- with its message; list_record_mentions also asks can_subject on the record.
 ${ddl.recordMentions}
 
 drop policy if exists ${policy("recordMentions", "read")} on ${t("recordMentions")};
-create policy ${policy("recordMentions", "read")} on ${t("recordMentions")} for select to authenticated
-using (exists (select 1 from ${t("messages")} m where m.${ms("id")} = ${rm("message")}));
+${renderPolicy(makePolicy({ table: t("recordMentions"), name: policy("recordMentions", "read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("messages")} m where m.${ms("id")} = ${rm("message")})` }), { target: t("recordMentions") })}
 
 -- A thread's or a conversation's summary, which the service role writes
 -- through save_thread_summary. It shows to whoever reads the conversation.
 ${ddl.summaries}
 
 drop policy if exists ${policy("summaries", "read")} on ${t("summaries")};
-create policy ${policy("summaries", "read")} on ${t("summaries")} for select to authenticated
-using (exists (select 1 from ${t("conversations")} c where c.${cv("id")} = ${su("conversation")}));
+${renderPolicy(makePolicy({ table: t("summaries"), name: policy("summaries", "read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("conversations")} c where c.${cv("id")} = ${su("conversation")})` }), { target: t("summaries") })}
 
 -- Keeps the thread root's reply count, last reply and first three repliers,
 -- and the conversation's last message time, as a reply is sent or deleted.
@@ -470,20 +478,30 @@ create trigger ${ctx.trigger("messaging_message_broadcast")} after insert or upd
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists ${receive} on realtime.messages;
-    create policy ${receive} on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension in ('broadcast', 'presence')
+        ${renderPolicy(
+          makePolicy({
+            table: "realtime.messages",
+            name: receive,
+            command: "select",
+            roles: ["authenticated"],
+            using: `realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like ${prefix} || '%'
-        and ${fn("conversation_topic_allowed")}(substr((select realtime.topic()), ${start}))
-      );
-    drop policy if exists ${broadcast} on realtime.messages;
-    create policy ${broadcast} on realtime.messages for insert to authenticated
-      with check (
-        realtime.messages.extension in ('broadcast', 'presence')
+        and ${fn("conversation_topic_allowed")}(substr((select realtime.topic()), ${start}))`,
+          }),
+          { drop: true, target: "realtime.messages" },
+        )}
+        ${renderPolicy(
+          makePolicy({
+            table: "realtime.messages",
+            name: broadcast,
+            command: "insert",
+            roles: ["authenticated"],
+            check: `realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like ${prefix} || '%'
-        and ${fn("conversation_topic_allowed")}(substr((select realtime.topic()), ${start}))
-      );
+        and ${fn("conversation_topic_allowed")}(substr((select realtime.topic()), ${start}))`,
+          }),
+          { drop: true, target: "realtime.messages" },
+        )}
   end if;
 end;
 $$;

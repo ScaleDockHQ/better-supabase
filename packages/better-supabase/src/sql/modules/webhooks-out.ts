@@ -8,7 +8,7 @@ import type {
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { HookNames } from "./webhooks-out-sql.ts";
 
-import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   defaultPartition,
   defaultPartitionName,
@@ -233,9 +233,24 @@ function tables(ctx: BlockSqlContext, n: HookNames): string {
   const opt = (table: string, logical: string, definition: string) =>
     n.has(table, logical) ? [`${n.col(table, logical)} ${definition}`] : [];
 
-  const policy = (table: string, name: string, body: string) => `
-drop policy if exists ${sqlIdent(name)} on ${n.table(table)};
-create policy ${sqlIdent(name)} on ${n.table(table)} ${body};`;
+  const policy = (
+    table: string,
+    name: string,
+    spec: {
+      command: "select" | "insert" | "update" | "delete";
+      using?: string;
+      check?: string;
+    },
+  ) =>
+    `\n${renderPolicy(
+      makePolicy({
+        table: n.table(table),
+        name,
+        roles: ["authenticated"],
+        ...spec,
+      }),
+      { drop: true, target: n.table(table) },
+    )}`;
 
   const scoped = n.clientAccess;
   const signingType = `text not null default 'v1' check (${d("signing")} in ('v1', 'v1a'))`;
@@ -289,21 +304,20 @@ ${n.has("endpoints", "tenant") ? `create index if not exists ${ctx.naming.rename
 grant select, insert, update, delete on ${n.table("endpoints")} to authenticated;${policy(
           "endpoints",
           "bsb_webhook_endpoints_read",
-          `for select to authenticated using (${n.member(d("tenant"), "view")})`,
+          { command: "select", using: n.member(d("tenant"), "view") },
         )}
 drop policy if exists bsb_webhook_endpoints_write on ${n.table("endpoints")};${policy(
           "endpoints",
           "bsb_webhook_endpoints_insert",
-          `for insert to authenticated with check (${n.member(d("tenant"), "manage")})`,
-        )}${policy(
-          "endpoints",
-          "bsb_webhook_endpoints_update",
-          `for update to authenticated using (${n.member(d("tenant"), "manage")}) with check (${n.member(d("tenant"), "manage")})`,
-        )}${policy(
-          "endpoints",
-          "bsb_webhook_endpoints_delete",
-          `for delete to authenticated using (${n.member(d("tenant"), "manage")})`,
-        )}`
+          { command: "insert", check: n.member(d("tenant"), "manage") },
+        )}${policy("endpoints", "bsb_webhook_endpoints_update", {
+          command: "update",
+          using: n.member(d("tenant"), "manage"),
+          check: n.member(d("tenant"), "manage"),
+        })}${policy("endpoints", "bsb_webhook_endpoints_delete", {
+          command: "delete",
+          using: n.member(d("tenant"), "manage"),
+        })}`
       : ""
   }`;
 
@@ -372,7 +386,7 @@ ${lockTable(n.table("deliveries"))}${
 grant select on ${n.table("deliveries")} to authenticated;${policy(
           "deliveries",
           "bsb_webhook_deliveries_read",
-          `for select to authenticated using (${n.member(v("tenant"), "view")})`,
+          { command: "select", using: n.member(v("tenant"), "view") },
         )}`
       : ""
   }${n.partitioned ? `\n\n${MONTHLY_PARTITIONS}\n${registerPartitions(n.table("deliveries"))}` : ""}`;

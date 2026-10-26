@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:f79940e27f463902b6afacc0756dc281257a6a2cf91c6a52964d035faed6a380
+-- @bsb-hash sha256:38106f2aa67ab50255aeb7e7440c041b92dc7cbf0b563d4816e7125838d32497
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -69,11 +69,12 @@ create index if not exists "lead_score_checks_tenant_idx" on "better_supabase"."
 create index if not exists "lead_score_checks_due_idx" on "better_supabase"."lead_score_checks" ("checked_at" nulls first) where "stale";
 
 alter table "better_supabase"."lead_score_checks" enable row level security;
-revoke all on "better_supabase"."lead_score_checks" from anon, authenticated;
+revoke all on "better_supabase"."lead_score_checks" from public, anon, authenticated;
 grant select on "better_supabase"."lead_score_checks" to authenticated;
 grant all on "better_supabase"."lead_score_checks" to service_role;
-drop policy if exists "lead_score_checks_read" on "better_supabase"."lead_score_checks";
-create policy "lead_score_checks_read" on "better_supabase"."lead_score_checks" for select to authenticated
+drop policy if exists lead_score_checks_read on "better_supabase"."lead_score_checks";
+create policy lead_score_checks_read on "better_supabase"."lead_score_checks"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')));
 
 -- The values a lead model's rules and metrics read for one record: its
@@ -271,7 +272,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_139_lead_scoring.sql
@@ -291,7 +292,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:d6d27c39d89c2cc662076af379c19dce468a5720646a50bc5f0880200b605d4d
+-- @bsb-hash sha256:e9e080ed2b08bffcdb15009a62d69b11cd763085063a41280ee05b792e0aef7c
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -359,11 +360,12 @@ create index if not exists "lead_score_checks_tenant_idx" on "better_supabase"."
 create index if not exists "lead_score_checks_due_idx" on "better_supabase"."lead_score_checks" ("checked_at" nulls first) where "stale";
 
 alter table "better_supabase"."lead_score_checks" enable row level security;
-revoke all on "better_supabase"."lead_score_checks" from anon, authenticated;
+revoke all on "better_supabase"."lead_score_checks" from public, anon, authenticated;
 grant select on "better_supabase"."lead_score_checks" to authenticated;
 grant all on "better_supabase"."lead_score_checks" to service_role;
-drop policy if exists "lead_score_checks_read" on "better_supabase"."lead_score_checks";
-create policy "lead_score_checks_read" on "better_supabase"."lead_score_checks" for select to authenticated
+drop policy if exists lead_score_checks_read on "better_supabase"."lead_score_checks";
+create policy lead_score_checks_read on "better_supabase"."lead_score_checks"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')));
 
 -- The values a lead model's rules and metrics read for one record: its
@@ -649,7 +651,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_139_lead_scoring.sql
@@ -669,7 +671,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:8a929c9485fc29ed3c05913b54b5d5b53f323b41bff883e96b2cb67796fc99ef
+-- @bsb-hash sha256:af18341f7f767233c9960851fa242626a2476a4f2c16928188e1020ec04fd6cd
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -726,6 +728,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table if not exists "app_private"."lead_score_checks" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -739,11 +744,12 @@ create index if not exists "lead_score_checks_tenant_idx" on "app_private"."lead
 create index if not exists "lead_score_checks_due_idx" on "app_private"."lead_score_checks" ("checked_at" nulls first) where "stale";
 
 alter table "app_private"."lead_score_checks" enable row level security;
-revoke all on "app_private"."lead_score_checks" from anon, authenticated;
+revoke all on "app_private"."lead_score_checks" from public, anon, authenticated;
 grant select on "app_private"."lead_score_checks" to authenticated;
 grant all on "app_private"."lead_score_checks" to service_role;
-drop policy if exists "lead_score_checks_read" on "app_private"."lead_score_checks";
-create policy "lead_score_checks_read" on "app_private"."lead_score_checks" for select to authenticated
+drop policy if exists lead_score_checks_read on "app_private"."lead_score_checks";
+create policy lead_score_checks_read on "app_private"."lead_score_checks"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')));
 
 -- The values a lead model's rules and metrics read for one record: its
@@ -941,7 +947,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_139_lead_scoring.sql
@@ -961,7 +967,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:8a63c859513a09f1e62a00b9e8a4224352bafd2f0dab035c52b9974b53ef6339
+-- @bsb-hash sha256:044d857b9008323d98ad97437ff23c914eb94d51f1ab4d03f32d1c7222c6996b
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1029,11 +1035,12 @@ create index if not exists "lead_score_checks_tenant_idx" on "better_supabase"."
 create index if not exists "lead_score_checks_due_idx" on "better_supabase"."lead_score_checks" ("checked_at" nulls first) where "stale";
 
 alter table "better_supabase"."lead_score_checks" enable row level security;
-revoke all on "better_supabase"."lead_score_checks" from anon, authenticated;
+revoke all on "better_supabase"."lead_score_checks" from public, anon, authenticated;
 grant select on "better_supabase"."lead_score_checks" to authenticated;
 grant all on "better_supabase"."lead_score_checks" to service_role;
-drop policy if exists "lead_score_checks_read" on "better_supabase"."lead_score_checks";
-create policy "lead_score_checks_read" on "better_supabase"."lead_score_checks" for select to authenticated
+drop policy if exists lead_score_checks_read on "better_supabase"."lead_score_checks";
+create policy lead_score_checks_read on "better_supabase"."lead_score_checks"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')));
 
 -- The values a lead model's rules and metrics read for one record: its
@@ -1280,7 +1287,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_139_lead_scoring.sql
@@ -1300,7 +1307,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:fd4f472cfd0cfeb6cfa7330d4ba7d89b0850f5e8710fe1f2a2c0c189f7f1cee8
+-- @bsb-hash sha256:b041e09d869d55258abb151e4ecfcf9f40e53fa5857856d5c9f6c75c7ff220e4
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1369,7 +1376,8 @@ alter table "better_supabase"."lead_score_checks" enable row level security;
 grant select on "better_supabase"."lead_score_checks" to authenticated;
 grant all on "better_supabase"."lead_score_checks" to service_role;
 drop policy if exists bsb_lead_score_checks_select on "better_supabase"."lead_score_checks";
-create policy bsb_lead_score_checks_select on "better_supabase"."lead_score_checks" for select to authenticated
+create policy bsb_lead_score_checks_select on "better_supabase"."lead_score_checks"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')));
 
 -- The values a lead model's rules and metrics read for one record: its
@@ -1568,7 +1576,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_139_lead_scoring.sql
@@ -1588,7 +1596,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:efcc561e644d90298571a2ff8e02c16cce5e3121daf02b5b40d2b37206e7e0a6
+-- @bsb-hash sha256:4eeac383c867182f8627514115f70e0343e0e1e6a5ae413658ded3e8dfc2bf64
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1656,11 +1664,12 @@ create index if not exists "lead_score_checks_tenant_idx" on "better_supabase"."
 create index if not exists "lead_score_checks_due_idx" on "better_supabase"."lead_score_checks" ("checked_at" nulls first) where "stale";
 
 alter table "better_supabase"."lead_score_checks" enable row level security;
-revoke all on "better_supabase"."lead_score_checks" from anon, authenticated;
+revoke all on "better_supabase"."lead_score_checks" from public, anon, authenticated;
 grant select on "better_supabase"."lead_score_checks" to authenticated;
 grant all on "better_supabase"."lead_score_checks" to service_role;
-drop policy if exists "lead_score_checks_read" on "better_supabase"."lead_score_checks";
-create policy "lead_score_checks_read" on "better_supabase"."lead_score_checks" for select to authenticated
+drop policy if exists lead_score_checks_read on "better_supabase"."lead_score_checks";
+create policy lead_score_checks_read on "better_supabase"."lead_score_checks"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('scores.compute')));
 
 -- The values a lead model's rules and metrics read for one record: its
@@ -1858,7 +1867,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_139_lead_scoring.sql

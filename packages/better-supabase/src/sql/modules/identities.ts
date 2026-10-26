@@ -6,6 +6,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
   lockTable,
@@ -156,12 +157,8 @@ alter table ${links} enable row level security;
 ${revokeTable(links)}
 grant select, delete on ${links} to authenticated;
 grant all on ${links} to service_role;
-drop policy if exists "identity_links_own_read" on ${links};
-create policy "identity_links_own_read" on ${links} for select to authenticated
-  using (${l("user")} = (select auth.uid()));
-drop policy if exists "identity_links_own_delete" on ${links};
-create policy "identity_links_own_delete" on ${links} for delete to authenticated
-  using (${l("user")} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: links, name: "identity_links_own_read", command: "select", roles: ["authenticated"], using: `${l("user")} = (select auth.uid())` }), { drop: true, target: links })}
+${renderPolicy(makePolicy({ table: links, name: "identity_links_own_delete", command: "delete", roles: ["authenticated"], using: `${l("user")} = (select auth.uid())` }), { drop: true, target: links })}
 
 -- One-time link codes, stored as SHA-256. No policy: only the functions below read them.
 create table if not exists ${codes} (

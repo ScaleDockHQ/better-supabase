@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block reserved-slugs@1 managed
--- @bsb-hash sha256:144f34ea7c43d7dd496592a593c43d88b3811196bde376219c4e8dfdd1becdc0
+-- @bsb-hash sha256:908e242fdb5d1934024d7d752f364de6227640eff5ef345fface800d89c63ead
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16,8 +16,10 @@ create table if not exists "better_supabase"."reserved_slugs" (
 alter table "better_supabase"."reserved_slugs" enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on "better_supabase"."reserved_slugs" to anon, authenticated, service_role;
-drop policy if exists "bsb_reserved_slugs_read" on "better_supabase"."reserved_slugs";
-create policy "bsb_reserved_slugs_read" on "better_supabase"."reserved_slugs" for select to anon, authenticated, service_role using (true);
+drop policy if exists bsb_reserved_slugs_read on "better_supabase"."reserved_slugs";
+create policy bsb_reserved_slugs_read on "better_supabase"."reserved_slugs"
+  for select to anon, authenticated, service_role
+  using (true);
 
 -- 'invalid' for a malformed slug or one outside 1 to 63 characters
 -- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
@@ -86,7 +88,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_006_reserved_slugs.sql
@@ -117,7 +119,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block reserved-slugs@1 managed
--- @bsb-hash sha256:144f34ea7c43d7dd496592a593c43d88b3811196bde376219c4e8dfdd1becdc0
+-- @bsb-hash sha256:908e242fdb5d1934024d7d752f364de6227640eff5ef345fface800d89c63ead
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -132,8 +134,10 @@ create table if not exists "better_supabase"."reserved_slugs" (
 alter table "better_supabase"."reserved_slugs" enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on "better_supabase"."reserved_slugs" to anon, authenticated, service_role;
-drop policy if exists "bsb_reserved_slugs_read" on "better_supabase"."reserved_slugs";
-create policy "bsb_reserved_slugs_read" on "better_supabase"."reserved_slugs" for select to anon, authenticated, service_role using (true);
+drop policy if exists bsb_reserved_slugs_read on "better_supabase"."reserved_slugs";
+create policy bsb_reserved_slugs_read on "better_supabase"."reserved_slugs"
+  for select to anon, authenticated, service_role
+  using (true);
 
 -- 'invalid' for a malformed slug or one outside 1 to 63 characters
 -- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
@@ -202,7 +206,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_006_reserved_slugs.sql
@@ -233,7 +237,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block reserved-slugs@1 managed
--- @bsb-hash sha256:7cadfcde7198e9d2737c279e1811e66cddad83a6882bf53da4db41b920c00615
+-- @bsb-hash sha256:c634729a228269219d2c82af6bb01708f4531173b85c2eda56542b8f7b7a936a
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -242,6 +246,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 
 create table if not exists "app_private"."reserved_slugs" (
   "slug" text primary key,
@@ -250,8 +257,10 @@ create table if not exists "app_private"."reserved_slugs" (
 alter table "app_private"."reserved_slugs" enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on "app_private"."reserved_slugs" to anon, authenticated, service_role;
-drop policy if exists "bsb_reserved_slugs_read" on "app_private"."reserved_slugs";
-create policy "bsb_reserved_slugs_read" on "app_private"."reserved_slugs" for select to anon, authenticated, service_role using (true);
+drop policy if exists bsb_reserved_slugs_read on "app_private"."reserved_slugs";
+create policy bsb_reserved_slugs_read on "app_private"."reserved_slugs"
+  for select to anon, authenticated, service_role
+  using (true);
 
 -- 'invalid' for a malformed slug or one outside 1 to 63 characters
 -- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
@@ -320,7 +329,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_006_reserved_slugs.sql
@@ -351,7 +360,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block reserved-slugs@1 managed
--- @bsb-hash sha256:297025ebac821a1ed01e310cae44fc17aa214d752b3a4bb1b7fffc442731e016
+-- @bsb-hash sha256:a73505f7254c674f315ecda76594f390ab25176633fd38a1e25ba363b38fc493
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -366,8 +375,10 @@ create table if not exists "better_supabase"."reserved_slugs" (
 alter table "better_supabase"."reserved_slugs" enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on "better_supabase"."reserved_slugs" to anon, authenticated, service_role;
-drop policy if exists "bsb_reserved_slugs_read" on "better_supabase"."reserved_slugs";
-create policy "bsb_reserved_slugs_read" on "better_supabase"."reserved_slugs" for select to anon, authenticated, service_role using (true);
+drop policy if exists bsb_reserved_slugs_read on "better_supabase"."reserved_slugs";
+create policy bsb_reserved_slugs_read on "better_supabase"."reserved_slugs"
+  for select to anon, authenticated, service_role
+  using (true);
 
 -- 'invalid' for a malformed slug or one outside 1 to 63 characters
 -- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
@@ -449,7 +460,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_006_reserved_slugs.sql
@@ -480,7 +491,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block reserved-slugs@1 managed
--- @bsb-hash sha256:0ba131a91bc2248eadce3b4a9354ab3d2e969d9a4422d42d3f8c2a2dfc37d6c9
+-- @bsb-hash sha256:1a9691f72bfd15de01011079ba3418395318074a3b6d12bc1119ee2ee812ffbd
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -495,8 +506,10 @@ create unique index if not exists "bsb_reserved_slugs_slug_key" on "better_supab
 alter table "better_supabase"."reserved_slugs" enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on "better_supabase"."reserved_slugs" to anon, authenticated, service_role;
-drop policy if exists "bsb_reserved_slugs_read" on "better_supabase"."reserved_slugs";
-create policy "bsb_reserved_slugs_read" on "better_supabase"."reserved_slugs" for select to anon, authenticated, service_role using (true);
+drop policy if exists bsb_reserved_slugs_read on "better_supabase"."reserved_slugs";
+create policy bsb_reserved_slugs_read on "better_supabase"."reserved_slugs"
+  for select to anon, authenticated, service_role
+  using (true);
 
 -- 'invalid' for a malformed slug or one outside 1 to 63 characters
 -- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
@@ -565,7 +578,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_006_reserved_slugs.sql

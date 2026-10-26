@@ -9,6 +9,7 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { guestFunctions, providerGuestSource } from "../guest-sql.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { GUEST_ACTIONS } from "../scope.ts";
 import {
   fail,
@@ -186,8 +187,7 @@ create unique index if not exists ${index("guests", "user_idx")} on ${guests} ($
 create index if not exists ${index("guests", "user_id_idx")} on ${guests} (${g("user")});
 ${lockModuleTable(ctx, "guests", { read: true })}
 drop policy if exists ${index("guests", "read")} on ${guests};
-create policy ${index("guests", "read")} on ${guests} for select to authenticated
-  using (${ctx.scope.check(g("tenant"), read)} or ${g("user")} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: guests, name: index("guests", "read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(g("tenant"), read)} or ${g("user")} = (select auth.uid())` }), { target: guests })}
 
 create table if not exists ${grants} (
   ${r("id")} uuid primary key default gen_random_uuid(),
@@ -202,9 +202,17 @@ create table if not exists ${grants} (
 create index if not exists ${index("grants", "subject_idx")} on ${grants} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")});
 ${lockModuleTable(ctx, "grants", { read: true })}
 drop policy if exists ${index("grants", "read")} on ${grants};
-create policy ${index("grants", "read")} on ${grants} for select to authenticated
-  using (${ctx.scope.check(r("tenant"), read)}
-    or ${r("guest")} in (select x.${g("id")} from ${guests} x where x.${g("user")} = (select auth.uid())));
+${renderPolicy(
+  makePolicy({
+    table: grants,
+    name: index("grants", "read"),
+    command: "select",
+    roles: ["authenticated"],
+    using: `${ctx.scope.check(r("tenant"), read)}
+    or ${r("guest")} in (select x.${g("id")} from ${guests} x where x.${g("user")} = (select auth.uid()))`,
+  }),
+  { target: grants },
+)}
 `;
 }
 

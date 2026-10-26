@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:d3869b6a8f31316a3cd6f8266294e07291062789b254abe7923f0cff78d577f7
+-- @bsb-hash sha256:d6a82e9d582202b39da01b475bf8e380cac8519de135df34a230215f7fed4f76
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -38,15 +38,16 @@ create table if not exists "better_supabase"."search_documents" (
   primary key ("subject_type", "subject_id")
 );
 alter table "better_supabase"."search_documents" enable row level security;
-revoke all on "better_supabase"."search_documents" from anon, authenticated;
+revoke all on "better_supabase"."search_documents" from public, anon, authenticated;
 grant select on "better_supabase"."search_documents" to authenticated;
 grant all on "better_supabase"."search_documents" to service_role;
 create index if not exists search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
 create index if not exists search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
 create index if not exists search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
 
-drop policy if exists "search_documents_read" on "better_supabase"."search_documents";
-create policy "search_documents_read" on "better_supabase"."search_documents" for select to authenticated
+drop policy if exists search_documents_read on "better_supabase"."search_documents";
+create policy search_documents_read on "better_supabase"."search_documents"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')));
 
 -- Lowercase and without accents. unaccent is stable because its dictionary
@@ -420,7 +421,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_070_search.sql

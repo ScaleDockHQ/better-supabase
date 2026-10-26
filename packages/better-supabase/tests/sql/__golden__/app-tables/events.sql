@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:8c2639fd81ae98dcc667ec714ec69767646459b409c03be705c97d0f06f5a64d
+-- @bsb-hash sha256:0f6c23803a46727b18e946b77830409a24e92ac63a6ddae23c9a42ba6e794240
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -61,17 +61,26 @@ alter table "public"."tasks" add column if not exists "status" text;
 alter table "public"."notes" add column if not exists "body" text;
 
 alter table "public"."tasks" enable row level security;
-revoke all on "public"."tasks" from anon, authenticated;
+revoke all on "public"."tasks" from public, anon, authenticated;
 grant select, insert, update, delete on "public"."tasks" to authenticated;
 grant all on "public"."tasks" to service_role;
-drop policy if exists "tasks_select" on "public"."tasks";
-create policy "tasks_select" on "public"."tasks" for select to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists "tasks_insert" on "public"."tasks";
-create policy "tasks_insert" on "public"."tasks" for insert to authenticated with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists "tasks_update" on "public"."tasks";
-create policy "tasks_update" on "public"."tasks" for update to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write())) with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists "tasks_delete" on "public"."tasks";
-create policy "tasks_delete" on "public"."tasks" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists tasks_select on "public"."tasks";
+create policy tasks_select on "public"."tasks"
+  for select to authenticated
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists tasks_insert on "public"."tasks";
+create policy tasks_insert on "public"."tasks"
+  for insert to authenticated
+  with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists tasks_update on "public"."tasks";
+create policy tasks_update on "public"."tasks"
+  for update to authenticated
+  using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()))
+  with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists tasks_delete on "public"."tasks";
+create policy tasks_delete on "public"."tasks"
+  for delete to authenticated
+  using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."tasks";
 drop policy if exists bsb_tenant_scope_select on "public"."tasks";
 create policy bsb_tenant_scope_select on "public"."tasks" as restrictive
@@ -133,17 +142,26 @@ create trigger "bsb_emit_event" after insert or update or delete on "public"."ta
   for each row execute function "better_supabase"."tasks_emit_event"();
 
 alter table "public"."notes" enable row level security;
-revoke all on "public"."notes" from anon, authenticated;
+revoke all on "public"."notes" from public, anon, authenticated;
 grant select, insert, update, delete on "public"."notes" to authenticated;
 grant all on "public"."notes" to service_role;
-drop policy if exists "notes_select" on "public"."notes";
-create policy "notes_select" on "public"."notes" for select to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists "notes_insert" on "public"."notes";
-create policy "notes_insert" on "public"."notes" for insert to authenticated with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists "notes_update" on "public"."notes";
-create policy "notes_update" on "public"."notes" for update to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write())) with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists "notes_delete" on "public"."notes";
-create policy "notes_delete" on "public"."notes" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists notes_select on "public"."notes";
+create policy notes_select on "public"."notes"
+  for select to authenticated
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists notes_insert on "public"."notes";
+create policy notes_insert on "public"."notes"
+  for insert to authenticated
+  with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists notes_update on "public"."notes";
+create policy notes_update on "public"."notes"
+  for update to authenticated
+  using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()))
+  with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists notes_delete on "public"."notes";
+create policy notes_delete on "public"."notes"
+  for delete to authenticated
+  using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."notes";
 drop policy if exists bsb_tenant_scope_select on "public"."notes";
 create policy bsb_tenant_scope_select on "public"."notes" as restrictive
@@ -191,7 +209,7 @@ create trigger "bsb_emit_event" after delete on "public"."notes"
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- @bsb-hash sha256:97a5cbfdeaeac54dc71fe397c33b6ecd48a3f696eadb75f1eb1678aa19a62503
+-- @bsb-hash sha256:592d2ad4c646a257c73bd83645d2699d7f1742cad57f1fba1d0798a8b6b3bd3e
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
@@ -216,7 +234,10 @@ select extensions.has_trigger('public'::name, 'tasks'::name, 'bsb_emit_event'::n
 select extensions.ok(exists (select 1 from "better_supabase"."outbox_events" e where e."type" = 'task.created'), 'an insert into public.tasks emits task.created');
 
 -- An app's own permissive policy can't widen the tenant scope.
-create policy bsb_test_app_widens on "public"."tasks" for all to authenticated using (true) with check (true);
+create policy bsb_test_app_widens on "public"."tasks"
+  for all to authenticated
+  using (true)
+  with check (true);
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
@@ -239,7 +260,10 @@ insert into "public"."notes" ("organization_id") select o.id from o;
 select extensions.has_trigger('public'::name, 'notes'::name, 'bsb_emit_event'::name, 'public.notes emits outbox events');
 
 -- An app's own permissive policy can't widen the tenant scope.
-create policy bsb_test_app_widens on "public"."notes" for all to authenticated using (true) with check (true);
+create policy bsb_test_app_widens on "public"."notes"
+  for all to authenticated
+  using (true)
+  with check (true);
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;

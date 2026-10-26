@@ -2,6 +2,7 @@ import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { raise, schemaPreamble } from "../shared.ts";
 
 const NAMES: BlockSqlNames = {
@@ -122,8 +123,7 @@ create table if not exists ${slugs} (
 alter table ${slugs} enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on ${slugs} to anon, authenticated, service_role;
-drop policy if exists ${read} on ${slugs};
-create policy ${read} on ${slugs} for select to anon, authenticated, service_role using (true);
+${renderPolicy(makePolicy({ table: slugs, name: read, command: "select", roles: ["anon", "authenticated", "service_role"], using: "true" }), { drop: true, target: slugs })}
 
 -- 'invalid' for a malformed slug or one outside ${String(min)} to ${String(max)} characters
 -- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.

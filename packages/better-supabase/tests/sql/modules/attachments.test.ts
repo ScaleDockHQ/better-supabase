@@ -58,7 +58,7 @@ describe("attachments module", () => {
     );
     expect(sql).toContain(`a."status" = 'clean'`);
     expect(sql).toContain(
-      `create policy "bsb_attachments_insert" on storage.objects`,
+      `create policy bsb_attachments_insert on storage.objects`,
     );
     expect(sql).toContain("'attachments.upload'");
     expect(sql).toContain("'attachments.manage'");

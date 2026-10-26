@@ -576,7 +576,9 @@ plain JSON, valid scopes (known names, no parent cycle, a tenant scope with an
 `idType`), the placeholders of each template (each uses its `{permission}`,
 `{user}`, `{tenant}` and `{role}`, and `idsWith` and `idsWithFor` use
 `{scope}` when there is more than one scope), that templates are safe to
-inline (no function call without a schema, no `$$`, `;` or `--`), that
+inline (a tokenizer reads strings, quoted identifiers and comments whole, then
+refuses a function call without a schema, a dollar-quote tag such as `$$` or
+`$tag$`, a `;`, a comment, an unterminated string and a stray `{`), that
 `requires` lists every function the templates call, the permission list, and
 the shapes of
 `memberships`, `suspension`, `roleSources`, `decidingColumns` and

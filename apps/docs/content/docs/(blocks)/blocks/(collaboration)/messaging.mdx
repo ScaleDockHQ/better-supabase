@@ -53,6 +53,12 @@ record's own tenant: when the record's type has a tenant column in
 fails with `MESSAGING_NOT_FOUND`, for the service role as well. A type with
 `tenant: false` has no tenant to compare.
 
+Every type in `config.records` takes a `subject` conversation by default. To
+keep them to some types, list those in `blocks.messaging.on`, such as
+`on: ["customer", "task"]`; `open_conversation` then refuses any other type
+with `MESSAGING_SUBJECT_UNSUPPORTED`, for the service role as well. Comments
+open their conversations through it, so the list holds for them too.
+
 Server code calls the `messaging` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
 ```ts title="src/lib/supabase/hooks.ts"

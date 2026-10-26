@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:77bd2d0c17abc50267d3e06916c6a7708077c8e081128ce88774eebe125a900a
+-- @bsb-hash sha256:994ba3ea62619fd7deda44a68c28e69e272bfe3d26b3e79bf2205cc6d1a2b244
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -93,12 +93,13 @@ create index if not exists agents_owner_idx on "better_supabase"."agents" ("owne
 alter table "better_supabase"."agents" add column if not exists "app_note" text;
 create index if not exists agents_published_idx on "better_supabase"."agents" ("visibility", "published_at") where "published_at" is not null;
 alter table "better_supabase"."agents" enable row level security;
-revoke all on "better_supabase"."agents" from anon, authenticated;
+revoke all on "better_supabase"."agents" from public, anon, authenticated;
 grant select on "better_supabase"."agents" to authenticated;
 grant all on "better_supabase"."agents" to service_role;
 drop policy if exists agents_read on "better_supabase"."agents";
-create policy agents_read on "better_supabase"."agents" for select to authenticated
-  using ("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate')));
+create policy agents_read on "better_supabase"."agents"
+  for select to authenticated
+  using (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate'))));
 
 create table if not exists "better_supabase"."agent_installs" (
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
@@ -109,11 +110,12 @@ create table if not exists "better_supabase"."agent_installs" (
 );
 create index if not exists agent_installs_user_idx on "better_supabase"."agent_installs" ("user_id", "organization_id");
 alter table "better_supabase"."agent_installs" enable row level security;
-revoke all on "better_supabase"."agent_installs" from anon, authenticated;
+revoke all on "better_supabase"."agent_installs" from public, anon, authenticated;
 grant select on "better_supabase"."agent_installs" to authenticated;
 grant all on "better_supabase"."agent_installs" to service_role;
 drop policy if exists agent_installs_read on "better_supabase"."agent_installs";
-create policy agent_installs_read on "better_supabase"."agent_installs" for select to authenticated
+create policy agent_installs_read on "better_supabase"."agent_installs"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 create table if not exists "better_supabase"."agent_ratings" (
@@ -126,11 +128,12 @@ create table if not exists "better_supabase"."agent_ratings" (
 );
 create index if not exists agent_ratings_user_idx on "better_supabase"."agent_ratings" ("user_id");
 alter table "better_supabase"."agent_ratings" enable row level security;
-revoke all on "better_supabase"."agent_ratings" from anon, authenticated;
+revoke all on "better_supabase"."agent_ratings" from public, anon, authenticated;
 grant select on "better_supabase"."agent_ratings" to authenticated;
 grant all on "better_supabase"."agent_ratings" to service_role;
 drop policy if exists agent_ratings_read on "better_supabase"."agent_ratings";
-create policy agent_ratings_read on "better_supabase"."agent_ratings" for select to authenticated
+create policy agent_ratings_read on "better_supabase"."agent_ratings"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."agents" x where x."id" = "agent_id"));
 
 -- Skills an agent loads from a provider (a reference such as a skill id).
@@ -143,11 +146,12 @@ create table if not exists "better_supabase"."agent_skills" (
 );
 create index if not exists agent_skills_agent_idx on "better_supabase"."agent_skills" ("agent_id");
 alter table "better_supabase"."agent_skills" enable row level security;
-revoke all on "better_supabase"."agent_skills" from anon, authenticated;
+revoke all on "better_supabase"."agent_skills" from public, anon, authenticated;
 grant select on "better_supabase"."agent_skills" to authenticated;
 grant all on "better_supabase"."agent_skills" to service_role;
 drop policy if exists agent_skills_read on "better_supabase"."agent_skills";
-create policy agent_skills_read on "better_supabase"."agent_skills" for select to authenticated
+create policy agent_skills_read on "better_supabase"."agent_skills"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."agents" x where x."id" = "agent_id"));
 
 -- Creates an agent (id null, needs 'ai.create') or changes one its owner or a
@@ -465,7 +469,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."agents" as restricti
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate')))
+    or (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate'))))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agents";
 create policy bsb_tenant_scope_insert on "better_supabase"."agents" as restrictive
@@ -512,7 +516,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_051_agents.sql

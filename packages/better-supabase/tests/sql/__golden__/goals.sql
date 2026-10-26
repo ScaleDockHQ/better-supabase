@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:fd997604235f2d6f0e8b25f91190405086b09dd1db762ec79d58ce247fd2657e
+-- @bsb-hash sha256:9ecb42f1672d0cb05b2fdc0d4895cf3f551f922c13da298a59ac51fc2be9ea3c
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,12 +77,13 @@ create table if not exists "better_supabase"."targets" (
 );
 create index if not exists targets_period_idx on "better_supabase"."targets" ("tenant_id", "period_start", "period_end") where "archived_at" is null;
 alter table "better_supabase"."targets" enable row level security;
-revoke all on "better_supabase"."targets" from anon, authenticated;
+revoke all on "better_supabase"."targets" from public, anon, authenticated;
 grant select on "better_supabase"."targets" to authenticated;
 grant all on "better_supabase"."targets" to service_role;
 drop policy if exists targets_read on "better_supabase"."targets";
-create policy targets_read on "better_supabase"."targets" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
+create policy targets_read on "better_supabase"."targets"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
 
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
@@ -201,7 +202,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_100_goals.sql
@@ -221,7 +222,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:3f4d9658806741bbd4d126f1a5634f2ffece212f348f9d208fd58671f3434c2d
+-- @bsb-hash sha256:204378faff33e6f43b2ccc94318a591a55048b0e8f4d34ac23bb8eb4a7b1aa11
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -297,12 +298,13 @@ create table if not exists "better_supabase"."targets" (
 );
 create index if not exists targets_period_idx on "better_supabase"."targets" ("tenant_id", "period_start", "period_end") where "archived_at" is null;
 alter table "better_supabase"."targets" enable row level security;
-revoke all on "better_supabase"."targets" from anon, authenticated;
+revoke all on "better_supabase"."targets" from public, anon, authenticated;
 grant select on "better_supabase"."targets" to authenticated;
 grant all on "better_supabase"."targets" to service_role;
 drop policy if exists targets_read on "better_supabase"."targets";
-create policy targets_read on "better_supabase"."targets" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
+create policy targets_read on "better_supabase"."targets"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
 
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
@@ -435,7 +437,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_100_goals.sql
@@ -455,7 +457,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:1a6665a7a315890a8fc3f8cc2b467e2a2bf85b9760103f82d45136f15b6f8b2d
+-- @bsb-hash sha256:6787f552bcf77840e2e5f6375df7d27e401fc1d1a9676da7fc5a30a0afb39816
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -512,6 +514,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Targets: a goal per period for a metric, for a member, a team or the
 -- whole organization, with progress from the data the blocks keep.
 create table if not exists "app_private"."targets" (
@@ -533,12 +538,13 @@ create table if not exists "app_private"."targets" (
 );
 create index if not exists targets_period_idx on "app_private"."targets" ("tenant_id", "period_start", "period_end") where "archived_at" is null;
 alter table "app_private"."targets" enable row level security;
-revoke all on "app_private"."targets" from anon, authenticated;
+revoke all on "app_private"."targets" from public, anon, authenticated;
 grant select on "app_private"."targets" to authenticated;
 grant all on "app_private"."targets" to service_role;
 drop policy if exists targets_read on "app_private"."targets";
-create policy targets_read on "app_private"."targets" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
+create policy targets_read on "app_private"."targets"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
 
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
@@ -657,7 +663,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_100_goals.sql
@@ -677,7 +683,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:c0f0bf18777232fbcdec8bf6d6317f4523a816075eaa02f25809b98c50ba02e9
+-- @bsb-hash sha256:d73894d5bc466cdc497d31be79800004335f1f01e79b29dd283e55cf89470a5d
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -753,12 +759,13 @@ create table if not exists "better_supabase"."targets" (
 );
 create index if not exists targets_period_idx on "better_supabase"."targets" ("tenant_id", "period_start", "period_end") where "archived_at" is null;
 alter table "better_supabase"."targets" enable row level security;
-revoke all on "better_supabase"."targets" from anon, authenticated;
+revoke all on "better_supabase"."targets" from public, anon, authenticated;
 grant select on "better_supabase"."targets" to authenticated;
 grant all on "better_supabase"."targets" to service_role;
 drop policy if exists targets_read on "better_supabase"."targets";
-create policy targets_read on "better_supabase"."targets" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
+create policy targets_read on "better_supabase"."targets"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
 
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
@@ -917,7 +924,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_100_goals.sql
@@ -937,7 +944,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:078e5338fa0908feeebe78106891fe488fba2d70ca21eebd8564d3f88e704788
+-- @bsb-hash sha256:2ef445f4ab11c279c1869cdbf4b88b66d62bb4b76ca838888887c226cf4ba590
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1014,8 +1021,9 @@ alter table "better_supabase"."targets" enable row level security;
 grant select on "better_supabase"."targets" to authenticated;
 grant all on "better_supabase"."targets" to service_role;
 drop policy if exists bsb_targets_select on "better_supabase"."targets";
-create policy bsb_targets_select on "better_supabase"."targets" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
+create policy bsb_targets_select on "better_supabase"."targets"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
 
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
@@ -1134,7 +1142,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_100_goals.sql
@@ -1154,7 +1162,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:bae932e51c9587de07d8658162acadbadbd454ede4d1de8ce194b6d67f19574d
+-- @bsb-hash sha256:2958cc564956cb6710ebda84bb6ccca1976f43ab739fdd3e7d7344af7556767e
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1230,12 +1238,13 @@ create table if not exists "better_supabase"."targets" (
 );
 create index if not exists targets_period_idx on "better_supabase"."targets" ("org_id", "period_start", "period_end") where "archived_at" is null;
 alter table "better_supabase"."targets" enable row level security;
-revoke all on "better_supabase"."targets" from anon, authenticated;
+revoke all on "better_supabase"."targets" from public, anon, authenticated;
 grant select on "better_supabase"."targets" to authenticated;
 grant all on "better_supabase"."targets" to service_role;
 drop policy if exists targets_read on "better_supabase"."targets";
-create policy targets_read on "better_supabase"."targets" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('targets.read')));
+create policy targets_read on "better_supabase"."targets"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('targets.read')));
 
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
@@ -1354,7 +1363,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_100_goals.sql

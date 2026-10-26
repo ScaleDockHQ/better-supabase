@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:8e3521fdc248e47bf6447c6394ad4f1821965e48cb17dcbb4722c61edec7de91
+-- @bsb-hash sha256:7af1b3b7d523959944a2e317a86f0707025dcced40f0adfb9c6e4af0f8399005
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -84,7 +84,7 @@ create index if not exists forecast_snapshots_period_idx on "better_supabase"."f
 create index if not exists forecast_snapshots_pipeline_idx on "better_supabase"."forecast_snapshots" ("pipeline_id") where "pipeline_id" is not null;
 create index if not exists forecast_snapshots_taken_by_idx on "better_supabase"."forecast_snapshots" ("taken_by") where "taken_by" is not null;
 alter table "better_supabase"."forecast_snapshots" enable row level security;
-revoke all on "better_supabase"."forecast_snapshots" from anon, authenticated;
+revoke all on "better_supabase"."forecast_snapshots" from public, anon, authenticated;
 grant select on "better_supabase"."forecast_snapshots" to authenticated;
 grant all on "better_supabase"."forecast_snapshots" to service_role;
 create table if not exists "better_supabase"."forecast_snapshot_deals" (
@@ -103,15 +103,17 @@ create table if not exists "better_supabase"."forecast_snapshot_deals" (
 );
 create index if not exists forecast_snapshot_deals_deal_idx on "better_supabase"."forecast_snapshot_deals" ("tenant_id", "deal_id");
 alter table "better_supabase"."forecast_snapshot_deals" enable row level security;
-revoke all on "better_supabase"."forecast_snapshot_deals" from anon, authenticated;
+revoke all on "better_supabase"."forecast_snapshot_deals" from public, anon, authenticated;
 grant select on "better_supabase"."forecast_snapshot_deals" to authenticated;
 grant all on "better_supabase"."forecast_snapshot_deals" to service_role;
 drop policy if exists forecast_snapshots_read on "better_supabase"."forecast_snapshots";
-create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 drop policy if exists forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals";
-create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 
 -- Takes a snapshot of the forecast call for one currency between since and
 -- until: the deal_forecast totals for the whole organization and every deal
@@ -348,7 +350,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql
@@ -368,7 +370,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:e2a8b9b0dbf7bd1368fe8e45664ca929fe2aae38e4c5e14fadb261aac0cad586
+-- @bsb-hash sha256:2548c72c893dcdf27d2f3af44baa80df7550c10c1a3a9bad5194ad6163f4ff56
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -451,7 +453,7 @@ create index if not exists forecast_snapshots_period_idx on "better_supabase"."f
 create index if not exists forecast_snapshots_pipeline_idx on "better_supabase"."forecast_snapshots" ("pipeline_id") where "pipeline_id" is not null;
 create index if not exists forecast_snapshots_taken_by_idx on "better_supabase"."forecast_snapshots" ("taken_by") where "taken_by" is not null;
 alter table "better_supabase"."forecast_snapshots" enable row level security;
-revoke all on "better_supabase"."forecast_snapshots" from anon, authenticated;
+revoke all on "better_supabase"."forecast_snapshots" from public, anon, authenticated;
 grant select on "better_supabase"."forecast_snapshots" to authenticated;
 grant all on "better_supabase"."forecast_snapshots" to service_role;
 create table if not exists "better_supabase"."forecast_snapshot_deals" (
@@ -470,15 +472,17 @@ create table if not exists "better_supabase"."forecast_snapshot_deals" (
 );
 create index if not exists forecast_snapshot_deals_deal_idx on "better_supabase"."forecast_snapshot_deals" ("tenant_id", "deal_id");
 alter table "better_supabase"."forecast_snapshot_deals" enable row level security;
-revoke all on "better_supabase"."forecast_snapshot_deals" from anon, authenticated;
+revoke all on "better_supabase"."forecast_snapshot_deals" from public, anon, authenticated;
 grant select on "better_supabase"."forecast_snapshot_deals" to authenticated;
 grant all on "better_supabase"."forecast_snapshot_deals" to service_role;
 drop policy if exists forecast_snapshots_read on "better_supabase"."forecast_snapshots";
-create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 drop policy if exists forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals";
-create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 
 -- Takes a snapshot of the forecast call for one currency between since and
 -- until: the deal_forecast totals for the whole organization and every deal
@@ -715,7 +719,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql
@@ -735,7 +739,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:6d22105d472f6efb04a032905b73cc8d25a0be2969c46cb0a42edc20547083ff
+-- @bsb-hash sha256:fe6b23407a533f996acd6e4cb962d0614d1a9c7a5b8c33f8afc228ac1529dd42
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -800,6 +804,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Forecasts: snapshots of the forecast call over time, with the deals each
 -- one counted, and what changed between two of them.
 create table if not exists "app_private"."forecast_snapshots" (
@@ -820,7 +827,7 @@ create index if not exists forecast_snapshots_period_idx on "app_private"."forec
 create index if not exists forecast_snapshots_pipeline_idx on "app_private"."forecast_snapshots" ("pipeline_id") where "pipeline_id" is not null;
 create index if not exists forecast_snapshots_taken_by_idx on "app_private"."forecast_snapshots" ("taken_by") where "taken_by" is not null;
 alter table "app_private"."forecast_snapshots" enable row level security;
-revoke all on "app_private"."forecast_snapshots" from anon, authenticated;
+revoke all on "app_private"."forecast_snapshots" from public, anon, authenticated;
 grant select on "app_private"."forecast_snapshots" to authenticated;
 grant all on "app_private"."forecast_snapshots" to service_role;
 create table if not exists "app_private"."forecast_snapshot_deals" (
@@ -839,15 +846,17 @@ create table if not exists "app_private"."forecast_snapshot_deals" (
 );
 create index if not exists forecast_snapshot_deals_deal_idx on "app_private"."forecast_snapshot_deals" ("tenant_id", "deal_id");
 alter table "app_private"."forecast_snapshot_deals" enable row level security;
-revoke all on "app_private"."forecast_snapshot_deals" from anon, authenticated;
+revoke all on "app_private"."forecast_snapshot_deals" from public, anon, authenticated;
 grant select on "app_private"."forecast_snapshot_deals" to authenticated;
 grant all on "app_private"."forecast_snapshot_deals" to service_role;
 drop policy if exists forecast_snapshots_read on "app_private"."forecast_snapshots";
-create policy forecast_snapshots_read on "app_private"."forecast_snapshots" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshots_read on "app_private"."forecast_snapshots"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 drop policy if exists forecast_snapshot_deals_read on "app_private"."forecast_snapshot_deals";
-create policy forecast_snapshot_deals_read on "app_private"."forecast_snapshot_deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshot_deals_read on "app_private"."forecast_snapshot_deals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 
 -- Takes a snapshot of the forecast call for one currency between since and
 -- until: the deal_forecast totals for the whole organization and every deal
@@ -1084,7 +1093,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql
@@ -1104,7 +1113,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:cf287d4cbf9166b146910b59688c55ea3daa9cb7849f8c6830ee8de067473eb9
+-- @bsb-hash sha256:37ed3e763c6f467fc7477f9b8bee4490fd094f4fefe1eaf63e545ff882b26a41
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1187,7 +1196,7 @@ create index if not exists forecast_snapshots_period_idx on "better_supabase"."f
 create index if not exists forecast_snapshots_pipeline_idx on "better_supabase"."forecast_snapshots" ("pipeline_id") where "pipeline_id" is not null;
 create index if not exists forecast_snapshots_taken_by_idx on "better_supabase"."forecast_snapshots" ("taken_by") where "taken_by" is not null;
 alter table "better_supabase"."forecast_snapshots" enable row level security;
-revoke all on "better_supabase"."forecast_snapshots" from anon, authenticated;
+revoke all on "better_supabase"."forecast_snapshots" from public, anon, authenticated;
 grant select on "better_supabase"."forecast_snapshots" to authenticated;
 grant all on "better_supabase"."forecast_snapshots" to service_role;
 create table if not exists "better_supabase"."forecast_snapshot_deals" (
@@ -1206,15 +1215,17 @@ create table if not exists "better_supabase"."forecast_snapshot_deals" (
 );
 create index if not exists forecast_snapshot_deals_deal_idx on "better_supabase"."forecast_snapshot_deals" ("tenant_id", "deal_id");
 alter table "better_supabase"."forecast_snapshot_deals" enable row level security;
-revoke all on "better_supabase"."forecast_snapshot_deals" from anon, authenticated;
+revoke all on "better_supabase"."forecast_snapshot_deals" from public, anon, authenticated;
 grant select on "better_supabase"."forecast_snapshot_deals" to authenticated;
 grant all on "better_supabase"."forecast_snapshot_deals" to service_role;
 drop policy if exists forecast_snapshots_read on "better_supabase"."forecast_snapshots";
-create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 drop policy if exists forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals";
-create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 
 -- Takes a snapshot of the forecast call for one currency between since and
 -- until: the deal_forecast totals for the whole organization and every deal
@@ -1509,7 +1520,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql
@@ -1529,7 +1540,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:ca60bc68d4993f3aaf919ca7a07a6129aae5c300cb503ec591cc20fb1a8def19
+-- @bsb-hash sha256:29f81835dc634b37eedd104af629440cd0297198861df1916d9cc85d6d4528e2
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1645,11 +1656,13 @@ alter table "better_supabase"."forecast_snapshot_deals" enable row level securit
 grant select on "better_supabase"."forecast_snapshot_deals" to authenticated;
 grant all on "better_supabase"."forecast_snapshot_deals" to service_role;
 drop policy if exists bsb_forecast_snapshots_select on "better_supabase"."forecast_snapshots";
-create policy bsb_forecast_snapshots_select on "better_supabase"."forecast_snapshots" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy bsb_forecast_snapshots_select on "better_supabase"."forecast_snapshots"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 drop policy if exists bsb_forecast_snapshot_deals_select on "better_supabase"."forecast_snapshot_deals";
-create policy bsb_forecast_snapshot_deals_select on "better_supabase"."forecast_snapshot_deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy bsb_forecast_snapshot_deals_select on "better_supabase"."forecast_snapshot_deals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 
 -- Takes a snapshot of the forecast call for one currency between since and
 -- until: the deal_forecast totals for the whole organization and every deal
@@ -1886,7 +1899,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql
@@ -1906,7 +1919,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:21f3e98b3ffd468e802ea7c9268430f61a7fd2ba0b42e2b10fe207c835d36bfb
+-- @bsb-hash sha256:642cb7733cdcab9f86e5736452997cfa262c79d067f6255ecaf7af4268df34c6
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1989,7 +2002,7 @@ create index if not exists forecast_snapshots_period_idx on "better_supabase"."f
 create index if not exists forecast_snapshots_pipeline_idx on "better_supabase"."forecast_snapshots" ("pipeline_id") where "pipeline_id" is not null;
 create index if not exists forecast_snapshots_taken_by_idx on "better_supabase"."forecast_snapshots" ("taken_by") where "taken_by" is not null;
 alter table "better_supabase"."forecast_snapshots" enable row level security;
-revoke all on "better_supabase"."forecast_snapshots" from anon, authenticated;
+revoke all on "better_supabase"."forecast_snapshots" from public, anon, authenticated;
 grant select on "better_supabase"."forecast_snapshots" to authenticated;
 grant all on "better_supabase"."forecast_snapshots" to service_role;
 create table if not exists "better_supabase"."forecast_snapshot_deals" (
@@ -2008,15 +2021,17 @@ create table if not exists "better_supabase"."forecast_snapshot_deals" (
 );
 create index if not exists forecast_snapshot_deals_deal_idx on "better_supabase"."forecast_snapshot_deals" ("org_id", "deal_id");
 alter table "better_supabase"."forecast_snapshot_deals" enable row level security;
-revoke all on "better_supabase"."forecast_snapshot_deals" from anon, authenticated;
+revoke all on "better_supabase"."forecast_snapshot_deals" from public, anon, authenticated;
 grant select on "better_supabase"."forecast_snapshot_deals" to authenticated;
 grant all on "better_supabase"."forecast_snapshot_deals" to service_role;
 drop policy if exists forecast_snapshots_read on "better_supabase"."forecast_snapshots";
-create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 drop policy if exists forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals";
-create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
+create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 
 -- Takes a snapshot of the forecast call for one currency between since and
 -- until: the deal_forecast totals for the whole organization and every deal
@@ -2253,7 +2268,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql

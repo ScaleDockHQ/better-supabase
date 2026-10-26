@@ -1,6 +1,6 @@
 -- better-supabase module: comments
 -- @bsb-block comments@8 managed
--- @bsb-hash sha256:3b6b6601ad9a8e748067debac787bad1601d536fcfab14dc7f1adf4a7d560a8f
+-- @bsb-hash sha256:5041ac4574f5c5118d9e191655a457765fa35293176a714e0defb8d6fac75088
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -73,7 +73,7 @@ create table if not exists "better_supabase"."comment_tasks" (
 );
 create index if not exists comment_tasks_task_idx on "better_supabase"."comment_tasks" ("task_id");
 alter table "better_supabase"."comment_tasks" enable row level security;
-revoke all on "better_supabase"."comment_tasks" from anon, authenticated;
+revoke all on "better_supabase"."comment_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."comment_tasks" to authenticated;
 grant insert ("message_id", "organization_id", "task_id") on "better_supabase"."comment_tasks" to authenticated;
 grant all on "better_supabase"."comment_tasks" to service_role;
@@ -98,11 +98,13 @@ $$;
 revoke execute on function "better_supabase"."comment_message_readable"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."comment_message_readable"(uuid, uuid) to authenticated, service_role;
 
-drop policy if exists "comment_tasks_read" on "better_supabase"."comment_tasks";
-create policy "comment_tasks_read" on "better_supabase"."comment_tasks" for select to authenticated
+drop policy if exists comment_tasks_read on "better_supabase"."comment_tasks";
+create policy comment_tasks_read on "better_supabase"."comment_tasks"
+  for select to authenticated
   using ("better_supabase"."comment_message_readable"("message_id", "organization_id"));
-drop policy if exists "comment_tasks_insert" on "better_supabase"."comment_tasks";
-create policy "comment_tasks_insert" on "better_supabase"."comment_tasks" for insert to authenticated
+drop policy if exists comment_tasks_insert on "better_supabase"."comment_tasks";
+create policy comment_tasks_insert on "better_supabase"."comment_tasks"
+  for insert to authenticated
   with check (("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "organization_id")) and (select centrakit.authz_actor_may_write()));
 
 -- A record's conversation, or null before its first comment.
@@ -474,5 +476,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { WorkItemNames } from "./tasks-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   fail,
@@ -76,7 +77,7 @@ const NAMES: BlockSqlNames = {
     "before_work_item_update",
     "after_work_item_update",
   ],
-  options: ["prefix", "maxAssignees", "extraColumns"],
+  options: ["prefix", "maxAssignees", "extraColumns", "authorCanDelete"],
   tables: {
     items: {
       name: "work_items",
@@ -207,11 +208,17 @@ function tables(ctx: BlockSqlContext, n: WorkItemNames): string {
   const w = (column: string): string => c("items", column);
   const a = (column: string): string => c("assignees", column);
 
-  const read = (
-    table: string,
-  ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
-create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
-using (${ctx.scope.check(c(table, "tenant"), n.read)});`;
+  const read = (table: string): string =>
+    renderPolicy(
+      makePolicy({
+        table: t(table),
+        name: `${ctx.tableName(table).name}_read`,
+        command: "select",
+        roles: ["authenticated"],
+        using: ctx.scope.check(c(table, "tenant"), n.read),
+      }),
+      { drop: true, target: t(table) },
+    );
 
   const p = (column: string): string => c("projects", column);
   const i = (column: string): string => c("iterations", column);
@@ -423,6 +430,15 @@ function build(ctx: BlockSqlContext): string {
     read: ctx.permission("read", keys.read),
     write: ctx.permission("write", keys.write),
     manage: ctx.permission("manage", keys.manage),
+    create: sqlString(
+      ctx.config.permissions["create"] ??
+        ctx.permissionKey("write", keys.write),
+    ),
+    remove: sqlString(
+      ctx.config.permissions["delete"] ??
+        ctx.permissionKey("manage", keys.manage),
+    ),
+    authorCanDelete: ctx.flag("authorCanDelete", true),
     prefix: ctx.text("prefix", "TASK-"),
     maxAssignees,
     service: "(auth.role() = 'service_role')",

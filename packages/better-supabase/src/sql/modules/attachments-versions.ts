@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, revokeTable } from "../shared.ts";
 import { namedRowJson, statusFrom } from "./attachments-app.ts";
 
@@ -177,9 +178,7 @@ alter table ${versions} enable row level security;
 ${revokeTable(versions)}
 grant select on ${versions} to authenticated;
 grant all on ${versions} to service_role;
-drop policy if exists ${sqlIdent(`${versionsName}_read`)} on ${versions};
-create policy ${sqlIdent(`${versionsName}_read`)} on ${versions} for select to authenticated
-  using (exists (select 1 from ${t} a where a.${c("id")} = ${vc("attachment")}));
+${renderPolicy(makePolicy({ table: versions, name: sqlIdent(`${versionsName}_read`), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t} a where a.${c("id")} = ${vc("attachment")})` }), { drop: true, target: versions })}
 `;
 
   const functions = `

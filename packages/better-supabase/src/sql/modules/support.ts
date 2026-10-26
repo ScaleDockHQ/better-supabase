@@ -7,6 +7,7 @@ import type {
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   SCHEMA,
   SERVICE_CALLER,
@@ -178,9 +179,7 @@ alter table ${sessions} enable row level security;
 ${revokeTable(sessions)}
 grant select on ${sessions} to service_role;
 -- Platform staff read every session.
-drop policy if exists bsb_support_read on ${sessions};
-create policy bsb_support_read on ${sessions} for select to authenticated
-  using ((select ${ctx.of("permissions").fn("is_platform")}(${ctx.permission("view", OPERATIONS["impersonation.view"])})));
+${renderPolicy(makePolicy({ table: sessions, name: "bsb_support_read", command: "select", roles: ["authenticated"], using: `(select ${ctx.of("permissions").fn("is_platform")}(${ctx.permission("view", OPERATIONS["impersonation.view"])}))` }), { drop: true, target: sessions })}
 grant select on ${sessions} to authenticated;
 `;
 }
@@ -242,10 +241,17 @@ alter table ${requests} enable row level security;
 ${revokeTable(requests)}
 grant select on ${requests} to service_role;
 -- The requester reads their own requests; platform staff read every one.
-drop policy if exists bsb_support_requests_read on ${requests};
-create policy bsb_support_requests_read on ${requests} for select to authenticated
-  using (${c("admin")} = (select auth.uid())
-    or (select ${isPlatform}(${ctx.permission("view", OPERATIONS["impersonation.view"])})));
+${renderPolicy(
+  makePolicy({
+    table: requests,
+    name: "bsb_support_requests_read",
+    command: "select",
+    roles: ["authenticated"],
+    using: `${c("admin")} = (select auth.uid())
+    or (select ${isPlatform}(${ctx.permission("view", OPERATIONS["impersonation.view"])}))`,
+  }),
+  { drop: true, target: requests },
+)}
 grant select on ${requests} to authenticated;
 `;
 }

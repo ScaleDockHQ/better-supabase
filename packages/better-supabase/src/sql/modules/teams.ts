@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -170,9 +171,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   unique (${tenant}, ${slug})
 );${addExtraColumns(teams, extras)}
 ${lockTable(teams, { read: true })}
-drop policy if exists ${ctx.naming.rename("teams_read")} on ${teams};
-create policy ${ctx.naming.rename("teams_read")} on ${teams} for select to authenticated
-using (${tenant} in (select ${ctx.scope.ids(read)}));
+${renderPolicy(makePolicy({ table: teams, name: ctx.naming.rename("teams_read"), command: "select", roles: ["authenticated"], using: `${tenant} in (select ${ctx.scope.ids(read)})` }), { drop: true, target: teams })}
 
 create table if not exists ${members} (
   ${memberTeam} ${idType} not null references ${teams} (${id}) on delete cascade,
@@ -184,9 +183,7 @@ create table if not exists ${members} (
 create index if not exists ${ctx.naming.rename("team_members_user_idx")} on ${members} (${memberUser});
 create index if not exists ${ctx.naming.rename("team_members_membership_idx")} on ${members} (${memberTenant}, ${memberUser});
 ${lockTable(members, { read: true })}
-drop policy if exists ${ctx.naming.rename("team_members_read")} on ${members};
-create policy ${ctx.naming.rename("team_members_read")} on ${members} for select to authenticated
-using (${memberTenant} in (select ${ctx.scope.ids(read)}));
+${renderPolicy(makePolicy({ table: members, name: ctx.naming.rename("team_members_read"), command: "select", roles: ["authenticated"], using: `${memberTenant} in (select ${ctx.scope.ids(read)})` }), { drop: true, target: members })}
 ${membershipFk(ctx, members, memberTenant, memberUser)}
 `
     : "";

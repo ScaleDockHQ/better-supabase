@@ -531,7 +531,7 @@ describe("calendar over an app's tables with per-calendar access", () => {
       .join("\n");
 
     expect(sql).toContain(
-      `create policy bsb_calendars_select on "public"."calendars" for select to authenticated\nusing ("better_supabase"."calendar_access"("id", (select auth.uid()), 'read'));`,
+      `create policy bsb_calendars_select on "public"."calendars"\n  for select to authenticated\n  using ("better_supabase"."calendar_access"("id", (select auth.uid()), 'read'));`,
     );
     expect(sql).toContain(
       `using ("better_supabase"."calendar_event_access"("id", (select auth.uid()), 'read'));`,

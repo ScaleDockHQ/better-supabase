@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:74d1b9eefc128da12693234c39d218cb99e7a98c5468761bc28f8f1ff221a79f
+-- @bsb-hash sha256:9a96bcd9241976110d9d519f0e1aeadfddf33e9f462ad1b0d5109105ddc4dfff
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -167,11 +167,11 @@ create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
 
-revoke execute on function better_supabase.member_organization_ids(text[]) from public, anon;
-revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public, anon;
+revoke execute on function better_supabase.member_organization_ids(text[]) from public;
+revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public;
 revoke execute on function better_supabase.organization_member_role(uuid, uuid) from public, anon, authenticated;
-grant execute on function better_supabase.member_organization_ids(text[]) to authenticated, service_role;
-grant execute on function better_supabase.has_organization_role(uuid, text[]) to authenticated, service_role;
+grant execute on function better_supabase.member_organization_ids(text[]) to anon, authenticated, service_role;
+grant execute on function better_supabase.has_organization_role(uuid, text[]) to anon, authenticated, service_role;
 grant execute on function better_supabase.organization_member_role(uuid, uuid) to service_role;
 
 -- The memberships claim. `claimFormat: 'array'` (the default) is
@@ -237,7 +237,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql
@@ -257,7 +257,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:d1832a53366462349ea97d6b6d5108308ad00e3f0008338aa70ef8cbcc873226
+-- @bsb-hash sha256:d37773ca7afb6387eed69ed41a565b4b6c406b63cd91653f6770ba946cbf3bb6
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -397,11 +397,11 @@ create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
 
-revoke execute on function better_supabase.member_organization_ids(text[]) from public, anon;
-revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public, anon;
+revoke execute on function better_supabase.member_organization_ids(text[]) from public;
+revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public;
 revoke execute on function better_supabase.organization_member_role(uuid, uuid) from public, anon, authenticated;
-grant execute on function better_supabase.member_organization_ids(text[]) to authenticated, service_role;
-grant execute on function better_supabase.has_organization_role(uuid, text[]) to authenticated, service_role;
+grant execute on function better_supabase.member_organization_ids(text[]) to anon, authenticated, service_role;
+grant execute on function better_supabase.has_organization_role(uuid, text[]) to anon, authenticated, service_role;
 grant execute on function better_supabase.organization_member_role(uuid, uuid) to service_role;
 
 -- The memberships claim. `claimFormat: 'array'` (the default) is
@@ -468,7 +468,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql
@@ -488,7 +488,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:3e33d45bddb8da5e69d58ffe4eda5ed3f27d94022b74057108741ee2fe109ded
+-- @bsb-hash sha256:e53071c976d8bd410c5d7c3f86eae2e0b55a04a86b3f4d2fced1f2a0d69d52b0
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -511,6 +511,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 grant usage on schema better_supabase to supabase_auth_admin;
 
 create table if not exists "app_private"."memberships" (
@@ -656,11 +659,11 @@ create policy bsb_memberships_read on "app_private"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
 
-revoke execute on function better_supabase.member_organization_ids(text[]) from public, anon;
-revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public, anon;
+revoke execute on function better_supabase.member_organization_ids(text[]) from public;
+revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public;
 revoke execute on function better_supabase.organization_member_role(uuid, uuid) from public, anon, authenticated;
-grant execute on function better_supabase.member_organization_ids(text[]) to authenticated, service_role;
-grant execute on function better_supabase.has_organization_role(uuid, text[]) to authenticated, service_role;
+grant execute on function better_supabase.member_organization_ids(text[]) to anon, authenticated, service_role;
+grant execute on function better_supabase.has_organization_role(uuid, text[]) to anon, authenticated, service_role;
 grant execute on function better_supabase.organization_member_role(uuid, uuid) to service_role;
 
 -- The memberships claim. `claimFormat: 'array'` (the default) is
@@ -726,7 +729,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql
@@ -746,7 +749,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:3154da316906f199270c43f3e228d73deeba79c15a973fd9d85eb44492d30eb5
+-- @bsb-hash sha256:f2a7eea9194709ba842d53d691936da170e23b11c70c66e183e93c1114657b62
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -912,11 +915,11 @@ create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
 
-revoke execute on function better_supabase.member_organization_ids(text[]) from public, anon;
-revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public, anon;
+revoke execute on function better_supabase.member_organization_ids(text[]) from public;
+revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public;
 revoke execute on function better_supabase.organization_member_role(uuid, uuid) from public, anon, authenticated;
-grant execute on function better_supabase.member_organization_ids(text[]) to authenticated, service_role;
-grant execute on function better_supabase.has_organization_role(uuid, text[]) to authenticated, service_role;
+grant execute on function better_supabase.member_organization_ids(text[]) to anon, authenticated, service_role;
+grant execute on function better_supabase.has_organization_role(uuid, text[]) to anon, authenticated, service_role;
 grant execute on function better_supabase.organization_member_role(uuid, uuid) to service_role;
 
 -- The memberships claim. `claimFormat: 'array'` (the default) is
@@ -1018,8 +1021,8 @@ language sql
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."member_organization_ids"($1) $$;
-revoke execute on function "api"."member_organization_ids"(text[]) from public, anon;
-grant execute on function "api"."member_organization_ids"(text[]) to authenticated, service_role;
+revoke execute on function "api"."member_organization_ids"(text[]) from public;
+grant execute on function "api"."member_organization_ids"(text[]) to anon, authenticated, service_role;
 
 create or replace function "api"."has_organization_role"(organization uuid, roles text[] default null)
 returns boolean
@@ -1027,8 +1030,8 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."has_organization_role"($1, $2) $$;
-revoke execute on function "api"."has_organization_role"(uuid, text[]) from public, anon;
-grant execute on function "api"."has_organization_role"(uuid, text[]) to authenticated, service_role;
+revoke execute on function "api"."has_organization_role"(uuid, text[]) from public;
+grant execute on function "api"."has_organization_role"(uuid, text[]) to anon, authenticated, service_role;
 
 create or replace function "api"."organization_member_role"(organization uuid, member uuid)
 returns text
@@ -1058,7 +1061,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql
@@ -1078,7 +1081,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:be4a4ce1687d4cc7b5494449499d6387e2466578b4cb9a4edc4133fd9e0fb431
+-- @bsb-hash sha256:853c13b9a696bd4b154e068fd07dbe55175da4b35a7ca4e80156a50379a641c7
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1241,11 +1244,11 @@ create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
 
-revoke execute on function better_supabase.member_organization_ids(text[]) from public, anon;
-revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public, anon;
+revoke execute on function better_supabase.member_organization_ids(text[]) from public;
+revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public;
 revoke execute on function better_supabase.organization_member_role(uuid, uuid) from public, anon, authenticated;
-grant execute on function better_supabase.member_organization_ids(text[]) to authenticated, service_role;
-grant execute on function better_supabase.has_organization_role(uuid, text[]) to authenticated, service_role;
+grant execute on function better_supabase.member_organization_ids(text[]) to anon, authenticated, service_role;
+grant execute on function better_supabase.has_organization_role(uuid, text[]) to anon, authenticated, service_role;
 grant execute on function better_supabase.organization_member_role(uuid, uuid) to service_role;
 
 -- The memberships claim. `claimFormat: 'array'` (the default) is
@@ -1311,7 +1314,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql
@@ -1331,7 +1334,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:74502a2325d1451a7b6428884c6bbedfd2562c45e9a489560ead19ab1b78a11b
+-- @bsb-hash sha256:4bda478b89344f83481be589fd9709e3c7ed4498a33761999693297ee2a06b1e
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1471,11 +1474,11 @@ create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.member_organization_ids()));
 
-revoke execute on function better_supabase.member_organization_ids(text[]) from public, anon;
-revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public, anon;
+revoke execute on function better_supabase.member_organization_ids(text[]) from public;
+revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public;
 revoke execute on function better_supabase.organization_member_role(uuid, uuid) from public, anon, authenticated;
-grant execute on function better_supabase.member_organization_ids(text[]) to authenticated, service_role;
-grant execute on function better_supabase.has_organization_role(uuid, text[]) to authenticated, service_role;
+grant execute on function better_supabase.member_organization_ids(text[]) to anon, authenticated, service_role;
+grant execute on function better_supabase.has_organization_role(uuid, text[]) to anon, authenticated, service_role;
 grant execute on function better_supabase.organization_member_role(uuid, uuid) to service_role;
 
 -- The memberships claim. `claimFormat: 'array'` (the default) is
@@ -1542,7 +1545,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql

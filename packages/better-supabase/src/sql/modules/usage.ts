@@ -7,6 +7,7 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   defaultPartition,
   defaultPartitionName,
@@ -289,9 +290,7 @@ alter table ${counters} enable row level security;
 ${revokeTable(counters)}
 grant select on ${counters} to authenticated;
 grant all on ${counters} to service_role;
-drop policy if exists "usage_counters_read" on ${counters};
-create policy "usage_counters_read" on ${counters} for select to authenticated
-  using (${readPolicy(cc("tenant"))});
+${renderPolicy(makePolicy({ table: counters, name: "usage_counters_read", command: "select", roles: ["authenticated"], using: readPolicy(cc("tenant")) }), { drop: true, target: counters })}
 
 -- One row per idempotency key, so a retried increment counts once.
 create table if not exists ${events} (
@@ -337,7 +336,7 @@ ${
   primary key (${hc("id")}, ${hc("recordedAt")})
 ) partition by range (${hc("recordedAt")});
 ${defaultPartition(history, defaultPartitionName(ctx.tableName("history")))}
-revoke all on sequence ${historySequence} from anon, authenticated;
+revoke all on sequence ${historySequence} from public, anon, authenticated;
 grant usage on sequence ${historySequence} to service_role;`
       : `
 );`
@@ -347,16 +346,14 @@ alter table ${history} enable row level security;
 ${revokeTable(history)}
 grant select on ${history} to authenticated;
 grant all on ${history} to service_role;
-drop policy if exists "usage_history_read" on ${history};
-create policy "usage_history_read" on ${history} for select to authenticated
-  using (${readPolicy(hc("tenant"))});${
-    partitioned
-      ? `
+${renderPolicy(makePolicy({ table: history, name: "usage_history_read", command: "select", roles: ["authenticated"], using: readPolicy(hc("tenant")) }), { drop: true, target: history })}${
+        partitioned
+          ? `
 
 ${MONTHLY_PARTITIONS}
 ${registerPartitions(history)}`
-      : ""
-  }
+          : ""
+      }
 `
     : ""
 }
@@ -391,9 +388,7 @@ alter table ${quotas} enable row level security;
 ${revokeTable(quotas)}
 grant select on ${quotas} to authenticated;
 grant all on ${quotas} to service_role;
-drop policy if exists "usage_quotas_read" on ${quotas};
-create policy "usage_quotas_read" on ${quotas} for select to authenticated
-  using (${qc("tenant")} is null or ${readPolicy(qc("tenant"))});
+${renderPolicy(makePolicy({ table: quotas, name: "usage_quotas_read", command: "select", roles: ["authenticated"], using: `${qc("tenant")} is null or ${readPolicy(qc("tenant"))}` }), { drop: true, target: quotas })}
 
 -- The bigint signatures and return types before quantities were numeric.
 drop function if exists ${fn("usage_quota")}(${id}, text);

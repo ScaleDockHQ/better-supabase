@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:172b8d9a3eed85e5a3b75e3148fb303ca00dbe25ed4eb2857b6f2dedfd5b243f
+-- @bsb-hash sha256:55a5c03a51423ad1460133014b0c9c48c47a2c8c8c74874621bfbf76862e7a36
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -72,13 +72,14 @@ create table if not exists "better_supabase"."relations" (
 );
 create index if not exists relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
-revoke all on "better_supabase"."relations" from anon, authenticated;
+revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
 drop policy if exists relations_read on "better_supabase"."relations";
-create policy relations_read on "better_supabase"."relations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
+create policy relations_read on "better_supabase"."relations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
 
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
@@ -506,7 +507,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
@@ -526,7 +527,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:418a0190acbb320c3c355538fc9af6c318c9aafba156c3808cd5a000611ae739
+-- @bsb-hash sha256:4bca5a146388ae811a1c22028b508cf27f9b2c3a207f11b28dee6d785684f3fa
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -597,13 +598,14 @@ create table if not exists "better_supabase"."relations" (
 );
 create index if not exists relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
-revoke all on "better_supabase"."relations" from anon, authenticated;
+revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
 drop policy if exists relations_read on "better_supabase"."relations";
-create policy relations_read on "better_supabase"."relations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
+create policy relations_read on "better_supabase"."relations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
 
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
@@ -1031,7 +1033,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
@@ -1051,7 +1053,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:80e4df9ff82764d2d6a00f6a36d85392c06037826db05caae9c61b4e6bc3034e
+-- @bsb-hash sha256:182cf9c50ddc7f2546cfe31092c910a8dc9119f79664a12acd540c45407600ec
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1108,6 +1110,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table if not exists "app_private"."relations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -1124,13 +1129,14 @@ create table if not exists "app_private"."relations" (
 );
 create index if not exists relations_target_idx on "app_private"."relations" ("tenant_id", "target_type", "target_id", "kind");
 alter table "app_private"."relations" enable row level security;
-revoke all on "app_private"."relations" from anon, authenticated;
+revoke all on "app_private"."relations" from public, anon, authenticated;
 grant select on "app_private"."relations" to authenticated;
 grant all on "app_private"."relations" to service_role;
 
 drop policy if exists relations_read on "app_private"."relations";
-create policy relations_read on "app_private"."relations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
+create policy relations_read on "app_private"."relations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
 
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
@@ -1558,7 +1564,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
@@ -1578,7 +1584,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:025a8470c7647706458bb05df36848be4036c54bab4db5f4d3138b04e1cb854c
+-- @bsb-hash sha256:557a99101fb5e4f697b01f30d22eef3dcda221a34282bb9b74979371797a822a
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1649,13 +1655,14 @@ create table if not exists "better_supabase"."relations" (
 );
 create index if not exists relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
-revoke all on "better_supabase"."relations" from anon, authenticated;
+revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
 drop policy if exists relations_read on "better_supabase"."relations";
-create policy relations_read on "better_supabase"."relations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
+create policy relations_read on "better_supabase"."relations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
 
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
@@ -2188,7 +2195,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
@@ -2208,7 +2215,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:d57f2e263858c5553fd4ad75358addbce27e8af1c56c29be6931a80a00d13792
+-- @bsb-hash sha256:bfc23e281e2c272f662072f07cca09d511e50eb4ba0f4e5f36714b2f47680f6b
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2280,8 +2287,9 @@ grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
 drop policy if exists bsb_relations_select on "better_supabase"."relations";
-create policy bsb_relations_select on "better_supabase"."relations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
+create policy bsb_relations_select on "better_supabase"."relations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
 
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
@@ -2709,7 +2717,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
@@ -2729,7 +2737,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:9981245b1339bb57f39e91c49d8ea5271e9b5012f76d17b1716a3f0183a4aa09
+-- @bsb-hash sha256:92b367f78cfb48f9efc5062311c6d569a2b5b9d0ae75b0189e7b1243060b3d2f
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2800,13 +2808,14 @@ create table if not exists "better_supabase"."relations" (
 );
 create index if not exists relations_target_idx on "better_supabase"."relations" ("org_id", "target_type", "target_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
-revoke all on "better_supabase"."relations" from anon, authenticated;
+revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
 drop policy if exists relations_read on "better_supabase"."relations";
-create policy relations_read on "better_supabase"."relations" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('relations.read')));
+create policy relations_read on "better_supabase"."relations"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('relations.read')));
 
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
@@ -3234,7 +3243,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_068_relations.sql

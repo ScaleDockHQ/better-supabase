@@ -94,7 +94,11 @@ function permissionGroups(
 ): Readonly<Record<string, Readonly<Record<string, string>>>> {
   const groups: Record<string, Record<string, string>> = {};
 
-  for (const entry of modulePermissionKeys(config.blocks, config.blockNames)) {
+  for (const entry of modulePermissionKeys(
+    config.blocks,
+    config.blockNames,
+    config.subjects,
+  )) {
     groups[entry.module] = {
       ...groups[entry.module],
       [entry.action]: entry.key,

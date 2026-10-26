@@ -27,6 +27,21 @@ export const flatDetails = (ctx: BlockSqlContext): boolean =>
 export const editableContracts = (ctx: BlockSqlContext): boolean =>
   choice(ctx, "contracts", ["append", "editable"]) === "editable";
 
+export const majorSalary = (ctx: BlockSqlContext): boolean =>
+  choice(ctx, "salaryUnits", ["minor", "major"]) === "major";
+
+export function overlappingContracts(ctx: BlockSqlContext): boolean {
+  const allow = choice(ctx, "contractOverlap", ["end", "allow"]) === "allow";
+
+  if (allow && !editableContracts(ctx)) {
+    throw new TypeError(
+      `${WHERE}.contractOverlap "allow" needs contracts "editable"`,
+    );
+  }
+
+  return allow;
+}
+
 export const FLAT_DETAILS = [
   "addressLine1",
   "addressLine2",

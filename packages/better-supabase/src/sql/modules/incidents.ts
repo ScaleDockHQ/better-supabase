@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -247,9 +248,16 @@ function tables(ctx: BlockSqlContext): string {
       ? name(logical, "read")
       : sqlIdent(`bsb_${ctx.tableName(logical).name}_read`);
 
-    return `drop policy if exists ${policy} on ${ctx.table(logical)};
-create policy ${policy} on ${ctx.table(logical)} for select to authenticated
-  using (${ctx.scope.check(tenant, read)});`;
+    return renderPolicy(
+      makePolicy({
+        table: ctx.table(logical),
+        name: policy,
+        command: "select",
+        roles: ["authenticated"],
+        using: ctx.scope.check(tenant, read),
+      }),
+      { drop: true, target: ctx.table(logical) },
+    );
   };
 
   const appKey = (logical: string, what: string, columns: string): string =>

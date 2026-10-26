@@ -1,6 +1,7 @@
 import type { InboxSql } from "./inbox-names.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { updatedAt, lockTable } from "../shared.ts";
 import { topics } from "./inbox-names.ts";
 
@@ -24,9 +25,16 @@ const list = (values: readonly string[]): string =>
   values.map((value) => sqlString(value)).join(", ");
 
 const policy = (table: string, name: string, using: string): string =>
-  `drop policy if exists ${name} on ${table};
-create policy ${name} on ${table} for select to authenticated
-  using (${using});`;
+  renderPolicy(
+    makePolicy({
+      table,
+      name,
+      command: "select",
+      roles: ["authenticated"],
+      using,
+    }),
+    { drop: true, target: table },
+  );
 
 /** An optional column's line, followed by a comma, or nothing. */
 const line = (
@@ -493,13 +501,18 @@ create trigger message_deliveries_broadcast after insert or update of ${dl("stat
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists ${receive} on realtime.messages;
-    create policy ${receive} on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        ${renderPolicy(
+          makePolicy({
+            table: "realtime.messages",
+            name: receive,
+            command: "select",
+            roles: ["authenticated"],
+            using: `realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like ${sqlString(`${q.topic}:org:%`)}
-        and substr((select realtime.topic()), ${String(q.topic.length + 6)}) in (select x::text from ${q.ctx.scope.ids(q.key("read"))} x)
-      );
+        and substr((select realtime.topic()), ${String(q.topic.length + 6)}) in (select x::text from ${q.ctx.scope.ids(q.key("read"))} x)`,
+          }),
+          { drop: true, target: "realtime.messages" },
+        )}
     drop policy if exists ${broadcast} on realtime.messages;
   end if;
 end;
@@ -545,9 +558,7 @@ grant execute on function ${q.fn("inbox_file_allowed")}(text, text) to authentic
 do $$
 begin
   if to_regclass('storage.objects') is not null then
-    drop policy if exists ${read} on storage.objects;
-    create policy ${read} on storage.objects for select to authenticated
-      using (${q.fn("inbox_file_allowed")}(bucket_id, name));
+        ${renderPolicy(makePolicy({ table: "storage.objects", name: read, command: "select", roles: ["authenticated"], using: `${q.fn("inbox_file_allowed")}(bucket_id, name)` }), { drop: true, target: "storage.objects" })}
     drop policy if exists ${write} on storage.objects;
   end if;
 end;

@@ -1,6 +1,6 @@
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:da1cbc67facb555023ca40b83a1867697140d141de9e2659d9957dfb3d7a57e9
+-- @bsb-hash sha256:1e2b908b8ac8a36c833b0c2cac78947bb1daae83754b54dbd073f2bc60116223
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -100,7 +100,7 @@ create index if not exists "passes_booking_idx" on "better_supabase"."passes" ("
 create index if not exists "passes_resource_idx" on "better_supabase"."passes" ("resource_id");
 create index if not exists "passes_subject_idx" on "better_supabase"."passes" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."passes" enable row level security;
-revoke all on "better_supabase"."passes" from anon, authenticated;
+revoke all on "better_supabase"."passes" from public, anon, authenticated;
 grant all on "better_supabase"."passes" to service_role;
 do $$
 begin
@@ -154,7 +154,7 @@ create table if not exists "better_supabase"."pass_check_ins" (
 create index if not exists "pass_check_ins_log_idx" on "better_supabase"."pass_check_ins" ("pass_id", "created_at" desc);
 create index if not exists "pass_check_ins_drop_in_idx" on "better_supabase"."pass_check_ins" ("resource_id", "created_at") where "admitted" and "booking_id" is null;
 alter table "better_supabase"."pass_check_ins" enable row level security;
-revoke all on "better_supabase"."pass_check_ins" from anon, authenticated;
+revoke all on "better_supabase"."pass_check_ins" from public, anon, authenticated;
 grant all on "better_supabase"."pass_check_ins" to service_role;
 
 -- Issues a pass in tenant: a ticket for booking_id (valid until the booking
@@ -837,5 +837,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

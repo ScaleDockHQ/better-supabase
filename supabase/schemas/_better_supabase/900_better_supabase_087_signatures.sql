@@ -1,6 +1,6 @@
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:4b139c3eb25ada670d07a5fc6b7f30dcd23819a380e56d0ba66ac2d05ae6075e
+-- @bsb-hash sha256:bd31d7ac7c3f443de216e16f9551b84dfedec72197b686981957c457c1cdfce8
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -83,11 +83,12 @@ create index if not exists "signature_requests_subject_idx" on "better_supabase"
 create index if not exists "signature_requests_version_idx" on "better_supabase"."signature_requests" ("version_id");
 create index if not exists "signature_requests_signers_idx" on "better_supabase"."signature_requests" using gin ("signers");
 alter table "better_supabase"."signature_requests" enable row level security;
-revoke all on "better_supabase"."signature_requests" from anon, authenticated;
+revoke all on "better_supabase"."signature_requests" from public, anon, authenticated;
 grant select on "better_supabase"."signature_requests" to authenticated;
 grant all on "better_supabase"."signature_requests" to service_role;
 drop policy if exists signature_requests_read on "better_supabase"."signature_requests";
-create policy signature_requests_read on "better_supabase"."signature_requests" for select to authenticated
+create policy signature_requests_read on "better_supabase"."signature_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
 create table if not exists "better_supabase"."signatures" (
@@ -107,11 +108,12 @@ create table if not exists "better_supabase"."signatures" (
   unique ("request_id", "signer")
 );
 alter table "better_supabase"."signatures" enable row level security;
-revoke all on "better_supabase"."signatures" from anon, authenticated;
+revoke all on "better_supabase"."signatures" from public, anon, authenticated;
 grant select on "better_supabase"."signatures" to authenticated;
 grant all on "better_supabase"."signatures" to service_role;
 drop policy if exists signatures_read on "better_supabase"."signatures";
-create policy signatures_read on "better_supabase"."signatures" for select to authenticated
+create policy signatures_read on "better_supabase"."signatures"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
 
 -- Asks members to sign one version of a record. The version is frozen, so
@@ -779,5 +781,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

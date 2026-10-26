@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -378,9 +379,7 @@ function build(ctx: BlockSqlContext): string {
 create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_tenant_idx`)} on ${items} (${c("tenant")}, ${c("trashedAt")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_batch_idx`)} on ${items} (${c("batch")});
 ${lockTable(items, { read: true })}
-drop policy if exists "trash_items_read" on ${items};
-create policy "trash_items_read" on ${items} for select to authenticated
-  using (${ctx.scope.check(c("tenant"), read)});
+${renderPolicy(makePolicy({ table: items, name: "trash_items_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { drop: true, target: items })}
 `
     : "";
 

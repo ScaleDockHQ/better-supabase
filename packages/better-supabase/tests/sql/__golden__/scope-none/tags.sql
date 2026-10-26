@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:75742f973d85e9c816c2edc5bb870da063bd309808de2dc451e8a0a9095fd1b4
+-- @bsb-hash sha256:1e3711afdc69389a396d19a4ca9bfe7dc149518535ce180480fd3ea6066fa1d5
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -56,7 +56,7 @@ create table if not exists "better_supabase"."tags" (
   unique nulls not distinct ("tenant_id", "kind", "slug")
 );
 alter table "better_supabase"."tags" enable row level security;
-revoke all on "better_supabase"."tags" from anon, authenticated;
+revoke all on "better_supabase"."tags" from public, anon, authenticated;
 grant select on "better_supabase"."tags" to authenticated;
 grant all on "better_supabase"."tags" to service_role;
 create table if not exists "better_supabase"."taggings" (
@@ -69,7 +69,7 @@ create table if not exists "better_supabase"."taggings" (
 );
 create index if not exists "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."taggings" enable row level security;
-revoke all on "better_supabase"."taggings" from anon, authenticated;
+revoke all on "better_supabase"."taggings" from public, anon, authenticated;
 grant select on "better_supabase"."taggings" to authenticated;
 grant all on "better_supabase"."taggings" to service_role;
 
@@ -351,7 +351,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_059_tags.sql

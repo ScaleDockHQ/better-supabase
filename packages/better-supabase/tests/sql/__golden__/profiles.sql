@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:ae4a36afeae59573571f03f0ee4ff6c1d6a375fac2306495c982bd3967daf366
+-- @bsb-hash sha256:712baecab11afcdd62c34d493494c0271b2cc95765a0605298a23f72b547bfa1
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -81,10 +81,12 @@ end;
 $$;
 alter table "better_supabase"."profiles" enable row level security;
 drop policy if exists bsb_profiles_read on "better_supabase"."profiles";
-create policy bsb_profiles_read on "better_supabase"."profiles" for select to authenticated
+create policy bsb_profiles_read on "better_supabase"."profiles"
+  for select to authenticated
   using ("id" = (select auth.uid()));
 drop policy if exists bsb_profiles_update on "better_supabase"."profiles";
-create policy bsb_profiles_update on "better_supabase"."profiles" for update to authenticated
+create policy bsb_profiles_update on "better_supabase"."profiles"
+  for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
   with check (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 grant select on "better_supabase"."profiles" to authenticated;
@@ -367,7 +369,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
@@ -390,7 +392,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:ae4a36afeae59573571f03f0ee4ff6c1d6a375fac2306495c982bd3967daf366
+-- @bsb-hash sha256:712baecab11afcdd62c34d493494c0271b2cc95765a0605298a23f72b547bfa1
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -470,10 +472,12 @@ end;
 $$;
 alter table "better_supabase"."profiles" enable row level security;
 drop policy if exists bsb_profiles_read on "better_supabase"."profiles";
-create policy bsb_profiles_read on "better_supabase"."profiles" for select to authenticated
+create policy bsb_profiles_read on "better_supabase"."profiles"
+  for select to authenticated
   using ("id" = (select auth.uid()));
 drop policy if exists bsb_profiles_update on "better_supabase"."profiles";
-create policy bsb_profiles_update on "better_supabase"."profiles" for update to authenticated
+create policy bsb_profiles_update on "better_supabase"."profiles"
+  for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
   with check (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 grant select on "better_supabase"."profiles" to authenticated;
@@ -756,7 +760,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
@@ -779,7 +783,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:ec95279872e5fda1903d46056d627c95aba19537acc5cbc2a0e776b16d3a64ba
+-- @bsb-hash sha256:a9a542307b35a233bd4181665d7e9f70da387cb884e7234d211d5bfa0e58b457
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -822,6 +826,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table if not exists "app_private"."profiles" (
   "id" uuid primary key references auth.users (id) on delete cascade,
   "email" text,
@@ -861,10 +868,12 @@ end;
 $$;
 alter table "app_private"."profiles" enable row level security;
 drop policy if exists bsb_profiles_read on "app_private"."profiles";
-create policy bsb_profiles_read on "app_private"."profiles" for select to authenticated
+create policy bsb_profiles_read on "app_private"."profiles"
+  for select to authenticated
   using ("id" = (select auth.uid()));
 drop policy if exists bsb_profiles_update on "app_private"."profiles";
-create policy bsb_profiles_update on "app_private"."profiles" for update to authenticated
+create policy bsb_profiles_update on "app_private"."profiles"
+  for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
   with check (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 grant select on "app_private"."profiles" to authenticated;
@@ -1147,7 +1156,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
@@ -1170,7 +1179,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:710847181ab1e2526099ba8d242958a3e5cff3995af0c6359907bb87c6e8928d
+-- @bsb-hash sha256:62d21367ead2c08230d5e1c7fd483e48cc3e7ab33a55646a985654475fdb1671
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1250,10 +1259,12 @@ end;
 $$;
 alter table "better_supabase"."profiles" enable row level security;
 drop policy if exists bsb_profiles_read on "better_supabase"."profiles";
-create policy bsb_profiles_read on "better_supabase"."profiles" for select to authenticated
+create policy bsb_profiles_read on "better_supabase"."profiles"
+  for select to authenticated
   using ("id" = (select auth.uid()));
 drop policy if exists bsb_profiles_update on "better_supabase"."profiles";
-create policy bsb_profiles_update on "better_supabase"."profiles" for update to authenticated
+create policy bsb_profiles_update on "better_supabase"."profiles"
+  for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
   with check (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 grant select on "better_supabase"."profiles" to authenticated;
@@ -1605,7 +1616,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
@@ -1628,7 +1639,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:ac8928e0f4e6ca6d59463b49f30a5e1020843bdae01efb1fb17af3073025bee3
+-- @bsb-hash sha256:607560ad9f08ff524f52ee8ff09722cdf73d38e3f5705c4ffb03d204071da1d5
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1693,10 +1704,12 @@ end;
 $$;
 alter table "better_supabase"."profiles" enable row level security;
 drop policy if exists bsb_profiles_read on "better_supabase"."profiles";
-create policy bsb_profiles_read on "better_supabase"."profiles" for select to authenticated
+create policy bsb_profiles_read on "better_supabase"."profiles"
+  for select to authenticated
   using ("id" = (select auth.uid()));
 drop policy if exists bsb_profiles_update on "better_supabase"."profiles";
-create policy bsb_profiles_update on "better_supabase"."profiles" for update to authenticated
+create policy bsb_profiles_update on "better_supabase"."profiles"
+  for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
   with check (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 grant select on "better_supabase"."profiles" to authenticated;
@@ -1973,7 +1986,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql

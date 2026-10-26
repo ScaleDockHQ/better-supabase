@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:dac015372c565b50b8a35a0b0662876fe2b1b892cd0a3fa242b4d149fef9a614
+-- @bsb-hash sha256:e42c94018752adaf6e696c2d08d212548acf70397c56e7a857417b55fdc35793
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -59,11 +59,12 @@ drop trigger if exists bsb_updated_at on "better_supabase"."organizations";
 create trigger bsb_updated_at before update on "better_supabase"."organizations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."organizations" enable row level security;
-revoke all on "better_supabase"."organizations" from anon, authenticated;
+revoke all on "better_supabase"."organizations" from public, anon, authenticated;
 grant select on "better_supabase"."organizations" to authenticated;
 grant all on "better_supabase"."organizations" to service_role;
 drop policy if exists bsb_organizations_read on "better_supabase"."organizations";
-create policy bsb_organizations_read on "better_supabase"."organizations" for select to authenticated
+create policy bsb_organizations_read on "better_supabase"."organizations"
+  for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
 do $$
@@ -743,7 +744,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_021_organizations.sql
@@ -763,7 +764,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:bae1c84bee6cdb386c7dac777cc9f2d25193b1dc68274bf98bf40f7ce6aaac6d
+-- @bsb-hash sha256:9d61ae104195be63a6aef68d71d1ecbf2777c91f2e0872a31f93ff133e49f235
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -821,11 +822,12 @@ drop trigger if exists bsb_updated_at on "better_supabase"."organizations";
 create trigger bsb_updated_at before update on "better_supabase"."organizations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."organizations" enable row level security;
-revoke all on "better_supabase"."organizations" from anon, authenticated;
+revoke all on "better_supabase"."organizations" from public, anon, authenticated;
 grant select on "better_supabase"."organizations" to authenticated;
 grant all on "better_supabase"."organizations" to service_role;
 drop policy if exists bsb_organizations_read on "better_supabase"."organizations";
-create policy bsb_organizations_read on "better_supabase"."organizations" for select to authenticated
+create policy bsb_organizations_read on "better_supabase"."organizations"
+  for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
 do $$
@@ -1620,7 +1622,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_021_organizations.sql
@@ -1640,7 +1642,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:6e01b2229cce9073e1d76e76cffd24672cfd2232ea22ba83504555a8aee46391
+-- @bsb-hash sha256:781614cd9240f8829625dea8d4416b86f73894a4cb8101dd41fad957b4cb7c4f
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1683,6 +1685,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 
 create table if not exists "app_private"."organizations" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1700,11 +1705,12 @@ drop trigger if exists bsb_updated_at on "app_private"."organizations";
 create trigger bsb_updated_at before update on "app_private"."organizations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "app_private"."organizations" enable row level security;
-revoke all on "app_private"."organizations" from anon, authenticated;
+revoke all on "app_private"."organizations" from public, anon, authenticated;
 grant select on "app_private"."organizations" to authenticated;
 grant all on "app_private"."organizations" to service_role;
 drop policy if exists bsb_organizations_read on "app_private"."organizations";
-create policy bsb_organizations_read on "app_private"."organizations" for select to authenticated
+create policy bsb_organizations_read on "app_private"."organizations"
+  for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
 do $$
@@ -2384,7 +2390,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_021_organizations.sql
@@ -2404,7 +2410,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:dc348b5df429bb95c3fa61950ab02d2e86058dbaf708fb84362c30d17089d8ef
+-- @bsb-hash sha256:793810d6196a1db0f6cf1fa3899092b64aed274cba8c49dee602d1940f3d3999
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2462,11 +2468,12 @@ drop trigger if exists bsb_updated_at on "better_supabase"."organizations";
 create trigger bsb_updated_at before update on "better_supabase"."organizations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."organizations" enable row level security;
-revoke all on "better_supabase"."organizations" from anon, authenticated;
+revoke all on "better_supabase"."organizations" from public, anon, authenticated;
 grant select on "better_supabase"."organizations" to authenticated;
 grant all on "better_supabase"."organizations" to service_role;
 drop policy if exists bsb_organizations_read on "better_supabase"."organizations";
-create policy bsb_organizations_read on "better_supabase"."organizations" for select to authenticated
+create policy bsb_organizations_read on "better_supabase"."organizations"
+  for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
 do $$
@@ -3306,7 +3313,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_021_organizations.sql
@@ -3326,7 +3333,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:6cbc2fa34bf8de0834b051c047d91e6c9d111995c1de91b49510fe81ee63872b
+-- @bsb-hash sha256:c1e44842b2fd4eb55d968e3d097059107c98f15d1a7537aaa9eb98f899f5b1d5
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3387,7 +3394,8 @@ grant select on "better_supabase"."organizations" to authenticated;
 grant all on "better_supabase"."organizations" to service_role;
 drop policy if exists bsb_organizations_read on "better_supabase"."organizations";
 drop policy if exists bsb_organizations_select on "better_supabase"."organizations";
-create policy bsb_organizations_select on "better_supabase"."organizations" for select to authenticated
+create policy bsb_organizations_select on "better_supabase"."organizations"
+  for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
 -- Why a slug can't be used, or null: 'invalid' (length and pattern from
@@ -4049,7 +4057,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_021_organizations.sql

@@ -11,6 +11,7 @@ import type { Machine } from "./state-machine-options.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { asColumnType } from "../column-type.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
   lockTable,
@@ -436,9 +437,16 @@ ${list.map((item) => `      when ${sqlString(item.name)} then exists (select 1 f
       else false
     end`;
 
-  return `drop policy if exists ${name} on ${table};
-create policy ${name} on ${table} for select to authenticated
-  using (${visible});`;
+  return renderPolicy(
+    makePolicy({
+      table,
+      name,
+      command: "select",
+      roles: ["authenticated"],
+      using: visible,
+    }),
+    { drop: true, target: table },
+  );
 }
 
 function tables(ctx: BlockSqlContext, list: readonly Machine[]): string {

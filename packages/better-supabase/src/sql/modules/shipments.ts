@@ -14,6 +14,7 @@ import {
   TRACKING_STATUSES,
 } from "../../blocks/shipments/statuses.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   addForeignKey,
@@ -254,8 +255,7 @@ create index if not exists ${index("shipments", "status_idx")} on ${shipments} (
 create unique index if not exists ${index("shipments", "tracking_key")} on ${shipments} (${h("carrier")}, ${h("trackingNumber")}) where ${h("trackingNumber")} is not null;${subject ? `\ncreate index if not exists ${index("shipments", "subject_idx")} on ${shipments} (${h("tenant")}, ${h("subjectType")}, ${h("subjectId")});` : ""}${ctx.has("shipments", "fromLocation") ? `\ncreate index if not exists ${index("shipments", "location_idx")} on ${shipments} (${h("fromLocation")});` : ""}
 ${lockModuleTable(ctx, "shipments", { read: true })}
 drop policy if exists ${index("shipments", "read")} on ${shipments};
-create policy ${index("shipments", "read")} on ${shipments} for select to authenticated
-  using (${readable(h("tenant"))});
+${renderPolicy(makePolicy({ table: shipments, name: index("shipments", "read"), command: "select", roles: ["authenticated"], using: readable(h("tenant")) }), { target: shipments })}
 create table if not exists ${packages} (
   ${p("id")} uuid primary key default gen_random_uuid(),
   ${p("tenant")} ${ctx.idType} not null,
@@ -266,8 +266,7 @@ create table if not exists ${packages} (
 );
 ${lockModuleTable(ctx, "packages", { read: true })}
 drop policy if exists ${index("packages", "read")} on ${packages};
-create policy ${index("packages", "read")} on ${packages} for select to authenticated
-  using (${readable(p("tenant"))});
+${renderPolicy(makePolicy({ table: packages, name: index("packages", "read"), command: "select", roles: ["authenticated"], using: readable(p("tenant")) }), { target: packages })}
 -- The tracking timeline. A carrier event id is recorded once per shipment, so
 -- a redelivered webhook or a repeated poll changes nothing.
 create table if not exists ${events} (
@@ -284,8 +283,7 @@ create table if not exists ${events} (
 create index if not exists ${index("trackingEvents", "timeline_idx")} on ${events} (${e("shipment")}, ${e("occurredAt")});
 ${lockModuleTable(ctx, "trackingEvents", { read: true })}
 drop policy if exists ${index("trackingEvents", "read")} on ${events};
-create policy ${index("trackingEvents", "read")} on ${events} for select to authenticated
-  using (${readable(e("tenant"))});${locationKey}
+${renderPolicy(makePolicy({ table: events, name: index("trackingEvents", "read"), command: "select", roles: ["authenticated"], using: readable(e("tenant")) }), { target: events })}${locationKey}
 `;
 }
 

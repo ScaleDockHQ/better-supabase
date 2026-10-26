@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:0c47c0580a43414ad6f3e3f5cdb557886be3ce43ba6001cef5bf5dae5a8ac0d2
+-- @bsb-hash sha256:c31ebf383838414e99aa5c5c5e882414ce0a3fea1f125ce45b4ebd361a12e099
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -116,7 +116,7 @@ drop trigger if exists "bsb_incoming_webhook_vault" on "better_supabase"."incomi
 create trigger "bsb_incoming_webhook_vault" after delete on "better_supabase"."incoming_webhooks"
   for each row when (old."secret_id" is not null or old."previous_secret_id" is not null) execute function "better_supabase"."drop_incoming_webhook_secret"();
 alter table "better_supabase"."incoming_webhooks" enable row level security;
-revoke all on "better_supabase"."incoming_webhooks" from anon, authenticated;
+revoke all on "better_supabase"."incoming_webhooks" from public, anon, authenticated;
 -- The secret stays with the service: members read every other column.
 grant select (id, tenant, name, verify, signature_header, enabled, max_body_bytes, receive_count, last_received_at, last_status, metadata, subject_type, subject_id, created_by, created_at, updated_at) on "better_supabase"."incoming_webhooks" to authenticated;
 grant all on "better_supabase"."incoming_webhooks" to service_role;
@@ -149,11 +149,10 @@ revoke execute on function "better_supabase"."incoming_webhook_subject_readable"
 grant execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) to authenticated, service_role;
 
 drop policy if exists bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks";
-create policy bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks" for select to authenticated
-  using (
-    tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
-    and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant)
-  );
+create policy bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks"
+  for select to authenticated
+  using (tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
+    and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant));
 
 -- A tenant's endpoints, or one subject's, without secrets; runs as the caller.
 create or replace function "better_supabase"."list_incoming_webhooks"(tenant uuid, subject_type text default null, subject_id text default null)
@@ -551,7 +550,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_027_webhooks_in.sql
@@ -571,7 +570,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:1561bf41206f5941df9ce8a817fd05474704d36ba49f2481ead200b74600b920
+-- @bsb-hash sha256:46c96384c5bacbd62fee9550432c203e132a1faacf3889070026a6ac02065753
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -686,7 +685,7 @@ drop trigger if exists "bsb_incoming_webhook_vault" on "better_supabase"."incomi
 create trigger "bsb_incoming_webhook_vault" after delete on "better_supabase"."incoming_webhooks"
   for each row when (old."secret_id" is not null or old."previous_secret_id" is not null) execute function "better_supabase"."drop_incoming_webhook_secret"();
 alter table "better_supabase"."incoming_webhooks" enable row level security;
-revoke all on "better_supabase"."incoming_webhooks" from anon, authenticated;
+revoke all on "better_supabase"."incoming_webhooks" from public, anon, authenticated;
 -- The secret stays with the service: members read every other column.
 grant select (id, tenant, name, verify, signature_header, enabled, max_body_bytes, receive_count, last_received_at, last_status, metadata, subject_type, subject_id, created_by, created_at, updated_at) on "better_supabase"."incoming_webhooks" to authenticated;
 grant all on "better_supabase"."incoming_webhooks" to service_role;
@@ -719,11 +718,10 @@ revoke execute on function "better_supabase"."incoming_webhook_subject_readable"
 grant execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) to authenticated, service_role;
 
 drop policy if exists bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks";
-create policy bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks" for select to authenticated
-  using (
-    tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
-    and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant)
-  );
+create policy bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks"
+  for select to authenticated
+  using (tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
+    and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant));
 
 -- A tenant's endpoints, or one subject's, without secrets; runs as the caller.
 create or replace function "better_supabase"."list_incoming_webhooks"(tenant uuid, subject_type text default null, subject_id text default null)
@@ -1169,7 +1167,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_027_webhooks_in.sql
@@ -1189,7 +1187,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:576f9918a0e7991b27ade0a6759a0121c9d3d0f67f5dfbd0e2986a3e4929066d
+-- @bsb-hash sha256:a81d7c872c82aa5049c2f4d33eecc73b631116df84b5727f8742c373b5a9772a
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1246,6 +1244,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Trigger URLs a tenant hands to another system: /hooks/<token> stores each
 -- delivery in the webhook inbox (source webhook-in), with the endpoint's
 -- tenant. Only the token's hash is kept, and the signing secret is a Vault
@@ -1306,7 +1307,7 @@ drop trigger if exists "bsb_incoming_webhook_vault" on "app_private"."incoming_w
 create trigger "bsb_incoming_webhook_vault" after delete on "app_private"."incoming_webhooks"
   for each row when (old."secret_id" is not null or old."previous_secret_id" is not null) execute function "app_private"."drop_incoming_webhook_secret"();
 alter table "app_private"."incoming_webhooks" enable row level security;
-revoke all on "app_private"."incoming_webhooks" from anon, authenticated;
+revoke all on "app_private"."incoming_webhooks" from public, anon, authenticated;
 -- The secret stays with the service: members read every other column.
 grant select (id, tenant, name, verify, signature_header, enabled, max_body_bytes, receive_count, last_received_at, last_status, metadata, subject_type, subject_id, created_by, created_at, updated_at) on "app_private"."incoming_webhooks" to authenticated;
 grant all on "app_private"."incoming_webhooks" to service_role;
@@ -1339,11 +1340,10 @@ revoke execute on function "app_private"."incoming_webhook_subject_readable"(tex
 grant execute on function "app_private"."incoming_webhook_subject_readable"(text, text, uuid) to authenticated, service_role;
 
 drop policy if exists bsb_incoming_webhooks_read on "app_private"."incoming_webhooks";
-create policy bsb_incoming_webhooks_read on "app_private"."incoming_webhooks" for select to authenticated
-  using (
-    tenant in (select "app_private"."incoming_webhook_tenant_ids"())
-    and "app_private"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant)
-  );
+create policy bsb_incoming_webhooks_read on "app_private"."incoming_webhooks"
+  for select to authenticated
+  using (tenant in (select "app_private"."incoming_webhook_tenant_ids"())
+    and "app_private"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant));
 
 -- A tenant's endpoints, or one subject's, without secrets; runs as the caller.
 create or replace function "app_private"."list_incoming_webhooks"(tenant uuid, subject_type text default null, subject_id text default null)
@@ -1741,7 +1741,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_027_webhooks_in.sql
@@ -1761,7 +1761,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:8af500a2bcb7a8304aca962dd42f487ef48a4be28037ef15594498f31231ac76
+-- @bsb-hash sha256:265abb12bd17fd3578ff3b365d4741eab4565653ff20f8d595c6860941d87954
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1876,7 +1876,7 @@ drop trigger if exists "bsb_incoming_webhook_vault" on "better_supabase"."incomi
 create trigger "bsb_incoming_webhook_vault" after delete on "better_supabase"."incoming_webhooks"
   for each row when (old."secret_id" is not null or old."previous_secret_id" is not null) execute function "better_supabase"."drop_incoming_webhook_secret"();
 alter table "better_supabase"."incoming_webhooks" enable row level security;
-revoke all on "better_supabase"."incoming_webhooks" from anon, authenticated;
+revoke all on "better_supabase"."incoming_webhooks" from public, anon, authenticated;
 -- The secret stays with the service: members read every other column.
 grant select (id, tenant, name, verify, signature_header, enabled, max_body_bytes, receive_count, last_received_at, last_status, metadata, subject_type, subject_id, created_by, created_at, updated_at) on "better_supabase"."incoming_webhooks" to authenticated;
 grant all on "better_supabase"."incoming_webhooks" to service_role;
@@ -1909,11 +1909,10 @@ revoke execute on function "better_supabase"."incoming_webhook_subject_readable"
 grant execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) to authenticated, service_role;
 
 drop policy if exists bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks";
-create policy bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks" for select to authenticated
-  using (
-    tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
-    and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant)
-  );
+create policy bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks"
+  for select to authenticated
+  using (tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
+    and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant));
 
 -- A tenant's endpoints, or one subject's, without secrets; runs as the caller.
 create or replace function "better_supabase"."list_incoming_webhooks"(tenant uuid, subject_type text default null, subject_id text default null)
@@ -2421,7 +2420,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_027_webhooks_in.sql
@@ -2441,7 +2440,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:63deba6b63aead83b14caa82af61afc55a199aa37ca836aa4fc7c8c2223a84b4
+-- @bsb-hash sha256:8f3504418c20e8903c78ac65180566a66ac13b7edb7b475fdfe96bd900117cc5
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2901,7 +2900,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_027_webhooks_in.sql

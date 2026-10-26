@@ -11,9 +11,11 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { APPLICATION_TO_EMPLOYEE } from "../../blocks/hiring/automations.ts";
 import { sqlString } from "../../core/template.ts";
 import { asColumnType } from "../column-type.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   fail,
+  insertExtraColumns,
   schemaPreamble,
   triggerGrant,
   userGrant,
@@ -248,6 +250,12 @@ function build(ctx: BlockSqlContext): string {
   const read = ctx.permission("read", keys.read);
   const write = ctx.permission("write", keys.write);
   const manage = ctx.permission("manage", keys.manage);
+  const writeKey = ctx.permissionKey("write", keys.write);
+  const manageKey = ctx.permissionKey("manage", keys.manage);
+  const createKey = sqlString(ctx.config.permissions["create"] ?? writeKey);
+  const scoreKey = sqlString(ctx.config.permissions["score"] ?? writeKey);
+  const jobsCreate = ctx.config.permissions["jobsCreate"];
+  const jobsUpdate = ctx.config.permissions["jobsUpdate"];
   const candidate = ctx.text("candidate", "person");
   const extras = ctx.extraColumns("jobs");
   const fn = (name: string): string => ctx.fn(name);
@@ -431,6 +439,17 @@ ${indent}end if;`;
   const editable = (tenant: string): string =>
     `(${service} or ${ctx.scope.can(tenant, write)})`;
 
+  const jobAccess =
+    jobsCreate === undefined && jobsUpdate === undefined
+      ? ctx.scope.can("save_job.tenant", manage)
+      : `((save_job.job is null and ${ctx.scope.can("save_job.tenant", sqlString(jobsCreate ?? manageKey))}) or (save_job.job is not null and ${ctx.scope.can("save_job.tenant", sqlString(jobsUpdate ?? manageKey))}))`;
+
+  const requiredJobColumns = insertExtraColumns(
+    t("jobs"),
+    extras,
+    "save_job.attrs -> 'fields'",
+  );
+
   const tables = ctx.manages
     ? `
 create table if not exists ${t("jobs")} (
@@ -443,9 +462,7 @@ create table if not exists ${t("jobs")} (
 );
 create index if not exists jobs_tenant_status_idx on ${t("jobs")} (${j("tenant")}, ${j("status")});${addExtraColumns(t("jobs"), extras)}
 ${lockModuleTable(ctx, "jobs", { read: true })}
-drop policy if exists jobs_read on ${t("jobs")};
-create policy jobs_read on ${t("jobs")} for select to authenticated
-using (${ctx.scope.check(j("tenant"), read)});
+${renderPolicy(makePolicy({ table: t("jobs"), name: "jobs_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(j("tenant"), read) }), { drop: true, target: t("jobs") })}
 
 create table if not exists ${t("applications")} (
   ${a("id")} uuid primary key default gen_random_uuid(),
@@ -462,9 +479,7 @@ create table if not exists ${t("applications")} (
 create index if not exists ${ctx.naming.rename("applications_board_idx")} on ${t("applications")} (${pipelined ? a("pipeline") : a("job")}, ${a("stage")}, ${a("rank")});
 create index if not exists ${ctx.naming.rename("applications_candidate_idx")} on ${t("applications")} (${fixedCandidate ? "" : `${a("candidateType")}, `}${a("candidateId")});
 ${lockModuleTable(ctx, "applications", { read: true })}
-drop policy if exists ${ctx.naming.rename("applications_read")} on ${t("applications")};
-create policy ${ctx.naming.rename("applications_read")} on ${t("applications")} for select to authenticated
-using (${ctx.scope.check(a("tenant"), read)});
+${renderPolicy(makePolicy({ table: t("applications"), name: ctx.naming.rename("applications_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(a("tenant"), read) }), { drop: true, target: t("applications") })}
 
 create table if not exists ${t("scorecards")} (
   ${s("id")} uuid primary key default gen_random_uuid(),
@@ -477,9 +492,7 @@ create table if not exists ${t("scorecards")} (
 );${perApplication ? appUniqueIndex(ctx, "scorecards", ["application", "reviewer"]) : appUniqueIndex(ctx, "scorecards", ["application", "stage", "reviewer"]).replace(/;$/, " nulls not distinct;")}
 create index if not exists ${ctx.naming.rename("application_scorecards_reviewer_idx")} on ${t("scorecards")} (${s("reviewer")});
 ${lockModuleTable(ctx, "scorecards", { read: true })}
-drop policy if exists ${ctx.naming.rename("application_scorecards_read")} on ${t("scorecards")};
-create policy ${ctx.naming.rename("application_scorecards_read")} on ${t("scorecards")} for select to authenticated
-using (${ctx.scope.check(s("tenant"), read)});
+${renderPolicy(makePolicy({ table: t("scorecards"), name: ctx.naming.rename("application_scorecards_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(s("tenant"), read) }), { drop: true, target: t("scorecards") })}
 ${scoreRows ? scoresTable(ctx, read) : ""}
 create table if not exists ${t("interviews")} (
   ${v("id")} uuid primary key default gen_random_uuid(),
@@ -492,20 +505,27 @@ create table if not exists ${t("interviews")} (
 );
 create index if not exists ${ctx.naming.rename("interviews_application_idx")} on ${t("interviews")} (${v("application")}, ${v("startsAt")});
 ${lockModuleTable(ctx, "interviews", { read: true })}${interviewerRows ? interviewersTable(ctx, read) : ""}
-drop policy if exists ${ctx.naming.rename("interviews_read")} on ${t("interviews")};
-create policy ${ctx.naming.rename("interviews_read")} on ${t("interviews")} for select to authenticated
-using (${ctx.scope.check(v("tenant"), read)}${[
-        ...(ctx.has("interviews", "interviewers")
-          ? [`(select auth.uid()) = any (${v("interviewers")})`]
-          : []),
-        ...(interviewerRows
-          ? [
-              `exists (select 1 from ${t("interviewers")} z where z.${iv("interview")} = ${t("interviews")}.${v("id")} and z.${iv("user")} = (select auth.uid()))`,
-            ]
-          : []),
-      ]
-        .map((check) => ` or ${check}`)
-        .join("")});
+${renderPolicy(
+  makePolicy({
+    table: t("interviews"),
+    name: ctx.naming.rename("interviews_read"),
+    command: "select",
+    roles: ["authenticated"],
+    using: `${ctx.scope.check(v("tenant"), read)}${[
+      ...(ctx.has("interviews", "interviewers")
+        ? [`(select auth.uid()) = any (${v("interviewers")})`]
+        : []),
+      ...(interviewerRows
+        ? [
+            `exists (select 1 from ${t("interviewers")} z where z.${iv("interview")} = ${t("interviews")}.${v("id")} and z.${iv("user")} = (select auth.uid()))`,
+          ]
+        : []),
+    ]
+      .map((check) => ` or ${check}`)
+      .join("")}`,
+  }),
+  { drop: true, target: t("interviews") },
+)}
 `
     : "";
 
@@ -560,7 +580,7 @@ declare
   v_job ${t("jobs")};
   v_was text;
 begin
-  if not (${service} or ${ctx.scope.can("save_job.tenant", manage)}) then
+  if not (${service} or ${jobAccess}) then
     ${fail("HIRING_FORBIDDEN", "not allowed to manage jobs")}
   end if;
   if save_job.job is not null then
@@ -572,7 +592,7 @@ begin
   end if;${managerCheck(ctx, managerEmployee)}${JOB_ATTRS.map(([logical, key, thing]) => refuse("jobs", logical, `save_job.attrs ->> '${key}'`, `HIRING_JOB_${thing.toUpperCase().replaceAll(" ", "_")}_UNSUPPORTED`, `this jobs table has no ${thing} column`)).join("")}
   begin
     if save_job.job is null then
-      insert into ${t("jobs")} (${j("tenant")}, ${j("title")}${also("jobs", "team")}${also("jobs", "location")}${also("jobs", "employmentType")}${also("jobs", "description")}${also("jobs", "hiringManager")}, ${j("status")})
+      insert into ${t("jobs")} (${j("tenant")}, ${j("title")}${also("jobs", "team")}${also("jobs", "location")}${also("jobs", "employmentType")}${also("jobs", "description")}${also("jobs", "hiringManager")}, ${j("status")}${requiredJobColumns.columns})
       values (${lines(
         "        ",
         [
@@ -601,7 +621,7 @@ begin
             "coalesce(save_job.attrs ->> 'status', 'draft')",
           ),
         ],
-      )})
+      )}${requiredJobColumns.values})
       returning * into v_job;
     else
       update ${t("jobs")} x set
@@ -650,7 +670,7 @@ declare
   v_id text := apply_to_job.candidate ->> 'id';
 begin
   select * into v_job from ${t("jobs")} x where x.${j("id")} = apply_to_job.job;
-  if v_job.${j("id")} is null or not ${editable(`v_job.${j("tenant")}`)} then
+  if v_job.${j("id")} is null or not (${service} or ${ctx.scope.can(`v_job.${j("tenant")}`, createKey)}) then
     ${fail("HIRING_JOB_NOT_FOUND", "no such job you can add applications to", "P0002")}
   end if;
   if ${ctx.is("jobs", "status", `v_job.${j("status")}`, ["open"], true)} then
@@ -739,7 +759,7 @@ declare
   v_card ${t("scorecards")};
 begin
   select * into v_row from ${t("applications")} x where x.${a("id")} = submit_scorecard.application;
-  if v_row.${a("id")} is null or not ${reviewable(interviewerOf("y", "auth.uid()"), editable(`v_row.${a("tenant")}`), `${t("interviews")} y where y.${v("application")} = v_row.${a("id")}`)} then
+  if v_row.${a("id")} is null or not ${reviewable(interviewerOf("y", "auth.uid()"), `(${service} or ${ctx.scope.can(`v_row.${a("tenant")}`, scoreKey)})`, `${t("interviews")} y where y.${v("application")} = v_row.${a("id")}`)} then
     ${fail("HIRING_APPLICATION_NOT_FOUND", "no such application you can review", "P0002")}
   end if;${refuse("scorecards", "notes", "submit_scorecard.notes", "HIRING_NOTES_UNSUPPORTED", "this scorecards table has no notes column")}${refuse("scorecards", "recommendation", "submit_scorecard.recommendation", "HIRING_RECOMMENDATION_UNSUPPORTED", "this scorecards table has no recommendation column")}${
     ctx.appOwned.includes("scorecards")
