@@ -1398,6 +1398,9 @@
                     },
                     "owner": {
                       "type": "string"
+                    },
+                    "also": {
+                      "type": "string"
                     }
                   },
                   "additionalProperties": false

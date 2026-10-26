@@ -204,7 +204,9 @@ function registeredRead(
 
   if (
     read === undefined ||
-    (read.rows === undefined && read.owner === undefined) ||
+    (read.rows === undefined &&
+      read.owner === undefined &&
+      read.also === undefined) ||
     read.key !== permission
   ) {
     return undefined;
@@ -562,7 +564,18 @@ function recordGrant(
     parts.push(`s.${sqlIdent(entry.owner)} = auth.uid()`);
   }
 
-  return parts.length === 1 ? parts[0]! : `(${parts.join(" or ")})`;
+  const any = parts.length === 1 ? parts[0]! : `(${parts.join(" or ")})`;
+
+  if (entry.also === undefined) {
+    return any;
+  }
+
+  const also = [
+    ctx.scope.can(tenant, sqlString(entry.also)),
+    ...(scope === undefined ? [] : [ctx.can(scope, id, sqlString(entry.also))]),
+  ];
+
+  return `((${also.join(" or ")}) and ${any})`;
 }
 
 /**

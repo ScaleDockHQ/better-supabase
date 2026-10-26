@@ -83,6 +83,11 @@ export interface SubjectPermission {
   readonly rows?: string;
   /** A uuid column of the subject row that grants the action to its user. */
   readonly owner?: string;
+  /**
+   * A permission key the caller must hold as well, in the row's tenant (or on
+   * `scope`), whichever of `key`, `rows` and `owner` grants the action.
+   */
+  readonly also?: string;
 }
 
 /**

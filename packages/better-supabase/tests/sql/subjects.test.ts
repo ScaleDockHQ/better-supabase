@@ -88,4 +88,25 @@ describe("subjectReadable with a registered read granted per row or to an owner"
       ),
     ).toThrow(/records\.file\.permissions\.read\.rows needs/u);
   });
+
+  it("requires the also key with the other grants", () => {
+    const sql = subjectReadable(
+      ctx,
+      [
+        [
+          "note",
+          {
+            table: "app.notes",
+            read: { entry: { owner: "owner_id", also: "notes.read" } },
+            extra: {},
+          },
+        ],
+      ],
+      args,
+    );
+
+    expect(sql).toContain(
+      `and ((can(o, 'notes.read')) and s."owner_id" = auth.uid()))`,
+    );
+  });
 });

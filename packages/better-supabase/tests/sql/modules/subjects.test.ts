@@ -207,6 +207,34 @@ describe("subject actions beyond tenant keys", () => {
     expect(bad({ owner: "x;y" })).toThrow(/owner must be a column name/u);
     expect(bad({})).toThrow(/needs a key or an owner column/u);
     expect(bad({ key: "a", other: 1 })).toThrow(/other is not an option/u);
+    expect(bad({ owner: "user_id", also: "" })).toThrow(
+      /also must be a permission key/u,
+    );
+  });
+
+  it("requires the also key on top of a row grant or the owner", () => {
+    const sql = renderBlocks(["subjects"], {
+      subjects: {
+        doc: {
+          table: "public.docs",
+          permissions: {
+            edit: { key: "doc.edit", rows: "doc", also: "docs.write" },
+            share: { owner: "owner_id", also: "docs.share" },
+          },
+        },
+      },
+      modules: { permissions: { model: "provider" } },
+      accessProvider: provider,
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toMatch(
+      /when 'share' then \(coalesce\(better_supabase\.can\('tenant', s\."organization_id", 'docs\.share'\), false\) and s\."owner_id" = auth\.uid\(\)\)/u,
+    );
+    expect(sql).toMatch(
+      /when 'edit' then \(coalesce\(better_supabase\.can\('tenant', s\."organization_id", 'docs\.write'\), false\) and \(/u,
+    );
   });
 
   it("lets an owner-only action stand on a subject without a tenant", () => {
