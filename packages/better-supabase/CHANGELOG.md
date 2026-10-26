@@ -1,5 +1,11 @@
 # better-supabase
 
+## 0.25.0
+
+### Minor Changes
+
+- [#412](https://github.com/ScaleDockHQ/better-supabase/pull/412) [`6843a12`](https://github.com/ScaleDockHQ/better-supabase/commit/6843a12a2c13fe824352cd21d8ef23e5fcd30f12) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase init` adds the `rls-guard` block to the config it writes, so row level security stays on for every table the project creates later. Remove `'rls-guard'` from `blocks` to opt out (ADR 0104).
+
 ## 0.24.0
 
 ### Minor Changes

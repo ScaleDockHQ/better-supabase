@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.25.0 (2026-10-26)
+
+- `better-supabase init` adds the `rls-guard` block to the config it writes, so row level security stays on for every table the project creates later. Remove `'rls-guard'` from `blocks` to opt out (ADR 0104).
+
 ## 0.24.0 (2026-10-26)
 
 - The calendar block runs over an app's own calendar tables, with five opt-in options. A config without them renders the same SQL as before.

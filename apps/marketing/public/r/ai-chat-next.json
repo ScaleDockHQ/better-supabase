@@ -4,7 +4,7 @@
   "title": "AI chat routes (Next.js)",
   "description": "lib/assistant.ts and the app/api/chat routes: the ai-chat block's assistant, the tools it may call, and the routes that send a message, resume its stream and stop it.",
   "dependencies": [
-    "better-supabase@^0.24.0",
+    "better-supabase@^0.25.0",
     "ai",
     "server-only"
   ],
