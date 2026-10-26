@@ -1733,3 +1733,27 @@ functions you name, so your own tables or an authorization library answer
 them. A hand written policy is kept as it is; `disallowedPolicyCalls()` lists
 the calls in it that are not one of the four functions, which is how you check
 it against the same rule.
+
+## Table tags
+
+A table you own carries its better-supabase features as `@bsb` tags in the table comment (ADR 0102). Free text and tags share the comment, and only the block that starts at `@bsb` is parsed. Tags are separated by `;`, and a tag takes `key=value` pairs.
+
+```ts
+import {
+  parseBsbComment,
+  setBsbTag,
+  commentOnTableSql,
+} from "better-supabase/sql";
+
+const comment = "Invoices. @bsb subject title=number; realtime";
+
+parseBsbComment(comment);
+// { text: "Invoices.", tags: [{ name: "subject", args: { title: "number" } }, { name: "realtime", args: {} }] }
+
+const next = setBsbTag(comment, "audit", { name: "audit", args: {} });
+
+commentOnTableSql("public.invoices", next);
+// comment on table public.invoices is 'Invoices. @bsb subject title=number; realtime; audit';
+```
+
+`setBsbTag` with `undefined` removes a tag and keeps the text.
