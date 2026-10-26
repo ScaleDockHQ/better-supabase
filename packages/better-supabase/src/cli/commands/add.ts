@@ -83,6 +83,12 @@ const ADD_ARGS = {
       "With blocks: where the pgtap module goes. Defaults to database.sql.testsDir",
     valueHint: "dir",
   },
+  over: {
+    type: "string",
+    description:
+      "Install one block over tables you already have, as table or schema.table. Shorthand for --adopt --tables",
+    valueHint: "schema.table,...",
+  },
 } as const;
 
 export type AddArgs = CliArgs<
@@ -457,7 +463,7 @@ function unexpected(
 export const addCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("add"),
   args: ADD_COMMAND_ARGS,
-  lists: ["integration", "tables"],
+  lists: ["integration", "tables", "over"],
   completions: {
     ...CONVENTION_COMPLETIONS,
     block: blockNames,
@@ -489,6 +495,34 @@ export const addCommand: AnyCommand = defineCliCommand({
     }
 
     unexpected(args, PRESET_ONLY, "--preset");
+
+    if (args.over !== undefined) {
+      if (args._.length !== 1) {
+        throw new CliError(
+          "usage",
+          "--over works with one block, e.g. `better-supabase add teams --over public.teams`.",
+          { flag: "--over" },
+        );
+      }
+
+      if (args.adopt === true || args.tables !== undefined) {
+        throw new CliError(
+          "usage",
+          "--over replaces --adopt and --tables: pass the tables to --over.",
+          { flag: "--over" },
+        );
+      }
+
+      return runAdopt(
+        config,
+        { ...args, block: args._[0], tables: args.over },
+        {
+          paint,
+          tables: () => log.progress("Reading the schema", tables),
+          ...deps,
+        },
+      );
+    }
 
     if (args.adopt === true) {
       if (args._.length === 0) {
