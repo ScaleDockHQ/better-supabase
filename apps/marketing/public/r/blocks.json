@@ -4,7 +4,7 @@
   "title": "Block clients",
   "description": "lib/blocks.ts: the blocks as typed clients over the Data API, acting as the caller, plus the notification types.",
   "dependencies": [
-    "better-supabase@^0.27.1",
+    "better-supabase@^0.28.0",
     "valibot"
   ],
   "files": [
