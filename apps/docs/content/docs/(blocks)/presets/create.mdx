@@ -258,6 +258,71 @@ findings, which have `source: "verifier"`: `verify_rls_disabled` and
 `verify_no_policies`. Pass `design` to `loadProject` with a preset to check and
 render it.
 
+## Try a design in a sandbox
+
+`openSandbox` applies a project's files to an in-memory PGlite database, with
+the Supabase roles in place and the API roles granted what Supabase grants
+them by default. Queries run as the database owner, or as a persona with row
+level security applied.
+
+```ts
+import { loadProject } from "better-supabase/create";
+import { openSandbox } from "better-supabase/create/lite";
+
+const loaded = await loadProject(design, { preset: "saas" });
+
+if (loaded.ok) {
+  const sandbox = await openSandbox(loaded.project);
+  const ada = sandbox.as({ sub: "00000000-0000-4000-8000-00000000000a" });
+
+  const result = await ada.query("select * from public.tasks");
+  // { ok: true, rows: [...] } or { ok: false, error: { code, message } }
+
+  const response = await ada.rest(
+    new Request("http://localhost/rest/v1/tasks?select=title&order=title"),
+  );
+
+  await sandbox.close();
+}
+```
+
+`as({ sub, role, claims })` sets `request.jwt.claims` and the role for one
+transaction. A failed statement rolls back. `sandbox.rest(request)` also takes
+the persona from the bearer token's payload, which the sandbox decodes and
+does not verify.
+
+The REST handler is a subset of PostgREST. It answers `GET`, `POST`, `PATCH`
+and `DELETE` on `/rest/v1/<table>` with `select`, the filters `eq`, `neq`,
+`gt`, `gte`, `lt`, `lte`, `like`, `ilike`, `is` and `in` (with `not.`),
+`order`, `limit` and `offset`, `Prefer: return=representation`, the single
+object `Accept` header, and `POST /rest/v1/rpc/<function>`. Embedding, `or`,
+`and` and range headers return `400`. A write that a policy rejects answers
+`403`, or `401` for an anonymous caller.
+
+## The Data API document of a design
+
+`designDataApi(preset, design, options)` renders the design in a sandbox and
+returns the OpenAPI 3.1 document of the Data API it produces: `/rest/v1`
+paths for each table, with row, insert and update schemas.
+
+```ts
+import { designDataApi } from "better-supabase/create/lite";
+
+const result = await designDataApi("saas", design, {
+  title: "Acme Data API",
+  supabaseUrl: "https://abcdefgh.supabase.co",
+});
+
+if (result.ok) {
+  console.log(result.tables, result.document);
+} else {
+  console.log(result.issues);
+}
+```
+
+A design `checkProject` rejects returns its `issues` instead. Functions are
+not part of the document yet.
+
 ## Validate in Postgres
 
 `better-supabase/create/lite` applies the generated files to an in-memory
