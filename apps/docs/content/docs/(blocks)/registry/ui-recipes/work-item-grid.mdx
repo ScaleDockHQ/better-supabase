@@ -63,7 +63,7 @@ export function WorkItemGrid({
 
   const go = (next: WorkGridQuery) => {
     startTransition(() => {
-      router.replace(`${pathname}${workGridSearch(next)}`);
+      router.replace(withSearch(pathname, workGridSearch(next)));
     });
   };
 

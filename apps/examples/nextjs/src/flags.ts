@@ -8,6 +8,8 @@ import {
 } from "better-supabase/flags-sdk";
 import { toSession } from "better-supabase/next";
 import { dedupe, flag } from "flags/next";
+
+import { env } from "@/env";
 import "server-only";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
@@ -18,8 +20,8 @@ import { bsb } from "@/lib/supabase/server";
  * it. Without the secret key every flag answers its `defaultValue`.
  */
 function definitionsSource() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env["SUPABASE_SECRET_KEY"];
+  const url = env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = env.SUPABASE_SECRET_KEY;
 
   if (!url || !key) {
     return { definitions: [] };

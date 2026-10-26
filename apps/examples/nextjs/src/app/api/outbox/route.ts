@@ -14,6 +14,7 @@ import { taskFromConversationAction } from "better-supabase/blocks/tasks";
 import { connection } from "next/server";
 import * as v from "valibot";
 
+import { env } from "@/env";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
 
@@ -119,7 +120,7 @@ export async function GET(request: Request): Promise<Response> {
   });
 
   return admin.outbox.relayRoute({
-    secret: process.env["CRON_SECRET"],
+    secret: env.CRON_SECRET,
     consumers: { rules: sink },
   })(request);
 }

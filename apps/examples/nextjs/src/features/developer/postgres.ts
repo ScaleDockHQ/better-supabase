@@ -1,10 +1,13 @@
-import "server-only";
 import type { Result } from "better-supabase";
+
+import "server-only";
 import type { AuthSession } from "better-supabase/next";
 import type { BetterPostgres, SqlClaims } from "better-supabase/postgres";
 
 import { dbError, err, mapDbError, ok, toDbError } from "better-supabase";
 import { createPostgres, fromPgError } from "better-supabase/postgres";
+
+import { env } from "@/env";
 
 let pool: BetterPostgres | undefined;
 
@@ -14,7 +17,7 @@ let pool: BetterPostgres | undefined;
  * Workflow SDK; `null` when that is unset.
  */
 export function postgres(): BetterPostgres | null {
-  const connectionString = process.env["WORKFLOW_POSTGRES_URL"];
+  const connectionString = env.WORKFLOW_POSTGRES_URL;
 
   if (!connectionString) {
     return null;

@@ -1,3 +1,4 @@
+import { env } from "@/env";
 import "server-only";
 
 /**
@@ -28,7 +29,7 @@ function delayedFetch(ms: number): typeof fetch {
   };
 }
 
-const delayMs = Number(process.env["BS_FETCH_DELAY_MS"] ?? "0");
+const delayMs = env.BS_FETCH_DELAY_MS;
 
 if (delayMs > 0) {
   console.warn(

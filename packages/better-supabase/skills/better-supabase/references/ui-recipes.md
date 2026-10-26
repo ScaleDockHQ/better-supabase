@@ -368,7 +368,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useCommandSearch } from "@/hooks/use-search";
-import { Link } from "@/i18n/navigation";
+import { Link, toAppHref } from "@/i18n/navigation";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 
 /** The API schema `gen` wrote for the search block. */
@@ -449,7 +449,7 @@ export function CommandSearch() {
                   {group.items.map((item) => (
                     <li key={`${item.subjectType}:${item.subjectId}`}>
                       <Link
-                        href={item.url ?? "/"}
+                        href={toAppHref(item.url)}
                         onClick={() => void search.select(item)}
                         className="block rounded-md px-2 py-1.5 outline-none hover:bg-muted focus-visible:bg-muted"
                       >
@@ -616,7 +616,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { useOnboarding } from "@/hooks/use-onboarding";
-import { Link } from "@/i18n/navigation";
+import { Link, toAppHref } from "@/i18n/navigation";
 import { useAuth } from "@/lib/hooks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 
@@ -684,7 +684,7 @@ export function OnboardingCard() {
               </span>
               {step.completed ? null : (
                 <Link
-                  href={step.href ?? "/"}
+                  href={toAppHref(step.href)}
                   className={buttonVariants({ variant: "outline", size: "sm" })}
                 >
                   {t("Start")}
@@ -7418,6 +7418,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { env } from "@/env";
 import { useSupabase } from "@/lib/hooks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 
@@ -7428,7 +7429,7 @@ import { blockConfig } from "@/lib/supabase/blocks.generated";
 const WORKER_URL = "/push-sw.js";
 const PUSH_GUIDE = "https://bettersupabase.com/docs/blocks/push";
 
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+const VAPID_PUBLIC_KEY = env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
 type PushState =
   | { readonly kind: "checking" }
@@ -9173,7 +9174,7 @@ import { useExtracted } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSubject } from "@/hooks/use-subjects";
-import { Link } from "@/i18n/navigation";
+import { Link, toAppHref } from "@/i18n/navigation";
 
 /**
  * A link to any subject in `config.subjects`, titled and routed by
@@ -9220,7 +9221,7 @@ export function SubjectLink({ subject }: { subject: RecordRef }) {
     <span className="truncate text-sm font-medium">{title}</span>
   ) : (
     <Link
-      href={resolved.url}
+      href={toAppHref(resolved.url)}
       className="truncate text-sm font-medium underline-offset-4 transition-colors hover:underline"
     >
       {title}
@@ -9253,7 +9254,7 @@ import { useExtracted } from "next-intl";
 import { Badge } from "@/components/reui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSubject } from "@/hooks/use-subjects";
-import { Link } from "@/i18n/navigation";
+import { Link, toAppHref } from "@/i18n/navigation";
 
 /**
  * A compact badge for a subject: its type and title, linking to its page. Rows
@@ -9282,7 +9283,7 @@ export function SubjectChip({ subject }: { subject: RecordRef }) {
     <Badge
       variant="outline"
       className="transition-colors hover:bg-accent"
-      render={<Link href={resolved.url} />}
+      render={<Link href={toAppHref(resolved.url)} />}
     >
       {content}
     </Badge>
@@ -12724,7 +12725,7 @@ export function WorkItemGrid({
 
   const go = (next: WorkGridQuery) => {
     startTransition(() => {
-      router.replace(`${pathname}${workGridSearch(next)}`);
+      router.replace(withSearch(pathname, workGridSearch(next)));
     });
   };
 
@@ -13313,7 +13314,7 @@ export async function MyWorkList() {
                   <span className="truncate">{row.title}</span>
                 ) : (
                   <Link
-                    href={row.url}
+                    href={toAppHref(row.url)}
                     className="truncate font-medium underline-offset-4 transition-colors hover:underline"
                   >
                     {row.title}
@@ -22158,7 +22159,7 @@ export function TaskToolbar({
 
   const go = (next: TaskQuery) => {
     startTransition(() => {
-      router.replace(`${pathname}${taskSearch(next)}`);
+      router.replace(withSearch(pathname, taskSearch(next)));
     });
   };
 
@@ -23268,7 +23269,7 @@ export async function TaskCalendar({
   rows: readonly TaskRow[];
   first: Temporal.PlainDate;
   today: Temporal.PlainDate;
-  monthHref: (month: string) => string;
+  monthHref: (month: string) => AppHref;
 }) {
   const [t, format] = await Promise.all([
     getExtracted("projects"),
@@ -23440,7 +23441,7 @@ export async function TaskTimeline({
   members: readonly MemberOption[];
   from: Temporal.PlainDate;
   today: Temporal.PlainDate;
-  windowHref: (from: string) => string;
+  windowHref: (from: string) => AppHref;
 }) {
   const t = await getExtracted("projects");
   const lanes = new Map<string, TaskRow[]>();
@@ -23562,7 +23563,7 @@ export async function TaskGantt({
   projects: readonly ProjectOption[];
   from: Temporal.PlainDate;
   today: Temporal.PlainDate;
-  windowHref: (from: string) => string;
+  windowHref: (from: string) => AppHref;
 }) {
   const t = await getExtracted("projects");
 

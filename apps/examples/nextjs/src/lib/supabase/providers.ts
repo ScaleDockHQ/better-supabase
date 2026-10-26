@@ -1,6 +1,8 @@
 import { peopleDataLabsEnrichment } from "better-supabase/blocks/enrichment";
 import { gmailMail, outlookMail } from "better-supabase/blocks/mail-sync";
 
+import { env } from "@/env";
+
 import { blocks } from "./blocks.generated.ts";
 
 /**
@@ -13,9 +15,7 @@ export const providers = {
   // enrichment (required): Looks companies and people up.
   // `provider` takes an implementation of EnrichmentProvider from "better-supabase/blocks/enrichment".
   enrichment: blocks.enrichment.with({
-    provider: peopleDataLabsEnrichment({
-      apiKey: process.env["PDL_API_KEY"] ?? "",
-    }),
+    provider: peopleDataLabsEnrichment({ apiKey: env.PDL_API_KEY ?? "" }),
   }),
   // mail-sync (required): Reads and sends each member's mailbox.
   // `providers` takes an implementation of MailProvider from "better-supabase/blocks/mail-sync".

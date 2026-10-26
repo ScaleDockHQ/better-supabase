@@ -36,7 +36,7 @@ export async function TaskGantt({
   projects: readonly ProjectOption[];
   from: Temporal.PlainDate;
   today: Temporal.PlainDate;
-  windowHref: (from: string) => string;
+  windowHref: (from: string) => AppHref;
 }) {
   const t = await getExtracted("projects");
 

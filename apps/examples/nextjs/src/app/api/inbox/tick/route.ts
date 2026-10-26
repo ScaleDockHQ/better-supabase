@@ -1,3 +1,4 @@
+import { env } from "@/env";
 import { bsb } from "@/lib/supabase/server";
 
 /**
@@ -7,7 +8,7 @@ import { bsb } from "@/lib/supabase/server";
  * call the same two methods instead.
  */
 export async function GET(request: Request): Promise<Response> {
-  const secret = process.env["CRON_SECRET"];
+  const secret = env.CRON_SECRET;
 
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return new Response(null, { status: 401 });

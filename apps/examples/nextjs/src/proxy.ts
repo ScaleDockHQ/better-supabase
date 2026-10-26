@@ -7,6 +7,8 @@ import { hasLocale } from "next-intl";
 import createMiddleware from "next-intl/middleware";
 import { NextResponse } from "next/server";
 
+import { env } from "@/env";
+
 import { requiredPermission } from "./features/navigation/nav-items";
 import { can } from "./features/user/user-permissions";
 import { pricingFlags } from "./flags";
@@ -60,9 +62,7 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   // The pricing flags are evaluated here once, and the static page for
   // their values is served; `precompute` signs them with FLAGS_SECRET.
   if (path === "/pricing") {
-    const code = process.env["FLAGS_SECRET"]
-      ? await precompute(pricingFlags)
-      : "default";
+    const code = env.FLAGS_SECRET ? await precompute(pricingFlags) : "default";
 
     return NextResponse.rewrite(
       new URL(`/${locale}/pricing/${code}${search}`, request.url),
@@ -119,8 +119,7 @@ export const proxy = (request: NextRequest) =>
     },
     // The e2e build reads the phases to prove a page load made no Auth call.
     serverTiming:
-      process.env.NODE_ENV !== "production" ||
-      process.env["EXPOSE_TESTING_API"] === "1",
+      env.NODE_ENV !== "production" || env.EXPOSE_TESTING_API === "1",
   });
 
 export const config = {

@@ -47,9 +47,9 @@ msgid "AI tasks"
 msgstr "AI-taken"
 
 #: src/app/[locale]/(app)/assistant/tasks/page.tsx
-msgctxt "aiTasks.YcuQ6T"
+msgctxt "aiTasks.6W7U7e"
 msgid "Prompts on the ai-schedules block that the assistant runs on a schedule."
-msgstr "Prompts uit het ai-tasks-blok die de assistent volgens een schema uitvoert."
+msgstr ""
 
 #: src/app/[locale]/(app)/beta/page.tsx
 msgctxt "beta.riw_yc"
@@ -82,6 +82,26 @@ msgctxt "calendar.-SCdYi"
 msgid "Your organization's events by month."
 msgstr "De evenementen van je organisatie per maand."
 
+#: src/app/[locale]/(app)/chat/page.tsx
+msgctxt "chat.WTrOy3"
+msgid "Chat"
+msgstr "Chat"
+
+#: src/app/[locale]/(app)/chat/page.tsx
+msgctxt "chat.CFR1hG"
+msgid "Channels for your team, with threads, mentions and files, kept live over Realtime."
+msgstr "Kanalen voor je team, met threads, vermeldingen en bestanden, live bijgewerkt via Realtime."
+
+#: src/app/[locale]/(app)/community/page.tsx
+msgctxt "community.4CrCbD"
+msgid "Community"
+msgstr "Community"
+
+#: src/app/[locale]/(app)/community/page.tsx
+msgctxt "community.tb4_CP"
+msgid "Post ideas and questions, and vote on the ones you want."
+msgstr "Plaats ideeën en vragen, en stem op de ideeën die je wilt."
+
 #: src/app/[locale]/(app)/compliance/page.tsx
 msgctxt "compliance.NIi2K2"
 msgid "Compliance"
@@ -90,7 +110,8 @@ msgstr "Compliance"
 #: src/app/[locale]/(app)/compliance/page.tsx
 msgctxt "compliance.aN_4X-"
 msgid "How each framework's controls stand, the evidence that is due, and the contracts coming up for renewal."
-msgstr "Hoe de beheersmaatregelen per raamwerk ervoor staan, welk bewijs nodig is en welke contracten verlengd moeten worden."
+msgstr ""
+
 #: src/app/[locale]/(app)/courses/[courseId]/page.tsx
 #: src/features/courses/components/course-outline.tsx
 msgctxt "courses.m0TXM9"
@@ -106,16 +127,6 @@ msgstr "Cursussen"
 msgctxt "courses.VtDU2z"
 msgid "Take the courses your organization publishes."
 msgstr "Volg de cursussen die je organisatie publiceert."
-
-#: src/app/[locale]/(app)/chat/page.tsx
-msgctxt "chat.WTrOy3"
-msgid "Chat"
-msgstr "Chat"
-
-#: src/app/[locale]/(app)/chat/page.tsx
-msgctxt "chat.CFR1hG"
-msgid "Channels for your team, with threads, mentions and files, kept live over Realtime."
-msgstr "Kanalen voor je team, met threads, vermeldingen en bestanden, live bijgewerkt via Realtime."
 
 #: src/app/[locale]/(app)/crm/contacts/[id]/page.tsx
 #: src/features/crm/components/contact-detail.tsx
@@ -160,6 +171,16 @@ msgstr "Offertes"
 msgctxt "crm.NeJIa3"
 msgid "Line items, discounts and totals, sent for acceptance."
 msgstr "Regels, kortingen en totalen, verstuurd ter acceptatie."
+
+#: src/app/[locale]/(app)/crm/sequences/page.tsx
+msgctxt "sequences.fqIG9Q"
+msgid "Sequences"
+msgstr "Reeksen"
+
+#: src/app/[locale]/(app)/crm/sequences/page.tsx
+msgctxt "sequences.emb3EJ"
+msgid "Email, wait and task steps that run for each enrolled contact until they reply."
+msgstr "Stappen voor e-mail, wachten en taken die voor elk ingeschreven contact lopen tot het antwoordt."
 
 #: src/app/[locale]/(app)/customers/[id]/page.tsx
 msgctxt "customers.ljxw1z"
@@ -304,6 +325,26 @@ msgstr "Inbox"
 msgctxt "inbox.DRlmpk"
 msgid "Customer conversations from the Help widget and chat channels, kept live over Realtime."
 msgstr "Klantgesprekken uit de Help-widget en chatkanalen, live bijgewerkt via Realtime."
+
+#: src/app/[locale]/(app)/islands/page.tsx
+msgctxt "islands.a8EoBn"
+msgid "Islands"
+msgstr "Eilanden"
+
+#: src/app/[locale]/(app)/islands/page.tsx
+msgctxt "islands.D9tzWm"
+msgid "Ten private islands that share one verified session per request."
+msgstr "Tien privé-eilanden die per verzoek één geverifieerde sessie delen."
+
+#: src/app/[locale]/(app)/islands/page.tsx
+msgctxt "islands.4lbK5K"
+msgid "Rows"
+msgstr "Rijen"
+
+#: src/app/[locale]/(app)/islands/page.tsx
+msgctxt "islands.d3wbXx"
+msgid "Session"
+msgstr "Sessie"
 
 #: src/app/[locale]/(app)/knowledge/page.tsx
 msgctxt "knowledge.5OteMI"
@@ -2547,433 +2588,6 @@ msgctxt "calendar.SxCBpE"
 msgid "Add an event, then set a reminder for it here."
 msgstr "Voeg een afspraak toe en stel er hier een herinnering voor in."
 
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.CrEhnK"
-msgid "No end date"
-msgstr "Geen einddatum"
-
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.r68ulP"
-msgid "Renews, notice passed"
-msgstr "Verlengt, opzegtermijn verstreken"
-
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.-3oUIX"
-msgid "Notice passed"
-msgstr "Opzegtermijn verstreken"
-
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.tkoBM1"
-msgid "Notice in {days, number} days"
-msgstr "Opzeggen binnen {days, number} dagen"
-
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.eehNZO"
-msgid "Auto-renews"
-msgstr "Verlengt automatisch"
-
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.3a5wL8"
-msgid "Active"
-msgstr "Actief"
-
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.aVrws_"
-msgid "Contract renewals"
-msgstr "Contractverlengingen"
-
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.4GKQKq"
-msgid "Active contracts, the nearest notice deadline first. A contract that auto-renews extends itself unless someone gives notice before the deadline."
-msgstr "Actieve contracten, de dichtstbijzijnde opzegdatum eerst. Een contract dat automatisch verlengt, loopt door tenzij iemand voor de opzegdatum opzegt."
-
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.lXkTYj"
-msgid "The contracts didn't load"
-msgstr "De contracten zijn niet geladen"
-
-#: src/features/compliance/components/contract-renewals.tsx
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.162kF7"
-msgid "Try again in a moment."
-msgstr "Probeer het zo opnieuw."
-
-#: src/features/compliance/components/contract-renewals.tsx
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.62nsdy"
-msgid "Retry"
-msgstr "Opnieuw proberen"
-
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.PmqZKj"
-msgid "No active contracts"
-msgstr "Geen actieve contracten"
-
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.p8eLNP"
-msgid "A contract becomes active once every signer has signed. Draft one from a customer's record."
-msgstr "Een contract wordt actief zodra iedere ondertekenaar heeft getekend. Stel er een op vanuit de pagina van een klant."
-
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.GmW-DP"
-msgid "Open customers"
-msgstr "Klanten openen"
-
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.nV7Cv-"
-msgid "Contract"
-msgstr "Contract"
-
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.GufXy5"
-msgid "Value"
-msgstr "Waarde"
-
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.04xGLE"
-msgid "Ends"
-msgstr "Eindigt"
-
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.u75FWG"
-msgid "Notice by"
-msgstr "Opzeggen voor"
-
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.NRVEF5"
-msgid "Renewal"
-msgstr "Verlenging"
-
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.F1fkR9"
-msgid "The control posture didn't load"
-msgstr "De compliancestatus is niet geladen"
-
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.Z2grkH"
-msgid "No frameworks yet"
-msgstr "Nog geen raamwerken"
-
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.cVqZZ3"
-msgid "Add a framework such as SOC 2 or ISO 27001 with the controls block, then link evidence to each control."
-msgstr "Voeg met het controls-blok een raamwerk toe, zoals SOC 2 of ISO 27001, en koppel daarna bewijs aan elke beheersmaatregel."
-
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.GNiGeO"
-msgid "Read the controls guide"
-msgstr "Lees de handleiding voor controls"
-
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.BgYrIK"
-msgid "{passing, number} of {applicable, number} controls passing"
-msgstr "{passing, number} van {applicable, number} beheersmaatregelen in orde"
-
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.NrYcZf"
-msgid "Controls passing"
-msgstr "Beheersmaatregelen in orde"
-
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.b8oEdI"
-msgid "{count, number} passing"
-msgstr "{count, number} in orde"
-
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.P5PLAQ"
-msgid "{count, number} failing"
-msgstr "{count, number} niet in orde"
-
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.GBTCb5"
-msgid "{count, number} not started"
-msgstr "{count, number} niet gestart"
-
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.CjoNmW"
-msgid "{count, number} overdue tasks"
-msgstr "{count, number} achterstallige taken"
-
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.pKHQpG"
-msgid "Overdue evidence"
-msgstr "Achterstallig bewijs"
-
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.0oUYk6"
-msgid "Recurring tasks whose evidence is past due. Collecting evidence moves the task to its next due date."
-msgstr "Terugkerende taken waarvan het bewijs over tijd is. Bewijs verzamelen zet de taak op de volgende vervaldatum."
-
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.06A-9M"
-msgid "Every evidence task is on schedule."
-msgstr "Elke bewijstaak ligt op schema."
-
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.0wJ7N-"
-msgid "Task"
-msgstr "Taak"
-
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.NZ9-vv"
-msgid "Control"
-msgstr "Beheersmaatregel"
-
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.g9pEhE"
-msgid "Due"
-msgstr "Vervalt"
-#: src/features/courses/components/course-controls.tsx
-msgctxt "courses.1GGd_a"
-msgid "You're enrolled"
-msgstr "Je bent ingeschreven"
-
-#: src/features/courses/components/course-controls.tsx
-msgctxt "courses.nz3jzj"
-msgid "Enroll"
-msgstr "Inschrijven"
-
-#: src/features/courses/components/course-controls.tsx
-msgctxt "courses.oIBOCc"
-msgid "Course completed"
-msgstr "Cursus afgerond"
-
-#: src/features/courses/components/course-controls.tsx
-msgctxt "courses.IzT3_x"
-msgid "Lesson marked done"
-msgstr "Les gemarkeerd als klaar"
-
-#: src/features/courses/components/course-controls.tsx
-msgctxt "courses.knUjT2"
-msgid "Mark as done"
-msgstr "Markeren als klaar"
-
-#: src/features/courses/components/course-controls.tsx
-msgctxt "courses.EKtClK"
-msgid "Getting started"
-msgstr "Aan de slag"
-
-#: src/features/courses/components/course-controls.tsx
-msgctxt "courses.PwaN2o"
-msgid "Welcome"
-msgstr "Welkom"
-
-#: src/features/courses/components/course-controls.tsx
-msgctxt "courses.cZLCLy"
-msgid "This lesson shows how a learner moves through a course."
-msgstr "Deze les laat zien hoe een cursist door een cursus gaat."
-
-#: src/features/courses/components/course-controls.tsx
-msgctxt "courses.uhBRmg"
-msgid "Next steps"
-msgstr "Volgende stappen"
-
-#: src/features/courses/components/course-controls.tsx
-msgctxt "courses.p6DmIN"
-msgid "Mark this lesson done to complete the course."
-msgstr "Markeer deze les als klaar om de cursus af te ronden."
-
-#: src/features/courses/components/course-controls.tsx
-msgctxt "courses.3WD3Jo"
-msgid "Create a sample course"
-msgstr "Voorbeeldcursus maken"
-
-#: src/features/courses/components/course-list.tsx
-msgctxt "courses.zV57h1"
-msgid "The courses didn't load"
-msgstr "De cursussen zijn niet geladen"
-
-#: src/features/courses/components/course-list.tsx
-#: src/features/courses/components/course-outline.tsx
-#: src/features/courses/components/lesson-player.tsx
-msgctxt "courses.162kF7"
-msgid "Try again in a moment."
-msgstr "Probeer het zo opnieuw."
-
-#: src/features/courses/components/course-list.tsx
-#: src/features/courses/components/course-outline.tsx
-#: src/features/courses/components/lesson-player.tsx
-msgctxt "courses.62nsdy"
-msgid "Retry"
-msgstr "Opnieuw proberen"
-
-#: src/features/courses/components/course-list.tsx
-msgctxt "courses.BDHWkf"
-msgid "No courses yet"
-msgstr "Nog geen cursussen"
-
-#: src/features/courses/components/course-list.tsx
-msgctxt "courses.3FgZ2I"
-msgid "Create a sample course to try the learner flow."
-msgstr "Maak een voorbeeldcursus om de route van een cursist te proberen."
-
-#: src/features/courses/components/course-list.tsx
-msgctxt "courses.M-Gw6A"
-msgid "An admin publishes courses for your team."
-msgstr "Een beheerder publiceert cursussen voor je team."
-
-#: src/features/courses/components/course-list.tsx
-msgctxt "courses.BFhud5"
-msgid "Back to the dashboard"
-msgstr "Terug naar het dashboard"
-
-#: src/features/courses/components/course-list.tsx
-#: src/features/courses/components/course-outline.tsx
-msgctxt "courses.W6nwjo"
-msgid "Draft"
-msgstr "Concept"
-
-#: src/features/courses/components/course-list.tsx
-#: src/features/courses/components/course-outline.tsx
-msgctxt "courses.w7tf2z"
-msgid "Published"
-msgstr "Gepubliceerd"
-
-#: src/features/courses/components/course-list.tsx
-#: src/features/courses/components/course-outline.tsx
-msgctxt "courses.0HT-Ib"
-msgid "Archived"
-msgstr "Gearchiveerd"
-
-#: src/features/courses/components/course-outline.tsx
-msgctxt "courses.xisgo1"
-msgid "The course didn't load"
-msgstr "De cursus is niet geladen"
-
-#: src/features/courses/components/course-outline.tsx
-#: src/features/courses/components/lesson-player.tsx
-msgctxt "courses.MOK_yK"
-msgid "Reading"
-msgstr "Lezen"
-
-#: src/features/courses/components/course-outline.tsx
-#: src/features/courses/components/lesson-player.tsx
-msgctxt "courses.kBJUtE"
-msgid "Video"
-msgstr "Video"
-
-#: src/features/courses/components/course-outline.tsx
-#: src/features/courses/components/lesson-player.tsx
-msgctxt "courses.OuR_Ij"
-msgid "Quiz"
-msgstr "Quiz"
-
-#: src/features/courses/components/course-outline.tsx
-msgctxt "courses.acrOoz"
-msgid "Continue"
-msgstr "Verder"
-
-#: src/features/courses/components/course-outline.tsx
-msgctxt "courses.q7sJ6u"
-msgid "No lessons yet"
-msgstr "Nog geen lessen"
-
-#: src/features/courses/components/course-outline.tsx
-msgctxt "courses.5WezOu"
-msgid "Lessons show up here once a manager adds them."
-msgstr "Lessen verschijnen hier zodra een beheerder ze toevoegt."
-
-#: src/features/courses/components/course-outline.tsx
-msgctxt "courses.n7xPkB"
-msgid "{count, plural, one {# lesson} other {# lessons}}"
-msgstr "{count, plural, one {# les} other {# lessen}}"
-
-#: src/features/courses/components/course-outline.tsx
-#: src/features/courses/components/lesson-player.tsx
-msgctxt "courses.JXdbo8"
-msgid "Done"
-msgstr "Klaar"
-
-#: src/features/courses/components/course-outline.tsx
-msgctxt "courses.zqV6aP"
-msgid "Not done"
-msgstr "Niet klaar"
-
-#: src/features/courses/components/course-outline.tsx
-msgctxt "courses.8jbBlb"
-msgid "{minutes, number} min"
-msgstr "{minutes, number} min"
-
-#: src/features/courses/components/course-outline.tsx
-msgctxt "courses.InWqys"
-msgid "Optional"
-msgstr "Optioneel"
-
-#: src/features/courses/components/course-outline.tsx
-msgctxt "courses.dcRwV1"
-msgid "Your progress"
-msgstr "Je voortgang"
-
-#: src/features/courses/components/course-outline.tsx
-msgctxt "courses.TEKO3x"
-msgid "Enroll to track your progress."
-msgstr "Schrijf je in om je voortgang bij te houden."
-
-#: src/features/courses/components/course-outline.tsx
-msgctxt "courses.EFVK4r"
-msgid "{done, number} of {total, number} lessons done"
-msgstr "{done, number} van {total, number} lessen klaar"
-
-#: src/features/courses/components/course-outline.tsx
-msgctxt "courses.FMhPQ6"
-msgid "Certificate"
-msgstr "Certificaat"
-
-#: src/features/courses/components/lesson-player.tsx
-msgctxt "courses.rEPdIs"
-msgid "Course outline"
-msgstr "Cursusoverzicht"
-
-#: src/features/courses/components/lesson-player.tsx
-msgctxt "courses._nxvFr"
-msgid "The lesson didn't load"
-msgstr "De les is niet geladen"
-
-#: src/features/courses/components/lesson-player.tsx
-msgctxt "courses.duWP55"
-msgid "Last score: {score, number} of {max, number}"
-msgstr "Laatste score: {score, number} van {max, number}"
-
-#: src/features/courses/components/lesson-player.tsx
-msgctxt "courses.8KXPSX"
-msgid "This quiz has no questions"
-msgstr "Deze quiz heeft geen vragen"
-
-#: src/features/courses/components/lesson-player.tsx
-msgctxt "courses.1A31Gt"
-msgid "A manager publishes the quiz form first."
-msgstr "Een beheerder publiceert eerst het quizformulier."
-
-#: src/features/courses/components/lesson-player.tsx
-msgctxt "courses.UQOBcC"
-msgid "Open the video"
-msgstr "Video openen"
-
-#: src/features/courses/components/quiz-form.tsx
-msgctxt "courses.0IyBwp"
-msgid "{score, number} of {max, number}"
-msgstr "{score, number} van {max, number}"
-
-#: src/features/courses/components/quiz-form.tsx
-msgctxt "courses.lC6PSg"
-msgid "Passed: {score}"
-msgstr "Geslaagd: {score}"
-
-#: src/features/courses/components/quiz-form.tsx
-msgctxt "courses.GVXFN1"
-msgid "Not passed yet: {score}"
-msgstr "Nog niet geslaagd: {score}"
-
-#: src/features/courses/components/quiz-form.tsx
-msgctxt "courses.uC6AEf"
-msgid "Pick one"
-msgstr "Kies er een"
-
-#: src/features/courses/components/quiz-form.tsx
-msgctxt "courses.LotwiE"
-msgid "Submit answers"
-msgstr "Antwoorden versturen"
-
 #: src/features/calendar/components/working-hours-dialog.tsx
 msgctxt "calendar.hTxGRa"
 msgid "Working hours saved"
@@ -3272,6 +2886,609 @@ msgstr "Lees bij zonder elk antwoord te lezen."
 msgctxt "chat.IQWhFZ"
 msgid "Summarize"
 msgstr "Samenvatten"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.yUcWBK"
+msgid "The board didn't load"
+msgstr "Het bord is niet geladen"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.dQRvIA"
+msgid "No board yet"
+msgstr "Nog geen bord"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.GI38BD"
+msgid "Open a feedback board where members post and vote on ideas."
+msgstr "Open een feedbackbord waar leden ideeën plaatsen en erop stemmen."
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.JFFn5z"
+msgid "An admin opens the board your team posts on."
+msgstr "Een beheerder opent het bord waarop je team berichten plaatst."
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.BFhud5"
+msgid "Back to the dashboard"
+msgstr "Terug naar het dashboard"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.lxtHzL"
+msgid "Under review"
+msgstr "In beoordeling"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.kp0NPF"
+msgid "Planned"
+msgstr "Gepland"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.q1WWIr"
+msgid "In progress"
+msgstr "Bezig"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.JXdbo8"
+msgid "Done"
+msgstr "Klaar"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.Fv1ZSz"
+msgid "Closed"
+msgstr "Gesloten"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community._TlAIY"
+msgid "Visible"
+msgstr "Zichtbaar"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.ObLwzE"
+msgid "Awaiting review"
+msgstr "Wacht op beoordeling"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.ThUvIL"
+msgid "Hidden"
+msgstr "Verborgen"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.KGzfLt"
+msgid "Removed"
+msgstr "Verwijderd"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.s6RK5S"
+msgid "No posts yet"
+msgstr "Nog geen berichten"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.wZXQfk"
+msgid "Post the first idea for others to vote on."
+msgstr "Plaats het eerste idee waarop anderen kunnen stemmen."
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.fWZYP5"
+msgid "Pinned"
+msgstr "Vastgezet"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.SfLG8q"
+msgid "{count} replies"
+msgstr "{count} reacties"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.oL0rU6"
+msgid "Locked"
+msgstr "Vergrendeld"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.RKbGb8"
+msgid "Feedback board opened"
+msgstr "Feedbackbord geopend"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.Ejhdi4"
+msgid "Feedback"
+msgstr "Feedback"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community._bwhcd"
+msgid "Open a feedback board"
+msgstr "Open een feedbackbord"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.J3YEb1"
+msgid "Remove your vote, {score} votes"
+msgstr "Haal je stem weg, {score} stemmen"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.dPTbLK"
+msgid "Vote up, {score} votes"
+msgstr "Stem omhoog, {score} stemmen"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.N2pA2e"
+msgid "Posted; it shows once a moderator approves it"
+msgstr "Geplaatst; het verschijnt zodra een moderator het goedkeurt"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.QYYHH3"
+msgid "Posted"
+msgstr "Geplaatst"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.TCJDlW"
+msgid "New post"
+msgstr "Nieuw bericht"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.xiK7Kz"
+msgid "Share an idea; others vote on it and reply."
+msgstr "Deel een idee; anderen stemmen erop en reageren."
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.9a9-ww"
+msgid "Title"
+msgstr "Titel"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.eKv7yX"
+msgid "Post"
+msgstr "Plaatsen"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.CrEhnK"
+msgid "No end date"
+msgstr "Geen einddatum"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.r68ulP"
+msgid "Renews, notice passed"
+msgstr "Verlengt, opzegtermijn verstreken"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.-3oUIX"
+msgid "Notice passed"
+msgstr "Opzegtermijn verstreken"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.tkoBM1"
+msgid "Notice in {days, number} days"
+msgstr "Opzeggen binnen {days, number} dagen"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.eehNZO"
+msgid "Auto-renews"
+msgstr "Verlengt automatisch"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.aVrws_"
+msgid "Contract renewals"
+msgstr "Contractverlengingen"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.4GKQKq"
+msgid "Active contracts, the nearest notice deadline first. A contract that auto-renews extends itself unless someone gives notice before the deadline."
+msgstr "Actieve contracten, de dichtstbijzijnde opzegdatum eerst. Een contract dat automatisch verlengt, loopt door tenzij iemand voor de opzegdatum opzegt."
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.lXkTYj"
+msgid "The contracts didn't load"
+msgstr "De contracten zijn niet geladen"
+
+#: src/features/compliance/components/contract-renewals.tsx
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/compliance/components/contract-renewals.tsx
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.PmqZKj"
+msgid "No active contracts"
+msgstr "Geen actieve contracten"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.p8eLNP"
+msgid "A contract becomes active once every signer has signed. Draft one from a customer's record."
+msgstr "Een contract wordt actief zodra iedere ondertekenaar heeft getekend. Stel er een op vanuit de pagina van een klant."
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.GmW-DP"
+msgid "Open customers"
+msgstr "Klanten openen"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.nV7Cv-"
+msgid "Contract"
+msgstr "Contract"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.GufXy5"
+msgid "Value"
+msgstr "Waarde"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.04xGLE"
+msgid "Ends"
+msgstr "Eindigt"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.u75FWG"
+msgid "Notice by"
+msgstr "Opzeggen voor"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.NRVEF5"
+msgid "Renewal"
+msgstr "Verlenging"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.F1fkR9"
+msgid "The control posture didn't load"
+msgstr "De compliancestatus is niet geladen"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.Z2grkH"
+msgid "No frameworks yet"
+msgstr "Nog geen raamwerken"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.cVqZZ3"
+msgid "Add a framework such as SOC 2 or ISO 27001 with the controls block, then link evidence to each control."
+msgstr "Voeg met het controls-blok een raamwerk toe, zoals SOC 2 of ISO 27001, en koppel daarna bewijs aan elke beheersmaatregel."
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.GNiGeO"
+msgid "Read the controls guide"
+msgstr "Lees de handleiding voor controls"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.BgYrIK"
+msgid "{passing, number} of {applicable, number} controls passing"
+msgstr "{passing, number} van {applicable, number} beheersmaatregelen in orde"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.NrYcZf"
+msgid "Controls passing"
+msgstr "Beheersmaatregelen in orde"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.b8oEdI"
+msgid "{count, number} passing"
+msgstr "{count, number} in orde"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.P5PLAQ"
+msgid "{count, number} failing"
+msgstr "{count, number} niet in orde"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.GBTCb5"
+msgid "{count, number} not started"
+msgstr "{count, number} niet gestart"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.CjoNmW"
+msgid "{count, number} overdue tasks"
+msgstr "{count, number} achterstallige taken"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.pKHQpG"
+msgid "Overdue evidence"
+msgstr "Achterstallig bewijs"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.0oUYk6"
+msgid "Recurring tasks whose evidence is past due. Collecting evidence moves the task to its next due date."
+msgstr "Terugkerende taken waarvan het bewijs over tijd is. Bewijs verzamelen zet de taak op de volgende vervaldatum."
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.06A-9M"
+msgid "Every evidence task is on schedule."
+msgstr "Elke bewijstaak ligt op schema."
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.0wJ7N-"
+msgid "Task"
+msgstr "Taak"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.NZ9-vv"
+msgid "Control"
+msgstr "Beheersmaatregel"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.g9pEhE"
+msgid "Due"
+msgstr ""
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.1GGd_a"
+msgid "You're enrolled"
+msgstr "Je bent ingeschreven"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.nz3jzj"
+msgid "Enroll"
+msgstr "Inschrijven"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.oIBOCc"
+msgid "Course completed"
+msgstr "Cursus afgerond"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.IzT3_x"
+msgid "Lesson marked done"
+msgstr "Les gemarkeerd als klaar"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.knUjT2"
+msgid "Mark as done"
+msgstr "Markeren als klaar"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.EKtClK"
+msgid "Getting started"
+msgstr "Aan de slag"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.PwaN2o"
+msgid "Welcome"
+msgstr "Welkom"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.cZLCLy"
+msgid "This lesson shows how a learner moves through a course."
+msgstr "Deze les laat zien hoe een cursist door een cursus gaat."
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.uhBRmg"
+msgid "Next steps"
+msgstr "Volgende stappen"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.p6DmIN"
+msgid "Mark this lesson done to complete the course."
+msgstr "Markeer deze les als klaar om de cursus af te ronden."
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.3WD3Jo"
+msgid "Create a sample course"
+msgstr "Voorbeeldcursus maken"
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.zV57h1"
+msgid "The courses didn't load"
+msgstr "De cursussen zijn niet geladen"
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.BDHWkf"
+msgid "No courses yet"
+msgstr "Nog geen cursussen"
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.3FgZ2I"
+msgid "Create a sample course to try the learner flow."
+msgstr "Maak een voorbeeldcursus om de route van een cursist te proberen."
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.M-Gw6A"
+msgid "An admin publishes courses for your team."
+msgstr "Een beheerder publiceert cursussen voor je team."
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.BFhud5"
+msgid "Back to the dashboard"
+msgstr "Terug naar het dashboard"
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.w7tf2z"
+msgid "Published"
+msgstr "Gepubliceerd"
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.0HT-Ib"
+msgid "Archived"
+msgstr "Gearchiveerd"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.xisgo1"
+msgid "The course didn't load"
+msgstr "De cursus is niet geladen"
+
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.MOK_yK"
+msgid "Reading"
+msgstr "Lezen"
+
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.kBJUtE"
+msgid "Video"
+msgstr "Video"
+
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.OuR_Ij"
+msgid "Quiz"
+msgstr "Quiz"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.acrOoz"
+msgid "Continue"
+msgstr "Verder"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.q7sJ6u"
+msgid "No lessons yet"
+msgstr "Nog geen lessen"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.5WezOu"
+msgid "Lessons show up here once a manager adds them."
+msgstr "Lessen verschijnen hier zodra een beheerder ze toevoegt."
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.n7xPkB"
+msgid "{count, plural, one {# lesson} other {# lessons}}"
+msgstr "{count, plural, one {# les} other {# lessen}}"
+
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.JXdbo8"
+msgid "Done"
+msgstr "Klaar"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.zqV6aP"
+msgid "Not done"
+msgstr "Niet klaar"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.8jbBlb"
+msgid "{minutes, number} min"
+msgstr "{minutes, number} min"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.InWqys"
+msgid "Optional"
+msgstr "Optioneel"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.dcRwV1"
+msgid "Your progress"
+msgstr "Je voortgang"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.TEKO3x"
+msgid "Enroll to track your progress."
+msgstr "Schrijf je in om je voortgang bij te houden."
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.EFVK4r"
+msgid "{done, number} of {total, number} lessons done"
+msgstr "{done, number} van {total, number} lessen klaar"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.FMhPQ6"
+msgid "Certificate"
+msgstr "Certificaat"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.rEPdIs"
+msgid "Course outline"
+msgstr "Cursusoverzicht"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses._nxvFr"
+msgid "The lesson didn't load"
+msgstr "De les is niet geladen"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.duWP55"
+msgid "Last score: {score, number} of {max, number}"
+msgstr "Laatste score: {score, number} van {max, number}"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.8KXPSX"
+msgid "This quiz has no questions"
+msgstr "Deze quiz heeft geen vragen"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.1A31Gt"
+msgid "A manager publishes the quiz form first."
+msgstr "Een beheerder publiceert eerst het quizformulier."
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.UQOBcC"
+msgid "Open the video"
+msgstr "Video openen"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.0IyBwp"
+msgid "{score, number} of {max, number}"
+msgstr "{score, number} van {max, number}"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.lC6PSg"
+msgid "Passed: {score}"
+msgstr "Geslaagd: {score}"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.GVXFN1"
+msgid "Not passed yet: {score}"
+msgstr "Nog niet geslaagd: {score}"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.uC6AEf"
+msgid "Pick one"
+msgstr "Kies er een"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.LotwiE"
+msgid "Submit answers"
+msgstr "Antwoorden versturen"
 
 #: src/features/crm/components/activity-timeline.tsx
 #: src/features/crm/components/log-activity-form.tsx
@@ -6882,6 +7099,96 @@ msgctxt "inbox.pC2KQV"
 msgid "Cancel scheduled reply"
 msgstr "Ingepland antwoord annuleren"
 
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.TkYZBT"
+msgid "Customers"
+msgstr "Klanten"
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.7-Domh"
+msgid "Notes"
+msgstr "Notities"
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.4S241U"
+msgid "Contacts"
+msgstr "Contactpersonen"
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.1EYCdR"
+msgid "Tags"
+msgstr "Labels"
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.yhU1et"
+msgid "Tasks"
+msgstr "Taken"
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.7HVokz"
+msgid "Rows in this organization"
+msgstr "Rijen in deze organisatie"
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.KjR3ZD"
+msgid "Nothing here yet"
+msgstr "Nog niets hier"
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.5Apo0m"
+msgid "Add the first row to see it counted."
+msgstr "Voeg de eerste rij toe om hem geteld te zien."
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.z7yzMC"
+msgid "Add one"
+msgstr "Toevoegen"
+
+#: src/features/islands/components/island-error.tsx
+msgctxt "islands.EZenTi"
+msgid "This island could not load."
+msgstr "Dit eiland kon niet laden."
+
+#: src/features/islands/components/island-error.tsx
+msgctxt "islands.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/islands/components/session-island.tsx
+msgctxt "islands.eKkv-H"
+msgid "Signed in as"
+msgstr "Ingelogd als"
+
+#: src/features/islands/components/session-island.tsx
+msgctxt "islands.K56Dim"
+msgid "Organization"
+msgstr "Organisatie"
+
+#: src/features/islands/components/session-island.tsx
+msgctxt "islands.A6OIRq"
+msgid "Token expires"
+msgstr "Token verloopt"
+
+#: src/features/islands/components/session-island.tsx
+msgctxt "islands.qdU0Gz"
+msgid "Token issued"
+msgstr "Token uitgegeven"
+
+#: src/features/islands/components/session-island.tsx
+msgctxt "islands.jpvG8q"
+msgid "Authorization version"
+msgstr "Autorisatieversie"
+
+#: src/features/islands/components/session-island.tsx
+msgctxt "islands.t7fk0C"
+msgid "From the verified token"
+msgstr "Uit het geverifieerde token"
+
+#: src/features/islands/components/session-island.tsx
+msgctxt "islands.dJi4TF"
+msgid "Not in the token"
+msgstr "Niet in het token"
+
 #: src/features/jobs/components/job-run-controls.tsx
 msgctxt "jobs.IJu8c2"
 msgid "Test job queued"
@@ -7220,6 +7527,11 @@ msgid "Deals"
 msgstr "Deals"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.fqIG9Q"
+msgid "Sequences"
+msgstr "Reeksen"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.epJ5ty"
 msgid "Quotes"
 msgstr "Offertes"
@@ -7273,6 +7585,11 @@ msgstr "Formulieren"
 msgctxt "navigation.R85gsW"
 msgid "Courses"
 msgstr "Cursussen"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.4CrCbD"
+msgid "Community"
+msgstr "Community"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.A3ptul"
@@ -9430,6 +9747,206 @@ msgstr "Typ om te zoeken."
 msgctxt "search.wLCEuv"
 msgid "No matches."
 msgstr "Geen resultaten."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.xiZz44"
+msgid "The sequences didn't load"
+msgstr "De reeksen zijn niet geladen"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.uhLiFs"
+msgid "No sequences yet"
+msgstr "Nog geen reeksen"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.jo2BZv"
+msgid "Create a sample sequence, then activate it to enroll contacts."
+msgstr "Maak een voorbeeldreeks en activeer die om contacten in te schrijven."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.OdK47I"
+msgid "An admin sets up the sequences your team enrolls contacts in."
+msgstr "Een beheerder stelt de reeksen in waarin je team contacten inschrijft."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.C2iTEH"
+msgid "Paused"
+msgstr "Gepauzeerd"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.0HT-Ib"
+msgid "Archived"
+msgstr "Gearchiveerd"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.iOWjNm"
+msgid "Wait {minutes} minutes"
+msgstr "Wacht {minutes} minuten"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.8nWPbU"
+msgid "No steps yet."
+msgstr "Nog geen stappen."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.bz-S_R"
+msgid "{count} active"
+msgstr "{count} actief"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.cjYin_"
+msgid "{count} completed"
+msgstr "{count} voltooid"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.TE_1u-"
+msgid "{count} replied"
+msgstr "{count} beantwoord"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.5YeDsT"
+msgid "Sample sequence created"
+msgstr "Voorbeeldreeks gemaakt"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.dEl5ay"
+msgid "Welcome series"
+msgstr "Welkomstreeks"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.dC1LJX"
+msgid "Welcome to the team"
+msgstr "Welkom bij het team"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.oPKWQ6"
+msgid "Reply to this email if you have questions."
+msgstr "Beantwoord deze e-mail als je vragen hebt."
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.nIHcMI"
+msgid "Call the new customer"
+msgstr "Bel de nieuwe klant"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.KTZS4Z"
+msgid "Create a sample sequence"
+msgstr "Maak een voorbeeldreeks"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.u3ID8A"
+msgid "Sequence active"
+msgstr "Reeks actief"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.GFYx5s"
+msgid "Sequence paused"
+msgstr "Reeks gepauzeerd"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.tFFMkF"
+msgid "Pause"
+msgstr "Pauzeren"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.AcxDgz"
+msgid "Activate"
+msgstr "Activeren"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.6QushX"
+msgid "Step added"
+msgstr "Stap toegevoegd"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.sy-pv5"
+msgid "Email"
+msgstr "E-mail"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.Mmft-L"
+msgid "Wait"
+msgstr "Wachten"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.0wJ7N-"
+msgid "Task"
+msgstr "Taak"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.KWJ4W2"
+msgid "Add step"
+msgstr "Stap toevoegen"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.nj4dGB"
+msgid "Add a step"
+msgstr "Voeg een stap toe"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.BGcreS"
+msgid "Recipients already past the end run the new step on their next turn."
+msgstr "Ontvangers die al aan het einde zijn, doorlopen de nieuwe stap bij hun volgende beurt."
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.e5x8FT"
+msgid "Kind"
+msgstr "Soort"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.2_2yg-"
+msgid "Add"
+msgstr "Toevoegen"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.LLtKhp"
+msgid "Subject"
+msgstr "Onderwerp"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.nXsjRT"
+msgid "Following up"
+msgstr "Opvolging"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.1c9W9U"
+msgid "Minutes to wait"
+msgstr "Minuten wachten"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.rM6yDL"
+msgid "Task title"
+msgstr "Taaktitel"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.ifgK-P"
+msgid "Call the contact"
+msgstr "Bel het contact"
 
 #: src/features/service-principals/components/service-principal-controls.tsx
 #: src/features/service-principals/components/service-principals-table.tsx
@@ -12592,11 +13109,6 @@ msgid "Schedule"
 msgstr "Schema"
 
 #: src/features/workflows/builder/components/trigger-sheet.tsx
-msgctxt "workflows.m1czzY"
-msgid "Event"
-msgstr "Gebeurtenis"
-
-#: src/features/workflows/builder/components/trigger-sheet.tsx
 msgctxt "workflows.M59JhX"
 msgid "Manual"
 msgstr "Handmatig"
@@ -12637,11 +13149,6 @@ msgstr "Soort"
 msgctxt "workflows.3Wq8aM"
 msgid "Cron"
 msgstr "Cron"
-
-#: src/features/workflows/builder/components/trigger-sheet.tsx
-msgctxt "workflows.9a3g8c"
-msgid "Event type"
-msgstr "Gebeurtenistype"
 
 #: src/features/workflows/builder/components/trigger-sheet.tsx
 msgctxt "workflows.qE1eug"
@@ -12853,518 +13360,3 @@ msgstr "Te veel verzoeken. Wacht even en probeer het opnieuw."
 msgctxt "errors.L-85Jk"
 msgid "Your plan's limit is reached. Upgrade to continue."
 msgstr "De limiet van je abonnement is bereikt. Upgrade om door te gaan."
-
-#: src/app/[locale]/(app)/community/page.tsx
-msgctxt "community.4CrCbD"
-msgid "Community"
-msgstr "Community"
-
-#: src/app/[locale]/(app)/community/page.tsx
-msgctxt "community.tb4_CP"
-msgid "Post ideas and questions, and vote on the ones you want."
-msgstr "Plaats ideeën en vragen, en stem op de ideeën die je wilt."
-
-#: src/app/[locale]/(app)/crm/sequences/page.tsx
-msgctxt "sequences.fqIG9Q"
-msgid "Sequences"
-msgstr "Reeksen"
-
-#: src/app/[locale]/(app)/crm/sequences/page.tsx
-msgctxt "sequences.emb3EJ"
-msgid "Email, wait and task steps that run for each enrolled contact until they reply."
-msgstr "Stappen voor e-mail, wachten en taken die voor elk ingeschreven contact lopen tot het antwoordt."
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.yUcWBK"
-msgid "The board didn't load"
-msgstr "Het bord is niet geladen"
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.162kF7"
-msgid "Try again in a moment."
-msgstr "Probeer het zo opnieuw."
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.62nsdy"
-msgid "Retry"
-msgstr "Opnieuw proberen"
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.dQRvIA"
-msgid "No board yet"
-msgstr "Nog geen bord"
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.GI38BD"
-msgid "Open a feedback board where members post and vote on ideas."
-msgstr "Open een feedbackbord waar leden ideeën plaatsen en erop stemmen."
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.JFFn5z"
-msgid "An admin opens the board your team posts on."
-msgstr "Een beheerder opent het bord waarop je team berichten plaatst."
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.BFhud5"
-msgid "Back to the dashboard"
-msgstr "Terug naar het dashboard"
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.JfG49w"
-msgid "Open"
-msgstr "Open"
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.lxtHzL"
-msgid "Under review"
-msgstr "In beoordeling"
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.kp0NPF"
-msgid "Planned"
-msgstr "Gepland"
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.q1WWIr"
-msgid "In progress"
-msgstr "Bezig"
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.JXdbo8"
-msgid "Done"
-msgstr "Klaar"
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.Fv1ZSz"
-msgid "Closed"
-msgstr "Gesloten"
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community._TlAIY"
-msgid "Visible"
-msgstr "Zichtbaar"
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.ObLwzE"
-msgid "Awaiting review"
-msgstr "Wacht op beoordeling"
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.ThUvIL"
-msgid "Hidden"
-msgstr "Verborgen"
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.KGzfLt"
-msgid "Removed"
-msgstr "Verwijderd"
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.s6RK5S"
-msgid "No posts yet"
-msgstr "Nog geen berichten"
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.wZXQfk"
-msgid "Post the first idea for others to vote on."
-msgstr "Plaats het eerste idee waarop anderen kunnen stemmen."
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.fWZYP5"
-msgid "Pinned"
-msgstr "Vastgezet"
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.SfLG8q"
-msgid "{count} replies"
-msgstr "{count} reacties"
-
-#: src/features/community/components/post-board.tsx
-msgctxt "community.oL0rU6"
-msgid "Locked"
-msgstr "Vergrendeld"
-
-#: src/features/community/components/post-controls.tsx
-msgctxt "community.RKbGb8"
-msgid "Feedback board opened"
-msgstr "Feedbackbord geopend"
-
-#: src/features/community/components/post-controls.tsx
-msgctxt "community.Ejhdi4"
-msgid "Feedback"
-msgstr "Feedback"
-
-#: src/features/community/components/post-controls.tsx
-msgctxt "community._bwhcd"
-msgid "Open a feedback board"
-msgstr "Open een feedbackbord"
-
-#: src/features/community/components/post-controls.tsx
-msgctxt "community.J3YEb1"
-msgid "Remove your vote, {score} votes"
-msgstr "Haal je stem weg, {score} stemmen"
-
-#: src/features/community/components/post-controls.tsx
-msgctxt "community.dPTbLK"
-msgid "Vote up, {score} votes"
-msgstr "Stem omhoog, {score} stemmen"
-
-#: src/features/community/components/post-controls.tsx
-msgctxt "community.N2pA2e"
-msgid "Posted; it shows once a moderator approves it"
-msgstr "Geplaatst; het verschijnt zodra een moderator het goedkeurt"
-
-#: src/features/community/components/post-controls.tsx
-msgctxt "community.QYYHH3"
-msgid "Posted"
-msgstr "Geplaatst"
-
-#: src/features/community/components/post-controls.tsx
-msgctxt "community.TCJDlW"
-msgid "New post"
-msgstr "Nieuw bericht"
-
-#: src/features/community/components/post-controls.tsx
-msgctxt "community.xiK7Kz"
-msgid "Share an idea; others vote on it and reply."
-msgstr "Deel een idee; anderen stemmen erop en reageren."
-
-#: src/features/community/components/post-controls.tsx
-msgctxt "community.9a9-ww"
-msgid "Title"
-msgstr "Titel"
-
-#: src/features/community/components/post-controls.tsx
-msgctxt "community.Lv0zJu"
-msgid "Details"
-msgstr "Details"
-
-#: src/features/community/components/post-controls.tsx
-msgctxt "community.47FYwb"
-msgid "Cancel"
-msgstr "Annuleren"
-
-#: src/features/community/components/post-controls.tsx
-msgctxt "community.eKv7yX"
-msgid "Post"
-msgstr "Plaatsen"
-
-#: src/features/navigation/components/side-nav.tsx
-msgctxt "navigation.fqIG9Q"
-msgid "Sequences"
-msgstr "Reeksen"
-
-#: src/features/navigation/components/side-nav.tsx
-msgctxt "navigation.4CrCbD"
-msgid "Community"
-msgstr "Community"
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.xiZz44"
-msgid "The sequences didn't load"
-msgstr "De reeksen zijn niet geladen"
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.162kF7"
-msgid "Try again in a moment."
-msgstr "Probeer het zo opnieuw."
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.62nsdy"
-msgid "Retry"
-msgstr "Opnieuw proberen"
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.uhLiFs"
-msgid "No sequences yet"
-msgstr "Nog geen reeksen"
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.jo2BZv"
-msgid "Create a sample sequence, then activate it to enroll contacts."
-msgstr "Maak een voorbeeldreeks en activeer die om contacten in te schrijven."
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.OdK47I"
-msgid "An admin sets up the sequences your team enrolls contacts in."
-msgstr "Een beheerder stelt de reeksen in waarin je team contacten inschrijft."
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.W6nwjo"
-msgid "Draft"
-msgstr "Concept"
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.3a5wL8"
-msgid "Active"
-msgstr "Actief"
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.C2iTEH"
-msgid "Paused"
-msgstr "Gepauzeerd"
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.0HT-Ib"
-msgid "Archived"
-msgstr "Gearchiveerd"
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.iOWjNm"
-msgid "Wait {minutes} minutes"
-msgstr "Wacht {minutes} minuten"
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.8nWPbU"
-msgid "No steps yet."
-msgstr "Nog geen stappen."
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.bz-S_R"
-msgid "{count} active"
-msgstr "{count} actief"
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.cjYin_"
-msgid "{count} completed"
-msgstr "{count} voltooid"
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.TE_1u-"
-msgid "{count} replied"
-msgstr "{count} beantwoord"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.5YeDsT"
-msgid "Sample sequence created"
-msgstr "Voorbeeldreeks gemaakt"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.dEl5ay"
-msgid "Welcome series"
-msgstr "Welkomstreeks"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.dC1LJX"
-msgid "Welcome to the team"
-msgstr "Welkom bij het team"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.oPKWQ6"
-msgid "Reply to this email if you have questions."
-msgstr "Beantwoord deze e-mail als je vragen hebt."
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.nIHcMI"
-msgid "Call the new customer"
-msgstr "Bel de nieuwe klant"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.KTZS4Z"
-msgid "Create a sample sequence"
-msgstr "Maak een voorbeeldreeks"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.u3ID8A"
-msgid "Sequence active"
-msgstr "Reeks actief"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.GFYx5s"
-msgid "Sequence paused"
-msgstr "Reeks gepauzeerd"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.tFFMkF"
-msgid "Pause"
-msgstr "Pauzeren"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.AcxDgz"
-msgid "Activate"
-msgstr "Activeren"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.6QushX"
-msgid "Step added"
-msgstr "Stap toegevoegd"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.sy-pv5"
-msgid "Email"
-msgstr "E-mail"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.Mmft-L"
-msgid "Wait"
-msgstr "Wachten"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.0wJ7N-"
-msgid "Task"
-msgstr "Taak"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.KWJ4W2"
-msgid "Add step"
-msgstr "Stap toevoegen"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.nj4dGB"
-msgid "Add a step"
-msgstr "Voeg een stap toe"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.BGcreS"
-msgid "Recipients already past the end run the new step on their next turn."
-msgstr "Ontvangers die al aan het einde zijn, doorlopen de nieuwe stap bij hun volgende beurt."
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.e5x8FT"
-msgid "Kind"
-msgstr "Soort"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.47FYwb"
-msgid "Cancel"
-msgstr "Annuleren"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.2_2yg-"
-msgid "Add"
-msgstr "Toevoegen"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.LLtKhp"
-msgid "Subject"
-msgstr "Onderwerp"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.nXsjRT"
-msgid "Following up"
-msgstr "Opvolging"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.1c9W9U"
-msgid "Minutes to wait"
-msgstr "Minuten wachten"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.rM6yDL"
-msgid "Task title"
-msgstr "Taaktitel"
-
-#: src/features/sequences/components/sequence-controls.tsx
-msgctxt "sequences.ifgK-P"
-msgid "Call the contact"
-msgstr "Bel het contact"
-
-#: src/app/[locale]/(app)/islands/page.tsx
-msgctxt "islands.a8EoBn"
-msgid "Islands"
-msgstr "Eilanden"
-
-#: src/app/[locale]/(app)/islands/page.tsx
-msgctxt "islands.D9tzWm"
-msgid "Ten private islands that share one verified session per request."
-msgstr "Tien privé-eilanden die per verzoek één geverifieerde sessie delen."
-
-#: src/app/[locale]/(app)/islands/page.tsx
-msgctxt "islands.4lbK5K"
-msgid "Rows"
-msgstr "Rijen"
-
-#: src/app/[locale]/(app)/islands/page.tsx
-msgctxt "islands.d3wbXx"
-msgid "Session"
-msgstr "Sessie"
-
-#: src/features/islands/components/count-island.tsx
-msgctxt "islands.TkYZBT"
-msgid "Customers"
-msgstr "Klanten"
-
-#: src/features/islands/components/count-island.tsx
-msgctxt "islands.7-Domh"
-msgid "Notes"
-msgstr "Notities"
-
-#: src/features/islands/components/count-island.tsx
-msgctxt "islands.4S241U"
-msgid "Contacts"
-msgstr "Contactpersonen"
-
-#: src/features/islands/components/count-island.tsx
-msgctxt "islands.1EYCdR"
-msgid "Tags"
-msgstr "Labels"
-
-#: src/features/islands/components/count-island.tsx
-msgctxt "islands.yhU1et"
-msgid "Tasks"
-msgstr "Taken"
-
-#: src/features/islands/components/count-island.tsx
-msgctxt "islands.7HVokz"
-msgid "Rows in this organization"
-msgstr "Rijen in deze organisatie"
-
-#: src/features/islands/components/count-island.tsx
-msgctxt "islands.KjR3ZD"
-msgid "Nothing here yet"
-msgstr "Nog niets hier"
-
-#: src/features/islands/components/count-island.tsx
-msgctxt "islands.5Apo0m"
-msgid "Add the first row to see it counted."
-msgstr "Voeg de eerste rij toe om hem geteld te zien."
-
-#: src/features/islands/components/count-island.tsx
-msgctxt "islands.z7yzMC"
-msgid "Add one"
-msgstr "Toevoegen"
-
-#: src/features/islands/components/island-error.tsx
-msgctxt "islands.EZenTi"
-msgid "This island could not load."
-msgstr "Dit eiland kon niet laden."
-
-#: src/features/islands/components/island-error.tsx
-msgctxt "islands.62nsdy"
-msgid "Retry"
-msgstr "Opnieuw proberen"
-
-#: src/features/islands/components/session-island.tsx
-msgctxt "islands.eKkv-H"
-msgid "Signed in as"
-msgstr "Ingelogd als"
-
-#: src/features/islands/components/session-island.tsx
-msgctxt "islands.K56Dim"
-msgid "Organization"
-msgstr "Organisatie"
-
-#: src/features/islands/components/session-island.tsx
-msgctxt "islands.A6OIRq"
-msgid "Token expires"
-msgstr "Token verloopt"
-
-#: src/features/islands/components/session-island.tsx
-msgctxt "islands.qdU0Gz"
-msgid "Token issued"
-msgstr "Token uitgegeven"
-
-#: src/features/islands/components/session-island.tsx
-msgctxt "islands.jpvG8q"
-msgid "Authorization version"
-msgstr "Autorisatieversie"
-
-#: src/features/islands/components/session-island.tsx
-msgctxt "islands.t7fk0C"
-msgid "From the verified token"
-msgstr "Uit het geverifieerde token"
-
-#: src/features/islands/components/session-island.tsx
-msgctxt "islands.dJi4TF"
-msgid "Not in the token"
-msgstr "Niet in het token"

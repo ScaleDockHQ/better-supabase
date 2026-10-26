@@ -1,5 +1,6 @@
-import "server-only";
 import type { RpcClient } from "better-supabase/blocks";
+
+import "server-only";
 import type {
   Messaging,
   ThreadSummarizer,
@@ -12,6 +13,7 @@ import {
   rpcTransport,
 } from "better-supabase/blocks/messaging";
 
+import { env } from "@/env";
 import { aiProviders } from "@/features/ai-providers/ai-providers-server";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
@@ -61,7 +63,7 @@ const demoSummarizer: ThreadSummarizer = {
  * key when the organization saved one in the ai-keys block.
  */
 export function threadSummarizer(supabase: RpcClient): ThreadSummarizer {
-  return process.env["AI_GATEWAY_API_KEY"]
+  return env.AI_GATEWAY_API_KEY
     ? summarizeWith(SUMMARY_MODEL, {
         providers: aiProviders(supabase),
         maxOutputTokens: 400,

@@ -5,6 +5,8 @@ import { createNotifications } from "better-supabase/blocks/notifications";
 import { rpcTransport } from "better-supabase/blocks/organizations";
 import { Temporal } from "temporal-polyfill";
 
+import { env } from "@/env";
+
 import {
   notificationTypes,
   renderNotification,
@@ -17,8 +19,8 @@ import {
  * bundle doesn't load `@/lib/supabase`, so it passes Temporal itself.
  */
 export function serviceSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env["SUPABASE_SECRET_KEY"];
+  const url = env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = env.SUPABASE_SECRET_KEY;
 
   if (!url || !key) {
     throw new Error(

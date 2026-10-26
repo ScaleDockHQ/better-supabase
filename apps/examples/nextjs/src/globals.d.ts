@@ -1,5 +1,6 @@
-// Next inlines NEXT_PUBLIC_* only for literal `process.env.NAME` reads, so
-// these keys are declared instead of read through the index signature.
+// `experimental.typedEnv` writes these types only during `next dev`, so the
+// keys `src/env.ts` reads with a literal `process.env.NAME` are declared here
+// for `tsc` in CI too.
 declare namespace NodeJS {
   interface ProcessEnv {
     readonly NEXT_PUBLIC_SUPABASE_URL?: string;

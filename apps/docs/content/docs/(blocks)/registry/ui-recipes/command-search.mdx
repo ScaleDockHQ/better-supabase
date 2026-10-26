@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useCommandSearch } from "@/hooks/use-search";
-import { Link } from "@/i18n/navigation";
+import { Link, toAppHref } from "@/i18n/navigation";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 
 /** The API schema `gen` wrote for the search block. */
@@ -114,7 +114,7 @@ export function CommandSearch() {
                   {group.items.map((item) => (
                     <li key={`${item.subjectType}:${item.subjectId}`}>
                       <Link
-                        href={item.url ?? "/"}
+                        href={toAppHref(item.url)}
                         onClick={() => void search.select(item)}
                         className="block rounded-md px-2 py-1.5 outline-none hover:bg-muted focus-visible:bg-muted"
                       >

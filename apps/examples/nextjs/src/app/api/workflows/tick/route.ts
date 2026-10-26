@@ -3,6 +3,7 @@ import type { WorkflowRunAs } from "better-supabase/workflow-sdk";
 
 import { workflowStarter } from "better-supabase/workflow-sdk";
 
+import { env } from "@/env";
 import { serviceBuilder } from "@/features/workflows/builder/builder-server";
 import { scheduledWorkflows } from "@/features/workflows/workflow-definitions";
 import { bsb } from "@/lib/supabase/server";
@@ -36,7 +37,7 @@ async function runAs(call: WorkflowStartCall): Promise<WorkflowRunAs | null> {
  * `Authorization: Bearer $CRON_SECRET`).
  */
 export async function GET(request: Request): Promise<Response> {
-  const secret = process.env["CRON_SECRET"];
+  const secret = env.CRON_SECRET;
 
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return new Response(null, { status: 401 });

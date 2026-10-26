@@ -1,7 +1,9 @@
-import "server-only";
 import type { NextOptions } from "better-supabase/next";
 
+import "server-only";
 import { createNext } from "better-supabase/next";
+
+import { env } from "@/env";
 
 import { serverFetch } from "../latency";
 import { betterSupabase } from "./index";
@@ -9,7 +11,7 @@ import { betterSupabase } from "./index";
 const options: NextOptions = {
   debug: {
     // The e2e build checks each navigation's budget against `next start`.
-    enabled: process.env["EXPOSE_TESTING_API"] === "1",
+    enabled: env.EXPOSE_TESTING_API === "1",
     budget: { calls: 8, waves: 2 },
     // Matches `src/app/api/bs-stats/route.ts`, where `bsb.debugRoute()` is mounted.
     route: "/api/bs-stats",

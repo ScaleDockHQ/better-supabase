@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { env } from "@/env";
 import { pricingBanner, pricingFlags } from "@/flags";
 
 /** The code the proxy rewrites to when FLAGS_SECRET isn't set. */
@@ -19,7 +20,7 @@ const DEFAULTS = "default";
  * the flags' defaults.
  */
 export async function generateStaticParams() {
-  if (!process.env["FLAGS_SECRET"]) {
+  if (!env.FLAGS_SECRET) {
     return [{ code: DEFAULTS }];
   }
 

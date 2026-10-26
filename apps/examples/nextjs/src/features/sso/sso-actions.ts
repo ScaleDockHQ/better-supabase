@@ -8,6 +8,7 @@ import { createSsoAdmin } from "better-supabase/blocks/sso";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
+import { env } from "@/env";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
@@ -25,8 +26,8 @@ const DOMAIN = v.pipe(
  * actions pass the caller as `actorId` and the database checks `sso.manage`.
  */
 function ssoAdmin(): SsoAdmin | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const secretKey = process.env["SUPABASE_SECRET_KEY"];
+  const url = env.NEXT_PUBLIC_SUPABASE_URL;
+  const secretKey = env.SUPABASE_SECRET_KEY;
 
   if (!url || !secretKey) {
     return null;
