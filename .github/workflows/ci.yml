@@ -173,9 +173,10 @@ jobs:
       - name: Integration
         env:
           ARGS: ${{ matrix.args }}
-        run: >-
-          pnpm exec dotenv -e .env.development.local --
-          pnpm --filter better-supabase exec vitest run --project integration $ARGS
+        run: |
+          read -ra args <<< "$ARGS"
+          pnpm exec dotenv -e .env.development.local -- \
+            pnpm --filter better-supabase exec vitest run --project integration "${args[@]}"
 
   # Its own jobs, so they run next to the shards instead of after one of them. CentraKit takes
   # about as long as the other three suites together.
@@ -218,9 +219,10 @@ jobs:
       - name: Validation projects on the stack
         env:
           FILTERS: ${{ matrix.filters }}
-        run: >-
-          pnpm exec dotenv -e .env.development.local --
-          pnpm --workspace-concurrency=1 $FILTERS test
+        run: |
+          read -ra filters <<< "$FILTERS"
+          pnpm exec dotenv -e .env.development.local -- \
+            pnpm --workspace-concurrency=1 "${filters[@]}" test
 
   # As of CLI 2.121.0 the stack engine's Realtime denies private channel joins
   # that the Docker stack allows, so these suites also run on the legacy engine.

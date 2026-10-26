@@ -160,9 +160,10 @@ jobs:
       - name: Unit tests
         env:
           SHARD: ${{ matrix.shard }}
-        run: >-
-          pnpm exec turbo run test --filter=better-supabase $AFFECTED --log-file --
-          --shard="$SHARD/3" --reporter=blob
+        run: |
+          read -ra affected <<< "$AFFECTED"
+          pnpm exec turbo run test --filter=better-supabase "${affected[@]}" --log-file -- \
+            --shard="$SHARD/3" --reporter=blob
 
       - name: Upload the blob report
         uses: actions/upload-artifact@v7
@@ -209,7 +210,8 @@ jobs:
       # the same question, so a missing upload fails instead of passing as "not affected".
       - name: Merge the shards and check the thresholds
         run: |
-          selected=$(pnpm exec turbo run test --filter=better-supabase $AFFECTED --dry=json \
+          read -ra affected <<< "$AFFECTED"
+          selected=$(pnpm exec turbo run test --filter=better-supabase "${affected[@]}" --dry=json \
             | jq '[.tasks[] | select(.taskId == "better-supabase#test")] | length')
           blobs=$(find packages/better-supabase/.vitest/blob -name 'blob-*.json' 2>/dev/null | wc -l)
           if [ "$selected" -eq 0 ]; then
