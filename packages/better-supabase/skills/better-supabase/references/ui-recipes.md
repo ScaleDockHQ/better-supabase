@@ -802,7 +802,7 @@ import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
  * A record's comments, oldest first, through the browser client. `subject` is
- * any type in `config.records`, such as a customer or a project.
+ * any type in `config.subjects`, such as a customer or a project.
  */
 export function CommentThread({
   subject,
@@ -9163,7 +9163,7 @@ import { useSubject } from "@/hooks/use-subjects";
 import { Link } from "@/i18n/navigation";
 
 /**
- * A link to any subject in `config.records`, titled and routed by
+ * A link to any subject in `config.subjects`, titled and routed by
  * `subject_titles`. The links rendered in one pass share one round trip, and a
  * subject the caller can't read shows as plain text.
  */

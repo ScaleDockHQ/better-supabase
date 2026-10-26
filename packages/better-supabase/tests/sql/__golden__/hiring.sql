@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:f23b31405b8afb4b4a676c11b9a73b3be28c24e593f5a850a5c8d26fc52b449a
+-- @bsb-hash sha256:78cc36c97fee59724b2d0acbf40bca5342fbcdcb93376db7cb18f2f8754fcfc8
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -618,7 +618,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:44859e438b4e32e4175b64feffa64beb16502e8ddca0b7b24af64e50fca0cd3f
+-- @bsb-hash sha256:a7607cffff41b38178e4f75e5887d166fc5ed71ebc2c5281302c5d7c835e99f2
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1239,7 +1239,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:36ecd54a91b7cf69ca37146c20a663c864e8cda46e141a2971a4d5bb8a52529c
+-- @bsb-hash sha256:7bf02355c8447eec9313c62dd53a0281ded86a9f7ce51a2b108648fc40b4617d
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1861,7 +1861,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:2f084d2c481c975ee76bafba4751cccf778bdbf9c4a63f7d8a345b6dbcb0bbab
+-- @bsb-hash sha256:768735986c81494fb10f01741a32557053e0652eda71e573ef144495b83fee6b
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2554,7 +2554,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:5fd1630dbb6d8d0f23384692a1f4bd6b5f5ab925024f036c9aa4cbf23113d396
+-- @bsb-hash sha256:eeb6d81674b2757e7dd30067738b431e66158b5e3eddb29ac875af73ef3a4592
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3184,7 +3184,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:5e4459662c3a9692b70684906844881cdd8bd9bf2226de36c90252552ff8db4c
+-- @bsb-hash sha256:0e3b0a14a6bc5a5a3134a922546a5e90189d87a683ed72a0d182a9327d2ae7cd
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:fc282e31eb997cd5b2bd103bbd9e2904a10eb7ab8d04d8f0b0b4223482fbe93f
+-- @bsb-hash sha256:52e75543e3ebe2b0aa85d104e4ea050728b0d57b4973cea5780a3e5f4a27cb13
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

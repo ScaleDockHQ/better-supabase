@@ -199,11 +199,7 @@ describe("better-supabase mcp", () => {
     ["gen", {}, ["gen"]],
     ["upgrade", {}, ["upgrade"]],
     ["add_preset", { preset: "crm" }, ["add", "--preset", "crm"]],
-    [
-      "add_preset",
-      { preset: "crm", allow_breaking: true },
-      ["add", "--preset", "crm", "--allow-breaking"],
-    ],
+    ["add_preset", { preset: "crm" }, ["add", "--preset", "crm"]],
     ["remove", { blocks: ["tags"] }, ["remove", "tags"]],
   ])("runs the write tool %s after consent", async (name, args, argv) => {
     const run = fakeRun();

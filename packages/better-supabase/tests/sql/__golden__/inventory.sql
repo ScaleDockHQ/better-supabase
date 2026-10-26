@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:a71b310d6d3573f336e9f766c698c34965fc84eabfb41e12050367c87f6b9769
+-- @bsb-hash sha256:24c40f7d51ff896e4c4a5efd8f255ea603edad3d27833f2103d194eb5401932e
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1337,7 +1337,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:502262db1e78be62e0893bb2002593b54a239b4465df360041668a7f40099f43
+-- @bsb-hash sha256:7c6769da1c2840a6d8849615876f29562b845b7916241c77e4b6bba226009130
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2673,7 +2673,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:9c424baac827d743f90293fc893326a38de9525a24fc8cec51a0f620c8b8161a
+-- @bsb-hash sha256:5e6e6b1c1e3840911bfc6c5e05a9ce05eaea1f6dd07d8306c261f5e53ad135df
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4014,7 +4014,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:4204ed8b1cb320550ae7b426fb8c529a4d50805da72b95ede50939ecb9ca4faa
+-- @bsb-hash sha256:37fada0da2de1853a157e9b2bc27609db0e85687e5452a522ba8bfefd4992eb5
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5536,7 +5536,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:49880cad96574a1ce83ba275bfd1a0752c098c7633b1b5a4ddc5423389a6258d
+-- @bsb-hash sha256:c2092b2dfa8d62775456521995eaecead61bfd650b904fd7bf970b8c4cf8c17e
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6868,7 +6868,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:8552b7ba4bcc718f3ab722070d5d3cb1542ef7ce0302967b86cad572befa43bd
+-- @bsb-hash sha256:62063d84ef3b00a9ab8437ed9363cd3a77739d8893171df56fab447ff12b468c
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

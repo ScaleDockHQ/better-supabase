@@ -825,7 +825,7 @@ export type GeneratedColumnOf<T extends TableName> = GeneratedColumns<Models, T>
 type Extensions = readonly [ReturnType<typeof membershipsExtension>];
 const extensions: Extensions = [membershipsExtension()];
 
-/** The app's subject types, from `config.records`. */
+/** The app's subject types, from `config.subjects`. */
 export const subjectTypes = ["message", "conversation", "project", "task"] as const;
 export type SubjectType = (typeof subjectTypes)[number];
 /** One subject: its type and its id as text. */

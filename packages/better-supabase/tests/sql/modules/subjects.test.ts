@@ -286,7 +286,7 @@ describe("subjectsOption with the registry", () => {
         subjects: SUBJECTS,
         modules: { tags: { on: ["deal"] } },
       }),
-    ).toThrow(/"deal" is not a subject type in config\.records/);
+    ).toThrow(/"deal" is not a subject type in config\.subjects/);
   });
 
   it("leaves webhooks-in without subjects unless it lists them", () => {

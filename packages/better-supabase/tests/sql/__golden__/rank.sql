@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
--- @bsb-hash sha256:3cf97f35c1e0e8922af4ed719eb59b9df5c4bbc9f248f6567aeaaaf4d300c63c
+-- @bsb-hash sha256:28c2e14e1cfe1957158c149eb9099e85747c76406cfe2b9317f1232ea234c0bb
 -- Fractional rank keys: rank_between, move() for every config.subjects entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -169,7 +169,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
--- @bsb-hash sha256:629d2167ff9062b0d09f4c44c654e944da96ed386399777f20bb13fa6ff12cdc
+-- @bsb-hash sha256:f32f21263a4dd4e2b49c577eb672ef3153a90156910050abc0410f8a1852ebcd
 -- Fractional rank keys: rank_between, move() for every config.subjects entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -337,7 +337,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
--- @bsb-hash sha256:93a45b75477b87df8a19e48efe7a49574de7754fa7cbfab655b1dcc903bd4fa8
+-- @bsb-hash sha256:b1032fd5e00da3a0eff2666a522a26aea3f3fae36900201fea7c0d344bc2888b
 -- Fractional rank keys: rank_between, move() for every config.subjects entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -510,7 +510,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
--- @bsb-hash sha256:7cdc59b8743a897add60e3d6cf00e5d438cd83fe6910a3f6b17acc2d646a5da4
+-- @bsb-hash sha256:536b2ec6c1cc4629bdf6b9f7fc9e2cb75516d214972bb0d18375593a8b738796
 -- Fractional rank keys: rank_between, move() for every config.subjects entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

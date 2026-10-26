@@ -23,7 +23,6 @@ describe("add", () => {
   it.each([
     [["audit", "--preset", "saas"], "Pass blocks or --preset, not both"],
     [["audit", "--package", "apps/web"], "--package works with --preset"],
-    [["audit", "--allow-breaking"], "--allow-breaking works with --preset"],
     [["--adopt", "audit", "tags"], "Adopt one block at a time"],
     [
       ["--adopt", "--tables", "public.t"],

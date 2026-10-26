@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:d6a82e9d582202b39da01b475bf8e380cac8519de135df34a230215f7fed4f76
+-- @bsb-hash sha256:cacce131c9f6cd77d0a4c0a45ab2404eb02101af89d3b6a262ffcd527eff76b9
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

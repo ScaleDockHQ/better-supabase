@@ -1,6 +1,6 @@
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:e68cfab890981a09c8c367ba941e6290e63caadda3e3e5462e918161ca42133f
+-- @bsb-hash sha256:c72f29ea318c52ef2f5a77c4223dbc3eee555c88cc4d7db5b2ffc76fb72f800f
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -923,7 +923,7 @@ grant execute on function "better_supabase"."cancel_transfer"(uuid) to authentic
 
 -- Creates a draft purchase order (purchase_order null) or replaces a draft's
 -- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units" }].
--- supplier_type and supplier_id name a config.records record, or are both null.
+-- supplier_type and supplier_id name a config.subjects record, or are both null.
 create or replace function "better_supabase"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text)
 returns jsonb
 language plpgsql

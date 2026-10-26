@@ -1,7 +1,7 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:ab716ac6e73c8fff93203b3d480b6558b38a4f63a4abd0d308216e918ed8a54e
--- The app-wide subject registry from config.records: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
+-- @bsb-hash sha256:8402b9aadfa42cec42c501dd7262c508f5a4334724b5eb222cfc62f2ef81e587
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -452,7 +452,7 @@ revoke execute on function "better_supabase"."subject_titles"(jsonb) from public
 grant execute on function "better_supabase"."subject_titles"(jsonb) to authenticated, service_role;
 
 -- True when the caller can see the subject row and, for an action with a
--- key in config.records.<type>.permissions, holds that key in the
+-- key in config.subjects.<type>.permissions, holds that key in the
 -- subject's tenant (or on the record, through the subject's scope).
 create or replace function "better_supabase"."can_subject"(subject_type text, subject_id text, action text)
 returns boolean
@@ -925,7 +925,7 @@ grant execute on function "better_supabase"."record_summary"(text, text, text[],
 
 -- can_subject for another user, for server code that decides who receives
 -- an event. It reads the row past its policies and asks can_user for the
--- action's key in config.records.<type>.permissions, so an action without
+-- action's key in config.subjects.<type>.permissions, so an action without
 -- a key is false and a share-link grant never counts. A provider that
 -- can't answer for others (no idsWithFor) gives false.
 create or replace function "better_supabase"."can_subject_for"(member uuid, subject_type text, subject_id text, action text)

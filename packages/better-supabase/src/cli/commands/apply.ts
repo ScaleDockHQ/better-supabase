@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { posix, resolve } from "node:path";
 
 import type { BlockConfig, ResolvedConfig } from "../../config/index.ts";
-import type { CreateDesign, DesignChange, Preset } from "../../preset/index.ts";
+import type { CreateDesign, Preset } from "../../preset/index.ts";
 import type { CONVENTION_ARGS } from "../conventions.ts";
 import type { CliOptions } from "../core/command.ts";
 import type { FilePlan } from "../core/files.ts";
@@ -15,7 +15,6 @@ import type { Paint } from "../style.ts";
 import { blockEntrySource } from "../../config/index.ts";
 import {
   designConfig,
-  diffAppTables,
   presetSpec,
   isPresetName,
   resolvePreset,
@@ -30,7 +29,6 @@ import { CliError } from "../core/errors.ts";
 import { applyPlan, planResult } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { AUTHZ_NOTE, createUrlParam } from "../create-url.ts";
-import { ident as sqlIdent } from "../doctor/live.ts";
 import { readPresetInput } from "../preset-input.ts";
 import {
   adoptableBlocks,
@@ -73,11 +71,6 @@ export const APPLY_ARGS = {
     type: "boolean",
     description:
       "Map existing tables onto a block (with --tables), the preset's blocks onto tables under their default names, or, alone, write the data rows migration for blocks over your tables",
-  },
-  "allow-breaking": {
-    type: "boolean",
-    description:
-      "Write a design with breaking app table changes (a rename, a retyped or required column, a tighter constraint); renames print their alter statements",
   },
   "dry-run": {
     type: "boolean",
@@ -210,63 +203,6 @@ function designFor(
   );
 
   return design;
-}
-
-/** Each breaking change with its expand-and-contract steps. */
-function describeBreaking(changes: readonly DesignChange[]): string[] {
-  return [
-    "Breaking changes to app tables:",
-    ...changes.flatMap((change) => [
-      `  ${change.summary}`,
-      ...change.steps.map((step, index) => `    ${String(index + 1)}. ${step}`),
-    ]),
-  ];
-}
-
-/**
- * The statements that rename the tables and columns `changes` renames, in
- * order.
- */
-function renameStatements(changes: readonly DesignChange[]): string[] {
-  return changes.flatMap((change) => {
-    if (change.from === undefined) {
-      return [];
-    }
-
-    if (change.kind === "table.renamed") {
-      return [
-        `alter table public.${sqlIdent(change.from)} rename to ${sqlIdent(change.table)};`,
-      ];
-    }
-
-    if (change.kind === "column.renamed" && change.column !== undefined) {
-      return [
-        `alter table public.${sqlIdent(change.table)} rename column ${sqlIdent(change.from)} to ${sqlIdent(change.column)};`,
-      ];
-    }
-
-    return [];
-  });
-}
-
-/** How to run `renames` before `upgrade` creates the new names. */
-function describeRenames(
-  renames: readonly string[],
-  renamedTables: readonly string[],
-  file: string,
-): string[] {
-  return renames.length === 0
-    ? []
-    : [
-        "Run these in a migration before `better-supabase upgrade`, so the renamed tables and columns keep their rows:",
-        ...renames.map((statement) => `  ${statement}`),
-        ...(renamedTables.length === 0
-          ? []
-          : [
-              `Then remove ${renamedTables.join(", ")} from tables in ${file}: apply keeps the tables a design leaves out.`,
-            ]),
-        "",
-      ];
 }
 
 /** The config file edited for `--only`: the `preset` key, or the blocks. */
@@ -409,43 +345,7 @@ export async function runApply(
     throw new CliError("usage", conflict);
   }
 
-  const changes =
-    design?.appTables === undefined
-      ? []
-      : diffAppTables(config.appTables, design.appTables);
-
-  // `writeDesign` keeps the tables a design doesn't name, so a dropped table
-  // is only reported.
-  const kept = changes
-    .filter((change) => change.kind === "table.dropped")
-    .map((change) => change.table);
-
-  const renamedTables = changes.flatMap((change) =>
-    change.kind === "table.renamed" && change.from !== undefined
-      ? [change.from]
-      : [],
-  );
-
-  const breaking = changes.filter(
-    (change) => change.breaking && change.kind !== "table.dropped",
-  );
-
-  const renames = renameStatements(breaking);
-
   const shown = display(config.root, file);
-
-  if (
-    breaking.length > 0 &&
-    args["allow-breaking"] !== true &&
-    args["dry-run"] !== true
-  ) {
-    return {
-      code: 1,
-      output: describeBreaking(breaking).join("\n"),
-      data: { file: shown, written: false, breaking, kept },
-      error: `Nothing was written: the design has ${breaking.length === 1 ? "a breaking change" : `${String(breaking.length)} breaking changes`} to tables the app already has. Follow the steps above, or pass --allow-breaking to write it anyway.`,
-    };
-  }
 
   const source = await readFile(file, "utf-8");
   const edit = edited(file, source, name, preset, only);
@@ -470,16 +370,7 @@ export async function runApply(
   const paint = deps.paint ?? plain;
   let text = withDesign.text;
 
-  const lines: string[] = [
-    ...(breaking.length === 0 ? [] : [...describeBreaking(breaking), ""]),
-    ...describeRenames(renames, renamedTables, shown),
-    ...(kept.length === 0
-      ? []
-      : [
-          `Kept ${kept.join(", ")}: the design doesn't name ${kept.length === 1 ? "it" : "them"}, and apply keeps the tables a design leaves out. Remove ${kept.length === 1 ? "it" : "them"} from tables in ${shown} to drop ${kept.length === 1 ? "it" : "them"}.`,
-          "",
-        ]),
-  ];
+  const lines: string[] = [];
 
   if (createUrlParam(input, "authz") !== undefined) {
     lines.push(AUTHZ_NOTE, "");
@@ -538,13 +429,7 @@ export async function runApply(
     );
   }
 
-  const data = {
-    file: shown,
-    adopted,
-    contents: text,
-    kept,
-    ...(renames.length === 0 ? {} : { renames }),
-  };
+  const data = { file: shown, adopted, contents: text };
 
   // The design's tables are SQL files you own, written next to the config edit.
   const tables =
