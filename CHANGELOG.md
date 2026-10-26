@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.1 (2026-10-26)
+
+- Block modules now emit every row level security policy as a typed `Policy` value, so the installed SQL is laid out one clause per line. The policies, their names and their drops are unchanged, and a module that writes `create policy` by hand now fails the test suite.
+
 ## 0.27.0 (2026-10-26)
 
 - Blocks over the app's own tables take more of their shapes, all opt-in:
