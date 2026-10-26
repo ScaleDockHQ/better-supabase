@@ -101,21 +101,24 @@ export function conventionConfig(
   readonly blocks?: {
     readonly permissions?: AccessBlockConfig;
     readonly memberships?: BlockConfig;
+    readonly "rls-guard": BlockConfig;
   };
 } {
   const sql = sqlOf(conventions);
   const access = accessEntry(conventions);
   const tenant = tenantEntry(conventions);
 
+  // ADR 0104: a new project starts with the guard that keeps row level security on.
   const blocks = {
     ...(Object.keys(access).length === 0 ? {} : { permissions: access }),
     ...(Object.keys(tenant).length === 0 ? {} : { memberships: tenant }),
+    "rls-guard": {},
   };
 
   return {
     casing: conventions.casing,
     ...(sql === undefined ? {} : { sql }),
-    ...(Object.keys(blocks).length === 0 ? {} : { blocks }),
+    blocks,
   };
 }
 
