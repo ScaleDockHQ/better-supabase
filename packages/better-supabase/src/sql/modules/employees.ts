@@ -12,6 +12,7 @@ import { sqlString } from "../../core/template.ts";
 import { employeeKeyBackfillSql, employeeKeySql } from "../employee-key-sql.ts";
 import {
   addExtraColumns,
+  addForeignKey,
   fail,
   lockTable,
   schemaPreamble,
@@ -378,14 +379,37 @@ function build(ctx: BlockSqlContext): string {
 -- Employees: the people an organization employs, with or without an
 -- account, their manager, team and status; private details and contracts
 -- behind employees.view_sensitive.
-${tablesSql(ctx, names)}${triggersSql(ctx, names)}${employeeFunctions(ctx, names)}${sensitiveFunctions(ctx, names)}${
-    ctx.installed("time-tracking")
-      ? employeeKeySql(ctx, {
-          owner: ctx.of("time-tracking"),
-          table: "entries",
-        })
-      : ""
-  }`;
+${tablesSql(ctx, names)}${triggersSql(ctx, names)}${employeeFunctions(ctx, names)}${sensitiveFunctions(ctx, names)}${timeTrackingSql(ctx)}`;
+}
+
+const timeByEmployee = (ctx: BlockSqlContext): boolean =>
+  ctx.installed("time-tracking") &&
+  ctx.of("time-tracking").option("owner") === "employee";
+
+function timeTrackingSql(ctx: BlockSqlContext): string {
+  if (!ctx.installed("time-tracking")) {
+    return "";
+  }
+
+  const time = ctx.of("time-tracking");
+
+  if (!timeByEmployee(ctx)) {
+    return employeeKeySql(ctx, { owner: time, table: "entries" });
+  }
+
+  return (["entries", "timesheets"] as const)
+    .filter((table) => time.owns(table))
+    .map(
+      (table) =>
+        `\n${addForeignKey({
+          table: time.table(table),
+          name: `${time.tableName(table).name}_employee_fkey`,
+          column: time.col(table, "employee"),
+          references: `${ctx.table("employees")} (${ctx.col("employees", "id")})`,
+          onDelete: "restrict",
+        })}\n`,
+    )
+    .join("");
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -455,7 +479,7 @@ export const EMPLOYEES: BlockSqlDefinition = {
       description:
         "With time-tracking, time entries gain employee_id, backfilled and kept current by triggers.",
       sql: (ctx) =>
-        ctx.installed("time-tracking")
+        ctx.installed("time-tracking") && !timeByEmployee(ctx)
           ? employeeKeyBackfillSql(ctx, {
               owner: ctx.of("time-tracking"),
               table: "entries",

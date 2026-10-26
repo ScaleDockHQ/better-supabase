@@ -69,6 +69,7 @@ export interface TimeEntry<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   readonly userId: string;
+  readonly employeeId?: string;
   /** The record the time is tracked on; `undefined` for an unattached entry. */
   readonly subject: RecordRef | undefined;
   readonly startedAt: Temporal.Instant;
@@ -105,6 +106,7 @@ export interface LogTimeInput<
   readonly endedAt: Temporal.Instant;
   /** Another member; needs `time_tracking.manage`. Default: the caller. */
   readonly userId?: string;
+  readonly employeeId?: string;
 }
 
 /** The fields to change. `null` clears the subject, rate or note. */
@@ -122,6 +124,7 @@ export interface TimeEntryPatch<F extends object = Record<never, never>> {
 export interface TimeEntryListOptions {
   /** Another member's entries; needs `time_tracking.read`. Default: the caller. */
   readonly userId?: string;
+  readonly employeeId?: string;
   /** Every member's entries; needs `time_tracking.read`. */
   readonly everyone?: boolean;
   /** Entries that end after this instant. */
@@ -140,6 +143,7 @@ export interface Timesheet {
   readonly id?: string;
   readonly organizationId: string;
   readonly userId: string;
+  readonly employeeId?: string;
   /** The Monday the week starts on. */
   readonly week: Temporal.PlainDate;
   readonly status: TimesheetStatus;
@@ -177,6 +181,7 @@ export interface TimesheetDetail<
 export interface TimesheetListOptions {
   /** Another member's timesheets; needs `time_tracking.read`. */
   readonly userId?: string;
+  readonly employeeId?: string;
   readonly status?: TimesheetStatus;
   readonly pageSize?: number;
   /** Weeks before this one, for the next page. */
@@ -206,9 +211,14 @@ export interface TimeTracking<F extends object = Record<never, never>> {
   timesheet(
     week: Temporal.PlainDate,
     userId?: string,
+    employeeId?: string,
   ): AsyncResult<TimesheetDetail<F>>;
   /** Sends the caller's week for approval; it locks until a rejection. */
-  submit(week: Temporal.PlainDate, note?: string): AsyncResult<Timesheet>;
+  submit(
+    week: Temporal.PlainDate,
+    note?: string,
+    employeeId?: string,
+  ): AsyncResult<Timesheet>;
   /** Unlocks an approved week; needs `time_tracking.manage`. */
   reopen(timesheetId: string): AsyncResult<Timesheet>;
   /**
@@ -251,7 +261,8 @@ function entryOf(value: unknown, fn: string): TimeEntry {
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
-    userId: textOf(row["userId"]),
+    userId: optionalText(row["userId"]) ?? "",
+    ...optional("employeeId", optionalText(row["employeeId"])),
     subject: optionalRecordRefOf(row["subjectType"], row["subjectId"]),
     startedAt: requiredInstant(row["startedAt"], "startedAt"),
     billable: row["billable"] === true,
@@ -273,7 +284,8 @@ function timesheetOf(value: unknown, fn: string): Timesheet {
 
   return {
     organizationId: textOf(row["organizationId"]),
-    userId: textOf(row["userId"]),
+    userId: optionalText(row["userId"]) ?? "",
+    ...optional("employeeId", optionalText(row["employeeId"])),
     week: temporal().PlainDate.from(textOf(row["week"])),
     status: enumOrThrow(row["status"], STATUSES, "timesheet status"),
     ...optional("id", optionalText(row["id"])),
@@ -426,6 +438,7 @@ export function createTimeTracking<
                 rate_currency: input.rate?.currency ?? null,
                 note: input.note ?? null,
                 user_id: input.userId ?? null,
+                ...optional("employee_id", input.employeeId),
                 fields: checked,
               },
               (value) => entryOf(value, "log_time"),
@@ -473,6 +486,7 @@ export function createTimeTracking<
             subject_id: list.subject?.id ?? null,
             everyone: list.everyone ?? false,
             page_size: list.pageSize ?? null,
+            ...optional("employee_id", list.employeeId),
           },
           (value) =>
             recordsOf(value, "list_time_entries").map((row) =>
@@ -480,7 +494,7 @@ export function createTimeTracking<
             ),
         ).andThen(fields.rows),
       ),
-    timesheet: (week, userId) =>
+    timesheet: (week, userId, employeeId) =>
       tenant().andThen((organizationId) =>
         call(
           "get_timesheet",
@@ -488,6 +502,7 @@ export function createTimeTracking<
             tenant: organizationId,
             week: week.toString(),
             user_id: userId ?? null,
+            ...optional("employee_id", employeeId),
           },
           (value) => {
             const row = recordOf(value, "get_timesheet");
@@ -506,11 +521,16 @@ export function createTimeTracking<
             .map((entries) => ({ ...detail, entries })),
         ),
       ),
-    submit: (week, note) =>
+    submit: (week, note, employeeId) =>
       tenant().andThen((organizationId) =>
         call(
           "submit_timesheet",
-          { tenant: organizationId, week: week.toString(), note: note ?? null },
+          {
+            tenant: organizationId,
+            week: week.toString(),
+            note: note ?? null,
+            ...optional("employee_id", employeeId),
+          },
           (value) => timesheetOf(value, "submit_timesheet"),
         ),
       ),
@@ -538,6 +558,7 @@ export function createTimeTracking<
             status: list.status ?? null,
             page_size: list.pageSize ?? null,
             before: list.before?.toString() ?? null,
+            ...optional("employee_id", list.employeeId),
           },
           (value) =>
             recordsOf(value, "list_timesheets").map((row) =>

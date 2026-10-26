@@ -2874,6 +2874,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "audit",
+        "employees",
         "approvals"
       ],
       "manifest": "time-tracking",
@@ -2912,7 +2913,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "createdAt": "created_at",
               "updatedAt": "updated_at",
               "seconds": "seconds",
-              "runningSince": "running_since"
+              "runningSince": "running_since",
+              "employee": "employee_id"
             }
           },
           "timesheets": {
@@ -2930,7 +2932,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "status": "status",
               "decidedBy": "decided_by",
               "decidedAt": "decided_at",
-              "decisionNote": "decision_note"
+              "decisionNote": "decision_note",
+              "employee": "employee_id"
             }
           }
         },

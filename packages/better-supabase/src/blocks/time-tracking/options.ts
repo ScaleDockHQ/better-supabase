@@ -20,6 +20,7 @@ export type TimeTrackingSqlOptions = {
    * in the user's own zone, and in `timeZone` for a user without one.
    */
   readonly userTimeZone?: { readonly column: string; readonly key?: string };
+  readonly owner?: "user" | "employee";
 };
 
 export const timeTrackingSqlOptions: BlockOptionsSchema<TimeTrackingSqlOptions> =
@@ -32,4 +33,5 @@ export const timeTrackingSqlOptions: BlockOptionsSchema<TimeTrackingSqlOptions> 
       readonly column: string;
       readonly key?: string;
     }>(),
+    owner: option.string<"user" | "employee">({ default: "user" }),
   });

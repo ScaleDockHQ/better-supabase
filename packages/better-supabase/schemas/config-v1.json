@@ -6659,7 +6659,11 @@
                 "type": "boolean",
                 "default": true
               },
-              "userTimeZone": {}
+              "userTimeZone": {},
+              "owner": {
+                "type": "string",
+                "default": "user"
+              }
             }
           }
         }
