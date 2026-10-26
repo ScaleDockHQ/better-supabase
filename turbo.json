@@ -86,7 +86,7 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "env": ["EXPOSE_TESTING_API"],
+      "env": ["EXPOSE_TESTING_API", "BSB_BUILD_SCOPE"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "!**/*.md",

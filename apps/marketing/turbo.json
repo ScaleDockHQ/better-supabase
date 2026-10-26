@@ -19,7 +19,9 @@
         "DOCS_ORIGIN",
         "NEXT_PUBLIC_SITE_URL",
         "RESEND_API_KEY",
-        "CONTACT_FROM_EMAIL"
+        "CONTACT_FROM_EMAIL",
+        "BSB_BUILD_SCOPE",
+        "VERCEL_ENV"
       ]
     },
     "dev:portless": {

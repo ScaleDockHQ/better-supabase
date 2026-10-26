@@ -6,6 +6,7 @@ import {
   markdownHeaders,
   source,
 } from "@/lib/source";
+import { scopeStaticParams } from "@better-supabase/next-config/build-scope";
 
 type MarkdownRouteContext = { params: Promise<{ slug?: string[] }> };
 
@@ -37,10 +38,10 @@ export async function GET(
 }
 
 export function generateStaticParams() {
-  return [
+  return scopeStaticParams([
+    { slug: ["index", "content.md"] },
     ...source
       .getPages()
       .map((page) => ({ slug: getPageMarkdownUrl(page).segments })),
-    { slug: ["index", "content.md"] },
-  ];
+  ]);
 }

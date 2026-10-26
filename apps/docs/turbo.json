@@ -13,7 +13,12 @@
         "!playwright.config.ts"
       ],
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", ".source/**"],
-      "env": ["EXPOSE_TESTING_API", "NEXT_PUBLIC_SITE_URL"],
+      "env": [
+        "EXPOSE_TESTING_API",
+        "NEXT_PUBLIC_SITE_URL",
+        "BSB_BUILD_SCOPE",
+        "VERCEL_ENV"
+      ],
       "passThroughEnv": ["AI_GATEWAY_API_KEY"]
     },
     "typecheck": {

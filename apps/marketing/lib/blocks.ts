@@ -1,5 +1,7 @@
 import * as v from "valibot";
 
+import { scopeStaticParams } from "@better-supabase/next-config/build-scope";
+
 import type { BlockSummary } from "./block-filter";
 
 // Written by scripts/build-catalog.ts from SQL_MODULES before every build,
@@ -46,10 +48,10 @@ export function blockPath(name: string): `/blocks/${string}` {
 
 /**
  * The `generateStaticParams` of `app/(blocks)/blocks/[name]`: one page per
- * catalog block.
+ * catalog block, or the first few in a `minimal` build scope.
  */
 export function blockStaticParams(): { name: string }[] {
-  return blocks.map((block) => ({ name: block.name }));
+  return scopeStaticParams(blocks.map((block) => ({ name: block.name })));
 }
 
 export function blockSummaries(): BlockSummary[] {

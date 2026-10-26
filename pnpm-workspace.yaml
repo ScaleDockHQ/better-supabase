@@ -36,6 +36,8 @@ catalog:
   "@modelcontextprotocol/client": 2.3.1
   "@modelcontextprotocol/server": 2.3.1
   "@nestjs/common": 12.1.3
+  # The version next depends on, so the config shares Next's loaded env state.
+  "@next/env": 16.4.2
   "@next/playwright": 16.4.2
   "@op-engineering/op-sqlite": 18.2.5
   "@openfeature/server-sdk": 1.23.0

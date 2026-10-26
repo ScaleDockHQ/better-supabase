@@ -78,7 +78,13 @@ jobs:
       - uses: $/.github/actions/setup
 
       - name: Build the docs
-        run: pnpm exec turbo run build --filter=docs
+        run: /usr/bin/time -v -o build-usage.txt pnpm exec turbo run build --filter=docs
+
+      - name: Log the build's memory and time
+        if: always() && hashFiles('build-usage.txt') != ''
+        run: |
+          grep -E "Maximum resident set size|Elapsed \(wall clock\)" build-usage.txt \
+            | tee -a "$GITHUB_STEP_SUMMARY"
 
   # A pull request that touches neither the library, the suites that run on the stack, nor the
   # stack itself skips Integration and Realtime. Pushes to main always run them.

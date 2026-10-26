@@ -1,5 +1,11 @@
 import type { NextConfig } from "next";
 
+import { initialEnv } from "@next/env";
+
+import type { BuildScope } from "./build-scope.ts";
+
+import { isBuildScope } from "./build-scope.ts";
+
 type HeaderRules = Awaited<ReturnType<NonNullable<NextConfig["headers"]>>>;
 
 /**
@@ -31,15 +37,41 @@ export const documentSecurityHeaderRules: HeaderRules = [
 ];
 
 /**
+ * The prerender scope of this build: `BSB_BUILD_SCOPE` when it is set, else
+ * `full` for a Vercel production deployment and `minimal` everywhere else. It
+ * reads the shell environment Next saw before loading `.env*` files, because
+ * `vercel env pull` writes `VERCEL_ENV` into them.
+ */
+function resolveBuildScope(
+  shell: Readonly<Record<string, string | undefined>> = initialEnv ??
+    process.env,
+): BuildScope {
+  const explicit = shell["BSB_BUILD_SCOPE"];
+
+  if (isBuildScope(explicit)) {
+    return explicit;
+  }
+
+  return shell["VERCEL_ENV"] === "production" ? "full" : "minimal";
+}
+
+/**
  * The shared baseline for the docs and marketing apps. `experimental`,
  * `compiler` and `typescript` merge key by key, and `headers` runs after the
  * security rules so an app can add to them.
  */
 export function createNextConfig(overrides: NextConfig = {}): NextConfig {
   const { experimental, typescript, compiler, headers, ...rest } = overrides;
+  // GitHub Actions builds are never deployed and never restore .next/cache. Vercel sets CI too,
+  // but restores the cache, so it doesn't count here.
+  const githubActions = process.env["GITHUB_ACTIONS"] === "true";
+
+  // Next copies config-time env changes into its initial env, so build workers see this too.
+  process.env["BSB_BUILD_SCOPE"] = resolveBuildScope();
 
   return {
     reactCompiler: true,
+    enablePrerenderSourceMaps: !githubActions,
     typedRoutes: true,
     reactStrictMode: true,
     poweredByHeader: false,
@@ -66,6 +98,7 @@ export function createNextConfig(overrides: NextConfig = {}): NextConfig {
       serverComponentsHmrCancellation: true,
       exposeTestingApiInProductionBuild:
         process.env["EXPOSE_TESTING_API"] === "1",
+      turbopackFileSystemCacheForBuild: !githubActions,
       ...experimental,
     },
     // The Turbo `typecheck` task gates types; `next build` does not repeat it.
