@@ -89,3 +89,11 @@ needs an increasing `bigint` id. The own-schemas docs page lists every
 adoptable table with its required and typed columns; `pnpm catalog` writes
 the list from the specs, and `catalog:check` and `docs:drift` fail when it is
 stale.
+
+## Dashboard-created tables
+
+A table made in the Supabase dashboard exists only in the database. Detection reads schema
+files, migrations and the saved snapshot, so such a table is not adopted until it reaches one of
+them. The supported path is `supabase db pull` or `better-supabase gen --save-snapshot`, after
+which `init` and `doctor --adoption` list the table (ADR 0101). The CLI does not read the live
+database during `add` or `upgrade`, so generated SQL stays reproducible from files.
