@@ -27,6 +27,7 @@ const APP = `
 create type public.opening_state as enum ('draft', 'open', 'closed');
 create type public.candidacy_phase as enum ('active', 'hired', 'rejected', 'withdrawn');
 create type public.review_verdict as enum ('strong_no', 'no', 'yes', 'strong_yes');
+create type public.employment_kind as enum ('employee', 'contractor', 'freelance');
 
 create table public.people (
   id uuid primary key,
@@ -38,6 +39,7 @@ create table public.openings (
   org_id uuid not null,
   headline text not null,
   state public.opening_state not null default 'draft',
+  employment_kind public.employment_kind,
   opened_on timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -143,17 +145,22 @@ const SERVICE = `perform set_config('request.jwt.claims', '{"role":"service_role
 /** Lite migrates and seeds PGlite in process; booting takes a second or more. */
 const BOOT = { timeout: 60_000 };
 
-async function run(check: string): Promise<void> {
+async function run(
+  check: string,
+  modules: AnyBlocksConfig = BLOCKS,
+  extra: readonly string[] = [],
+): Promise<void> {
   const blocks = [
     "memberships",
     "permissions",
     "subjects",
     "pipelines",
     "hiring",
+    ...extra,
   ];
 
   const files = renderBlocks(blocks, {
-    modules: BLOCKS,
+    modules,
     ownTables: OWN_TABLES,
     // Pipelines binds applications with a tenant_id tenant unless the app
     // registers the subject with its own column.
@@ -163,7 +170,7 @@ async function run(check: string): Promise<void> {
         application: { table: "candidacies", tenant: "org_id" },
       },
       blocks,
-      BLOCKS,
+      modules,
     ),
   });
 
@@ -237,5 +244,51 @@ begin
 end;
 $$;`),
     ).rejects.toThrow(/no source column/);
+  });
+
+  it("turns a hired application into an employee with the job's enum employment type", async () => {
+    const hiring = BLOCKS["hiring"]!;
+
+    const modules: AnyBlocksConfig = {
+      ...BLOCKS,
+      hiring: {
+        ...hiring,
+        columns: {
+          ...hiring.columns,
+          jobs: {
+            ...hiring.columns!["jobs"],
+            employmentType: "employment_kind",
+          },
+        },
+        values: { jobs: { employmentType: { contractor: "freelance" } } },
+      },
+      employees: { options: { employmentTypes: ["employee", "contractor"] } },
+    };
+
+    await expect(
+      run(
+        `do $$
+declare
+  v_job uuid;
+  v_app uuid;
+  v_employee jsonb;
+begin
+  ${SERVICE}
+  v_job := (better_supabase.save_job('${TENANT}', null, '{"title": "Engineer", "status": "open", "employmentType": "contractor"}'::jsonb) ->> 'id')::uuid;
+  if (select employment_kind::text from public.openings where id = v_job) <> 'freelance' then
+    raise exception 'job %', (select to_jsonb(o) from public.openings o where id = v_job);
+  end if;
+  v_app := (better_supabase.apply_to_job(v_job, '{"id": "${PERSON}"}'::jsonb, null, null) ->> 'id')::uuid;
+  perform better_supabase.close_application(v_app, 'hired', null);
+  v_employee := better_supabase.employee_from_application(v_app, '{"name": "Ada"}'::jsonb);
+  if v_employee ->> 'employmentType' <> 'contractor' then
+    raise exception 'employee %', v_employee;
+  end if;
+end;
+$$;`,
+        modules,
+        ["employees"],
+      ),
+    ).resolves.toBeUndefined();
   });
 });
