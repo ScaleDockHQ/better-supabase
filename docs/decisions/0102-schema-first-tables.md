@@ -69,3 +69,13 @@ A breaking release with a migration guide, a codemod and a changeset.
   `policy: "create"`, so a table file you edited is kept.
 - The preset breaking-change report goes with the config key: `db diff` plans renames and reports
   data loss from the SQL files.
+
+## Addendum: format domains and views in the files
+
+- A column with a `format` that carries a pattern or bounds takes `bsb.<format>` as its type
+  (`bsb.email`, `bsb.url`, `bsb.rating`, `bsb.percent`; the other column types add a suffix, such as
+  `bsb.rating_bigint`). `bsb/schema.sql` and `bsb/domains/<name>.sql` hold them, owned by the user.
+  `phone`, `long_text`, `color` and `currency` have nothing to check and keep their type.
+- A column with its own `min`, `max` or `options`, or an encrypted one, keeps the inline check.
+- Rollups and lookups stay `security_invoker` views, one file each under `public/views`.
+- `gen` needs no change: typegen resolves a domain column to its base type.

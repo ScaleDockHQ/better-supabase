@@ -22,6 +22,15 @@ The `audit`, `audit-reads` and `expose` tags change a table's SQL only, so `gen`
 them. After the move, `gen` reads these tags from the database, so a project can drop the
 config keys one table at a time. A key the config still sets wins over a tag.
 
+A column with a `format` that has a check (`email`, `url`, `rating`, `percent`) takes a domain as its
+type instead of an inline check: `email bsb.email`. The domains are files you own too:
+`bsb/schema.sql` creates the schema and `bsb/domains/<name>.sql` holds each `create domain`
+with its pattern or bounds. A column that sets its own `min`, `max` or `options`, or is encrypted,
+keeps its type and its named check, since a domain would tighten what it allows. `gen` types a
+domain column as its base type (`string` or `number`). A rollup or lookup becomes
+`public/views/<table>_view.sql`, a `create view ... with (security_invoker = true)` that runs with
+the caller's row level security, without the `drop view` of the old file.
+
 The files are written once. A file that exists is left alone unless you pass `--force`.
 
 After the command, delete `tables` from the config, rename `records` to `subjects`, run `better-supabase upgrade`
