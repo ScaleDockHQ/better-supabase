@@ -101,3 +101,87 @@ describe("powersyncOutput", () => {
     ).toThrow(/needs the memberships block/);
   });
 });
+
+describe("powersyncOutput for memberships, teams and profiles", () => {
+  const scoped = resolveConfig(
+    {
+      blocks: Object.fromEntries(
+        ["memberships", "organizations", "teams", "profiles"].map((name) => [
+          name,
+          {},
+        ]),
+      ),
+    },
+    "/p",
+  );
+
+  const scopedFiles = renderBlocks(scoped.blockNames, moduleLayout(scoped));
+
+  const synced = powersyncOutput({
+    files: scopedFiles,
+    instances: [
+      { key: "memberships", block: "memberships" },
+      { key: "teams", block: "teams" },
+      { key: "profiles", block: "profiles" },
+    ],
+    importFrom: "@powersync/common",
+  });
+
+  it("names the tables of each instance", () => {
+    expect(synced.tables).toEqual({
+      memberships: ["memberships", "organizations"],
+      teams: ["teams", "team_members"],
+      profiles: ["profiles"],
+    });
+  });
+
+  it("keys memberships and team members by both columns and streams the user's own", () => {
+    expect(synced.streams).toContain(
+      `query: "SELECT organization_id || ':' || user_id AS id, * FROM better_supabase.memberships WHERE user_id = auth.user_id()"`,
+    );
+
+    expect(synced.streams).toContain(
+      `query: "SELECT team_id || ':' || user_id AS id, * FROM better_supabase.team_members WHERE team_id IN (SELECT team_id FROM better_supabase.team_members WHERE user_id = auth.user_id())"`,
+    );
+
+    expect(synced.streams).toContain(
+      'query: "SELECT * FROM better_supabase.teams WHERE id IN (SELECT team_id FROM better_supabase.team_members WHERE user_id = auth.user_id())"',
+    );
+
+    expect(synced.streams).toContain(
+      'query: "SELECT * FROM better_supabase.profiles WHERE id = auth.user_id()"',
+    );
+  });
+
+  it("streams only the switcher's columns of the user's organizations", () => {
+    expect(synced.streams).toContain(
+      'query: "SELECT id, name, slug, disabled_at, deleted_at FROM better_supabase.organizations WHERE id IN (SELECT organization_id FROM better_supabase.memberships WHERE user_id = auth.user_id())"',
+    );
+
+    expect(synced.schema).not.toMatch(
+      /export const organizations = new Table\(\{[^}]*created_by/,
+    );
+  });
+
+  it("streams memberships without organization names when the organizations block is absent", () => {
+    const alone = powersyncOutput({
+      files: scopedFiles.filter((file) => file.module !== "organizations"),
+      instances: [{ key: "memberships", block: "memberships" }],
+      importFrom: "@powersync/common",
+    });
+
+    expect(alone.tables).toEqual({ memberships: ["memberships"] });
+  });
+});
+
+describe("powersyncOutput refusals", () => {
+  it("refuses attachments without memberships", () => {
+    expect(() =>
+      powersyncOutput({
+        files: files.filter((file) => file.module !== "memberships"),
+        instances: [{ key: "attachments", block: "attachments" }],
+        importFrom: "@powersync/common",
+      }),
+    ).toThrow(/needs the memberships block/);
+  });
+});

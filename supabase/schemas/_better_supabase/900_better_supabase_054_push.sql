@@ -1,6 +1,6 @@
 -- better-supabase module: push
--- @bsb-block push@2 managed
--- @bsb-hash sha256:753b77d5139c13777efeaf4fbc5d8817394994aac680913601b54812e0e92283
+-- @bsb-block push@3 managed
+-- @bsb-hash sha256:2e3890203a4f1673a8c98a90c60f7efb62348fa36ee731e5b4191ca603ea4748
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -347,15 +347,20 @@ $$;
 -- Stores what Expo answered for each ticket, [{ id, status: ok | error,
 -- error, message }], and records notification.delivered or bounced on the
 -- delivery when the notifications block tracks provider events. A ticket
--- Expo has no receipt for yet stays unchecked. Returns how many it stored.
+-- Expo has no receipt for yet stays unchecked. Returns { updated, events }:
+-- how many tickets it stored and the provider events it recorded for the
+-- first time, as record_delivery_event returns them. Postgres can't change
+-- a return type in place, so the integer version is dropped first.
+drop function if exists "better_supabase"."complete_push_receipts"(jsonb);
 create or replace function "better_supabase"."complete_push_receipts"(receipts jsonb)
-returns integer
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
   v_count integer;
+  v_events jsonb := '[]'::jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role reads push tickets' using errcode = '42501', hint = 'PUSH_FORBIDDEN';
@@ -365,22 +370,27 @@ begin
   end if;
   -- The delivery's provider message id is Expo's first ticket id, so every
   -- receipt of the delivery records its event on that message, once per
-  -- ticket.
-  perform "better_supabase"."record_delivery_event"(
-    'expo',
-    d."provider_message_id",
-    case when r ->> 'status' = 'ok' then 'delivered' else 'bounced' end,
-    'expo-receipt:' || (r ->> 'id'),
-    now(),
-    jsonb_strip_nulls(jsonb_build_object('token', x."token", 'error', r ->> 'error', 'message', r ->> 'message')),
-    false
-  )
-  from "better_supabase"."push_tickets" x
-  join "better_supabase"."notification_deliveries" d on d."id" = x."delivery_id"
-  cross join jsonb_array_elements(complete_push_receipts.receipts) r
-  where x."ticket_id" = r ->> 'id'
-    and x."checked_at" is null
-    and d."provider_message_id" is not null;
+  -- ticket. The events stored now come back for the client to emit.
+  select coalesce(jsonb_agg(e.recorded || jsonb_build_object('provider_event_id', e.event_id)), '[]'::jsonb)
+  into v_events
+  from (
+    select "better_supabase"."record_delivery_event"(
+      'expo',
+      d."provider_message_id",
+      case when r ->> 'status' = 'ok' then 'delivered' else 'bounced' end,
+      'expo-receipt:' || (r ->> 'id'),
+      now(),
+      jsonb_strip_nulls(jsonb_build_object('token', x."token", 'error', r ->> 'error', 'message', r ->> 'message')),
+      false
+    ) as recorded, 'expo-receipt:' || (r ->> 'id') as event_id
+    from "better_supabase"."push_tickets" x
+    join "better_supabase"."notification_deliveries" d on d."id" = x."delivery_id"
+    cross join jsonb_array_elements(complete_push_receipts.receipts) r
+    where x."ticket_id" = r ->> 'id'
+      and x."checked_at" is null
+      and d."provider_message_id" is not null
+  ) e
+  where coalesce((e.recorded ->> 'recorded')::boolean, false);
   update "better_supabase"."push_tickets" x set
     "status" = case when r ->> 'status' = 'ok' then 'ok' else 'error' end,
     "error" = case when r ->> 'status' = 'ok' then null else coalesce(r ->> 'error', 'Unknown') end,
@@ -389,7 +399,7 @@ begin
   where x."ticket_id" = r ->> 'id'
     and x."checked_at" is null;
   get diagnostics v_count = row_count;
-  return v_count;
+  return jsonb_build_object('updated', v_count, 'events', v_events);
 end;
 $$;
 revoke execute on function "better_supabase"."record_push_tickets"(uuid, jsonb) from public, anon, authenticated;
@@ -406,6 +416,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."register_push_device"(text, text, text, text, text, jsonb);
+drop function if exists "api"."complete_push_receipts"(jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -489,7 +500,7 @@ revoke execute on function "api"."unchecked_push_tickets"(integer, interval) fro
 grant execute on function "api"."unchecked_push_tickets"(integer, interval) to service_role;
 
 create or replace function "api"."complete_push_receipts"(receipts jsonb)
-returns integer
+returns jsonb
 language sql
 security invoker
 set search_path = ''

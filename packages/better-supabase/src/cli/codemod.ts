@@ -34,6 +34,7 @@ import {
   thenConvertPresetCode,
 } from "./codemod-preset-code.ts";
 import { RECORD_BINDING_RENAMES } from "./codemod-record-bindings.ts";
+import { CODEMOD_0_29 } from "./codemod-subjects.ts";
 import { migrateCliCall } from "./core/moved.ts";
 import { withoutAdoptOwnership } from "./sql/config-adopt.ts";
 import { withBlockNames } from "./sql/config-block-names.ts";
@@ -103,6 +104,8 @@ export interface Codemod {
   readonly sqlNames?: boolean;
   /** A rewrite of `better-supabase.config.*`; a refusal is listed for review. */
   readonly configFile?: (source: string, json: boolean) => CodemodConfigEdit;
+  /** A rewrite of `supabase/schemas/*.sql`; without it, SQL files are skipped. */
+  readonly sqlFile?: (source: string) => CodemodResult;
   /** A rewrite of a design file; a refusal is listed for review. */
   readonly designFile?: (source: string) => CodemodConfigEdit;
   /**
@@ -527,6 +530,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
     source: rewrite015,
     review: REVIEW_0_15,
   },
+  "0.29": CODEMOD_0_29,
 };
 
 const SUPABASE_IMPORT =
@@ -1076,10 +1080,7 @@ function pinOptions(
 export interface CodemodResult {
   readonly text: string;
   /** 1-based lines that need a manual change, with the reason. */
-  readonly review: readonly {
-    readonly line: number;
-    readonly message: string;
-  }[];
+  readonly review: readonly ReviewLine[];
 }
 
 /** Applies one codemod to a source file. */
@@ -1104,6 +1105,10 @@ export function applyCodemod(
           text: source,
           review: [...cliCallHints(source, codemod.cliCalls), ...hints],
         };
+  }
+
+  if (file?.endsWith(".sql") === true) {
+    return codemod.sqlFile?.(source) ?? { text: source, review: [] };
   }
 
   if (file !== undefined && DESIGN_FILE_NAME.test(file)) {

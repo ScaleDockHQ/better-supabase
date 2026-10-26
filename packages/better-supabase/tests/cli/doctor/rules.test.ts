@@ -3860,6 +3860,66 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
   });
 });
 
+describe("pg-delta packages (BS239)", () => {
+  const pgdelta = toml("[experimental.pgdelta]\nenabled = true\n");
+
+  const peers = (installed: Record<string, string | undefined>) =>
+    Object.entries(installed).map(([name, version]) => ({
+      name,
+      range: "*",
+      installed: version,
+    }));
+
+  it("names the missing packages and the install command", async () => {
+    const findings = await run(
+      "BS239",
+      context(base, {
+        configToml: pgdelta,
+        peers: peers({
+          "@supabase/pg-delta": "1.0.0-alpha.60",
+          "@supabase/pg-topo": undefined,
+        }),
+      }),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      severity: "warning",
+      target: "@supabase/pg-topo",
+    });
+    expect(findings[0]!.message).toContain(
+      "@supabase/pg-topo is not installed",
+    );
+    expect(findings[0]!.message).toContain(
+      "pnpm add -D @supabase/pg-delta @supabase/pg-topo",
+    );
+  });
+
+  it("stays quiet with both installed, on migra, without a peer list or a Supabase project", async () => {
+    const both = peers({
+      "@supabase/pg-delta": "1.0.0-alpha.60",
+      "@supabase/pg-topo": "1.0.0-alpha.8",
+    });
+
+    expect(
+      await run("BS239", context(base, { configToml: pgdelta, peers: both })),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS239",
+        context(base, {
+          configToml: toml("[experimental.pgdelta]\nenabled = false\n"),
+          peers: peers({}),
+        }),
+      ),
+    ).toEqual([]);
+    expect(await run("BS239", context(base, { configToml: pgdelta }))).toEqual(
+      [],
+    );
+    expect(await run("BS239", context(base, { peers: peers({}) }))).toEqual([]);
+  });
+});
+
 describe("block writes through a view Postgres can't update (BS349)", () => {
   const VIEW = "organization_memberships";
 

@@ -455,7 +455,7 @@ export interface NotificationRecipientWrites {
  *
  * ```ts
  * createUploadConnector({
- *   routes: {
+ *   tables: {
  *     notification_recipients: notificationRecipientsRoute(
  *       serverNotifications,
  *     ),

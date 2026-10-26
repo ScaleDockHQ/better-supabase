@@ -188,3 +188,145 @@ describe("codemod 0.15 in the app's SQL", () => {
     expect(result.output).not.toContain("bs_own_helper");
   });
 });
+
+describe("codemod 0.29", () => {
+  let root: string;
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "bsb-codemod-029-"));
+  });
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const run = (argv: string[] = []) =>
+    runCodemod(
+      resolveConfig({}, root),
+      parseCommandArgs(codemodCommand("0.29"), ["0.29", ...argv]),
+    );
+
+  it("renames records to subjects, in the environment blocks too", async () => {
+    const path = join(root, "better-supabase.config.ts");
+    await writeFile(
+      path,
+      [
+        `import { defineConfig } from "better-supabase/config";`,
+        ``,
+        `export default defineConfig({`,
+        `  // Record types`,
+        `  records: { task: { table: "tasks", title: "title" } },`,
+        `  $env: { staging: { records: { note: { table: "notes" } } } },`,
+        `  $production: { records: {} },`,
+        `});`,
+        ``,
+      ].join("\n"),
+    );
+
+    await run();
+
+    expect(await readFile(path, "utf-8")).toBe(
+      [
+        `import { defineConfig } from "better-supabase/config";`,
+        ``,
+        `export default defineConfig({`,
+        `  // Record types`,
+        `  subjects: { task: { table: "tasks", title: "title" } },`,
+        `  $env: { staging: { subjects: { note: { table: "notes" } } } },`,
+        `  $production: { subjects: {} },`,
+        `});`,
+        ``,
+      ].join("\n"),
+    );
+  });
+
+  it("moves records into an existing subjects, where subjects wins", async () => {
+    const path = join(root, "better-supabase.config.ts");
+    await writeFile(
+      path,
+      [
+        `export default defineConfig({`,
+        `  subjects: {`,
+        `    task: { table: "tasks" },`,
+        `  },`,
+        `  records: {`,
+        `    task: { table: "old_tasks" },`,
+        `    note: { table: "notes" },`,
+        `  },`,
+        `  blocks: ["comments"],`,
+        `});`,
+        ``,
+      ].join("\n"),
+    );
+
+    const result = await run();
+
+    expect(await readFile(path, "utf-8")).toBe(
+      [
+        `export default defineConfig({`,
+        `  subjects: {`,
+        `    task: { table: "tasks" },`,
+        `    note: { table: "notes" },`,
+        `  },`,
+        `  blocks: ["comments"],`,
+        `});`,
+        ``,
+      ].join("\n"),
+    );
+    expect(result.output).toContain(
+      "better-supabase.config.ts:6: `records.task` is dropped: `subjects.task` already exists and wins",
+    );
+  });
+
+  it("renames records in a JSON config", async () => {
+    const path = join(root, "better-supabase.config.json");
+    await writeFile(
+      path,
+      `{ "records": { "task": { "table": "tasks" } }, "subjects": { "note": { "table": "notes" } } }\n`,
+    );
+
+    await run();
+
+    expect(JSON.parse(await readFile(path, "utf-8"))).toEqual({
+      subjects: { task: { table: "tasks" }, note: { table: "notes" } },
+    });
+  });
+
+  it("renames record tags in schema files and leaves migrations alone", async () => {
+    const schema = join(root, "supabase/schemas/public/tables/tasks.sql");
+    const migration = join(root, "supabase/migrations/20260101000000_init.sql");
+    await mkdir(join(root, "supabase/schemas/public/tables"), {
+      recursive: true,
+    });
+    await mkdir(join(root, "supabase/migrations"), { recursive: true });
+    const tagged = `create table public.tasks (id uuid primary key);\ncomment on table public.tasks is 'The team''s tasks @bsb record type=task title=title; realtime';\n`;
+    await writeFile(schema, tagged);
+    await writeFile(migration, tagged);
+
+    const result = await run();
+
+    expect(await readFile(schema, "utf-8")).toBe(
+      `create table public.tasks (id uuid primary key);\ncomment on table public.tasks is 'The team''s tasks @bsb subject type=task title=title; realtime';\n`,
+    );
+    expect(await readFile(migration, "utf-8")).toBe(tagged);
+    expect(result.data).toMatchObject({
+      changed: ["supabase/schemas/public/tables/tasks.sql"],
+    });
+  });
+
+  it("keeps a subject tag over a record tag", async () => {
+    const schema = join(root, "supabase/schemas/public/tasks.sql");
+    await mkdir(join(root, "supabase/schemas/public"), { recursive: true });
+    await writeFile(
+      schema,
+      `comment on table tasks is '@bsb record type=old; subject type=task';\n`,
+    );
+
+    const result = await run();
+
+    expect(await readFile(schema, "utf-8")).toBe(
+      `comment on table tasks is '@bsb subject type=task';\n`,
+    );
+    expect(result.output).toContain(
+      "supabase/schemas/public/tasks.sql:1: The `record` tag is dropped",
+    );
+  });
+});

@@ -383,8 +383,14 @@ export function createMembersController<
   );
 }
 
-/** What `invite` takes: the organization comes from the controller. */
-export type InvitationDraft = Omit<InviteRequest, "organizationId">;
+/**
+ * What `invite` takes: the organization comes from the controller. `R` is the
+ * role union, `string` by default.
+ */
+export type InvitationDraft<R extends string = string> = Omit<
+  InviteRequest<Record<never, never>, R>,
+  "organizationId"
+>;
 
 /** An invitation change that committed, for `onChanged`. */
 export type InvitationChange =
@@ -401,8 +407,12 @@ export type InvitationChange =
 
 export interface InvitationsControllerOptions<
   T extends { readonly id: string } = OrganizationInvitationRow,
+  R extends string = string,
 > {
-  readonly client: Pick<Organizations, "invite" | "revokeInvitation">;
+  readonly client: Pick<
+    Organizations<Record<never, never>, Record<never, never>, R>,
+    "invite" | "revokeInvitation"
+  >;
   readonly auth: AuthPort;
   /** The organization; nothing loads or sends without one. */
   readonly organizationId: string | null;
@@ -432,12 +442,14 @@ export interface InvitationsSnapshot<T> {
   readonly error: DbError | undefined;
 }
 
-export interface InvitationsActions {
+export interface InvitationsActions<R extends string = string> {
   /**
    * Invites `email` with `role`, then loads the list again; a failure is also
    * kept in `error`.
    */
-  readonly invite: (draft: InvitationDraft) => Promise<Result<InvitationSent>>;
+  readonly invite: (
+    draft: InvitationDraft<R>,
+  ) => Promise<Result<InvitationSent>>;
   /** Revokes an open invitation; `false` when it was not open. */
   readonly revoke: (invitationId: string) => Promise<Result<boolean>>;
   /** Forgets `sent` and `error`, such as when the dialog closes. */
@@ -445,9 +457,9 @@ export interface InvitationsActions {
   readonly refresh: () => Promise<void>;
 }
 
-export type InvitationsController<T> = Controller<
+export type InvitationsController<T, R extends string = string> = Controller<
   InvitationsSnapshot<T>,
-  InvitationsActions
+  InvitationsActions<R>
 >;
 
 /**
@@ -457,10 +469,11 @@ export type InvitationsController<T> = Controller<
  */
 export function createInvitationsController<
   T extends { readonly id: string } = OrganizationInvitationRow,
->(options: InvitationsControllerOptions<T>): InvitationsController<T> {
+  R extends string = string,
+>(options: InvitationsControllerOptions<T, R>): InvitationsController<T, R> {
   const { client, organizationId } = options;
 
-  return defineController<InvitationsSnapshot<T>, InvitationsActions>(
+  return defineController<InvitationsSnapshot<T>, InvitationsActions<R>>(
     {
       invitations: options.initial,
       inviting: false,

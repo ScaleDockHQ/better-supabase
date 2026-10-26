@@ -64,11 +64,14 @@ const SKIPPED_DIRS: ReadonlySet<string> = new Set([
   "coverage",
 ]);
 
+const SCHEMA_SQL = /(?:^|[\\/])supabase[\\/]schemas[\\/].*\.sql$/;
+
 /**
  * Source, config and script files under `path`, skipping dependencies, build
- * output and `.d.ts` files.
+ * output and `.d.ts` files. With `sql`, the `.sql` files under
+ * `supabase/schemas` too; migrations stay as they are.
  */
-async function sourceFiles(path: string): Promise<string[]> {
+async function sourceFiles(path: string, sql: boolean): Promise<string[]> {
   const info = await stat(path).catch(() => undefined);
 
   if (!info) {
@@ -76,7 +79,7 @@ async function sourceFiles(path: string): Promise<string[]> {
   }
 
   if (info.isFile()) {
-    return [path];
+    return path.endsWith(".sql") && !sql ? [] : [path];
   }
 
   const files: string[] = [];
@@ -86,7 +89,7 @@ async function sourceFiles(path: string): Promise<string[]> {
 
     if (entry.isDirectory()) {
       if (!SKIPPED_DIRS.has(entry.name)) {
-        files.push(...(await sourceFiles(full)));
+        files.push(...(await sourceFiles(full, sql)));
       }
     } else if (
       (SOURCE_EXTENSIONS.has(extname(entry.name)) &&
@@ -94,7 +97,8 @@ async function sourceFiles(path: string): Promise<string[]> {
       CONFIG_FILE.test(entry.name) ||
       DESIGN_FILE_NAME.test(entry.name) ||
       CLI_CALL_FILE.test(full) ||
-      SHELL_FILE.test(entry.name)
+      SHELL_FILE.test(entry.name) ||
+      (sql && SCHEMA_SQL.test(full))
     ) {
       files.push(full);
     }
@@ -132,7 +136,13 @@ export async function runCodemod(
   );
 
   const files = [
-    ...new Set((await Promise.all(roots.map(sourceFiles))).flat()),
+    ...new Set(
+      (
+        await Promise.all(
+          roots.map((root) => sourceFiles(root, codemod.sqlFile !== undefined)),
+        )
+      ).flat(),
+    ),
   ];
 
   const dryRun = args["dry-run"] === true;

@@ -292,15 +292,25 @@ export async function declaredPeers(): Promise<Record<string, string>> {
   );
 }
 
-/** Every declared peer with the version `root` resolves. */
+/**
+ * Every declared peer with the version `root` resolves, or else the version the
+ * better-supabase package resolves: lazy imports load from there, so a peer
+ * installed only next to the package (a pnpm workspace) still loads.
+ */
 export async function peerVersions(root: string): Promise<PeerVersion[]> {
   const peers = await declaredPeers();
+
+  const packageDir = dirname(
+    fileURLToPath(import.meta.resolve("better-supabase/package.json")),
+  );
 
   return Promise.all(
     Object.entries(peers).map(async ([name, range]) => ({
       name,
       range,
-      installed: await installedVersion(name, root),
+      installed:
+        (await installedVersion(name, root)) ??
+        (await installedVersion(name, packageDir)),
     })),
   );
 }

@@ -93,8 +93,8 @@ export interface RecordQueries<
 
 export interface RecordQueriesOptions extends QueriesOptions {
   /**
-   * The access block's client, which loads the caller's keys for `can`. Without
-   * it every flag is `true` and RLS decides.
+   * The permissions block's client, which loads the caller's keys for `can`.
+   * Without it every flag is `true` and RLS decides.
    */
   readonly access?: {
     permissions(keys: readonly string[]): AsyncResult<PermissionSet>;

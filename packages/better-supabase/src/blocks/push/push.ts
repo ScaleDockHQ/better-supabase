@@ -7,17 +7,22 @@ import type {
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { EventHub } from "../../core/events.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { RequestContext } from "../../core/plugin.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { RecordedDeliveryEvent } from "../notifications/api-types.ts";
 import type {
   NotificationChannel,
   NotificationMessage,
   NotificationSendResult,
 } from "../notifications/channel.ts";
+import type { NotificationsEvents } from "../notifications/events.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { expoPushToken } from "../../client/native/push-token.ts";
+import { blockEmitter } from "../../core/block-events.ts";
 import {
   blockFields,
   readAllFields,
@@ -27,8 +32,13 @@ import {
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
+  emitDeliveryEvent,
+  recordedDeliveryEventOf,
+} from "../notifications/delivery-events.ts";
+import {
   applyTemporal,
   blockCall,
+  nullableText,
   recordOrEmpty,
   recordsOf,
   run,
@@ -98,6 +108,13 @@ export interface PushDevicesOptions<
   readonly hooks?: NoInfer<BlockHooks<PushDevices<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
+  /**
+   * `betterSupabase.events`, for the `notification.delivered` and
+   * `notification.bounced` events `checkReceipts` records.
+   */
+  readonly events?: EventHub;
+  readonly actorId?: string;
+  readonly context?: RequestContext;
 }
 
 /** The `push` SQL module as typed calls. */
@@ -205,6 +222,34 @@ function uncheckedOf(value: unknown): readonly UncheckedTicket[] {
 const countOf = (value: unknown): number =>
   typeof value === "number" ? value : Number(value ?? 0);
 
+interface CompletedReceipts {
+  readonly events: readonly {
+    readonly recorded: RecordedDeliveryEvent;
+    readonly providerEventId: string | null;
+  }[];
+}
+
+function completedOf(value: unknown): CompletedReceipts {
+  const events = recordOrEmpty(value)["events"];
+
+  return {
+    events: (Array.isArray(events) ? events : []).flatMap((event) => {
+      const recorded = recordedDeliveryEventOf(event);
+
+      return recorded === null
+        ? []
+        : [
+            {
+              recorded,
+              providerEventId: nullableText(
+                recordOrEmpty(event)["provider_event_id"],
+              ),
+            },
+          ];
+    }),
+  };
+}
+
 export function createPush<S extends StandardSchemaV1 | undefined = undefined>(
   options: PushDevicesOptions<S>,
 ): PushDevices<FieldsOf<S>> {
@@ -212,6 +257,7 @@ export function createPush<S extends StandardSchemaV1 | undefined = undefined>(
 
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const emit = blockEmitter<NotificationsEvents>(options);
 
   const fields: BlockFields<F> = blockFields(
     options.fields,
@@ -275,7 +321,7 @@ export function createPush<S extends StandardSchemaV1 | undefined = undefined>(
         const result = await push.checkReceipts(tickets);
 
         if (result.receipts.length > 0) {
-          await call(
+          const completed = await call(
             "complete_push_receipts",
             {
               receipts: result.receipts.map((receipt) => ({
@@ -285,8 +331,12 @@ export function createPush<S extends StandardSchemaV1 | undefined = undefined>(
                 message: receipt.message ?? null,
               })),
             },
-            countOf,
+            completedOf,
           ).orThrow();
+
+          for (const { recorded, providerEventId } of completed.events) {
+            emitDeliveryEvent(emit, recorded, "expo", providerEventId);
+          }
         }
 
         return result;

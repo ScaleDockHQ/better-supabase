@@ -569,6 +569,32 @@ Inviting checks each role against the inviter's ceiling
 (`INVITATION_TEAM_UNKNOWN`); an unknown key fails with
 `INVITATION_ON_ACCEPT_INVALID`.
 
+### Typed roles
+
+Pass the role union as the third type parameter to make `role` and
+`onAccept.roles` reject an unknown role at compile time. `gen` writes the union
+as `RoleName` in the blocks file, and `RoleNames<typeof config>` from
+`better-supabase/config` gives the same union from the config. Team ids stay
+`string`, since the config doesn't know them:
+
+```ts
+import type { RoleName } from "@/lib/supabase/blocks.generated";
+
+const organizations = createOrganizations<undefined, undefined, RoleName>({
+  transport: rpcTransport(supabase),
+});
+
+await organizations.invite({
+  organizationId,
+  email: "ada@example.com",
+  role: "viewer", // a type error when `viewer` isn't a configured role
+});
+```
+
+`createInvitationsController` takes the same union as its second type
+parameter, so the invite dialog's `invite(draft)` is typed too. Without it,
+roles stay `string`.
+
 ### Accepting from the app
 
 An in-app inbox can't hold the invitation token, since only its hash is

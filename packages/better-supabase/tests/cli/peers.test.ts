@@ -75,4 +75,13 @@ describe("installed versions", () => {
 
     expect(supabase?.installed).toMatch(/^2\./);
   });
+
+  it("falls back to the peers installed next to the package", async () => {
+    const root = await mkdtemp(join(tmpdir(), "bsb-peers-"));
+    const versions = await peerVersions(root);
+
+    const pgdelta = versions.find((peer) => peer.name === "@supabase/pg-delta");
+
+    expect(pgdelta?.installed).toMatch(/^1\.0\.0-alpha\./);
+  });
 });

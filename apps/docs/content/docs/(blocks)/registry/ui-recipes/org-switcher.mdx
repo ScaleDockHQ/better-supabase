@@ -181,18 +181,31 @@ npx shadcn add @better-supabase/use-organizations
 ```
 
 ```tsx title="apps/examples/expo-powersync/src/components/organization-switcher.tsx"
+import type { OrganizationMembership } from "better-supabase/blocks/organizations";
+
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
+
+import type { OrganizationSource } from "../hooks/use-organizations";
 
 import { useOrganizations } from "../hooks/use-organizations";
 import { API_SCHEMA } from "../lib/blocks";
 
 /**
  * The caller's organizations. Pressing one switches to it, refreshes the
- * session so the token carries the new tenant, and loads the list again.
+ * session so the token carries the new tenant, and loads the list again. `load`
+ * reads them elsewhere, such as from the PowerSync database.
  */
-export function OrganizationSwitcher() {
+export function OrganizationSwitcher({
+  load,
+}: {
+  readonly load?: OrganizationSource<OrganizationMembership>;
+}) {
   const { organizations, activeId, switching, error, switchTo } =
-    useOrganizations({ schema: API_SCHEMA });
+    useOrganizations(
+      load === undefined
+        ? { schema: API_SCHEMA }
+        : { schema: API_SCHEMA, load },
+    );
 
   if (organizations === undefined) {
     return <ActivityIndicator />;

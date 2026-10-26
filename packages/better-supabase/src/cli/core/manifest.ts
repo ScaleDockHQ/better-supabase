@@ -614,6 +614,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },
+      {
+        name: "0.29",
+        description:
+          "Changes from 0.28 to 0.29: records is renamed back to subjects in the config, and record tags in the schema files become subject tags",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
     ],
   },
 ];

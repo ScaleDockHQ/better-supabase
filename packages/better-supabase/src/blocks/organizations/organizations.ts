@@ -55,12 +55,20 @@ export interface CreateOrganizationOptions {
 
 export type SlugProblem = "invalid" | "reserved" | "taken";
 
-export interface InviteRequest<I extends object = Record<never, never>> {
+/**
+ * An invitation to send. `R` is the role union, `RoleName` from the generated
+ * blocks file or `RoleNames<typeof config>`, so an unknown role fails to
+ * compile; it defaults to `string`.
+ */
+export interface InviteRequest<
+  I extends object = Record<never, never>,
+  R extends string = string,
+> {
   /** `null` invites to the platform (`blocks.permissions.model: 'catalog'`). */
   readonly organizationId: string | null;
   readonly email: string;
   /** A role name, or a role id or key under the catalog model. */
-  readonly role: string;
+  readonly role: R;
   /** A Postgres interval such as `'3 days'`. Defaults to `options.validFor`. */
   readonly validFor?: string;
   /** Profile fields to fill in on sign-up. */
@@ -76,7 +84,8 @@ export interface InviteRequest<I extends object = Record<never, never>> {
    * `blocks.invitations.options.onAccept`.
    */
   readonly onAccept?: {
-    readonly roles?: readonly string[];
+    readonly roles?: readonly R[];
+    /** Team ids, which the config doesn't know. */
     readonly teams?: readonly string[];
   };
 }
@@ -196,6 +205,7 @@ export interface OrganizationInvitationRow {
 export interface OrganizationsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
   SI extends StandardSchemaV1 | undefined = undefined,
+  R extends string = string,
 > extends BlockTemporalOptions {
   /**
    * A Standard Schema for the organization's extra columns
@@ -215,7 +225,7 @@ export interface OrganizationsOptions<
    * `invite`.
    */
   readonly hooks?: NoInfer<
-    BlockHooks<Organizations<FieldsOf<S>, FieldsOf<SI>>>
+    BlockHooks<Organizations<FieldsOf<S>, FieldsOf<SI>, R>>
   >;
   /** `sqlTransport(postgres.asUser(claims))` or `rpcTransport(supabase)`. */
   readonly transport: BlockTransport;
@@ -240,7 +250,7 @@ export interface OrganizationsOptions<
    * may invite. Return `false` to refuse (seat limits, plans).
    */
   readonly canInvite?: (
-    request: InviteRequest<FieldsOf<SI>>,
+    request: InviteRequest<FieldsOf<SI>, R>,
   ) => boolean | Promise<boolean>;
   /**
    * Runs after an invitation is created or resent, to send the email. When it
@@ -268,11 +278,12 @@ export type InvitationErrorHint = InvitationError;
  * The `organizations` and `invitations` SQL modules as typed calls. Each method
  * returns an `AsyncResult`; database errors carry the module's error code
  * (`ORGANIZATION_FORBIDDEN`, `INVITATION_EXPIRED`) as `hint`. `F` is the extra
- * fields `options.fields` describes.
+ * fields `options.fields` describes, `R` the roles `invite` takes.
  */
 export interface Organizations<
   F extends object = Record<never, never>,
   I extends object = Record<never, never>,
+  R extends string = string,
 > {
   create(
     attributes: OrganizationAttributes & Partial<F>,
@@ -331,7 +342,7 @@ export interface Organizations<
   invitations(
     organizationId: string,
   ): AsyncResult<readonly OrganizationInvitationRow[]>;
-  invite(request: InviteRequest<I>): AsyncResult<InvitationSent<I>>;
+  invite(request: InviteRequest<I, R>): AsyncResult<InvitationSent<I>>;
   resendInvitation(
     invitationId: string,
     validFor?: string,
@@ -513,14 +524,19 @@ const splitAttributes = (
   };
 };
 
-/** Calls the `organizations` and `invitations` block functions. */
+/**
+ * Calls the `organizations` and `invitations` block functions. Pass the role
+ * union as `R` to type `invite`: `createOrganizations<undefined, undefined,
+ * RoleName>(options)`.
+ */
 export function createOrganizations<
   S extends StandardSchemaV1 | undefined = undefined,
   SI extends StandardSchemaV1 | undefined = undefined,
+  R extends string = string,
 >(
-  options: OrganizationsOptions<S, SI>,
-): Organizations<FieldsOf<S>, FieldsOf<SI>> {
-  const client = organizationsClient<FieldsOf<S>, FieldsOf<SI>>(options);
+  options: OrganizationsOptions<S, SI, R>,
+): Organizations<FieldsOf<S>, FieldsOf<SI>, R> {
+  const client = organizationsClient<FieldsOf<S>, FieldsOf<SI>, R>(options);
 
   return withBlockHooks(client, options.hooks, {
     block: "organizations",
@@ -528,12 +544,17 @@ export function createOrganizations<
   });
 }
 
-function organizationsClient<F extends object, I extends object>(
+function organizationsClient<
+  F extends object,
+  I extends object,
+  R extends string,
+>(
   options: OrganizationsOptions<
     StandardSchemaV1 | undefined,
-    StandardSchemaV1 | undefined
+    StandardSchemaV1 | undefined,
+    R
   >,
-): Organizations<F, I> {
+): Organizations<F, I, R> {
   applyTemporal(options);
 
   const fields: BlockFields<F> = blockFields(
