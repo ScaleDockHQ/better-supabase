@@ -487,18 +487,18 @@ export interface BetterNext<
    * Signs in with an email and a password from a server action. It writes the
    * session cookies, stores the verified session for the next render and
    * returns `redirectTo`: `credentials.next` when it is a same-origin path,
-   * else `options.fallback` (`/`). Reads later in the same request see the new
-   * session.
+   * else `options.fallback` (`/`). Reads later in the same request
+   * (`getRequestSession()`, `session()`, `context()`) see the new session.
    */
   signIn(
     credentials: SignInCredentials,
     options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn<C>>>;
+  ): Promise<ActionResult<SignedIn>>;
   /** The same as `signIn`. */
   signInWithPassword(
     credentials: SignInCredentials,
     options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn<C>>>;
+  ): Promise<ActionResult<SignedIn>>;
   /**
    * Verifies an email link's `token_hash` (sign-up, invite, magic link,
    * recovery, email change) or an emailed code, then commits the session like
@@ -507,7 +507,7 @@ export interface BetterNext<
   verifyOtp(
     params: VerifyOtpParams,
     options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn<C>>>;
+  ): Promise<ActionResult<SignedIn>>;
   /**
    * The Auth server's OAuth URL for `provider`, for a `redirect()`. It writes
    * the PKCE verifier cookie (httpOnly, `lax`, 10 minutes) that `exchangeCode`
@@ -523,7 +523,7 @@ export interface BetterNext<
   exchangeCode(
     params: CodeExchange,
     options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn<C>>>;
+  ): Promise<ActionResult<SignedIn>>;
   /**
    * Challenges and verifies an MFA factor for the signed-in user and commits
    * the `aal2` session; `mfa` is then false.
@@ -531,17 +531,18 @@ export interface BetterNext<
   verifyMfa(
     params: MfaVerification,
     options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn<C>>>;
+  ): Promise<ActionResult<SignedIn>>;
   /**
    * Ends the session on the Auth server first (`scope`, `local` by default),
    * then clears the session cookies (also at `cookieScopes`), forgets the
-   * verified session and expires its cache tags. `others` keeps this session.
-   * Reads later in the same request are signed out.
+   * verified sessions and expires its cache tags. `others` keeps this session
+   * and its cookies, and still forgets the verified sessions. Reads later in
+   * the same request are signed out.
    */
   signOut(
     params?: SignOutParams,
     options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn<C>>>;
+  ): Promise<ActionResult<SignedIn>>;
 }
 
 export interface SignInCredentials {
@@ -588,8 +589,12 @@ export interface SignOutParams {
   readonly next?: string | null;
 }
 
-/** What the sign-in and sign-out helpers return. */
-export interface SignedIn<C = unknown> {
+/**
+ * What the sign-in and sign-out helpers return: plain data, safe across the
+ * action boundary. The committed session is on `getRequestSession()` and
+ * `context()` for the rest of the request.
+ */
+export interface SignedIn {
   /** `next` when it is a same-origin path, else `fallback` (`/`). */
   readonly redirectTo: string;
   /**
@@ -598,12 +603,6 @@ export interface SignedIn<C = unknown> {
    * `redirectTo`. Advisory: keep the proxy and `action({ aal: 2 })` gates.
    */
   readonly mfa: boolean;
-  /**
-   * The committed session, `null` after a sign-out. Pass it to
-   * `contextFromSession` to build the landing context. It holds the access
-   * token, so keep it on the server.
-   */
-  readonly session: SessionSnapshot<C> | null;
 }
 
 /** What `startSupport` returns: plain data, safe across the action boundary. */

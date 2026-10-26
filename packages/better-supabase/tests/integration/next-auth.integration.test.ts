@@ -219,7 +219,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
 
     expect(signed).toMatchObject({
       ok: true,
-      data: { redirectTo: "/home", mfa: false, session: { userId: user.id } },
+      data: { redirectTo: "/home", mfa: false },
     });
     expect(token()).toBeDefined();
     expect((await bsb.getRequestSession())?.userId).toBe(user.id);
@@ -265,9 +265,10 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
 
     expect(linked).toMatchObject({
       ok: true,
-      data: { redirectTo: "/welcome", session: { userId: user.id } },
+      data: { redirectTo: "/welcome", mfa: false },
     });
-    expect(token()).toBe(linked.data?.session?.accessToken);
+    expect((await bsb.getRequestSession())?.userId).toBe(user.id);
+    expect(token()).toBeDefined();
 
     const reused = await bsb.verifyOtp({
       type: "magiclink",
@@ -287,7 +288,8 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
       token: code.data.properties?.email_otp ?? "",
     });
 
-    expect(coded.data?.session?.userId).toBe(user.id);
+    expect(coded.ok).toBe(true);
+    expect((await bsb.getRequestSession())?.userId).toBe(user.id);
   });
 
   it("exchanges a PKCE code and deletes the verifier cookie", async () => {
@@ -344,19 +346,19 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     expect(exchanged.error).toBeNull();
     expect(exchanged).toMatchObject({
       ok: true,
-      data: { redirectTo: "/projects", session: { userId: user.id } },
+      data: { redirectTo: "/projects", mfa: false },
     });
     expect(mocks.jar.has(verifier)).toBe(false);
-    expect(token()).toBe(exchanged.data?.session?.accessToken);
     expect((await bsb.getRequestSession())?.userId).toBe(user.id);
+    expect(token()).toBe((await bsb.getRequestSession())?.accessToken);
   });
 
   it("verifies TOTP and commits the aal2 session", async () => {
     const user = await createUser();
     const { bsb } = setup();
 
-    const signed = await bsb.signIn({ email: user.email, password });
-    const accessToken = signed.data?.session?.accessToken ?? "";
+    expect((await bsb.signIn({ email: user.email, password })).ok).toBe(true);
+    const accessToken = (await bsb.getRequestSession())?.accessToken ?? "";
 
     const enrolled = await fetch(`${url}/auth/v1/factors`, {
       method: "POST",
@@ -384,7 +386,6 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
       ok: true,
       data: { redirectTo: "/secure", mfa: false },
     });
-    expect(verified.data?.session?.claims["aal"]).toBe("aal2");
     expect((await bsb.getRequestSession())?.claims["aal"]).toBe("aal2");
 
     mocks.jar.clear();
@@ -399,8 +400,8 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     const user = await createUser();
     const { bsb, token } = setup();
 
-    const signed = await bsb.signIn({ email: user.email, password });
-    const accessToken = signed.data?.session?.accessToken ?? "";
+    expect((await bsb.signIn({ email: user.email, password })).ok).toBe(true);
+    const accessToken = (await bsb.getRequestSession())?.accessToken ?? "";
 
     nextRequest();
     expect((await bsb.session()).kind).toBe("user");
@@ -409,7 +410,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
 
     expect(signedOut).toEqual({
       ok: true,
-      data: { redirectTo: "/signed-out", mfa: false, session: null },
+      data: { redirectTo: "/signed-out", mfa: false },
       error: null,
     });
     expect(token()).toBeUndefined();

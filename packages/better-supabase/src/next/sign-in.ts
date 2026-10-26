@@ -77,28 +77,28 @@ export interface AuthFlowDeps<C, P> {
   readonly signedOut: (userId: string) => void;
 }
 
-export interface AuthFlows<C> {
+export interface AuthFlows {
   signIn(
     credentials: SignInCredentials,
     options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn<C>>>;
+  ): Promise<ActionResult<SignedIn>>;
   verifyOtp(
     params: VerifyOtpParams,
     options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn<C>>>;
+  ): Promise<ActionResult<SignedIn>>;
   authorizeUrl(params: OAuthStart): Promise<{ readonly url: string }>;
   exchangeCode(
     params: CodeExchange,
     options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn<C>>>;
+  ): Promise<ActionResult<SignedIn>>;
   verifyMfa(
     params: MfaVerification,
     options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn<C>>>;
+  ): Promise<ActionResult<SignedIn>>;
   signOut(
     params?: SignOutParams,
     options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn<C>>>;
+  ): Promise<ActionResult<SignedIn>>;
 }
 
 function refused(auth: AuthState): ActionResult<never> {
@@ -116,9 +116,10 @@ function refused(auth: AuthState): ActionResult<never> {
  * The server-side sign-in and sign-out flows. Each runs one Auth call, then one
  * commit: it verifies the new token, writes or clears the session cookies
  * through the request's cookie jar, and publishes the session to later reads in
- * the same request.
+ * the same request. The result carries no token: it crosses the action
+ * boundary, and the session is on the request's reads.
  */
-export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows<C> {
+export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
   const { auth } = deps;
 
   const cookieName = (): string =>
@@ -151,7 +152,7 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows<C> {
     granted: Result<StoredSession | null>,
     next: string | null | undefined,
     options: SignInOptions,
-  ): Promise<ActionResult<SignedIn<C>>> => {
+  ): Promise<ActionResult<SignedIn>> => {
     if (!granted.ok) {
       return granted;
     }
@@ -203,8 +204,6 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows<C> {
       new Request("http://next.local/", { headers }),
     );
 
-    const session = snapshotOf(resolution.auth);
-
     return {
       ok: true,
       data: {
@@ -212,14 +211,13 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows<C> {
         mfa:
           stored !== null &&
           needsMfa(stored) &&
-          session?.claims["aal"] !== "aal2",
-        session,
+          snapshotOf(resolution.auth)?.claims["aal"] !== "aal2",
       },
       error: null,
     };
   };
 
-  const signIn: AuthFlows<C>["signIn"] = async (credentials, options = {}) =>
+  const signIn: AuthFlows["signIn"] = async (credentials, options = {}) =>
     commit(
       await passwordGrant(
         { email: credentials.email, password: credentials.password },
@@ -340,20 +338,21 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows<C> {
         }
       }
 
+      // The other sessions' tokens stay valid until they expire, so the memo
+      // and the cache tags built on them go for every scope.
+      if (current) {
+        deps.signedOut(current.userId);
+      }
+
       if (scope === "others") {
         return {
           ok: true,
           data: {
             redirectTo: safeRedirectPath(params.next, options.fallback ?? "/"),
             mfa: false,
-            session: current,
           },
           error: null,
         };
-      }
-
-      if (current) {
-        deps.signedOut(current.userId);
       }
 
       return commit(ok(null), params.next, options);

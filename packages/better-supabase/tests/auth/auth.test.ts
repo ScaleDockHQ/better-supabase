@@ -785,32 +785,6 @@ describe("env", () => {
     });
   });
 
-  it("rejects a server URL that differs from the browser URL", () => {
-    const keys = { SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x" };
-
-    expect(
-      parseEnv({
-        ...keys,
-        SUPABASE_URL: PROJECT_URL,
-        NEXT_PUBLIC_SUPABASE_URL: `${PROJECT_URL}/`,
-      }).ok,
-    ).toBe(true);
-
-    expect(
-      parseEnv({
-        ...keys,
-        SUPABASE_URL: "http://127.0.0.1:54321",
-        NEXT_PUBLIC_SUPABASE_URL: PROJECT_URL,
-      }).issues,
-    ).toEqual([
-      {
-        variables: ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"],
-        message:
-          "differs from NEXT_PUBLIC_SUPABASE_URL; the server and the browser must use one URL, or their session cookie names differ",
-      },
-    ]);
-  });
-
   it("reads inline keys from SUPABASE_JWKS and rejects malformed ones", () => {
     const base = {
       SUPABASE_URL: PROJECT_URL,

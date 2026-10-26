@@ -3,7 +3,12 @@ import type { Rule, TextFile } from "./rules.ts";
 
 import { errorText } from "../core/errors.ts";
 import { PROCESS_ENV } from "../env.ts";
-import { PREFIX_NAMES, stackEnvValues, staleVariables } from "../stack-env.ts";
+import {
+  PREFIX_NAMES,
+  redactValue,
+  stackEnvValues,
+  staleVariables,
+} from "../stack-env.ts";
 import { readStackStatus } from "../stack-status.ts";
 
 const PUBLIC_PREFIXES = [
@@ -13,6 +18,20 @@ const PUBLIC_PREFIXES = [
   "EXPO_PUBLIC_",
   "NUXT_PUBLIC_",
 ];
+
+/** `SUPABASE_URL`, plain or with a browser prefix. */
+const URL_VARIABLE = new RegExp(
+  `^(?:${PUBLIC_PREFIXES.join("|")})?SUPABASE_URL$`,
+);
+
+/** The URL without a trailing slash, `null` for a value that isn't one. */
+function normalizedUrl(value: string): string | null {
+  try {
+    return new URL(value).href.replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
+}
 
 function envEntries(
   file: TextFile,
@@ -102,7 +121,10 @@ export async function loadStackEnvCheck(
   }
 }
 
-/** Checks on env files and the variables the shell exports (BS501 to BS503). */
+/**
+ * Checks on env files and the variables the shell exports (BS501 to BS503 and
+ * BS506).
+ */
 export const ENV_RULES: readonly Rule[] = [
   {
     code: "BS501",
@@ -185,5 +207,39 @@ export const ENV_RULES: readonly Rule[] = [
             target: stale.variable,
             message: `${stale.message} Unset it or start the app with better-supabase dev run -- <cmd>.`,
           })),
+  },
+  {
+    code: "BS506",
+    severity: "warning",
+    title: "Server and browser Supabase URLs differ",
+    description:
+      "The session cookie name comes from the project URL. When SUPABASE_URL and a browser-prefixed spelling such as NEXT_PUBLIC_SUPABASE_URL point at different URLs, the server and the browser client read different cookies, and a sign-in on one side is invisible to the other. Use one URL, or set auth.cookie.name on both clients when the split is intended (a custom domain in the browser, the project URL on the server).",
+    check: (context) =>
+      context.envFiles.flatMap((file) => {
+        const urls = envEntries(file).filter(
+          (entry) => URL_VARIABLE.test(entry.key) && entry.value !== "",
+        );
+
+        const [server] = urls;
+
+        if (!server) {
+          return [];
+        }
+
+        const expected = normalizedUrl(server.value);
+
+        return urls
+          .filter(
+            (entry) =>
+              expected !== null &&
+              normalizedUrl(entry.value) !== null &&
+              normalizedUrl(entry.value) !== expected,
+          )
+          .map((entry) => ({
+            message: `${entry.key} in ${file.path} (${redactValue(entry.value)}) differs from ${server.key} (${redactValue(server.value)}). The server and the browser then read different session cookies. Use one URL, or set auth.cookie.name on both clients.`,
+            target: `${file.path}:${entry.key}`,
+            location: { file: file.path, line: entry.line },
+          }));
+      }),
   },
 ];

@@ -172,9 +172,9 @@ describe("auth flows", () => {
       { fallback: "/en" },
     );
 
-    expect(signed).toMatchObject({
+    expect(signed).toEqual({
       ok: true,
-      data: { redirectTo: "/en", mfa: false, session: { userId: USER } },
+      data: { redirectTo: "/en", mfa: false },
       error: null,
     });
     expect(fetch).toHaveBeenCalledOnce();
@@ -359,9 +359,8 @@ describe("auth flows", () => {
       user: { id: USER },
     });
 
-    const landing = await bsb.contextFromSession(signed.data?.session ?? null);
-
-    expect(landing.auth.kind).toBe("user");
+    // Plain data only: the token stays in the cookie and on the request's reads.
+    expect(Object.keys(signed.data ?? {})).toEqual(["redirectTo", "mfa"]);
   });
 
   it("reads the jar in a Server Action, where React's cache is off", async () => {
@@ -431,7 +430,7 @@ describe("auth flows", () => {
 
     expect(signedOut).toEqual({
       ok: true,
-      data: { redirectTo: "/bye", mfa: false, session: null },
+      data: { redirectTo: "/bye", mfa: false },
       error: null,
     });
     expect(order).toEqual(["grant", "logout"]);
@@ -492,19 +491,18 @@ describe("auth flows", () => {
 
     const kept = await bsb.signOut({ scope: "others" });
 
-    expect(kept.data?.session?.userId).toBe(USER);
+    expect(kept.data).toEqual({ redirectTo: "/", mfa: false });
     expect(callsOf(fetch)[1]?.url).toContain("scope=others");
     expect(sessionToken()).toBe(token);
+    expect((await bsb.getRequestSession())?.userId).toBe(USER);
+    // The other sessions' tokens stay valid, so their memo entries and tags go.
+    expect(mocks.updateTag).toHaveBeenCalledWith(expect.stringContaining(USER));
   });
 
   it("signs out a signed-out caller without calling Auth", async () => {
     const { bsb, fetch } = setup(() => Response.error());
 
-    expect((await bsb.signOut()).data).toEqual({
-      redirectTo: "/",
-      mfa: false,
-      session: null,
-    });
+    expect((await bsb.signOut()).data).toEqual({ redirectTo: "/", mfa: false });
     expect(fetch).not.toHaveBeenCalled();
   });
 
@@ -525,7 +523,8 @@ describe("auth flows", () => {
     });
 
     expect(linked.data?.redirectTo).toBe("/welcome");
-    expect(coded.data?.session?.userId).toBe(USER);
+    expect(coded.data?.redirectTo).toBe("/");
+    expect((await bsb.getRequestSession())?.userId).toBe(USER);
     expect(callsOf(fetch).map((call) => [call.url, call.body])).toEqual([
       [
         `${PROJECT_URL}/auth/v1/verify`,
@@ -550,7 +549,8 @@ describe("auth flows", () => {
 
     const verified = await bsb.verifyOtp({ type: "invite", tokenHash: "h" });
 
-    expect(verified.data?.session?.userId).toBe(OTHER);
+    expect(verified.ok).toBe(true);
+    expect((await bsb.getRequestSession())?.userId).toBe(OTHER);
     expect(sessionToken()).toBe(second);
     expect(await bsb.session()).toMatchObject({ user: { id: OTHER } });
   });
@@ -676,7 +676,6 @@ describe("auth flows", () => {
       ok: true,
       data: { redirectTo: "/secure", mfa: false },
     });
-    expect(verified.data?.session?.claims["aal"]).toBe("aal2");
     expect(callsOf(fetch).slice(1)).toMatchObject([
       {
         url: `${PROJECT_URL}/auth/v1/factors/f1/challenge`,

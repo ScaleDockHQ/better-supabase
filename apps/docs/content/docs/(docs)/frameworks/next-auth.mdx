@@ -19,25 +19,30 @@ once.
 | `verifyMfa`                         | `POST /auth/v1/factors/:id/challenge`, `verify` |
 | `signOut`                           | `POST /auth/v1/logout`, then the cookies        |
 
-Every helper except `authorizeUrl` returns an `ActionResult<SignedIn>`:
+Every helper except `authorizeUrl` returns an `ActionResult<SignedIn>`,
+plain data that a Server Action can return to a client form as it is:
 
 ```ts
 interface SignedIn {
   redirectTo: string; // `next` when it is a same-origin path, else `fallback`
   mfa: boolean; // a verified factor and the session is not aal2 yet
-  session: SessionSnapshot | null; // null after a sign-out
 }
 ```
+
+The committed session never leaves the server: read it with
+`bsb.getRequestSession()` or `bsb.context()` later in the same action.
 
 Errors are `unauthorized` with Auth's `error_code` as `code`
 (`invalid_credentials`, `otp_expired`, `code_verifier_missing`),
 `rate_limited`, `network` or `timeout`. Auth's own message never reaches the
 result, so a form can't tell whether an account exists.
 
-## One env
+## One URL
 
-Pass the validated env to `createNext` and read the browser values from it,
-so the server and the browser derive the same session cookie name:
+The session cookie name comes from the project URL
+(`sb-<project-ref>-auth-token`), so the server and the browser client must
+derive it from the same URL. Pass the validated env to `createNext` and read
+the browser values from it:
 
 ```ts title="src/lib/supabase/server.ts"
 import "server-only";
@@ -49,9 +54,11 @@ export const env = loadEnv();
 export const bsb = createNext(betterSupabase, { env });
 ```
 
-`loadEnv()` reports an issue when `SUPABASE_URL` and
-`NEXT_PUBLIC_SUPABASE_URL` are both set and differ. See
-[Environment](/docs/auth/env).
+Doctor's [BS506](/docs/cli/doctor#bs506) warns when an env file sets
+`SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_URL` to different URLs. When the
+split is intended (a custom domain in the browser, the project URL on the
+server), set `auth.cookie.name` on `createNext` and on the browser client to
+the same name. See [Environment](/docs/auth/env).
 
 ## Password sign-in
 
@@ -85,16 +92,13 @@ export async function signIn(
 
 When the landing page depends on who signed in (a default organization, an
 onboarding step), read it in the same action. `bsb.context()` already sees the
-new session, and so does a context built from the returned snapshot:
+new session:
 
 ```ts
-const ctx = await bsb.contextFromSession(result.data.session);
+const ctx = await bsb.context();
 // landingPath is your own lookup, such as the user's first organization.
 redirect(await landingPath(ctx));
 ```
-
-`session` holds the access token. Keep it on the server: return
-`redirectTo` and `mfa` to a client form, never the whole result.
 
 ## Email links and codes
 
@@ -178,8 +182,10 @@ export async function verifyCode(factorId: string, code: string, next: string) {
 ## Sign-out
 
 `signOut` ends the session in Auth first, then clears the session cookies,
-forgets the verified session and expires the user's cache tags. When Auth
-can't be reached the cookies stay and the result carries the error.
+forgets the user's verified sessions and expires the user's cache tags. When
+Auth can't be reached the cookies stay and the result carries the error, so a
+session Auth still considers live is never dropped on this side alone; show
+the error and let the user retry.
 
 ```ts
 export async function signOut(): Promise<never> {
@@ -189,9 +195,12 @@ export async function signOut(): Promise<never> {
 ```
 
 `scope` is `local` (this session, the default), `global` (every session of
-the user) or `others` (every other session; this one stays signed in).
-`cookieScopes` on `createNext` also expires the cookie at the domains and
-paths earlier deploys wrote it at, see
+the user) or `others` (every other session; this one keeps its cookies). The
+other sessions' tokens stay valid until they expire, so every scope forgets
+the user's verified sessions and expires their cache tags; the kept session
+verifies its token once more on the next render. `cookieScopes` on
+`createNext` also expires the cookie at the domains and paths earlier deploys
+wrote it at, see
 [Sessions](/docs/auth/sessions#moving-the-cookie-to-another-domain-or-path).
 
 ## Flows that start no session
@@ -212,8 +221,11 @@ await bsb.getRequestSession(); // the new user
 await bsb.context({ tenant }); // a context for the new user and tenant
 ```
 
-Where React's `cache()` keeps one value per request, each commit bumps a
-request generation, so the cached reads miss once and then answer from the
-committed session without verifying the token again. Server Actions and route
-handlers run outside that cache; there every read builds the request from the
-cookie jar, which already holds the commit's writes.
+Each commit bumps a request generation that keys the reads React's `cache()`
+holds per request, so they miss once and then answer from the committed
+session without verifying the token again. The reads also rebuild the
+request's `cookie` header from Next's cookie jar, which already holds the
+commit's writes, so they see the new session where that cache doesn't apply
+(a route handler, or a Server Action depending on the Next.js version). A
+`tenant` resolver on `createNext` that parses another cookie from
+`request.headers` sees that rebuilt header, with each value percent-encoded.

@@ -171,9 +171,10 @@ membership lasts until the next refresh. When that window matters:
   go stale.
 - Sign in and out from a Server Action with `bsb.signIn`, `verifyOtp`,
   `authorizeUrl` and `exchangeCode`, `verifyMfa` or `signOut`, then
-  `redirect(result.data.redirectTo)`. Reads later in the action see the new
-  session; `bsb.contextFromSession(result.data.session)` builds the landing
-  context. Never return `session` (it holds the access token) to the client.
+  `redirect(result.data.redirectTo)`. The result is plain data
+  (`redirectTo`, `mfa`); reads later in the action (`bsb.context()`,
+  `bsb.getRequestSession()`) see the new session, so build the landing
+  context from them.
 - After signing in or out in the browser client: `useSessionChange(sessionChanged)` from
   `better-supabase/next/client`. After switching the active organization:
   `useSessionChange(sessionChanged, router, { refreshToken: supabase })`, so

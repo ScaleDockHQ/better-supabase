@@ -100,3 +100,49 @@ describe("BS503", () => {
     });
   });
 });
+
+describe("BS506", () => {
+  const checkUrls = (text: string) => {
+    const rule = ENV_RULES.find((candidate) => candidate.code === "BS506")!;
+
+    // SAFETY: BS506 reads only envFiles from the context.
+    return rule.check({
+      envFiles: [{ path: ".env.local", text }],
+    } as unknown as DoctorContext);
+  };
+
+  it("warns when a browser URL differs from the server URL", async () => {
+    const findings = await checkUrls(
+      [
+        "SUPABASE_URL=https://abcdefghijklmnopqrst.supabase.co",
+        "NEXT_PUBLIC_SUPABASE_URL=https://auth.example.com",
+        "SUPABASE_PUBLISHABLE_KEY=sb_publishable_x",
+      ].join("\n"),
+    );
+
+    expect(findings).toEqual([
+      {
+        message:
+          "NEXT_PUBLIC_SUPABASE_URL in .env.local (auth.example.com) differs from SUPABASE_URL (abcdefghijklmnopqrst.supabase.co). The server and the browser then read different session cookies. Use one URL, or set auth.cookie.name on both clients.",
+        target: ".env.local:NEXT_PUBLIC_SUPABASE_URL",
+        location: { file: ".env.local", line: 2 },
+      },
+    ]);
+  });
+
+  it("accepts the same URL in several spellings, with or without a slash", async () => {
+    expect(
+      await checkUrls(
+        [
+          "SUPABASE_URL=http://127.0.0.1:54321",
+          'NEXT_PUBLIC_SUPABASE_URL="http://127.0.0.1:54321/"',
+          "EXPO_PUBLIC_SUPABASE_URL=",
+          "VITE_SUPABASE_URL=not a url",
+        ].join("\n"),
+      ),
+    ).toEqual([]);
+    expect(
+      await checkUrls("SUPABASE_PUBLISHABLE_KEY=sb_publishable_x"),
+    ).toEqual([]);
+  });
+});
