@@ -72,17 +72,18 @@ const SERVICE = `perform set_config('request.jwt.claims', '{"role":"service_role
 /** Lite migrates and seeds PGlite in process; booting takes a second or more. */
 const BOOT = { timeout: 60_000 };
 
-async function run(check: string): Promise<void> {
-  const files = renderBlocks(["invoices"], {
-    modules: BLOCKS,
-    ownTables: OWN_TABLES,
-  });
+async function run(
+  check: string,
+  modules: AnyBlocksConfig = BLOCKS,
+  app: string = APP,
+): Promise<void> {
+  const files = renderBlocks(["invoices"], { modules, ownTables: OWN_TABLES });
 
   await using stack = await liteStack({
     driver: "pglite",
     migrations: [
       ROLES,
-      APP,
+      app,
       ...files
         .filter((file) => file.kind !== "data")
         .map((file) => file.contents),
@@ -154,5 +155,64 @@ begin
 end;
 $$;`),
     ).rejects.toThrow(/no note column/);
+  });
+
+  it("writes and reads statuses through a value map", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_invoice jsonb;
+  v_id uuid;
+  v_other uuid;
+begin
+  ${SERVICE}
+  v_id := (better_supabase.create_invoice('${TENANT}', '{"title": "Website", "currency": "EUR"}'::jsonb,
+    '[{"description": "Design", "quantity": 1, "unitAmount": "10000"}]'::jsonb) ->> 'id')::uuid;
+  v_invoice := better_supabase.issue_invoice(v_id, current_date);
+  if (select state::text from public.bills where id = v_id) <> 'sent' or v_invoice ->> 'status' <> 'issued' then
+    raise exception 'issued %', v_invoice;
+  end if;
+  update public.bills set state = 'overdue' where id = v_id;
+  v_invoice := better_supabase.record_invoice_payment(v_id, 4000, 'EUR', now(), 'bank', 'tx-1');
+  if (select state::text from public.bills where id = v_id) <> 'sent' then
+    raise exception 'partial %', v_invoice;
+  end if;
+  if (better_supabase.invoice_aging('${TENANT}', 'EUR', current_date) ->> 'outstanding')::bigint <> 6000 then
+    raise exception 'aging %', better_supabase.invoice_aging('${TENANT}', 'EUR', current_date);
+  end if;
+  perform better_supabase.record_invoice_payment(v_id, 6000, 'EUR', now(), 'bank', 'tx-2');
+  if (select state::text from public.bills where id = v_id) <> 'paid' then
+    raise exception 'paid missed';
+  end if;
+  v_other := (better_supabase.create_invoice('${TENANT}', '{"title": "Hosting", "currency": "EUR"}'::jsonb,
+    '[{"description": "Month", "quantity": 1, "unitAmount": "900"}]'::jsonb) ->> 'id')::uuid;
+  perform better_supabase.issue_invoice(v_other, current_date);
+  v_invoice := better_supabase.void_invoice(v_other, 'sent twice');
+  if (select state::text from public.bills where id = v_other) <> 'canceled' or v_invoice ->> 'status' <> 'void' then
+    raise exception 'void %', v_invoice;
+  end if;
+end;
+$$;`,
+        {
+          invoices: {
+            ...BLOCKS["invoices"],
+            values: {
+              invoices: {
+                status: {
+                  issued: ["sent", "overdue"],
+                  partially_paid: ["sent"],
+                  void: "canceled",
+                },
+              },
+            },
+          },
+        },
+        APP.replace(
+          "('draft', 'issued', 'partially_paid', 'paid', 'void', 'uncollectible')",
+          "('draft', 'sent', 'overdue', 'paid', 'canceled', 'uncollectible')",
+        ),
+      ),
+    ).resolves.toBeUndefined();
   });
 });

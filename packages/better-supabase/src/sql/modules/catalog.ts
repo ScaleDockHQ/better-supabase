@@ -140,7 +140,7 @@ const NAMES: BlockSqlNames = {
         updatedAt: "updated_at",
       },
       optional: ["description", "kind"],
-      typed: ["status"],
+      typed: ["status", "kind"],
     },
     options: {
       name: "product_options",
@@ -574,7 +574,7 @@ function storefrontPolicies(ctx: BlockSqlContext, names: Names): string {
   const publicTables: readonly (readonly [string, string])[] = [
     [
       "products",
-      `${c("products", "status")} = 'active' and ${c("products", "tenant")} in (select ${names.fn("storefront_tenants")}())`,
+      `${ctx.is("products", "status", c("products", "status"), ["active"])} and ${c("products", "tenant")} in (select ${names.fn("storefront_tenants")}())`,
     ],
     [
       "options",

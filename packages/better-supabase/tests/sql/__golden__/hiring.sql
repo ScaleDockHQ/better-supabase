@@ -3184,7 +3184,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:0e3b0a14a6bc5a5a3134a922546a5e90189d87a683ed72a0d182a9327d2ae7cd
+-- @bsb-hash sha256:c0171fee473775a014395c087100b0d8fad6b4380c6a497e5b227170256c4559
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3456,7 +3456,7 @@ begin
       null;
     end if;
   end if;
-  return to_jsonb(v_job);
+  return (to_jsonb(v_job) || jsonb_build_object('tenant_id', v_job."org_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) from public, anon;
@@ -3492,13 +3492,13 @@ begin
   select * into v_row from "better_supabase"."applications" x
   where x."job_id" = v_job."id" and x."candidate_type" = v_type and x."candidate_id" = v_id;
   if v_row."id" is not null then
-    return to_jsonb(v_row);
+    return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id"));
   end if;
   insert into "better_supabase"."applications" ("org_id", "job_id", "candidate_type", "candidate_id", "source", "owner_user_id")
   values (v_job."org_id", v_job."id", v_type, v_id, nullif(trim(apply_to_job.source), ''), coalesce(apply_to_job.owner, auth.uid()))
   returning * into v_row;
   null;
-  return to_jsonb(v_row);
+  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."apply_to_job"(uuid, jsonb, text, uuid) from public, anon;
@@ -3576,7 +3576,7 @@ begin
     end if;
   end;
   end if;
-  return (select to_jsonb(x) from "better_supabase"."applications" x where x."id" = v_row."id");
+  return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) from "better_supabase"."applications" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."close_application"(uuid, text, text) from public, anon;
@@ -3613,7 +3613,7 @@ begin
     raise exception 'a scorecard needs a rating from 1 to 4 and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
   end;
   null;
-  return to_jsonb(v_card);
+  return (to_jsonb(v_card) || jsonb_build_object('tenant_id', v_card."org_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."submit_scorecard"(uuid, integer, text, text) from public, anon;
@@ -3647,7 +3647,7 @@ begin
     raise exception 'an interview needs a start before its end' using errcode = '22023', hint = 'HIRING_INTERVIEW_INVALID';
   end;
   null;
-  return to_jsonb(v_interview);
+  return (to_jsonb(v_interview) || jsonb_build_object('tenant_id', v_interview."org_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."schedule_interview"(uuid, timestamptz, timestamptz, uuid[], text, text) from public, anon;
@@ -3662,9 +3662,9 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(x) || jsonb_build_object(
-    'scorecards', coalesce((select jsonb_agg(to_jsonb(c) order by c."submitted_at") from "better_supabase"."application_scorecards" c where c."application_id" = x."id"), '[]'::jsonb),
-    'interviews', coalesce((select jsonb_agg(to_jsonb(i) order by i."starts_at") from "better_supabase"."interviews" i where i."application_id" = x."id"), '[]'::jsonb),
+  select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object(
+    'scorecards', coalesce((select jsonb_agg((to_jsonb(c) || jsonb_build_object('tenant_id', c."org_id")) order by c."submitted_at") from "better_supabase"."application_scorecards" c where c."application_id" = x."id"), '[]'::jsonb),
+    'interviews', coalesce((select jsonb_agg((to_jsonb(i) || jsonb_build_object('tenant_id', i."org_id")) order by i."starts_at") from "better_supabase"."interviews" i where i."application_id" = x."id"), '[]'::jsonb),
     'averageRating', (select round(avg(c."rating"), 2) from "better_supabase"."application_scorecards" c where c."application_id" = x."id"))
   from "better_supabase"."applications" x where x."id" = application_detail.application
 $$;

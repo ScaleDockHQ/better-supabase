@@ -3504,7 +3504,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:3deeb3cad9c25d8a93042ef197ff1215a6b0cfdafbe7c8a230276428221e6f6a
+-- @bsb-hash sha256:b9dcf9233a5ba042dc9a64638ea58b85d6a95906c5abe77e113b49242b2f83e5
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4211,9 +4211,15 @@ begin
     end if;
     update "better_supabase"."employee_contracts" x set "ends_on" = v_starts - 1
     where x."employee_id" = v_employee."id" and (x."ends_on" is null or x."ends_on" >= v_starts);
-    insert into "better_supabase"."employee_contracts" ("tenant_id", "employee_id", "starts_on", "ends_on", "hours_per_week", "salary", "currency", "salary_period", "note", "created_by")
-    values (v_employee."tenant_id", v_employee."id", v_starts, (add_employee_contract.attrs ->> 'endsOn')::date, (add_employee_contract.attrs ->> 'hoursPerWeek')::numeric, (add_employee_contract.attrs ->> 'salary')::bigint, upper(add_employee_contract.attrs ->> 'currency'), add_employee_contract.attrs ->> 'salaryPeriod', nullif(trim(add_employee_contract.attrs ->> 'note'), ''), auth.uid())
-    returning * into v_row;
+    if add_employee_contract.attrs ? 'currency' then
+      insert into "better_supabase"."employee_contracts" ("tenant_id", "employee_id", "starts_on", "ends_on", "hours_per_week", "salary", "currency", "salary_period", "note", "created_by")
+      values (v_employee."tenant_id", v_employee."id", v_starts, (add_employee_contract.attrs ->> 'endsOn')::date, (add_employee_contract.attrs ->> 'hoursPerWeek')::numeric, (add_employee_contract.attrs ->> 'salary')::bigint, upper(add_employee_contract.attrs ->> 'currency'), add_employee_contract.attrs ->> 'salaryPeriod', nullif(trim(add_employee_contract.attrs ->> 'note'), ''), auth.uid())
+      returning * into v_row;
+    else
+      insert into "better_supabase"."employee_contracts" ("tenant_id", "employee_id", "starts_on", "ends_on", "hours_per_week", "salary", "salary_period", "note", "created_by")
+      values (v_employee."tenant_id", v_employee."id", v_starts, (add_employee_contract.attrs ->> 'endsOn')::date, (add_employee_contract.attrs ->> 'hoursPerWeek')::numeric, (add_employee_contract.attrs ->> 'salary')::bigint, add_employee_contract.attrs ->> 'salaryPeriod', nullif(trim(add_employee_contract.attrs ->> 'note'), ''), auth.uid())
+      returning * into v_row;
+    end if;
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a contract field has an invalid value' using errcode = '22023', hint = 'EMPLOYEE_CONTRACT_INVALID';
   end;
@@ -4334,7 +4340,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:33aef87c4f18dfb61c1bfdf482b5f0919ac93918e75f1788b0da486b5aaff905
+-- @bsb-hash sha256:44b874b8de65f9df6af73ba9a237417824935f0eaa2bf1d4b09eea076a87eaf5
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4585,7 +4591,7 @@ begin
       and x."origin_type" = create_employee.attrs -> 'origin' ->> 'type'
       and x."origin_id" = create_employee.attrs -> 'origin' ->> 'id';
     if v_row."id" is not null then
-      return to_jsonb(v_row);
+      return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id"));
     end if;
   end if;
   if nullif(trim(create_employee.attrs ->> 'name'), '') is null then
@@ -4634,7 +4640,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return to_jsonb(v_row);
+  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."create_employee"(uuid, jsonb) from public, anon;
@@ -4787,7 +4793,7 @@ begin
     raise exception 'no such employee you can offboard' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   if v_row."status" = 'offboarded' then
-    return to_jsonb(v_row);
+    return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id"));
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_employee_offboard"(uuid)');
@@ -4821,7 +4827,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return to_jsonb(v_row);
+  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."offboard_employee"(uuid, date, text) from public, anon;
@@ -4859,7 +4865,7 @@ begin
       from "better_supabase"."employees" c join tree on c."manager_id" = tree.id
       where c."status" <> 'offboarded' and tree.depth < 100
     )
-    select coalesce(jsonb_agg(to_jsonb(x) || jsonb_build_object('depth', tree.depth, 'direct_reports', (select count(*) from "better_supabase"."employees" r where r."manager_id" = x."id" and r."status" <> 'offboarded')) order by tree.path), '[]'::jsonb)
+    select coalesce(jsonb_agg((to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('depth', tree.depth, 'direct_reports', (select count(*) from "better_supabase"."employees" r where r."manager_id" = x."id" and r."status" <> 'offboarded')) order by tree.path), '[]'::jsonb)
     from tree join "better_supabase"."employees" x on x."id" = tree.id
   );
 end;
@@ -4900,7 +4906,7 @@ begin
       from "better_supabase"."employees" c join tree on c."manager_id" = tree.id
       where coalesce(reports_of.indirect, false) and c."status" <> 'offboarded' and tree.depth < 100
     )
-    select coalesce(jsonb_agg(to_jsonb(x) || jsonb_build_object('depth', tree.depth, 'direct_reports', (select count(*) from "better_supabase"."employees" r where r."manager_id" = x."id" and r."status" <> 'offboarded')) order by tree.path), '[]'::jsonb)
+    select coalesce(jsonb_agg((to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('depth', tree.depth, 'direct_reports', (select count(*) from "better_supabase"."employees" r where r."manager_id" = x."id" and r."status" <> 'offboarded')) order by tree.path), '[]'::jsonb)
     from tree join "better_supabase"."employees" x on x."id" = tree.id
   );
 end;
@@ -4928,7 +4934,7 @@ begin
   if v_row."employee_id" is null then
     return null;
   end if;
-  return to_jsonb(v_row);
+  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."employee_private_details"(uuid) from public, anon;
@@ -4975,7 +4981,7 @@ begin
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow then
     raise exception 'a private detail has an invalid value' using errcode = '22023', hint = 'EMPLOYEE_PRIVATE_INVALID';
   end;
-  return to_jsonb(v_row);
+  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id"));
 end;
 $$;
 revoke execute on function "better_supabase"."save_employee_private_details"(uuid, jsonb) from public, anon;
@@ -4997,7 +5003,7 @@ begin
   if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."org_id", 'employees.view_sensitive'), false) or v_employee."user_id" = auth.uid()) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
-  return (select coalesce(jsonb_agg(to_jsonb(x) || jsonb_build_object('salary', x."salary"::text) order by x."starts_on" desc), '[]'::jsonb)
+  return (select coalesce(jsonb_agg((to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('salary', x."salary"::text) order by x."starts_on" desc), '[]'::jsonb)
     from "better_supabase"."employee_contracts" x where x."employee_id" = v_employee."id");
 end;
 $$;
@@ -5043,7 +5049,7 @@ begin
     raise exception 'a contract field has an invalid value' using errcode = '22023', hint = 'EMPLOYEE_CONTRACT_INVALID';
   end;
   null;
-  return to_jsonb(v_row) || jsonb_build_object('salary', v_row."salary"::text);
+  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('salary', v_row."salary"::text);
 end;
 $$;
 revoke execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) from public, anon;

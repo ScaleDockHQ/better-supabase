@@ -182,8 +182,8 @@ function privateSql(
     ];
 
     return parts.length === 0
-      ? `to_jsonb(${alias})`
-      : `(to_jsonb(${alias}) || jsonb_build_object(${parts.join(", ")}))`;
+      ? ctx.rowJson("privateDetails", alias)
+      : `(${ctx.rowJson("privateDetails", alias)} || jsonb_build_object(${parts.join(", ")}))`;
   };
 
   const sets = [
@@ -294,12 +294,22 @@ function contractsSql(
   const exponent = (code: string): string =>
     currency ? minorUnits(code) : "2";
 
+  const minorText = (alias: string, value: string): string =>
+    major
+      ? `(${value} * power(10, ${exponent(currency ? `${alias}.${k("currency")}` : "null")}))::bigint::text`
+      : `${value}::text`;
+
+  const json = (alias: string): string =>
+    ctx.rowJson("contracts", alias, {
+      as: { salary: (value) => minorText(alias, value) },
+    });
+
   const row = (alias: string): string =>
     salary
       ? major
-        ? `to_jsonb(${alias}) || jsonb_build_object(${sqlString(k("salary").replaceAll('"', ""))}, (${alias}.${k("salary")} * power(10, ${exponent(currency ? `${alias}.${k("currency")}` : "null")}))::bigint::text)`
-        : `to_jsonb(${alias}) || ${int8Text(alias, [k("salary")])}`
-      : `to_jsonb(${alias})`;
+        ? `${json(alias)} || jsonb_build_object(${sqlString(k("salary").replaceAll('"', ""))}, ${minorText(alias, `${alias}.${k("salary")}`)})`
+        : `${json(alias)} || ${int8Text(alias, [k("salary")])}`
+      : json(alias);
 
   const salaryValue = (minor: string, code: string): string =>
     major
@@ -342,6 +352,20 @@ function contractsSql(
     ...(has("note") ? [`nullif(trim(${arg("note")}), '')`] : []),
     ...(has("createdBy") ? ["auth.uid()"] : []),
   ];
+
+  const insertWith = (skip: string | undefined): string =>
+    `insert into ${table} (${columns.filter((column) => column !== skip).join(", ")}${required.columns})
+    values (${values.filter((_, index) => columns[index] !== skip).join(", ")}${required.values})
+    returning * into v_row;`;
+
+  const insert =
+    currency && !ctx.owns("contracts")
+      ? `if add_employee_contract.attrs ? 'currency' then
+      ${insertWith(undefined).replaceAll("\n    ", "\n      ")}
+    else
+      ${insertWith(k("currency")).replaceAll("\n    ", "\n      ")}
+    end if;`
+      : insertWith(undefined);
 
   const updated = ctx.record({
     type: "employee.updated",
@@ -399,9 +423,7 @@ begin${load("add_employee_contract", "employee", contractWriter(ctx, n, "v_emplo
     update ${table} x set ${k("endsOn")} = v_starts - 1
     where x.${k("employee")} = v_employee.${e("id")} and (x.${k("endsOn")} is null or x.${k("endsOn")} >= v_starts);`
     }
-    insert into ${table} (${columns.join(", ")}${required.columns})
-    values (${values.join(", ")}${required.values})
-    returning * into v_row;${writeExtraColumns(table, extras, fields, `x.${k("id")} = v_row.${k("id")}`, "v_row").replaceAll("\n  ", "\n    ")}
+    ${insert}${writeExtraColumns(table, extras, fields, `x.${k("id")} = v_row.${k("id")}`, "v_row").replaceAll("\n  ", "\n    ")}
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow or numeric_value_out_of_range then
     ${fail("EMPLOYEE_CONTRACT_INVALID", "a contract field has an invalid value", "22023")}
   end;

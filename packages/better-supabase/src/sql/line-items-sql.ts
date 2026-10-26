@@ -9,6 +9,7 @@ import {
   addExtraColumns,
   extraFieldsJson,
   fail,
+  insertExtraColumns,
   lockTable,
   triggerGrant,
   writeExtraColumns,
@@ -232,6 +233,12 @@ export function lineItemsSql(
 
   const extras = items.extras ?? [];
 
+  const extrasInsert = insertExtraColumns(
+    t,
+    extras,
+    "(case when jsonb_typeof(x.value -> 'fields') = 'object' then x.value -> 'fields' end)",
+  );
+
   const manages = ctx.manages
     ? `create table if not exists ${t} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -349,8 +356,8 @@ begin
   end if;
   delete from ${t} l where l.${c("parent")} = v_parent${replaces ? "" : ` and l.${c("position")} > jsonb_array_length(coalesce(${options.setter}.lines, '[]'))`};
   begin
-    insert into ${t} (${written.map(([column]) => c(column)).join(", ")})
-    select ${written.map(([, value]) => value).join(",\n      ")}
+    insert into ${t} (${written.map(([column]) => c(column)).join(", ")}${extrasInsert.columns})
+    select ${written.map(([, value]) => value).join(",\n      ")}${extrasInsert.values}
     from jsonb_array_elements(coalesce(${options.setter}.lines, '[]')) with ordinality x${
       replaces
         ? ""

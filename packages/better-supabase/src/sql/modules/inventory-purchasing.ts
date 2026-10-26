@@ -61,7 +61,7 @@ export function transferFunctions(
 
   const load = (
     name: string,
-  ): string => `select x.${t("tenant")} as tenant, x.${t("from")} as from_location, x.${t("to")} as to_location, x.${t("status")} as status
+  ): string => `select x.${t("tenant")} as tenant, x.${t("from")} as from_location, x.${t("to")} as to_location, ${ctx.label("transfers", "status", `x.${t("status")}`)} as status
   into v_row from ${transfers} x where x.${t("id")} = ${name}.transfer for update;
   if not found then
     ${fail("INVENTORY_TRANSFER_NOT_FOUND", "transfer not found", "P0002")}
@@ -139,7 +139,7 @@ begin
     ${statusError}
   end if;
   ${move("ship_transfer", "v_row.from_location", "-", "transfer_out")}
-  update ${transfers} x set ${t("status")} = 'in_transit', ${t("shippedAt")} = now() where x.${t("id")} = ship_transfer.transfer;
+  update ${transfers} x set ${t("status")} = ${ctx.value("transfers", "status", "in_transit")}, ${t("shippedAt")} = now() where x.${t("id")} = ship_transfer.transfer;
   ${event("transfer.shipped", "ship_transfer", "'in_transit'")}
   return true;
 end;
@@ -161,7 +161,7 @@ begin
     ${statusError}
   end if;
   ${move("receive_transfer", "v_row.to_location", "", "transfer_in")}
-  update ${transfers} x set ${t("status")} = 'received', ${t("receivedAt")} = now() where x.${t("id")} = receive_transfer.transfer;
+  update ${transfers} x set ${t("status")} = ${ctx.value("transfers", "status", "received")}, ${t("receivedAt")} = now() where x.${t("id")} = receive_transfer.transfer;
   ${event("transfer.received", "receive_transfer", "'received'")}
   return true;
 end;
@@ -185,7 +185,7 @@ begin
   if v_row.status = 'in_transit' then
     ${move("cancel_transfer", "v_row.from_location", "", "transfer_in")}
   end if;
-  update ${transfers} x set ${t("status")} = 'cancelled' where x.${t("id")} = cancel_transfer.transfer;
+  update ${transfers} x set ${t("status")} = ${ctx.value("transfers", "status", "cancelled")} where x.${t("id")} = cancel_transfer.transfer;
   ${event("transfer.cancelled", "cancel_transfer", "'cancelled'")}
   return true;
 end;
@@ -215,7 +215,7 @@ export function purchaseOrderFunctions(
 
   const load = (
     name: string,
-  ): string => `select x.${po("tenant")} as tenant, x.${po("location")} as location, x.${po("status")} as status,
+  ): string => `select x.${po("tenant")} as tenant, x.${po("location")} as location, ${ctx.label("purchaseOrders", "status", `x.${po("status")}`)} as status,
     x.${po("supplierType")} as supplier_type, x.${po("supplierId")} as supplier_id
   into v_row from ${orders} x where x.${po("id")} = ${name}.purchase_order for update;
   if not found then
@@ -276,7 +276,7 @@ begin
     update ${orders} x set ${po("location")} = save_purchase_order.location, ${po("supplierType")} = save_purchase_order.supplier_type,
       ${po("supplierId")} = save_purchase_order.supplier_id, ${po("currency")} = save_purchase_order.currency,
       ${po("expectedAt")} = save_purchase_order.expected_at, ${po("note")} = save_purchase_order.note, ${po("updatedAt")} = now()
-    where x.${po("id")} = v_id and x.${po("status")} = 'draft';
+    where x.${po("id")} = v_id and ${ctx.is("purchaseOrders", "status", `x.${po("status")}`, ["draft"])};
     if not found then
       ${fail("INVENTORY_PURCHASE_ORDER_LOCKED", "only a draft purchase order can change", "55000")}
     end if;
@@ -309,7 +309,7 @@ begin
   from ${lines} y where y.${pl("order")} = place_purchase_order.purchase_order
   on conflict (${lv("variant")}, ${lv("location")}) do update
     set ${lv("incoming")} = x.${lv("incoming")} + excluded.${lv("incoming")}, ${lv("updatedAt")} = now();
-  update ${orders} x set ${po("status")} = 'ordered', ${po("placedAt")} = now(), ${po("updatedAt")} = now()
+  update ${orders} x set ${po("status")} = ${ctx.value("purchaseOrders", "status", "ordered")}, ${po("placedAt")} = now(), ${po("updatedAt")} = now()
   where x.${po("id")} = place_purchase_order.purchase_order;
   ${event("purchase_order.placed", "place_purchase_order", "'ordered'")}
   return true;
@@ -387,7 +387,7 @@ begin
     where y.${pl("order")} = cancel_purchase_order.purchase_order
       and x.${lv("variant")} = y.${pl("variant")} and x.${lv("location")} = v_row.location;
   end if;
-  update ${orders} x set ${po("status")} = 'cancelled', ${po("updatedAt")} = now()
+  update ${orders} x set ${po("status")} = ${ctx.value("purchaseOrders", "status", "cancelled")}, ${po("updatedAt")} = now()
   where x.${po("id")} = cancel_purchase_order.purchase_order;
   ${event("purchase_order.cancelled", "cancel_purchase_order", "'cancelled'")}
   return true;

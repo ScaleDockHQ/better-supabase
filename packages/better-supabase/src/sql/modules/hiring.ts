@@ -301,8 +301,8 @@ function build(ctx: BlockSqlContext): string {
 
   const applicationJson = (alias: string): string =>
     fixedCandidate
-      ? `(to_jsonb(${alias}) || jsonb_build_object('candidate_type', ${sqlString(candidate)}, ${sqlString(ctx.colName("applications", "candidateId"))}, ${alias}.${a("candidateId")}::text))`
-      : `to_jsonb(${alias})`;
+      ? `(${ctx.rowJson("applications", alias, { as: { candidateId: (value) => `${value}::text` } })} || jsonb_build_object('candidate_type', ${sqlString(candidate)}, ${sqlString(ctx.colName("applications", "candidateId"))}, ${alias}.${a("candidateId")}::text))`
+      : ctx.rowJson("applications", alias);
 
   const interviewerOf = (row: string, user: string): string | undefined => {
     const checks = [
@@ -325,13 +325,13 @@ function build(ctx: BlockSqlContext): string {
 
   const interviewJson = (alias: string): string =>
     interviewerRows
-      ? `(to_jsonb(${alias}) || jsonb_build_object('interviewer_user_ids', (select coalesce(jsonb_agg(z.${iv("user")} order by z.${iv("user")}), '[]'::jsonb) from ${t("interviewers")} z where z.${iv("interview")} = ${alias}.${v("id")})))`
-      : `to_jsonb(${alias})`;
+      ? `(${ctx.rowJson("interviews", alias)} || jsonb_build_object('interviewer_user_ids', (select coalesce(jsonb_agg(z.${iv("user")} order by z.${iv("user")}), '[]'::jsonb) from ${t("interviewers")} z where z.${iv("interview")} = ${alias}.${v("id")})))`
+      : ctx.rowJson("interviews", alias);
 
   const scorecardJson = (alias: string): string =>
     scoreRows
-      ? `(to_jsonb(${alias}) || jsonb_build_object('scores', (select coalesce(jsonb_agg(jsonb_build_object('criterion', y.${sc("criterion")}, 'score', y.${sc("score")}, 'notes', ${ctx.has("scorecardScores", "notes") ? `y.${sc("notes")}` : "null"}) order by y.${sc("criterion")}), '[]'::jsonb) from ${t("scorecardScores")} y where y.${sc("scorecard")} = ${alias}.${s("id")})))`
-      : `to_jsonb(${alias})`;
+      ? `(${ctx.rowJson("scorecards", alias)} || jsonb_build_object('scores', (select coalesce(jsonb_agg(jsonb_build_object('criterion', y.${sc("criterion")}, 'score', y.${sc("score")}, 'notes', ${ctx.has("scorecardScores", "notes") ? `y.${sc("notes")}` : "null"}) order by y.${sc("criterion")}), '[]'::jsonb) from ${t("scorecardScores")} y where y.${sc("scorecard")} = ${alias}.${s("id")})))`
+      : ctx.rowJson("scorecards", alias);
 
   const managerValue =
     managerEmployee && ctx.has("jobs", "hiringManager")
@@ -650,7 +650,7 @@ begin
       ${jobRecord("job.closed")}
     end if;
   end if;
-  return ${withExtraFields("to_jsonb(v_job)", "v_job", extras)};
+  return ${withExtraFields(ctx.rowJson("jobs", "v_job"), "v_job", extras)};
 end;
 $$;
 ${userGrant(`${fn("save_job")}(${ctx.idType}, uuid, jsonb)`)}

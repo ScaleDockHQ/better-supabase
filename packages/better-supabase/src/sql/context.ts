@@ -1276,6 +1276,9 @@ export function createModuleContext(
       maps: checkedValueMaps(where, config.values, names.tables),
       cast: owned.cast,
       column: requiredColumn,
+      mapped: (table, logical) =>
+        config.tables[table] === null ? null : column(table, logical),
+      own: (name) => naming.rename(name),
     }),
     names,
     installedModules: [...installed],

@@ -76,7 +76,7 @@ const PAYMENT_STATUSES =
   "('requires_action', 'processing', 'authorized', 'succeeded', 'failed', 'canceled')";
 
 /** Payment statuses a late webhook can't move a payment back from. */
-const SETTLED = "('succeeded', 'failed', 'canceled')";
+const SETTLED = ["succeeded", "failed", "canceled"];
 
 /**
  * `order_json(order)`: the order with its lines, payments, fulfillments,
@@ -110,7 +110,7 @@ set search_path = ''
 as $$
   select jsonb_build_object(
     'id', x.${o("id")}, 'organizationId', x.${o("tenant")}, 'number', x.${o("number")}, 'cartId', x.${o("cart")},
-    'customerId', x.${o("customer")}, 'email', ${or("orders", "x", "email")}, 'status', x.${o("status")}, 'currency', x.${o("currency")},
+    'customerId', x.${o("customer")}, 'email', ${or("orders", "x", "email")}, 'status', ${ctx.label("orders", "status", `x.${o("status")}`)}, 'currency', x.${o("currency")},
     'subtotal', ${text("x", o("subtotal"))}, 'discountTotal', ${text("x", o("discountTotal"))},
     'shippingTotal', ${text("x", o("shippingTotal"))}, 'taxTotal', ${text("x", o("taxTotal"))}, 'total', ${text("x", o("total"))},
     'paidTotal', ${text("x", o("paidTotal"))}, 'refundedTotal', ${text("x", o("refundedTotal"))}, 'taxInclusive', x.${o("taxInclusive")},
@@ -128,26 +128,26 @@ as $$
         'backordered', l.${ol("backordered")}) order by l.${ol("position")})
       from ${ctx.table("orderLines")} l where l.${ol("order")} = x.${o("id")}), '[]'::jsonb),
     'payments', coalesce((select jsonb_agg(jsonb_build_object(
-        'id', y.${p("id")}, 'provider', y.${p("provider")}, 'reference', y.${p("reference")}, 'status', y.${p("status")},
+        'id', y.${p("id")}, 'provider', y.${p("provider")}, 'reference', y.${p("reference")}, 'status', ${ctx.label("payments", "status", `y.${p("status")}`)},
         'amount', ${text("y", p("amount"))}, 'captured', ${text("y", p("captured"))}, 'refunded', ${text("y", p("refunded"))},
         'createdAt', y.${p("createdAt")}) order by y.${p("createdAt")})
       from ${ctx.table("payments")} y where y.${p("order")} = x.${o("id")}), '[]'::jsonb),
     'fulfillments', coalesce((select jsonb_agg(jsonb_build_object(
-        'id', y.${f("id")}, 'status', y.${f("status")}, 'locationId', y.${f("location")}, 'carrier', y.${f("carrier")},
+        'id', y.${f("id")}, 'status', ${ctx.label("fulfillments", "status", `y.${f("status")}`)}, 'locationId', y.${f("location")}, 'carrier', y.${f("carrier")},
         'trackingNumber', y.${f("trackingNumber")}, 'trackingUrl', ${or("fulfillments", "y", "trackingUrl")}, 'createdAt', y.${f("createdAt")},
         'shippedAt', y.${f("shippedAt")}, 'deliveredAt', y.${f("deliveredAt")},
         'lines', coalesce((select jsonb_agg(jsonb_build_object('lineId', z.${fl("line")}, 'quantity', z.${fl("quantity")}))
           from ${ctx.table("fulfillmentLines")} z where z.${fl("fulfillment")} = y.${f("id")}), '[]'::jsonb)) order by y.${f("createdAt")})
       from ${ctx.table("fulfillments")} y where y.${f("order")} = x.${o("id")}), '[]'::jsonb),
     'returns', coalesce((select jsonb_agg(jsonb_build_object(
-        'id', y.${r("id")}, 'status', y.${r("status")}, 'reason', ${or("returns", "y", "reason")}, 'createdAt', y.${r("createdAt")},
+        'id', y.${r("id")}, 'status', ${ctx.label("returns", "status", `y.${r("status")}`)}, 'reason', ${or("returns", "y", "reason")}, 'createdAt', y.${r("createdAt")},
         'receivedAt', y.${r("receivedAt")},
         'lines', coalesce((select jsonb_agg(jsonb_build_object('lineId', z.${rl("line")}, 'quantity', z.${rl("quantity")}))
           from ${ctx.table("returnLines")} z where z.${rl("return")} = y.${r("id")}), '[]'::jsonb)) order by y.${r("createdAt")})
       from ${ctx.table("returns")} y where y.${r("order")} = x.${o("id")}), '[]'::jsonb),
     'refunds', coalesce((select jsonb_agg(jsonb_build_object(
         'id', y.${rf("id")}, 'paymentId', y.${rf("payment")}, 'returnId', y.${rf("return")}, 'amount', ${text("y", rf("amount"))},
-        'status', y.${rf("status")}, 'reason', ${or("refunds", "y", "reason")}, 'providerReference', y.${rf("providerReference")},
+        'status', ${ctx.label("refunds", "status", `y.${rf("status")}`)}, 'reason', ${or("refunds", "y", "reason")}, 'providerReference', y.${rf("providerReference")},
         'createdAt', y.${rf("createdAt")}, 'completedAt', y.${rf("completedAt")}) order by y.${rf("createdAt")})
       from ${ctx.table("refunds")} y where y.${rf("order")} = x.${o("id")}), '[]'::jsonb)${extraFieldsJson("x", names.extras)})
   from ${ctx.table("orders")} x where x.${o("id")} = p_order
@@ -256,6 +256,10 @@ export function checkoutFunctions(
 ): string {
   const { fn } = names;
   const minutes = paymentWindow(ctx);
+
+  const settled = (value: string, negate = false): string =>
+    ctx.is("payments", "status", value, SETTLED, negate);
+
   const carts = ctx.table("carts");
   const orders = ctx.table("orders");
   const payments = ctx.table("payments");
@@ -330,7 +334,7 @@ declare
   v_claims text;
 begin
   ${serviceOnlyGuard()}
-  select x.${c("tenant")} as tenant, x.${c("user")} as owner, x.${c("status")} as status, x.${c("currency")} as currency,
+  select x.${c("tenant")} as tenant, x.${c("user")} as owner, ${ctx.label("carts", "status", `x.${c("status")}`)} as status, x.${c("currency")} as currency,
     ${cartOr("email", "text")} as email, x.${c("shippingAddress")} as shipping_address, ${cartOr("billingAddress", "jsonb")} as billing_address
   into v_cart from ${carts} x where x.${c("id")} = place_order.cart for update;
   if not found then
@@ -394,7 +398,7 @@ begin
       : `
   perform ${promotions.fn("redeem_promotions")}(v_order.id, v_priced -> 'promotions');`
   }
-  update ${carts} x set ${c("status")} = 'converted', ${c("convertedAt")} = now(), ${c("updatedAt")} = now()
+  update ${carts} x set ${c("status")} = ${ctx.value("carts", "status", "converted")}, ${c("convertedAt")} = now(), ${c("updatedAt")} = now()
   where x.${c("id")} = place_order.cart;
   ${ctx.record({
     type: "order.placed",
@@ -466,7 +470,7 @@ begin
   values (v_order.tenant, v_order.id, record_payment.provider, record_payment.reference, ${ctx.cast("payments", "status", "record_payment.status")}, record_payment.currency,
     record_payment.amount, coalesce(record_payment.captured, 0), coalesce(record_payment.refunded, 0))
   on conflict (${p("provider")}, ${p("reference")}) do update set
-    ${p("status")} = case when x.${p("status")} in ${SETTLED} and excluded.${p("status")} not in ${SETTLED} then x.${p("status")} else excluded.${p("status")} end,
+    ${p("status")} = case when ${settled(`x.${p("status")}`)} and ${settled(`excluded.${p("status")}`, true)} then x.${p("status")} else excluded.${p("status")} end,
     ${p("amount")} = excluded.${p("amount")},
     ${p("captured")} = greatest(x.${p("captured")}, excluded.${p("captured")}),
     ${p("refunded")} = greatest(x.${p("refunded")}, excluded.${p("refunded")}),
@@ -476,7 +480,7 @@ begin
     ${fail("ORDERS_PAYMENT_CONFLICT", "this payment reference belongs to another order", "23505")}
   end if;
   select coalesce(sum(x.${p("captured")}), 0) into v_paid from ${payments} x
-  where x.${p("order")} = v_order.id and x.${p("status")} = 'succeeded';
+  where x.${p("order")} = v_order.id and ${ctx.is("payments", "status", `x.${p("status")}`, ["succeeded"])};
   update ${orders} x set ${o("paidTotal")} = v_paid, ${o("updatedAt")} = now() where x.${o("id")} = v_order.id;
   if v_order.status = 'pending_payment' and v_paid >= v_order.total then
     perform ${fn("order_transition")}(v_order.id, 'paid');${commitLines(ctx)}
@@ -500,7 +504,7 @@ begin
     })}
     v_newly := true;
   end if;
-  return jsonb_build_object('orderId', v_order.id, 'status', (select x.${o("status")} from ${orders} x where x.${o("id")} = v_order.id),
+  return jsonb_build_object('orderId', v_order.id, 'status', (select ${ctx.label("orders", "status", `x.${o("status")}`)} from ${orders} x where x.${o("id")} = v_order.id),
     'paidTotal', v_paid::text, 'newlyPaid', v_newly,
     'invoiceNumber', coalesce(v_number, v_order.invoice_number)${invoice ? `, 'invoiceId', v_invoice ->> ${sqlString(invoice.id)}` : ""});
 end;
@@ -603,7 +607,7 @@ begin
   ${serviceOnlyGuard()}
   for v_id in
     select x.${o("id")} from ${orders} x
-    where x.${o("status")} = 'pending_payment' and x.${o("placedAt")} < now() - interval '${String(minutes)} minutes'
+    where ${ctx.is("orders", "status", `x.${o("status")}`, ["pending_payment"])} and x.${o("placedAt")} < now() - interval '${String(minutes)} minutes'
     order by x.${o("placedAt")}
     limit greatest(coalesce(expire_orders.max_rows, 100), 1)
     for update skip locked

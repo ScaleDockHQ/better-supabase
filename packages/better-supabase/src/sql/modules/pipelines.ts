@@ -292,12 +292,12 @@ ${renderPolicy(makePolicy({ table: t("history"), name: ctx.naming.rename("pipeli
  */
 function rowJson(ctx: BlockSqlContext, table: string, alias: string): string {
   if (ctx.owns(table)) {
-    return `to_jsonb(${alias})`;
+    return ctx.rowJson(table, alias);
   }
 
   const columns = Object.entries(NAMES.tables[table]?.columns ?? {}).map(
     ([logical, name]) =>
-      `${sqlString(name)}, ${ctx.has(table, logical) ? `${alias}.${ctx.col(table, logical)}` : "null"}`,
+      `${sqlString(name)}, ${ctx.has(table, logical) ? ctx.label(table, logical, `${alias}.${ctx.col(table, logical)}`) : "null"}`,
   );
 
   return `jsonb_build_object(${columns.join(", ")})`;

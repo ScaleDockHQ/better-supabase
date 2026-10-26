@@ -503,8 +503,8 @@ function build(ctx: BlockSqlContext): string {
     name: fullName,
     json: (alias) =>
       ctx.has("employees", "name")
-        ? `to_jsonb(${alias})`
-        : `(to_jsonb(${alias}) || jsonb_build_object('name', ${fullName(alias)}))`,
+        ? ctx.rowJson("employees", alias)
+        : `(${ctx.rowJson("employees", alias)} || jsonb_build_object('name', ${fullName(alias)}))`,
   };
 
   return `${schemaPreamble(ctx)}

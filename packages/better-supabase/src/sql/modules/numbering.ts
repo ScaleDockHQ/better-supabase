@@ -889,11 +889,13 @@ function trigger(ctx: BlockSqlContext, item: SequenceEntity): string {
     "42501",
   );
 
+  const issued = `coalesce(v_issued[1] = ${sqlString(item.name)} and new.${col}::text in (v_issued[2], v_issued[3])${sequence === undefined ? "" : ` and new.${sequence}::text = v_issued[2]`}, false)`;
+
   const manualSequence =
     sequence === undefined
       ? ""
       : `
-  if not (${SERVICE_CALLER}) then
+  if not (${SERVICE_CALLER} or ${issued}) then
     if tg_op = 'INSERT' then
       if new.${sequence} is not null then
         ${manual}
@@ -913,6 +915,7 @@ as $$
 declare
   v_n bigint;
   v_at timestamptz;
+  v_issued text[] := string_to_array(coalesce(current_setting('better_supabase.issued_number', true), ''), chr(31));
 begin
   if not (better_supabase.actor_may_write()) then
     ${fail("ACTOR_READ_ONLY", "This session is read-only")}
@@ -925,7 +928,9 @@ begin
   end if;
   -- A number is assigned here or by the service role, never sent by a client.${manualSequence}
   if new.${col} is not null then
-    if not (${SERVICE_CALLER}) then
+    if ${issued} then
+      perform set_config('better_supabase.issued_number', '', true);
+    elsif not (${SERVICE_CALLER}) then
       ${manual}
     end if;
     return new;

@@ -522,7 +522,7 @@ as $$
       'orderId', o.${o("id")},
       'number', o.${o("number")},
       'customerId', o.${o("customer")},
-      'status', o.${o("status")},
+      'status', ${ctx.label("orders", "status", `o.${o("status")}`)},
       'state', (${STATES})[min(${rank(stateOf("p"))})],
       'sentAt', min(p.${lp("queuedAt")}),
       'readyAt', case when bool_and(p.${lp("readyAt")} is not null) then max(p.${lp("readyAt")}) end,

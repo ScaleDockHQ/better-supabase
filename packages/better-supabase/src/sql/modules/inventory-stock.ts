@@ -328,7 +328,7 @@ begin
   if exists (select 1 from ${ledger.table("accounts")} x join ${ledger.table("entries")} y on y.${le("account")} = x.${la("id")}
       where x.${la("tenant")} = v_tenant and x.${la("managedBy")} = 'inventory' and x.${la("kind")} = 'stock'
         and x.${la("metadata")} ->> 'locationId' = delete_location.location::text)
-    or exists (select 1 from ${ctx.table("reservations")} x where x.${r("location")} = delete_location.location and x.${r("status")} = 'active') then
+    or exists (select 1 from ${ctx.table("reservations")} x where x.${r("location")} = delete_location.location and ${ctx.is("reservations", "status", `x.${r("status")}`, ["active"])}) then
     ${fail("INVENTORY_LOCATION_IN_USE", "the location has stock history; deactivate it instead", "23503")}
   end if;
   delete from ${locations} x where x.${l("id")} = delete_location.location;
@@ -530,9 +530,9 @@ begin
   ])}
   ${lockLevel(ctx, "reserve_stock.variant", "reserve_stock.location")}
   with expired as (
-    update ${reservations} x set ${r("status")} = 'expired', ${r("updatedAt")} = now()
+    update ${reservations} x set ${r("status")} = ${ctx.value("reservations", "status", "expired")}, ${r("updatedAt")} = now()
     where x.${r("variant")} = reserve_stock.variant and x.${r("location")} = reserve_stock.location
-      and x.${r("status")} = 'active' and x.${r("expiresAt")} <= now()
+      and ${ctx.is("reservations", "status", `x.${r("status")}`, ["active"])} and x.${r("expiresAt")} <= now()
     returning x.${r("quantity")} as quantity
   )
   update ${levels} x set ${lv("reserved")} = greatest(x.${lv("reserved")} - (select coalesce(sum(e.quantity), 0)::integer from expired e), 0)
@@ -581,7 +581,7 @@ declare
   v_movement uuid;
 begin
   select x.${r("tenant")} as tenant, x.${r("variant")} as variant, x.${r("location")} as location,
-    x.${r("quantity")} as quantity, x.${r("status")} as status, x.${r("expiresAt")} as expires_at,
+    x.${r("quantity")} as quantity, ${ctx.label("reservations", "status", `x.${r("status")}`)} as status, x.${r("expiresAt")} as expires_at,
     x.${r("referenceType")} as reference_type, x.${r("referenceId")} as reference_id
   into v_row from ${reservations} x where x.${r("id")} = commit_reservation.reservation for update;
   if not found then
@@ -595,7 +595,7 @@ begin
     ${fail("INVENTORY_RESERVATION_EXPIRED", "the reservation has expired", "55000")}
   end if;
   ${releaseLevel("v_row.variant", "v_row.location", "v_row.quantity")}
-  update ${reservations} x set ${r("status")} = 'committed', ${r("updatedAt")} = now()
+  update ${reservations} x set ${r("status")} = ${ctx.value("reservations", "status", "committed")}, ${r("updatedAt")} = now()
   where x.${r("id")} = commit_reservation.reservation;
   v_movement := ${moveStock(ctx, { tenant: "v_row.tenant", variant: "v_row.variant", location: "v_row.location", quantity: "-v_row.quantity", reason: "'sale'", referenceType: "v_row.reference_type", referenceId: "v_row.reference_id" })};
   ${ctx.record({
@@ -621,7 +621,7 @@ declare
   v_row record;
 begin
   select x.${r("id")} as id, x.${r("tenant")} as tenant, x.${r("variant")} as variant, x.${r("location")} as location,
-    x.${r("quantity")} as quantity, x.${r("status")} as status
+    x.${r("quantity")} as quantity, ${ctx.label("reservations", "status", `x.${r("status")}`)} as status
   into v_row from ${reservations} x where x.${r("id")} = release_reservation.reservation for update;
   if not found then
     return false;
@@ -631,7 +631,7 @@ begin
     return false;
   end if;
   ${releaseLevel("v_row.variant", "v_row.location", "v_row.quantity")}
-  update ${reservations} x set ${r("status")} = 'released', ${r("updatedAt")} = now()
+  update ${reservations} x set ${r("status")} = ${ctx.value("reservations", "status", "released")}, ${r("updatedAt")} = now()
   where x.${r("id")} = release_reservation.reservation;
   ${released("v_row.", "released")}
   return true;
@@ -655,12 +655,12 @@ begin
     select x.${r("id")} as id, x.${r("tenant")} as tenant, x.${r("variant")} as variant,
       x.${r("location")} as location, x.${r("quantity")} as quantity
     from ${reservations} x
-    where x.${r("status")} = 'active' and x.${r("expiresAt")} <= now()
+    where ${ctx.is("reservations", "status", `x.${r("status")}`, ["active"])} and x.${r("expiresAt")} <= now()
     order by x.${r("expiresAt")}
     limit greatest(coalesce(expire_reservations.max_rows, 500), 1)
     for update skip locked
   loop
-    update ${reservations} x set ${r("status")} = 'expired', ${r("updatedAt")} = now() where x.${r("id")} = v_row.id;
+    update ${reservations} x set ${r("status")} = ${ctx.value("reservations", "status", "expired")}, ${r("updatedAt")} = now() where x.${r("id")} = v_row.id;
     ${releaseLevel("v_row.variant", "v_row.location", "v_row.quantity")}
     ${released("v_row.", "expired")}
     v_count := v_count + 1;

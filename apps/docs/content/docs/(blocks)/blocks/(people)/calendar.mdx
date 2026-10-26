@@ -323,7 +323,22 @@ an app that stores them in their own tables:
 `columns.events.rrule` and `columns.events.exdates` can then be `null`. Saving,
 cancelling an occurrence, splitting a series, importing and every read go
 through those tables. `values.rules.freq` and `values.recurrenceDates.kind`
-map the labels to your enums.
+map the labels to your enums. A rules table keyed by its event maps
+`columns.rules.id` to `null`.
+
+`options.ruleDialect` reads and writes the structured columns in your own
+shape, over your own rules table with `columns.rules.rrule: null`:
+
+```ts title="better-supabase.config.ts"
+ruleDialect: {
+  weekdays: "lower", // byDay holds mo, tu, ... instead of MO, TU, ...
+  monthDay: "scalar", // byMonthDay is one integer, not a list
+  ordinal: { weekday: "month_weekday", position: "month_ordinal" },
+},
+```
+
+With `ordinal`, a rule such as `BYDAY=2TU` goes into the two named columns
+and leaves `byDay` empty; reads turn them back into `BYDAY=2TU`.
 
 ## Attendees without an email
 

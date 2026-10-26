@@ -312,10 +312,17 @@ function functions(
 
   // A status read compared with text.
   const shipStatus = (row: string): string =>
-    asText(ctx, "shipments", `${row}.${h("status")}`);
+    ctx.mapsValues("shipments", "status")
+      ? ctx.label("shipments", "status", `${row}.${h("status")}`)
+      : asText(ctx, "shipments", `${row}.${h("status")}`);
 
   const eventStatus = (row: string): string =>
-    asText(ctx, "trackingEvents", `${row}.${e("status")}`);
+    ctx.mapsValues("trackingEvents", "status")
+      ? ctx.label("trackingEvents", "status", `${row}.${e("status")}`)
+      : asText(ctx, "trackingEvents", `${row}.${e("status")}`);
+
+  const st = (row: string, labels: readonly string[], negate = false) =>
+    ctx.is("shipments", "status", `${row}.${h("status")}`, labels, negate);
 
   // A column of row, or null when the app maps it to null.
   const or = (table: string, row: string, logical: string): string =>
@@ -351,13 +358,13 @@ function functions(
 
   const shipmentJson = (row: string): string =>
     withExtraFields(
-      `jsonb_build_object('id', ${row}.${h("id")}, 'organizationId', ${row}.${h("tenant")}::text, 'reference', ${row}.${h("reference")}, 'status', ${row}.${h("status")}, 'from', ${row}.${h("fromAddress")}, 'to', ${row}.${h("toAddress")}, 'fromLocationId', ${or("shipments", row, "fromLocation")}, 'subjectType', ${or("shipments", row, "subjectType")}, 'subjectId', ${or("shipments", row, "subjectId")}, 'carrier', ${row}.${h("carrier")}, 'service', ${row}.${h("service")}, 'trackingNumber', ${row}.${h("trackingNumber")}, 'trackingUrl', ${or("shipments", row, "trackingUrl")}, 'labelId', ${row}.${h("labelId")}, 'labelUrl', ${or("shipments", row, "labelUrl")}, 'labelFormat', ${row}.${h("labelFormat")}, 'labelCost', ${row}.${h("labelCost")}::text, 'currency', ${row}.${h("currency")}, 'labeledAt', ${row}.${h("labeledAt")}, 'deliveredAt', ${row}.${h("deliveredAt")}, 'cancelledAt', ${row}.${h("cancelledAt")}, 'createdBy', ${or("shipments", row, "createdBy")}, 'createdAt', ${row}.${h("createdAt")}, 'updatedAt', ${row}.${h("updatedAt")}, 'packages', ${packagesJson(row)})`,
+      `jsonb_build_object('id', ${row}.${h("id")}, 'organizationId', ${row}.${h("tenant")}::text, 'reference', ${row}.${h("reference")}, 'status', ${ctx.label("shipments", "status", `${row}.${h("status")}`)}, 'from', ${row}.${h("fromAddress")}, 'to', ${row}.${h("toAddress")}, 'fromLocationId', ${or("shipments", row, "fromLocation")}, 'subjectType', ${or("shipments", row, "subjectType")}, 'subjectId', ${or("shipments", row, "subjectId")}, 'carrier', ${row}.${h("carrier")}, 'service', ${row}.${h("service")}, 'trackingNumber', ${row}.${h("trackingNumber")}, 'trackingUrl', ${or("shipments", row, "trackingUrl")}, 'labelId', ${row}.${h("labelId")}, 'labelUrl', ${or("shipments", row, "labelUrl")}, 'labelFormat', ${row}.${h("labelFormat")}, 'labelCost', ${row}.${h("labelCost")}::text, 'currency', ${row}.${h("currency")}, 'labeledAt', ${row}.${h("labeledAt")}, 'deliveredAt', ${row}.${h("deliveredAt")}, 'cancelledAt', ${row}.${h("cancelledAt")}, 'createdBy', ${or("shipments", row, "createdBy")}, 'createdAt', ${row}.${h("createdAt")}, 'updatedAt', ${row}.${h("updatedAt")}, 'packages', ${packagesJson(row)})`,
       row,
       extras,
     );
 
   const eventJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${e("id")}, 'externalId', ${row}.${e("externalId")}, 'status', ${row}.${e("status")}, 'occurredAt', ${row}.${e("occurredAt")}, 'description', ${or("trackingEvents", row, "description")}, 'location', ${or("trackingEvents", row, "location")}, 'source', ${row}.${e("source")}, 'createdAt', ${row}.${e("createdAt")})`;
+    `jsonb_build_object('id', ${row}.${e("id")}, 'externalId', ${row}.${e("externalId")}, 'status', ${ctx.label("trackingEvents", "status", `${row}.${e("status")}`)}, 'occurredAt', ${row}.${e("occurredAt")}, 'description', ${or("trackingEvents", row, "description")}, 'location', ${or("trackingEvents", row, "location")}, 'source', ${row}.${e("source")}, 'createdAt', ${row}.${e("createdAt")})`;
 
   const subject = (row: string): string =>
     `'shipments/' || ${row}.${h("id")}::text`;
@@ -396,7 +403,7 @@ function functions(
 
   const statusRecord = ctx.record({
     type: "shipment.status_changed",
-    payload: `jsonb_build_object(${base("v_ship")}, 'from', v_from, 'to', v_ship.${h("status")}, 'trackingNumber', v_ship.${h("trackingNumber")})`,
+    payload: `jsonb_build_object(${base("v_ship")}, 'from', v_from, 'to', ${ctx.label("shipments", "status", `v_ship.${h("status")}`)}, 'trackingNumber', v_ship.${h("trackingNumber")})`,
     subject: subject("v_ship"),
     tenant: `v_ship.${h("tenant")}`,
     audit: false,
@@ -409,8 +416,8 @@ function functions(
     where t.${e("shipment")} = v_ship.${h("id")}
     order by t.${e("occurredAt")} desc, array_position(array[${list(TRACKING_STATUSES)}]::text[], ${eventStatus("t")}) desc
     limit 1;
-  if v_status is not null and v_ship.${h("status")} <> 'cancelled' and v_status <> ${shipStatus("v_ship")} then
-    v_from := v_ship.${h("status")};
+  if v_status is not null and ${st("v_ship", ["cancelled"], true)} and v_status <> ${shipStatus("v_ship")} then
+    v_from := ${ctx.label("shipments", "status", `v_ship.${h("status")}`)};
     update ${shipments} x set
       ${h("status")} = ${ctx.cast("shipments", "status", "v_status")},
       ${h("deliveredAt")} = case when v_status = 'delivered' then v_at end,
@@ -616,7 +623,7 @@ declare
   v_ship ${shipments}%rowtype;${syncDeclare}
 begin
 ${findForWrite("set_shipment_label.shipment_id")}
-  if v_ship.${h("status")} <> 'draft' then
+  if ${st("v_ship", ["draft"], true)} then
     ${fail("SHIPMENT_NOT_DRAFT", "only a draft shipment gets a label", "55000")}
   end if;
   begin
@@ -642,7 +649,7 @@ ${findForWrite("set_shipment_label.shipment_id")}
     ${fail("SHIPMENT_LABEL_INVALID", "a label needs a carrier, service, tracking number, label id, a cost of zero or more and a currency", "22023")}
   end if;
   insert into ${events} (${e("tenant")}, ${e("shipment")}, ${e("externalId")}, ${e("status")}, ${e("occurredAt")}${also("trackingEvents", "description")}, ${e("source")})
-  values (v_ship.${h("tenant")}, v_ship.${h("id")}, 'label:' || v_ship.${h("labelId")}, 'label_created', now()${alsoValue("trackingEvents", "description", "'Label created'")}, 'carrier')
+  values (v_ship.${h("tenant")}, v_ship.${h("id")}, 'label:' || v_ship.${h("labelId")}, ${ctx.value("trackingEvents", "status", "label_created")}, now()${alsoValue("trackingEvents", "description", "'Label created'")}, 'carrier')
   on conflict (${e("shipment")}, ${e("externalId")}) do nothing;
   ${ctx.record({
     type: "shipment.labeled",
@@ -706,7 +713,7 @@ begin
   end if;
 ${insertEvents("ingest_tracking_events.events", "'webhook'")}
 ${syncStatus}
-  return jsonb_build_object('id', v_ship.${h("id")}, 'organizationId', v_ship.${h("tenant")}::text, 'status', v_ship.${h("status")}, 'recorded', v_count);
+  return jsonb_build_object('id', v_ship.${h("id")}, 'organizationId', v_ship.${h("tenant")}::text, 'status', ${ctx.label("shipments", "status", `v_ship.${h("status")}`)}, 'recorded', v_count);
 end;
 $$;
 ${serviceGrant(`${fn("ingest_tracking_events")}(text, text, jsonb)`)}
@@ -724,11 +731,11 @@ declare
   v_ship ${shipments}%rowtype;
 begin
 ${findForWrite("cancel_shipment.shipment_id")}
-  if v_ship.${h("status")} not in ('draft', 'label_created') then
+  if ${st("v_ship", ["draft", "label_created"], true)} then
     ${fail("SHIPMENT_SHIPPED", "only a draft or a shipment that hasn't left gets cancelled", "55000")}
   end if;
   update ${shipments} x set
-    ${h("status")} = 'cancelled',
+    ${h("status")} = ${ctx.value("shipments", "status", "cancelled")},
     ${h("cancelledAt")} = now(),
     ${h("updatedAt")} = now()
   where x.${h("id")} = v_ship.${h("id")}

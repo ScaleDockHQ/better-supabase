@@ -34,6 +34,68 @@ function appFunction(value: unknown, key: string): string | undefined {
   return value.split(".").map(sqlIdent).join(".");
 }
 
+interface RuleDialect {
+  readonly lower: boolean;
+  readonly scalarMonthDay: boolean;
+  readonly ordinal?: { readonly weekday: string; readonly position: string };
+}
+
+const COLUMN = /^[a-z_][a-z0-9_]{0,62}$/;
+
+function ruleDialect(ctx: BlockSqlContext): RuleDialect {
+  const raw = ctx.option("ruleDialect");
+  const at = "blocks.calendar.options.ruleDialect";
+
+  if (raw === undefined) {
+    return { lower: false, scalarMonthDay: false };
+  }
+
+  if (!isRecord(raw) || ctx.owns("rules") || ctx.has("rules", "rrule")) {
+    throw new TypeError(
+      `${at} takes { weekdays, monthDay, ordinal } and needs your own rules table with columns.rules.rrule mapped to null`,
+    );
+  }
+
+  const { weekdays = "upper", monthDay = "list", ordinal } = raw;
+
+  if (
+    (weekdays !== "upper" && weekdays !== "lower") ||
+    (monthDay !== "list" && monthDay !== "scalar")
+  ) {
+    throw new TypeError(
+      `${at}: weekdays is "upper" or "lower", monthDay is "list" or "scalar"`,
+    );
+  }
+
+  if (ordinal === undefined) {
+    return {
+      lower: weekdays === "lower",
+      scalarMonthDay: monthDay === "scalar",
+    };
+  }
+
+  if (
+    !isRecord(ordinal) ||
+    typeof ordinal["weekday"] !== "string" ||
+    typeof ordinal["position"] !== "string" ||
+    !COLUMN.test(ordinal["weekday"]) ||
+    !COLUMN.test(ordinal["position"])
+  ) {
+    throw new TypeError(
+      `${at}.ordinal takes { weekday, position }, two column names of the rules table`,
+    );
+  }
+
+  return {
+    lower: weekdays === "lower",
+    scalarMonthDay: monthDay === "scalar",
+    ordinal: {
+      weekday: sqlIdent(ordinal["weekday"]),
+      position: sqlIdent(ordinal["position"]),
+    },
+  };
+}
+
 export function calendarFeatures(ctx: BlockSqlContext): CalendarFeatures {
   const access = ctx.flag("access", false);
   const functions = ctx.option("accessFunctions");
@@ -61,6 +123,10 @@ export function calendarFeatures(ctx: BlockSqlContext): CalendarFeatures {
   }
 
   const table = recurrence === "table";
+
+  if (ctx.option("ruleDialect") !== undefined) {
+    ruleDialect(ctx);
+  }
 
   if (table && (!ctx.hasTable("rules") || !ctx.hasTable("recurrenceDates"))) {
     throw new TypeError(
@@ -425,10 +491,34 @@ function ruleText(ctx: BlockSqlContext): string {
     return r("rrule");
   }
 
+  const dialect = ruleDialect(ctx);
+
   const list = (key: string, column: string) =>
     ctx.has("rules", column)
       ? [`'${key}=' || nullif(translate(${r(column)}::text, '{}" ', ''), '')`]
       : [];
+
+  const days = ctx.has("rules", "byDay")
+    ? `nullif(translate(${dialect.lower ? `upper(${r("byDay")}::text)` : `${r("byDay")}::text`}, '{}" ', ''), '')`
+    : undefined;
+
+  const ordinal =
+    dialect.ordinal === undefined
+      ? undefined
+      : `r.${dialect.ordinal.position}::text || upper(r.${dialect.ordinal.weekday}::text)`;
+
+  const dayParts = [days, ordinal].filter(
+    (part): part is string => part !== undefined,
+  );
+
+  const byDay =
+    dialect.lower || ordinal !== undefined
+      ? dayParts.length === 0
+        ? []
+        : [
+            `'BYDAY=' || ${dayParts.length === 1 ? dayParts[0] : `coalesce(${dayParts.join(", ")})`}`,
+          ]
+      : list("BYDAY", "byDay");
 
   const parts = [
     `'FREQ=' || upper(${ctx.label("rules", "freq", r("freq"))})`,
@@ -441,7 +531,7 @@ function ruleText(ctx: BlockSqlContext): string {
           `'UNTIL=' || to_char(${r("until")}::timestamptz at time zone 'UTC', 'YYYYMMDD"T"HH24MISS"Z"')`,
         ]
       : []),
-    ...list("BYDAY", "byDay"),
+    ...byDay,
     ...list("BYMONTHDAY", "byMonthDay"),
     ...list("BYMONTH", "byMonth"),
     ...list("BYSETPOS", "bySetPos"),
@@ -545,14 +635,47 @@ export function insertRule(
         `case when ${part("UNTIL")} is null then null else to_timestamp(rpad(translate(${part("UNTIL")}, 'TZ', ''), 14, '0'), 'YYYYMMDDHH24MISS')::timestamp at time zone 'UTC' end`,
     );
 
+    const dialect = ruleDialect(ctx);
+    const ordinalDay = `substring(upper(${source}) from '(?:^|;)BYDAY=([+-]?[0-9]+)[A-Z]{2}(?:;|$)')`;
+
+    const weekdays = (value: string) =>
+      dialect.lower ? `lower(${value})` : value;
+
+    add("byDay", () =>
+      ctx.cast(
+        "rules",
+        "byDay",
+        dialect.ordinal === undefined
+          ? `'{' || ${weekdays(part("BYDAY"))} || '}'`
+          : `case when ${ordinalDay} is null then '{' || ${weekdays(part("BYDAY"))} || '}' end`,
+      ),
+    );
+    add("byMonthDay", () =>
+      ctx.cast(
+        "rules",
+        "byMonthDay",
+        dialect.scalarMonthDay
+          ? part("BYMONTHDAY", "-?[0-9]+")
+          : `'{' || ${part("BYMONTHDAY")} || '}'`,
+      ),
+    );
+
     for (const [column, key] of [
-      ["byDay", "BYDAY"],
-      ["byMonthDay", "BYMONTHDAY"],
       ["byMonth", "BYMONTH"],
       ["bySetPos", "BYSETPOS"],
     ] as const) {
       add(column, () =>
         ctx.cast("rules", column, `'{' || ${part(key)} || '}'`),
+      );
+    }
+
+    if (dialect.ordinal !== undefined) {
+      columns.push(dialect.ordinal.position, dialect.ordinal.weekday);
+      values.push(
+        `(${ordinalDay})::integer`,
+        weekdays(
+          `substring(upper(${source}) from '(?:^|;)BYDAY=[+-]?[0-9]+([A-Z]{2})(?:;|$)')`,
+        ),
       );
     }
   }

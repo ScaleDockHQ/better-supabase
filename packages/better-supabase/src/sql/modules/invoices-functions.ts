@@ -101,6 +101,12 @@ export function invoiceFunctions(
   const can = (alias: string, permission: string): string =>
     `(${n.service} or ${ctx.scope.can(`${alias}.${i("tenant")}`, permission)})`;
 
+  const st = (value: string, labels: readonly string[], negate = false) =>
+    ctx.is("invoices", "status", value, labels, negate);
+
+  const kd = (value: string, labels: readonly string[], negate = false) =>
+    ctx.is("invoices", "kind", value, labels, negate);
+
   const balance = (alias: string): string =>
     `(${alias}.${i("total")} - ${alias}.${i("creditedTotal")} - ${alias}.${i("paidTotal")})`;
 
@@ -111,10 +117,16 @@ export function invoiceFunctions(
     ...Object.keys(TOTAL_COLUMNS),
   ].map(i);
 
+  const int8Text8 = Object.fromEntries(
+    ["number", "paidTotal", "creditedTotal", ...Object.keys(TOTAL_COLUMNS)].map(
+      (logical) => [logical, (value: string) => `${value}::text`],
+    ),
+  );
+
   const row = (alias: string): string =>
-    `to_jsonb(${alias}) || ${int8Text(alias, int8)} || jsonb_build_object(
+    `${ctx.rowJson("invoices", alias, { as: int8Text8 })} || ${int8Text(alias, int8)} || jsonb_build_object(
       'balance', ${balance(alias)}::text,
-      'overdue', ${alias}.${i("status")} in ('issued', 'partially_paid') and ${alias}.${i("dueOn")} < current_date,
+      'overdue', ${st(`${alias}.${i("status")}`, ["issued", "partially_paid"])} and ${alias}.${i("dueOn")} < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il.${l("description")}, 'quantity', il.${l("quantity")}, 'unitAmount', il.${l("unitAmount")}::text, 'discountBps', ${lineColumn(ctx, "lines", "il", "discountBps")}, 'taxRateBps', ${lineColumn(ctx, "lines", "il", "taxRateBps")}, 'taxCode', ${lineColumn(ctx, "lines", "il", "taxCode")}${lineFieldsJson("il", n.lineExtras)}) order by il.${l("position")}) from ${t("lines")} il where il.${l("parent")} = ${alias}.${i("id")}), '[]'::jsonb),
       'payments', ${ledger.payments(alias)})`;
 
@@ -169,7 +181,7 @@ export function invoiceFunctions(
       else 'issued' end`,
     )},
     ${i("paidAt")} = case when ${balance("x")} <= 0 then coalesce(x.${i("paidAt")}, now()) end
-  where x.${i("id")} = ${alias}.${i("id")} and x.${i("status")} in ('issued', 'partially_paid', 'paid')
+  where x.${i("id")} = ${alias}.${i("id")} and ${st(`x.${i("status")}`, ["issued", "partially_paid", "paid"])}
   returning * into ${alias};`;
 
   const quotes = ctx.installed("quotes") ? ctx.of("quotes") : undefined;
@@ -193,7 +205,7 @@ export function invoiceFunctions(
   if invoice_from_quote.deposit_bps is null then
     select * into v_row from ${t("invoices")} x
     where x.${i("originType")} = 'quote' and x.${i("originId")} = v_quote.${q("id")}::text
-      and ${deposits ? `x.${i("depositBps")} is null and ` : ""}x.${i("status")} <> 'void' and x.${i("kind")} = 'invoice'
+      and ${deposits ? `x.${i("depositBps")} is null and ` : ""}${st(`x.${i("status")}`, ["void"], true)} and ${kd(`x.${i("kind")}`, ["invoice"])}
     limit 1;
     if v_row.${i("id")} is not null then
       return ${row("v_row")};
@@ -209,7 +221,7 @@ export function invoiceFunctions(
         'taxRateBps', case when d.${i("subtotal")} = 0 then 0 else round(d.${i("taxTotal")} * 10000.0 / d.${i("subtotal")})::integer end)), '[]'::jsonb)
       into v_lines
     from ${t("invoices")} d
-    where d.${i("originType")} = 'quote' and d.${i("originId")} = v_quote.${q("id")}::text and d.${i("depositBps")} is not null and d.${i("status")} not in ('draft', 'void');`
+    where d.${i("originType")} = 'quote' and d.${i("originId")} = v_quote.${q("id")}::text and d.${i("depositBps")} is not null and ${st(`d.${i("status")}`, ["draft", "void"], true)};`
         : ""
     }
   else
@@ -245,7 +257,7 @@ begin
   if v_quote.${q("id")} is null or not (${n.service} or ${ctx.scope.can(`v_quote.${q("tenant")}`, n.write)}) then
     ${fail("INVOICE_ORIGIN_NOT_FOUND", "no such quote you can invoice", "P0002")}
   end if;
-  if v_quote.${q("status")} <> 'accepted' then
+  if ${quotes.is("quotes", "status", `v_quote.${q("status")}`, ["accepted"], true)} then
     ${fail("INVOICE_QUOTE_NOT_ACCEPTED", "only an accepted quote is invoiced", "55000")}
   end if;
   if invoice_from_quote.deposit_bps is not null and (invoice_from_quote.deposit_bps <= 0 or invoice_from_quote.deposit_bps >= 10000) then
@@ -263,7 +275,7 @@ ${userGrant(`${fn("invoice_from_quote")}(uuid, integer)`)}
         })();
 
   const kindTable = (kind: string): string =>
-    `(select * from ${t("invoices")} k where k.${i("kind")} = ${kind})`;
+    `(select * from ${t("invoices")} k where ${kd(`k.${i("kind")}`, [kind])})`;
 
   return `
 -- Creates a draft invoice. attrs: title (required), currency, company and
@@ -347,7 +359,7 @@ ${lineItemsSql(
   {
     lines: "lines",
     parent: "invoices",
-    frozen: `p.${i("status")} <> 'draft'`,
+    frozen: st(`p.${i("status")}`, ["draft"], true),
     extras: n.lineExtras,
   },
   {
@@ -376,35 +388,35 @@ begin
   if v_row.${i("id")} is null then
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
   end if;
-  if v_row.${i("status")} <> 'draft' then
+  if ${st(`v_row.${i("status")}`, ["draft"], true)} then
     ${fail("INVOICE_NOT_DRAFT", "the invoice was already issued", "55000")}
   end if;
   if not exists (select 1 from ${t("lines")} x where x.${l("parent")} = v_row.${i("id")}) then
     ${fail("INVOICE_EMPTY", "an invoice needs a line before it is issued", "23514")}
   end if;
   ${ctx.hook("before_invoice_issue", [["uuid", `v_row.${i("id")}`]])}
-  if v_row.${i("kind")} = 'credit_note' then
+  if ${kd(`v_row.${i("kind")}`, ["credit_note"])} then
     select * into v_original from ${t("invoices")} x where x.${i("id")} = v_row.${i("original")} for update;
     if v_row.${i("total")} > ${balance("v_original")} then
       ${fail("INVOICE_CREDIT_TOO_LARGE", "a credit note can't exceed what is still owed", "23514")}
     end if;
-    ${assignNumberSql(ctx, "credit_note", `v_row.${i("tenant")}`, { seq: "v_seq", identifier: "v_identifier" }, { table: kindTable("'credit_note'"), seq: i("number"), tenant: i("tenant"), prefix: n.creditPrefix })}
+    ${assignNumberSql(ctx, "credit_note", `v_row.${i("tenant")}`, { seq: "v_seq", identifier: "v_identifier" }, { table: kindTable("credit_note"), seq: i("number"), tenant: i("tenant"), prefix: n.creditPrefix })}
   else
-    ${assignNumberSql(ctx, "invoice", `v_row.${i("tenant")}`, { seq: "v_seq", identifier: "v_identifier" }, { table: kindTable("'invoice'"), seq: i("number"), tenant: i("tenant"), prefix: n.prefix })}
+    ${assignNumberSql(ctx, "invoice", `v_row.${i("tenant")}`, { seq: "v_seq", identifier: "v_identifier" }, { table: kindTable("invoice"), seq: i("number"), tenant: i("tenant"), prefix: n.prefix })}
   end if;
-  update ${t("invoices")} x set ${i("status")} = 'issued', ${i("number")} = v_seq, ${i("identifier")} = v_identifier,
+  update ${t("invoices")} x set ${i("status")} = ${ctx.value("invoices", "status", "issued")}, ${i("number")} = v_seq, ${i("identifier")} = v_identifier,
     ${i("issuedOn")} = coalesce(issue_invoice.issued_on, current_date),
     ${i("dueOn")} = coalesce(issue_invoice.issued_on, current_date) + x.${i("termsDays")},
     ${i("updatedAt")} = now()
   where x.${i("id")} = v_row.${i("id")}
   returning * into v_row;
   ${record("invoice.issued", "v_row", `, 'total', v_row.${i("total")}::text, 'currency', v_row.${i("currency")}, 'dueOn', v_row.${i("dueOn")}`)}
-  if v_row.${i("kind")} = 'credit_note' then
+  if ${kd(`v_row.${i("kind")}`, ["credit_note"])} then
     update ${t("invoices")} x set ${i("creditedTotal")} = x.${i("creditedTotal")} + v_row.${i("total")}, ${i("updatedAt")} = now()
     where x.${i("id")} = v_original.${i("id")}
     returning * into v_original;${settle("v_original")}
     ${record("invoice.credited", "v_original", `, 'creditNoteId', v_row.${i("id")}, 'amount', v_row.${i("total")}::text`)}
-    if v_original.${i("status")} = 'paid' then
+    if ${st(`v_original.${i("status")}`, ["paid"])} then
       ${record("invoice.paid", "v_original", `, 'total', v_original.${i("total")}::text`)}
     end if;
   end if;
@@ -435,7 +447,7 @@ begin
   if v_row.${i("id")} is null then
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
   end if;
-  if v_row.${i("kind")} <> 'invoice' or v_row.${i("status")} not in ('issued', 'partially_paid', 'paid') then
+  if ${kd(`v_row.${i("kind")}`, ["invoice"], true)} or ${st(`v_row.${i("status")}`, ["issued", "partially_paid", "paid"], true)} then
     ${fail("INVOICE_NOT_PAYABLE", "only an issued invoice takes payments", "55000")}
   end if;
   if coalesce(record_invoice_payment.amount, 0) = 0 then
@@ -462,7 +474,7 @@ begin
   v_was := v_row.${i("status")};
   v_payment := ${ledger.post("v_row", "record_invoice_payment.amount", "coalesce(record_invoice_payment.paid_at, now())", "record_invoice_payment.method", "v_reference")};${settle("v_row")}
   ${record("invoice.payment_recorded", "v_row", `, 'paymentId', v_payment, 'amount', record_invoice_payment.amount::text, 'balance', ${balance("v_row")}::text`)}
-  if v_row.${i("status")} = 'paid' and v_was <> 'paid' then
+  if ${st(`v_row.${i("status")}`, ["paid"])} and ${st("v_was", ["paid"], true)} then
     ${record("invoice.paid", "v_row", `, 'total', v_row.${i("total")}::text`)}
   end if;
   ${ctx.hook("after_invoice_payment", [
@@ -490,7 +502,7 @@ begin
   if v_original.${i("id")} is null then
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
   end if;
-  if v_original.${i("kind")} <> 'invoice' or v_original.${i("status")} not in ('issued', 'partially_paid', 'paid') then
+  if ${kd(`v_original.${i("kind")}`, ["invoice"], true)} or ${st(`v_original.${i("status")}`, ["issued", "partially_paid", "paid"], true)} then
     ${fail("INVOICE_NOT_CREDITABLE", "only an issued invoice is credited", "55000")}
   end if;
   insert into ${t("invoices")} (${valueLines(
@@ -516,7 +528,7 @@ begin
     "    ",
     [
       `v_original.${i("tenant")}`,
-      "'credit_note'",
+      ctx.value("invoices", "kind", "credit_note"),
       `v_original.${i("id")}`,
       `'Credit for ' || coalesce(v_original.${i("identifier")}, v_original.${i("title")})`,
     ],
@@ -566,10 +578,10 @@ begin
   if v_row.${i("id")} is null then
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can manage", "P0002")}
   end if;
-  if v_row.${i("status")} not in ('draft', 'issued') or v_row.${i("paidTotal")} <> 0 or v_row.${i("creditedTotal")} <> 0 then
+  if ${st(`v_row.${i("status")}`, ["draft", "issued"], true)} or v_row.${i("paidTotal")} <> 0 or v_row.${i("creditedTotal")} <> 0 then
     ${fail("INVOICE_NOT_VOIDABLE", "an invoice with payments or credits is credited, not voided", "55000")}
   end if;
-  update ${t("invoices")} x set ${i("status")} = 'void', ${i("voidedAt")} = now(),
+  update ${t("invoices")} x set ${i("status")} = ${ctx.value("invoices", "status", "void")}, ${i("voidedAt")} = now(),
     ${has("voidReason") ? `${i("voidReason")} = nullif(trim(void_invoice.reason), ''), ` : ""}${i("updatedAt")} = now()
   where x.${i("id")} = v_row.${i("id")} returning * into v_row;
   ${record("invoice.voided", "v_row", `, 'reason', ${has("voidReason") ? `v_row.${i("voidReason")}` : "nullif(trim(void_invoice.reason), '')"}`, true)}
@@ -588,8 +600,8 @@ as $$
 declare
   v_row ${t("invoices")};
 begin
-  update ${t("invoices")} x set ${i("status")} = 'uncollectible', ${i("updatedAt")} = now()
-  where x.${i("id")} = write_off_invoice.invoice and ${can("x", n.manage)} and x.${i("status")} in ('issued', 'partially_paid')
+  update ${t("invoices")} x set ${i("status")} = ${ctx.value("invoices", "status", "uncollectible")}, ${i("updatedAt")} = now()
+  where x.${i("id")} = write_off_invoice.invoice and ${can("x", n.manage)} and ${st(`x.${i("status")}`, ["issued", "partially_paid"])}
   returning * into v_row;
   if v_row.${i("id")} is null then
     ${fail("INVOICE_NOT_OPEN", "only an open invoice you can manage is written off", "55000")}
@@ -613,7 +625,7 @@ as $$
     select ${balance("x")} as balance, coalesce(invoice_aging.as_of, current_date) - x.${i("dueOn")} as late
     from ${t("invoices")} x
     where x.${i("tenant")} = invoice_aging.tenant and x.${i("currency")} = upper(invoice_aging.currency)
-      and x.${i("kind")} = 'invoice' and x.${i("status")} in ('issued', 'partially_paid')
+      and ${kd(`x.${i("kind")}`, ["invoice"])} and ${st(`x.${i("status")}`, ["issued", "partially_paid"])}
   )
   select jsonb_build_object(
     'currency', upper(invoice_aging.currency),

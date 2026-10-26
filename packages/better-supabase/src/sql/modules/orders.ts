@@ -428,7 +428,7 @@ create table if not exists ${t("carts")} (
   ${c("updatedAt")} timestamptz not null default now(),
   ${c("convertedAt")} timestamptz
 );
-create unique index if not exists ${ctx.naming.rename("carts_open_idx")} on ${t("carts")} (${c("tenant")}, ${c("user")}, ${c("currency")}) where ${c("status")} = 'open';
+create unique index if not exists ${ctx.naming.rename("carts_open_idx")} on ${t("carts")} (${c("tenant")}, ${c("user")}, ${c("currency")}) where ${ctx.is("carts", "status", c("status"), ["open"])};
 create index if not exists ${ctx.naming.rename("carts_user_idx")} on ${t("carts")} (${c("user")});
 create index if not exists ${ctx.naming.rename("carts_rate_idx")} on ${t("carts")} (${c("shippingRate")});
 ${c("priceList") && priceList ? `create index if not exists ${ctx.naming.rename("carts_price_list_idx")} on ${t("carts")} (${c("priceList")});\n` : ""}${lockModuleTable(ctx, "carts", { read: true })}
