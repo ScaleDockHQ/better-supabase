@@ -64,6 +64,25 @@ export const createCustomer = bsb.action(
 );
 
 /**
+ * Hands the customer to a team from the teams block, or to nobody. The
+ * `customers_owner_team_check` trigger refuses a team from another organization
+ * with `foreign_key_violation`.
+ */
+export const setCustomerOwnerTeam = bsb.action(
+  {
+    input: v.object({ customerId: Id, teamId: v.nullable(Id) }),
+    requireOrganization: true,
+    authorize: async () => can(await getPermissions(), "customers.write"),
+  },
+  async ({ customerId, teamId }, { db }) =>
+    db.customers.update(
+      customerId,
+      { ownerTeamId: teamId },
+      { select: ["id", "ownerTeamId"] },
+    ),
+);
+
+/**
  * Uploads a new logo, points the row at its path, then removes the old one. The
  * row keeps the path; URLs are built when rendering.
  */

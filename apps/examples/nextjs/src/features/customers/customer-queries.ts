@@ -48,7 +48,14 @@ export async function getCustomer(id: string) {
     .get(
       { id },
       {
-        select: ["id", "name", "status", "logoPath", "createdAt"],
+        select: [
+          "id",
+          "name",
+          "status",
+          "logoPath",
+          "ownerTeamId",
+          "createdAt",
+        ],
         include: {
           notes: {
             select: ["id", "body", "kind", "createdAt"],

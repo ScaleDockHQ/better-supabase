@@ -5,14 +5,13 @@ import { XIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { toast } from "sonner";
 
+import type { PendingInvitation } from "@/features/organization/organization-queries";
+
 import { Button } from "@/components/ui/button";
+import { revokeInvitation } from "@/features/organization/organization-actions";
 import { RoleBadge } from "@/features/user/components/role-badge";
 import { useErrorMessage } from "@/lib/use-error-message";
 import { cn } from "@/lib/utils";
-
-import type { PendingInvitation } from "../organization-queries";
-
-import { revokeInvitation } from "../organization-actions";
 
 /**
  * Only the token's hash is stored, so a pending invitation's link can't be

@@ -8,6 +8,8 @@ export type SettingsTabId =
   | "privacy"
   | "organization"
   | "members"
+  | "teams"
+  | "roles"
   | "accessRequests"
   | "billing"
   | "apiKeys"
@@ -40,6 +42,8 @@ export const settingsTabs: readonly SettingsTab[] = [
     requires: "settings.read",
   },
   { id: "members", href: "/settings/members", requires: "members.read" },
+  { id: "teams", href: "/settings/teams", requires: "teams.read" },
+  { id: "roles", href: "/settings/roles", requires: "members.read" },
   {
     id: "accessRequests",
     href: "/settings/access-requests",

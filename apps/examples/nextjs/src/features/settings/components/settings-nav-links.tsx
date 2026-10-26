@@ -38,6 +38,14 @@ export function useTabLabel(): (id: SettingsTabId) => string {
         return t("Members");
       }
 
+      case "teams": {
+        return t("Teams");
+      }
+
+      case "roles": {
+        return t("Roles");
+      }
+
       case "accessRequests": {
         return t("Access requests");
       }
@@ -105,7 +113,8 @@ export function SettingsNavLinks({
       {settingsTabs
         .filter((tab) => visible.includes(tab.id))
         .map((tab) => {
-          const active = pathname === tab.href;
+          const active =
+            pathname === tab.href || pathname.startsWith(`${tab.href}/`);
 
           return (
             <Link

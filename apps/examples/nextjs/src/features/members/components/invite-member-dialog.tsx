@@ -34,14 +34,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { invitationSent } from "@/features/organization/organization-actions";
+import { useInviteLink } from "@/features/organization/use-invite-link";
+import { useRoleLabel } from "@/features/organization/use-role-label";
 import { useInvitations } from "@/hooks/use-organizations";
 import { Role } from "@/lib/claims";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
-
-import { invitationSent } from "../organization-actions";
-import { useInviteLink } from "../use-invite-link";
-import { useRoleLabel } from "../use-role-label";
 
 /**
  * Invites a teammate through `invite_member` in the browser, then shows the

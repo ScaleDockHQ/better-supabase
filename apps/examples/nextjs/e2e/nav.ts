@@ -37,12 +37,12 @@ export function clickSettingsTab(
 }
 
 /**
- * A card title on the visible page; a section renders it once its data has
- * loaded.
+ * A card or frame title on the visible page; a section renders it once its data
+ * has loaded.
  */
 export function cardTitle(page: Page, title: string): Locator {
   return page
-    .locator('[data-slot="card-title"]')
+    .locator('[data-slot="card-title"], [data-slot="frame-panel-title"]')
     .filter({ hasText: new RegExp(`^${title}$`), visible: true });
 }
 

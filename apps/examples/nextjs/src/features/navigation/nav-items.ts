@@ -46,6 +46,8 @@ export type NavId =
   | "aiTasks"
   | "beta"
   | "members"
+  | "teams"
+  | "roles"
   | "billing"
   | "apiKeys"
   | "audit"
@@ -260,6 +262,18 @@ export const navItems: readonly NavItem[] = [
   {
     id: "members",
     href: "/settings/members",
+    group: "organization",
+    requires: "members.read",
+  },
+  {
+    id: "teams",
+    href: "/settings/teams",
+    group: "organization",
+    requires: "teams.read",
+  },
+  {
+    id: "roles",
+    href: "/settings/roles",
     group: "organization",
     requires: "members.read",
   },

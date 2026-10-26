@@ -232,8 +232,8 @@ export const RECIPES: readonly RecipeSource[] = [
       "An organization's members with their roles, where a role change shows at once and a member can be removed.",
     hook: { name: "useMembers", entry: "@/hooks/use-organizations" },
     web: {
-      file: `${WEB_APP}/src/features/organization/components/member-table.tsx`,
-      components: ["avatar", "button", "select", "table"],
+      file: `${WEB_APP}/src/features/members/components/member-table.tsx`,
+      components: ["avatar", "badge", "button", "empty", "input", "select"],
       glue: ["use-organizations"],
     },
     native: {
@@ -251,7 +251,7 @@ export const RECIPES: readonly RecipeSource[] = [
       "A form that invites a teammate by email with a role, then shows the token for the accept link.",
     hook: { name: "useInvitations", entry: "@/hooks/use-organizations" },
     web: {
-      file: `${WEB_APP}/src/features/organization/components/invite-member-dialog.tsx`,
+      file: `${WEB_APP}/src/features/members/components/invite-member-dialog.tsx`,
       components: ["button", "dialog", "field", "input", "select"],
       glue: ["use-organizations"],
     },

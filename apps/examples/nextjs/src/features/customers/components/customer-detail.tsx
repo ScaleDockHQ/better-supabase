@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getMembers } from "@/features/organization/organization-queries";
+import { getTeams } from "@/features/teams/teams-queries";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
@@ -39,6 +40,7 @@ import {
   CustomerTimeline,
   CustomerTimelineSkeleton,
 } from "./customer-timeline";
+import { OwnerTeamSelect } from "./owner-team-select";
 import { ReactionsBar } from "./reactions-bar";
 import {
   RelatedItemsPanel,
@@ -179,9 +181,10 @@ export async function CustomerDetail({
     notFound();
   }
 
-  const [customer, members, t, format] = await Promise.all([
+  const [customer, members, teams, t, format] = await Promise.all([
     getCustomer(id),
     getMembers(organizationId),
+    can(permissions, "teams.read") ? getTeams() : null,
     getExtracted("customers"),
     getFormatter(),
   ]);
@@ -305,6 +308,27 @@ export async function CustomerDetail({
               canCreate={can(permissions, "share_links.create")}
             />
           </Suspense>
+        ) : null}
+        {teams ? (
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>{t("Owner team")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <OwnerTeamSelect
+                customerId={customer.id}
+                ownerTeamId={customer.ownerTeamId}
+                teams={teams
+                  .filter(
+                    (team) =>
+                      team.status === "active" ||
+                      team.id === customer.ownerTeamId,
+                  )
+                  .map((team) => ({ id: team.id, name: team.name }))}
+                disabled={!can(permissions, "customers.write")}
+              />
+            </CardContent>
+          </Card>
         ) : null}
         <Card size="sm" data-recipe="tag-input">
           <CardHeader>
