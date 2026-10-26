@@ -16,7 +16,7 @@ import {
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { splitTable } from "./shared.ts";
 
-/** A `config.records` entry, checked, with its table split and quoted. */
+/** A `config.subjects` entry, checked, with its table split and quoted. */
 export interface RegisteredSubject {
   readonly type: string;
   readonly config: SubjectConfig;
@@ -151,7 +151,7 @@ function checkPermission(where: string, action: string, value: unknown): void {
 }
 
 /**
- * `config.records`, checked: every entry with its table split and quoted. A
+ * `config.subjects`, checked: every entry with its table split and quoted. A
  * subject without `tenant` gets the tenant column `naming` names
  * (`organization_id`, or `workspace_id` for
  * `blocks.memberships.names.organization: workspace`).
@@ -275,8 +275,9 @@ export function registeredSubjects(
 
 /**
  * The tenant column of `table` (`schema.table`, or a table in `public`): the
- * `tenant` of the `config.records` entry for that table, else the tenant column
- * `naming` names. `undefined` when the entry says the table has no tenant.
+ * `tenant` of the `config.subjects` entry for that table, else the tenant
+ * column `naming` names. `undefined` when the entry says the table has no
+ * tenant.
  */
 export function tenantColumnOf(
   table: string,

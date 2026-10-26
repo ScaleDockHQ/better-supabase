@@ -38,7 +38,7 @@ const rows = useTrash({ limit: 50 });
 
 ## Configure subjects
 
-Every [`config.records`](/docs/blocks/sql#subject-registry) entry with a `deletedAt` column can be trashed; `title` names the column the trash list shows. Per subject, `unique` lists the columns no live row in the organization may share when the row is restored, and `children` lists the subjects trashed with it.
+Every [`config.subjects`](/docs/blocks/sql#subject-registry) entry with a `deletedAt` column can be trashed; `title` names the column the trash list shows. Per subject, `unique` lists the columns no live row in the organization may share when the row is restored, and `children` lists the subjects trashed with it.
 
 ```ts title="better-supabase.config.ts"
 subjects: {
@@ -98,7 +98,7 @@ The extension and the block share the column and not the bin: a repository `dele
 
 ### Which column
 
-`gen` picks one column per table. A table bound to a [`config.records`](/docs/blocks/sql#subject-registry) entry with a `deletedAt` column uses that column, so the repository, search, metrics and the trash all read the same one. Every other table uses `blocks.trash.options.deletedAt` (default `deleted_at`) when it has that column. Either column must be `timestamptz` or `timestamp`, or `gen` fails.
+`gen` picks one column per table. A table bound to a [`config.subjects`](/docs/blocks/sql#subject-registry) entry with a `deletedAt` column uses that column, so the repository, search, metrics and the trash all read the same one. Every other table uses `blocks.trash.options.deletedAt` (default `deleted_at`) when it has that column. Either column must be `timestamptz` or `timestamp`, or `gen` fails.
 
 ### Where trashed rows are hidden
 

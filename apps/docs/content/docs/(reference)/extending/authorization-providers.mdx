@@ -162,7 +162,7 @@ puts the result into a policy or a module function:
 | `portalSubjects` | `{action}`                                                  | a set of `(tenant, subject_type, subject_id)` the caller reaches as a guest for `{action}` |
 | `portalParties`  | none                                                        | a set of `(tenant, party_type, party_id)` the caller acts for as a guest                   |
 
-`rowsWith` answers a `config.records.<type>.permissions.<action>` entry with
+`rowsWith` answers a `config.subjects.<type>.permissions.<action>` entry with
 `rows` ([Actions granted per row](/docs/blocks/sql#actions-granted-per-row)).
 `{resource}` is that entry's `rows`, unquoted, so it can be part of a
 function name (`app.rows_{resource}({permission})`), and `{ids}` is a `text[]`

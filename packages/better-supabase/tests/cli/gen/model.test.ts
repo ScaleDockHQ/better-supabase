@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
+import type { ResolveInput } from "../../../src/config/index.ts";
 import type { Snapshot } from "../../../src/config/snapshot.ts";
 
 import { emitModule } from "../../../src/cli/gen/emit.ts";
@@ -16,7 +16,7 @@ type Generator = Snapshot["generator"];
 
 type Edit = (generator: Generator) => Partial<Generator>;
 
-async function model(edit: Edit, config: BetterSupabaseConfig = {}) {
+async function model(edit: Edit, config: ResolveInput = {}) {
   const fixture = await loadFixtureSnapshot();
 
   const snapshot: Snapshot = {
@@ -499,7 +499,7 @@ describe("buildModel comments", () => {
 
   it("marks an app table column with access server as not selectable", async () => {
     const built = await model(() => ({}), {
-      tables: {
+      appTables: {
         customers: { columns: { name: { type: "text", access: "server" } } },
       },
     });
@@ -515,7 +515,7 @@ describe("buildModel comments", () => {
 
   it("types an encrypted app table column as its configured type", async () => {
     const built = await model(() => ({}), {
-      tables: {
+      appTables: {
         customers: { columns: { name: { type: "integer", encrypted: true } } },
       },
     });
@@ -575,7 +575,7 @@ describe("views", () => {
 describe("subject types", () => {
   it("emits SubjectType and RecordRef from config.subjects", async () => {
     const input = await model(() => ({}), {
-      records: {
+      subjects: {
         task: { table: "public.tasks" },
         customer: { table: "public.customers" },
       },
@@ -623,7 +623,7 @@ describe("app tables over the app's own tables", () => {
   it("types the scope column an enriched table adds nullable and filters on it", async () => {
     const input = await model(appTable("invoices", "organization_id"), {
       auth: { organization: { column: "organization_id" } },
-      tables: { invoices: {} },
+      appTables: { invoices: {} },
     });
 
     const invoices = input.tables.find((table) => table.key === "invoices")!;
@@ -637,7 +637,7 @@ describe("app tables over the app's own tables", () => {
   it("filters a block-over-app table on the tenant column its subject names", async () => {
     const input = await model(appTable("client_rows", "company_id"), {
       auth: { organization: { column: "organization_id" } },
-      records: {
+      subjects: {
         client: { table: "public.client_rows", tenant: "company_id" },
       },
     });

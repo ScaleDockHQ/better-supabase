@@ -1,9 +1,9 @@
 ---
 title: Hiring
-description: Jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
+description: Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 ---
 
-`hiring` is an applicant tracking system on the [pipelines](/docs/blocks/pipelines) foundation. A job is open or closed, each job has its own pipeline of stages, and an application moves a candidate through it, collecting interviews and scorecards on the way, until it ends hired, rejected or withdrawn. A candidate is any record in [`config.records`](/docs/blocks/sql#subject-registry), a [parties](/docs/blocks/contacts) person by default, so a candidate who applies twice is one record with two applications.
+`hiring` is an applicant tracking system on the [pipelines](/docs/blocks/pipelines) foundation. A job is open or closed, each job has its own pipeline of stages, and an application moves a candidate through it, collecting interviews and scorecards on the way, until it ends hired, rejected or withdrawn. A candidate is any record in [`config.subjects`](/docs/blocks/sql#subject-registry), a [parties](/docs/blocks/contacts) person by default, so a candidate who applies twice is one record with two applications.
 
 Reading needs `hiring.read`, moving applications, scheduling and scoring needs `hiring.write`, and jobs need `hiring.manage`. Admins get every permission and members none: give recruiters a role with `hiring.read` and `hiring.write`. An interviewer on an interview reads it and scores the application without those permissions.
 
@@ -103,7 +103,7 @@ Every option below is opt-in: a config without them renders the same SQL as befo
 
 ### One candidate type with a typed id
 
-Map `columns.applications.candidateType` to `null` when every application points at one record type through a typed column, such as a `candidate_id uuid` foreign key. The candidate type is then always `options.candidate`, which must be in `config.records`; `apply` refuses another type with `HIRING_CANDIDATE_TYPE_UNSUPPORTED`. The id is written and compared as the column's own type, and reads and event payloads still carry `candidateType` (the configured type) and `candidateId` as text. The block's own table drops the type column and keys applications on job and candidate.
+Map `columns.applications.candidateType` to `null` when every application points at one record type through a typed column, such as a `candidate_id uuid` foreign key. The candidate type is then always `options.candidate`, which must be in `config.subjects`; `apply` refuses another type with `HIRING_CANDIDATE_TYPE_UNSUPPORTED`. The id is written and compared as the column's own type, and reads and event payloads still carry `candidateType` (the configured type) and `candidateId` as text. The block's own table drops the type column and keys applications on job and candidate.
 
 ### Stages per job in your table
 

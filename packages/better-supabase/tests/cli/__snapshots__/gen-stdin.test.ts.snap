@@ -827,7 +827,7 @@ export type WritableColumnOf<T extends TableName> = WritableColumns<Models, T>;
 /** Columns of \`T\` the database fills (generated columns): in \`Row\`, never writable. */
 export type GeneratedColumnOf<T extends TableName> = GeneratedColumns<Models, T>;
 
-/** The app's subject types, from \`config.records\`. */
+/** The app's subject types, from \`config.subjects\`. */
 export const subjectTypes = ["project", "task"] as const;
 export type SubjectType = (typeof subjectTypes)[number];
 /** One subject: its type and its id as text. */

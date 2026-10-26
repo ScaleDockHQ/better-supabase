@@ -950,7 +950,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "error",
     title: "Subject registry names a missing table or column",
     description:
-      "An entry in `config.records` names a table, or a column of it (`id`, `tenant`, `title`, `deletedAt`, the `url` placeholders, `rank` and `search`), that the snapshot lacks. `subject_title`, `subject_url`, `can_subject` and every module that falls back to the registry then fail when they run.",
+      "An entry in `config.subjects` names a table, or a column of it (`id`, `tenant`, `title`, `deletedAt`, the `url` placeholders, `rank` and `search`), that the snapshot lacks. `subject_title`, `subject_url`, `can_subject` and every module that falls back to the registry then fail when they run.",
     check: missingSubjectColumns,
   },
   {
@@ -958,7 +958,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Subject table without RLS",
     description:
-      "A table in `config.records` has row level security disabled. `can_subject` treats a row the caller can read as visible, so without RLS every signed-in user passes the visibility half of the check for every row.",
+      "A table in `config.subjects` has row level security disabled. `can_subject` treats a row the caller can read as visible, so without RLS every signed-in user passes the visibility half of the check for every row.",
     check: subjectsWithoutRls,
   },
   {
@@ -974,7 +974,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Block on names an unknown record type",
     description:
-      "A block entry's `on` lists a type, or has a key, that `config.records` doesn't register, so the block's SQL refuses it when `gen` renders the migration. Register the type in `config.records` or remove it from `on`.",
+      "A block entry's `on` lists a type, or has a key, that `config.subjects` doesn't register, so the block's SQL refuses it when `gen` renders the migration. Register the type in `config.subjects` or remove it from `on`.",
     check: onUnknownRecordTypes,
   },
   {

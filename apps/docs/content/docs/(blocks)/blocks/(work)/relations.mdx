@@ -53,7 +53,7 @@ blocks build. The cycle check runs a recursive query under an advisory lock
 per organization and kind, so two concurrent links can't close a cycle
 between them.
 
-The subjects come from `config.records`, or from `on` with the
+The subjects come from `config.subjects`, or from `on` with the
 same shape. Both ends must exist in the organization and be readable by the
 caller, and linking needs `relations.manage`. A subject with `cascade: true`
 deletes its links when its row is deleted.

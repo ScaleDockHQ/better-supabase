@@ -459,7 +459,7 @@ doesn't when every policy for the write pins it without an `or`, to
 or to `column in (select better_supabase.tenant_ids_with(...))` or
 `column in (select better_supabase.member_organization_ids())`, so a write can
 only name a tenant the caller is a member of or holds the permission in. A
-subject's `deletedAt` column in `config.records` doesn't: `can_subject`
+subject's `deletedAt` column in `config.subjects` doesn't: `can_subject`
 filters soft-deleted rows out of a check that the row's own policies already
 pass, so clearing the column only shows a row again to someone who could
 already write it. A block's soft-delete column that its triggers never let a
@@ -1181,7 +1181,7 @@ Needs a database.
 ### BS331
 
 **Error: subject registry names a missing table or column.** An entry in
-`config.records` names a table that the snapshot lacks, or a column the
+`config.subjects` names a table that the snapshot lacks, or a column the
 table lacks: `id`, `tenant`, `title`, `deletedAt`, a `url` placeholder,
 `rank` or a `search` column. `subject_title`, `subject_url`, `can_subject`
 and every module that falls back to the registry fail when they run. Point
@@ -1190,7 +1190,7 @@ schemas the snapshot did not read.
 
 ### BS332
 
-**Warning: subject table without RLS.** A table in `config.records` has row
+**Warning: subject table without RLS.** A table in `config.subjects` has row
 level security disabled. `can_subject` treats a row the caller can read as
 visible, so every signed-in user passes the visibility half of the check for
 every row. Enable RLS and add the policies that scope the table.
@@ -1367,9 +1367,9 @@ checks. See
 ### BS346
 
 **Warning: block on names an unknown record type.** A block entry's `on`
-lists a type, or has a key, that `config.records` doesn't register. The
+lists a type, or has a key, that `config.subjects` doesn't register. The
 block's SQL refuses such a type when `gen` renders the migration, so doctor
-reports it first. Register the type in `config.records`, or remove it from
+reports it first. Register the type in `config.subjects`, or remove it from
 `on`. See [record types](/docs/blocks#record-types).
 
 ### BS347

@@ -26,7 +26,7 @@ export interface Segment {
   readonly organizationId: string;
   readonly name: string;
   readonly description: string | undefined;
-  /** A type in `config.records`, such as `company` or `deal`. */
+  /** A type in `config.subjects`, such as `company` or `deal`. */
   readonly subjectType: string;
   /** The filter tree over the subject type's rule fields. */
   readonly conditions: FilterQuery;

@@ -47,7 +47,7 @@ The service role may make every call.
 ### Sharing one record
 
 A record type that declares a `share` action in
-[`config.records`](/docs/blocks/sql#actions-granted-per-row) is checked per
+[`config.subjects`](/docs/blocks/sql#actions-granted-per-row) is checked per
 record as well: `create` needs that action on the record, and `revoke` and
 `list` need it on top of the organization key, so only the creator or someone
 who may share the record sees and revokes its links. The action can be a key,

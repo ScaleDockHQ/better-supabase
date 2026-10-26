@@ -401,7 +401,7 @@ export interface BlockSqlLayout {
   /** `sql.scope`: the scope of every block that sets none. Defaults to `tenant`. */
   readonly scope?: BlockScope;
   readonly blockTenantColumn?: string;
-  /** `config.records`: the app-wide subject registry (ADR 0020). */
+  /** `config.subjects`: the app-wide subject registry (ADR 0020). */
   readonly subjects?: SubjectsConfig;
   /**
    * `config.appTables`: the tables the app owns, rendered after the blocks (ADR

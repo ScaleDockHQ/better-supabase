@@ -471,7 +471,7 @@ blocks: {
 
 The key is the `subject_type` your notifications store, and it may contain
 hyphens. `id` names the subject's id column when it isn't `id`. Without
-`on` the module reads `config.records`, so a registered type
+`on` the module reads `config.subjects`, so a registered type
 with `cascade: true` cleans up its notifications too. A list of registered
 type names (`on: ["expense"]`) limits it to those. The subject tables
 must exist before the module file, and the events table needs its

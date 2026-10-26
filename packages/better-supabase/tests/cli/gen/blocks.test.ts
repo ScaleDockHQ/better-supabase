@@ -345,7 +345,7 @@ describe("blocks.generated.ts", () => {
   it("writes the keys of record actions, skipping actions granted only per row", () => {
     const config = resolveConfig(
       {
-        records: {
+        subjects: {
           file: {
             table: "public.files",
             permissions: {
@@ -371,7 +371,7 @@ describe("blocks.generated.ts", () => {
     const config = resolveConfig(
       {
         gen: { casing: "camel" },
-        records: {
+        subjects: {
           customer: {
             table: "public.customers",
             tenant: "organization_id",
@@ -379,7 +379,7 @@ describe("blocks.generated.ts", () => {
           },
           note: { table: "public.notes", tenant: false },
         },
-        tables: {
+        appTables: {
           projects: {
             columns: { name: { type: "text" } },
             subject: {
@@ -477,7 +477,7 @@ describe("blocks.generated.ts", () => {
     const config = resolveConfig(
       {
         blocks: { memberships: {}, outbox: {} },
-        tables: {
+        appTables: {
           tasks: { subject: { type: "task" }, events: true },
           notes: { events: { on: ["deleted"] } },
           files: {},

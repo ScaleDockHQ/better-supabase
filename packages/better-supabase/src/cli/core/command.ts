@@ -133,6 +133,11 @@ export interface CliCommandDef<T extends ArgsDef> {
     readonly [K in keyof T & string]?: CompletionValues;
   };
   readonly runsWithInvalidConfig?: boolean;
+  /**
+   * Loads a config that still has the removed `tables` and `records` keys, for
+   * the command that moves them out (`migrate schema-first`).
+   */
+  readonly readsLegacyTables?: boolean;
   readonly run: (
     args: CliArgs<T>,
     context: CliContext,
@@ -156,6 +161,8 @@ const COMPLETIONS = new WeakMap<
 >();
 
 const RUNS_WITH_INVALID_CONFIG = new WeakSet<object>();
+
+const READS_LEGACY_TABLES = new WeakSet<object>();
 
 /** A citty command that receives the `CliContext` and returns a `CommandResult`. */
 export function defineCliCommand<const T extends ArgsDef>(
@@ -183,6 +190,10 @@ export function defineCliCommand<const T extends ArgsDef>(
     RUNS_WITH_INVALID_CONFIG.add(command);
   }
 
+  if (def.readsLegacyTables === true) {
+    READS_LEGACY_TABLES.add(command);
+  }
+
   return Object.assign(command, { apiVersion: 1 as const });
 }
 
@@ -201,6 +212,12 @@ export function completionValues<T extends ArgsDef>(
   command: CommandDef<T>,
 ): Readonly<Partial<Record<string, CompletionValues>>> {
   return COMPLETIONS.get(command) ?? {};
+}
+
+export function readsLegacyTables<T extends ArgsDef>(
+  command: CommandDef<T>,
+): boolean {
+  return READS_LEGACY_TABLES.has(command);
 }
 
 export function runsWithInvalidConfig<T extends ArgsDef>(

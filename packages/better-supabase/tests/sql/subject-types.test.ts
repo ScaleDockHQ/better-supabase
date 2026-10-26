@@ -50,7 +50,7 @@ describe("hyphenated record types", () => {
     );
   });
 
-  it("render in the modules that read config.records, as SQL string values", () => {
+  it("render in the modules that read config.subjects, as SQL string values", () => {
     for (const module of ["tags", "attachments", "relations", "approvals"]) {
       const sql = sqlOf([module, "subjects"], module);
 

@@ -136,7 +136,7 @@ function rawSubjects(
   if (Array.isArray(raw)) {
     if (raw.length === 0) {
       throw new TypeError(
-        `${where}: list at least one config.records type, or pass an object of subject type to { table, ... }`,
+        `${where}: list at least one config.subjects type, or pass an object of subject type to { table, ... }`,
       );
     }
 
@@ -144,7 +144,7 @@ function rawSubjects(
       raw.map((type: unknown) => {
         if (typeof type !== "string" || !Object.hasOwn(registry, type)) {
           throw new TypeError(
-            `${where}: "${String(type)}" is not a subject type in config.records. Types: ${Object.keys(registry).join(", ") || "none"}`,
+            `${where}: "${String(type)}" is not a subject type in config.subjects. Types: ${Object.keys(registry).join(", ") || "none"}`,
           );
         }
 
@@ -155,7 +155,7 @@ function rawSubjects(
 
   if (!isRecord(raw)) {
     throw new TypeError(
-      `${where}: pass a list of config.records types, or an object of subject type to { table, id?, tenant?, permission?, cascade? }`,
+      `${where}: pass a list of config.subjects types, or an object of subject type to { table, id?, tenant?, permission?, cascade? }`,
     );
   }
 
@@ -221,7 +221,7 @@ function registeredRead(
 /**
  * `blocks.<instance>.on`: subject type to `{ table, id?, tenant?, permission?,
  * cascade? }` plus the `extra` keys the module reads, falling back to the
- * app-wide `config.records` registry.
+ * app-wide `config.subjects` registry.
  */
 export function subjectsOption(
   ctx: BlockSqlContext,
@@ -329,8 +329,8 @@ export function subjectsOption(
 
 /**
  * The record types `blocks.<instance>.on` allows, checked against
- * `config.records`, or `undefined` when `on` is unset and every registered type
- * is allowed.
+ * `config.subjects`, or `undefined` when `on` is unset and every registered
+ * type is allowed.
  */
 function allowedSubjectTypes(
   ctx: BlockSqlContext,
@@ -641,7 +641,7 @@ export function subjectReadable(
 
 /**
  * Whether the caller may take `action` on subject `type`/`id`, for each of
- * `subjects` whose `config.records` entry declares it (the first of `actions`
+ * `subjects` whose `config.subjects` entry declares it (the first of `actions`
  * it declares): `can_subject(type, id, action)` as the caller, so a key, the
  * provider's per-row grants and an owner column all count. Other types pass.
  * `undefined` when no subject declares one of `actions` or the `subjects`

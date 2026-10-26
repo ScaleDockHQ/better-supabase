@@ -39,7 +39,7 @@ export const COLLECTION_SCOPES = ["user", "team", "tenant"] as const;
 
 export type CollectionScope = (typeof COLLECTION_SCOPES)[number];
 
-/** A record in `config.records`. */
+/** A record in `config.subjects`. */
 export interface CollectionSubject {
   readonly type: string;
   readonly id: string;
@@ -64,7 +64,7 @@ export interface Collection {
   readonly updatedAt: Temporal.Instant;
 }
 
-/** A record in a collection, with its title and URL from `config.records`. */
+/** A record in a collection, with its title and URL from `config.subjects`. */
 export interface CollectionEntry {
   readonly collectionId: string;
   readonly subjectType: string;
@@ -88,7 +88,7 @@ export interface CollectionEntryPage {
   readonly next?: CollectionEntryCursor;
 }
 
-/** A record the caller starred, with its title and URL from `config.records`. */
+/** A record the caller starred, with its title and URL from `config.subjects`. */
 export interface Star {
   readonly organizationId: string;
   readonly subjectType: string;
@@ -101,7 +101,7 @@ export interface Star {
 
 /**
  * A record the caller saved for later, with its title and URL from
- * `config.records`.
+ * `config.subjects`.
  */
 export interface SavedItem {
   readonly id: string;
@@ -143,7 +143,7 @@ export interface SavedItemPage {
 
 export interface CreateCollectionInput {
   readonly name: string;
-  /** A type in `config.records` with a tenant column. */
+  /** A type in `config.subjects` with a tenant column. */
   readonly subjectType: string;
   /** Default `user`. `team` and `tenant` need `collections.share`. */
   readonly scope?: CollectionScope;
@@ -422,7 +422,7 @@ function entryPage(
 /**
  * The collections block: favorites (a member's starred records, ranked for a
  * sidebar) and lists (named, static collections of one subject type owned by a
- * user, a team or the organization) on any record in `config.records`.
+ * user, a team or the organization) on any record in `config.subjects`.
  */
 export function createCollections<
   S extends StandardSchemaV1 | undefined = undefined,

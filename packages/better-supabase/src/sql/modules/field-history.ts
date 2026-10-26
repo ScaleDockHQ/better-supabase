@@ -53,7 +53,7 @@ interface HistoryBinding {
 
 /**
  * `blocks.field-history.on`, record type to `{ fields }`, checked against
- * `config.records`.
+ * `config.subjects`.
  */
 function historyBindings(ctx: BlockSqlContext): readonly HistoryBinding[] {
   const registry = registeredSubjects(ctx.subjects, ctx.naming);
@@ -64,7 +64,7 @@ function historyBindings(ctx: BlockSqlContext): readonly HistoryBinding[] {
 
     if (subject?.tenant === undefined) {
       throw new TypeError(
-        `${where}: register "${type}" with a tenant column in config.records first`,
+        `${where}: register "${type}" with a tenant column in config.subjects first`,
       );
     }
 

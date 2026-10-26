@@ -60,7 +60,7 @@ create index on recipe_pm.tasks (organization_id, status, rank);
 ${readable("recipe_pm.tasks")}`,
   config: defineConfig({
     preset: "projects",
-    records: {
+    subjects: {
       task: {
         table: "recipe_pm.tasks",
         idType: "uuid",
@@ -107,7 +107,7 @@ create table recipe_drive.documents (
 ${readable("recipe_drive.documents")}`,
   config: defineConfig({
     preset: "saas",
-    records: {
+    subjects: {
       document: {
         table: "recipe_drive.documents",
         idType: "uuid",
@@ -141,7 +141,7 @@ create table recipe_scheduling.bookings (
 ${readable("recipe_scheduling.bookings")}`,
   config: defineConfig({
     preset: "scheduling",
-    records: {
+    subjects: {
       booking: {
         table: "recipe_scheduling.bookings",
         idType: "uuid",
@@ -251,7 +251,7 @@ $$;
 revoke execute on function public.before_promotion_activate(uuid) from public, anon, authenticated;`,
   config: defineConfig({
     preset: "commerce",
-    records: {
+    subjects: {
       promotion: {
         table: "better_supabase.promotions",
         idType: "uuid",

@@ -955,8 +955,9 @@ export function presetKey(preset: Preset): string {
 
 /**
  * `better-supabase.config.ts` for a preset and an optional design: every block
- * with its reason, the conventions that differ from the defaults and the app
- * tables, under a comment with the `/create` URL that reopens the canvas.
+ * with its reason and the conventions that differ from the defaults, under a
+ * comment with the `/create` URL that reopens the canvas. The design's tables
+ * are not in it: `init --preset` and `add --preset` write them as SQL files.
  */
 export async function presetConfigSource(
   resolved: ResolvedPreset,

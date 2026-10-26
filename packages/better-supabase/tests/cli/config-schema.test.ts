@@ -347,14 +347,24 @@ describe("configIssues for a config written before 0.15", () => {
     expect(
       configIssues({
         casing: "camel",
-        subjects: {},
+        integrations: [],
         $production: { doctor: {} },
       }),
     ).toEqual([
       "casing: moved to `gen.casing` in 0.15; run `better-supabase codemod 0.15`",
-      "subjects: moved to `records` in 0.15; run `better-supabase codemod 0.15`",
+      "integrations: moved to `adapters` in 0.15; run `better-supabase codemod 0.15`",
       "$production.doctor: moved to `tooling.doctor` in 0.15; run `better-supabase codemod 0.15`",
     ]);
+  });
+
+  it("says where the removed tables and records keys went", () => {
+    const issues = configIssues({ tables: {}, records: {} });
+
+    expect(issues).toHaveLength(2);
+    expect(issues[0]).toContain("migrate schema-first");
+    expect(issues[1]).toBe(
+      "records: renamed to `subjects` in 0.28; rename the key. A table's subject now comes from `@bsb subject` in its comment",
+    );
   });
 
   it("names gen.recordTypes for generateFeatures", () => {

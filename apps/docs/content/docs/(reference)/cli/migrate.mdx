@@ -8,7 +8,7 @@ pnpm better-supabase migrate schema-first --dry-run
 pnpm better-supabase migrate schema-first
 ```
 
-`migrate schema-first` writes the tables that `tables` (the old `appTables`) renders as files you
+`migrate schema-first` writes the tables that the config's `tables` key (removed in 0.28) renders as files you
 own under `supabase/schemas` (ADR 0102). Each table gets `public/tables/<name>.sql` with its
 create statement, columns, policies, grants, indexes and triggers. Views go to
 `public/views/<name>.sql`. A statement that belongs to no single table goes to
@@ -24,7 +24,7 @@ config keys one table at a time. A key the config still sets wins over a tag.
 
 The files are written once. A file that exists is left alone unless you pass `--force`.
 
-After the command, delete `tables` (and `records`) from the config, run `better-supabase upgrade`
+After the command, delete `tables` from the config, rename `records` to `subjects`, run `better-supabase upgrade`
 to remove the old app tables file, then `better-supabase db diff` to check that the schema
 did not change.
 

@@ -16,7 +16,7 @@ import { loadFixtureSnapshot } from "../fixtures/render.ts";
 
 const base: BetterSupabaseConfig = {
   blocks: { "updated-at": {} },
-  records: { customer: { table: "customers" } },
+  subjects: { customer: { table: "customers" } },
 };
 
 const configFor = (contentMapper: boolean) =>

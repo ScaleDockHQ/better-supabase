@@ -754,13 +754,13 @@ describe("extension flags", () => {
       customer: { table: "customers", deletedAt: "archived_at" },
     };
 
-    expect(await flagsOf({ records: subjects }, "customers")).toMatchObject({
+    expect(await flagsOf({ subjects }, "customers")).toMatchObject({
       softDelete: "archived_at",
     });
     expect(
       await flagsOf(
         {
-          records: subjects,
+          subjects,
           blocks: { trash: { options: { deletedAt: "created_at" } } },
         },
         "customers",
@@ -769,7 +769,7 @@ describe("extension flags", () => {
     expect(
       await flagsOf(
         {
-          records: { customer: { table: "customers", deletedAt: "gone_at" } },
+          subjects: { customer: { table: "customers", deletedAt: "gone_at" } },
           blocks: { trash: { options: { deletedAt: "archived_at" } } },
         },
         "customers",
@@ -779,7 +779,7 @@ describe("extension flags", () => {
 
   it("rejects a subject deletedAt that is not a timestamp", async () => {
     const config = resolveConfig(
-      { records: { customer: { table: "customers", deletedAt: "name" } } },
+      { subjects: { customer: { table: "customers", deletedAt: "name" } } },
       fixtures,
     );
 
@@ -830,9 +830,8 @@ describe("config JSON Schema", () => {
       gen: true,
       api: true,
       tooling: true,
-      records: true,
+      subjects: true,
       blocks: true,
-      tables: true,
       adapters: true,
       $env: true,
       $development: true,

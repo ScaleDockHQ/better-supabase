@@ -3,7 +3,7 @@ title: Service levels
 description: First response, next response and resolution clocks on any record, from a policy per record type and priority, in business hours, paused while the record waits, with warnings and breaches a job records.
 ---
 
-`sla` puts service-level clocks on any record in [`config.records`](/docs/blocks/sql#subject-registry): inbox conversations, tickets, incidents, [work items](/docs/blocks/tasks). A policy per record type and priority says how many minutes a first response, a next response and the resolution may take, and whether only business hours count. A record's clocks start when it is created, pause while it waits on the customer, close when it is answered or resolved, and a job records the ones that warn or breach.
+`sla` puts service-level clocks on any record in [`config.subjects`](/docs/blocks/sql#subject-registry): inbox conversations, tickets, incidents, [work items](/docs/blocks/tasks). A policy per record type and priority says how many minutes a first response, a next response and the resolution may take, and whether only business hours count. A record's clocks start when it is created, pause while it waits on the customer, close when it is answered or resolved, and a job records the ones that warn or breach.
 
 Reading policies and clocks needs `sla.read`, and changing policies needs `sla.manage`. Admins get both, and members get `sla.read`.
 
@@ -111,7 +111,7 @@ The ReUI Support Escalations board shows each ticket's SLA timer and turns it to
 | `SLA_POLICY_TAKEN`     | another active policy covers the type and priority        |
 | `SLA_POLICY_INVALID`   | a policy needs a name, a record type and positive minutes |
 | `SLA_POLICY_NOT_FOUND` | no such policy                                            |
-| `SLA_SUBJECT_INVALID`  | the record isn't in `config.records`                      |
+| `SLA_SUBJECT_INVALID`  | the record isn't in `config.subjects`                     |
 | `SLA_EVENT_INVALID`    | not one of the events                                     |
 | `SLA_HOURS_INVALID`    | the business hours never open                             |
 

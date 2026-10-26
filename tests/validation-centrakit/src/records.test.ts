@@ -12,7 +12,7 @@ import { dbUrl, reachable, withCentraKit } from "./stack.ts";
 const live = await reachable();
 
 // CentraKit keeps its customers and contacts in its own bigint tables. Deals
-// point at them through config.records, and work items carry a customer_id
+// point at them through config.subjects, and work items carry a customer_id
 // extra column, so adopting the blocks needs no change to those tables.
 const EXTRA: Extra = {
   modules: ["subjects", "rank", "pipelines", "deals", "tasks"],
@@ -37,7 +37,7 @@ const EXTRA: Extra = {
       idType: "bigint",
       title: "name",
     },
-    // What `blocks: ["deals", "tasks"]` registers in config.records.
+    // What `blocks: ["deals", "tasks"]` registers in config.subjects.
     deal: {
       table: "better_supabase.deals",
       idType: "uuid",

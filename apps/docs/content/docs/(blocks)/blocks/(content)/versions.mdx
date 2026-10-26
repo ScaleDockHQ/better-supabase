@@ -3,7 +3,7 @@ title: Versions
 description: Numbered snapshots of a subject's content, with JSON Patch diffs, restore, debounced auto snapshots, frozen versions and retention.
 ---
 
-`versions` keeps numbered snapshots of any subject: a document, a quote, a board. Each version holds JSON content (or a Storage path), a SHA-256 content hash, an optional label and where it came from (`manual`, `auto` or `restore`). Reading versions needs `versions.read`, taking and labeling one needs `versions.create`, restoring needs `versions.restore` and deleting needs `versions.manage`. Every call also checks the subject's own read permission, and a restore checks its `write` permission from [`config.records`](/docs/blocks/sql#subject-registry).
+`versions` keeps numbered snapshots of any subject: a document, a quote, a board. Each version holds JSON content (or a Storage path), a SHA-256 content hash, an optional label and where it came from (`manual`, `auto` or `restore`). Reading versions needs `versions.read`, taking and labeling one needs `versions.create`, restoring needs `versions.restore` and deleting needs `versions.manage`. Every call also checks the subject's own read permission, and a restore checks its `write` permission from [`config.subjects`](/docs/blocks/sql#subject-registry).
 
 ```bash
 better-supabase add versions

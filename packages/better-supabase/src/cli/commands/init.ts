@@ -79,6 +79,7 @@ import { TYPEGEN_VERSION } from "../introspect/typegen-version.ts";
 import { readPresetInput } from "../preset-input.ts";
 import { detectProject, installCommand } from "../project/detect.ts";
 import { detectWorkspace, suggestedPackage } from "../project/workspace.ts";
+import { appTablePlan } from "../sql/app-table-files.ts";
 import { writeDesign } from "../sql/design-edit.ts";
 import { syncModules } from "../sql/sync.ts";
 import { plain } from "../style.ts";
@@ -602,14 +603,24 @@ export async function runInit(
       root,
     );
 
+    // A design's tables are SQL files you own (ADR 0102), not a managed module.
     const synced = await syncModules(
-      presetConfig,
+      { ...presetConfig, appTables: {} },
       { "dry-run": args["dry-run"] === true },
       plain,
       now,
     );
 
     lines.push("", synced.output ?? synced.error ?? "");
+
+    const tables = await appTablePlan(presetConfig, "better-supabase init");
+
+    if (tables !== undefined) {
+      const wrote = await applyPlan(tables.plan, { ...args, force: true });
+
+      lines.push("", ...changeLines(wrote));
+    }
+
     const glue = presetGlue(chosen.resolved);
     const glueLine = glue.length > 0 ? glueCommand(glue) : undefined;
     const wiring = wiringFor(configInstances(presetConfig));

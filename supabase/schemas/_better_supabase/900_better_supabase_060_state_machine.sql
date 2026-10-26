@@ -1,7 +1,7 @@
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
 -- @bsb-hash sha256:291fabc4b636cc0db3c190545062a8c750263d04c172bb918a15634b41624ed4
--- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
+-- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 

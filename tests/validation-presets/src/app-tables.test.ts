@@ -19,7 +19,7 @@ const live = await reachable();
 const config = resolveConfig(
   {
     blocks: ["memberships", "organizations"],
-    tables: {
+    appTables: {
       boards: { columns: { name: { type: "text", nullable: false } } },
       cards: {
         columns: {
