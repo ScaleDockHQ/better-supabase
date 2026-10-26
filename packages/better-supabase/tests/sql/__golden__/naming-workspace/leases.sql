@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:58a3d34ce3732850f4ec0b621f94b37ed9f330ef097f4e27cb73b970c66d27dc
+-- @bsb-hash sha256:e0c0c58f1444fc4921b59afb52c51cce309dc7fc00fcd4247e85c94a4467870e
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."lease_agreements";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lease_agreements";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."lease_agreements";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lease_agreements";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."lease_charges";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."lease_charges";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lease_charges";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."lease_charges";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lease_charges";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -571,21 +579,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope on "better_supabase"."lease_agreements" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."lease_agreements";
+create policy bsb_tenant_scope_select on "better_supabase"."lease_agreements" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lease_agreements";
+create policy bsb_tenant_scope_insert on "better_supabase"."lease_agreements" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."lease_agreements";
+create policy bsb_tenant_scope_update on "better_supabase"."lease_agreements" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lease_agreements";
+create policy bsb_tenant_scope_delete on "better_supabase"."lease_agreements" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."lease_charges";
-create policy bsb_tenant_scope on "better_supabase"."lease_charges" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."lease_charges";
+create policy bsb_tenant_scope_select on "better_supabase"."lease_charges" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lease_charges";
+create policy bsb_tenant_scope_insert on "better_supabase"."lease_charges" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."lease_charges";
+create policy bsb_tenant_scope_update on "better_supabase"."lease_charges" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lease_charges";
+create policy bsb_tenant_scope_delete on "better_supabase"."lease_charges" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

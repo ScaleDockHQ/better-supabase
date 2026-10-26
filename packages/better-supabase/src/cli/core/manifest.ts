@@ -165,6 +165,29 @@ export const COMMANDS: readonly CommandSpec[] = [
     effects: [FILES],
   },
   {
+    name: "migrate",
+    description:
+      "Moves a project to a newer model: schema-first turns appTables into table files you own",
+    group: "maintain",
+    docs: "/docs/cli/migrate",
+    effects: [FILES],
+    subcommands: [
+      {
+        name: "schema-first",
+        description:
+          "Writes the tables appTables renders as files under supabase/schemas, with the per-table features as @bsb tags",
+        docs: "/docs/cli/migrate",
+        examples: [
+          {
+            command: "better-supabase migrate schema-first --dry-run",
+            description: "Shows the table files without writing them",
+          },
+        ],
+        effects: [FILES],
+      },
+    ],
+  },
+  {
     name: "upgrade",
     description:
       "Brings the blocks' SQL up to the config and this release: upgrade steps for blocks behind, then every block's files",

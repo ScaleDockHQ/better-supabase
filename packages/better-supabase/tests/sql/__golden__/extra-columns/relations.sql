@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:6851998c3863036374c8bd8963ddeaaeebb5866bed8a64f9af278bf7b234f6a0
+-- @bsb-hash sha256:0900669164abb507ccbeb5c89fb578ddff2a27d5839bb4d8f3a94afa864ca219
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."relations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."relations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."relations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."relations";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -476,13 +480,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
-create policy bsb_tenant_scope on "better_supabase"."relations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."relations";
+create policy bsb_tenant_scope_select on "better_supabase"."relations" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."relations";
+create policy bsb_tenant_scope_insert on "better_supabase"."relations" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."relations";
+create policy bsb_tenant_scope_update on "better_supabase"."relations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."relations";
+create policy bsb_tenant_scope_delete on "better_supabase"."relations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

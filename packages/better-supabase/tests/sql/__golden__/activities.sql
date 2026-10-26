@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:30df721bf08771176f2a9f97305daf7e7a56173f4b576132251b2280cd558389
+-- @bsb-hash sha256:630809cc04e7001dcd1f7ae1c596381b4dd92f0542fec8776f5b25d48099dba0
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagements";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagement_subjects";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -403,24 +411,50 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."engagements";
-create policy bsb_tenant_scope on "better_supabase"."engagements" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagements";
+create policy bsb_tenant_scope_select on "better_supabase"."engagements" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagements";
+create policy bsb_tenant_scope_insert on "better_supabase"."engagements" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagements";
+create policy bsb_tenant_scope_update on "better_supabase"."engagements" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagements";
+create policy bsb_tenant_scope_delete on "better_supabase"."engagements" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
-create policy bsb_tenant_scope on "better_supabase"."engagement_subjects" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_select on "better_supabase"."engagement_subjects" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_insert on "better_supabase"."engagement_subjects" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_update on "better_supabase"."engagement_subjects" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_delete on "better_supabase"."engagement_subjects" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -452,7 +486,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:f3707f82374b3eca2e4d0032df25eabfb88f760be0a005db09d1c50197fa312b
+-- @bsb-hash sha256:7da4904d0eeecdfbb2a59175dc6ecb5029316ee56bb1bb0f10f55529a0e17290
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -497,10 +531,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagements";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagement_subjects";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -888,24 +930,50 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."engagements";
-create policy bsb_tenant_scope on "better_supabase"."engagements" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagements";
+create policy bsb_tenant_scope_select on "better_supabase"."engagements" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagements";
+create policy bsb_tenant_scope_insert on "better_supabase"."engagements" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagements";
+create policy bsb_tenant_scope_update on "better_supabase"."engagements" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagements";
+create policy bsb_tenant_scope_delete on "better_supabase"."engagements" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
-create policy bsb_tenant_scope on "better_supabase"."engagement_subjects" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_select on "better_supabase"."engagement_subjects" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_insert on "better_supabase"."engagement_subjects" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_update on "better_supabase"."engagement_subjects" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_delete on "better_supabase"."engagement_subjects" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -937,7 +1005,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:db687ac9bf365dd6f0fdac8c9d7af7c13b6f221c25675d680121b2ad1953c812
+-- @bsb-hash sha256:a62b45058b6ac99fa3262d4b4b350373564a92cf11a3bd45d313f8887ba0357b
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -982,10 +1050,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."engagements";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."engagements";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."engagements";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."engagements";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."engagements";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."engagement_subjects";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1341,24 +1417,50 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."engagements";
-create policy bsb_tenant_scope on "app_private"."engagements" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."engagements";
+create policy bsb_tenant_scope_select on "app_private"."engagements" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
   not exists (select 1 from "app_private"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "app_private"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."engagements";
+create policy bsb_tenant_scope_insert on "app_private"."engagements" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."engagements";
+create policy bsb_tenant_scope_update on "app_private"."engagements" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."engagements";
+create policy bsb_tenant_scope_delete on "app_private"."engagements" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."engagement_subjects";
-create policy bsb_tenant_scope on "app_private"."engagement_subjects" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."engagement_subjects";
+create policy bsb_tenant_scope_select on "app_private"."engagement_subjects" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."engagement_subjects";
+create policy bsb_tenant_scope_insert on "app_private"."engagement_subjects" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."engagement_subjects";
+create policy bsb_tenant_scope_update on "app_private"."engagement_subjects" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."engagement_subjects";
+create policy bsb_tenant_scope_delete on "app_private"."engagement_subjects" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1390,7 +1492,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:8d424dd2088ec3beda6ec8a847c3efad7f34f4be4c99e7236f778822ae6c8d30
+-- @bsb-hash sha256:81772ff1d55b15ad5ff10f0f1296a944dd5f2f157f3ebbfd9cc0b071fe01fb1c
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1435,10 +1537,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagements";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagement_subjects";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1792,24 +1902,50 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."engagements";
-create policy bsb_tenant_scope on "better_supabase"."engagements" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagements";
+create policy bsb_tenant_scope_select on "better_supabase"."engagements" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagements";
+create policy bsb_tenant_scope_insert on "better_supabase"."engagements" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagements";
+create policy bsb_tenant_scope_update on "better_supabase"."engagements" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagements";
+create policy bsb_tenant_scope_delete on "better_supabase"."engagements" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
-create policy bsb_tenant_scope on "better_supabase"."engagement_subjects" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_select on "better_supabase"."engagement_subjects" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_insert on "better_supabase"."engagement_subjects" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_update on "better_supabase"."engagement_subjects" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_delete on "better_supabase"."engagement_subjects" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.activities.api: entry points for the Data API.
 create schema if not exists "api";
@@ -1926,7 +2062,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:c42d41c228e34ee44a950f724226f92a4cb41da54cfd44466da6f9bcdd22c851
+-- @bsb-hash sha256:1a760ba23a9d22c3c1da52b058466df4eb29dd26b9aee744c1f47afa20d7dde9
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1987,10 +2123,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagements";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagement_subjects";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2340,24 +2484,50 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."engagements";
-create policy bsb_tenant_scope on "better_supabase"."engagements" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagements";
+create policy bsb_tenant_scope_select on "better_supabase"."engagements" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagements";
+create policy bsb_tenant_scope_insert on "better_supabase"."engagements" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagements";
+create policy bsb_tenant_scope_update on "better_supabase"."engagements" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagements";
+create policy bsb_tenant_scope_delete on "better_supabase"."engagements" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
-create policy bsb_tenant_scope on "better_supabase"."engagement_subjects" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_select on "better_supabase"."engagement_subjects" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_insert on "better_supabase"."engagement_subjects" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_update on "better_supabase"."engagement_subjects" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_delete on "better_supabase"."engagement_subjects" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2389,7 +2559,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:f8d4a13b15a74aaba43da88775c4460c9b0ba41946960c338de24adea10e70d5
+-- @bsb-hash sha256:4fa0dcbd49932350aef63ce2b7cba6e112ab036551624bb698035c1498978e48
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2434,10 +2604,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagements";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagement_subjects";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagement_subjects";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2791,24 +2969,50 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."engagements";
-create policy bsb_tenant_scope on "better_supabase"."engagements" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagements";
+create policy bsb_tenant_scope_select on "better_supabase"."engagements" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagements";
+create policy bsb_tenant_scope_insert on "better_supabase"."engagements" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagements";
+create policy bsb_tenant_scope_update on "better_supabase"."engagements" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagements";
+create policy bsb_tenant_scope_delete on "better_supabase"."engagements" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
-create policy bsb_tenant_scope on "better_supabase"."engagement_subjects" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_select on "better_supabase"."engagement_subjects" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_insert on "better_supabase"."engagement_subjects" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_update on "better_supabase"."engagement_subjects" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope_delete on "better_supabase"."engagement_subjects" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

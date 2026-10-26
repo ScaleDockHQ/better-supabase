@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:940f3674bd43ec200fd9f2d1fa13056aebc106adc4832c2c2cf91aacfad920c6
+-- @bsb-hash sha256:9fc4d9077b5da2e763131e8c36d92849828ff96fb692da68e7b85e88bd80281e
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_grants";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -905,13 +913,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
-create policy bsb_tenant_scope on "better_supabase"."drive_nodes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_select on "better_supabase"."drive_nodes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_insert on "better_supabase"."drive_nodes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_update on "better_supabase"."drive_nodes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_delete on "better_supabase"."drive_nodes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -943,7 +964,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:e6d68e6932724f9074f1f713eaaceef13104d4fe9102af49ea9f255496af29f2
+-- @bsb-hash sha256:3420487fa438330a24ccd5e244c6c1dfa028f27407479e626386c9cf24c7ff87
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -988,10 +1009,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_grants";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1897,13 +1926,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
-create policy bsb_tenant_scope on "better_supabase"."drive_nodes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_select on "better_supabase"."drive_nodes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_insert on "better_supabase"."drive_nodes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_update on "better_supabase"."drive_nodes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_delete on "better_supabase"."drive_nodes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1935,7 +1977,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:e7cf7f4b9e2cf0b2c619b14e154f7acb7fd4e8c7f78a33f688cada4597fa7cb3
+-- @bsb-hash sha256:9aa382e0f66a197d3fdde20270e0db482e097d73e90e41905457baa70994de76
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1980,10 +2022,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."drive_nodes";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."drive_grants";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."drive_grants";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."drive_grants";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."drive_grants";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."drive_grants";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2841,13 +2891,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."drive_nodes";
-create policy bsb_tenant_scope on "app_private"."drive_nodes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."drive_nodes";
+create policy bsb_tenant_scope_select on "app_private"."drive_nodes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("deleted_at" is null and "id" in (select "app_private"."drive_readable_ids"()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."drive_nodes";
+create policy bsb_tenant_scope_insert on "app_private"."drive_nodes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."drive_nodes";
+create policy bsb_tenant_scope_update on "app_private"."drive_nodes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."drive_nodes";
+create policy bsb_tenant_scope_delete on "app_private"."drive_nodes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2879,7 +2942,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:982f13c39d8248211796fae28d4a2ef48fdbbf83016bcd0849de68d02a28cf60
+-- @bsb-hash sha256:90fd135e25c79e6c81cb3323cfec729d43da90cc4d894cb166319b42aa6ec180
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2924,10 +2987,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_grants";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3783,13 +3854,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
-create policy bsb_tenant_scope on "better_supabase"."drive_nodes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_select on "better_supabase"."drive_nodes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_insert on "better_supabase"."drive_nodes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_update on "better_supabase"."drive_nodes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_delete on "better_supabase"."drive_nodes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.drive.api: entry points for the Data API.
 create schema if not exists "api";
@@ -3969,7 +4053,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:589e390b9c063f190a333ca11a9b5fd200c32b09a6af3ce3fcd6608af50f0a16
+-- @bsb-hash sha256:af151a1176c38ebaf3330f063ee4072e0957cbe32f893a408decc08c4052cec5
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4014,10 +4098,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_grants";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4856,13 +4948,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
-create policy bsb_tenant_scope on "better_supabase"."drive_nodes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_select on "better_supabase"."drive_nodes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_insert on "better_supabase"."drive_nodes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_update on "better_supabase"."drive_nodes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_delete on "better_supabase"."drive_nodes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -4894,7 +4999,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:378ecfb457451e79d5fa3b736025028fbeac1c8eff804b43957dff299046807e
+-- @bsb-hash sha256:caeb7481807a601b35568338a489fc4eed58aabb664db5ced12ccd46f2a11d1f
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4939,10 +5044,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_grants";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_grants";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -5798,13 +5911,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
-create policy bsb_tenant_scope on "better_supabase"."drive_nodes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_select on "better_supabase"."drive_nodes" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_insert on "better_supabase"."drive_nodes" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_update on "better_supabase"."drive_nodes" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope_delete on "better_supabase"."drive_nodes" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

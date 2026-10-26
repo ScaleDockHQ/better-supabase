@@ -263,7 +263,7 @@ describe("an app's own declarative schema with blocks over it", () => {
     expect(named.length).toBeGreaterThan(0);
     expect(named.filter((name) => !name.includes(": bsb_"))).toEqual([]);
     expect(text).toContain(
-      "create policy bsb_tenant_scope on public.invoices as restrictive",
+      "create policy bsb_tenant_scope_select on public.invoices as restrictive",
     );
     expect(text).not.toMatch(
       /(?:create|drop|alter) policy (?:if exists )?members read invoices/,
@@ -296,7 +296,7 @@ describe("an app's own declarative schema with blocks over it", () => {
       "public.notes keeps the app's own grants; these add what the scope needs.",
     );
     expect(text).toContain(
-      "create policy bsb_tenant_scope on public.notes as restrictive",
+      "create policy bsb_tenant_scope_select on public.notes as restrictive",
     );
   });
 

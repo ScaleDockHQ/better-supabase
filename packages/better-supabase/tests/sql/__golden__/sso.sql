@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:24710e1b237e460106083385fbcfd4f7d1fe11a988610d781e434939f60a830a
+-- @bsb-hash sha256:2826b29d27571fc826d98570a1bd68dfe441284adc7f68f966f84e2e550ac364
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,18 +46,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_domains";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_sso_providers";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scim_users";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scim_groups";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -980,7 +996,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:eb511f26ed3a271d29d4ae1911d99891590ce45925a29276e7ed53d85b935aa1
+-- @bsb-hash sha256:c41009c7316aad4bc8855933c7b46c55b828ddc0fdb9385bcc247d0b842b4fe8
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1025,18 +1041,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_domains";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_sso_providers";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scim_users";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scim_groups";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2081,7 +2113,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:904d07036681bc074e9fe02d9bc0d73dd9e88713349dde7fadc728d8ebf31642
+-- @bsb-hash sha256:7a10880f5a18d68310f69be7a59a3612e2e2ca391a589c3c87ffa16b55b635ba
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2126,18 +2158,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."organization_domains";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."organization_domains";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."organization_domains";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."organization_domains";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."organization_domains";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."organization_sso_providers";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."scim_users";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."scim_users";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."scim_users";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."scim_users";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."scim_users";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."scim_groups";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."scim_groups";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."scim_groups";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."scim_groups";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."scim_groups";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3062,7 +3110,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:2980460d4f1620bbdf41d196a1770cfbed46ebc79b9236bd7aeb024d57e74ccb
+-- @bsb-hash sha256:c322ddfc2e4453a709084ed7b9662093b0670f1728d4e976b65242d6776bcbf5
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3107,18 +3155,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_domains";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_sso_providers";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scim_users";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scim_groups";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4270,7 +4334,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:8e1c38fe5d04ddff3191db2eaf294837f3cb1892eae087b7ac06e4ce227bf1a0
+-- @bsb-hash sha256:1e83a7d4fa218a189d02ffbbc2be5b1663ce4c146c8e028414f3fa20da9fab2a
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4331,18 +4395,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_domains";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_sso_providers";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scim_users";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scim_groups";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -5255,7 +5335,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:ad700986db4ed56963e533166ddb60d29aace60f1f6bc5ca726f9be99910ec59
+-- @bsb-hash sha256:043d12fd335e6cdcb1aec26ab264c571f2b2738fd655b5fc5008fd16dde5412e
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5300,18 +5380,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_domains";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_sso_providers";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."scim_users";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scim_users";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."scim_groups";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scim_groups";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;

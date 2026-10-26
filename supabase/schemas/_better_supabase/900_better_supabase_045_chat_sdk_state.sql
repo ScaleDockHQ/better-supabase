@@ -1,6 +1,6 @@
 -- better-supabase module: chat-sdk-state
 -- @bsb-block chat-sdk-state@1 managed
--- @bsb-hash sha256:9e68b1cca2228722cab0d1270da013f94060a3a0c301de6d2a2094de47c4b6c2
+-- @bsb-hash sha256:5d324e4033fc8fde5926233d837c3ecaf2d3d62b5b1be14b5de12fc7ba778003
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,6 +11,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."chat_installations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."chat_installations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."chat_installations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."chat_installations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."chat_installations";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;

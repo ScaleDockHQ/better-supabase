@@ -1,6 +1,6 @@
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:531346b65f88ca21fb112f57a4ce0f87eb5ee1302d309b1d07d5997d88deb7e9
+-- @bsb-hash sha256:521a46b681504dce06e17c298a519bcf698a21381a313b978f53aad5a0431925
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,10 +45,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."agents";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."agents";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agents";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."agents";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."agents";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."agent_installs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."agent_installs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agent_installs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."agent_installs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."agent_installs";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -489,21 +497,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."agents";
-create policy bsb_tenant_scope on "better_supabase"."agents" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."agents";
+create policy bsb_tenant_scope_select on "better_supabase"."agents" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agents";
+create policy bsb_tenant_scope_insert on "better_supabase"."agents" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."agents";
+create policy bsb_tenant_scope_update on "better_supabase"."agents" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."agents";
+create policy bsb_tenant_scope_delete on "better_supabase"."agents" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."agent_installs";
-create policy bsb_tenant_scope on "better_supabase"."agent_installs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."agent_installs";
+create policy bsb_tenant_scope_select on "better_supabase"."agent_installs" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agent_installs";
+create policy bsb_tenant_scope_insert on "better_supabase"."agent_installs" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."agent_installs";
+create policy bsb_tenant_scope_update on "better_supabase"."agent_installs" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."agent_installs";
+create policy bsb_tenant_scope_delete on "better_supabase"."agent_installs" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.agents.api: entry points for the Data API.
 create schema if not exists "api";

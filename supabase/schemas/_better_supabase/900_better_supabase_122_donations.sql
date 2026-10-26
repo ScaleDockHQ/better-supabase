@@ -1,6 +1,6 @@
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:db03cebdb6c47a3453478f9a2666dbde873355405d70a6cc7b0a596f0d85707e
+-- @bsb-hash sha256:a9c61507a6d9ef242d88cf550f0908d3f73bfdc0e25554bee854d1bdaf858b76
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,18 +45,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."donation_funds";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."donation_funds";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."donation_funds";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."donation_funds";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."donation_funds";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pledges";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pledges";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pledges";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pledges";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pledges";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."donation_receipts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."donation_receipts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."donation_receipts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."donation_receipts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."donation_receipts";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."donations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."donations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."donations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."donations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."donations";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1181,37 +1197,89 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."donation_funds";
-create policy bsb_tenant_scope on "better_supabase"."donation_funds" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."donation_funds";
+create policy bsb_tenant_scope_select on "better_supabase"."donation_funds" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."donation_funds";
+create policy bsb_tenant_scope_insert on "better_supabase"."donation_funds" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."donation_funds";
+create policy bsb_tenant_scope_update on "better_supabase"."donation_funds" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."donation_funds";
+create policy bsb_tenant_scope_delete on "better_supabase"."donation_funds" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."pledges";
-create policy bsb_tenant_scope on "better_supabase"."pledges" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."pledges";
+create policy bsb_tenant_scope_select on "better_supabase"."pledges" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pledges";
+create policy bsb_tenant_scope_insert on "better_supabase"."pledges" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."pledges";
+create policy bsb_tenant_scope_update on "better_supabase"."pledges" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pledges";
+create policy bsb_tenant_scope_delete on "better_supabase"."pledges" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."donation_receipts";
-create policy bsb_tenant_scope on "better_supabase"."donation_receipts" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."donation_receipts";
+create policy bsb_tenant_scope_select on "better_supabase"."donation_receipts" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."donation_receipts";
+create policy bsb_tenant_scope_insert on "better_supabase"."donation_receipts" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."donation_receipts";
+create policy bsb_tenant_scope_update on "better_supabase"."donation_receipts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."donation_receipts";
+create policy bsb_tenant_scope_delete on "better_supabase"."donation_receipts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."donations";
-create policy bsb_tenant_scope on "better_supabase"."donations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."donations";
+create policy bsb_tenant_scope_select on "better_supabase"."donations" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."donations";
+create policy bsb_tenant_scope_insert on "better_supabase"."donations" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."donations";
+create policy bsb_tenant_scope_update on "better_supabase"."donations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."donations";
+create policy bsb_tenant_scope_delete on "better_supabase"."donations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.donations.api: entry points for the Data API.
 create schema if not exists "api";

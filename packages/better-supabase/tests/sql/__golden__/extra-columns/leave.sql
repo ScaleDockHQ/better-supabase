@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:851d25c4aabcffc40a33b129424ac1f240f8e9771154e61469f2cad715e897f0
+-- @bsb-hash sha256:9ec706a053efd8fd1c8bf841b5abf29b28a1be5aa3993d733e5058604b025cd3
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."leave_types";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_types";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_types";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_types";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_types";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."leave_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -755,21 +763,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."leave_types";
-create policy bsb_tenant_scope on "better_supabase"."leave_types" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_types";
+create policy bsb_tenant_scope_select on "better_supabase"."leave_types" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_types";
+create policy bsb_tenant_scope_insert on "better_supabase"."leave_types" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_types";
+create policy bsb_tenant_scope_update on "better_supabase"."leave_types" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_types";
+create policy bsb_tenant_scope_delete on "better_supabase"."leave_types" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."leave_requests";
-create policy bsb_tenant_scope on "better_supabase"."leave_requests" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_requests";
+create policy bsb_tenant_scope_select on "better_supabase"."leave_requests" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_requests";
+create policy bsb_tenant_scope_insert on "better_supabase"."leave_requests" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_requests";
+create policy bsb_tenant_scope_update on "better_supabase"."leave_requests" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_requests";
+create policy bsb_tenant_scope_delete on "better_supabase"."leave_requests" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

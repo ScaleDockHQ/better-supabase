@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:0df4b95c479c4384faeff67bf4002b4cad346c29465f0792e415c1d66610fbde
+-- @bsb-hash sha256:e524d322a07f87c27c343f0bb3358bf90f0620c6947c89263f914361534fa2dc
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,18 +46,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -792,37 +808,89 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
-create policy bsb_tenant_scope on "better_supabase"."work_orders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_select on "better_supabase"."work_orders" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_insert on "better_supabase"."work_orders" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_update on "better_supabase"."work_orders" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_delete on "better_supabase"."work_orders" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
-create policy bsb_tenant_scope on "better_supabase"."dispatch_routes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_select on "better_supabase"."dispatch_routes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_routes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_update on "better_supabase"."dispatch_routes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_routes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
-create policy bsb_tenant_scope on "better_supabase"."dispatch_route_stops" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
-create policy bsb_tenant_scope on "better_supabase"."work_order_parts" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_select on "better_supabase"."work_order_parts" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_insert on "better_supabase"."work_order_parts" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_update on "better_supabase"."work_order_parts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_delete on "better_supabase"."work_order_parts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -854,7 +922,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:55efe6b3f0014d153a0fd08177fb86dff3f29e53934b78f813b2cbfe2f2d42c3
+-- @bsb-hash sha256:2af34ed7ef4eb2b1600968d41687f09ba55c16b74c7277f9a0584c78626df242
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -899,18 +967,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1842,37 +1926,89 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
-create policy bsb_tenant_scope on "better_supabase"."work_orders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_select on "better_supabase"."work_orders" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_insert on "better_supabase"."work_orders" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_update on "better_supabase"."work_orders" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_delete on "better_supabase"."work_orders" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
-create policy bsb_tenant_scope on "better_supabase"."dispatch_routes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_select on "better_supabase"."dispatch_routes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_routes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_update on "better_supabase"."dispatch_routes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_routes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
-create policy bsb_tenant_scope on "better_supabase"."dispatch_route_stops" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
-create policy bsb_tenant_scope on "better_supabase"."work_order_parts" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_select on "better_supabase"."work_order_parts" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_insert on "better_supabase"."work_order_parts" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_update on "better_supabase"."work_order_parts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_delete on "better_supabase"."work_order_parts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1904,7 +2040,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:64bf5c8828e44fca2d58ef3653839a941e84311fca0b31335424a6fcd2108bed
+-- @bsb-hash sha256:a4d0efed1c66ce9a16cd11151b8ce1b59dcc87c3eca4e6f2d0f0a8c0599c0c4b
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1949,18 +2085,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."work_orders";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."work_orders";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."work_orders";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."work_orders";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."work_orders";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."dispatch_routes";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."dispatch_route_stops";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."work_order_parts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2697,37 +2849,89 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."work_orders";
-create policy bsb_tenant_scope on "app_private"."work_orders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."work_orders";
+create policy bsb_tenant_scope_select on "app_private"."work_orders" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."work_orders";
+create policy bsb_tenant_scope_insert on "app_private"."work_orders" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."work_orders";
+create policy bsb_tenant_scope_update on "app_private"."work_orders" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."work_orders";
+create policy bsb_tenant_scope_delete on "app_private"."work_orders" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."dispatch_routes";
-create policy bsb_tenant_scope on "app_private"."dispatch_routes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."dispatch_routes";
+create policy bsb_tenant_scope_select on "app_private"."dispatch_routes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."dispatch_routes";
+create policy bsb_tenant_scope_insert on "app_private"."dispatch_routes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."dispatch_routes";
+create policy bsb_tenant_scope_update on "app_private"."dispatch_routes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."dispatch_routes";
+create policy bsb_tenant_scope_delete on "app_private"."dispatch_routes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."dispatch_route_stops";
-create policy bsb_tenant_scope on "app_private"."dispatch_route_stops" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."dispatch_route_stops";
+create policy bsb_tenant_scope_select on "app_private"."dispatch_route_stops" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."dispatch_route_stops";
+create policy bsb_tenant_scope_insert on "app_private"."dispatch_route_stops" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."dispatch_route_stops";
+create policy bsb_tenant_scope_update on "app_private"."dispatch_route_stops" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."dispatch_route_stops";
+create policy bsb_tenant_scope_delete on "app_private"."dispatch_route_stops" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."work_order_parts";
-create policy bsb_tenant_scope on "app_private"."work_order_parts" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."work_order_parts";
+create policy bsb_tenant_scope_select on "app_private"."work_order_parts" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."work_order_parts";
+create policy bsb_tenant_scope_insert on "app_private"."work_order_parts" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."work_order_parts";
+create policy bsb_tenant_scope_update on "app_private"."work_order_parts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."work_order_parts";
+create policy bsb_tenant_scope_delete on "app_private"."work_order_parts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2759,7 +2963,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:f6a5495c93ae11847e73cd1875d9c51a777c36e7d6c6d5dce7b91d23ba8b2ed9
+-- @bsb-hash sha256:745357f043d28da89de9ced3ece187af0c0d84ab570c35590b5d4c8aeab49822
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2804,18 +3008,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3550,37 +3770,89 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
-create policy bsb_tenant_scope on "better_supabase"."work_orders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_select on "better_supabase"."work_orders" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_insert on "better_supabase"."work_orders" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_update on "better_supabase"."work_orders" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_delete on "better_supabase"."work_orders" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
-create policy bsb_tenant_scope on "better_supabase"."dispatch_routes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_select on "better_supabase"."dispatch_routes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_routes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_update on "better_supabase"."dispatch_routes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_routes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
-create policy bsb_tenant_scope on "better_supabase"."dispatch_route_stops" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
-create policy bsb_tenant_scope on "better_supabase"."work_order_parts" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_select on "better_supabase"."work_order_parts" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_insert on "better_supabase"."work_order_parts" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_update on "better_supabase"."work_order_parts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_delete on "better_supabase"."work_order_parts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.dispatch.api: entry points for the Data API.
 create schema if not exists "api";
@@ -3754,7 +4026,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:5b47b49a78736761bd3ea42d1616bd74db5019fd39990c8c342b7fdc79e9a69a
+-- @bsb-hash sha256:c768a707298e5dd38b49e5bb31d86593ee4b6b4502ffd2114ec77502e9a540cc
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3815,18 +4087,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4547,37 +4835,89 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
-create policy bsb_tenant_scope on "better_supabase"."work_orders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_select on "better_supabase"."work_orders" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_insert on "better_supabase"."work_orders" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_update on "better_supabase"."work_orders" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_delete on "better_supabase"."work_orders" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
-create policy bsb_tenant_scope on "better_supabase"."dispatch_routes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_select on "better_supabase"."dispatch_routes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_routes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_update on "better_supabase"."dispatch_routes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_routes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
-create policy bsb_tenant_scope on "better_supabase"."dispatch_route_stops" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
-create policy bsb_tenant_scope on "better_supabase"."work_order_parts" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_select on "better_supabase"."work_order_parts" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_insert on "better_supabase"."work_order_parts" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_update on "better_supabase"."work_order_parts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_delete on "better_supabase"."work_order_parts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -4609,7 +4949,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:ef427f7282b81059df01842e18e3f09e5d8e54618bbe29b345dae1edc8660caa
+-- @bsb-hash sha256:4e62d98a4bf709175ba158e395abf00dc5ce81539a2d85e0f75ce10ba3374933
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4654,18 +4994,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -5400,37 +5756,89 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
-create policy bsb_tenant_scope on "better_supabase"."work_orders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_select on "better_supabase"."work_orders" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_insert on "better_supabase"."work_orders" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_update on "better_supabase"."work_orders" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
+create policy bsb_tenant_scope_delete on "better_supabase"."work_orders" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
-create policy bsb_tenant_scope on "better_supabase"."dispatch_routes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_select on "better_supabase"."dispatch_routes" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_routes" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_update on "better_supabase"."dispatch_routes" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_routes" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
-create policy bsb_tenant_scope on "better_supabase"."dispatch_route_stops" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
-create policy bsb_tenant_scope on "better_supabase"."work_order_parts" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_select on "better_supabase"."work_order_parts" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_insert on "better_supabase"."work_order_parts" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_update on "better_supabase"."work_order_parts" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope_delete on "better_supabase"."work_order_parts" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

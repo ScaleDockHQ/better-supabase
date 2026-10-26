@@ -74,8 +74,9 @@ A tenant-scoped table needs the `memberships` block. The tenant column follows
 `blocks.memberships.names.organization`, and the client sends its value on insert; the insert
 policy rejects a tenant the user isn't a member of.
 
-A tenant-scoped table also gets a restrictive `bsb_tenant_scope` policy that
-keeps every row inside the caller's organizations. Postgres combines
+A tenant-scoped table also gets one restrictive policy per command
+(`bsb_tenant_scope_select`, `_insert`, `_update` and `_delete`, each `to public`)
+that keeps every row inside the caller's organizations for every role. Postgres combines
 permissive policies with `or`, so a permissive policy you add to the table
 can widen access within those organizations, but never beyond them.
 

@@ -34,6 +34,7 @@ import { emitMeta, emitModule, emitRuntime, metaPaths } from "./emit.ts";
 import { emitHooks } from "./hooks.ts";
 import { buildModel, generatorModel } from "./model.ts";
 import { emitRecords } from "./records.ts";
+import { withTableTags } from "./table-tags.ts";
 
 export interface RenderOptions {
   /**
@@ -113,10 +114,11 @@ export async function renderTypesModule(
 }
 
 export async function render(
-  config: ResolvedConfig,
+  declared: ResolvedConfig,
   snapshot: Snapshot,
   options: RenderOptions = {},
 ): Promise<Rendered> {
+  const config = withTableTags(declared, snapshot);
   const model = buildModel(snapshot, config);
 
   const runtime = options.runtimeImport

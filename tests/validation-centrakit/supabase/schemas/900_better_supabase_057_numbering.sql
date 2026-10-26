@@ -1,6 +1,6 @@
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:ce8e39fcd4d6bd72efbab7cb1c94197b5ffe194065df9e060c579a3e0ade9c79
+-- @bsb-hash sha256:13852828b6be8355198fcb4601c0302089e28fb77ac28635e95584b497dff9e8
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -61,6 +61,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."organization_number_sequences";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."organization_number_sequences";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."organization_number_sequences";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."organization_number_sequences";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."organization_number_sequences";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;

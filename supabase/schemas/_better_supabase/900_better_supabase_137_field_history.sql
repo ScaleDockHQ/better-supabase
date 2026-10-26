@@ -1,6 +1,6 @@
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:50cd4a418cfa88da4ae509ee83c062173b172df47d335651c5d03960edec460a
+-- @bsb-hash sha256:8a90adf36a7af84a9baf49f30594082d6ac95ff7e14757823ef3d40e8a7c38c1
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,6 +11,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_changes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_changes";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -140,13 +144,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
-create policy bsb_tenant_scope on "better_supabase"."field_changes" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_select on "better_supabase"."field_changes" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_insert on "better_supabase"."field_changes" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_update on "better_supabase"."field_changes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_changes";
+create policy bsb_tenant_scope_delete on "better_supabase"."field_changes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.field-history.api: entry points for the Data API.
 create schema if not exists "api";

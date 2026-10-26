@@ -15,21 +15,29 @@ const scoped = (sql: string): string =>
   applyTenantScope(sql, moduleContext("invoices"));
 
 const scopePolicy = (sql: string): string =>
-  sql.slice(sql.indexOf(`create policy ${TENANT_SCOPE_POLICY}`));
+  sql.slice(sql.indexOf(`create policy ${TENANT_SCOPE_POLICY}_select`));
 
 describe("tenantScopePolicy", () => {
-  it("renders one restrictive policy for every command", () => {
-    expect(
-      tenantScopePolicy({
-        target: TABLE,
-        column: '"tenant_id"',
-        members: MEMBERS,
-      }),
-    ).toBe(`drop policy if exists bsb_tenant_scope on ${TABLE};
-create policy bsb_tenant_scope on ${TABLE} as restrictive
-  for all to authenticated
-  using ("tenant_id" in (select ${MEMBERS}))
-  with check ("tenant_id" in (select ${MEMBERS}));`);
+  it("renders one restrictive policy to public for every command", () => {
+    const sql = tenantScopePolicy({
+      target: TABLE,
+      column: '"tenant_id"',
+      members: MEMBERS,
+    });
+
+    expect(sql).toContain(
+      `drop policy if exists bsb_tenant_scope on ${TABLE};`,
+    );
+
+    for (const command of ["select", "insert", "update", "delete"]) {
+      expect(sql).toContain(
+        `create policy bsb_tenant_scope_${command} on ${TABLE} as restrictive
+  for ${command} to public`,
+      );
+    }
+
+    expect(sql).not.toContain("to authenticated");
+    expect(sql).not.toContain("for all");
   });
 
   it("lets through each distinct grant once, after membership", () => {
@@ -37,12 +45,17 @@ create policy bsb_tenant_scope on ${TABLE} as restrictive
       target: TABLE,
       column: '"tenant_id"',
       members: MEMBERS,
-      using: [
-        "a = 1",
-        " a = 1 ",
-        `"tenant_id" in (select ${MEMBERS})`,
-        "b = 2",
-      ],
+      by: {
+        select: {
+          using: [
+            "a = 1",
+            " a = 1 ",
+            `"tenant_id" in (select ${MEMBERS})`,
+            "b = 2",
+          ],
+          check: [],
+        },
+      },
     });
 
     expect(sql).toContain(`using (
@@ -50,6 +63,17 @@ create policy bsb_tenant_scope on ${TABLE} as restrictive
     or (a = 1)
     or (b = 2)
   )`);
+  });
+
+  it("keeps a branch one command grants out of the others", () => {
+    const sql = tenantScopePolicy({
+      target: TABLE,
+      column: '"tenant_id"',
+      members: MEMBERS,
+      by: { select: { using: ["public_read"], check: [] } },
+    });
+
+    expect(sql.match(/public_read/g)).toHaveLength(1);
   });
 });
 
@@ -63,11 +87,14 @@ describe("applyTenantScope", () => {
   for select to authenticated
   using (owner = (select auth.uid()));`);
 
-    expect(scopePolicy(sql)).toContain(`using (
+    expect(scopePolicy(sql)).toContain(`for select to public
+  using (
     "tenant_id" in (select ${MEMBERS})
     or (owner = (select auth.uid()))
-  )
-  with check ("tenant_id" in (select ${MEMBERS}));`);
+  );`);
+    expect(sql).toMatch(
+      /bsb_tenant_scope_insert[^;]*with check \("tenant_id" in \(select better_supabase.member_organization_ids\(\)\)\);/,
+    );
   });
 
   it("drops the scope policy before the module can drop a function it calls", () => {
@@ -79,7 +106,7 @@ create policy invoices_read on ${TABLE}
     const sql = scoped(body);
 
     const drop = sql.indexOf(
-      `drop policy if exists ${TENANT_SCOPE_POLICY} on ${TABLE};
+      `drop policy if exists ${TENANT_SCOPE_POLICY}_delete on ${TABLE};
   exception when undefined_table or invalid_schema_name then null;`,
     );
 
@@ -96,7 +123,7 @@ create policy invoices_read on ${TABLE}
 
     expect(stub).toBeGreaterThan(-1);
     expect(stub).toBeLessThan(
-      sql.indexOf(`create policy ${TENANT_SCOPE_POLICY}`),
+      sql.indexOf(`create policy ${TENANT_SCOPE_POLICY}_select`),
     );
     expect(sql).toContain(
       "create function better_supabase.member_organization_ids(roles text[] default null)",
@@ -141,11 +168,9 @@ create policy invoices_read on ${TABLE}
 grant select on ${TABLE} to authenticated;`);
 
     expect(scopePolicy(sql))
-      .toBe(`create policy bsb_tenant_scope on ${TABLE} as restrictive
-  for all to authenticated
-  using ("tenant_id" in (select ${MEMBERS}))
-  with check ("tenant_id" in (select ${MEMBERS}));
-`);
+      .toContain(`create policy bsb_tenant_scope_select on ${TABLE} as restrictive
+  for select to public
+  using ("tenant_id" in (select ${MEMBERS}));`);
   });
 
   it("leaves a service-only table alone", () => {
@@ -153,7 +178,9 @@ grant select on ${TABLE} to authenticated;`);
   for all to service_role
   using (true);`;
 
-    expect(scoped(sql)).not.toContain(`create policy ${TENANT_SCOPE_POLICY}`);
+    expect(scoped(sql)).not.toContain(
+      `create policy ${TENANT_SCOPE_POLICY}_select`,
+    );
   });
 
   it("ignores restrictive and commented-out policies", () => {
@@ -162,7 +189,9 @@ grant select on ${TABLE} to authenticated;`);
   using (false);
 -- create policy invoices_example on ${TABLE} for select using (true);`;
 
-    expect(scoped(sql)).not.toContain(`create policy ${TENANT_SCOPE_POLICY}`);
+    expect(scoped(sql)).not.toContain(
+      `create policy ${TENANT_SCOPE_POLICY}_select`,
+    );
   });
 
   it("adds nothing outside a tenant scope", () => {

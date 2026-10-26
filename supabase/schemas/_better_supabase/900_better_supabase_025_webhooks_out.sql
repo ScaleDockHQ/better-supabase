@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@5 managed
--- @bsb-hash sha256:b5462520ee6cd53ab3def7def24237de9e866f806da6c4c094ebba71102afd0a
+-- @bsb-hash sha256:53ae625bc4aaeef6ce063cf37c0eabc7f8d5c190206cedbad5c66b3d9e0b1046
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,14 +45,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoints";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."webhook_endpoints";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."webhook_endpoints";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."webhook_endpoints";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."webhook_endpoints";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoint_secrets";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."webhook_endpoint_secrets";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."webhook_endpoint_secrets";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."webhook_endpoint_secrets";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."webhook_endpoint_secrets";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_deliveries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."webhook_deliveries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."webhook_deliveries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."webhook_deliveries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."webhook_deliveries";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -667,25 +679,59 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoints";
-create policy bsb_tenant_scope on "better_supabase"."webhook_endpoints" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."webhook_endpoints";
+create policy bsb_tenant_scope_select on "better_supabase"."webhook_endpoints" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."webhook_endpoints";
+create policy bsb_tenant_scope_insert on "better_supabase"."webhook_endpoints" as restrictive
+  for insert to public
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
+  );
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."webhook_endpoints";
+create policy bsb_tenant_scope_update on "better_supabase"."webhook_endpoints" as restrictive
+  for update to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
   )
   with check (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
   );
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."webhook_endpoints";
+create policy bsb_tenant_scope_delete on "better_supabase"."webhook_endpoints" as restrictive
+  for delete to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
+  );
 drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_deliveries";
-create policy bsb_tenant_scope on "better_supabase"."webhook_deliveries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."webhook_deliveries";
+create policy bsb_tenant_scope_select on "better_supabase"."webhook_deliveries" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."webhook_deliveries";
+create policy bsb_tenant_scope_insert on "better_supabase"."webhook_deliveries" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."webhook_deliveries";
+create policy bsb_tenant_scope_update on "better_supabase"."webhook_deliveries" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."webhook_deliveries";
+create policy bsb_tenant_scope_delete on "better_supabase"."webhook_deliveries" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.webhooks-out.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:ec781dc6025735ab771336ec1be7de42e94f63d3d90998d391210de5573a8f5b
+-- @bsb-hash sha256:97100146bd185f8b5dcfcb4279bccde0c6ab3d634912bf44f72f51ea275edca8
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachments";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachment_versions";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -661,27 +669,55 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
-create policy bsb_tenant_scope on "better_supabase"."attachments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachments";
+create policy bsb_tenant_scope_select on "better_supabase"."attachments" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
-    or ("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachments";
+create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as restrictive
+  for insert to public
   with check (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
     and coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false)
     and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
   );
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachments";
+create policy bsb_tenant_scope_update on "better_supabase"."attachments" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachments";
+create policy bsb_tenant_scope_delete on "better_supabase"."attachments" as restrictive
+  for delete to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
+  );
 drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
-create policy bsb_tenant_scope on "better_supabase"."attachment_versions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_select on "better_supabase"."attachment_versions" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."attachments" a where a."id" = "attachment_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_insert on "better_supabase"."attachment_versions" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_update on "better_supabase"."attachment_versions" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -717,7 +753,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:fa85366ab721d85ce8bb7e06c1aacb8fa14a19c6b2b7cea1c8a41d1f2f1d508c
+-- @bsb-hash sha256:9d0f4f5be951de6a768a136b95fef24df044295071f9783ced2cb46117ff979c
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -762,10 +798,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachments";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachment_versions";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1420,27 +1464,55 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
-create policy bsb_tenant_scope on "better_supabase"."attachments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachments";
+create policy bsb_tenant_scope_select on "better_supabase"."attachments" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
-    or ("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachments";
+create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as restrictive
+  for insert to public
   with check (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
     and (coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
     and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
   );
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachments";
+create policy bsb_tenant_scope_update on "better_supabase"."attachments" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachments";
+create policy bsb_tenant_scope_delete on "better_supabase"."attachments" as restrictive
+  for delete to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
+  );
 drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
-create policy bsb_tenant_scope on "better_supabase"."attachment_versions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_select on "better_supabase"."attachment_versions" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."attachments" a where a."id" = "attachment_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_insert on "better_supabase"."attachment_versions" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_update on "better_supabase"."attachment_versions" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1476,7 +1548,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:9310e0ad12e4347c5580494c1adcc447be3dbd19b84f885c62424a73704c0398
+-- @bsb-hash sha256:37b760703df9d7bff475e7c48ae90447cf28686368801d02c948b14906eb2ce4
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1521,10 +1593,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."attachments";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."attachments";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."attachments";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."attachments";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."attachments";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."attachment_versions";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2138,27 +2218,55 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."attachments";
-create policy bsb_tenant_scope on "app_private"."attachments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."attachments";
+create policy bsb_tenant_scope_select on "app_private"."attachments" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "app_private"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
-    or ("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."attachments";
+create policy bsb_tenant_scope_insert on "app_private"."attachments" as restrictive
+  for insert to public
   with check (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
     and coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false)
     and "app_private"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
   );
+drop policy if exists bsb_tenant_scope_update on "app_private"."attachments";
+create policy bsb_tenant_scope_update on "app_private"."attachments" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."attachments";
+create policy bsb_tenant_scope_delete on "app_private"."attachments" as restrictive
+  for delete to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
+  );
 drop policy if exists bsb_tenant_scope on "app_private"."attachment_versions";
-create policy bsb_tenant_scope on "app_private"."attachment_versions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."attachment_versions";
+create policy bsb_tenant_scope_select on "app_private"."attachment_versions" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "app_private"."attachments" a where a."id" = "attachment_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."attachment_versions";
+create policy bsb_tenant_scope_insert on "app_private"."attachment_versions" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."attachment_versions";
+create policy bsb_tenant_scope_update on "app_private"."attachment_versions" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."attachment_versions";
+create policy bsb_tenant_scope_delete on "app_private"."attachment_versions" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2194,7 +2302,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:45f2edae51ff4e6cd2e55f5534d998eb73d5c3433683fc795b91abd51eb5e6d7
+-- @bsb-hash sha256:02459c827ef68e99e6dae489b4c4d41df5d7b44a5063143cb814bb30e7a93482
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2239,10 +2347,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachments";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachment_versions";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2854,27 +2970,55 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
-create policy bsb_tenant_scope on "better_supabase"."attachments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachments";
+create policy bsb_tenant_scope_select on "better_supabase"."attachments" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
-    or ("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachments";
+create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as restrictive
+  for insert to public
   with check (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
     and coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false)
     and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
   );
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachments";
+create policy bsb_tenant_scope_update on "better_supabase"."attachments" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachments";
+create policy bsb_tenant_scope_delete on "better_supabase"."attachments" as restrictive
+  for delete to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
+  );
 drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
-create policy bsb_tenant_scope on "better_supabase"."attachment_versions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_select on "better_supabase"."attachment_versions" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."attachments" a where a."id" = "attachment_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_insert on "better_supabase"."attachment_versions" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_update on "better_supabase"."attachment_versions" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.attachments.api: entry points for the Data API.
 create schema if not exists "api";
@@ -3042,7 +3186,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:1833b82fe1561afede70443c28ac49ccdfb778e3590bdad7b163f562d955fcd7
+-- @bsb-hash sha256:ed560ca018a710caed5e9a37d7cd1e3a8de3ddfe29e37ca1c35da285afce62e2
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3103,10 +3247,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachments";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachment_versions";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3688,27 +3840,55 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
-create policy bsb_tenant_scope on "better_supabase"."attachments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachments";
+create policy bsb_tenant_scope_select on "better_supabase"."attachments" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
-    or ("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachments";
+create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as restrictive
+  for insert to public
   with check (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
     and coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false)
     and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
   );
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachments";
+create policy bsb_tenant_scope_update on "better_supabase"."attachments" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachments";
+create policy bsb_tenant_scope_delete on "better_supabase"."attachments" as restrictive
+  for delete to public
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
+  );
 drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
-create policy bsb_tenant_scope on "better_supabase"."attachment_versions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_select on "better_supabase"."attachment_versions" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."attachments" a where a."id" = "attachment_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_insert on "better_supabase"."attachment_versions" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_update on "better_supabase"."attachment_versions" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -3744,7 +3924,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:a19daf3f28b7eb8513399d9cb59a711dbc02162a9ddd97d6dfbcffa46b617659
+-- @bsb-hash sha256:68ab4037092da2aff621f3278f5ad6278b1588de82d53750c2b71d6e01e7c4b6
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3789,10 +3969,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachments";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachment_versions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachment_versions";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4404,27 +4592,55 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
-create policy bsb_tenant_scope on "better_supabase"."attachments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachments";
+create policy bsb_tenant_scope_select on "better_supabase"."attachments" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "org_id"))
-    or ("uploaded_by" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachments";
+create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as restrictive
+  for insert to public
   with check (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
     and coalesce(better_supabase.can('tenant', "org_id", 'attachments.upload'), false)
     and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "org_id"))
   );
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachments";
+create policy bsb_tenant_scope_update on "better_supabase"."attachments" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachments";
+create policy bsb_tenant_scope_delete on "better_supabase"."attachments" as restrictive
+  for delete to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("uploaded_by" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
+  );
 drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
-create policy bsb_tenant_scope on "better_supabase"."attachment_versions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_select on "better_supabase"."attachment_versions" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."attachments" a where a."id" = "attachment_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_insert on "better_supabase"."attachment_versions" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_update on "better_supabase"."attachment_versions" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

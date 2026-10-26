@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:e30429aac7ecc0145d5224d1fe5a2b0ce842780fe4ed18657d42251635b71560
+-- @bsb-hash sha256:a531c2b1e74eeee3bff9e9efc023ab1e983ac7eef3be460157545cd673b90242
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,18 +46,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forms";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_versions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_submissions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_answer_keys";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1047,29 +1063,68 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."forms";
-create policy bsb_tenant_scope on "better_supabase"."forms" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."forms";
+create policy bsb_tenant_scope_select on "better_supabase"."forms" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forms";
+create policy bsb_tenant_scope_insert on "better_supabase"."forms" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."forms";
+create policy bsb_tenant_scope_update on "better_supabase"."forms" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forms";
+create policy bsb_tenant_scope_delete on "better_supabase"."forms" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."form_versions";
-create policy bsb_tenant_scope on "better_supabase"."form_versions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_select on "better_supabase"."form_versions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_insert on "better_supabase"."form_versions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_update on "better_supabase"."form_versions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_delete on "better_supabase"."form_versions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."form_submissions";
-create policy bsb_tenant_scope on "better_supabase"."form_submissions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_select on "better_supabase"."form_submissions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_insert on "better_supabase"."form_submissions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_update on "better_supabase"."form_submissions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_delete on "better_supabase"."form_submissions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1101,7 +1156,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:1ff54729b65a722b59b44e588de0565484d7500c6e1461406cf3516416097f9b
+-- @bsb-hash sha256:8252c11d54f2638a45bea0afe1ab6cc3666256bf08cb4a38d37fcca6d626a24f
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1146,18 +1201,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forms";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_versions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_submissions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_answer_keys";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2295,29 +2366,68 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."forms";
-create policy bsb_tenant_scope on "better_supabase"."forms" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."forms";
+create policy bsb_tenant_scope_select on "better_supabase"."forms" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forms";
+create policy bsb_tenant_scope_insert on "better_supabase"."forms" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."forms";
+create policy bsb_tenant_scope_update on "better_supabase"."forms" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forms";
+create policy bsb_tenant_scope_delete on "better_supabase"."forms" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."form_versions";
-create policy bsb_tenant_scope on "better_supabase"."form_versions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_select on "better_supabase"."form_versions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_insert on "better_supabase"."form_versions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_update on "better_supabase"."form_versions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_delete on "better_supabase"."form_versions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."form_submissions";
-create policy bsb_tenant_scope on "better_supabase"."form_submissions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_select on "better_supabase"."form_submissions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_insert on "better_supabase"."form_submissions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_update on "better_supabase"."form_submissions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_delete on "better_supabase"."form_submissions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2349,7 +2459,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:7ce1c5746723189ebcf36f94b66f3dff0cad5534aaa97f9c1c4a9d8835913270
+-- @bsb-hash sha256:f9f533c1321ff920596f71ae3a7e6f4c8235e1e836c476431eb4ddc58e730743
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2394,18 +2504,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."forms";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."forms";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."forms";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."forms";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."forms";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."form_versions";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."form_versions";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."form_versions";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."form_versions";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."form_versions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."form_submissions";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."form_submissions";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."form_submissions";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."form_submissions";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."form_submissions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."form_answer_keys";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3397,29 +3523,68 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."forms";
-create policy bsb_tenant_scope on "app_private"."forms" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."forms";
+create policy bsb_tenant_scope_select on "app_private"."forms" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."forms";
+create policy bsb_tenant_scope_insert on "app_private"."forms" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."forms";
+create policy bsb_tenant_scope_update on "app_private"."forms" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."forms";
+create policy bsb_tenant_scope_delete on "app_private"."forms" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."form_versions";
-create policy bsb_tenant_scope on "app_private"."form_versions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."form_versions";
+create policy bsb_tenant_scope_select on "app_private"."form_versions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."form_versions";
+create policy bsb_tenant_scope_insert on "app_private"."form_versions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."form_versions";
+create policy bsb_tenant_scope_update on "app_private"."form_versions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."form_versions";
+create policy bsb_tenant_scope_delete on "app_private"."form_versions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."form_submissions";
-create policy bsb_tenant_scope on "app_private"."form_submissions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."form_submissions";
+create policy bsb_tenant_scope_select on "app_private"."form_submissions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."form_submissions";
+create policy bsb_tenant_scope_insert on "app_private"."form_submissions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."form_submissions";
+create policy bsb_tenant_scope_update on "app_private"."form_submissions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."form_submissions";
+create policy bsb_tenant_scope_delete on "app_private"."form_submissions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -3451,7 +3616,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:c47528db289511db1f81c24284fe8d2e6623eb6076e1d318849ff12fb1d2af9e
+-- @bsb-hash sha256:8e2628a1da170a04053700a33e8280f53badb06f6ad41f9908e5fb3b63a85b4f
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3496,18 +3661,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forms";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_versions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_submissions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_answer_keys";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4497,29 +4678,68 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."forms";
-create policy bsb_tenant_scope on "better_supabase"."forms" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."forms";
+create policy bsb_tenant_scope_select on "better_supabase"."forms" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forms";
+create policy bsb_tenant_scope_insert on "better_supabase"."forms" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."forms";
+create policy bsb_tenant_scope_update on "better_supabase"."forms" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forms";
+create policy bsb_tenant_scope_delete on "better_supabase"."forms" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."form_versions";
-create policy bsb_tenant_scope on "better_supabase"."form_versions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_select on "better_supabase"."form_versions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_insert on "better_supabase"."form_versions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_update on "better_supabase"."form_versions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_delete on "better_supabase"."form_versions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."form_submissions";
-create policy bsb_tenant_scope on "better_supabase"."form_submissions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_select on "better_supabase"."form_submissions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_insert on "better_supabase"."form_submissions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_update on "better_supabase"."form_submissions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_delete on "better_supabase"."form_submissions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.forms.api: entry points for the Data API.
 create schema if not exists "api";
@@ -4684,7 +4904,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:435449164096cd4343d60573f9bbcda2696cf4e7b74d131c64f97a73cf55820b
+-- @bsb-hash sha256:6758960676ec621feeb466accb347414caca7908be7492567f6a801c1b6eb369
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4745,18 +4965,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forms";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_versions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_submissions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_answer_keys";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -5737,29 +5973,68 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."forms";
-create policy bsb_tenant_scope on "better_supabase"."forms" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."forms";
+create policy bsb_tenant_scope_select on "better_supabase"."forms" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forms";
+create policy bsb_tenant_scope_insert on "better_supabase"."forms" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."forms";
+create policy bsb_tenant_scope_update on "better_supabase"."forms" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forms";
+create policy bsb_tenant_scope_delete on "better_supabase"."forms" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."form_versions";
-create policy bsb_tenant_scope on "better_supabase"."form_versions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_select on "better_supabase"."form_versions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_insert on "better_supabase"."form_versions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_update on "better_supabase"."form_versions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_delete on "better_supabase"."form_versions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."form_submissions";
-create policy bsb_tenant_scope on "better_supabase"."form_submissions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_select on "better_supabase"."form_submissions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_insert on "better_supabase"."form_submissions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_update on "better_supabase"."form_submissions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_delete on "better_supabase"."form_submissions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -5791,7 +6066,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:63d2154c978b938eaa0cde5147e9b5cba22c65d7f9884bfe93f9212ebb4f714d
+-- @bsb-hash sha256:94c0a3f4d19049a6002228de65819c5379c22b0e4ec679b1068834c1555da40a
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5836,18 +6111,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."forms";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forms";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_versions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_versions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_submissions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_submissions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_answer_keys";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_answer_keys";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -6837,29 +7128,68 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."forms";
-create policy bsb_tenant_scope on "better_supabase"."forms" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."forms";
+create policy bsb_tenant_scope_select on "better_supabase"."forms" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('forms.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forms";
+create policy bsb_tenant_scope_insert on "better_supabase"."forms" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."forms";
+create policy bsb_tenant_scope_update on "better_supabase"."forms" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forms";
+create policy bsb_tenant_scope_delete on "better_supabase"."forms" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."form_versions";
-create policy bsb_tenant_scope on "better_supabase"."form_versions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_select on "better_supabase"."form_versions" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('forms.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_insert on "better_supabase"."form_versions" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_update on "better_supabase"."form_versions" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_versions";
+create policy bsb_tenant_scope_delete on "better_supabase"."form_versions" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."form_submissions";
-create policy bsb_tenant_scope on "better_supabase"."form_submissions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_select on "better_supabase"."form_submissions" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_insert on "better_supabase"."form_submissions" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_update on "better_supabase"."form_submissions" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope_delete on "better_supabase"."form_submissions" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -7686,6 +7686,7 @@
       "TABLE_FEATURES",
       "tableFeatures",
       "templateFunctions",
+      "TENANT_SCOPE_NAMES",
       "TENANT_SCOPE_POLICY",
       "tenantsQuery",
       "upgradePlan",

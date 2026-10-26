@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:080a83313db7984dd991eb80e19e88cc0cd0282193db2b1720e14e5ce85a79be
+-- @bsb-hash sha256:5fad4aea181f49c5fe2481ed8d75b040135ec92459d0fbf17ff5a432e124ec75
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,22 +46,42 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."booking_resources";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."booking_resources";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."booking_resources";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."booking_resources";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."booking_resources";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."booking_availability";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."booking_availability";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."booking_availability";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."booking_availability";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."booking_availability";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."booking_exceptions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."booking_exceptions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."booking_exceptions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."booking_exceptions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."booking_exceptions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."booking_services";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."booking_services";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."booking_services";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."booking_services";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."booking_services";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."bookings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bookings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bookings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bookings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bookings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -772,45 +792,110 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."booking_resources";
-create policy bsb_tenant_scope on "better_supabase"."booking_resources" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."booking_resources";
+create policy bsb_tenant_scope_select on "better_supabase"."booking_resources" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."booking_resources";
+create policy bsb_tenant_scope_insert on "better_supabase"."booking_resources" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."booking_resources";
+create policy bsb_tenant_scope_update on "better_supabase"."booking_resources" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."booking_resources";
+create policy bsb_tenant_scope_delete on "better_supabase"."booking_resources" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."booking_availability";
-create policy bsb_tenant_scope on "better_supabase"."booking_availability" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."booking_availability";
+create policy bsb_tenant_scope_select on "better_supabase"."booking_availability" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."booking_availability";
+create policy bsb_tenant_scope_insert on "better_supabase"."booking_availability" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."booking_availability";
+create policy bsb_tenant_scope_update on "better_supabase"."booking_availability" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."booking_availability";
+create policy bsb_tenant_scope_delete on "better_supabase"."booking_availability" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."booking_exceptions";
-create policy bsb_tenant_scope on "better_supabase"."booking_exceptions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."booking_exceptions";
+create policy bsb_tenant_scope_select on "better_supabase"."booking_exceptions" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."booking_exceptions";
+create policy bsb_tenant_scope_insert on "better_supabase"."booking_exceptions" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."booking_exceptions";
+create policy bsb_tenant_scope_update on "better_supabase"."booking_exceptions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."booking_exceptions";
+create policy bsb_tenant_scope_delete on "better_supabase"."booking_exceptions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."booking_services";
-create policy bsb_tenant_scope on "better_supabase"."booking_services" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."booking_services";
+create policy bsb_tenant_scope_select on "better_supabase"."booking_services" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."booking_services";
+create policy bsb_tenant_scope_insert on "better_supabase"."booking_services" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."booking_services";
+create policy bsb_tenant_scope_update on "better_supabase"."booking_services" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."booking_services";
+create policy bsb_tenant_scope_delete on "better_supabase"."booking_services" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."bookings";
-create policy bsb_tenant_scope on "better_supabase"."bookings" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."bookings";
+create policy bsb_tenant_scope_select on "better_supabase"."bookings" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "customer_user_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bookings";
+create policy bsb_tenant_scope_insert on "better_supabase"."bookings" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."bookings";
+create policy bsb_tenant_scope_update on "better_supabase"."bookings" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bookings";
+create policy bsb_tenant_scope_delete on "better_supabase"."bookings" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

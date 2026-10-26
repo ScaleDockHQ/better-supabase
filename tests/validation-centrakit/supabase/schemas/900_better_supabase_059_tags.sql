@@ -1,6 +1,6 @@
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:671d83895a41239587e35850575ca5488a31c56f15264a141410fb6cec1ce3b0
+-- @bsb-hash sha256:f5446d2761e47c87f1ad45056dc5b0100c78ed9e4bed2ce695ed5153a71689de
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -61,6 +61,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."organization_tags";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."organization_tags";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."organization_tags";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."organization_tags";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."organization_tags";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -327,10 +331,23 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "centrakit"."organization_tags";
-create policy bsb_tenant_scope on "centrakit"."organization_tags" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "centrakit"."organization_tags";
+create policy bsb_tenant_scope_select on "centrakit"."organization_tags" as restrictive
+  for select to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_insert on "centrakit"."organization_tags";
+create policy bsb_tenant_scope_insert on "centrakit"."organization_tags" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "centrakit"."organization_tags";
+create policy bsb_tenant_scope_update on "centrakit"."organization_tags" as restrictive
+  for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "centrakit"."organization_tags";
+create policy bsb_tenant_scope_delete on "centrakit"."organization_tags" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

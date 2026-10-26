@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:5fe937c393b9f23ad0e51d65afa6b5d42c04f770eac40699d0ed34c334cb0c22
+-- @bsb-hash sha256:ba7cff349676eff21649488854454c5dea28276963243386bccde0ad4fda37c9
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."trash_items";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -352,13 +356,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
-create policy bsb_tenant_scope on "better_supabase"."trash_items" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_select on "better_supabase"."trash_items" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."trash_items" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_update on "better_supabase"."trash_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."trash_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -390,7 +407,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:532e4dad171a7e78a91af548c0acb0f53d0310d4caf932a92a1859cf752abef4
+-- @bsb-hash sha256:96ae018bd47cec919122416fa56407779a759cf56c82a1cc218435de05b21883
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -435,6 +452,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."trash_items";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -768,13 +789,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
-create policy bsb_tenant_scope on "better_supabase"."trash_items" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_select on "better_supabase"."trash_items" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."trash_items" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_update on "better_supabase"."trash_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."trash_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -806,7 +840,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:c045390cd277fdc071c6bc7753a39b4376a6ca11f7752ca2c4117cd387c15ac1
+-- @bsb-hash sha256:179264832c0fd61dde08e1975628b35f14d1fe4cbc91bc3643e7799d956c09e9
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -851,6 +885,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."trash_items";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."trash_items";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."trash_items";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."trash_items";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."trash_items";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1159,13 +1197,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."trash_items";
-create policy bsb_tenant_scope on "app_private"."trash_items" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."trash_items";
+create policy bsb_tenant_scope_select on "app_private"."trash_items" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."trash_items";
+create policy bsb_tenant_scope_insert on "app_private"."trash_items" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."trash_items";
+create policy bsb_tenant_scope_update on "app_private"."trash_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."trash_items";
+create policy bsb_tenant_scope_delete on "app_private"."trash_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1197,7 +1248,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:b2d09c90e63b44a2abf3fe311ec4a85cbcf9288c1ff61070da25dc7213b0305c
+-- @bsb-hash sha256:6915e7149b7222e6ccbdb59f8ece168b9c82b7f41deaea989d13a5829a114e34
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1242,6 +1293,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."trash_items";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1548,13 +1603,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
-create policy bsb_tenant_scope on "better_supabase"."trash_items" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_select on "better_supabase"."trash_items" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."trash_items" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_update on "better_supabase"."trash_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."trash_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.trash.api: entry points for the Data API.
 create schema if not exists "api";
@@ -1664,7 +1732,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:a5a36790ae5be667ca7cf20ceb7edd604ba59eafcccb339a450cf9897da66219
+-- @bsb-hash sha256:8014f2267c6f65f361f60b8cc1619058782d4108f387a4fc6cb800778b4a23d3
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1709,6 +1777,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."trash_items";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2012,13 +2084,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
-create policy bsb_tenant_scope on "better_supabase"."trash_items" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_select on "better_supabase"."trash_items" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."trash_items" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_update on "better_supabase"."trash_items" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."trash_items" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2050,7 +2135,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:ab387fd2e3c087a7fb7b3629df2b701bae4575296ba76677ec15c6f83c838e89
+-- @bsb-hash sha256:6077edfeba5f00fdbfdf2efb45a727da43ffea06059c97fc14783d53b307bce7
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2095,6 +2180,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."trash_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."trash_items";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2401,13 +2490,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
-create policy bsb_tenant_scope on "better_supabase"."trash_items" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_select on "better_supabase"."trash_items" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('trash.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."trash_items" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_update on "better_supabase"."trash_items" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."trash_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."trash_items" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

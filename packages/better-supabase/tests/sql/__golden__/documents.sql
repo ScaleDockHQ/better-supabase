@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:9b0bf4fb30960499c5856ae6432dbb366950134ebb0cd0901a5495f5219b2ec0
+-- @bsb-hash sha256:0f02c785b43f7519344935329e05b47f7e24209787c014d0b25d6cc2c091ac13
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,18 +46,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_updates";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_snapshots";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_suggestions";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -585,13 +601,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
-create policy bsb_tenant_scope on "better_supabase"."documents" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
+create policy bsb_tenant_scope_select on "better_supabase"."documents" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
+create policy bsb_tenant_scope_insert on "better_supabase"."documents" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
+create policy bsb_tenant_scope_update on "better_supabase"."documents" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
+create policy bsb_tenant_scope_delete on "better_supabase"."documents" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -623,7 +652,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:a978949479f728a3c4b245f5e49f6083d0f3030dea30fd9b826df61be2c1ec60
+-- @bsb-hash sha256:8920cecea52b3fcb0753fb8ce9a89a7b9804dfdceee5bb6ef04edd79875c595e
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -668,18 +697,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_updates";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_snapshots";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_suggestions";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1352,13 +1397,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
-create policy bsb_tenant_scope on "better_supabase"."documents" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
+create policy bsb_tenant_scope_select on "better_supabase"."documents" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
+create policy bsb_tenant_scope_insert on "better_supabase"."documents" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
+create policy bsb_tenant_scope_update on "better_supabase"."documents" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
+create policy bsb_tenant_scope_delete on "better_supabase"."documents" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1390,7 +1448,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:18554b89448bfa67c2a96bbbaa680f97aef4dd0fc31402f418f28bf0b9ad5e66
+-- @bsb-hash sha256:d3b4fcac97a793a85b46d05bb53df765583f5813d12c2659e423086572e58be4
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1435,18 +1493,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."documents";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."documents";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."documents";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."documents";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."documents";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."document_updates";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."document_updates";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."document_updates";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."document_updates";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."document_updates";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."document_snapshots";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."document_suggestions";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1976,13 +2050,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."documents";
-create policy bsb_tenant_scope on "app_private"."documents" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."documents";
+create policy bsb_tenant_scope_select on "app_private"."documents" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."documents";
+create policy bsb_tenant_scope_insert on "app_private"."documents" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."documents";
+create policy bsb_tenant_scope_update on "app_private"."documents" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."documents";
+create policy bsb_tenant_scope_delete on "app_private"."documents" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2014,7 +2101,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:08aa87d52115e20d94fc1ac5614b7b47e387aba10caa9757002ef98ce8f1ab2e
+-- @bsb-hash sha256:14072a800a9a7db7ff4682d79ce39bd99aed9ef932d02e86f65f54c67019f1bb
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2059,18 +2146,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_updates";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_snapshots";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_suggestions";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2598,13 +2701,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
-create policy bsb_tenant_scope on "better_supabase"."documents" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
+create policy bsb_tenant_scope_select on "better_supabase"."documents" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
+create policy bsb_tenant_scope_insert on "better_supabase"."documents" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
+create policy bsb_tenant_scope_update on "better_supabase"."documents" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
+create policy bsb_tenant_scope_delete on "better_supabase"."documents" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.documents.api: entry points for the Data API.
 create schema if not exists "api";
@@ -2748,7 +2864,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:f64117eb0e8627b3193d536482196c8db02ea4188b80225515214bea1e1e9578
+-- @bsb-hash sha256:92e871223b53fee19e7d92d351cdab4230f9f929630df98f3712d46f9f5e371b
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2809,18 +2925,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_updates";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_snapshots";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_suggestions";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3341,13 +3473,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
-create policy bsb_tenant_scope on "better_supabase"."documents" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
+create policy bsb_tenant_scope_select on "better_supabase"."documents" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
+create policy bsb_tenant_scope_insert on "better_supabase"."documents" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
+create policy bsb_tenant_scope_update on "better_supabase"."documents" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
+create policy bsb_tenant_scope_delete on "better_supabase"."documents" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -3379,7 +3524,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:c8cdd96f0106858c4d09075c43b9788ec7e0d5e3ef4a2acd0de9bee9317d37aa
+-- @bsb-hash sha256:3390b22fd837efcdccebe2b546d99745a1507201942f455f1ac9bc41bc512df0
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3424,18 +3569,34 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_updates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_updates";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_snapshots";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_snapshots";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_suggestions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_suggestions";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3963,13 +4124,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
-create policy bsb_tenant_scope on "better_supabase"."documents" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
+create policy bsb_tenant_scope_select on "better_supabase"."documents" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('documents.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
+create policy bsb_tenant_scope_insert on "better_supabase"."documents" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
+create policy bsb_tenant_scope_update on "better_supabase"."documents" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
+create policy bsb_tenant_scope_delete on "better_supabase"."documents" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

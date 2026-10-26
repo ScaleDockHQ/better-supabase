@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:3de569d836c10546d79898ca676860a654dba4a3417fc98e1d348bbc5693e922
+-- @bsb-hash sha256:f82dbad5a2ae3fc831c5951b14cad50838ea96c64935373c3dbf5cb8aa05894f
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."saved_views";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."saved_views";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."saved_views";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."saved_views";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."saved_views";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."saved_view_preferences";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."saved_view_preferences";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."saved_view_preferences";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."saved_view_preferences";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."saved_view_preferences";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -439,8 +447,9 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."saved_views";
-create policy bsb_tenant_scope on "better_supabase"."saved_views" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."saved_views";
+create policy bsb_tenant_scope_select on "better_supabase"."saved_views" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
@@ -449,16 +458,41 @@ create policy bsb_tenant_scope on "better_supabase"."saved_views" as restrictive
     or ("scope" = 'team' and false)
     or "scope" = 'tenant'
   ))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."saved_views";
+create policy bsb_tenant_scope_insert on "better_supabase"."saved_views" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."saved_views";
+create policy bsb_tenant_scope_update on "better_supabase"."saved_views" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."saved_views";
+create policy bsb_tenant_scope_delete on "better_supabase"."saved_views" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."saved_view_preferences";
-create policy bsb_tenant_scope on "better_supabase"."saved_view_preferences" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."saved_view_preferences";
+create policy bsb_tenant_scope_select on "better_supabase"."saved_view_preferences" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("user_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."saved_view_preferences";
+create policy bsb_tenant_scope_insert on "better_supabase"."saved_view_preferences" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."saved_view_preferences";
+create policy bsb_tenant_scope_update on "better_supabase"."saved_view_preferences" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."saved_view_preferences";
+create policy bsb_tenant_scope_delete on "better_supabase"."saved_view_preferences" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

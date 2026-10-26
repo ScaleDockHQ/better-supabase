@@ -1,6 +1,6 @@
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:2518c6d053e55c3fd9fd7bde3f0bcc52f0138e0b37ee6e846bdde6572c4ea717
+-- @bsb-hash sha256:3e58a60998a1811b97df995d73147a26afc61edf84f336bcbfeaddf8cb106769
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,6 +11,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."service_principals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."service_principals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."service_principals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."service_principals";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -245,13 +249,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."service_principals";
-create policy bsb_tenant_scope on "better_supabase"."service_principals" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."service_principals";
+create policy bsb_tenant_scope_select on "better_supabase"."service_principals" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
+create policy bsb_tenant_scope_insert on "better_supabase"."service_principals" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."service_principals";
+create policy bsb_tenant_scope_update on "better_supabase"."service_principals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."service_principals";
+create policy bsb_tenant_scope_delete on "better_supabase"."service_principals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.service-accounts.api: entry points for the Data API.
 create schema if not exists "api";

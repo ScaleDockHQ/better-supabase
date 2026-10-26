@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:93853226230f992750c3257bf7aadd233c91160442aab5b55acb475d720b99ff
+-- @bsb-hash sha256:1c15bebe017c5c30f061fdf4c58491c7d2c5c253809ea61649573ead9e1b5ca9
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."access_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."access_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."access_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."access_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -366,13 +370,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
-create policy bsb_tenant_scope on "better_supabase"."access_requests" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."access_requests";
+create policy bsb_tenant_scope_select on "better_supabase"."access_requests" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."access_requests";
+create policy bsb_tenant_scope_insert on "better_supabase"."access_requests" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."access_requests";
+create policy bsb_tenant_scope_update on "better_supabase"."access_requests" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."access_requests";
+create policy bsb_tenant_scope_delete on "better_supabase"."access_requests" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

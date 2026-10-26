@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:5b0f43c039a76abe11f8d288ae2769f52a7093601376c717cddefe0c6ddffb17
+-- @bsb-hash sha256:790ad47d7db80b62cc9af1cfaf7d1f2f9c28c26d98e6dd49458ea9af1beac41a
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."invoices";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoices";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoices";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoices";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoices";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -695,21 +703,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."invoices";
-create policy bsb_tenant_scope on "better_supabase"."invoices" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoices";
+create policy bsb_tenant_scope_select on "better_supabase"."invoices" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoices";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoices" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoices";
+create policy bsb_tenant_scope_update on "better_supabase"."invoices" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoices";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoices" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_lines";
-create policy bsb_tenant_scope on "better_supabase"."invoice_lines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."invoice_lines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."invoice_lines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."invoice_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."invoice_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

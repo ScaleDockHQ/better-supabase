@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:31c1d5b97fb732b91de67e37fd8b441013bcfef53a1145ab762d4880618ed490
+-- @bsb-hash sha256:265cfb583bb8000955bb698015e49965ade9cfede56d85a38c0108bc3653feca
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,10 +46,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_sessions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -768,22 +776,48 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
-create policy bsb_tenant_scope on "better_supabase"."support_sessions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_select on "better_supabase"."support_sessions" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ((select "better_supabase"."is_platform"('support.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_insert on "better_supabase"."support_sessions" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_update on "better_supabase"."support_sessions" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_delete on "better_supabase"."support_sessions" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
-create policy bsb_tenant_scope on "better_supabase"."support_requests" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_select on "better_supabase"."support_requests" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('support.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_insert on "better_supabase"."support_requests" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_update on "better_supabase"."support_requests" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_delete on "better_supabase"."support_requests" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -815,7 +849,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:bdd3b6912adb86caeeeb41de2a0ee61aae31ad54421b27694ecf91f30a0945fe
+-- @bsb-hash sha256:d00d275e5533c31549d5c1ff316ececb910f665615728675b9755377dc0ec290
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -860,10 +894,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_sessions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1623,22 +1665,48 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
-create policy bsb_tenant_scope on "better_supabase"."support_sessions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_select on "better_supabase"."support_sessions" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ((select "better_supabase"."is_platform"('support.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_insert on "better_supabase"."support_sessions" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_update on "better_supabase"."support_sessions" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_delete on "better_supabase"."support_sessions" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
-create policy bsb_tenant_scope on "better_supabase"."support_requests" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_select on "better_supabase"."support_requests" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('support.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_insert on "better_supabase"."support_requests" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_update on "better_supabase"."support_requests" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_delete on "better_supabase"."support_requests" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1670,7 +1738,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:ad09c4376e34d039a3bf3353bfe277280dc4671ce26cc561e92543e160a7f471
+-- @bsb-hash sha256:98cb5f977e996fa6d71681e2f693f13c5c67460ee700210324e8022a18326ff8
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1715,10 +1783,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."support_sessions";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."support_sessions";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."support_sessions";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."support_sessions";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."support_sessions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."support_requests";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."support_requests";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."support_requests";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."support_requests";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."support_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2437,22 +2513,48 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."support_sessions";
-create policy bsb_tenant_scope on "app_private"."support_sessions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."support_sessions";
+create policy bsb_tenant_scope_select on "app_private"."support_sessions" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ((select "better_supabase"."is_platform"('support.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."support_sessions";
+create policy bsb_tenant_scope_insert on "app_private"."support_sessions" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."support_sessions";
+create policy bsb_tenant_scope_update on "app_private"."support_sessions" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."support_sessions";
+create policy bsb_tenant_scope_delete on "app_private"."support_sessions" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."support_requests";
-create policy bsb_tenant_scope on "app_private"."support_requests" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."support_requests";
+create policy bsb_tenant_scope_select on "app_private"."support_requests" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('support.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."support_requests";
+create policy bsb_tenant_scope_insert on "app_private"."support_requests" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."support_requests";
+create policy bsb_tenant_scope_update on "app_private"."support_requests" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."support_requests";
+create policy bsb_tenant_scope_delete on "app_private"."support_requests" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2484,7 +2586,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:b064b02c0460d419443c847f338b5260ff82159fa1bf75fdc61f7fcc1381b260
+-- @bsb-hash sha256:7e020eac6efcd0038fbf80ff3930f06878f49443a29164a1cb1b434909846dd5
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2529,10 +2631,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_sessions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3251,22 +3361,48 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
-create policy bsb_tenant_scope on "better_supabase"."support_sessions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_select on "better_supabase"."support_sessions" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ((select "better_supabase"."is_platform"('support.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_insert on "better_supabase"."support_sessions" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_update on "better_supabase"."support_sessions" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_delete on "better_supabase"."support_sessions" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
-create policy bsb_tenant_scope on "better_supabase"."support_requests" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_select on "better_supabase"."support_requests" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('support.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_insert on "better_supabase"."support_requests" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_update on "better_supabase"."support_requests" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_delete on "better_supabase"."support_requests" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.impersonation.api: entry points for the Data API.
 create schema if not exists "api";
@@ -3410,7 +3546,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:ccfbd4ce41cd9fae10164c571f083e3df05e53e0d12db2accbe79510a1381ee8
+-- @bsb-hash sha256:f116b067a719a6c69614b45b4207113cf004b4473d0857d6f2e7375aeded06fc
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3455,10 +3591,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_sessions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4165,22 +4309,48 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
-create policy bsb_tenant_scope on "better_supabase"."support_sessions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_select on "better_supabase"."support_sessions" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ((select "better_supabase"."is_platform"('support.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_insert on "better_supabase"."support_sessions" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_update on "better_supabase"."support_sessions" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_delete on "better_supabase"."support_sessions" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
-create policy bsb_tenant_scope on "better_supabase"."support_requests" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_select on "better_supabase"."support_requests" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('support.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_insert on "better_supabase"."support_requests" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_update on "better_supabase"."support_requests" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_delete on "better_supabase"."support_requests" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -4212,7 +4382,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:00fd9b88ee690331ecfcb01220762d452531a3dd1bd819bf5cbfe73126f4f19c
+-- @bsb-hash sha256:f99b37c6d65355b9db44acf0c8a5faefffa9bea5b90d28ae97c458500e5e5219
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4257,10 +4427,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_sessions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_sessions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_requests";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_requests";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4979,22 +5157,48 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
-create policy bsb_tenant_scope on "better_supabase"."support_sessions" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_select on "better_supabase"."support_sessions" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ((select "better_supabase"."is_platform"('support.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_insert on "better_supabase"."support_sessions" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_update on "better_supabase"."support_sessions" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope_delete on "better_supabase"."support_sessions" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
-create policy bsb_tenant_scope on "better_supabase"."support_requests" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_select on "better_supabase"."support_requests" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('support.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_insert on "better_supabase"."support_requests" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_update on "better_supabase"."support_requests" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_requests";
+create policy bsb_tenant_scope_delete on "better_supabase"."support_requests" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:606ffc5ab390340bd5ccbe90ac006c542dab7892c20e3c6f18eb8a429b8d6fbf
+-- @bsb-hash sha256:125efaaa40a7eb52d156edafdb629fc27bbcd4be4e9b834da0d9e2b625805f82
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,14 +46,26 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_locations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_locations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_locations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_locations";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."assets";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assets";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."assets";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assets";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_assignments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_assignments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_assignments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_assignments";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -780,30 +792,69 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
-create policy bsb_tenant_scope on "better_supabase"."asset_locations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_locations";
+create policy bsb_tenant_scope_select on "better_supabase"."asset_locations" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_locations";
+create policy bsb_tenant_scope_insert on "better_supabase"."asset_locations" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_locations";
+create policy bsb_tenant_scope_update on "better_supabase"."asset_locations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_locations";
+create policy bsb_tenant_scope_delete on "better_supabase"."asset_locations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
-create policy bsb_tenant_scope on "better_supabase"."assets" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."assets";
+create policy bsb_tenant_scope_select on "better_supabase"."assets" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
     or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assets";
+create policy bsb_tenant_scope_insert on "better_supabase"."assets" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."assets";
+create policy bsb_tenant_scope_update on "better_supabase"."assets" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assets";
+create policy bsb_tenant_scope_delete on "better_supabase"."assets" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
-create policy bsb_tenant_scope on "better_supabase"."asset_assignments" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_assignments";
+create policy bsb_tenant_scope_select on "better_supabase"."asset_assignments" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("asset_id" in (select y."id" from "better_supabase"."assets" y))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_assignments";
+create policy bsb_tenant_scope_insert on "better_supabase"."asset_assignments" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_assignments";
+create policy bsb_tenant_scope_update on "better_supabase"."asset_assignments" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_assignments";
+create policy bsb_tenant_scope_delete on "better_supabase"."asset_assignments" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -730,9 +730,10 @@ operands, or one of those as an `or` operand of your condition. A comment in the
 `drop policy if exists` before it removes the copy an earlier install left. A
 `bsb_` policy whose condition is wider than yours stays, because it can open
 rows your policies keep closed; [BS347](/docs/cli/doctor#bs347) reports it.
-On tenant tables, a restrictive `bsb_tenant_scope` policy keeps every row
-inside the caller's organizations, so your own permissive policy can't widen
-access beyond them, unless `ownTablePolicies` is `app` (below).
+On tenant tables, one restrictive policy per command (`bsb_tenant_scope_select`,
+`_insert`, `_update` and `_delete`, each `to public`) keeps every row inside
+the caller's organizations for every role, anon included, so your own
+permissive policy can't widen access beyond them, unless `ownTablePolicies` is `app` (below).
 
 ### Keeping your own policies
 

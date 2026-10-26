@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:4231005e6637a2f531acbf264da6894b182d3d034a8d78e17bf6eea92a9aba9c
+-- @bsb-hash sha256:d2196363ccfb4f5e6917e6a66c3fdd33f63c7775fea785f956f087a1cd3df913
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,30 +46,58 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_locations";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_levels";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_reservations";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfers";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfer_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_orders";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1125,61 +1153,152 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
-create policy bsb_tenant_scope on "better_supabase"."inventory_locations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_select on "better_supabase"."inventory_locations" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_insert on "better_supabase"."inventory_locations" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_update on "better_supabase"."inventory_locations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_delete on "better_supabase"."inventory_locations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
-create policy bsb_tenant_scope on "better_supabase"."stock_levels" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_levels" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_levels" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_levels" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_levels" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
-create policy bsb_tenant_scope on "better_supabase"."stock_reservations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_reservations" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_reservations" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_reservations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_reservations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
-create policy bsb_tenant_scope on "better_supabase"."stock_transfers" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_transfers" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_transfers" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_transfers" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_transfers" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
-create policy bsb_tenant_scope on "better_supabase"."stock_transfer_lines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_transfer_lines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_transfer_lines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_transfer_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_transfer_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
-create policy bsb_tenant_scope on "better_supabase"."purchase_orders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_orders" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_orders" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_orders" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_orders" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
-create policy bsb_tenant_scope on "better_supabase"."purchase_order_lines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_order_lines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_order_lines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1211,7 +1330,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:b7c8e22dba758ba761822516d773f2ecf04601a7d659c417e7cdc1fe793ee97b
+-- @bsb-hash sha256:caf0fe168ba00d9c5dd0b80d29a0ad03b95c88c3345b2898d70cc2e1fcdc0830
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1256,30 +1375,58 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_locations";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_levels";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_reservations";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfers";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfer_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_orders";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2335,61 +2482,152 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
-create policy bsb_tenant_scope on "better_supabase"."inventory_locations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_select on "better_supabase"."inventory_locations" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_insert on "better_supabase"."inventory_locations" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_update on "better_supabase"."inventory_locations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_delete on "better_supabase"."inventory_locations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
-create policy bsb_tenant_scope on "better_supabase"."stock_levels" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_levels" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_levels" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_levels" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_levels" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
-create policy bsb_tenant_scope on "better_supabase"."stock_reservations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_reservations" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_reservations" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_reservations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_reservations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
-create policy bsb_tenant_scope on "better_supabase"."stock_transfers" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_transfers" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_transfers" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_transfers" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_transfers" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
-create policy bsb_tenant_scope on "better_supabase"."stock_transfer_lines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_transfer_lines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_transfer_lines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_transfer_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_transfer_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
-create policy bsb_tenant_scope on "better_supabase"."purchase_orders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_orders" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_orders" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_orders" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_orders" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
-create policy bsb_tenant_scope on "better_supabase"."purchase_order_lines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_order_lines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_order_lines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2421,7 +2659,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:66934f86da0a4b8cfff96dc6609bbcbaa232d3aaefe41c0114fbfaed9ab0eaa3
+-- @bsb-hash sha256:7f072c37f7438ed0628ab2e66e3d6793afeab012f93d4d8e43db711eb36bbb5f
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2466,30 +2704,58 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."inventory_locations";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."stock_levels";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."stock_levels";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."stock_levels";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."stock_levels";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."stock_levels";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."stock_reservations";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."stock_transfers";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."stock_transfer_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."purchase_orders";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."purchase_order_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3547,61 +3813,152 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."inventory_locations";
-create policy bsb_tenant_scope on "app_private"."inventory_locations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."inventory_locations";
+create policy bsb_tenant_scope_select on "app_private"."inventory_locations" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."inventory_locations";
+create policy bsb_tenant_scope_insert on "app_private"."inventory_locations" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."inventory_locations";
+create policy bsb_tenant_scope_update on "app_private"."inventory_locations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."inventory_locations";
+create policy bsb_tenant_scope_delete on "app_private"."inventory_locations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."stock_levels";
-create policy bsb_tenant_scope on "app_private"."stock_levels" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."stock_levels";
+create policy bsb_tenant_scope_select on "app_private"."stock_levels" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."stock_levels";
+create policy bsb_tenant_scope_insert on "app_private"."stock_levels" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."stock_levels";
+create policy bsb_tenant_scope_update on "app_private"."stock_levels" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."stock_levels";
+create policy bsb_tenant_scope_delete on "app_private"."stock_levels" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."stock_reservations";
-create policy bsb_tenant_scope on "app_private"."stock_reservations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."stock_reservations";
+create policy bsb_tenant_scope_select on "app_private"."stock_reservations" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."stock_reservations";
+create policy bsb_tenant_scope_insert on "app_private"."stock_reservations" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."stock_reservations";
+create policy bsb_tenant_scope_update on "app_private"."stock_reservations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."stock_reservations";
+create policy bsb_tenant_scope_delete on "app_private"."stock_reservations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."stock_transfers";
-create policy bsb_tenant_scope on "app_private"."stock_transfers" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."stock_transfers";
+create policy bsb_tenant_scope_select on "app_private"."stock_transfers" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."stock_transfers";
+create policy bsb_tenant_scope_insert on "app_private"."stock_transfers" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."stock_transfers";
+create policy bsb_tenant_scope_update on "app_private"."stock_transfers" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."stock_transfers";
+create policy bsb_tenant_scope_delete on "app_private"."stock_transfers" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."stock_transfer_lines";
-create policy bsb_tenant_scope on "app_private"."stock_transfer_lines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."stock_transfer_lines";
+create policy bsb_tenant_scope_select on "app_private"."stock_transfer_lines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."stock_transfer_lines";
+create policy bsb_tenant_scope_insert on "app_private"."stock_transfer_lines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."stock_transfer_lines";
+create policy bsb_tenant_scope_update on "app_private"."stock_transfer_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."stock_transfer_lines";
+create policy bsb_tenant_scope_delete on "app_private"."stock_transfer_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."purchase_orders";
-create policy bsb_tenant_scope on "app_private"."purchase_orders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."purchase_orders";
+create policy bsb_tenant_scope_select on "app_private"."purchase_orders" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."purchase_orders";
+create policy bsb_tenant_scope_insert on "app_private"."purchase_orders" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."purchase_orders";
+create policy bsb_tenant_scope_update on "app_private"."purchase_orders" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."purchase_orders";
+create policy bsb_tenant_scope_delete on "app_private"."purchase_orders" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."purchase_order_lines";
-create policy bsb_tenant_scope on "app_private"."purchase_order_lines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."purchase_order_lines";
+create policy bsb_tenant_scope_select on "app_private"."purchase_order_lines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."purchase_order_lines";
+create policy bsb_tenant_scope_insert on "app_private"."purchase_order_lines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."purchase_order_lines";
+create policy bsb_tenant_scope_update on "app_private"."purchase_order_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."purchase_order_lines";
+create policy bsb_tenant_scope_delete on "app_private"."purchase_order_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -3633,7 +3990,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:a0509a561194a5bf8e765cfe6920d74eb798dab6ab743b09b6c16469e1d59077
+-- @bsb-hash sha256:244b78bf92dec9458ec15a0f67b36a72403e13ba2780ff5e3f50d8fa2fc470a9
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3678,30 +4035,58 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_locations";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_levels";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_reservations";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfers";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfer_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_orders";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4757,61 +5142,152 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
-create policy bsb_tenant_scope on "better_supabase"."inventory_locations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_select on "better_supabase"."inventory_locations" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_insert on "better_supabase"."inventory_locations" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_update on "better_supabase"."inventory_locations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_delete on "better_supabase"."inventory_locations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
-create policy bsb_tenant_scope on "better_supabase"."stock_levels" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_levels" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_levels" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_levels" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_levels" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
-create policy bsb_tenant_scope on "better_supabase"."stock_reservations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_reservations" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_reservations" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_reservations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_reservations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
-create policy bsb_tenant_scope on "better_supabase"."stock_transfers" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_transfers" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_transfers" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_transfers" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_transfers" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
-create policy bsb_tenant_scope on "better_supabase"."stock_transfer_lines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_transfer_lines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_transfer_lines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_transfer_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_transfer_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
-create policy bsb_tenant_scope on "better_supabase"."purchase_orders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_orders" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_orders" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_orders" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_orders" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
-create policy bsb_tenant_scope on "better_supabase"."purchase_order_lines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_order_lines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_order_lines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.inventory.api: entry points for the Data API.
 create schema if not exists "api";
@@ -5029,7 +5505,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:807f91f80a4cea0f6f8f4337849125c32c7a7639fce7f4383a3c3662e5950f88
+-- @bsb-hash sha256:1201a50c5be49f857f509087e2b7b77775805855836b7cb33e635358f7365968
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5090,30 +5566,58 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_locations";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_levels";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_reservations";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfers";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfer_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_orders";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -6149,61 +6653,152 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
-create policy bsb_tenant_scope on "better_supabase"."inventory_locations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_select on "better_supabase"."inventory_locations" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_insert on "better_supabase"."inventory_locations" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_update on "better_supabase"."inventory_locations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_delete on "better_supabase"."inventory_locations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
-create policy bsb_tenant_scope on "better_supabase"."stock_levels" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_levels" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_levels" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_levels" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_levels" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
-create policy bsb_tenant_scope on "better_supabase"."stock_reservations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_reservations" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_reservations" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_reservations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_reservations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
-create policy bsb_tenant_scope on "better_supabase"."stock_transfers" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_transfers" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_transfers" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_transfers" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_transfers" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
-create policy bsb_tenant_scope on "better_supabase"."stock_transfer_lines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_transfer_lines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_transfer_lines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_transfer_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_transfer_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
-create policy bsb_tenant_scope on "better_supabase"."purchase_orders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_orders" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_orders" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_orders" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_orders" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
-create policy bsb_tenant_scope on "better_supabase"."purchase_order_lines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_order_lines" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_order_lines" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -6235,7 +6830,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
--- @bsb-hash sha256:0fbba2979eb8e6fc41becd49ab2adcd13ca42cbfb558a9bb2be5034c1b0ef7bb
+-- @bsb-hash sha256:bceffebad9a23360f7718e5ad9af6a558b9118776547dafffc01f64e86f358b3
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6280,30 +6875,58 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_locations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_locations";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_levels";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_levels";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_reservations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_reservations";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfers";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfer_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfer_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_orders";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_orders";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_order_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -7359,61 +7982,152 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
-create policy bsb_tenant_scope on "better_supabase"."inventory_locations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_select on "better_supabase"."inventory_locations" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_insert on "better_supabase"."inventory_locations" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_update on "better_supabase"."inventory_locations" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope_delete on "better_supabase"."inventory_locations" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
-create policy bsb_tenant_scope on "better_supabase"."stock_levels" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_levels" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_levels" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_levels" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_levels" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
-create policy bsb_tenant_scope on "better_supabase"."stock_reservations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_reservations" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_reservations" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_reservations" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_reservations" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
-create policy bsb_tenant_scope on "better_supabase"."stock_transfers" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_transfers" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_transfers" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_transfers" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_transfers" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
-create policy bsb_tenant_scope on "better_supabase"."stock_transfer_lines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."stock_transfer_lines" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."stock_transfer_lines" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."stock_transfer_lines" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."stock_transfer_lines" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
-create policy bsb_tenant_scope on "better_supabase"."purchase_orders" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_orders" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_orders" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_orders" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_orders" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
-create policy bsb_tenant_scope on "better_supabase"."purchase_order_lines" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_order_lines" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_order_lines" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_lines" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:0df789399914fcf0b84fc71ea06e25edce768abd47121183a859479a0d18ee36
+-- @bsb-hash sha256:9716e59ea5152e342cd90f33417fb9285b535d30ebfea13b874125b516692a15
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bulk_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -279,13 +283,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."bulk_runs";
-create policy bsb_tenant_scope on "better_supabase"."bulk_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."bulk_runs" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("created_by" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."bulk_runs" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."bulk_runs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."bulk_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -317,7 +334,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:1205e7ed392c9165d4149acbf76c918a5a3245245c48a471d24d8be03891d4b6
+-- @bsb-hash sha256:f60d42928e5e0e8e59ad6b363cb0237aa9f0b1956a9b79526c7842871cee9e19
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -362,6 +379,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bulk_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -615,13 +636,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."bulk_runs";
-create policy bsb_tenant_scope on "better_supabase"."bulk_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."bulk_runs" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("created_by" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."bulk_runs" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."bulk_runs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."bulk_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -653,7 +687,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:9591512391be2cd4ddd4626bd4e4bb30d8d16581ce77ae4bde3b91c785b0fcb1
+-- @bsb-hash sha256:30c233aa5a41f5c6c3b6c17f1698323446f0821d8ef7bf4f664c9491c4161d16
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -698,6 +732,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."bulk_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -933,13 +971,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."bulk_runs";
-create policy bsb_tenant_scope on "app_private"."bulk_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "app_private"."bulk_runs";
+create policy bsb_tenant_scope_select on "app_private"."bulk_runs" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("created_by" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."bulk_runs";
+create policy bsb_tenant_scope_insert on "app_private"."bulk_runs" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."bulk_runs";
+create policy bsb_tenant_scope_update on "app_private"."bulk_runs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."bulk_runs";
+create policy bsb_tenant_scope_delete on "app_private"."bulk_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -971,7 +1022,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:5b60fd57e780b5f413272883bc4641b6824cc38c03944701d51c16b8f2509b15
+-- @bsb-hash sha256:1c1820c8ce3dd4260a528e4304f480bd0f4dfa633103e60a8010fc9fc252c424
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1016,6 +1067,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bulk_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1249,13 +1304,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."bulk_runs";
-create policy bsb_tenant_scope on "better_supabase"."bulk_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."bulk_runs" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("created_by" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."bulk_runs" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."bulk_runs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."bulk_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.bulk.api: entry points for the Data API.
 create schema if not exists "api";
@@ -1354,7 +1422,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:db38d01271c141e227d31a3eb5e3f90e84c33db1d22cc0bc5017f01cf0879881
+-- @bsb-hash sha256:8ed75deea2b825d554662f9d7ee344021c7b67bd54632762acb410605beed7f0
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1415,6 +1483,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bulk_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1646,13 +1718,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."bulk_runs";
-create policy bsb_tenant_scope on "better_supabase"."bulk_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."bulk_runs" as restrictive
+  for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("created_by" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."bulk_runs" as restrictive
+  for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."bulk_runs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."bulk_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1684,7 +1769,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:28557413a4dad2961500fed841f82f6b817f1fe06330c0656201318a50785d2d
+-- @bsb-hash sha256:c05b2387aa0a7e8abedd3b6185bbf13e27b83f80fbf44cd960d2eac462a43fc9
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1729,6 +1814,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bulk_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bulk_runs";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1962,13 +2051,26 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."bulk_runs";
-create policy bsb_tenant_scope on "better_supabase"."bulk_runs" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."bulk_runs" as restrictive
+  for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("created_by" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."bulk_runs" as restrictive
+  for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."bulk_runs" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."bulk_runs" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

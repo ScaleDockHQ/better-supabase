@@ -1,6 +1,6 @@
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:711b671acd413c68a5de09ec1aca20817d950a15cf99a0d0c86980523dc726d7
+-- @bsb-hash sha256:5d31896e5632cf44f02f678ecc98d941bcba79238ef8f3fa40349e56a6afb4a6
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,10 +45,18 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_servers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_servers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_servers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_servers";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_grants";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_grants";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_grants";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_grants";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -571,21 +579,47 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
-create policy bsb_tenant_scope on "better_supabase"."connector_servers" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_servers";
+create policy bsb_tenant_scope_select on "better_supabase"."connector_servers" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('ai.read')))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_servers";
+create policy bsb_tenant_scope_insert on "better_supabase"."connector_servers" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_servers";
+create policy bsb_tenant_scope_update on "better_supabase"."connector_servers" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_servers";
+create policy bsb_tenant_scope_delete on "better_supabase"."connector_servers" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
-create policy bsb_tenant_scope on "better_supabase"."connector_grants" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_grants";
+create policy bsb_tenant_scope_select on "better_supabase"."connector_grants" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_grants";
+create policy bsb_tenant_scope_insert on "better_supabase"."connector_grants" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_grants";
+create policy bsb_tenant_scope_update on "better_supabase"."connector_grants" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_grants";
+create policy bsb_tenant_scope_delete on "better_supabase"."connector_grants" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.connectors.api: entry points for the Data API.
 create schema if not exists "api";

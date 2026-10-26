@@ -1,6 +1,6 @@
 -- better-supabase module: timeline
 -- @bsb-block timeline@1 managed
--- @bsb-hash sha256:c21e2e8658940e02baf55f3851c4de6d8ae844ba8a874d6ddcc19430ac024638
+-- @bsb-hash sha256:4db7f0b954f0b992b5dc11ef1d94418010a6b86b17f8a537d3d8c93117a7c02d
 -- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,6 +11,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."activity_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."activity_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."activity_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."activity_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."activity_entries";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -263,16 +267,29 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."activity_entries";
-create policy bsb_tenant_scope on "better_supabase"."activity_entries" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."activity_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."activity_entries" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('activity.read'))
     and ("subject_type" is null or "subject_id" is null
       or not ("subject_type" = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,customer,drive_node,application,project,task}'::text[]))
       or "better_supabase"."activity_subject_readable"("subject_type", "subject_id")))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."activity_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."activity_entries" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."activity_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."activity_entries" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."activity_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."activity_entries" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.timeline.api: entry points for the Data API.
 create schema if not exists "api";

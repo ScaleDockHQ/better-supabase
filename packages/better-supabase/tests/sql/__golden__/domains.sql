@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@1 managed
--- @bsb-hash sha256:eb3d6c296302dfa65b2c7b94748df33fffa94b324bc0018d185f7d83a0736410
+-- @bsb-hash sha256:492bebc8bb3e3703a26d41a65f04718a3f86e8d05a962a00e2d185cfe127e1b8
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_hostnames";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -312,7 +316,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@1 managed
--- @bsb-hash sha256:c65201bd159a3dab28ec23ff531d33a04340e7a24692040567efe78887865217
+-- @bsb-hash sha256:5804789165309870bea1950e470d3a64b8c08e49fbcd1c9300e27c05cca50d4c
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -357,6 +361,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_hostnames";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -673,7 +681,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@1 managed
--- @bsb-hash sha256:3b5825b551b0793e497ca1ebe3f84217071bd8c3e0696fbb30ec29e7126bed1a
+-- @bsb-hash sha256:f474b482763212a3ce18abdfd875923326d20a952ad2fe506c68f07b695e12a7
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -718,6 +726,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."organization_hostnames";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -986,7 +998,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@1 managed
--- @bsb-hash sha256:a9121b9290724adb8656f8298b433b2eb3fe105a5c88e69f175aff0fc2a93d1f
+-- @bsb-hash sha256:4b581193afb7e09a443dad954c9507c8f9049986903752d9b5d43b226f2022cc
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1031,6 +1043,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_hostnames";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1382,7 +1398,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@1 managed
--- @bsb-hash sha256:9979db7bc13cf799254b5f6974d12433ac7420c1eed5289d1b4561f105451a5c
+-- @bsb-hash sha256:8d0801ed1989b8afe62efcfd5705020812b987445cc52c15e2a0a3c4d29972a4
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1443,6 +1459,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_hostnames";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1705,7 +1725,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@1 managed
--- @bsb-hash sha256:3112f701e03c185dd4f1977528d24ae6d7561e204528240ff2077c1da05bbce6
+-- @bsb-hash sha256:862e1a28e891d98bfd62447445d66d4fe86855d81a2656f49f2cb9e07054f684
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1750,6 +1770,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_hostnames";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_hostnames";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;

@@ -1,6 +1,6 @@
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:0bd5b6c73415dc9d69a62c2a1805002f830aeddd2e1b12960919452055cd535d
+-- @bsb-hash sha256:6e9f2cfa2c5f632fdf7c3913dda9ea99cdc67c9f6b226970adcffd96874603d9
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,6 +45,10 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "centrakit"."organization_invitations";
+    drop policy if exists bsb_tenant_scope_select on "centrakit"."organization_invitations";
+    drop policy if exists bsb_tenant_scope_insert on "centrakit"."organization_invitations";
+    drop policy if exists bsb_tenant_scope_update on "centrakit"."organization_invitations";
+    drop policy if exists bsb_tenant_scope_delete on "centrakit"."organization_invitations";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1194,14 +1198,27 @@ begin
   end if;
 end $$;
 drop policy if exists bsb_tenant_scope on "centrakit"."organization_invitations";
-create policy bsb_tenant_scope on "centrakit"."organization_invitations" as restrictive
-  for all to authenticated
+drop policy if exists bsb_tenant_scope_select on "centrakit"."organization_invitations";
+create policy bsb_tenant_scope_select on "centrakit"."organization_invitations" as restrictive
+  for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()))
     or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()) or (select "better_supabase"."platform_invitations_readable"()))
-  )
+  );
+drop policy if exists bsb_tenant_scope_insert on "centrakit"."organization_invitations";
+create policy bsb_tenant_scope_insert on "centrakit"."organization_invitations" as restrictive
+  for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "centrakit"."organization_invitations";
+create policy bsb_tenant_scope_update on "centrakit"."organization_invitations" as restrictive
+  for update to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "centrakit"."organization_invitations";
+create policy bsb_tenant_scope_delete on "centrakit"."organization_invitations" as restrictive
+  for delete to public
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
