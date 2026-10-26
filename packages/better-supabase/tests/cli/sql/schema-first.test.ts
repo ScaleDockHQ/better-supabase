@@ -110,4 +110,34 @@ describe("splitAppTables", () => {
     expect(table).toContain("vector-search column=e");
     expect(files.some((file) => file.path === "public/views/v.sql")).toBe(true);
   });
+
+  it("writes json, encrypted and events tags", () => {
+    const tagged = {
+      ...base,
+      json: {
+        "a.meta": { type: "Meta" },
+        "public.a.doc": { import: "@/t#Doc" },
+        "other.meta": { type: "Skip" },
+      },
+      appTables: {
+        a: {
+          columns: { ssn: { type: "bigint" as const, encrypted: true } },
+          events: { on: ["created" as const], include: ["x"] },
+        },
+        b: { events: true as const },
+      },
+    };
+
+    const sql =
+      'create table "public"."a" (id int); create table "public"."b" (id int);';
+
+    const files = splitAppTables(tagged, sql, ["a", "b"]);
+    const a = files[0]?.contents ?? "";
+    const b = files[1]?.contents ?? "";
+
+    expect(a).toContain("json meta=Meta doc=import:@/t#Doc");
+    expect(a).toContain("encrypted ssn=bigint");
+    expect(a).toContain("events on=created include=x");
+    expect(b).toContain("events");
+  });
 });

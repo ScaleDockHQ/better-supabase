@@ -1,6 +1,6 @@
 -- better-supabase module: orders
 -- @bsb-block orders@2 managed
--- @bsb-hash sha256:dace0cd8547f9cb898b736be7773bd5b24578b01812e2d211177c20a7ddb2d2a
+-- @bsb-hash sha256:118227db82f0ac5daf4748d2db63b1c57169d3ada51cb4c083420708322647a2
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -154,7 +154,7 @@ create table if not exists "better_supabase"."shipping_rates" (
 );
 create index if not exists shipping_rates_tenant_idx on "better_supabase"."shipping_rates" ("tenant_id", "currency");
 alter table "better_supabase"."shipping_rates" enable row level security;
-revoke all on "better_supabase"."shipping_rates" from anon, authenticated;
+revoke all on "better_supabase"."shipping_rates" from public, anon, authenticated;
 grant select on "better_supabase"."shipping_rates" to authenticated;
 grant all on "better_supabase"."shipping_rates" to service_role;
 drop policy if exists shipping_rates_read on "better_supabase"."shipping_rates";
@@ -181,7 +181,7 @@ create index if not exists carts_user_idx on "better_supabase"."carts" ("user_id
 create index if not exists carts_rate_idx on "better_supabase"."carts" ("shipping_rate_id");
 create index if not exists carts_price_list_idx on "better_supabase"."carts" ("price_list_id");
 alter table "better_supabase"."carts" enable row level security;
-revoke all on "better_supabase"."carts" from anon, authenticated;
+revoke all on "better_supabase"."carts" from public, anon, authenticated;
 grant select on "better_supabase"."carts" to authenticated;
 grant all on "better_supabase"."carts" to service_role;
 drop policy if exists carts_read on "better_supabase"."carts";
@@ -201,7 +201,7 @@ create table if not exists "better_supabase"."cart_lines" (
 );
 create index if not exists cart_lines_variant_idx on "better_supabase"."cart_lines" ("variant_id");
 alter table "better_supabase"."cart_lines" enable row level security;
-revoke all on "better_supabase"."cart_lines" from anon, authenticated;
+revoke all on "better_supabase"."cart_lines" from public, anon, authenticated;
 grant select on "better_supabase"."cart_lines" to authenticated;
 grant all on "better_supabase"."cart_lines" to service_role;
 drop policy if exists cart_lines_read on "better_supabase"."cart_lines";
@@ -249,7 +249,7 @@ create index if not exists orders_status_idx on "better_supabase"."orders" ("ten
 create index if not exists orders_customer_idx on "better_supabase"."orders" ("customer_id");
 create index if not exists orders_sequence_idx on "better_supabase"."orders" ("tenant_id", "sequence");
 alter table "better_supabase"."orders" enable row level security;
-revoke all on "better_supabase"."orders" from anon, authenticated;
+revoke all on "better_supabase"."orders" from public, anon, authenticated;
 grant select on "better_supabase"."orders" to authenticated;
 grant all on "better_supabase"."orders" to service_role;
 drop policy if exists orders_read on "better_supabase"."orders";
@@ -281,7 +281,7 @@ create table if not exists "better_supabase"."order_lines" (
 create index if not exists order_lines_order_idx on "better_supabase"."order_lines" ("order_id");
 create index if not exists order_lines_variant_idx on "better_supabase"."order_lines" ("variant_id");
 alter table "better_supabase"."order_lines" enable row level security;
-revoke all on "better_supabase"."order_lines" from anon, authenticated;
+revoke all on "better_supabase"."order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_lines" to authenticated;
 grant all on "better_supabase"."order_lines" to service_role;
 drop policy if exists order_lines_read on "better_supabase"."order_lines";
@@ -305,7 +305,7 @@ create table if not exists "better_supabase"."order_payments" (
 );
 create index if not exists order_payments_order_idx on "better_supabase"."order_payments" ("order_id");
 alter table "better_supabase"."order_payments" enable row level security;
-revoke all on "better_supabase"."order_payments" from anon, authenticated;
+revoke all on "better_supabase"."order_payments" from public, anon, authenticated;
 grant select on "better_supabase"."order_payments" to authenticated;
 grant all on "better_supabase"."order_payments" to service_role;
 drop policy if exists order_payments_read on "better_supabase"."order_payments";
@@ -327,7 +327,7 @@ create table if not exists "better_supabase"."fulfillments" (
 );
 create index if not exists fulfillments_order_idx on "better_supabase"."fulfillments" ("order_id");
 alter table "better_supabase"."fulfillments" enable row level security;
-revoke all on "better_supabase"."fulfillments" from anon, authenticated;
+revoke all on "better_supabase"."fulfillments" from public, anon, authenticated;
 grant select on "better_supabase"."fulfillments" to authenticated;
 grant all on "better_supabase"."fulfillments" to service_role;
 drop policy if exists fulfillments_read on "better_supabase"."fulfillments";
@@ -343,7 +343,7 @@ create table if not exists "better_supabase"."fulfillment_lines" (
 );
 create index if not exists fulfillment_lines_line_idx on "better_supabase"."fulfillment_lines" ("order_line_id");
 alter table "better_supabase"."fulfillment_lines" enable row level security;
-revoke all on "better_supabase"."fulfillment_lines" from anon, authenticated;
+revoke all on "better_supabase"."fulfillment_lines" from public, anon, authenticated;
 grant select on "better_supabase"."fulfillment_lines" to authenticated;
 grant all on "better_supabase"."fulfillment_lines" to service_role;
 drop policy if exists fulfillment_lines_read on "better_supabase"."fulfillment_lines";
@@ -362,7 +362,7 @@ create table if not exists "better_supabase"."order_returns" (
 );
 create index if not exists order_returns_order_idx on "better_supabase"."order_returns" ("order_id");
 alter table "better_supabase"."order_returns" enable row level security;
-revoke all on "better_supabase"."order_returns" from anon, authenticated;
+revoke all on "better_supabase"."order_returns" from public, anon, authenticated;
 grant select on "better_supabase"."order_returns" to authenticated;
 grant all on "better_supabase"."order_returns" to service_role;
 drop policy if exists order_returns_read on "better_supabase"."order_returns";
@@ -378,7 +378,7 @@ create table if not exists "better_supabase"."order_return_lines" (
 );
 create index if not exists order_return_lines_line_idx on "better_supabase"."order_return_lines" ("order_line_id");
 alter table "better_supabase"."order_return_lines" enable row level security;
-revoke all on "better_supabase"."order_return_lines" from anon, authenticated;
+revoke all on "better_supabase"."order_return_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_return_lines" to authenticated;
 grant all on "better_supabase"."order_return_lines" to service_role;
 drop policy if exists order_return_lines_read on "better_supabase"."order_return_lines";
@@ -404,7 +404,7 @@ create index if not exists order_refunds_payment_idx on "better_supabase"."order
 create index if not exists order_refunds_return_idx on "better_supabase"."order_refunds" ("return_id");
 create unique index if not exists order_refunds_provider_reference_idx on "better_supabase"."order_refunds" ("provider_reference") where "provider_reference" is not null;
 alter table "better_supabase"."order_refunds" enable row level security;
-revoke all on "better_supabase"."order_refunds" from anon, authenticated;
+revoke all on "better_supabase"."order_refunds" from public, anon, authenticated;
 grant select on "better_supabase"."order_refunds" to authenticated;
 grant all on "better_supabase"."order_refunds" to service_role;
 drop policy if exists order_refunds_read on "better_supabase"."order_refunds";
@@ -1939,7 +1939,7 @@ create table if not exists "better_supabase"."kitchen_stations" (
 );
 create unique index if not exists kitchen_stations_default_idx on "better_supabase"."kitchen_stations" ("tenant_id") where "is_default";
 alter table "better_supabase"."kitchen_stations" enable row level security;
-revoke all on "better_supabase"."kitchen_stations" from anon, authenticated;
+revoke all on "better_supabase"."kitchen_stations" from public, anon, authenticated;
 grant select on "better_supabase"."kitchen_stations" to authenticated;
 grant all on "better_supabase"."kitchen_stations" to service_role;
 drop policy if exists kitchen_stations_read on "better_supabase"."kitchen_stations";
@@ -1953,7 +1953,7 @@ create table if not exists "better_supabase"."kitchen_routes" (
 );
 create index if not exists kitchen_routes_station_idx on "better_supabase"."kitchen_routes" ("station_id");
 alter table "better_supabase"."kitchen_routes" enable row level security;
-revoke all on "better_supabase"."kitchen_routes" from anon, authenticated;
+revoke all on "better_supabase"."kitchen_routes" from public, anon, authenticated;
 grant select on "better_supabase"."kitchen_routes" to authenticated;
 grant all on "better_supabase"."kitchen_routes" to service_role;
 drop policy if exists kitchen_routes_read on "better_supabase"."kitchen_routes";
@@ -1980,7 +1980,7 @@ create index if not exists order_line_preparations_order_idx on "better_supabase
 create index if not exists order_line_preparations_station_idx on "better_supabase"."order_line_preparations" ("station_id");
 create index if not exists order_line_preparations_open_idx on "better_supabase"."order_line_preparations" ("tenant_id", "queued_at") where "state" <> 'served';
 alter table "better_supabase"."order_line_preparations" enable row level security;
-revoke all on "better_supabase"."order_line_preparations" from anon, authenticated;
+revoke all on "better_supabase"."order_line_preparations" from public, anon, authenticated;
 grant select on "better_supabase"."order_line_preparations" to authenticated;
 grant all on "better_supabase"."order_line_preparations" to service_role;
 drop policy if exists order_line_preparations_read on "better_supabase"."order_line_preparations";
@@ -2938,5 +2938,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

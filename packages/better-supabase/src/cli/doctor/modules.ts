@@ -209,11 +209,10 @@ async function missingAdoptedColumns(
     return [];
   }
 
-  const tables = adoptedTables(
-    context.config.blocks,
-    appTablesOf(context),
-    appViewsOf(context),
-  );
+  const tables = adoptedTables(context.config.blocks, appTablesOf(context), {
+    ...appViewsOf(context),
+    subjects: context.config.subjects,
+  });
 
   if (tables.length === 0) {
     return [];

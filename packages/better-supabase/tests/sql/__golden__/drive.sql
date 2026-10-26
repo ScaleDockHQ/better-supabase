@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:9fc4d9077b5da2e763131e8c36d92849828ff96fb692da68e7b85e88bd80281e
+-- @bsb-hash sha256:d5fd3e641c42e27b9ebccacc32deaaef7500a3ba34fe8758f1b8c90cc1dfa3a4
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -84,7 +84,7 @@ create index if not exists "drive_nodes_parent_fk_idx" on "better_supabase"."dri
 create index if not exists "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
 create index if not exists "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
 alter table "better_supabase"."drive_nodes" enable row level security;
-revoke all on "better_supabase"."drive_nodes" from anon, authenticated;
+revoke all on "better_supabase"."drive_nodes" from public, anon, authenticated;
 grant select on "better_supabase"."drive_nodes" to authenticated;
 grant all on "better_supabase"."drive_nodes" to service_role;
 
@@ -114,7 +114,7 @@ begin
 end;
 $$;
 alter table "better_supabase"."drive_grants" enable row level security;
-revoke all on "better_supabase"."drive_grants" from anon, authenticated;
+revoke all on "better_supabase"."drive_grants" from public, anon, authenticated;
 grant all on "better_supabase"."drive_grants" to service_role;
 
 -- The node's ancestors and itself, root first.
@@ -944,7 +944,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_032_drive.sql
@@ -964,7 +964,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:3420487fa438330a24ccd5e244c6c1dfa028f27407479e626386c9cf24c7ff87
+-- @bsb-hash sha256:e050f1c36c0257478d81f310109e6855ff3034742f334b93aad55f0d6e8d1402
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1047,7 +1047,7 @@ create index if not exists "drive_nodes_parent_fk_idx" on "better_supabase"."dri
 create index if not exists "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
 create index if not exists "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
 alter table "better_supabase"."drive_nodes" enable row level security;
-revoke all on "better_supabase"."drive_nodes" from anon, authenticated;
+revoke all on "better_supabase"."drive_nodes" from public, anon, authenticated;
 grant select on "better_supabase"."drive_nodes" to authenticated;
 grant all on "better_supabase"."drive_nodes" to service_role;
 
@@ -1077,7 +1077,7 @@ begin
 end;
 $$;
 alter table "better_supabase"."drive_grants" enable row level security;
-revoke all on "better_supabase"."drive_grants" from anon, authenticated;
+revoke all on "better_supabase"."drive_grants" from public, anon, authenticated;
 grant all on "better_supabase"."drive_grants" to service_role;
 
 -- The node's ancestors and itself, root first.
@@ -1957,7 +1957,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_032_drive.sql
@@ -1977,7 +1977,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:9aa382e0f66a197d3fdde20270e0db482e097d73e90e41905457baa70994de76
+-- @bsb-hash sha256:83c84a9b80fdb9ce06105c79804e114f5dca37fc405c07066f3c00a65aa2db5f
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2042,6 +2042,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table if not exists "app_private"."drive_nodes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -2062,7 +2065,7 @@ create index if not exists "drive_nodes_parent_fk_idx" on "app_private"."drive_n
 create index if not exists "drive_nodes_path_idx" on "app_private"."drive_nodes" ("path" text_pattern_ops);
 create index if not exists "drive_nodes_attachment_idx" on "app_private"."drive_nodes" ("attachment_id");
 alter table "app_private"."drive_nodes" enable row level security;
-revoke all on "app_private"."drive_nodes" from anon, authenticated;
+revoke all on "app_private"."drive_nodes" from public, anon, authenticated;
 grant select on "app_private"."drive_nodes" to authenticated;
 grant all on "app_private"."drive_nodes" to service_role;
 
@@ -2092,7 +2095,7 @@ begin
 end;
 $$;
 alter table "app_private"."drive_grants" enable row level security;
-revoke all on "app_private"."drive_grants" from anon, authenticated;
+revoke all on "app_private"."drive_grants" from public, anon, authenticated;
 grant all on "app_private"."drive_grants" to service_role;
 
 -- The node's ancestors and itself, root first.
@@ -2922,7 +2925,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_032_drive.sql
@@ -2942,7 +2945,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:90fd135e25c79e6c81cb3323cfec729d43da90cc4d894cb166319b42aa6ec180
+-- @bsb-hash sha256:c0b74555b9bae996aa524bd6f2506771174e256e08c91b8ab19542d32c1d9ced
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3025,7 +3028,7 @@ create index if not exists "drive_nodes_parent_fk_idx" on "better_supabase"."dri
 create index if not exists "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
 create index if not exists "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
 alter table "better_supabase"."drive_nodes" enable row level security;
-revoke all on "better_supabase"."drive_nodes" from anon, authenticated;
+revoke all on "better_supabase"."drive_nodes" from public, anon, authenticated;
 grant select on "better_supabase"."drive_nodes" to authenticated;
 grant all on "better_supabase"."drive_nodes" to service_role;
 
@@ -3055,7 +3058,7 @@ begin
 end;
 $$;
 alter table "better_supabase"."drive_grants" enable row level security;
-revoke all on "better_supabase"."drive_grants" from anon, authenticated;
+revoke all on "better_supabase"."drive_grants" from public, anon, authenticated;
 grant all on "better_supabase"."drive_grants" to service_role;
 
 -- The node's ancestors and itself, root first.
@@ -4033,7 +4036,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_032_drive.sql
@@ -4053,7 +4056,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:af151a1176c38ebaf3330f063ee4072e0957cbe32f893a408decc08c4052cec5
+-- @bsb-hash sha256:c01bddd3bf336bc8a1281a91e0d92ae4ee9e0d0a1f255b3a7c77c4fc7d621a15
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4979,7 +4982,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_032_drive.sql
@@ -4999,7 +5002,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:caeb7481807a601b35568338a489fc4eed58aabb664db5ced12ccd46f2a11d1f
+-- @bsb-hash sha256:3e2d19c1629c591fe93d8b7095dd47cd35d5f63e1090c00d10999b303a238999
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5082,7 +5085,7 @@ create index if not exists "drive_nodes_parent_fk_idx" on "better_supabase"."dri
 create index if not exists "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
 create index if not exists "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
 alter table "better_supabase"."drive_nodes" enable row level security;
-revoke all on "better_supabase"."drive_nodes" from anon, authenticated;
+revoke all on "better_supabase"."drive_nodes" from public, anon, authenticated;
 grant select on "better_supabase"."drive_nodes" to authenticated;
 grant all on "better_supabase"."drive_nodes" to service_role;
 
@@ -5112,7 +5115,7 @@ begin
 end;
 $$;
 alter table "better_supabase"."drive_grants" enable row level security;
-revoke all on "better_supabase"."drive_grants" from anon, authenticated;
+revoke all on "better_supabase"."drive_grants" from public, anon, authenticated;
 grant all on "better_supabase"."drive_grants" to service_role;
 
 -- The node's ancestors and itself, root first.
@@ -5942,7 +5945,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_032_drive.sql

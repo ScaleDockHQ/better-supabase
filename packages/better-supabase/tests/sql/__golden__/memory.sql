@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:f10e4e386b5be401c60f4b38e1505269f9599f852380999dbfe7cd8ec05062db
+-- @bsb-hash sha256:037276e341c9fef5721efce64a7755b01dc7200e94889b2ee95eea28cdd998b7
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -103,7 +103,7 @@ create index if not exists memories_tsv_idx on "better_supabase"."memories" usin
 create index if not exists memories_pending_embedding_idx on "better_supabase"."memories" ("updated_at")
   where "embedding" is null and "superseded_by" is null;
 alter table "better_supabase"."memories" enable row level security;
-revoke all on "better_supabase"."memories" from anon, authenticated;
+revoke all on "better_supabase"."memories" from public, anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
 drop policy if exists memories_read on "better_supabase"."memories";
@@ -125,7 +125,7 @@ create table if not exists "better_supabase"."ai_message_embeddings" (
 create index if not exists ai_message_embeddings_user_idx on "better_supabase"."ai_message_embeddings" ("user_id", "organization_id");
 create index if not exists ai_message_embeddings_embedding_idx on "better_supabase"."ai_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
 alter table "better_supabase"."ai_message_embeddings" enable row level security;
-revoke all on "better_supabase"."ai_message_embeddings" from anon, authenticated;
+revoke all on "better_supabase"."ai_message_embeddings" from public, anon, authenticated;
 grant select on "better_supabase"."ai_message_embeddings" to authenticated;
 grant all on "better_supabase"."ai_message_embeddings" to service_role;
 drop policy if exists ai_message_embeddings_read on "better_supabase"."ai_message_embeddings";
@@ -856,7 +856,7 @@ create table if not exists "better_supabase"."memory_documents" (
 );
 create index if not exists memory_documents_expires_idx on "better_supabase"."memory_documents" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."memory_documents" enable row level security;
-revoke all on "better_supabase"."memory_documents" from anon, authenticated;
+revoke all on "better_supabase"."memory_documents" from public, anon, authenticated;
 grant all on "better_supabase"."memory_documents" to service_role;
 
 -- A document and its version, or null.
@@ -1006,7 +1006,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_050_memory.sql
@@ -1026,7 +1026,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:db96a628567e229f93738d5675d5dc5daed9b376f30c6f3bba6e55812d4ba02e
+-- @bsb-hash sha256:9b82084d1a717586a9ba23ed2c834c351bffa860f88c459d1f01fd9741a17299
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1128,7 +1128,7 @@ create index if not exists memories_tsv_idx on "better_supabase"."memories" usin
 create index if not exists memories_pending_embedding_idx on "better_supabase"."memories" ("updated_at")
   where "embedding" is null and "superseded_by" is null;
 alter table "better_supabase"."memories" enable row level security;
-revoke all on "better_supabase"."memories" from anon, authenticated;
+revoke all on "better_supabase"."memories" from public, anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
 drop policy if exists memories_read on "better_supabase"."memories";
@@ -1150,7 +1150,7 @@ create table if not exists "better_supabase"."ai_message_embeddings" (
 create index if not exists ai_message_embeddings_user_idx on "better_supabase"."ai_message_embeddings" ("user_id", "organization_id");
 create index if not exists ai_message_embeddings_embedding_idx on "better_supabase"."ai_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
 alter table "better_supabase"."ai_message_embeddings" enable row level security;
-revoke all on "better_supabase"."ai_message_embeddings" from anon, authenticated;
+revoke all on "better_supabase"."ai_message_embeddings" from public, anon, authenticated;
 grant select on "better_supabase"."ai_message_embeddings" to authenticated;
 grant all on "better_supabase"."ai_message_embeddings" to service_role;
 drop policy if exists ai_message_embeddings_read on "better_supabase"."ai_message_embeddings";
@@ -1884,7 +1884,7 @@ create table if not exists "better_supabase"."memory_documents" (
 );
 create index if not exists memory_documents_expires_idx on "better_supabase"."memory_documents" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."memory_documents" enable row level security;
-revoke all on "better_supabase"."memory_documents" from anon, authenticated;
+revoke all on "better_supabase"."memory_documents" from public, anon, authenticated;
 grant all on "better_supabase"."memory_documents" to service_role;
 
 -- A document and its version, or null.
@@ -2034,7 +2034,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_050_memory.sql
@@ -2054,7 +2054,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:164d68e9c525aa27120e41ff78fa268965b707e7d48d92cbfd80ee8804575aca
+-- @bsb-hash sha256:434dd2ea6c173ae9e7de943ebdbe313c01c7dbc47b051b509a7413bebb23cb20
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2119,6 +2119,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Memory for AI assistants. Core memory is a small set of files under
 -- /memories that the model reads and edits with view, create, str_replace,
 -- insert, delete and rename; archival memory is a list of facts found by
@@ -2158,7 +2161,7 @@ create index if not exists memories_tsv_idx on "app_private"."memories" using gi
 create index if not exists memories_pending_embedding_idx on "app_private"."memories" ("updated_at")
   where "embedding" is null and "superseded_by" is null;
 alter table "app_private"."memories" enable row level security;
-revoke all on "app_private"."memories" from anon, authenticated;
+revoke all on "app_private"."memories" from public, anon, authenticated;
 grant select on "app_private"."memories" to authenticated;
 grant all on "app_private"."memories" to service_role;
 drop policy if exists memories_read on "app_private"."memories";
@@ -2180,7 +2183,7 @@ create table if not exists "app_private"."ai_message_embeddings" (
 create index if not exists ai_message_embeddings_user_idx on "app_private"."ai_message_embeddings" ("user_id", "organization_id");
 create index if not exists ai_message_embeddings_embedding_idx on "app_private"."ai_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
 alter table "app_private"."ai_message_embeddings" enable row level security;
-revoke all on "app_private"."ai_message_embeddings" from anon, authenticated;
+revoke all on "app_private"."ai_message_embeddings" from public, anon, authenticated;
 grant select on "app_private"."ai_message_embeddings" to authenticated;
 grant all on "app_private"."ai_message_embeddings" to service_role;
 drop policy if exists ai_message_embeddings_read on "app_private"."ai_message_embeddings";
@@ -2911,7 +2914,7 @@ create table if not exists "app_private"."memory_documents" (
 );
 create index if not exists memory_documents_expires_idx on "app_private"."memory_documents" ("expires_at") where "expires_at" is not null;
 alter table "app_private"."memory_documents" enable row level security;
-revoke all on "app_private"."memory_documents" from anon, authenticated;
+revoke all on "app_private"."memory_documents" from public, anon, authenticated;
 grant all on "app_private"."memory_documents" to service_role;
 
 -- A document and its version, or null.
@@ -3061,7 +3064,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_050_memory.sql
@@ -3081,7 +3084,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:d4c247ffdd1aeaabde02a63e1ed11d4752907b4a66621f660b36958681b0ca08
+-- @bsb-hash sha256:b00f906f325445781ca0d239307d8898f2b74e1ba731734724b4a19b23d19346
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3183,7 +3186,7 @@ create index if not exists memories_tsv_idx on "better_supabase"."memories" usin
 create index if not exists memories_pending_embedding_idx on "better_supabase"."memories" ("updated_at")
   where "embedding" is null and "superseded_by" is null;
 alter table "better_supabase"."memories" enable row level security;
-revoke all on "better_supabase"."memories" from anon, authenticated;
+revoke all on "better_supabase"."memories" from public, anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
 drop policy if exists memories_read on "better_supabase"."memories";
@@ -3205,7 +3208,7 @@ create table if not exists "better_supabase"."ai_message_embeddings" (
 create index if not exists ai_message_embeddings_user_idx on "better_supabase"."ai_message_embeddings" ("user_id", "organization_id");
 create index if not exists ai_message_embeddings_embedding_idx on "better_supabase"."ai_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
 alter table "better_supabase"."ai_message_embeddings" enable row level security;
-revoke all on "better_supabase"."ai_message_embeddings" from anon, authenticated;
+revoke all on "better_supabase"."ai_message_embeddings" from public, anon, authenticated;
 grant select on "better_supabase"."ai_message_embeddings" to authenticated;
 grant all on "better_supabase"."ai_message_embeddings" to service_role;
 drop policy if exists ai_message_embeddings_read on "better_supabase"."ai_message_embeddings";
@@ -3936,7 +3939,7 @@ create table if not exists "better_supabase"."memory_documents" (
 );
 create index if not exists memory_documents_expires_idx on "better_supabase"."memory_documents" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."memory_documents" enable row level security;
-revoke all on "better_supabase"."memory_documents" from anon, authenticated;
+revoke all on "better_supabase"."memory_documents" from public, anon, authenticated;
 grant all on "better_supabase"."memory_documents" to service_role;
 
 -- A document and its version, or null.
@@ -4272,7 +4275,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_050_memory.sql
@@ -4292,7 +4295,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:1f8fd118dc8091b014fe31ea5cee20edf66121659f50c7c786d8a5857b42f716
+-- @bsb-hash sha256:f4a7babb1678dd2a090d147f76070549034c06f3302e416354165f2c689efd5a
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5305,7 +5308,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_050_memory.sql
@@ -5325,7 +5328,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:f4ad2fc5eef38b86f5906fb9df2bb58a59879e4a70d7f1f59ec57ccb755241ef
+-- @bsb-hash sha256:8e23bfffb04528dfceda3d836dd1d1387adf03e97195c1d3bed99bde487da9a9
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5427,7 +5430,7 @@ create index if not exists memories_tsv_idx on "better_supabase"."memories" usin
 create index if not exists memories_pending_embedding_idx on "better_supabase"."memories" ("updated_at")
   where "embedding" is null and "superseded_by" is null;
 alter table "better_supabase"."memories" enable row level security;
-revoke all on "better_supabase"."memories" from anon, authenticated;
+revoke all on "better_supabase"."memories" from public, anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
 drop policy if exists memories_read on "better_supabase"."memories";
@@ -5449,7 +5452,7 @@ create table if not exists "better_supabase"."ai_message_embeddings" (
 create index if not exists ai_message_embeddings_user_idx on "better_supabase"."ai_message_embeddings" ("user_id", "org_id");
 create index if not exists ai_message_embeddings_embedding_idx on "better_supabase"."ai_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
 alter table "better_supabase"."ai_message_embeddings" enable row level security;
-revoke all on "better_supabase"."ai_message_embeddings" from anon, authenticated;
+revoke all on "better_supabase"."ai_message_embeddings" from public, anon, authenticated;
 grant select on "better_supabase"."ai_message_embeddings" to authenticated;
 grant all on "better_supabase"."ai_message_embeddings" to service_role;
 drop policy if exists ai_message_embeddings_read on "better_supabase"."ai_message_embeddings";
@@ -6180,7 +6183,7 @@ create table if not exists "better_supabase"."memory_documents" (
 );
 create index if not exists memory_documents_expires_idx on "better_supabase"."memory_documents" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."memory_documents" enable row level security;
-revoke all on "better_supabase"."memory_documents" from anon, authenticated;
+revoke all on "better_supabase"."memory_documents" from public, anon, authenticated;
 grant all on "better_supabase"."memory_documents" to service_role;
 
 -- A document and its version, or null.
@@ -6330,7 +6333,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_050_memory.sql

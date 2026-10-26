@@ -1,6 +1,6 @@
 -- better-supabase module: chat-sdk-state
 -- @bsb-block chat-sdk-state@1 managed
--- @bsb-hash sha256:5d324e4033fc8fde5926233d837c3ecaf2d3d62b5b1be14b5de12fc7ba778003
+-- @bsb-hash sha256:33599649f2ab3705cf289500c3247eb86a700c996d9f566b561994a5fbb1b1bb
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -35,7 +35,7 @@ create table if not exists "better_supabase"."chat_state_subscriptions" (
   primary key ("key_prefix", "thread_id")
 );
 alter table "better_supabase"."chat_state_subscriptions" enable row level security;
-revoke all on "better_supabase"."chat_state_subscriptions" from anon, authenticated;
+revoke all on "better_supabase"."chat_state_subscriptions" from public, anon, authenticated;
 grant all on "better_supabase"."chat_state_subscriptions" to service_role;
 
 create table if not exists "better_supabase"."chat_state_locks" (
@@ -48,7 +48,7 @@ create table if not exists "better_supabase"."chat_state_locks" (
 );
 create index if not exists chat_state_locks_expires_idx on "better_supabase"."chat_state_locks" ("expires_at");
 alter table "better_supabase"."chat_state_locks" enable row level security;
-revoke all on "better_supabase"."chat_state_locks" from anon, authenticated;
+revoke all on "better_supabase"."chat_state_locks" from public, anon, authenticated;
 grant all on "better_supabase"."chat_state_locks" to service_role;
 
 create table if not exists "better_supabase"."chat_state_cache" (
@@ -61,7 +61,7 @@ create table if not exists "better_supabase"."chat_state_cache" (
 );
 create index if not exists chat_state_cache_expires_idx on "better_supabase"."chat_state_cache" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."chat_state_cache" enable row level security;
-revoke all on "better_supabase"."chat_state_cache" from anon, authenticated;
+revoke all on "better_supabase"."chat_state_cache" from public, anon, authenticated;
 grant all on "better_supabase"."chat_state_cache" to service_role;
 
 create table if not exists "better_supabase"."chat_state_lists" (
@@ -74,7 +74,7 @@ create table if not exists "better_supabase"."chat_state_lists" (
 create index if not exists chat_state_lists_key_idx on "better_supabase"."chat_state_lists" ("key_prefix", "list_key", "id");
 create index if not exists chat_state_lists_expires_idx on "better_supabase"."chat_state_lists" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."chat_state_lists" enable row level security;
-revoke all on "better_supabase"."chat_state_lists" from anon, authenticated;
+revoke all on "better_supabase"."chat_state_lists" from public, anon, authenticated;
 grant all on "better_supabase"."chat_state_lists" to service_role;
 
 create table if not exists "better_supabase"."chat_state_queues" (
@@ -87,7 +87,7 @@ create table if not exists "better_supabase"."chat_state_queues" (
 create index if not exists chat_state_queues_thread_idx on "better_supabase"."chat_state_queues" ("key_prefix", "thread_id", "id");
 create index if not exists chat_state_queues_expires_idx on "better_supabase"."chat_state_queues" ("expires_at");
 alter table "better_supabase"."chat_state_queues" enable row level security;
-revoke all on "better_supabase"."chat_state_queues" from anon, authenticated;
+revoke all on "better_supabase"."chat_state_queues" from public, anon, authenticated;
 grant all on "better_supabase"."chat_state_queues" to service_role;
 
 -- A workspace (a Slack team, a GitHub installation, a WhatsApp number) that
@@ -109,7 +109,7 @@ create table if not exists "better_supabase"."chat_installations" (
 create index if not exists chat_installations_tenant_idx on "better_supabase"."chat_installations" ("tenant_id");
 create index if not exists chat_installations_installed_by_idx on "better_supabase"."chat_installations" ("installed_by");
 alter table "better_supabase"."chat_installations" enable row level security;
-revoke all on "better_supabase"."chat_installations" from anon, authenticated;
+revoke all on "better_supabase"."chat_installations" from public, anon, authenticated;
 grant all on "better_supabase"."chat_installations" to service_role;
 
 create or replace function "better_supabase"."chat_state_subscribe"(prefix text, thread_id text)
@@ -523,5 +523,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

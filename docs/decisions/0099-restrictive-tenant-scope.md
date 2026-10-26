@@ -92,3 +92,12 @@ topic with the tenant claim in the token, which stays valid until the token
 expires. It asks `member_organization_ids()`, so a removed member stops
 receiving at once. Each module already owns one receive policy per topic
 family on `realtime.messages`; the remaining gap was this stale claim.
+||||||| 333a4de2f
+
+## Update: templates are tokenized
+
+Authorization templates are read by `tokenizeTemplate` (`src/core/sql-template-tokens.ts`)
+instead of regular expressions, and `fillTemplate` refuses an unsafe template
+before it fills a placeholder. Strings, quoted identifiers and comments are
+read whole, so the checks for `;`, comments, dollar quotes and unqualified
+calls look at code only.

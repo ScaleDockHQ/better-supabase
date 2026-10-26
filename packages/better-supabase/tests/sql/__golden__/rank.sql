@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
--- @bsb-hash sha256:b9a8f6a30223704dbe54d7ec4223d01fcf6ef76a12c769c2b9bfcd8b92e81d0f
+-- @bsb-hash sha256:3cf97f35c1e0e8922af4ed719eb59b9df5c4bbc9f248f6567aeaaaf4d300c63c
 -- Fractional rank keys: rank_between, move() for every config.records entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -149,7 +149,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_066_rank.sql
@@ -169,7 +169,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
--- @bsb-hash sha256:1f7748cbc142e1f93c9bd7e9fcf50d45efeb68a2da253200d1f7daeae614fa9a
+-- @bsb-hash sha256:629d2167ff9062b0d09f4c44c654e944da96ed386399777f20bb13fa6ff12cdc
 -- Fractional rank keys: rank_between, move() for every config.records entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -317,7 +317,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_066_rank.sql
@@ -337,7 +337,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
--- @bsb-hash sha256:90b0cf1f4080728740074de3297fc4743021d6876562db9ae4549b8a9d289c0a
+-- @bsb-hash sha256:93a45b75477b87df8a19e48efe7a49574de7754fa7cbfab655b1dcc903bd4fa8
 -- Fractional rank keys: rank_between, move() for every config.records entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -346,6 +346,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Fractional rank keys (ADR 0021). Keys are base-62 text compared with
 -- collate "C"; the steps match rankBetween in better-supabase/blocks/rank.
 create or replace function "app_private"."rank_between"(previous text, next text)
@@ -487,7 +490,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_066_rank.sql
@@ -507,7 +510,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
--- @bsb-hash sha256:582de2240aa54e13041f8eb07f62fdd6d075b62926b071412c1b7b203a486b7d
+-- @bsb-hash sha256:7cdc59b8743a897add60e3d6cf00e5d438cd83fe6910a3f6b17acc2d646a5da4
 -- Fractional rank keys: rank_between, move() for every config.records entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -695,7 +698,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_066_rank.sql

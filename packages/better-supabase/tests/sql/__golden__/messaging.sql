@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:39481f4b2c720cb1741b186671d37cae7af6deeede734c1b3eef23d54943530c
+-- @bsb-hash sha256:ac8f696ec1ec99937e6e563aa31f471962005fe5e1d32951ea407ce686c081de
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -130,7 +130,7 @@ create unique index if not exists messaging_conversations_subject_idx on "better
 create unique index if not exists messaging_conversations_member_key_idx on "better_supabase"."conversations" ("tenant_id", "kind", "member_key") where "member_key" is not null;
 create index if not exists messaging_conversations_list_idx on "better_supabase"."conversations" ("tenant_id", "last_message_at" desc nulls last, "id");
 alter table "better_supabase"."conversations" enable row level security;
-revoke all on "better_supabase"."conversations" from anon, authenticated;
+revoke all on "better_supabase"."conversations" from public, anon, authenticated;
 grant select on "better_supabase"."conversations" to authenticated;
 grant all on "better_supabase"."conversations" to service_role;
 
@@ -146,7 +146,7 @@ create table if not exists "better_supabase"."conversation_members" (
 );
 create index if not exists messaging_members_user_idx on "better_supabase"."conversation_members" ("user_id", "tenant_id");
 alter table "better_supabase"."conversation_members" enable row level security;
-revoke all on "better_supabase"."conversation_members" from anon, authenticated;
+revoke all on "better_supabase"."conversation_members" from public, anon, authenticated;
 grant select on "better_supabase"."conversation_members" to authenticated;
 grant all on "better_supabase"."conversation_members" to service_role;
 
@@ -220,7 +220,7 @@ create index if not exists messaging_messages_due_idx on "better_supabase"."mess
 create index if not exists messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index if not exists messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
-revoke all on "better_supabase"."messages" from anon, authenticated;
+revoke all on "better_supabase"."messages" from public, anon, authenticated;
 grant select on "better_supabase"."messages" to authenticated;
 grant all on "better_supabase"."messages" to service_role;
 
@@ -244,7 +244,7 @@ create table if not exists "better_supabase"."message_edits" (
 );
 create index if not exists messaging_edits_message_idx on "better_supabase"."message_edits" ("message_id", "edited_at");
 alter table "better_supabase"."message_edits" enable row level security;
-revoke all on "better_supabase"."message_edits" from anon, authenticated;
+revoke all on "better_supabase"."message_edits" from public, anon, authenticated;
 grant select on "better_supabase"."message_edits" to authenticated;
 grant all on "better_supabase"."message_edits" to service_role;
 
@@ -266,7 +266,7 @@ create table if not exists "better_supabase"."thread_reads" (
 create index if not exists messaging_reads_conversation_idx on "better_supabase"."thread_reads" ("conversation_id");
 create index if not exists messaging_reads_thread_idx on "better_supabase"."thread_reads" ("thread_id");
 alter table "better_supabase"."thread_reads" enable row level security;
-revoke all on "better_supabase"."thread_reads" from anon, authenticated;
+revoke all on "better_supabase"."thread_reads" from public, anon, authenticated;
 grant select on "better_supabase"."thread_reads" to authenticated;
 grant all on "better_supabase"."thread_reads" to service_role;
 
@@ -288,7 +288,7 @@ create table if not exists "better_supabase"."message_record_mentions" (
 create index if not exists messaging_record_mentions_subject_idx on "better_supabase"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
 create index if not exists messaging_record_mentions_conversation_idx on "better_supabase"."message_record_mentions" ("conversation_id");
 alter table "better_supabase"."message_record_mentions" enable row level security;
-revoke all on "better_supabase"."message_record_mentions" from anon, authenticated;
+revoke all on "better_supabase"."message_record_mentions" from public, anon, authenticated;
 grant select on "better_supabase"."message_record_mentions" to authenticated;
 grant all on "better_supabase"."message_record_mentions" to service_role;
 
@@ -313,7 +313,7 @@ create table if not exists "better_supabase"."thread_summaries" (
 );
 create index if not exists messaging_thread_summaries_thread_idx on "better_supabase"."thread_summaries" ("thread_id");
 alter table "better_supabase"."thread_summaries" enable row level security;
-revoke all on "better_supabase"."thread_summaries" from anon, authenticated;
+revoke all on "better_supabase"."thread_summaries" from public, anon, authenticated;
 grant select on "better_supabase"."thread_summaries" to authenticated;
 grant all on "better_supabase"."thread_summaries" to service_role;
 
@@ -1754,7 +1754,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
@@ -1774,7 +1774,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:70ba89ed936208d2ce16cadba1c66b26df0a8dbbdd289b61d7f2bd1a47328292
+-- @bsb-hash sha256:1cb23f2cb6fe083141196745f9d3c3da0cea130e7dd9e19b7d38ab8858a3355e
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1903,7 +1903,7 @@ create unique index if not exists messaging_conversations_subject_idx on "better
 create unique index if not exists messaging_conversations_member_key_idx on "better_supabase"."conversations" ("tenant_id", "kind", "member_key") where "member_key" is not null;
 create index if not exists messaging_conversations_list_idx on "better_supabase"."conversations" ("tenant_id", "last_message_at" desc nulls last, "id");
 alter table "better_supabase"."conversations" enable row level security;
-revoke all on "better_supabase"."conversations" from anon, authenticated;
+revoke all on "better_supabase"."conversations" from public, anon, authenticated;
 grant select on "better_supabase"."conversations" to authenticated;
 grant all on "better_supabase"."conversations" to service_role;
 
@@ -1919,7 +1919,7 @@ create table if not exists "better_supabase"."conversation_members" (
 );
 create index if not exists messaging_members_user_idx on "better_supabase"."conversation_members" ("user_id", "tenant_id");
 alter table "better_supabase"."conversation_members" enable row level security;
-revoke all on "better_supabase"."conversation_members" from anon, authenticated;
+revoke all on "better_supabase"."conversation_members" from public, anon, authenticated;
 grant select on "better_supabase"."conversation_members" to authenticated;
 grant all on "better_supabase"."conversation_members" to service_role;
 
@@ -1996,7 +1996,7 @@ create index if not exists messaging_messages_due_idx on "better_supabase"."mess
 create index if not exists messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index if not exists messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
-revoke all on "better_supabase"."messages" from anon, authenticated;
+revoke all on "better_supabase"."messages" from public, anon, authenticated;
 grant select on "better_supabase"."messages" to authenticated;
 grant all on "better_supabase"."messages" to service_role;
 
@@ -2021,7 +2021,7 @@ create table if not exists "better_supabase"."message_edits" (
 );
 create index if not exists messaging_edits_message_idx on "better_supabase"."message_edits" ("message_id", "edited_at");
 alter table "better_supabase"."message_edits" enable row level security;
-revoke all on "better_supabase"."message_edits" from anon, authenticated;
+revoke all on "better_supabase"."message_edits" from public, anon, authenticated;
 grant select on "better_supabase"."message_edits" to authenticated;
 grant all on "better_supabase"."message_edits" to service_role;
 
@@ -2043,7 +2043,7 @@ create table if not exists "better_supabase"."thread_reads" (
 create index if not exists messaging_reads_conversation_idx on "better_supabase"."thread_reads" ("conversation_id");
 create index if not exists messaging_reads_thread_idx on "better_supabase"."thread_reads" ("thread_id");
 alter table "better_supabase"."thread_reads" enable row level security;
-revoke all on "better_supabase"."thread_reads" from anon, authenticated;
+revoke all on "better_supabase"."thread_reads" from public, anon, authenticated;
 grant select on "better_supabase"."thread_reads" to authenticated;
 grant all on "better_supabase"."thread_reads" to service_role;
 
@@ -2065,7 +2065,7 @@ create table if not exists "better_supabase"."message_record_mentions" (
 create index if not exists messaging_record_mentions_subject_idx on "better_supabase"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
 create index if not exists messaging_record_mentions_conversation_idx on "better_supabase"."message_record_mentions" ("conversation_id");
 alter table "better_supabase"."message_record_mentions" enable row level security;
-revoke all on "better_supabase"."message_record_mentions" from anon, authenticated;
+revoke all on "better_supabase"."message_record_mentions" from public, anon, authenticated;
 grant select on "better_supabase"."message_record_mentions" to authenticated;
 grant all on "better_supabase"."message_record_mentions" to service_role;
 
@@ -2090,7 +2090,7 @@ create table if not exists "better_supabase"."thread_summaries" (
 );
 create index if not exists messaging_thread_summaries_thread_idx on "better_supabase"."thread_summaries" ("thread_id");
 alter table "better_supabase"."thread_summaries" enable row level security;
-revoke all on "better_supabase"."thread_summaries" from anon, authenticated;
+revoke all on "better_supabase"."thread_summaries" from public, anon, authenticated;
 grant select on "better_supabase"."thread_summaries" to authenticated;
 grant all on "better_supabase"."thread_summaries" to service_role;
 
@@ -3800,7 +3800,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
@@ -3820,7 +3820,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:60213151490d3b4de36319bb61edfb18d8b0c05821a4eb796bb9aa0f92e2e007
+-- @bsb-hash sha256:4478522f93e3ff22923a8244c5c719239278d698d48e3748ec4b01c92de8c97b
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3925,6 +3925,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Messaging: conversations (channels, direct and group messages, one per
 -- record, the inbox's) with members, messages with threads, mentions, edits,
 -- pins and resolution, scheduled sends and read markers. Writes go through
@@ -3951,7 +3954,7 @@ create unique index if not exists messaging_conversations_subject_idx on "app_pr
 create unique index if not exists messaging_conversations_member_key_idx on "app_private"."conversations" ("tenant_id", "kind", "member_key") where "member_key" is not null;
 create index if not exists messaging_conversations_list_idx on "app_private"."conversations" ("tenant_id", "last_message_at" desc nulls last, "id");
 alter table "app_private"."conversations" enable row level security;
-revoke all on "app_private"."conversations" from anon, authenticated;
+revoke all on "app_private"."conversations" from public, anon, authenticated;
 grant select on "app_private"."conversations" to authenticated;
 grant all on "app_private"."conversations" to service_role;
 
@@ -3967,7 +3970,7 @@ create table if not exists "app_private"."conversation_members" (
 );
 create index if not exists messaging_members_user_idx on "app_private"."conversation_members" ("user_id", "tenant_id");
 alter table "app_private"."conversation_members" enable row level security;
-revoke all on "app_private"."conversation_members" from anon, authenticated;
+revoke all on "app_private"."conversation_members" from public, anon, authenticated;
 grant select on "app_private"."conversation_members" to authenticated;
 grant all on "app_private"."conversation_members" to service_role;
 
@@ -4041,7 +4044,7 @@ create index if not exists messaging_messages_due_idx on "app_private"."messages
 create index if not exists messaging_messages_file_anchor_idx on "app_private"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index if not exists messaging_messages_pinned_idx on "app_private"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "app_private"."messages" enable row level security;
-revoke all on "app_private"."messages" from anon, authenticated;
+revoke all on "app_private"."messages" from public, anon, authenticated;
 grant select on "app_private"."messages" to authenticated;
 grant all on "app_private"."messages" to service_role;
 
@@ -4065,7 +4068,7 @@ create table if not exists "app_private"."message_edits" (
 );
 create index if not exists messaging_edits_message_idx on "app_private"."message_edits" ("message_id", "edited_at");
 alter table "app_private"."message_edits" enable row level security;
-revoke all on "app_private"."message_edits" from anon, authenticated;
+revoke all on "app_private"."message_edits" from public, anon, authenticated;
 grant select on "app_private"."message_edits" to authenticated;
 grant all on "app_private"."message_edits" to service_role;
 
@@ -4087,7 +4090,7 @@ create table if not exists "app_private"."thread_reads" (
 create index if not exists messaging_reads_conversation_idx on "app_private"."thread_reads" ("conversation_id");
 create index if not exists messaging_reads_thread_idx on "app_private"."thread_reads" ("thread_id");
 alter table "app_private"."thread_reads" enable row level security;
-revoke all on "app_private"."thread_reads" from anon, authenticated;
+revoke all on "app_private"."thread_reads" from public, anon, authenticated;
 grant select on "app_private"."thread_reads" to authenticated;
 grant all on "app_private"."thread_reads" to service_role;
 
@@ -4109,7 +4112,7 @@ create table if not exists "app_private"."message_record_mentions" (
 create index if not exists messaging_record_mentions_subject_idx on "app_private"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
 create index if not exists messaging_record_mentions_conversation_idx on "app_private"."message_record_mentions" ("conversation_id");
 alter table "app_private"."message_record_mentions" enable row level security;
-revoke all on "app_private"."message_record_mentions" from anon, authenticated;
+revoke all on "app_private"."message_record_mentions" from public, anon, authenticated;
 grant select on "app_private"."message_record_mentions" to authenticated;
 grant all on "app_private"."message_record_mentions" to service_role;
 
@@ -4134,7 +4137,7 @@ create table if not exists "app_private"."thread_summaries" (
 );
 create index if not exists messaging_thread_summaries_thread_idx on "app_private"."thread_summaries" ("thread_id");
 alter table "app_private"."thread_summaries" enable row level security;
-revoke all on "app_private"."thread_summaries" from anon, authenticated;
+revoke all on "app_private"."thread_summaries" from public, anon, authenticated;
 grant select on "app_private"."thread_summaries" to authenticated;
 grant all on "app_private"."thread_summaries" to service_role;
 
@@ -5575,7 +5578,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
@@ -5595,7 +5598,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:282679bfe5e13d4e249a1e1b41e28d8382c4e46f8b16dfe525b19344913380e1
+-- @bsb-hash sha256:a3d8335da1d60ef0e7fba1d8bbe81a0f706e463ad945a20ecdc72fda88382c6c
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5724,7 +5727,7 @@ create unique index if not exists messaging_conversations_subject_idx on "better
 create unique index if not exists messaging_conversations_member_key_idx on "better_supabase"."conversations" ("tenant_id", "kind", "member_key") where "member_key" is not null;
 create index if not exists messaging_conversations_list_idx on "better_supabase"."conversations" ("tenant_id", "last_message_at" desc nulls last, "id");
 alter table "better_supabase"."conversations" enable row level security;
-revoke all on "better_supabase"."conversations" from anon, authenticated;
+revoke all on "better_supabase"."conversations" from public, anon, authenticated;
 grant select on "better_supabase"."conversations" to authenticated;
 grant all on "better_supabase"."conversations" to service_role;
 
@@ -5740,7 +5743,7 @@ create table if not exists "better_supabase"."conversation_members" (
 );
 create index if not exists messaging_members_user_idx on "better_supabase"."conversation_members" ("user_id", "tenant_id");
 alter table "better_supabase"."conversation_members" enable row level security;
-revoke all on "better_supabase"."conversation_members" from anon, authenticated;
+revoke all on "better_supabase"."conversation_members" from public, anon, authenticated;
 grant select on "better_supabase"."conversation_members" to authenticated;
 grant all on "better_supabase"."conversation_members" to service_role;
 
@@ -5814,7 +5817,7 @@ create index if not exists messaging_messages_due_idx on "better_supabase"."mess
 create index if not exists messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index if not exists messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
-revoke all on "better_supabase"."messages" from anon, authenticated;
+revoke all on "better_supabase"."messages" from public, anon, authenticated;
 grant select on "better_supabase"."messages" to authenticated;
 grant all on "better_supabase"."messages" to service_role;
 
@@ -5838,7 +5841,7 @@ create table if not exists "better_supabase"."message_edits" (
 );
 create index if not exists messaging_edits_message_idx on "better_supabase"."message_edits" ("message_id", "edited_at");
 alter table "better_supabase"."message_edits" enable row level security;
-revoke all on "better_supabase"."message_edits" from anon, authenticated;
+revoke all on "better_supabase"."message_edits" from public, anon, authenticated;
 grant select on "better_supabase"."message_edits" to authenticated;
 grant all on "better_supabase"."message_edits" to service_role;
 
@@ -5860,7 +5863,7 @@ create table if not exists "better_supabase"."thread_reads" (
 create index if not exists messaging_reads_conversation_idx on "better_supabase"."thread_reads" ("conversation_id");
 create index if not exists messaging_reads_thread_idx on "better_supabase"."thread_reads" ("thread_id");
 alter table "better_supabase"."thread_reads" enable row level security;
-revoke all on "better_supabase"."thread_reads" from anon, authenticated;
+revoke all on "better_supabase"."thread_reads" from public, anon, authenticated;
 grant select on "better_supabase"."thread_reads" to authenticated;
 grant all on "better_supabase"."thread_reads" to service_role;
 
@@ -5882,7 +5885,7 @@ create table if not exists "better_supabase"."message_record_mentions" (
 create index if not exists messaging_record_mentions_subject_idx on "better_supabase"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
 create index if not exists messaging_record_mentions_conversation_idx on "better_supabase"."message_record_mentions" ("conversation_id");
 alter table "better_supabase"."message_record_mentions" enable row level security;
-revoke all on "better_supabase"."message_record_mentions" from anon, authenticated;
+revoke all on "better_supabase"."message_record_mentions" from public, anon, authenticated;
 grant select on "better_supabase"."message_record_mentions" to authenticated;
 grant all on "better_supabase"."message_record_mentions" to service_role;
 
@@ -5907,7 +5910,7 @@ create table if not exists "better_supabase"."thread_summaries" (
 );
 create index if not exists messaging_thread_summaries_thread_idx on "better_supabase"."thread_summaries" ("thread_id");
 alter table "better_supabase"."thread_summaries" enable row level security;
-revoke all on "better_supabase"."thread_summaries" from anon, authenticated;
+revoke all on "better_supabase"."thread_summaries" from public, anon, authenticated;
 grant select on "better_supabase"."thread_summaries" to authenticated;
 grant all on "better_supabase"."thread_summaries" to service_role;
 
@@ -7621,7 +7624,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
@@ -7641,7 +7644,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:76bb7204ddbb4f039b65e4b5695202e67ead88a70a50684378994073f26b1408
+-- @bsb-hash sha256:dce087b1fae81d549abe57a691f950baa8f286993ca7e0180a9e8e4edb056965
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9393,7 +9396,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
@@ -9413,7 +9416,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:2189e2c868c9aaa2b7721a4d54efcef7483da98cbff592e6a64d2cad669c216b
+-- @bsb-hash sha256:6c1b27345275cdde7a5ecb35113482c222c36f4c87f7584e3c25b2627b363ca7
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9542,7 +9545,7 @@ create unique index if not exists messaging_conversations_subject_idx on "better
 create unique index if not exists messaging_conversations_member_key_idx on "better_supabase"."conversations" ("org_id", "kind", "member_key") where "member_key" is not null;
 create index if not exists messaging_conversations_list_idx on "better_supabase"."conversations" ("org_id", "last_message_at" desc nulls last, "id");
 alter table "better_supabase"."conversations" enable row level security;
-revoke all on "better_supabase"."conversations" from anon, authenticated;
+revoke all on "better_supabase"."conversations" from public, anon, authenticated;
 grant select on "better_supabase"."conversations" to authenticated;
 grant all on "better_supabase"."conversations" to service_role;
 
@@ -9558,7 +9561,7 @@ create table if not exists "better_supabase"."conversation_members" (
 );
 create index if not exists messaging_members_user_idx on "better_supabase"."conversation_members" ("user_id", "org_id");
 alter table "better_supabase"."conversation_members" enable row level security;
-revoke all on "better_supabase"."conversation_members" from anon, authenticated;
+revoke all on "better_supabase"."conversation_members" from public, anon, authenticated;
 grant select on "better_supabase"."conversation_members" to authenticated;
 grant all on "better_supabase"."conversation_members" to service_role;
 
@@ -9632,7 +9635,7 @@ create index if not exists messaging_messages_due_idx on "better_supabase"."mess
 create index if not exists messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index if not exists messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
-revoke all on "better_supabase"."messages" from anon, authenticated;
+revoke all on "better_supabase"."messages" from public, anon, authenticated;
 grant select on "better_supabase"."messages" to authenticated;
 grant all on "better_supabase"."messages" to service_role;
 
@@ -9656,7 +9659,7 @@ create table if not exists "better_supabase"."message_edits" (
 );
 create index if not exists messaging_edits_message_idx on "better_supabase"."message_edits" ("message_id", "edited_at");
 alter table "better_supabase"."message_edits" enable row level security;
-revoke all on "better_supabase"."message_edits" from anon, authenticated;
+revoke all on "better_supabase"."message_edits" from public, anon, authenticated;
 grant select on "better_supabase"."message_edits" to authenticated;
 grant all on "better_supabase"."message_edits" to service_role;
 
@@ -9678,7 +9681,7 @@ create table if not exists "better_supabase"."thread_reads" (
 create index if not exists messaging_reads_conversation_idx on "better_supabase"."thread_reads" ("conversation_id");
 create index if not exists messaging_reads_thread_idx on "better_supabase"."thread_reads" ("thread_id");
 alter table "better_supabase"."thread_reads" enable row level security;
-revoke all on "better_supabase"."thread_reads" from anon, authenticated;
+revoke all on "better_supabase"."thread_reads" from public, anon, authenticated;
 grant select on "better_supabase"."thread_reads" to authenticated;
 grant all on "better_supabase"."thread_reads" to service_role;
 
@@ -9700,7 +9703,7 @@ create table if not exists "better_supabase"."message_record_mentions" (
 create index if not exists messaging_record_mentions_subject_idx on "better_supabase"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
 create index if not exists messaging_record_mentions_conversation_idx on "better_supabase"."message_record_mentions" ("conversation_id");
 alter table "better_supabase"."message_record_mentions" enable row level security;
-revoke all on "better_supabase"."message_record_mentions" from anon, authenticated;
+revoke all on "better_supabase"."message_record_mentions" from public, anon, authenticated;
 grant select on "better_supabase"."message_record_mentions" to authenticated;
 grant all on "better_supabase"."message_record_mentions" to service_role;
 
@@ -9725,7 +9728,7 @@ create table if not exists "better_supabase"."thread_summaries" (
 );
 create index if not exists messaging_thread_summaries_thread_idx on "better_supabase"."thread_summaries" ("thread_id");
 alter table "better_supabase"."thread_summaries" enable row level security;
-revoke all on "better_supabase"."thread_summaries" from anon, authenticated;
+revoke all on "better_supabase"."thread_summaries" from public, anon, authenticated;
 grant select on "better_supabase"."thread_summaries" to authenticated;
 grant all on "better_supabase"."thread_summaries" to service_role;
 
@@ -11166,7 +11169,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql

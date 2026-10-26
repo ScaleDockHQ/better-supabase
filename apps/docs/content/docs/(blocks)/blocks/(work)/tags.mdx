@@ -195,7 +195,7 @@ tags: {
 },
 ```
 
-`links` columns are `subject`, `tag` and optional `memberships` and `createdAt`.
+`links` columns are `subject`, `tag` and optional `memberships` and `createdAt`. When [`config.records`](/docs/blocks/sql#actions-granted-per-row) registers the record type, its entry can leave out `table` and `idType`, which come from the registry.
 
 Your `kind` and `subjectType` columns may be enums or domains, such as `kind public.organization_tag_kind`: the module casts the text it writes and compares to the column's type, so an unknown kind fails with the enum's `invalid input value` error.
 

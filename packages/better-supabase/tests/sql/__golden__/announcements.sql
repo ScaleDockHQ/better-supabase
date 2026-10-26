@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:f8821748885c7d7a0c04e309709ede62e65ef218e364e2a170e18e67514e1341
+-- @bsb-hash sha256:55dfbc77a7fca64eb6d55d47763b32ff9fbe3d5605c415fd15c77e63bf392f9b
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -69,7 +69,7 @@ alter table "better_supabase"."announcements" add constraint bsb_announcements_a
 create index if not exists announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
 create index if not exists announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
 alter table "better_supabase"."announcements" enable row level security;
-revoke all on "better_supabase"."announcements" from anon, authenticated;
+revoke all on "better_supabase"."announcements" from public, anon, authenticated;
 grant all on "better_supabase"."announcements" to service_role;
 
 create table if not exists "better_supabase"."announcement_dismissals" (
@@ -80,7 +80,7 @@ create table if not exists "better_supabase"."announcement_dismissals" (
 );
 create index if not exists announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
 alter table "better_supabase"."announcement_dismissals" enable row level security;
-revoke all on "better_supabase"."announcement_dismissals" from anon, authenticated;
+revoke all on "better_supabase"."announcement_dismissals" from public, anon, authenticated;
 grant all on "better_supabase"."announcement_dismissals" to service_role;
 
 -- The caller's live, undismissed announcements, newest first. Pass the
@@ -300,7 +300,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_039_announcements.sql
@@ -320,7 +320,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:7f086b0ec4ac733b472eb613c2e8a9a1ce64788fad795c4da7c473dbb012d31c
+-- @bsb-hash sha256:96b98572fb09501c968dcf810599c4313bf23b19368285d2ca484c2ae41186e6
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -388,7 +388,7 @@ alter table "better_supabase"."announcements" add constraint bsb_announcements_a
 create index if not exists announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
 create index if not exists announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
 alter table "better_supabase"."announcements" enable row level security;
-revoke all on "better_supabase"."announcements" from anon, authenticated;
+revoke all on "better_supabase"."announcements" from public, anon, authenticated;
 grant all on "better_supabase"."announcements" to service_role;
 
 create table if not exists "better_supabase"."announcement_dismissals" (
@@ -399,7 +399,7 @@ create table if not exists "better_supabase"."announcement_dismissals" (
 );
 create index if not exists announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
 alter table "better_supabase"."announcement_dismissals" enable row level security;
-revoke all on "better_supabase"."announcement_dismissals" from anon, authenticated;
+revoke all on "better_supabase"."announcement_dismissals" from public, anon, authenticated;
 grant all on "better_supabase"."announcement_dismissals" to service_role;
 
 -- The caller's live, undismissed announcements, newest first. Pass the
@@ -633,7 +633,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_039_announcements.sql
@@ -653,7 +653,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:0c6b2323c256eaed37ced94ca5691d55674fd9c9f7b5d9c51b6689a8c8fa6890
+-- @bsb-hash sha256:ea33c57e44555561ecda9fc4d00dd0ccf24ea98aa58eb6ac779d01c2139384ac
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -696,6 +696,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Announcements staff publish to everyone, to tenants, to members with a
 -- role, or (with entitlements) to tenants on a plan, between starts_at and
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
@@ -723,7 +726,7 @@ alter table "app_private"."announcements" add constraint bsb_announcements_audie
 create index if not exists announcements_window_idx on "app_private"."announcements" ("starts_at", "ends_at");
 create index if not exists announcements_created_by_idx on "app_private"."announcements" ("created_by");
 alter table "app_private"."announcements" enable row level security;
-revoke all on "app_private"."announcements" from anon, authenticated;
+revoke all on "app_private"."announcements" from public, anon, authenticated;
 grant all on "app_private"."announcements" to service_role;
 
 create table if not exists "app_private"."announcement_dismissals" (
@@ -734,7 +737,7 @@ create table if not exists "app_private"."announcement_dismissals" (
 );
 create index if not exists announcement_dismissals_user_idx on "app_private"."announcement_dismissals" ("user_id");
 alter table "app_private"."announcement_dismissals" enable row level security;
-revoke all on "app_private"."announcement_dismissals" from anon, authenticated;
+revoke all on "app_private"."announcement_dismissals" from public, anon, authenticated;
 grant all on "app_private"."announcement_dismissals" to service_role;
 
 -- The caller's live, undismissed announcements, newest first. Pass the
@@ -954,7 +957,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_039_announcements.sql
@@ -974,7 +977,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:b67ec6271b0436994f649fe33910154821b40c9d17fb55670adb795e7436ea4d
+-- @bsb-hash sha256:4166e91dd88ab043114e410688828b8dd3a71aa99cabf0c5870df5be23dcd799
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1042,7 +1045,7 @@ alter table "better_supabase"."announcements" add constraint bsb_announcements_a
 create index if not exists announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
 create index if not exists announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
 alter table "better_supabase"."announcements" enable row level security;
-revoke all on "better_supabase"."announcements" from anon, authenticated;
+revoke all on "better_supabase"."announcements" from public, anon, authenticated;
 grant all on "better_supabase"."announcements" to service_role;
 
 create table if not exists "better_supabase"."announcement_dismissals" (
@@ -1053,7 +1056,7 @@ create table if not exists "better_supabase"."announcement_dismissals" (
 );
 create index if not exists announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
 alter table "better_supabase"."announcement_dismissals" enable row level security;
-revoke all on "better_supabase"."announcement_dismissals" from anon, authenticated;
+revoke all on "better_supabase"."announcement_dismissals" from public, anon, authenticated;
 grant all on "better_supabase"."announcement_dismissals" to service_role;
 
 -- The caller's live, undismissed announcements, newest first. Pass the
@@ -1340,7 +1343,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_039_announcements.sql
@@ -1360,7 +1363,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:a088eb79ac73342cc1985a6da85bfea648f7124fe921db97baeedf41af070ef3
+-- @bsb-hash sha256:a429a2955fb2aaaa37f09bbb7db68d00ed694a506c7aeae87682faf9d02bbd63
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1651,7 +1654,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_039_announcements.sql

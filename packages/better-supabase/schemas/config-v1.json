@@ -1398,6 +1398,9 @@
                     },
                     "owner": {
                       "type": "string"
+                    },
+                    "also": {
+                      "type": "string"
                     }
                   },
                   "additionalProperties": false
@@ -1462,6 +1465,25 @@
                     },
                     "via": {
                       "type": "string"
+                    },
+                    "through": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "table": {
+                            "type": "string"
+                          },
+                          "from": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["table", "from", "to"],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": ["table", "key"],
@@ -4613,6 +4635,14 @@
               "auditReads": {
                 "type": "boolean",
                 "default": false
+              },
+              "rankType": {
+                "type": "string",
+                "default": "text"
+              },
+              "readAccess": {
+                "type": "string",
+                "default": "tenant"
               }
             }
           }
@@ -4866,6 +4896,14 @@
               "contracts": {
                 "type": "string",
                 "default": "append"
+              },
+              "salaryUnits": {
+                "type": "string",
+                "default": "minor"
+              },
+              "contractOverlap": {
+                "type": "string",
+                "default": "end"
               }
             }
           }
@@ -6631,6 +6669,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "authorCanDelete": {
+                "type": "boolean",
+                "default": true
               }
             }
           }

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:343cf8b0c63b871a9ef41d7ab5cc8adcf401ae7cf7c89f3edef70c8c67cec8dd
+-- @bsb-hash sha256:9c4751327f5a61b7692990ed857f741ce199b3fd288567c3a9c6234562b3fadc
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -125,7 +125,7 @@ create table if not exists "better_supabase"."status_components" (
 );
 create index if not exists "status_components_tenant_idx" on "better_supabase"."status_components" ("tenant_id", "position");
 alter table "better_supabase"."status_components" enable row level security;
-revoke all on "better_supabase"."status_components" from anon, authenticated;
+revoke all on "better_supabase"."status_components" from public, anon, authenticated;
 grant select on "better_supabase"."status_components" to authenticated;
 grant all on "better_supabase"."status_components" to service_role;
 drop policy if exists "status_components_read" on "better_supabase"."status_components";
@@ -146,7 +146,7 @@ create table if not exists "better_supabase"."status_component_history" (
 create index if not exists "status_component_history_component_idx" on "better_supabase"."status_component_history" ("tenant_id", "component_id", "started_at");
 create unique index if not exists "status_component_history_open_idx" on "better_supabase"."status_component_history" ("component_id") where "ended_at" is null;
 alter table "better_supabase"."status_component_history" enable row level security;
-revoke all on "better_supabase"."status_component_history" from anon, authenticated;
+revoke all on "better_supabase"."status_component_history" from public, anon, authenticated;
 grant select on "better_supabase"."status_component_history" to authenticated;
 grant all on "better_supabase"."status_component_history" to service_role;
 drop policy if exists "status_component_history_read" on "better_supabase"."status_component_history";
@@ -177,7 +177,7 @@ create index if not exists "incidents_tenant_idx" on "better_supabase"."incident
 create index if not exists "incidents_open_idx" on "better_supabase"."incidents" ("tenant_id") where "status" <> 'resolved';
 create index if not exists "incidents_commander_idx" on "better_supabase"."incidents" ("tenant_id", "commander_id") where "commander_id" is not null;
 alter table "better_supabase"."incidents" enable row level security;
-revoke all on "better_supabase"."incidents" from anon, authenticated;
+revoke all on "better_supabase"."incidents" from public, anon, authenticated;
 grant select on "better_supabase"."incidents" to authenticated;
 grant all on "better_supabase"."incidents" to service_role;
 drop policy if exists "incidents_read" on "better_supabase"."incidents";
@@ -200,7 +200,7 @@ create table if not exists "better_supabase"."incident_updates" (
 );
 create index if not exists "incident_updates_parent_idx" on "better_supabase"."incident_updates" ("tenant_id", "incident_id", "created_at");
 alter table "better_supabase"."incident_updates" enable row level security;
-revoke all on "better_supabase"."incident_updates" from anon, authenticated;
+revoke all on "better_supabase"."incident_updates" from public, anon, authenticated;
 grant select on "better_supabase"."incident_updates" to authenticated;
 grant all on "better_supabase"."incident_updates" to service_role;
 drop policy if exists "incident_updates_read" on "better_supabase"."incident_updates";
@@ -219,7 +219,7 @@ create table if not exists "better_supabase"."incident_impacts" (
 create index if not exists "incident_impacts_parent_idx" on "better_supabase"."incident_impacts" ("tenant_id", "incident_id");
 create index if not exists "incident_impacts_component_idx" on "better_supabase"."incident_impacts" ("tenant_id", "component_id");
 alter table "better_supabase"."incident_impacts" enable row level security;
-revoke all on "better_supabase"."incident_impacts" from anon, authenticated;
+revoke all on "better_supabase"."incident_impacts" from public, anon, authenticated;
 grant select on "better_supabase"."incident_impacts" to authenticated;
 grant all on "better_supabase"."incident_impacts" to service_role;
 drop policy if exists "incident_impacts_read" on "better_supabase"."incident_impacts";
@@ -245,7 +245,7 @@ create table if not exists "better_supabase"."incident_postmortems" (
 );
 create index if not exists "incident_postmortems_tenant_idx" on "better_supabase"."incident_postmortems" ("tenant_id", "incident_id");
 alter table "better_supabase"."incident_postmortems" enable row level security;
-revoke all on "better_supabase"."incident_postmortems" from anon, authenticated;
+revoke all on "better_supabase"."incident_postmortems" from public, anon, authenticated;
 grant select on "better_supabase"."incident_postmortems" to authenticated;
 grant all on "better_supabase"."incident_postmortems" to service_role;
 drop policy if exists "incident_postmortems_read" on "better_supabase"."incident_postmortems";
@@ -265,7 +265,7 @@ create table if not exists "better_supabase"."status_pages" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."status_pages" enable row level security;
-revoke all on "better_supabase"."status_pages" from anon, authenticated;
+revoke all on "better_supabase"."status_pages" from public, anon, authenticated;
 grant select on "better_supabase"."status_pages" to authenticated;
 grant all on "better_supabase"."status_pages" to service_role;
 drop policy if exists "status_pages_read" on "better_supabase"."status_pages";
@@ -1076,7 +1076,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_127_incidents.sql
@@ -1096,7 +1096,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:d4cb25145629304992f1b3ba357102c8a3bcc6c2c020b1219409f66f06a8aae8
+-- @bsb-hash sha256:e54b5644c10fb82cf8c00f1e0b5cafae5d9c0c5e70f2dc5a79495aea74288efc
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1220,7 +1220,7 @@ create table if not exists "better_supabase"."status_components" (
 );
 create index if not exists "status_components_tenant_idx" on "better_supabase"."status_components" ("tenant_id", "position");
 alter table "better_supabase"."status_components" enable row level security;
-revoke all on "better_supabase"."status_components" from anon, authenticated;
+revoke all on "better_supabase"."status_components" from public, anon, authenticated;
 grant select on "better_supabase"."status_components" to authenticated;
 grant all on "better_supabase"."status_components" to service_role;
 drop policy if exists "status_components_read" on "better_supabase"."status_components";
@@ -1241,7 +1241,7 @@ create table if not exists "better_supabase"."status_component_history" (
 create index if not exists "status_component_history_component_idx" on "better_supabase"."status_component_history" ("tenant_id", "component_id", "started_at");
 create unique index if not exists "status_component_history_open_idx" on "better_supabase"."status_component_history" ("component_id") where "ended_at" is null;
 alter table "better_supabase"."status_component_history" enable row level security;
-revoke all on "better_supabase"."status_component_history" from anon, authenticated;
+revoke all on "better_supabase"."status_component_history" from public, anon, authenticated;
 grant select on "better_supabase"."status_component_history" to authenticated;
 grant all on "better_supabase"."status_component_history" to service_role;
 drop policy if exists "status_component_history_read" on "better_supabase"."status_component_history";
@@ -1272,7 +1272,7 @@ create index if not exists "incidents_tenant_idx" on "better_supabase"."incident
 create index if not exists "incidents_open_idx" on "better_supabase"."incidents" ("tenant_id") where "status" <> 'resolved';
 create index if not exists "incidents_commander_idx" on "better_supabase"."incidents" ("tenant_id", "commander_id") where "commander_id" is not null;
 alter table "better_supabase"."incidents" enable row level security;
-revoke all on "better_supabase"."incidents" from anon, authenticated;
+revoke all on "better_supabase"."incidents" from public, anon, authenticated;
 grant select on "better_supabase"."incidents" to authenticated;
 grant all on "better_supabase"."incidents" to service_role;
 drop policy if exists "incidents_read" on "better_supabase"."incidents";
@@ -1295,7 +1295,7 @@ create table if not exists "better_supabase"."incident_updates" (
 );
 create index if not exists "incident_updates_parent_idx" on "better_supabase"."incident_updates" ("tenant_id", "incident_id", "created_at");
 alter table "better_supabase"."incident_updates" enable row level security;
-revoke all on "better_supabase"."incident_updates" from anon, authenticated;
+revoke all on "better_supabase"."incident_updates" from public, anon, authenticated;
 grant select on "better_supabase"."incident_updates" to authenticated;
 grant all on "better_supabase"."incident_updates" to service_role;
 drop policy if exists "incident_updates_read" on "better_supabase"."incident_updates";
@@ -1314,7 +1314,7 @@ create table if not exists "better_supabase"."incident_impacts" (
 create index if not exists "incident_impacts_parent_idx" on "better_supabase"."incident_impacts" ("tenant_id", "incident_id");
 create index if not exists "incident_impacts_component_idx" on "better_supabase"."incident_impacts" ("tenant_id", "component_id");
 alter table "better_supabase"."incident_impacts" enable row level security;
-revoke all on "better_supabase"."incident_impacts" from anon, authenticated;
+revoke all on "better_supabase"."incident_impacts" from public, anon, authenticated;
 grant select on "better_supabase"."incident_impacts" to authenticated;
 grant all on "better_supabase"."incident_impacts" to service_role;
 drop policy if exists "incident_impacts_read" on "better_supabase"."incident_impacts";
@@ -1340,7 +1340,7 @@ create table if not exists "better_supabase"."incident_postmortems" (
 );
 create index if not exists "incident_postmortems_tenant_idx" on "better_supabase"."incident_postmortems" ("tenant_id", "incident_id");
 alter table "better_supabase"."incident_postmortems" enable row level security;
-revoke all on "better_supabase"."incident_postmortems" from anon, authenticated;
+revoke all on "better_supabase"."incident_postmortems" from public, anon, authenticated;
 grant select on "better_supabase"."incident_postmortems" to authenticated;
 grant all on "better_supabase"."incident_postmortems" to service_role;
 drop policy if exists "incident_postmortems_read" on "better_supabase"."incident_postmortems";
@@ -1360,7 +1360,7 @@ create table if not exists "better_supabase"."status_pages" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."status_pages" enable row level security;
-revoke all on "better_supabase"."status_pages" from anon, authenticated;
+revoke all on "better_supabase"."status_pages" from public, anon, authenticated;
 grant select on "better_supabase"."status_pages" to authenticated;
 grant all on "better_supabase"."status_pages" to service_role;
 drop policy if exists "status_pages_read" on "better_supabase"."status_pages";
@@ -2229,7 +2229,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_127_incidents.sql
@@ -2249,7 +2249,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:02ea5ce5bebbc3f32056d5c380688d02cd08232c8652ce182091c767a49567fe
+-- @bsb-hash sha256:f673f3c08974eca08c79a767effd2ae237fac7476edf5b0dbfee9d32b7f7c58e
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2354,6 +2354,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Incidents: severity, a status timeline, affected components, postmortems,
 -- and a public status page read through one narrow function.
 
@@ -2375,7 +2378,7 @@ create table if not exists "app_private"."status_components" (
 );
 create index if not exists "status_components_tenant_idx" on "app_private"."status_components" ("tenant_id", "position");
 alter table "app_private"."status_components" enable row level security;
-revoke all on "app_private"."status_components" from anon, authenticated;
+revoke all on "app_private"."status_components" from public, anon, authenticated;
 grant select on "app_private"."status_components" to authenticated;
 grant all on "app_private"."status_components" to service_role;
 drop policy if exists "status_components_read" on "app_private"."status_components";
@@ -2396,7 +2399,7 @@ create table if not exists "app_private"."status_component_history" (
 create index if not exists "status_component_history_component_idx" on "app_private"."status_component_history" ("tenant_id", "component_id", "started_at");
 create unique index if not exists "status_component_history_open_idx" on "app_private"."status_component_history" ("component_id") where "ended_at" is null;
 alter table "app_private"."status_component_history" enable row level security;
-revoke all on "app_private"."status_component_history" from anon, authenticated;
+revoke all on "app_private"."status_component_history" from public, anon, authenticated;
 grant select on "app_private"."status_component_history" to authenticated;
 grant all on "app_private"."status_component_history" to service_role;
 drop policy if exists "status_component_history_read" on "app_private"."status_component_history";
@@ -2427,7 +2430,7 @@ create index if not exists "incidents_tenant_idx" on "app_private"."incidents" (
 create index if not exists "incidents_open_idx" on "app_private"."incidents" ("tenant_id") where "status" <> 'resolved';
 create index if not exists "incidents_commander_idx" on "app_private"."incidents" ("tenant_id", "commander_id") where "commander_id" is not null;
 alter table "app_private"."incidents" enable row level security;
-revoke all on "app_private"."incidents" from anon, authenticated;
+revoke all on "app_private"."incidents" from public, anon, authenticated;
 grant select on "app_private"."incidents" to authenticated;
 grant all on "app_private"."incidents" to service_role;
 drop policy if exists "incidents_read" on "app_private"."incidents";
@@ -2450,7 +2453,7 @@ create table if not exists "app_private"."incident_updates" (
 );
 create index if not exists "incident_updates_parent_idx" on "app_private"."incident_updates" ("tenant_id", "incident_id", "created_at");
 alter table "app_private"."incident_updates" enable row level security;
-revoke all on "app_private"."incident_updates" from anon, authenticated;
+revoke all on "app_private"."incident_updates" from public, anon, authenticated;
 grant select on "app_private"."incident_updates" to authenticated;
 grant all on "app_private"."incident_updates" to service_role;
 drop policy if exists "incident_updates_read" on "app_private"."incident_updates";
@@ -2469,7 +2472,7 @@ create table if not exists "app_private"."incident_impacts" (
 create index if not exists "incident_impacts_parent_idx" on "app_private"."incident_impacts" ("tenant_id", "incident_id");
 create index if not exists "incident_impacts_component_idx" on "app_private"."incident_impacts" ("tenant_id", "component_id");
 alter table "app_private"."incident_impacts" enable row level security;
-revoke all on "app_private"."incident_impacts" from anon, authenticated;
+revoke all on "app_private"."incident_impacts" from public, anon, authenticated;
 grant select on "app_private"."incident_impacts" to authenticated;
 grant all on "app_private"."incident_impacts" to service_role;
 drop policy if exists "incident_impacts_read" on "app_private"."incident_impacts";
@@ -2495,7 +2498,7 @@ create table if not exists "app_private"."incident_postmortems" (
 );
 create index if not exists "incident_postmortems_tenant_idx" on "app_private"."incident_postmortems" ("tenant_id", "incident_id");
 alter table "app_private"."incident_postmortems" enable row level security;
-revoke all on "app_private"."incident_postmortems" from anon, authenticated;
+revoke all on "app_private"."incident_postmortems" from public, anon, authenticated;
 grant select on "app_private"."incident_postmortems" to authenticated;
 grant all on "app_private"."incident_postmortems" to service_role;
 drop policy if exists "incident_postmortems_read" on "app_private"."incident_postmortems";
@@ -2515,7 +2518,7 @@ create table if not exists "app_private"."status_pages" (
   "updated_at" timestamptz not null default now()
 );
 alter table "app_private"."status_pages" enable row level security;
-revoke all on "app_private"."status_pages" from anon, authenticated;
+revoke all on "app_private"."status_pages" from public, anon, authenticated;
 grant select on "app_private"."status_pages" to authenticated;
 grant all on "app_private"."status_pages" to service_role;
 drop policy if exists "status_pages_read" on "app_private"."status_pages";
@@ -3326,7 +3329,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_127_incidents.sql
@@ -3346,7 +3349,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:658fff975e9f9651c72a3ec7e27652d3cacadcb22813afd575e6d3b3689786ac
+-- @bsb-hash sha256:e3f3d79a5a53236d2c5f318598a030bbeaaf63818b8931e66567f054ec314308
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3470,7 +3473,7 @@ create table if not exists "better_supabase"."status_components" (
 );
 create index if not exists "status_components_tenant_idx" on "better_supabase"."status_components" ("tenant_id", "position");
 alter table "better_supabase"."status_components" enable row level security;
-revoke all on "better_supabase"."status_components" from anon, authenticated;
+revoke all on "better_supabase"."status_components" from public, anon, authenticated;
 grant select on "better_supabase"."status_components" to authenticated;
 grant all on "better_supabase"."status_components" to service_role;
 drop policy if exists "status_components_read" on "better_supabase"."status_components";
@@ -3491,7 +3494,7 @@ create table if not exists "better_supabase"."status_component_history" (
 create index if not exists "status_component_history_component_idx" on "better_supabase"."status_component_history" ("tenant_id", "component_id", "started_at");
 create unique index if not exists "status_component_history_open_idx" on "better_supabase"."status_component_history" ("component_id") where "ended_at" is null;
 alter table "better_supabase"."status_component_history" enable row level security;
-revoke all on "better_supabase"."status_component_history" from anon, authenticated;
+revoke all on "better_supabase"."status_component_history" from public, anon, authenticated;
 grant select on "better_supabase"."status_component_history" to authenticated;
 grant all on "better_supabase"."status_component_history" to service_role;
 drop policy if exists "status_component_history_read" on "better_supabase"."status_component_history";
@@ -3522,7 +3525,7 @@ create index if not exists "incidents_tenant_idx" on "better_supabase"."incident
 create index if not exists "incidents_open_idx" on "better_supabase"."incidents" ("tenant_id") where "status" <> 'resolved';
 create index if not exists "incidents_commander_idx" on "better_supabase"."incidents" ("tenant_id", "commander_id") where "commander_id" is not null;
 alter table "better_supabase"."incidents" enable row level security;
-revoke all on "better_supabase"."incidents" from anon, authenticated;
+revoke all on "better_supabase"."incidents" from public, anon, authenticated;
 grant select on "better_supabase"."incidents" to authenticated;
 grant all on "better_supabase"."incidents" to service_role;
 drop policy if exists "incidents_read" on "better_supabase"."incidents";
@@ -3545,7 +3548,7 @@ create table if not exists "better_supabase"."incident_updates" (
 );
 create index if not exists "incident_updates_parent_idx" on "better_supabase"."incident_updates" ("tenant_id", "incident_id", "created_at");
 alter table "better_supabase"."incident_updates" enable row level security;
-revoke all on "better_supabase"."incident_updates" from anon, authenticated;
+revoke all on "better_supabase"."incident_updates" from public, anon, authenticated;
 grant select on "better_supabase"."incident_updates" to authenticated;
 grant all on "better_supabase"."incident_updates" to service_role;
 drop policy if exists "incident_updates_read" on "better_supabase"."incident_updates";
@@ -3564,7 +3567,7 @@ create table if not exists "better_supabase"."incident_impacts" (
 create index if not exists "incident_impacts_parent_idx" on "better_supabase"."incident_impacts" ("tenant_id", "incident_id");
 create index if not exists "incident_impacts_component_idx" on "better_supabase"."incident_impacts" ("tenant_id", "component_id");
 alter table "better_supabase"."incident_impacts" enable row level security;
-revoke all on "better_supabase"."incident_impacts" from anon, authenticated;
+revoke all on "better_supabase"."incident_impacts" from public, anon, authenticated;
 grant select on "better_supabase"."incident_impacts" to authenticated;
 grant all on "better_supabase"."incident_impacts" to service_role;
 drop policy if exists "incident_impacts_read" on "better_supabase"."incident_impacts";
@@ -3590,7 +3593,7 @@ create table if not exists "better_supabase"."incident_postmortems" (
 );
 create index if not exists "incident_postmortems_tenant_idx" on "better_supabase"."incident_postmortems" ("tenant_id", "incident_id");
 alter table "better_supabase"."incident_postmortems" enable row level security;
-revoke all on "better_supabase"."incident_postmortems" from anon, authenticated;
+revoke all on "better_supabase"."incident_postmortems" from public, anon, authenticated;
 grant select on "better_supabase"."incident_postmortems" to authenticated;
 grant all on "better_supabase"."incident_postmortems" to service_role;
 drop policy if exists "incident_postmortems_read" on "better_supabase"."incident_postmortems";
@@ -3610,7 +3613,7 @@ create table if not exists "better_supabase"."status_pages" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."status_pages" enable row level security;
-revoke all on "better_supabase"."status_pages" from anon, authenticated;
+revoke all on "better_supabase"."status_pages" from public, anon, authenticated;
 grant select on "better_supabase"."status_pages" to authenticated;
 grant all on "better_supabase"."status_pages" to service_role;
 drop policy if exists "status_pages_read" on "better_supabase"."status_pages";
@@ -4576,7 +4579,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_127_incidents.sql
@@ -4596,7 +4599,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:7d5c174e63753c40f375598037ca823979c53ee164a474e548c651173e92ee78
+-- @bsb-hash sha256:fc16f737baa489d8ec30ccdaa8b1307a637be2d3a357b0bb9eb62bed4353f6a3
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5662,7 +5665,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_127_incidents.sql
@@ -5682,7 +5685,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:abc3b4b66fc03fca881101739e3c178b43413d826ac1f8ea14480f8992ab926f
+-- @bsb-hash sha256:d0afaa9b2ec377876ed93ce357b3d13e8563879926467aac84350bc4ec869e3e
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5806,7 +5809,7 @@ create table if not exists "better_supabase"."status_components" (
 );
 create index if not exists "status_components_tenant_idx" on "better_supabase"."status_components" ("org_id", "position");
 alter table "better_supabase"."status_components" enable row level security;
-revoke all on "better_supabase"."status_components" from anon, authenticated;
+revoke all on "better_supabase"."status_components" from public, anon, authenticated;
 grant select on "better_supabase"."status_components" to authenticated;
 grant all on "better_supabase"."status_components" to service_role;
 drop policy if exists "status_components_read" on "better_supabase"."status_components";
@@ -5827,7 +5830,7 @@ create table if not exists "better_supabase"."status_component_history" (
 create index if not exists "status_component_history_component_idx" on "better_supabase"."status_component_history" ("org_id", "component_id", "started_at");
 create unique index if not exists "status_component_history_open_idx" on "better_supabase"."status_component_history" ("component_id") where "ended_at" is null;
 alter table "better_supabase"."status_component_history" enable row level security;
-revoke all on "better_supabase"."status_component_history" from anon, authenticated;
+revoke all on "better_supabase"."status_component_history" from public, anon, authenticated;
 grant select on "better_supabase"."status_component_history" to authenticated;
 grant all on "better_supabase"."status_component_history" to service_role;
 drop policy if exists "status_component_history_read" on "better_supabase"."status_component_history";
@@ -5858,7 +5861,7 @@ create index if not exists "incidents_tenant_idx" on "better_supabase"."incident
 create index if not exists "incidents_open_idx" on "better_supabase"."incidents" ("org_id") where "status" <> 'resolved';
 create index if not exists "incidents_commander_idx" on "better_supabase"."incidents" ("org_id", "commander_id") where "commander_id" is not null;
 alter table "better_supabase"."incidents" enable row level security;
-revoke all on "better_supabase"."incidents" from anon, authenticated;
+revoke all on "better_supabase"."incidents" from public, anon, authenticated;
 grant select on "better_supabase"."incidents" to authenticated;
 grant all on "better_supabase"."incidents" to service_role;
 drop policy if exists "incidents_read" on "better_supabase"."incidents";
@@ -5881,7 +5884,7 @@ create table if not exists "better_supabase"."incident_updates" (
 );
 create index if not exists "incident_updates_parent_idx" on "better_supabase"."incident_updates" ("org_id", "incident_id", "created_at");
 alter table "better_supabase"."incident_updates" enable row level security;
-revoke all on "better_supabase"."incident_updates" from anon, authenticated;
+revoke all on "better_supabase"."incident_updates" from public, anon, authenticated;
 grant select on "better_supabase"."incident_updates" to authenticated;
 grant all on "better_supabase"."incident_updates" to service_role;
 drop policy if exists "incident_updates_read" on "better_supabase"."incident_updates";
@@ -5900,7 +5903,7 @@ create table if not exists "better_supabase"."incident_impacts" (
 create index if not exists "incident_impacts_parent_idx" on "better_supabase"."incident_impacts" ("org_id", "incident_id");
 create index if not exists "incident_impacts_component_idx" on "better_supabase"."incident_impacts" ("org_id", "component_id");
 alter table "better_supabase"."incident_impacts" enable row level security;
-revoke all on "better_supabase"."incident_impacts" from anon, authenticated;
+revoke all on "better_supabase"."incident_impacts" from public, anon, authenticated;
 grant select on "better_supabase"."incident_impacts" to authenticated;
 grant all on "better_supabase"."incident_impacts" to service_role;
 drop policy if exists "incident_impacts_read" on "better_supabase"."incident_impacts";
@@ -5926,7 +5929,7 @@ create table if not exists "better_supabase"."incident_postmortems" (
 );
 create index if not exists "incident_postmortems_tenant_idx" on "better_supabase"."incident_postmortems" ("org_id", "incident_id");
 alter table "better_supabase"."incident_postmortems" enable row level security;
-revoke all on "better_supabase"."incident_postmortems" from anon, authenticated;
+revoke all on "better_supabase"."incident_postmortems" from public, anon, authenticated;
 grant select on "better_supabase"."incident_postmortems" to authenticated;
 grant all on "better_supabase"."incident_postmortems" to service_role;
 drop policy if exists "incident_postmortems_read" on "better_supabase"."incident_postmortems";
@@ -5946,7 +5949,7 @@ create table if not exists "better_supabase"."status_pages" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."status_pages" enable row level security;
-revoke all on "better_supabase"."status_pages" from anon, authenticated;
+revoke all on "better_supabase"."status_pages" from public, anon, authenticated;
 grant select on "better_supabase"."status_pages" to authenticated;
 grant all on "better_supabase"."status_pages" to service_role;
 drop policy if exists "status_pages_read" on "better_supabase"."status_pages";
@@ -6757,7 +6760,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_127_incidents.sql

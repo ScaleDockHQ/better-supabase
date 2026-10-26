@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:8d9f33eb0a813d9f114f9b4b757170cfd441f12030fd203d36c12318c13d5689
+-- @bsb-hash sha256:c6fa062967ee84e3189d36768e9f88273eb11e6a5bb860ba15611568ab622b13
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -73,7 +73,7 @@ create table if not exists "better_supabase"."share_links" (
 alter table "better_supabase"."share_links" add column if not exists "version_id" uuid;
 alter table "better_supabase"."share_links" add column if not exists "use_count" integer not null default 0;
 alter table "better_supabase"."share_links" enable row level security;
-revoke all on "better_supabase"."share_links" from anon, authenticated;
+revoke all on "better_supabase"."share_links" from public, anon, authenticated;
 grant select on "better_supabase"."share_links" to authenticated;
 grant all on "better_supabase"."share_links" to service_role;
 create index if not exists "share_links_subject_idx" on "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id");
@@ -91,7 +91,7 @@ create table if not exists "better_supabase"."subject_views" (
   unique ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
 );
 alter table "better_supabase"."subject_views" enable row level security;
-revoke all on "better_supabase"."subject_views" from anon, authenticated;
+revoke all on "better_supabase"."subject_views" from public, anon, authenticated;
 grant select on "better_supabase"."subject_views" to authenticated;
 grant all on "better_supabase"."subject_views" to service_role;
 
@@ -104,7 +104,7 @@ create table if not exists "better_supabase"."subject_user_state" (
   primary key ("subject_type", "subject_id", "user_id")
 );
 alter table "better_supabase"."subject_user_state" enable row level security;
-revoke all on "better_supabase"."subject_user_state" from anon, authenticated;
+revoke all on "better_supabase"."subject_user_state" from public, anon, authenticated;
 grant select on "better_supabase"."subject_user_state" to authenticated;
 grant all on "better_supabase"."subject_user_state" to service_role;
 
@@ -334,7 +334,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_062_share_links.sql
@@ -354,7 +354,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:76a8d74b657d1fd185bdf0749cbe7823fcdfe7d734f7e0f7ce3cf6351bd0d5ce
+-- @bsb-hash sha256:5f8442d68e3bbfffb0caf24e2187fc09ff475e345b01102bf5002526cbb9d1c5
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -426,7 +426,7 @@ create table if not exists "better_supabase"."share_links" (
 alter table "better_supabase"."share_links" add column if not exists "version_id" uuid;
 alter table "better_supabase"."share_links" add column if not exists "use_count" integer not null default 0;
 alter table "better_supabase"."share_links" enable row level security;
-revoke all on "better_supabase"."share_links" from anon, authenticated;
+revoke all on "better_supabase"."share_links" from public, anon, authenticated;
 grant select on "better_supabase"."share_links" to authenticated;
 grant all on "better_supabase"."share_links" to service_role;
 create index if not exists "share_links_subject_idx" on "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id");
@@ -444,7 +444,7 @@ create table if not exists "better_supabase"."subject_views" (
   unique ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
 );
 alter table "better_supabase"."subject_views" enable row level security;
-revoke all on "better_supabase"."subject_views" from anon, authenticated;
+revoke all on "better_supabase"."subject_views" from public, anon, authenticated;
 grant select on "better_supabase"."subject_views" to authenticated;
 grant all on "better_supabase"."subject_views" to service_role;
 
@@ -457,7 +457,7 @@ create table if not exists "better_supabase"."subject_user_state" (
   primary key ("subject_type", "subject_id", "user_id")
 );
 alter table "better_supabase"."subject_user_state" enable row level security;
-revoke all on "better_supabase"."subject_user_state" from anon, authenticated;
+revoke all on "better_supabase"."subject_user_state" from public, anon, authenticated;
 grant select on "better_supabase"."subject_user_state" to authenticated;
 grant all on "better_supabase"."subject_user_state" to service_role;
 
@@ -795,7 +795,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_062_share_links.sql
@@ -815,7 +815,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:0f2c20c6e56e4e946741ab7152518b000af6eef1af944c4b262ce6aea29a24d7
+-- @bsb-hash sha256:c9acd5143474950658999f7c6365e57c21fc474bd546634705b2424c2bc13a01
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -872,6 +872,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table if not exists "app_private"."share_links" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -889,7 +892,7 @@ create table if not exists "app_private"."share_links" (
 alter table "app_private"."share_links" add column if not exists "version_id" uuid;
 alter table "app_private"."share_links" add column if not exists "use_count" integer not null default 0;
 alter table "app_private"."share_links" enable row level security;
-revoke all on "app_private"."share_links" from anon, authenticated;
+revoke all on "app_private"."share_links" from public, anon, authenticated;
 grant select on "app_private"."share_links" to authenticated;
 grant all on "app_private"."share_links" to service_role;
 create index if not exists "share_links_subject_idx" on "app_private"."share_links" ("tenant_id", "subject_type", "subject_id");
@@ -907,7 +910,7 @@ create table if not exists "app_private"."subject_views" (
   unique ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
 );
 alter table "app_private"."subject_views" enable row level security;
-revoke all on "app_private"."subject_views" from anon, authenticated;
+revoke all on "app_private"."subject_views" from public, anon, authenticated;
 grant select on "app_private"."subject_views" to authenticated;
 grant all on "app_private"."subject_views" to service_role;
 
@@ -920,7 +923,7 @@ create table if not exists "app_private"."subject_user_state" (
   primary key ("subject_type", "subject_id", "user_id")
 );
 alter table "app_private"."subject_user_state" enable row level security;
-revoke all on "app_private"."subject_user_state" from anon, authenticated;
+revoke all on "app_private"."subject_user_state" from public, anon, authenticated;
 grant select on "app_private"."subject_user_state" to authenticated;
 grant all on "app_private"."subject_user_state" to service_role;
 
@@ -1150,7 +1153,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_062_share_links.sql
@@ -1170,7 +1173,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:458e8f63edabfd9b8cd1b239199e15a0ca250f601592a4d8d33f55b2fd4e540b
+-- @bsb-hash sha256:80d6470e2daa6aa9bd51dac849832fcc355fa3e326350f881eb616be8f99e6c3
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1242,7 +1245,7 @@ create table if not exists "better_supabase"."share_links" (
 alter table "better_supabase"."share_links" add column if not exists "version_id" uuid;
 alter table "better_supabase"."share_links" add column if not exists "use_count" integer not null default 0;
 alter table "better_supabase"."share_links" enable row level security;
-revoke all on "better_supabase"."share_links" from anon, authenticated;
+revoke all on "better_supabase"."share_links" from public, anon, authenticated;
 grant select on "better_supabase"."share_links" to authenticated;
 grant all on "better_supabase"."share_links" to service_role;
 create index if not exists "share_links_subject_idx" on "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id");
@@ -1260,7 +1263,7 @@ create table if not exists "better_supabase"."subject_views" (
   unique ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
 );
 alter table "better_supabase"."subject_views" enable row level security;
-revoke all on "better_supabase"."subject_views" from anon, authenticated;
+revoke all on "better_supabase"."subject_views" from public, anon, authenticated;
 grant select on "better_supabase"."subject_views" to authenticated;
 grant all on "better_supabase"."subject_views" to service_role;
 
@@ -1273,7 +1276,7 @@ create table if not exists "better_supabase"."subject_user_state" (
   primary key ("subject_type", "subject_id", "user_id")
 );
 alter table "better_supabase"."subject_user_state" enable row level security;
-revoke all on "better_supabase"."subject_user_state" from anon, authenticated;
+revoke all on "better_supabase"."subject_user_state" from public, anon, authenticated;
 grant select on "better_supabase"."subject_user_state" to authenticated;
 grant all on "better_supabase"."subject_user_state" to service_role;
 
@@ -1585,7 +1588,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_062_share_links.sql
@@ -1605,7 +1608,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:2e7a26f55644d25573650c9eec95af9d6b8a7fa870671b889cd9b091b9d428d8
+-- @bsb-hash sha256:f86e4462c59f3313ace7fdaccb8e5b528e7ca460eeef3bf6c86f260b473b0d56
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1930,7 +1933,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_062_share_links.sql
@@ -1950,7 +1953,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:44be1865018948dd039dfcbdb782b4991f9ef8ae2837a2091bdb9d6b49b53315
+-- @bsb-hash sha256:c3f7f6e291d8d25fe5114f3178558800c7a7fec5725523cb7da7a40f1e5be61b
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2022,7 +2025,7 @@ create table if not exists "better_supabase"."share_links" (
 alter table "better_supabase"."share_links" add column if not exists "version_id" uuid;
 alter table "better_supabase"."share_links" add column if not exists "use_count" integer not null default 0;
 alter table "better_supabase"."share_links" enable row level security;
-revoke all on "better_supabase"."share_links" from anon, authenticated;
+revoke all on "better_supabase"."share_links" from public, anon, authenticated;
 grant select on "better_supabase"."share_links" to authenticated;
 grant all on "better_supabase"."share_links" to service_role;
 create index if not exists "share_links_subject_idx" on "better_supabase"."share_links" ("org_id", "subject_type", "subject_id");
@@ -2040,7 +2043,7 @@ create table if not exists "better_supabase"."subject_views" (
   unique ("org_id", "subject_type", "subject_id", "viewer_kind", "viewer")
 );
 alter table "better_supabase"."subject_views" enable row level security;
-revoke all on "better_supabase"."subject_views" from anon, authenticated;
+revoke all on "better_supabase"."subject_views" from public, anon, authenticated;
 grant select on "better_supabase"."subject_views" to authenticated;
 grant all on "better_supabase"."subject_views" to service_role;
 
@@ -2053,7 +2056,7 @@ create table if not exists "better_supabase"."subject_user_state" (
   primary key ("subject_type", "subject_id", "user_id")
 );
 alter table "better_supabase"."subject_user_state" enable row level security;
-revoke all on "better_supabase"."subject_user_state" from anon, authenticated;
+revoke all on "better_supabase"."subject_user_state" from public, anon, authenticated;
 grant select on "better_supabase"."subject_user_state" to authenticated;
 grant all on "better_supabase"."subject_user_state" to service_role;
 
@@ -2283,7 +2286,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_062_share_links.sql

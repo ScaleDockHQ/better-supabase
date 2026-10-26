@@ -1,6 +1,6 @@
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
--- @bsb-hash sha256:f1a7a066890a7913007830d63ab257338335980b8756df2fc360a59ddabb0ac4
+-- @bsb-hash sha256:6c0b06d1be78a5327a0c5a4234d6334db5b5e03a33ac50d8d52cf694810ee921
 -- Fractional rank keys: rank_between, move() for every config.records entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -402,5 +402,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

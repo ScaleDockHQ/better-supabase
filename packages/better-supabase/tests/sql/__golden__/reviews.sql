@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:1199d644c643dce2be4e4dff7d847d8c798de43426b7a8b5cd9d774651630aa2
+-- @bsb-hash sha256:ee2df637864b24bf2f9c14aa120fe633c4216f184dea5413910870cc7aeccb3d
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -89,7 +89,7 @@ create index if not exists "reviews_subject_idx" on "better_supabase"."reviews" 
 create index if not exists "reviews_queue_idx" on "better_supabase"."reviews" ("tenant_id", "status", "created_at" desc);
 create index if not exists "reviews_author_idx" on "better_supabase"."reviews" ("author_id");
 alter table "better_supabase"."reviews" enable row level security;
-revoke all on "better_supabase"."reviews" from anon, authenticated;
+revoke all on "better_supabase"."reviews" from public, anon, authenticated;
 grant all on "better_supabase"."reviews" to service_role;
 
 create table if not exists "better_supabase"."review_stats" (
@@ -103,7 +103,7 @@ create table if not exists "better_supabase"."review_stats" (
   primary key ("tenant_id", "subject_type", "subject_id")
 );
 alter table "better_supabase"."review_stats" enable row level security;
-revoke all on "better_supabase"."review_stats" from anon, authenticated;
+revoke all on "better_supabase"."review_stats" from public, anon, authenticated;
 grant all on "better_supabase"."review_stats" to service_role;
 
 -- Whether the caller may read and review a subject: an active product on a
@@ -538,7 +538,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
@@ -566,7 +566,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:aa80eb460f83379637be143ab9f821076e04fd6e967985feb24aa62a6e420183
+-- @bsb-hash sha256:593eba4d129ce8cbe470e7ef19f15438d08f5c6296761c7d7ed9198c4e8b6b0f
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -654,7 +654,7 @@ create index if not exists "reviews_subject_idx" on "better_supabase"."reviews" 
 create index if not exists "reviews_queue_idx" on "better_supabase"."reviews" ("tenant_id", "status", "created_at" desc);
 create index if not exists "reviews_author_idx" on "better_supabase"."reviews" ("author_id");
 alter table "better_supabase"."reviews" enable row level security;
-revoke all on "better_supabase"."reviews" from anon, authenticated;
+revoke all on "better_supabase"."reviews" from public, anon, authenticated;
 grant all on "better_supabase"."reviews" to service_role;
 
 create table if not exists "better_supabase"."review_stats" (
@@ -668,7 +668,7 @@ create table if not exists "better_supabase"."review_stats" (
   primary key ("tenant_id", "subject_type", "subject_id")
 );
 alter table "better_supabase"."review_stats" enable row level security;
-revoke all on "better_supabase"."review_stats" from anon, authenticated;
+revoke all on "better_supabase"."review_stats" from public, anon, authenticated;
 grant all on "better_supabase"."review_stats" to service_role;
 
 -- Whether the caller may read and review a subject: an active product on a
@@ -1195,7 +1195,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
@@ -1223,7 +1223,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:1c099847dfd5762ced11739320189e6b4d75410f0b7badb2556454f60e549671
+-- @bsb-hash sha256:3177c3c203ac9d0990a12739ae433fd2cc2cf645706f778fe18205a0de90e1a0
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1288,6 +1288,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table if not exists "app_private"."reviews" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -1313,7 +1316,7 @@ create index if not exists "reviews_subject_idx" on "app_private"."reviews" ("te
 create index if not exists "reviews_queue_idx" on "app_private"."reviews" ("tenant_id", "status", "created_at" desc);
 create index if not exists "reviews_author_idx" on "app_private"."reviews" ("author_id");
 alter table "app_private"."reviews" enable row level security;
-revoke all on "app_private"."reviews" from anon, authenticated;
+revoke all on "app_private"."reviews" from public, anon, authenticated;
 grant all on "app_private"."reviews" to service_role;
 
 create table if not exists "app_private"."review_stats" (
@@ -1327,7 +1330,7 @@ create table if not exists "app_private"."review_stats" (
   primary key ("tenant_id", "subject_type", "subject_id")
 );
 alter table "app_private"."review_stats" enable row level security;
-revoke all on "app_private"."review_stats" from anon, authenticated;
+revoke all on "app_private"."review_stats" from public, anon, authenticated;
 grant all on "app_private"."review_stats" to service_role;
 
 -- Whether the caller may read and review a subject: an active product on a
@@ -1762,7 +1765,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
@@ -1790,7 +1793,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:68fdc7e21d31dc264a1c909c0515e32983f837dfbdb267753b28845b5da1ce32
+-- @bsb-hash sha256:28484c82db9b7863a6956a4bd31a50053f5fcfa64f0f2f7ba9790290982e5783
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1878,7 +1881,7 @@ create index if not exists "reviews_subject_idx" on "better_supabase"."reviews" 
 create index if not exists "reviews_queue_idx" on "better_supabase"."reviews" ("tenant_id", "status", "created_at" desc);
 create index if not exists "reviews_author_idx" on "better_supabase"."reviews" ("author_id");
 alter table "better_supabase"."reviews" enable row level security;
-revoke all on "better_supabase"."reviews" from anon, authenticated;
+revoke all on "better_supabase"."reviews" from public, anon, authenticated;
 grant all on "better_supabase"."reviews" to service_role;
 
 create table if not exists "better_supabase"."review_stats" (
@@ -1892,7 +1895,7 @@ create table if not exists "better_supabase"."review_stats" (
   primary key ("tenant_id", "subject_type", "subject_id")
 );
 alter table "better_supabase"."review_stats" enable row level security;
-revoke all on "better_supabase"."review_stats" from anon, authenticated;
+revoke all on "better_supabase"."review_stats" from public, anon, authenticated;
 grant all on "better_supabase"."review_stats" to service_role;
 
 -- Whether the caller may read and review a subject: an active product on a
@@ -2432,7 +2435,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
@@ -2460,7 +2463,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:b0c3984399e6dc174e67994cc943ec60c4d950110919c4194cbaa00c61adb8a5
+-- @bsb-hash sha256:d6646104175c769c7bb96f8e921d72fca9d789535ac9179fd90f5c485199a618
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3029,7 +3032,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
@@ -3057,7 +3060,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:d92b905b2e240898b4c8e1801c65cd4bca3bae69f5d2ad40abef648d5770ff23
+-- @bsb-hash sha256:e738beab9d0da78ae8e36effc60ecace0a85ffd785ca091be509f399820fab39
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3145,7 +3148,7 @@ create index if not exists "reviews_subject_idx" on "better_supabase"."reviews" 
 create index if not exists "reviews_queue_idx" on "better_supabase"."reviews" ("org_id", "status", "created_at" desc);
 create index if not exists "reviews_author_idx" on "better_supabase"."reviews" ("author_id");
 alter table "better_supabase"."reviews" enable row level security;
-revoke all on "better_supabase"."reviews" from anon, authenticated;
+revoke all on "better_supabase"."reviews" from public, anon, authenticated;
 grant all on "better_supabase"."reviews" to service_role;
 
 create table if not exists "better_supabase"."review_stats" (
@@ -3159,7 +3162,7 @@ create table if not exists "better_supabase"."review_stats" (
   primary key ("org_id", "subject_type", "subject_id")
 );
 alter table "better_supabase"."review_stats" enable row level security;
-revoke all on "better_supabase"."review_stats" from anon, authenticated;
+revoke all on "better_supabase"."review_stats" from public, anon, authenticated;
 grant all on "better_supabase"."review_stats" to service_role;
 
 -- Whether the caller may read and review a subject: an active product on a
@@ -3594,7 +3597,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql

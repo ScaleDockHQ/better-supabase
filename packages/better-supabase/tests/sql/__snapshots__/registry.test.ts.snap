@@ -3,7 +3,7 @@
 exports[`entitlements with provider memberships > renders the bigint scope id type in every tenant signature 1`] = `
 "-- better-supabase module: entitlements
 -- @bsb-block entitlements@1 managed
--- @bsb-hash sha256:ca514c0eb56adc2750889176bb7c86e55f538c9d8ef8366142ddfe1c6340f3a6
+-- @bsb-hash sha256:8ec04cc37cfbea5bb21c34a027fe47f96b9af10017793a5ebcbf83f3f3a395d0
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
 -- Managed by \`better-supabase add\`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through \`blocks\` in better-supabase.config.ts and the module's SQL hooks.
@@ -181,7 +181,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 "
 `;
@@ -189,7 +189,7 @@ grant select on better_supabase.blocks to service_role;
 exports[`entitlements with provider memberships > renders the integer scope id type in every tenant signature 1`] = `
 "-- better-supabase module: entitlements
 -- @bsb-block entitlements@1 managed
--- @bsb-hash sha256:c2aa925f65651078bc8d2b74988f980365e5dff431108014a9d49376baf5ed27
+-- @bsb-hash sha256:1f5d47c5e5ed3cd5249a9a41608db4a9820b9a1b26d8bfcbec650a946e356f3d
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
 -- Managed by \`better-supabase add\`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through \`blocks\` in better-supabase.config.ts and the module's SQL hooks.
@@ -367,7 +367,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 "
 `;
@@ -375,7 +375,7 @@ grant select on better_supabase.blocks to service_role;
 exports[`entitlements with provider memberships > renders the text scope id type in every tenant signature 1`] = `
 "-- better-supabase module: entitlements
 -- @bsb-block entitlements@1 managed
--- @bsb-hash sha256:eeac57a1e2373b777d09d1ffc525ce2b30980512f83386e9df0cedada6f892c3
+-- @bsb-hash sha256:ba3d1171dd96e194774bcb4bcae18019672e6c56c19e69668d013ce36f512b46
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
 -- Managed by \`better-supabase add\`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through \`blocks\` in better-supabase.config.ts and the module's SQL hooks.
@@ -553,7 +553,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 "
 `;
@@ -561,7 +561,7 @@ grant select on better_supabase.blocks to service_role;
 exports[`entitlements with provider memberships > renders the uuid scope id type in every tenant signature 1`] = `
 "-- better-supabase module: entitlements
 -- @bsb-block entitlements@1 managed
--- @bsb-hash sha256:a9e4018f462212ed3589955af4366e1b3939c88a70f86ffc8814f4aa70f7fee4
+-- @bsb-hash sha256:334f76a5995385914849c9427afda1449a950486661d8e5df4a9cf463bd611e4
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
 -- Managed by \`better-supabase add\`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through \`blocks\` in better-supabase.config.ts and the module's SQL hooks.
@@ -739,7 +739,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 "
 `;

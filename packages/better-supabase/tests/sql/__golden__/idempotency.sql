@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@1 managed
--- @bsb-hash sha256:81212b5b73396a34c16a76bb0923bfcf93e83ce21eac97b8df309f19be1ba865
+-- @bsb-hash sha256:ceb8b739dd69deed1f76606c15f31f0363964738dc2618d9b44d564c638ee465
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -26,7 +26,7 @@ create index if not exists "idempotency_keys_expiry_idx" on "better_supabase"."i
 alter table "better_supabase"."idempotency_keys" add column if not exists "holder" uuid;
 
 alter table "better_supabase"."idempotency_keys" enable row level security;
-revoke all on "better_supabase"."idempotency_keys" from anon, authenticated;
+revoke all on "better_supabase"."idempotency_keys" from public, anon, authenticated;
 grant all on "better_supabase"."idempotency_keys" to service_role;
 
 -- state: 'started' (run it, with holder as the token complete and release
@@ -156,7 +156,7 @@ create table if not exists "better_supabase"."leases" (
   primary key ("scope", "key")
 );
 alter table "better_supabase"."leases" enable row level security;
-revoke all on "better_supabase"."leases" from anon, authenticated;
+revoke all on "better_supabase"."leases" from public, anon, authenticated;
 grant all on "better_supabase"."leases" to service_role;
 
 create or replace function better_supabase.acquire_lease(key text, seconds integer default 60, scope text default '')
@@ -246,7 +246,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
@@ -266,7 +266,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@1 managed
--- @bsb-hash sha256:81212b5b73396a34c16a76bb0923bfcf93e83ce21eac97b8df309f19be1ba865
+-- @bsb-hash sha256:ceb8b739dd69deed1f76606c15f31f0363964738dc2618d9b44d564c638ee465
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -291,7 +291,7 @@ create index if not exists "idempotency_keys_expiry_idx" on "better_supabase"."i
 alter table "better_supabase"."idempotency_keys" add column if not exists "holder" uuid;
 
 alter table "better_supabase"."idempotency_keys" enable row level security;
-revoke all on "better_supabase"."idempotency_keys" from anon, authenticated;
+revoke all on "better_supabase"."idempotency_keys" from public, anon, authenticated;
 grant all on "better_supabase"."idempotency_keys" to service_role;
 
 -- state: 'started' (run it, with holder as the token complete and release
@@ -421,7 +421,7 @@ create table if not exists "better_supabase"."leases" (
   primary key ("scope", "key")
 );
 alter table "better_supabase"."leases" enable row level security;
-revoke all on "better_supabase"."leases" from anon, authenticated;
+revoke all on "better_supabase"."leases" from public, anon, authenticated;
 grant all on "better_supabase"."leases" to service_role;
 
 create or replace function better_supabase.acquire_lease(key text, seconds integer default 60, scope text default '')
@@ -511,7 +511,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
@@ -531,7 +531,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@1 managed
--- @bsb-hash sha256:7dd0143a70a8f4e2ae19a134e6f0347094055eb759b3dc8fc5a13deca7b1d5f2
+-- @bsb-hash sha256:8667ad1e2c655b3db06e1601034716b17ba3493ee6d5bee3da2a9f2afcd16e93
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -540,6 +540,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 
 create table if not exists "app_private"."idempotency_keys" (
   "scope" text not null default '',
@@ -558,7 +561,7 @@ create index if not exists "idempotency_keys_expiry_idx" on "app_private"."idemp
 alter table "app_private"."idempotency_keys" add column if not exists "holder" uuid;
 
 alter table "app_private"."idempotency_keys" enable row level security;
-revoke all on "app_private"."idempotency_keys" from anon, authenticated;
+revoke all on "app_private"."idempotency_keys" from public, anon, authenticated;
 grant all on "app_private"."idempotency_keys" to service_role;
 
 -- state: 'started' (run it, with holder as the token complete and release
@@ -688,7 +691,7 @@ create table if not exists "app_private"."leases" (
   primary key ("scope", "key")
 );
 alter table "app_private"."leases" enable row level security;
-revoke all on "app_private"."leases" from anon, authenticated;
+revoke all on "app_private"."leases" from public, anon, authenticated;
 grant all on "app_private"."leases" to service_role;
 
 create or replace function better_supabase.acquire_lease(key text, seconds integer default 60, scope text default '')
@@ -778,7 +781,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
@@ -798,7 +801,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@1 managed
--- @bsb-hash sha256:90dd3d351ce30683c77d411131a90440759afc9680d5d9df265cb694ffdaea8e
+-- @bsb-hash sha256:86c7c96feaca0b736558d653d30312fd63cd6a4744f498bab56c642bb856e611
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -823,7 +826,7 @@ create index if not exists "idempotency_keys_expiry_idx" on "better_supabase"."i
 alter table "better_supabase"."idempotency_keys" add column if not exists "holder" uuid;
 
 alter table "better_supabase"."idempotency_keys" enable row level security;
-revoke all on "better_supabase"."idempotency_keys" from anon, authenticated;
+revoke all on "better_supabase"."idempotency_keys" from public, anon, authenticated;
 grant all on "better_supabase"."idempotency_keys" to service_role;
 
 -- state: 'started' (run it, with holder as the token complete and release
@@ -953,7 +956,7 @@ create table if not exists "better_supabase"."leases" (
   primary key ("scope", "key")
 );
 alter table "better_supabase"."leases" enable row level security;
-revoke all on "better_supabase"."leases" from anon, authenticated;
+revoke all on "better_supabase"."leases" from public, anon, authenticated;
 grant all on "better_supabase"."leases" to service_role;
 
 create or replace function better_supabase.acquire_lease(key text, seconds integer default 60, scope text default '')
@@ -1123,7 +1126,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
@@ -1143,7 +1146,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@1 managed
--- @bsb-hash sha256:be12ee6e6d7001a50e3b75016a0c1b2ef942113037b5c7e3be53f95d5d63003b
+-- @bsb-hash sha256:fa400b073397c370fe64d3efae09f9135b43b722773a55b815307213ef6605c4
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1399,7 +1402,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql

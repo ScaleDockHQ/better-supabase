@@ -1,4 +1,3 @@
-import type { BlockOptionsSchema } from "../blocks/options.ts";
 import type {
   BlockMode,
   AnyBlocksConfig,
@@ -18,7 +17,7 @@ import type { ResolvedNames } from "./resolved-names.ts";
 import type { BlockSqlScope } from "./scope.ts";
 import type { BlockSqlValueMethods } from "./value-maps.ts";
 
-import { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
+import { optionSchemaOf } from "../blocks/options-registry.ts";
 import { resolveBlock } from "../config/blocks.ts";
 import { instancePrefix } from "../config/instances.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
@@ -368,6 +367,8 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   readonly modules: AnyBlocksConfig;
   /** The app-wide subject registry (`config.records`). */
   readonly subjects: SubjectsConfig;
+  /** The provider's `rowsWith` template under the `provider` model. */
+  readonly providerRowsWith: string | undefined;
   /**
    * The names of `config.appTables`, created in `public` after every block
    * file, so a block can't put a trigger on one (ADR 0043).
@@ -608,6 +609,8 @@ export interface BlockSqlContextSource {
    * model.
    */
   readonly providerGuests?: boolean;
+  /** The provider's `functions.rowsWith` under the `provider` model. */
+  readonly providerRowsWith?: string;
   /** `sql.scope`: the scope of a module whose config sets none. */
   readonly scope?: BlockScope;
   readonly tenantColumn?: string;
@@ -1232,6 +1235,7 @@ export function createModuleContext(
     idType,
     claims: source.claims ?? DEFAULT_CLAIMS,
     subjects: source.subjects ?? {},
+    providerRowsWith: source.providerRowsWith,
     appTables: new Set(source.appTables),
     scope,
     resolved,
@@ -1502,11 +1506,4 @@ export function contractSignature(
   idType: string,
 ): string {
   return fn.args.map((arg) => arg.replaceAll("{id}", idType)).join(", ");
-}
-
-/** The manifest's options schema of `module`, when it is a built-in module. */
-function optionSchemaOf(module: string): BlockOptionsSchema | undefined {
-  return Object.entries(BLOCK_OPTION_SCHEMAS).find(
-    ([name]) => name === module,
-  )?.[1];
 }

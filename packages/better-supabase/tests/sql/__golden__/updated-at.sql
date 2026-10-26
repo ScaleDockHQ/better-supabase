@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_001_updated_at.sql
 -- better-supabase module: updated-at
 -- @bsb-block updated-at@1 managed
--- @bsb-hash sha256:a6d750f1e58d27aa1a3fdc4cad2c28182f0d6a8f3522e4c5deff88683e7ced59
+-- @bsb-hash sha256:53f575db312352fbd1464134b5b995547aa2518234ffe141ec5f13262f9ff012
 -- Keeps an updated_at column current on every update.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,7 +98,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_001_updated_at.sql
@@ -118,7 +118,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_001_updated_at.sql
 -- better-supabase module: updated-at
 -- @bsb-block updated-at@1 managed
--- @bsb-hash sha256:a6d750f1e58d27aa1a3fdc4cad2c28182f0d6a8f3522e4c5deff88683e7ced59
+-- @bsb-hash sha256:53f575db312352fbd1464134b5b995547aa2518234ffe141ec5f13262f9ff012
 -- Keeps an updated_at column current on every update.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -215,7 +215,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_001_updated_at.sql
@@ -235,7 +235,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_001_updated_at.sql
 -- better-supabase module: updated-at
 -- @bsb-block updated-at@1 managed
--- @bsb-hash sha256:a6d750f1e58d27aa1a3fdc4cad2c28182f0d6a8f3522e4c5deff88683e7ced59
+-- @bsb-hash sha256:53f575db312352fbd1464134b5b995547aa2518234ffe141ec5f13262f9ff012
 -- Keeps an updated_at column current on every update.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -332,7 +332,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_001_updated_at.sql
@@ -352,7 +352,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_001_updated_at.sql
 -- better-supabase module: updated-at
 -- @bsb-block updated-at@1 managed
--- @bsb-hash sha256:a6d750f1e58d27aa1a3fdc4cad2c28182f0d6a8f3522e4c5deff88683e7ced59
+-- @bsb-hash sha256:53f575db312352fbd1464134b5b995547aa2518234ffe141ec5f13262f9ff012
 -- Keeps an updated_at column current on every update.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -449,7 +449,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_001_updated_at.sql

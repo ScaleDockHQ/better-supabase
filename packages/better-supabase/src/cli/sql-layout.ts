@@ -8,6 +8,7 @@ import type {
   BlockSqlEntitlementsProvider,
   BlockSqlLayout,
   AuditedTable,
+  OwnIndex,
   OwnView,
 } from "../sql/index.ts";
 import type { FilePlan } from "./core/files.ts";
@@ -16,6 +17,7 @@ import type { CatalogPolicy } from "./introspect/types.ts";
 import {
   adoptedColumnProblems,
   auditRegistrations,
+  declaredIndexes,
   declaredTableColumns,
   declaredTables,
   declaredViews,
@@ -139,6 +141,7 @@ export async function moduleLayoutFor(
     await declarativeTexts(config),
     config.schemas,
     own.ownTables,
+    config.subjects,
   );
 
   if (adopted.length > 0) {
@@ -230,6 +233,7 @@ async function ownLayout(
     | "ownColumns"
     | "ownUpdatedAtTriggers"
     | "ownPolicies"
+    | "ownIndexes"
   >
 > {
   const database = await databaseTables(config);
@@ -263,7 +267,24 @@ async function ownLayout(
       ...database.policies,
       ...declaredPolicies(own, config.schemas),
     },
+    ownIndexes: mergeIndexes(
+      database.indexes,
+      declaredIndexes(own, config.schemas),
+    ),
   };
+}
+
+function mergeIndexes(
+  database: Readonly<Record<string, readonly OwnIndex[]>>,
+  declared: ReadonlyMap<string, readonly OwnIndex[]>,
+): Readonly<Record<string, readonly OwnIndex[]>> {
+  const merged: Record<string, readonly OwnIndex[]> = { ...database };
+
+  for (const [table, indexes] of declared) {
+    merged[table] = [...(merged[table] ?? []), ...indexes];
+  }
+
+  return merged;
 }
 
 /** A trigger function named like one that keeps `updated_at` current. */
@@ -305,6 +326,7 @@ async function databaseTables(
   readonly columns: Readonly<Record<string, readonly string[]>>;
   readonly updatedAtTriggers: Readonly<Record<string, string>>;
   readonly policies: Readonly<Record<string, readonly CatalogPolicy[]>>;
+  readonly indexes: Readonly<Record<string, readonly OwnIndex[]>>;
 }> {
   const none = {
     tables: {},
@@ -312,6 +334,7 @@ async function databaseTables(
     columns: {},
     updatedAtTriggers: {},
     policies: {},
+    indexes: {},
   };
 
   const path = config.source.snapshot;
@@ -342,11 +365,21 @@ async function databaseTables(
     config.schemas,
   );
 
+  const blockIndexes = new Set(
+    [
+      ...declaredIndexes(
+        (await schemaTexts(config)).filter(writtenByBlocks),
+        config.schemas,
+      ).values(),
+    ].flatMap((list) => list.map((index) => index.name)),
+  );
+
   const tables: Record<string, string> = {};
   const views: Record<string, OwnView> = {};
   const columns: Record<string, readonly string[]> = {};
   const updatedAtTriggers: Record<string, string> = {};
   const policies: Record<string, readonly CatalogPolicy[]> = {};
+  const indexes: Record<string, readonly OwnIndex[]> = {};
 
   for (const table of toCatalog(snapshot).tables) {
     const name = `${table.schema}.${table.name}`;
@@ -373,10 +406,19 @@ async function databaseTables(
       policies[name] = table.policies.filter(
         (policy) => !policy.name.startsWith("bsb_"),
       );
+
+      indexes[name] = table.indexes
+        .filter(
+          (index) =>
+            !index.partial &&
+            [undefined, "btree"].includes(index.method) &&
+            !blockIndexes.has(index.name),
+        )
+        .map((index) => ({ name: index.name, columns: index.columns }));
     }
   }
 
-  return { tables, views, columns, updatedAtTriggers, policies };
+  return { tables, views, columns, updatedAtTriggers, policies, indexes };
 }
 
 /**

@@ -102,7 +102,7 @@ function accessProviderFor(
 
       const problems = moduleKeyProblems(
         config.authorization,
-        modulePermissionKeys(config.blocks, names),
+        modulePermissionKeys(config.blocks, names, config.subjects),
       );
 
       if (problems.length > 0) {

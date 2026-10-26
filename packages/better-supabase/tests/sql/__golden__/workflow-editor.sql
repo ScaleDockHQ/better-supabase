@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@3 managed
--- @bsb-hash sha256:6fb788c56871fd0ec960aeebb5c3c32b204355e70b23c26f74c8fc5d04092dd3
+-- @bsb-hash sha256:4d5e79a878d2288bc609943d544d26261d7d702e13061d8c21e238cf74b2c761
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -128,7 +128,7 @@ end;
 $$;
 create index if not exists workflow_definitions_forked_from_idx on "better_supabase"."workflow_definitions" ("forked_from") where "forked_from" is not null;
 alter table "better_supabase"."workflow_definitions" enable row level security;
-revoke all on "better_supabase"."workflow_definitions" from anon, authenticated;
+revoke all on "better_supabase"."workflow_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_definitions" to authenticated;
 grant all on "better_supabase"."workflow_definitions" to service_role;
 drop policy if exists workflow_definitions_read on "better_supabase"."workflow_definitions";
@@ -147,7 +147,7 @@ create table if not exists "better_supabase"."workflow_opt_outs" (
 create index if not exists workflow_opt_outs_definition_idx on "better_supabase"."workflow_opt_outs" ("definition_id");
 create index if not exists workflow_opt_outs_created_by_idx on "better_supabase"."workflow_opt_outs" ("created_by");
 alter table "better_supabase"."workflow_opt_outs" enable row level security;
-revoke all on "better_supabase"."workflow_opt_outs" from anon, authenticated;
+revoke all on "better_supabase"."workflow_opt_outs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_opt_outs" to authenticated;
 grant all on "better_supabase"."workflow_opt_outs" to service_role;
 drop policy if exists workflow_opt_outs_read on "better_supabase"."workflow_opt_outs";
@@ -169,7 +169,7 @@ create table if not exists "better_supabase"."workflow_definition_grants" (
 create index if not exists workflow_definition_grants_principal_idx on "better_supabase"."workflow_definition_grants" ("principal_kind", "principal_id");
 create index if not exists workflow_definition_grants_created_by_idx on "better_supabase"."workflow_definition_grants" ("created_by");
 alter table "better_supabase"."workflow_definition_grants" enable row level security;
-revoke all on "better_supabase"."workflow_definition_grants" from anon, authenticated;
+revoke all on "better_supabase"."workflow_definition_grants" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_definition_grants" to authenticated;
 grant all on "better_supabase"."workflow_definition_grants" to service_role;
 drop policy if exists workflow_definition_grants_read on "better_supabase"."workflow_definition_grants";
@@ -204,7 +204,7 @@ create unique index if not exists workflow_versions_one_draft_idx on "better_sup
 create unique index if not exists workflow_versions_one_published_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'published';
 create index if not exists workflow_versions_created_by_idx on "better_supabase"."workflow_versions" ("created_by");
 alter table "better_supabase"."workflow_versions" enable row level security;
-revoke all on "better_supabase"."workflow_versions" from anon, authenticated;
+revoke all on "better_supabase"."workflow_versions" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_versions" to authenticated;
 grant all on "better_supabase"."workflow_versions" to service_role;
 drop policy if exists workflow_versions_read on "better_supabase"."workflow_versions";
@@ -227,7 +227,7 @@ create index if not exists workflow_triggers_definition_idx on "better_supabase"
 create index if not exists workflow_triggers_event_type_idx on "better_supabase"."workflow_triggers" (("config" ->> 'type'))
   where "kind" = 'event' and "enabled";
 alter table "better_supabase"."workflow_triggers" enable row level security;
-revoke all on "better_supabase"."workflow_triggers" from anon, authenticated;
+revoke all on "better_supabase"."workflow_triggers" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_triggers" to authenticated;
 grant all on "better_supabase"."workflow_triggers" to service_role;
 drop policy if exists workflow_triggers_read on "better_supabase"."workflow_triggers";
@@ -240,7 +240,7 @@ create table if not exists "better_supabase"."workflow_webhook_tokens" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."workflow_webhook_tokens" enable row level security;
-revoke all on "better_supabase"."workflow_webhook_tokens" from anon, authenticated;
+revoke all on "better_supabase"."workflow_webhook_tokens" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_webhook_tokens" to service_role;
 
 -- Credentials the steps of a tenant's workflows use. A row names the secret
@@ -259,7 +259,7 @@ create table if not exists "better_supabase"."workflow_credentials" (
 );
 create index if not exists workflow_credentials_created_by_idx on "better_supabase"."workflow_credentials" ("created_by");
 alter table "better_supabase"."workflow_credentials" enable row level security;
-revoke all on "better_supabase"."workflow_credentials" from anon, authenticated;
+revoke all on "better_supabase"."workflow_credentials" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_credentials" to authenticated;
 grant all on "better_supabase"."workflow_credentials" to service_role;
 drop policy if exists workflow_credentials_read on "better_supabase"."workflow_credentials";
@@ -280,7 +280,7 @@ create table if not exists "better_supabase"."workflow_step_library" (
 alter table "better_supabase"."workflow_step_library" add column if not exists "operation" text
   check (length("operation") between 1 and 200);
 alter table "better_supabase"."workflow_step_library" enable row level security;
-revoke all on "better_supabase"."workflow_step_library" from anon, authenticated;
+revoke all on "better_supabase"."workflow_step_library" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_step_library" to authenticated;
 grant all on "better_supabase"."workflow_step_library" to service_role;
 drop policy if exists workflow_step_library_read on "better_supabase"."workflow_step_library";
@@ -299,7 +299,7 @@ create table if not exists "better_supabase"."workflow_node_runs" (
   primary key ("run_id", "node_id")
 );
 alter table "better_supabase"."workflow_node_runs" enable row level security;
-revoke all on "better_supabase"."workflow_node_runs" from anon, authenticated;
+revoke all on "better_supabase"."workflow_node_runs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_node_runs" to authenticated;
 grant all on "better_supabase"."workflow_node_runs" to service_role;
 drop policy if exists workflow_node_runs_read on "better_supabase"."workflow_node_runs";
@@ -322,7 +322,7 @@ create table if not exists "better_supabase"."workflow_alerts" (
 create index if not exists workflow_alerts_definition_idx on "better_supabase"."workflow_alerts" ("definition_id");
 create index if not exists workflow_alerts_created_by_idx on "better_supabase"."workflow_alerts" ("created_by");
 alter table "better_supabase"."workflow_alerts" enable row level security;
-revoke all on "better_supabase"."workflow_alerts" from anon, authenticated;
+revoke all on "better_supabase"."workflow_alerts" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_alerts" to authenticated;
 grant all on "better_supabase"."workflow_alerts" to service_role;
 drop policy if exists workflow_alerts_read on "better_supabase"."workflow_alerts";
@@ -337,7 +337,7 @@ create table if not exists "better_supabase"."workflow_alert_fires" (
 );
 create index if not exists workflow_alert_fires_run_idx on "better_supabase"."workflow_alert_fires" ("run_id");
 alter table "better_supabase"."workflow_alert_fires" enable row level security;
-revoke all on "better_supabase"."workflow_alert_fires" from anon, authenticated;
+revoke all on "better_supabase"."workflow_alert_fires" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_alert_fires" to service_role;
 
 -- Problems that keep a graph from being published, as messages; empty when
@@ -2027,7 +2027,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_044_workflow_editor.sql
@@ -2049,7 +2049,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@3 managed
--- @bsb-hash sha256:8bfba6033a4ba34aef97f3890a4ce8f128e090bc094f993dc5855088dac5d081
+-- @bsb-hash sha256:cb3108be684acbb06f469db64ab0ef81b2b488f11d5d3b14c6665df3809ea019
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2176,7 +2176,7 @@ end;
 $$;
 create index if not exists workflow_definitions_forked_from_idx on "better_supabase"."workflow_definitions" ("forked_from") where "forked_from" is not null;
 alter table "better_supabase"."workflow_definitions" enable row level security;
-revoke all on "better_supabase"."workflow_definitions" from anon, authenticated;
+revoke all on "better_supabase"."workflow_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_definitions" to authenticated;
 grant all on "better_supabase"."workflow_definitions" to service_role;
 drop policy if exists workflow_definitions_read on "better_supabase"."workflow_definitions";
@@ -2195,7 +2195,7 @@ create table if not exists "better_supabase"."workflow_opt_outs" (
 create index if not exists workflow_opt_outs_definition_idx on "better_supabase"."workflow_opt_outs" ("definition_id");
 create index if not exists workflow_opt_outs_created_by_idx on "better_supabase"."workflow_opt_outs" ("created_by");
 alter table "better_supabase"."workflow_opt_outs" enable row level security;
-revoke all on "better_supabase"."workflow_opt_outs" from anon, authenticated;
+revoke all on "better_supabase"."workflow_opt_outs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_opt_outs" to authenticated;
 grant all on "better_supabase"."workflow_opt_outs" to service_role;
 drop policy if exists workflow_opt_outs_read on "better_supabase"."workflow_opt_outs";
@@ -2217,7 +2217,7 @@ create table if not exists "better_supabase"."workflow_definition_grants" (
 create index if not exists workflow_definition_grants_principal_idx on "better_supabase"."workflow_definition_grants" ("principal_kind", "principal_id");
 create index if not exists workflow_definition_grants_created_by_idx on "better_supabase"."workflow_definition_grants" ("created_by");
 alter table "better_supabase"."workflow_definition_grants" enable row level security;
-revoke all on "better_supabase"."workflow_definition_grants" from anon, authenticated;
+revoke all on "better_supabase"."workflow_definition_grants" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_definition_grants" to authenticated;
 grant all on "better_supabase"."workflow_definition_grants" to service_role;
 drop policy if exists workflow_definition_grants_read on "better_supabase"."workflow_definition_grants";
@@ -2252,7 +2252,7 @@ create unique index if not exists workflow_versions_one_draft_idx on "better_sup
 create unique index if not exists workflow_versions_one_published_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'published';
 create index if not exists workflow_versions_created_by_idx on "better_supabase"."workflow_versions" ("created_by");
 alter table "better_supabase"."workflow_versions" enable row level security;
-revoke all on "better_supabase"."workflow_versions" from anon, authenticated;
+revoke all on "better_supabase"."workflow_versions" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_versions" to authenticated;
 grant all on "better_supabase"."workflow_versions" to service_role;
 drop policy if exists workflow_versions_read on "better_supabase"."workflow_versions";
@@ -2275,7 +2275,7 @@ create index if not exists workflow_triggers_definition_idx on "better_supabase"
 create index if not exists workflow_triggers_event_type_idx on "better_supabase"."workflow_triggers" (("config" ->> 'type'))
   where "kind" = 'event' and "enabled";
 alter table "better_supabase"."workflow_triggers" enable row level security;
-revoke all on "better_supabase"."workflow_triggers" from anon, authenticated;
+revoke all on "better_supabase"."workflow_triggers" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_triggers" to authenticated;
 grant all on "better_supabase"."workflow_triggers" to service_role;
 drop policy if exists workflow_triggers_read on "better_supabase"."workflow_triggers";
@@ -2288,7 +2288,7 @@ create table if not exists "better_supabase"."workflow_webhook_tokens" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."workflow_webhook_tokens" enable row level security;
-revoke all on "better_supabase"."workflow_webhook_tokens" from anon, authenticated;
+revoke all on "better_supabase"."workflow_webhook_tokens" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_webhook_tokens" to service_role;
 
 -- Credentials the steps of a tenant's workflows use. A row names the secret
@@ -2307,7 +2307,7 @@ create table if not exists "better_supabase"."workflow_credentials" (
 );
 create index if not exists workflow_credentials_created_by_idx on "better_supabase"."workflow_credentials" ("created_by");
 alter table "better_supabase"."workflow_credentials" enable row level security;
-revoke all on "better_supabase"."workflow_credentials" from anon, authenticated;
+revoke all on "better_supabase"."workflow_credentials" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_credentials" to authenticated;
 grant all on "better_supabase"."workflow_credentials" to service_role;
 drop policy if exists workflow_credentials_read on "better_supabase"."workflow_credentials";
@@ -2328,7 +2328,7 @@ create table if not exists "better_supabase"."workflow_step_library" (
 alter table "better_supabase"."workflow_step_library" add column if not exists "operation" text
   check (length("operation") between 1 and 200);
 alter table "better_supabase"."workflow_step_library" enable row level security;
-revoke all on "better_supabase"."workflow_step_library" from anon, authenticated;
+revoke all on "better_supabase"."workflow_step_library" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_step_library" to authenticated;
 grant all on "better_supabase"."workflow_step_library" to service_role;
 drop policy if exists workflow_step_library_read on "better_supabase"."workflow_step_library";
@@ -2347,7 +2347,7 @@ create table if not exists "better_supabase"."workflow_node_runs" (
   primary key ("run_id", "node_id")
 );
 alter table "better_supabase"."workflow_node_runs" enable row level security;
-revoke all on "better_supabase"."workflow_node_runs" from anon, authenticated;
+revoke all on "better_supabase"."workflow_node_runs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_node_runs" to authenticated;
 grant all on "better_supabase"."workflow_node_runs" to service_role;
 drop policy if exists workflow_node_runs_read on "better_supabase"."workflow_node_runs";
@@ -2370,7 +2370,7 @@ create table if not exists "better_supabase"."workflow_alerts" (
 create index if not exists workflow_alerts_definition_idx on "better_supabase"."workflow_alerts" ("definition_id");
 create index if not exists workflow_alerts_created_by_idx on "better_supabase"."workflow_alerts" ("created_by");
 alter table "better_supabase"."workflow_alerts" enable row level security;
-revoke all on "better_supabase"."workflow_alerts" from anon, authenticated;
+revoke all on "better_supabase"."workflow_alerts" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_alerts" to authenticated;
 grant all on "better_supabase"."workflow_alerts" to service_role;
 drop policy if exists workflow_alerts_read on "better_supabase"."workflow_alerts";
@@ -2385,7 +2385,7 @@ create table if not exists "better_supabase"."workflow_alert_fires" (
 );
 create index if not exists workflow_alert_fires_run_idx on "better_supabase"."workflow_alert_fires" ("run_id");
 alter table "better_supabase"."workflow_alert_fires" enable row level security;
-revoke all on "better_supabase"."workflow_alert_fires" from anon, authenticated;
+revoke all on "better_supabase"."workflow_alert_fires" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_alert_fires" to service_role;
 
 -- Problems that keep a graph from being published, as messages; empty when
@@ -4113,7 +4113,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_044_workflow_editor.sql
@@ -4135,7 +4135,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@3 managed
--- @bsb-hash sha256:7a3b8a0e5d093f94e4f33dec5f4645167d2e13cf714eaf82026165d5222d6323
+-- @bsb-hash sha256:39407f5af2464120fdff74fe9bf9bda39de8d521a222bdd7bf5e1fecf3c03afd
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4208,6 +4208,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create extension if not exists pgcrypto with schema extensions;
 
 -- Workflow definitions a tenant builds, by slug. Each has numbered versions:
@@ -4264,7 +4267,7 @@ end;
 $$;
 create index if not exists workflow_definitions_forked_from_idx on "app_private"."workflow_definitions" ("forked_from") where "forked_from" is not null;
 alter table "app_private"."workflow_definitions" enable row level security;
-revoke all on "app_private"."workflow_definitions" from anon, authenticated;
+revoke all on "app_private"."workflow_definitions" from public, anon, authenticated;
 grant select on "app_private"."workflow_definitions" to authenticated;
 grant all on "app_private"."workflow_definitions" to service_role;
 drop policy if exists workflow_definitions_read on "app_private"."workflow_definitions";
@@ -4283,7 +4286,7 @@ create table if not exists "app_private"."workflow_opt_outs" (
 create index if not exists workflow_opt_outs_definition_idx on "app_private"."workflow_opt_outs" ("definition_id");
 create index if not exists workflow_opt_outs_created_by_idx on "app_private"."workflow_opt_outs" ("created_by");
 alter table "app_private"."workflow_opt_outs" enable row level security;
-revoke all on "app_private"."workflow_opt_outs" from anon, authenticated;
+revoke all on "app_private"."workflow_opt_outs" from public, anon, authenticated;
 grant select on "app_private"."workflow_opt_outs" to authenticated;
 grant all on "app_private"."workflow_opt_outs" to service_role;
 drop policy if exists workflow_opt_outs_read on "app_private"."workflow_opt_outs";
@@ -4305,7 +4308,7 @@ create table if not exists "app_private"."workflow_definition_grants" (
 create index if not exists workflow_definition_grants_principal_idx on "app_private"."workflow_definition_grants" ("principal_kind", "principal_id");
 create index if not exists workflow_definition_grants_created_by_idx on "app_private"."workflow_definition_grants" ("created_by");
 alter table "app_private"."workflow_definition_grants" enable row level security;
-revoke all on "app_private"."workflow_definition_grants" from anon, authenticated;
+revoke all on "app_private"."workflow_definition_grants" from public, anon, authenticated;
 grant select on "app_private"."workflow_definition_grants" to authenticated;
 grant all on "app_private"."workflow_definition_grants" to service_role;
 drop policy if exists workflow_definition_grants_read on "app_private"."workflow_definition_grants";
@@ -4340,7 +4343,7 @@ create unique index if not exists workflow_versions_one_draft_idx on "app_privat
 create unique index if not exists workflow_versions_one_published_idx on "app_private"."workflow_versions" ("definition_id") where "status" = 'published';
 create index if not exists workflow_versions_created_by_idx on "app_private"."workflow_versions" ("created_by");
 alter table "app_private"."workflow_versions" enable row level security;
-revoke all on "app_private"."workflow_versions" from anon, authenticated;
+revoke all on "app_private"."workflow_versions" from public, anon, authenticated;
 grant select on "app_private"."workflow_versions" to authenticated;
 grant all on "app_private"."workflow_versions" to service_role;
 drop policy if exists workflow_versions_read on "app_private"."workflow_versions";
@@ -4363,7 +4366,7 @@ create index if not exists workflow_triggers_definition_idx on "app_private"."wo
 create index if not exists workflow_triggers_event_type_idx on "app_private"."workflow_triggers" (("config" ->> 'type'))
   where "kind" = 'event' and "enabled";
 alter table "app_private"."workflow_triggers" enable row level security;
-revoke all on "app_private"."workflow_triggers" from anon, authenticated;
+revoke all on "app_private"."workflow_triggers" from public, anon, authenticated;
 grant select on "app_private"."workflow_triggers" to authenticated;
 grant all on "app_private"."workflow_triggers" to service_role;
 drop policy if exists workflow_triggers_read on "app_private"."workflow_triggers";
@@ -4376,7 +4379,7 @@ create table if not exists "app_private"."workflow_webhook_tokens" (
   "created_at" timestamptz not null default now()
 );
 alter table "app_private"."workflow_webhook_tokens" enable row level security;
-revoke all on "app_private"."workflow_webhook_tokens" from anon, authenticated;
+revoke all on "app_private"."workflow_webhook_tokens" from public, anon, authenticated;
 grant all on "app_private"."workflow_webhook_tokens" to service_role;
 
 -- Credentials the steps of a tenant's workflows use. A row names the secret
@@ -4395,7 +4398,7 @@ create table if not exists "app_private"."workflow_credentials" (
 );
 create index if not exists workflow_credentials_created_by_idx on "app_private"."workflow_credentials" ("created_by");
 alter table "app_private"."workflow_credentials" enable row level security;
-revoke all on "app_private"."workflow_credentials" from anon, authenticated;
+revoke all on "app_private"."workflow_credentials" from public, anon, authenticated;
 grant select on "app_private"."workflow_credentials" to authenticated;
 grant all on "app_private"."workflow_credentials" to service_role;
 drop policy if exists workflow_credentials_read on "app_private"."workflow_credentials";
@@ -4416,7 +4419,7 @@ create table if not exists "app_private"."workflow_step_library" (
 alter table "app_private"."workflow_step_library" add column if not exists "operation" text
   check (length("operation") between 1 and 200);
 alter table "app_private"."workflow_step_library" enable row level security;
-revoke all on "app_private"."workflow_step_library" from anon, authenticated;
+revoke all on "app_private"."workflow_step_library" from public, anon, authenticated;
 grant select on "app_private"."workflow_step_library" to authenticated;
 grant all on "app_private"."workflow_step_library" to service_role;
 drop policy if exists workflow_step_library_read on "app_private"."workflow_step_library";
@@ -4435,7 +4438,7 @@ create table if not exists "app_private"."workflow_node_runs" (
   primary key ("run_id", "node_id")
 );
 alter table "app_private"."workflow_node_runs" enable row level security;
-revoke all on "app_private"."workflow_node_runs" from anon, authenticated;
+revoke all on "app_private"."workflow_node_runs" from public, anon, authenticated;
 grant select on "app_private"."workflow_node_runs" to authenticated;
 grant all on "app_private"."workflow_node_runs" to service_role;
 drop policy if exists workflow_node_runs_read on "app_private"."workflow_node_runs";
@@ -4458,7 +4461,7 @@ create table if not exists "app_private"."workflow_alerts" (
 create index if not exists workflow_alerts_definition_idx on "app_private"."workflow_alerts" ("definition_id");
 create index if not exists workflow_alerts_created_by_idx on "app_private"."workflow_alerts" ("created_by");
 alter table "app_private"."workflow_alerts" enable row level security;
-revoke all on "app_private"."workflow_alerts" from anon, authenticated;
+revoke all on "app_private"."workflow_alerts" from public, anon, authenticated;
 grant select on "app_private"."workflow_alerts" to authenticated;
 grant all on "app_private"."workflow_alerts" to service_role;
 drop policy if exists workflow_alerts_read on "app_private"."workflow_alerts";
@@ -4473,7 +4476,7 @@ create table if not exists "app_private"."workflow_alert_fires" (
 );
 create index if not exists workflow_alert_fires_run_idx on "app_private"."workflow_alert_fires" ("run_id");
 alter table "app_private"."workflow_alert_fires" enable row level security;
-revoke all on "app_private"."workflow_alert_fires" from anon, authenticated;
+revoke all on "app_private"."workflow_alert_fires" from public, anon, authenticated;
 grant all on "app_private"."workflow_alert_fires" to service_role;
 
 -- Problems that keep a graph from being published, as messages; empty when
@@ -6163,7 +6166,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_044_workflow_editor.sql
@@ -6185,7 +6188,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@3 managed
--- @bsb-hash sha256:fb34ceaca81455de589f8d85f9c61c01065ddd395414b05e0cc16d7dffaa6747
+-- @bsb-hash sha256:300cbd0fed701e6d21efa02e6baa34291cec68c43959884fea11eaf1a25344b7
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6312,7 +6315,7 @@ end;
 $$;
 create index if not exists workflow_definitions_forked_from_idx on "better_supabase"."workflow_definitions" ("forked_from") where "forked_from" is not null;
 alter table "better_supabase"."workflow_definitions" enable row level security;
-revoke all on "better_supabase"."workflow_definitions" from anon, authenticated;
+revoke all on "better_supabase"."workflow_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_definitions" to authenticated;
 grant all on "better_supabase"."workflow_definitions" to service_role;
 drop policy if exists workflow_definitions_read on "better_supabase"."workflow_definitions";
@@ -6331,7 +6334,7 @@ create table if not exists "better_supabase"."workflow_opt_outs" (
 create index if not exists workflow_opt_outs_definition_idx on "better_supabase"."workflow_opt_outs" ("definition_id");
 create index if not exists workflow_opt_outs_created_by_idx on "better_supabase"."workflow_opt_outs" ("created_by");
 alter table "better_supabase"."workflow_opt_outs" enable row level security;
-revoke all on "better_supabase"."workflow_opt_outs" from anon, authenticated;
+revoke all on "better_supabase"."workflow_opt_outs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_opt_outs" to authenticated;
 grant all on "better_supabase"."workflow_opt_outs" to service_role;
 drop policy if exists workflow_opt_outs_read on "better_supabase"."workflow_opt_outs";
@@ -6353,7 +6356,7 @@ create table if not exists "better_supabase"."workflow_definition_grants" (
 create index if not exists workflow_definition_grants_principal_idx on "better_supabase"."workflow_definition_grants" ("principal_kind", "principal_id");
 create index if not exists workflow_definition_grants_created_by_idx on "better_supabase"."workflow_definition_grants" ("created_by");
 alter table "better_supabase"."workflow_definition_grants" enable row level security;
-revoke all on "better_supabase"."workflow_definition_grants" from anon, authenticated;
+revoke all on "better_supabase"."workflow_definition_grants" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_definition_grants" to authenticated;
 grant all on "better_supabase"."workflow_definition_grants" to service_role;
 drop policy if exists workflow_definition_grants_read on "better_supabase"."workflow_definition_grants";
@@ -6388,7 +6391,7 @@ create unique index if not exists workflow_versions_one_draft_idx on "better_sup
 create unique index if not exists workflow_versions_one_published_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'published';
 create index if not exists workflow_versions_created_by_idx on "better_supabase"."workflow_versions" ("created_by");
 alter table "better_supabase"."workflow_versions" enable row level security;
-revoke all on "better_supabase"."workflow_versions" from anon, authenticated;
+revoke all on "better_supabase"."workflow_versions" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_versions" to authenticated;
 grant all on "better_supabase"."workflow_versions" to service_role;
 drop policy if exists workflow_versions_read on "better_supabase"."workflow_versions";
@@ -6411,7 +6414,7 @@ create index if not exists workflow_triggers_definition_idx on "better_supabase"
 create index if not exists workflow_triggers_event_type_idx on "better_supabase"."workflow_triggers" (("config" ->> 'type'))
   where "kind" = 'event' and "enabled";
 alter table "better_supabase"."workflow_triggers" enable row level security;
-revoke all on "better_supabase"."workflow_triggers" from anon, authenticated;
+revoke all on "better_supabase"."workflow_triggers" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_triggers" to authenticated;
 grant all on "better_supabase"."workflow_triggers" to service_role;
 drop policy if exists workflow_triggers_read on "better_supabase"."workflow_triggers";
@@ -6424,7 +6427,7 @@ create table if not exists "better_supabase"."workflow_webhook_tokens" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."workflow_webhook_tokens" enable row level security;
-revoke all on "better_supabase"."workflow_webhook_tokens" from anon, authenticated;
+revoke all on "better_supabase"."workflow_webhook_tokens" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_webhook_tokens" to service_role;
 
 -- Credentials the steps of a tenant's workflows use. A row names the secret
@@ -6443,7 +6446,7 @@ create table if not exists "better_supabase"."workflow_credentials" (
 );
 create index if not exists workflow_credentials_created_by_idx on "better_supabase"."workflow_credentials" ("created_by");
 alter table "better_supabase"."workflow_credentials" enable row level security;
-revoke all on "better_supabase"."workflow_credentials" from anon, authenticated;
+revoke all on "better_supabase"."workflow_credentials" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_credentials" to authenticated;
 grant all on "better_supabase"."workflow_credentials" to service_role;
 drop policy if exists workflow_credentials_read on "better_supabase"."workflow_credentials";
@@ -6464,7 +6467,7 @@ create table if not exists "better_supabase"."workflow_step_library" (
 alter table "better_supabase"."workflow_step_library" add column if not exists "operation" text
   check (length("operation") between 1 and 200);
 alter table "better_supabase"."workflow_step_library" enable row level security;
-revoke all on "better_supabase"."workflow_step_library" from anon, authenticated;
+revoke all on "better_supabase"."workflow_step_library" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_step_library" to authenticated;
 grant all on "better_supabase"."workflow_step_library" to service_role;
 drop policy if exists workflow_step_library_read on "better_supabase"."workflow_step_library";
@@ -6483,7 +6486,7 @@ create table if not exists "better_supabase"."workflow_node_runs" (
   primary key ("run_id", "node_id")
 );
 alter table "better_supabase"."workflow_node_runs" enable row level security;
-revoke all on "better_supabase"."workflow_node_runs" from anon, authenticated;
+revoke all on "better_supabase"."workflow_node_runs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_node_runs" to authenticated;
 grant all on "better_supabase"."workflow_node_runs" to service_role;
 drop policy if exists workflow_node_runs_read on "better_supabase"."workflow_node_runs";
@@ -6506,7 +6509,7 @@ create table if not exists "better_supabase"."workflow_alerts" (
 create index if not exists workflow_alerts_definition_idx on "better_supabase"."workflow_alerts" ("definition_id");
 create index if not exists workflow_alerts_created_by_idx on "better_supabase"."workflow_alerts" ("created_by");
 alter table "better_supabase"."workflow_alerts" enable row level security;
-revoke all on "better_supabase"."workflow_alerts" from anon, authenticated;
+revoke all on "better_supabase"."workflow_alerts" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_alerts" to authenticated;
 grant all on "better_supabase"."workflow_alerts" to service_role;
 drop policy if exists workflow_alerts_read on "better_supabase"."workflow_alerts";
@@ -6521,7 +6524,7 @@ create table if not exists "better_supabase"."workflow_alert_fires" (
 );
 create index if not exists workflow_alert_fires_run_idx on "better_supabase"."workflow_alert_fires" ("run_id");
 alter table "better_supabase"."workflow_alert_fires" enable row level security;
-revoke all on "better_supabase"."workflow_alert_fires" from anon, authenticated;
+revoke all on "better_supabase"."workflow_alert_fires" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_alert_fires" to service_role;
 
 -- Problems that keep a graph from being published, as messages; empty when
@@ -8555,7 +8558,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_044_workflow_editor.sql
@@ -8577,7 +8580,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@3 managed
--- @bsb-hash sha256:0e5ed9df4d1e2e31e9ee972c65ce4c0faa21674d898de167d1d725fdbaf66051
+-- @bsb-hash sha256:32e9ca363dcc60b20c7f90e0d0f6fc9bc6aa25e0db95de674a08e45e1bc4de9a
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10569,7 +10572,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_044_workflow_editor.sql
@@ -10591,7 +10594,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@3 managed
--- @bsb-hash sha256:10053545f7872b95fcfe26d6f08c65085a3f35e997ad2f08b9d0097f34fe994d
+-- @bsb-hash sha256:394bc008d09921173985a20921b8de7cf9fcb2aea846e56b825dfa260cbb1521
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10718,7 +10721,7 @@ end;
 $$;
 create index if not exists workflow_definitions_forked_from_idx on "better_supabase"."workflow_definitions" ("forked_from") where "forked_from" is not null;
 alter table "better_supabase"."workflow_definitions" enable row level security;
-revoke all on "better_supabase"."workflow_definitions" from anon, authenticated;
+revoke all on "better_supabase"."workflow_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_definitions" to authenticated;
 grant all on "better_supabase"."workflow_definitions" to service_role;
 drop policy if exists workflow_definitions_read on "better_supabase"."workflow_definitions";
@@ -10737,7 +10740,7 @@ create table if not exists "better_supabase"."workflow_opt_outs" (
 create index if not exists workflow_opt_outs_definition_idx on "better_supabase"."workflow_opt_outs" ("definition_id");
 create index if not exists workflow_opt_outs_created_by_idx on "better_supabase"."workflow_opt_outs" ("created_by");
 alter table "better_supabase"."workflow_opt_outs" enable row level security;
-revoke all on "better_supabase"."workflow_opt_outs" from anon, authenticated;
+revoke all on "better_supabase"."workflow_opt_outs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_opt_outs" to authenticated;
 grant all on "better_supabase"."workflow_opt_outs" to service_role;
 drop policy if exists workflow_opt_outs_read on "better_supabase"."workflow_opt_outs";
@@ -10759,7 +10762,7 @@ create table if not exists "better_supabase"."workflow_definition_grants" (
 create index if not exists workflow_definition_grants_principal_idx on "better_supabase"."workflow_definition_grants" ("principal_kind", "principal_id");
 create index if not exists workflow_definition_grants_created_by_idx on "better_supabase"."workflow_definition_grants" ("created_by");
 alter table "better_supabase"."workflow_definition_grants" enable row level security;
-revoke all on "better_supabase"."workflow_definition_grants" from anon, authenticated;
+revoke all on "better_supabase"."workflow_definition_grants" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_definition_grants" to authenticated;
 grant all on "better_supabase"."workflow_definition_grants" to service_role;
 drop policy if exists workflow_definition_grants_read on "better_supabase"."workflow_definition_grants";
@@ -10794,7 +10797,7 @@ create unique index if not exists workflow_versions_one_draft_idx on "better_sup
 create unique index if not exists workflow_versions_one_published_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'published';
 create index if not exists workflow_versions_created_by_idx on "better_supabase"."workflow_versions" ("created_by");
 alter table "better_supabase"."workflow_versions" enable row level security;
-revoke all on "better_supabase"."workflow_versions" from anon, authenticated;
+revoke all on "better_supabase"."workflow_versions" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_versions" to authenticated;
 grant all on "better_supabase"."workflow_versions" to service_role;
 drop policy if exists workflow_versions_read on "better_supabase"."workflow_versions";
@@ -10817,7 +10820,7 @@ create index if not exists workflow_triggers_definition_idx on "better_supabase"
 create index if not exists workflow_triggers_event_type_idx on "better_supabase"."workflow_triggers" (("config" ->> 'type'))
   where "kind" = 'event' and "enabled";
 alter table "better_supabase"."workflow_triggers" enable row level security;
-revoke all on "better_supabase"."workflow_triggers" from anon, authenticated;
+revoke all on "better_supabase"."workflow_triggers" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_triggers" to authenticated;
 grant all on "better_supabase"."workflow_triggers" to service_role;
 drop policy if exists workflow_triggers_read on "better_supabase"."workflow_triggers";
@@ -10830,7 +10833,7 @@ create table if not exists "better_supabase"."workflow_webhook_tokens" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."workflow_webhook_tokens" enable row level security;
-revoke all on "better_supabase"."workflow_webhook_tokens" from anon, authenticated;
+revoke all on "better_supabase"."workflow_webhook_tokens" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_webhook_tokens" to service_role;
 
 -- Credentials the steps of a tenant's workflows use. A row names the secret
@@ -10849,7 +10852,7 @@ create table if not exists "better_supabase"."workflow_credentials" (
 );
 create index if not exists workflow_credentials_created_by_idx on "better_supabase"."workflow_credentials" ("created_by");
 alter table "better_supabase"."workflow_credentials" enable row level security;
-revoke all on "better_supabase"."workflow_credentials" from anon, authenticated;
+revoke all on "better_supabase"."workflow_credentials" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_credentials" to authenticated;
 grant all on "better_supabase"."workflow_credentials" to service_role;
 drop policy if exists workflow_credentials_read on "better_supabase"."workflow_credentials";
@@ -10870,7 +10873,7 @@ create table if not exists "better_supabase"."workflow_step_library" (
 alter table "better_supabase"."workflow_step_library" add column if not exists "operation" text
   check (length("operation") between 1 and 200);
 alter table "better_supabase"."workflow_step_library" enable row level security;
-revoke all on "better_supabase"."workflow_step_library" from anon, authenticated;
+revoke all on "better_supabase"."workflow_step_library" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_step_library" to authenticated;
 grant all on "better_supabase"."workflow_step_library" to service_role;
 drop policy if exists workflow_step_library_read on "better_supabase"."workflow_step_library";
@@ -10889,7 +10892,7 @@ create table if not exists "better_supabase"."workflow_node_runs" (
   primary key ("run_id", "node_id")
 );
 alter table "better_supabase"."workflow_node_runs" enable row level security;
-revoke all on "better_supabase"."workflow_node_runs" from anon, authenticated;
+revoke all on "better_supabase"."workflow_node_runs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_node_runs" to authenticated;
 grant all on "better_supabase"."workflow_node_runs" to service_role;
 drop policy if exists workflow_node_runs_read on "better_supabase"."workflow_node_runs";
@@ -10912,7 +10915,7 @@ create table if not exists "better_supabase"."workflow_alerts" (
 create index if not exists workflow_alerts_definition_idx on "better_supabase"."workflow_alerts" ("definition_id");
 create index if not exists workflow_alerts_created_by_idx on "better_supabase"."workflow_alerts" ("created_by");
 alter table "better_supabase"."workflow_alerts" enable row level security;
-revoke all on "better_supabase"."workflow_alerts" from anon, authenticated;
+revoke all on "better_supabase"."workflow_alerts" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_alerts" to authenticated;
 grant all on "better_supabase"."workflow_alerts" to service_role;
 drop policy if exists workflow_alerts_read on "better_supabase"."workflow_alerts";
@@ -10927,7 +10930,7 @@ create table if not exists "better_supabase"."workflow_alert_fires" (
 );
 create index if not exists workflow_alert_fires_run_idx on "better_supabase"."workflow_alert_fires" ("run_id");
 alter table "better_supabase"."workflow_alert_fires" enable row level security;
-revoke all on "better_supabase"."workflow_alert_fires" from anon, authenticated;
+revoke all on "better_supabase"."workflow_alert_fires" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_alert_fires" to service_role;
 
 -- Problems that keep a graph from being published, as messages; empty when
@@ -12617,7 +12620,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_044_workflow_editor.sql

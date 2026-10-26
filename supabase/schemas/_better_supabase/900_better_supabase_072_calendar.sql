@@ -1,6 +1,6 @@
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:efe238e41a17dae0962f56cdc35677cdd464394fc0ad88169207d682c98c4bf9
+-- @bsb-hash sha256:b592719e9ab8dba38401eeb4ce1e627424da919e5973a652646bf96a6e5cfd4d
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -90,7 +90,7 @@ create table if not exists "better_supabase"."calendars" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."calendars" enable row level security;
-revoke all on "better_supabase"."calendars" from anon, authenticated;
+revoke all on "better_supabase"."calendars" from public, anon, authenticated;
 grant select on "better_supabase"."calendars" to authenticated;
 grant all on "better_supabase"."calendars" to service_role;
 create index if not exists "calendars_tenant_idx" on "better_supabase"."calendars" ("tenant_id");
@@ -167,7 +167,7 @@ begin
 end;
 $$;
 alter table "better_supabase"."calendar_events" enable row level security;
-revoke all on "better_supabase"."calendar_events" from anon, authenticated;
+revoke all on "better_supabase"."calendar_events" from public, anon, authenticated;
 grant select on "better_supabase"."calendar_events" to authenticated;
 grant all on "better_supabase"."calendar_events" to service_role;
 drop policy if exists calendar_events_read on "better_supabase"."calendar_events";
@@ -185,7 +185,7 @@ create table if not exists "better_supabase"."calendar_attendees" (
   unique ("event_id", "email")
 );
 alter table "better_supabase"."calendar_attendees" enable row level security;
-revoke all on "better_supabase"."calendar_attendees" from anon, authenticated;
+revoke all on "better_supabase"."calendar_attendees" from public, anon, authenticated;
 grant select on "better_supabase"."calendar_attendees" to authenticated;
 grant all on "better_supabase"."calendar_attendees" to service_role;
 do $$
@@ -220,7 +220,7 @@ create table if not exists "better_supabase"."calendar_working_hours" (
   unique ("tenant_id", "user_id", "weekday", "starts_at")
 );
 alter table "better_supabase"."calendar_working_hours" enable row level security;
-revoke all on "better_supabase"."calendar_working_hours" from anon, authenticated;
+revoke all on "better_supabase"."calendar_working_hours" from public, anon, authenticated;
 grant select on "better_supabase"."calendar_working_hours" to authenticated;
 grant all on "better_supabase"."calendar_working_hours" to service_role;
 drop policy if exists calendar_working_hours_read on "better_supabase"."calendar_working_hours";
@@ -1517,5 +1517,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

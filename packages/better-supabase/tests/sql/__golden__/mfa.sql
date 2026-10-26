@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_015_mfa.sql
 -- better-supabase module: mfa
 -- @bsb-block mfa@1 managed
--- @bsb-hash sha256:ad438a67eb4b6debb1ddda12688da8f2cd1471d88deea98c4e14f5fbd656111c
+-- @bsb-hash sha256:d0b8979fb211cd6502e313e931a4acd4c8df7650818a1ab667754a011a136457
 -- mfa_satisfied() for restrictive policies: true when the caller has no verified factor, or verified one in this session (aal2).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,7 +45,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_015_mfa.sql
@@ -65,7 +65,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_015_mfa.sql
 -- better-supabase module: mfa
 -- @bsb-block mfa@1 managed
--- @bsb-hash sha256:ad438a67eb4b6debb1ddda12688da8f2cd1471d88deea98c4e14f5fbd656111c
+-- @bsb-hash sha256:d0b8979fb211cd6502e313e931a4acd4c8df7650818a1ab667754a011a136457
 -- mfa_satisfied() for restrictive policies: true when the caller has no verified factor, or verified one in this session (aal2).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -109,7 +109,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_015_mfa.sql
@@ -129,7 +129,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_015_mfa.sql
 -- better-supabase module: mfa
 -- @bsb-block mfa@1 managed
--- @bsb-hash sha256:ad438a67eb4b6debb1ddda12688da8f2cd1471d88deea98c4e14f5fbd656111c
+-- @bsb-hash sha256:d0b8979fb211cd6502e313e931a4acd4c8df7650818a1ab667754a011a136457
 -- mfa_satisfied() for restrictive policies: true when the caller has no verified factor, or verified one in this session (aal2).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -173,7 +173,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_015_mfa.sql
@@ -193,7 +193,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_015_mfa.sql
 -- better-supabase module: mfa
 -- @bsb-block mfa@1 managed
--- @bsb-hash sha256:ebd042c1aa9f594e3728f543ab84cd4a2276de6f9f8cd5e23b47742f4d402385
+-- @bsb-hash sha256:67b886d539b9c9bff3b84caf7bb9d38b70527f19214300b2aa1af538741473c7
 -- mfa_satisfied() for restrictive policies: true when the caller has no verified factor, or verified one in this session (aal2).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -246,7 +246,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_015_mfa.sql

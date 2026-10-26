@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:f434605c7ee34ac44bf1599f7abf0dc10c73d43129ac6eb2e46c21ab2d88ca4c
+-- @bsb-hash sha256:bb8657f5714b786bcda7076a0e9ac5cfd823f5346e789edcf9ff0115f2d82cbd
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -112,7 +112,7 @@ create table if not exists "better_supabase"."control_frameworks" (
   unique ("tenant_id", "id")
 );
 alter table "better_supabase"."control_frameworks" enable row level security;
-revoke all on "better_supabase"."control_frameworks" from anon, authenticated;
+revoke all on "better_supabase"."control_frameworks" from public, anon, authenticated;
 grant select on "better_supabase"."control_frameworks" to authenticated;
 grant all on "better_supabase"."control_frameworks" to service_role;
 drop policy if exists "control_frameworks_read" on "better_supabase"."control_frameworks";
@@ -139,7 +139,7 @@ alter table "better_supabase"."controls" add column if not exists "app_note" tex
 create index if not exists "controls_tenant_idx" on "better_supabase"."controls" ("tenant_id", "framework_id");
 create index if not exists "controls_owner_idx" on "better_supabase"."controls" ("tenant_id", "owner_id") where "owner_id" is not null;
 alter table "better_supabase"."controls" enable row level security;
-revoke all on "better_supabase"."controls" from anon, authenticated;
+revoke all on "better_supabase"."controls" from public, anon, authenticated;
 grant select on "better_supabase"."controls" to authenticated;
 grant all on "better_supabase"."controls" to service_role;
 drop policy if exists "controls_read" on "better_supabase"."controls";
@@ -167,7 +167,7 @@ create index if not exists "evidence_tasks_parent_idx" on "better_supabase"."evi
 create index if not exists "evidence_tasks_assignee_idx" on "better_supabase"."evidence_tasks" ("tenant_id", "assignee_id", "due_on") where "assignee_id" is not null;
 create index if not exists "evidence_tasks_due_idx" on "better_supabase"."evidence_tasks" ("due_on") where "active";
 alter table "better_supabase"."evidence_tasks" enable row level security;
-revoke all on "better_supabase"."evidence_tasks" from anon, authenticated;
+revoke all on "better_supabase"."evidence_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."evidence_tasks" to authenticated;
 grant all on "better_supabase"."evidence_tasks" to service_role;
 drop policy if exists "evidence_tasks_read" on "better_supabase"."evidence_tasks";
@@ -193,7 +193,7 @@ create index if not exists "control_evidence_parent_idx" on "better_supabase"."c
 create index if not exists "control_evidence_request_idx" on "better_supabase"."control_evidence" ("task_id") where "task_id" is not null;
 create index if not exists "control_evidence_attachment_idx" on "better_supabase"."control_evidence" ("attachment_id") where "attachment_id" is not null;
 alter table "better_supabase"."control_evidence" enable row level security;
-revoke all on "better_supabase"."control_evidence" from anon, authenticated;
+revoke all on "better_supabase"."control_evidence" from public, anon, authenticated;
 grant select on "better_supabase"."control_evidence" to authenticated;
 grant all on "better_supabase"."control_evidence" to service_role;
 drop policy if exists "control_evidence_read" on "better_supabase"."control_evidence";
@@ -219,7 +219,7 @@ create table if not exists "better_supabase"."policies" (
 );
 create index if not exists "policies_version_idx" on "better_supabase"."policies" ("current_version_id") where "current_version_id" is not null;
 alter table "better_supabase"."policies" enable row level security;
-revoke all on "better_supabase"."policies" from anon, authenticated;
+revoke all on "better_supabase"."policies" from public, anon, authenticated;
 grant select on "better_supabase"."policies" to authenticated;
 grant all on "better_supabase"."policies" to service_role;
 drop policy if exists "policies_read" on "better_supabase"."policies";
@@ -240,7 +240,7 @@ create index if not exists "policy_acknowledgements_user_idx" on "better_supabas
 create index if not exists "policy_acknowledgements_parent_idx" on "better_supabase"."policy_acknowledgements" ("tenant_id", "policy_id");
 create index if not exists "policy_acknowledgements_version_idx" on "better_supabase"."policy_acknowledgements" ("version_id");
 alter table "better_supabase"."policy_acknowledgements" enable row level security;
-revoke all on "better_supabase"."policy_acknowledgements" from anon, authenticated;
+revoke all on "better_supabase"."policy_acknowledgements" from public, anon, authenticated;
 grant select on "better_supabase"."policy_acknowledgements" to authenticated;
 grant all on "better_supabase"."policy_acknowledgements" to service_role;
 drop policy if exists "policy_acknowledgements_read" on "better_supabase"."policy_acknowledgements";
@@ -1016,7 +1016,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_126_compliance.sql

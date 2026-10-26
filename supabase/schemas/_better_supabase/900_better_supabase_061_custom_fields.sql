@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:a7268dd6ef77490e953bad3976ee998ac307bba0ac6ff50dc5ccf14e2f9aa465
+-- @bsb-hash sha256:f56553c6f16683973a865ac264de979be25ff36ec490ab962d6b3aa660e3b3ca
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -93,7 +93,7 @@ begin
 end;
 $$;
 alter table "better_supabase"."field_definitions" enable row level security;
-revoke all on "better_supabase"."field_definitions" from anon, authenticated;
+revoke all on "better_supabase"."field_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."field_definitions" to authenticated;
 grant all on "better_supabase"."field_definitions" to service_role;
 create table if not exists "better_supabase"."field_values" (
@@ -111,7 +111,7 @@ create table if not exists "better_supabase"."field_values" (
   , unique ("tenant_id", "subject_type", "subject_id", "definition_id")
 );
 alter table "better_supabase"."field_values" enable row level security;
-revoke all on "better_supabase"."field_values" from anon, authenticated;
+revoke all on "better_supabase"."field_values" from public, anon, authenticated;
 grant select on "better_supabase"."field_values" to authenticated;
 grant all on "better_supabase"."field_values" to service_role;
 create index if not exists field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
@@ -487,5 +487,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:de88e5047aa8a497d4f8f830af1b5cc9a4a51e6e8f445ea3b9586a6326eb5f2d
+-- @bsb-hash sha256:d83483beaa37d15655b58d546072723e3befaa794b0254711c2df53b7bdb2258
 -- Jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -100,7 +100,7 @@ create table if not exists "better_supabase"."job_openings" (
 );
 create index if not exists jobs_tenant_status_idx on "better_supabase"."job_openings" ("tenant_id", "status");
 alter table "better_supabase"."job_openings" enable row level security;
-revoke all on "better_supabase"."job_openings" from anon, authenticated;
+revoke all on "better_supabase"."job_openings" from public, anon, authenticated;
 grant select on "better_supabase"."job_openings" to authenticated;
 grant all on "better_supabase"."job_openings" to service_role;
 drop policy if exists jobs_read on "better_supabase"."job_openings";
@@ -129,7 +129,7 @@ create table if not exists "better_supabase"."applications" (
 create index if not exists applications_board_idx on "better_supabase"."applications" ("pipeline_id", "stage_id", "rank");
 create index if not exists applications_candidate_idx on "better_supabase"."applications" ("candidate_type", "candidate_id");
 alter table "better_supabase"."applications" enable row level security;
-revoke all on "better_supabase"."applications" from anon, authenticated;
+revoke all on "better_supabase"."applications" from public, anon, authenticated;
 grant select on "better_supabase"."applications" to authenticated;
 grant all on "better_supabase"."applications" to service_role;
 drop policy if exists applications_read on "better_supabase"."applications";
@@ -150,7 +150,7 @@ create table if not exists "better_supabase"."application_scorecards" (
 );
 create index if not exists application_scorecards_reviewer_idx on "better_supabase"."application_scorecards" ("reviewer_user_id");
 alter table "better_supabase"."application_scorecards" enable row level security;
-revoke all on "better_supabase"."application_scorecards" from anon, authenticated;
+revoke all on "better_supabase"."application_scorecards" from public, anon, authenticated;
 grant select on "better_supabase"."application_scorecards" to authenticated;
 grant all on "better_supabase"."application_scorecards" to service_role;
 drop policy if exists application_scorecards_read on "better_supabase"."application_scorecards";
@@ -172,7 +172,7 @@ create table if not exists "better_supabase"."interviews" (
 );
 create index if not exists interviews_application_idx on "better_supabase"."interviews" ("application_id", "starts_at");
 alter table "better_supabase"."interviews" enable row level security;
-revoke all on "better_supabase"."interviews" from anon, authenticated;
+revoke all on "better_supabase"."interviews" from public, anon, authenticated;
 grant select on "better_supabase"."interviews" to authenticated;
 grant all on "better_supabase"."interviews" to service_role;
 drop policy if exists interviews_read on "better_supabase"."interviews";
@@ -594,7 +594,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_091_hiring.sql
@@ -614,7 +614,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:44cb0cae50c8a5c2bf4bc52540eeff8326a724d2219d8a515a09f3a90101d9ec
+-- @bsb-hash sha256:0428eff75309932b01405afc306d79b47820251d4741cfac20d44017f8f44a13
 -- Jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -713,7 +713,7 @@ create table if not exists "better_supabase"."job_openings" (
 );
 create index if not exists jobs_tenant_status_idx on "better_supabase"."job_openings" ("tenant_id", "status");
 alter table "better_supabase"."job_openings" enable row level security;
-revoke all on "better_supabase"."job_openings" from anon, authenticated;
+revoke all on "better_supabase"."job_openings" from public, anon, authenticated;
 grant select on "better_supabase"."job_openings" to authenticated;
 grant all on "better_supabase"."job_openings" to service_role;
 drop policy if exists jobs_read on "better_supabase"."job_openings";
@@ -742,7 +742,7 @@ create table if not exists "better_supabase"."applications" (
 create index if not exists applications_board_idx on "better_supabase"."applications" ("pipeline_id", "stage_id", "rank");
 create index if not exists applications_candidate_idx on "better_supabase"."applications" ("candidate_type", "candidate_id");
 alter table "better_supabase"."applications" enable row level security;
-revoke all on "better_supabase"."applications" from anon, authenticated;
+revoke all on "better_supabase"."applications" from public, anon, authenticated;
 grant select on "better_supabase"."applications" to authenticated;
 grant all on "better_supabase"."applications" to service_role;
 drop policy if exists applications_read on "better_supabase"."applications";
@@ -763,7 +763,7 @@ create table if not exists "better_supabase"."application_scorecards" (
 );
 create index if not exists application_scorecards_reviewer_idx on "better_supabase"."application_scorecards" ("reviewer_user_id");
 alter table "better_supabase"."application_scorecards" enable row level security;
-revoke all on "better_supabase"."application_scorecards" from anon, authenticated;
+revoke all on "better_supabase"."application_scorecards" from public, anon, authenticated;
 grant select on "better_supabase"."application_scorecards" to authenticated;
 grant all on "better_supabase"."application_scorecards" to service_role;
 drop policy if exists application_scorecards_read on "better_supabase"."application_scorecards";
@@ -785,7 +785,7 @@ create table if not exists "better_supabase"."interviews" (
 );
 create index if not exists interviews_application_idx on "better_supabase"."interviews" ("application_id", "starts_at");
 alter table "better_supabase"."interviews" enable row level security;
-revoke all on "better_supabase"."interviews" from anon, authenticated;
+revoke all on "better_supabase"."interviews" from public, anon, authenticated;
 grant select on "better_supabase"."interviews" to authenticated;
 grant all on "better_supabase"."interviews" to service_role;
 drop policy if exists interviews_read on "better_supabase"."interviews";
@@ -1207,7 +1207,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_hiring.sql
@@ -1231,7 +1231,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:3076ac6b56ae714b2837a5afe37e677b7a4141e009ecbd6cede82f875e2b44ca
+-- @bsb-hash sha256:7ebfb2d6df6a5e027c02d7bd815a0f7c07738da6e3f36dc3710c7f7e893aba40
 -- Jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1312,6 +1312,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Hiring: jobs, applications on a pipeline per job, scorecards per stage,
 -- interviews, and a hire event the app turns into an employee.
 
@@ -1332,7 +1335,7 @@ create table if not exists "app_private"."job_openings" (
 );
 create index if not exists jobs_tenant_status_idx on "app_private"."job_openings" ("tenant_id", "status");
 alter table "app_private"."job_openings" enable row level security;
-revoke all on "app_private"."job_openings" from anon, authenticated;
+revoke all on "app_private"."job_openings" from public, anon, authenticated;
 grant select on "app_private"."job_openings" to authenticated;
 grant all on "app_private"."job_openings" to service_role;
 drop policy if exists jobs_read on "app_private"."job_openings";
@@ -1361,7 +1364,7 @@ create table if not exists "app_private"."applications" (
 create index if not exists applications_board_idx on "app_private"."applications" ("pipeline_id", "stage_id", "rank");
 create index if not exists applications_candidate_idx on "app_private"."applications" ("candidate_type", "candidate_id");
 alter table "app_private"."applications" enable row level security;
-revoke all on "app_private"."applications" from anon, authenticated;
+revoke all on "app_private"."applications" from public, anon, authenticated;
 grant select on "app_private"."applications" to authenticated;
 grant all on "app_private"."applications" to service_role;
 drop policy if exists applications_read on "app_private"."applications";
@@ -1382,7 +1385,7 @@ create table if not exists "app_private"."application_scorecards" (
 );
 create index if not exists application_scorecards_reviewer_idx on "app_private"."application_scorecards" ("reviewer_user_id");
 alter table "app_private"."application_scorecards" enable row level security;
-revoke all on "app_private"."application_scorecards" from anon, authenticated;
+revoke all on "app_private"."application_scorecards" from public, anon, authenticated;
 grant select on "app_private"."application_scorecards" to authenticated;
 grant all on "app_private"."application_scorecards" to service_role;
 drop policy if exists application_scorecards_read on "app_private"."application_scorecards";
@@ -1404,7 +1407,7 @@ create table if not exists "app_private"."interviews" (
 );
 create index if not exists interviews_application_idx on "app_private"."interviews" ("application_id", "starts_at");
 alter table "app_private"."interviews" enable row level security;
-revoke all on "app_private"."interviews" from anon, authenticated;
+revoke all on "app_private"."interviews" from public, anon, authenticated;
 grant select on "app_private"."interviews" to authenticated;
 grant all on "app_private"."interviews" to service_role;
 drop policy if exists interviews_read on "app_private"."interviews";
@@ -1826,7 +1829,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_091_hiring.sql
@@ -1846,7 +1849,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:5ba74714285fb472fac6e18dd112ad113d85a315454394621be464371fa3d0fe
+-- @bsb-hash sha256:c590af359e5c1771ff3e2785703721a8e120c18c52473874bf197aedfe56e180
 -- Jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1945,7 +1948,7 @@ create table if not exists "better_supabase"."job_openings" (
 );
 create index if not exists jobs_tenant_status_idx on "better_supabase"."job_openings" ("tenant_id", "status");
 alter table "better_supabase"."job_openings" enable row level security;
-revoke all on "better_supabase"."job_openings" from anon, authenticated;
+revoke all on "better_supabase"."job_openings" from public, anon, authenticated;
 grant select on "better_supabase"."job_openings" to authenticated;
 grant all on "better_supabase"."job_openings" to service_role;
 drop policy if exists jobs_read on "better_supabase"."job_openings";
@@ -1974,7 +1977,7 @@ create table if not exists "better_supabase"."applications" (
 create index if not exists applications_board_idx on "better_supabase"."applications" ("pipeline_id", "stage_id", "rank");
 create index if not exists applications_candidate_idx on "better_supabase"."applications" ("candidate_type", "candidate_id");
 alter table "better_supabase"."applications" enable row level security;
-revoke all on "better_supabase"."applications" from anon, authenticated;
+revoke all on "better_supabase"."applications" from public, anon, authenticated;
 grant select on "better_supabase"."applications" to authenticated;
 grant all on "better_supabase"."applications" to service_role;
 drop policy if exists applications_read on "better_supabase"."applications";
@@ -1995,7 +1998,7 @@ create table if not exists "better_supabase"."application_scorecards" (
 );
 create index if not exists application_scorecards_reviewer_idx on "better_supabase"."application_scorecards" ("reviewer_user_id");
 alter table "better_supabase"."application_scorecards" enable row level security;
-revoke all on "better_supabase"."application_scorecards" from anon, authenticated;
+revoke all on "better_supabase"."application_scorecards" from public, anon, authenticated;
 grant select on "better_supabase"."application_scorecards" to authenticated;
 grant all on "better_supabase"."application_scorecards" to service_role;
 drop policy if exists application_scorecards_read on "better_supabase"."application_scorecards";
@@ -2017,7 +2020,7 @@ create table if not exists "better_supabase"."interviews" (
 );
 create index if not exists interviews_application_idx on "better_supabase"."interviews" ("application_id", "starts_at");
 alter table "better_supabase"."interviews" enable row level security;
-revoke all on "better_supabase"."interviews" from anon, authenticated;
+revoke all on "better_supabase"."interviews" from public, anon, authenticated;
 grant select on "better_supabase"."interviews" to authenticated;
 grant all on "better_supabase"."interviews" to service_role;
 drop policy if exists interviews_read on "better_supabase"."interviews";
@@ -2515,7 +2518,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_091_hiring.sql
@@ -2535,7 +2538,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:335a2de3501d141770e220fd9d8c2266c7b35dccf7ddcd9f39a5756e4272fdb3
+-- @bsb-hash sha256:b9216a4a02b268f64c0eea42512bfd114b911cbe4e8bc0f87bc4110ed132b0b3
 -- Jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3141,7 +3144,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_091_hiring.sql
@@ -3161,7 +3164,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:22da97c02af3c9ee06dd786c35f42c76ecf327f8af0b85e4063468da293a008d
+-- @bsb-hash sha256:dc0c8032584b3d8ac38e883a6018001438758da762e15d2723de6937d113c1b3
 -- Jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3260,7 +3263,7 @@ create table if not exists "better_supabase"."job_openings" (
 );
 create index if not exists jobs_tenant_status_idx on "better_supabase"."job_openings" ("org_id", "status");
 alter table "better_supabase"."job_openings" enable row level security;
-revoke all on "better_supabase"."job_openings" from anon, authenticated;
+revoke all on "better_supabase"."job_openings" from public, anon, authenticated;
 grant select on "better_supabase"."job_openings" to authenticated;
 grant all on "better_supabase"."job_openings" to service_role;
 drop policy if exists jobs_read on "better_supabase"."job_openings";
@@ -3289,7 +3292,7 @@ create table if not exists "better_supabase"."applications" (
 create index if not exists applications_board_idx on "better_supabase"."applications" ("pipeline_id", "stage_id", "rank");
 create index if not exists applications_candidate_idx on "better_supabase"."applications" ("candidate_type", "candidate_id");
 alter table "better_supabase"."applications" enable row level security;
-revoke all on "better_supabase"."applications" from anon, authenticated;
+revoke all on "better_supabase"."applications" from public, anon, authenticated;
 grant select on "better_supabase"."applications" to authenticated;
 grant all on "better_supabase"."applications" to service_role;
 drop policy if exists applications_read on "better_supabase"."applications";
@@ -3310,7 +3313,7 @@ create table if not exists "better_supabase"."application_scorecards" (
 );
 create index if not exists application_scorecards_reviewer_idx on "better_supabase"."application_scorecards" ("reviewer_user_id");
 alter table "better_supabase"."application_scorecards" enable row level security;
-revoke all on "better_supabase"."application_scorecards" from anon, authenticated;
+revoke all on "better_supabase"."application_scorecards" from public, anon, authenticated;
 grant select on "better_supabase"."application_scorecards" to authenticated;
 grant all on "better_supabase"."application_scorecards" to service_role;
 drop policy if exists application_scorecards_read on "better_supabase"."application_scorecards";
@@ -3332,7 +3335,7 @@ create table if not exists "better_supabase"."interviews" (
 );
 create index if not exists interviews_application_idx on "better_supabase"."interviews" ("application_id", "starts_at");
 alter table "better_supabase"."interviews" enable row level security;
-revoke all on "better_supabase"."interviews" from anon, authenticated;
+revoke all on "better_supabase"."interviews" from public, anon, authenticated;
 grant select on "better_supabase"."interviews" to authenticated;
 grant all on "better_supabase"."interviews" to service_role;
 drop policy if exists interviews_read on "better_supabase"."interviews";
@@ -3754,7 +3757,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_091_hiring.sql

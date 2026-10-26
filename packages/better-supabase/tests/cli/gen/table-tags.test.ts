@@ -143,4 +143,66 @@ describe("withTableTags", () => {
     expect(next.realtime.users[key]).toBe("owner_id");
     expect(next.subjects[name]?.url).toBe("/x/{id}");
   });
+
+  it("reads json, encrypted and events tags", async () => {
+    const { name, key } = await first();
+    const config = resolveConfig({ blocks: {} }, "/tmp");
+
+    const next = withTableTags(
+      config,
+      await tagged(
+        name,
+        '@bsb json meta="Record<string, string>" doc=import:@/types#Doc bad; encrypted ssn=bigint note odd=nope; events on="created, bogus" include="a, b"',
+      ),
+    );
+
+    expect(next.json[`${key}.meta`]).toEqual({
+      type: "Record<string, string>",
+    });
+    expect(next.json[`${key}.doc`]).toEqual({ import: "@/types#Doc" });
+    expect(next.json[`${key}.bad`]).toBeUndefined();
+    expect(next.appTables[name]?.columns?.["note"]).toEqual({
+      type: "text",
+      encrypted: true,
+    });
+    expect(next.appTables[name]?.columns?.["ssn"]).toEqual({
+      type: "bigint",
+      encrypted: true,
+    });
+    expect(next.appTables[name]?.columns?.["odd"]).toBeUndefined();
+    expect(next.appTables[name]?.events).toEqual({
+      on: ["created"],
+      include: ["a", "b"],
+    });
+
+    const all = withTableTags(config, await tagged(name, "@bsb events"));
+
+    expect(all.appTables[name]?.events).toBe(true);
+  });
+
+  it("lets config win over json, encrypted and events tags", async () => {
+    const { name, key } = await first();
+    const base = resolveConfig({ blocks: {} }, "/tmp");
+
+    const config = {
+      ...base,
+      json: { [`${key}.meta`]: { type: "Kept" } },
+      appTables: {
+        [name]: {
+          events: true as const,
+          columns: { ssn: { type: "text" as const } },
+        },
+      },
+    };
+
+    const next = withTableTags(
+      config,
+      await tagged(
+        name,
+        "@bsb json meta=Other; encrypted ssn; events on=created",
+      ),
+    );
+
+    expect(next).toBe(config);
+  });
 });

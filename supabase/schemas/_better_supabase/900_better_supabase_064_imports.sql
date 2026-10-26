@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
--- @bsb-hash sha256:a313d55d86fe84ebb665a0960001fb71641d5f91e1690953ffcf0459efa3bfd4
+-- @bsb-hash sha256:b11e48790fbf4e88bbfa117a77a681d53d6529b47eff2240e7ed5658215ad1ee
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -67,7 +67,7 @@ create table if not exists "better_supabase"."import_runs" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."import_runs" enable row level security;
-revoke all on "better_supabase"."import_runs" from anon, authenticated;
+revoke all on "better_supabase"."import_runs" from public, anon, authenticated;
 grant select on "better_supabase"."import_runs" to authenticated;
 grant all on "better_supabase"."import_runs" to service_role;
 create index if not exists "import_runs_tenant_idx" on "better_supabase"."import_runs" ("tenant_id");
@@ -239,5 +239,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

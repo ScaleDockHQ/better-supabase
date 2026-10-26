@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:c150cb92febbb1ba5f17b3fabbbc529bf46e79570e06ee202d5edb0c3a9d9336
+-- @bsb-hash sha256:7bf154a3adae4ef983467ff9ca7e76f77909d8fe00a5b7dbea065475fa509003
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -91,7 +91,7 @@ create table if not exists "better_supabase"."ai_provider_keys" (
 );
 create index if not exists ai_provider_keys_created_by_idx on "better_supabase"."ai_provider_keys" ("created_by");
 alter table "better_supabase"."ai_provider_keys" enable row level security;
-revoke all on "better_supabase"."ai_provider_keys" from anon, authenticated;
+revoke all on "better_supabase"."ai_provider_keys" from public, anon, authenticated;
 grant select on "better_supabase"."ai_provider_keys" to authenticated;
 grant all on "better_supabase"."ai_provider_keys" to service_role;
 drop policy if exists ai_provider_keys_read on "better_supabase"."ai_provider_keys";
@@ -124,7 +124,7 @@ create index if not exists ai_batches_due_idx on "better_supabase"."ai_batches" 
 create index if not exists ai_batches_tenant_idx on "better_supabase"."ai_batches" ("organization_id", "created_at" desc);
 create index if not exists ai_batches_user_idx on "better_supabase"."ai_batches" ("user_id");
 alter table "better_supabase"."ai_batches" enable row level security;
-revoke all on "better_supabase"."ai_batches" from anon, authenticated;
+revoke all on "better_supabase"."ai_batches" from public, anon, authenticated;
 grant select on "better_supabase"."ai_batches" to authenticated;
 grant all on "better_supabase"."ai_batches" to service_role;
 drop policy if exists ai_batches_read on "better_supabase"."ai_batches";
@@ -144,7 +144,7 @@ create table if not exists "better_supabase"."ai_batch_items" (
 );
 create index if not exists ai_batch_items_tenant_idx on "better_supabase"."ai_batch_items" ("organization_id");
 alter table "better_supabase"."ai_batch_items" enable row level security;
-revoke all on "better_supabase"."ai_batch_items" from anon, authenticated;
+revoke all on "better_supabase"."ai_batch_items" from public, anon, authenticated;
 grant select on "better_supabase"."ai_batch_items" to authenticated;
 grant all on "better_supabase"."ai_batch_items" to service_role;
 drop policy if exists ai_batch_items_read on "better_supabase"."ai_batch_items";
@@ -542,7 +542,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_056_ai_keys.sql
@@ -562,7 +562,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:df9d769969fcfb24ef49c2fa23ad449548bc2587fadaa6e4192ddd8a33bc8feb
+-- @bsb-hash sha256:e62381aa16604619340409380b248371ab81f6b5802cac050542fb82656fb4d5
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -652,7 +652,7 @@ create table if not exists "better_supabase"."ai_provider_keys" (
 );
 create index if not exists ai_provider_keys_created_by_idx on "better_supabase"."ai_provider_keys" ("created_by");
 alter table "better_supabase"."ai_provider_keys" enable row level security;
-revoke all on "better_supabase"."ai_provider_keys" from anon, authenticated;
+revoke all on "better_supabase"."ai_provider_keys" from public, anon, authenticated;
 grant select on "better_supabase"."ai_provider_keys" to authenticated;
 grant all on "better_supabase"."ai_provider_keys" to service_role;
 drop policy if exists ai_provider_keys_read on "better_supabase"."ai_provider_keys";
@@ -685,7 +685,7 @@ create index if not exists ai_batches_due_idx on "better_supabase"."ai_batches" 
 create index if not exists ai_batches_tenant_idx on "better_supabase"."ai_batches" ("organization_id", "created_at" desc);
 create index if not exists ai_batches_user_idx on "better_supabase"."ai_batches" ("user_id");
 alter table "better_supabase"."ai_batches" enable row level security;
-revoke all on "better_supabase"."ai_batches" from anon, authenticated;
+revoke all on "better_supabase"."ai_batches" from public, anon, authenticated;
 grant select on "better_supabase"."ai_batches" to authenticated;
 grant all on "better_supabase"."ai_batches" to service_role;
 drop policy if exists ai_batches_read on "better_supabase"."ai_batches";
@@ -705,7 +705,7 @@ create table if not exists "better_supabase"."ai_batch_items" (
 );
 create index if not exists ai_batch_items_tenant_idx on "better_supabase"."ai_batch_items" ("organization_id");
 alter table "better_supabase"."ai_batch_items" enable row level security;
-revoke all on "better_supabase"."ai_batch_items" from anon, authenticated;
+revoke all on "better_supabase"."ai_batch_items" from public, anon, authenticated;
 grant select on "better_supabase"."ai_batch_items" to authenticated;
 grant all on "better_supabase"."ai_batch_items" to service_role;
 drop policy if exists ai_batch_items_read on "better_supabase"."ai_batch_items";
@@ -1121,7 +1121,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_056_ai_keys.sql
@@ -1141,7 +1141,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:fa27cd51d5661d04557eab6c15248c73296844e6349b9f856c5c2e2bff9e177e
+-- @bsb-hash sha256:69d581d6a1565a49b7a031634be11c9822213a24e9049dbf8f305ab54e16277e
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1214,6 +1214,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- A tenant's own provider keys (BYOK). credential_ref names the key in a
 -- CredentialProvider, such as Vault; the key itself is never stored here.
 -- settings holds the provider's other options (a region, a project id) and
@@ -1233,7 +1236,7 @@ create table if not exists "app_private"."ai_provider_keys" (
 );
 create index if not exists ai_provider_keys_created_by_idx on "app_private"."ai_provider_keys" ("created_by");
 alter table "app_private"."ai_provider_keys" enable row level security;
-revoke all on "app_private"."ai_provider_keys" from anon, authenticated;
+revoke all on "app_private"."ai_provider_keys" from public, anon, authenticated;
 grant select on "app_private"."ai_provider_keys" to authenticated;
 grant all on "app_private"."ai_provider_keys" to service_role;
 drop policy if exists ai_provider_keys_read on "app_private"."ai_provider_keys";
@@ -1266,7 +1269,7 @@ create index if not exists ai_batches_due_idx on "app_private"."ai_batches" ("ne
 create index if not exists ai_batches_tenant_idx on "app_private"."ai_batches" ("organization_id", "created_at" desc);
 create index if not exists ai_batches_user_idx on "app_private"."ai_batches" ("user_id");
 alter table "app_private"."ai_batches" enable row level security;
-revoke all on "app_private"."ai_batches" from anon, authenticated;
+revoke all on "app_private"."ai_batches" from public, anon, authenticated;
 grant select on "app_private"."ai_batches" to authenticated;
 grant all on "app_private"."ai_batches" to service_role;
 drop policy if exists ai_batches_read on "app_private"."ai_batches";
@@ -1286,7 +1289,7 @@ create table if not exists "app_private"."ai_batch_items" (
 );
 create index if not exists ai_batch_items_tenant_idx on "app_private"."ai_batch_items" ("organization_id");
 alter table "app_private"."ai_batch_items" enable row level security;
-revoke all on "app_private"."ai_batch_items" from anon, authenticated;
+revoke all on "app_private"."ai_batch_items" from public, anon, authenticated;
 grant select on "app_private"."ai_batch_items" to authenticated;
 grant all on "app_private"."ai_batch_items" to service_role;
 drop policy if exists ai_batch_items_read on "app_private"."ai_batch_items";
@@ -1684,7 +1687,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_056_ai_keys.sql
@@ -1704,7 +1707,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:718456be8e1e63643187da09555c27b149e9ffa3ef528a0a414a7a142d4d87bb
+-- @bsb-hash sha256:f5c7eac1fe0fdf102fb31f8f8f130a5ed67181b47298a11bd810caa0c655389e
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1794,7 +1797,7 @@ create table if not exists "better_supabase"."ai_provider_keys" (
 );
 create index if not exists ai_provider_keys_created_by_idx on "better_supabase"."ai_provider_keys" ("created_by");
 alter table "better_supabase"."ai_provider_keys" enable row level security;
-revoke all on "better_supabase"."ai_provider_keys" from anon, authenticated;
+revoke all on "better_supabase"."ai_provider_keys" from public, anon, authenticated;
 grant select on "better_supabase"."ai_provider_keys" to authenticated;
 grant all on "better_supabase"."ai_provider_keys" to service_role;
 drop policy if exists ai_provider_keys_read on "better_supabase"."ai_provider_keys";
@@ -1827,7 +1830,7 @@ create index if not exists ai_batches_due_idx on "better_supabase"."ai_batches" 
 create index if not exists ai_batches_tenant_idx on "better_supabase"."ai_batches" ("organization_id", "created_at" desc);
 create index if not exists ai_batches_user_idx on "better_supabase"."ai_batches" ("user_id");
 alter table "better_supabase"."ai_batches" enable row level security;
-revoke all on "better_supabase"."ai_batches" from anon, authenticated;
+revoke all on "better_supabase"."ai_batches" from public, anon, authenticated;
 grant select on "better_supabase"."ai_batches" to authenticated;
 grant all on "better_supabase"."ai_batches" to service_role;
 drop policy if exists ai_batches_read on "better_supabase"."ai_batches";
@@ -1847,7 +1850,7 @@ create table if not exists "better_supabase"."ai_batch_items" (
 );
 create index if not exists ai_batch_items_tenant_idx on "better_supabase"."ai_batch_items" ("organization_id");
 alter table "better_supabase"."ai_batch_items" enable row level security;
-revoke all on "better_supabase"."ai_batch_items" from anon, authenticated;
+revoke all on "better_supabase"."ai_batch_items" from public, anon, authenticated;
 grant select on "better_supabase"."ai_batch_items" to authenticated;
 grant all on "better_supabase"."ai_batch_items" to service_role;
 drop policy if exists ai_batch_items_read on "better_supabase"."ai_batch_items";
@@ -2375,7 +2378,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_056_ai_keys.sql
@@ -2395,7 +2398,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:7a161385070c292925766fced0d8c8ac314ec20523d96d153e93cb45c3c27deb
+-- @bsb-hash sha256:2a9735d603fff6c0abfdf7de2bd27145d04148dcaed375238a9b8bb5b44cd0a6
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2946,7 +2949,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_056_ai_keys.sql
@@ -2966,7 +2969,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:b16583d4dc5416a1d6e2d97b2f7e74a5791c47a151c07dc47779b995cfff43af
+-- @bsb-hash sha256:901190787a1b97b46b6391ac2c98943336efb183fda05bc15e319386250eab9f
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3056,7 +3059,7 @@ create table if not exists "better_supabase"."ai_provider_keys" (
 );
 create index if not exists ai_provider_keys_created_by_idx on "better_supabase"."ai_provider_keys" ("created_by");
 alter table "better_supabase"."ai_provider_keys" enable row level security;
-revoke all on "better_supabase"."ai_provider_keys" from anon, authenticated;
+revoke all on "better_supabase"."ai_provider_keys" from public, anon, authenticated;
 grant select on "better_supabase"."ai_provider_keys" to authenticated;
 grant all on "better_supabase"."ai_provider_keys" to service_role;
 drop policy if exists ai_provider_keys_read on "better_supabase"."ai_provider_keys";
@@ -3089,7 +3092,7 @@ create index if not exists ai_batches_due_idx on "better_supabase"."ai_batches" 
 create index if not exists ai_batches_tenant_idx on "better_supabase"."ai_batches" ("org_id", "created_at" desc);
 create index if not exists ai_batches_user_idx on "better_supabase"."ai_batches" ("user_id");
 alter table "better_supabase"."ai_batches" enable row level security;
-revoke all on "better_supabase"."ai_batches" from anon, authenticated;
+revoke all on "better_supabase"."ai_batches" from public, anon, authenticated;
 grant select on "better_supabase"."ai_batches" to authenticated;
 grant all on "better_supabase"."ai_batches" to service_role;
 drop policy if exists ai_batches_read on "better_supabase"."ai_batches";
@@ -3109,7 +3112,7 @@ create table if not exists "better_supabase"."ai_batch_items" (
 );
 create index if not exists ai_batch_items_tenant_idx on "better_supabase"."ai_batch_items" ("org_id");
 alter table "better_supabase"."ai_batch_items" enable row level security;
-revoke all on "better_supabase"."ai_batch_items" from anon, authenticated;
+revoke all on "better_supabase"."ai_batch_items" from public, anon, authenticated;
 grant select on "better_supabase"."ai_batch_items" to authenticated;
 grant all on "better_supabase"."ai_batch_items" to service_role;
 drop policy if exists ai_batch_items_read on "better_supabase"."ai_batch_items";
@@ -3507,7 +3510,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_056_ai_keys.sql

@@ -1,6 +1,6 @@
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:06fcd563fc254a0da16ca8fdabdb0bb36814519e9e0e1e53693dedbabc4e2c2a
+-- @bsb-hash sha256:09c8582438474ec9001c6bace040fcafc6e6631c3a8818f06429d459fd8cc03e
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -84,7 +84,7 @@ create index if not exists engagements_owner_open_idx on "better_supabase"."enga
 create index if not exists engagements_tenant_created_idx on "better_supabase"."engagements" ("tenant_id", "created_at" desc);
 create unique index if not exists engagements_external_ref_idx on "better_supabase"."engagements" ("tenant_id", "external_ref") where "external_ref" is not null;
 alter table "better_supabase"."engagements" enable row level security;
-revoke all on "better_supabase"."engagements" from anon, authenticated;
+revoke all on "better_supabase"."engagements" from public, anon, authenticated;
 grant select on "better_supabase"."engagements" to authenticated;
 grant all on "better_supabase"."engagements" to service_role;
 create table if not exists "better_supabase"."engagement_subjects" (
@@ -97,7 +97,7 @@ create table if not exists "better_supabase"."engagement_subjects" (
 );
 create index if not exists engagement_subjects_subject_idx on "better_supabase"."engagement_subjects" ("subject_type", "subject_id");
 alter table "better_supabase"."engagement_subjects" enable row level security;
-revoke all on "better_supabase"."engagement_subjects" from anon, authenticated;
+revoke all on "better_supabase"."engagement_subjects" from public, anon, authenticated;
 grant select on "better_supabase"."engagement_subjects" to authenticated;
 grant all on "better_supabase"."engagement_subjects" to service_role;
 -- A link is visible when its record is; an engagement when one of its
@@ -532,7 +532,7 @@ create table if not exists "better_supabase"."engagement_recordings" (
 create index if not exists engagement_recordings_file_idx on "better_supabase"."engagement_recordings" ("file_id");
 create index if not exists engagement_recordings_pending_idx on "better_supabase"."engagement_recordings" ("created_at") where "status" = 'pending';
 alter table "better_supabase"."engagement_recordings" enable row level security;
-revoke all on "better_supabase"."engagement_recordings" from anon, authenticated;
+revoke all on "better_supabase"."engagement_recordings" from public, anon, authenticated;
 grant select on "better_supabase"."engagement_recordings" to authenticated;
 grant all on "better_supabase"."engagement_recordings" to service_role;
 drop policy if exists engagement_recordings_read on "better_supabase"."engagement_recordings";
@@ -555,7 +555,7 @@ create table if not exists "better_supabase"."engagement_transcript_segments" (
   check ("ends_ms" >= "starts_ms")
 );
 alter table "better_supabase"."engagement_transcript_segments" enable row level security;
-revoke all on "better_supabase"."engagement_transcript_segments" from anon, authenticated;
+revoke all on "better_supabase"."engagement_transcript_segments" from public, anon, authenticated;
 grant select on "better_supabase"."engagement_transcript_segments" to authenticated;
 grant all on "better_supabase"."engagement_transcript_segments" to service_role;
 drop policy if exists engagement_transcript_segments_read on "better_supabase"."engagement_transcript_segments";
@@ -576,7 +576,7 @@ create table if not exists "better_supabase"."engagement_notes" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."engagement_notes" enable row level security;
-revoke all on "better_supabase"."engagement_notes" from anon, authenticated;
+revoke all on "better_supabase"."engagement_notes" from public, anon, authenticated;
 grant select on "better_supabase"."engagement_notes" to authenticated;
 grant all on "better_supabase"."engagement_notes" to service_role;
 drop policy if exists engagement_notes_read on "better_supabase"."engagement_notes";
@@ -1211,5 +1211,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:ba52f346c275600702aef4eb5d916cb6b5cf72a0d19222b6dbbe4b59ec1c6af8
+-- @bsb-hash sha256:7d25ea8ad7b9f8c0f99667c97069d52d8172efa6afe882e5d37bfc1b68987338
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -138,7 +138,7 @@ create index if not exists deals_tenant_close_idx on "better_supabase"."deals" (
 create index if not exists deals_owner_idx on "better_supabase"."deals" ("owner_user_id");
 create index if not exists deals_company_idx on "better_supabase"."deals" ("company_type", "company_id");
 alter table "better_supabase"."deals" enable row level security;
-revoke all on "better_supabase"."deals" from anon, authenticated;
+revoke all on "better_supabase"."deals" from public, anon, authenticated;
 grant select on "better_supabase"."deals" to authenticated;
 grant all on "better_supabase"."deals" to service_role;
 
@@ -154,7 +154,7 @@ create table if not exists "better_supabase"."deal_contacts" (
 create index if not exists deal_contacts_contact_idx on "better_supabase"."deal_contacts" ("contact_type", "contact_id");
 create unique index if not exists deal_contacts_primary_idx on "better_supabase"."deal_contacts" ("deal_id") where "is_primary";
 alter table "better_supabase"."deal_contacts" enable row level security;
-revoke all on "better_supabase"."deal_contacts" from anon, authenticated;
+revoke all on "better_supabase"."deal_contacts" from public, anon, authenticated;
 grant select on "better_supabase"."deal_contacts" to authenticated;
 grant all on "better_supabase"."deal_contacts" to service_role;
 
@@ -167,7 +167,7 @@ create table if not exists "better_supabase"."deal_members" (
 );
 create index if not exists deal_members_user_idx on "better_supabase"."deal_members" ("user_id");
 alter table "better_supabase"."deal_members" enable row level security;
-revoke all on "better_supabase"."deal_members" from anon, authenticated;
+revoke all on "better_supabase"."deal_members" from public, anon, authenticated;
 grant select on "better_supabase"."deal_members" to authenticated;
 grant all on "better_supabase"."deal_members" to service_role;
 
@@ -667,7 +667,7 @@ create table if not exists "better_supabase"."deal_lines" (
 );
 create index if not exists "deal_lines_parent_idx" on "better_supabase"."deal_lines" ("parent_id", "position");
 alter table "better_supabase"."deal_lines" enable row level security;
-revoke all on "better_supabase"."deal_lines" from anon, authenticated;
+revoke all on "better_supabase"."deal_lines" from public, anon, authenticated;
 grant select on "better_supabase"."deal_lines" to authenticated;
 grant all on "better_supabase"."deal_lines" to service_role;
 drop policy if exists "deal_lines_read" on "better_supabase"."deal_lines";
@@ -1056,7 +1056,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_091_deals.sql
@@ -1076,7 +1076,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:1d327e653438d576ccb5357bf0df9dedaf6f8eb9d28fa4145882caa0c79db497
+-- @bsb-hash sha256:a80e47931fc61b8560fefb756ef2ee368900d1f211c3a49e47ba2f5ee5070bfb
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1213,7 +1213,7 @@ create index if not exists deals_tenant_close_idx on "better_supabase"."deals" (
 create index if not exists deals_owner_idx on "better_supabase"."deals" ("owner_user_id");
 create index if not exists deals_company_idx on "better_supabase"."deals" ("company_type", "company_id");
 alter table "better_supabase"."deals" enable row level security;
-revoke all on "better_supabase"."deals" from anon, authenticated;
+revoke all on "better_supabase"."deals" from public, anon, authenticated;
 grant select on "better_supabase"."deals" to authenticated;
 grant all on "better_supabase"."deals" to service_role;
 
@@ -1229,7 +1229,7 @@ create table if not exists "better_supabase"."deal_contacts" (
 create index if not exists deal_contacts_contact_idx on "better_supabase"."deal_contacts" ("contact_type", "contact_id");
 create unique index if not exists deal_contacts_primary_idx on "better_supabase"."deal_contacts" ("deal_id") where "is_primary";
 alter table "better_supabase"."deal_contacts" enable row level security;
-revoke all on "better_supabase"."deal_contacts" from anon, authenticated;
+revoke all on "better_supabase"."deal_contacts" from public, anon, authenticated;
 grant select on "better_supabase"."deal_contacts" to authenticated;
 grant all on "better_supabase"."deal_contacts" to service_role;
 
@@ -1242,7 +1242,7 @@ create table if not exists "better_supabase"."deal_members" (
 );
 create index if not exists deal_members_user_idx on "better_supabase"."deal_members" ("user_id");
 alter table "better_supabase"."deal_members" enable row level security;
-revoke all on "better_supabase"."deal_members" from anon, authenticated;
+revoke all on "better_supabase"."deal_members" from public, anon, authenticated;
 grant select on "better_supabase"."deal_members" to authenticated;
 grant all on "better_supabase"."deal_members" to service_role;
 
@@ -1769,7 +1769,7 @@ create table if not exists "better_supabase"."deal_lines" (
 );
 create index if not exists "deal_lines_parent_idx" on "better_supabase"."deal_lines" ("parent_id", "position");
 alter table "better_supabase"."deal_lines" enable row level security;
-revoke all on "better_supabase"."deal_lines" from anon, authenticated;
+revoke all on "better_supabase"."deal_lines" from public, anon, authenticated;
 grant select on "better_supabase"."deal_lines" to authenticated;
 grant all on "better_supabase"."deal_lines" to service_role;
 drop policy if exists "deal_lines_read" on "better_supabase"."deal_lines";
@@ -2159,7 +2159,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_deals.sql
@@ -2179,7 +2179,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:a074e779e111282f330107082d83b8d8c628114da1ba351894e6163591371ffc
+-- @bsb-hash sha256:c89abdfb547ee63b79ec5c0d4a3f38a5da60a43486d9e1e449ec64ad5a3e89b4
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2260,6 +2260,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Deals on pipelines: an amount in minor units, a company and contacts, a
 -- forecast call, close-date slips, a next step and line items.
 
@@ -2318,7 +2321,7 @@ create index if not exists deals_tenant_close_idx on "app_private"."deals" ("ten
 create index if not exists deals_owner_idx on "app_private"."deals" ("owner_user_id");
 create index if not exists deals_company_idx on "app_private"."deals" ("company_type", "company_id");
 alter table "app_private"."deals" enable row level security;
-revoke all on "app_private"."deals" from anon, authenticated;
+revoke all on "app_private"."deals" from public, anon, authenticated;
 grant select on "app_private"."deals" to authenticated;
 grant all on "app_private"."deals" to service_role;
 
@@ -2334,7 +2337,7 @@ create table if not exists "app_private"."deal_contacts" (
 create index if not exists deal_contacts_contact_idx on "app_private"."deal_contacts" ("contact_type", "contact_id");
 create unique index if not exists deal_contacts_primary_idx on "app_private"."deal_contacts" ("deal_id") where "is_primary";
 alter table "app_private"."deal_contacts" enable row level security;
-revoke all on "app_private"."deal_contacts" from anon, authenticated;
+revoke all on "app_private"."deal_contacts" from public, anon, authenticated;
 grant select on "app_private"."deal_contacts" to authenticated;
 grant all on "app_private"."deal_contacts" to service_role;
 
@@ -2347,7 +2350,7 @@ create table if not exists "app_private"."deal_members" (
 );
 create index if not exists deal_members_user_idx on "app_private"."deal_members" ("user_id");
 alter table "app_private"."deal_members" enable row level security;
-revoke all on "app_private"."deal_members" from anon, authenticated;
+revoke all on "app_private"."deal_members" from public, anon, authenticated;
 grant select on "app_private"."deal_members" to authenticated;
 grant all on "app_private"."deal_members" to service_role;
 
@@ -2847,7 +2850,7 @@ create table if not exists "app_private"."deal_lines" (
 );
 create index if not exists "deal_lines_parent_idx" on "app_private"."deal_lines" ("parent_id", "position");
 alter table "app_private"."deal_lines" enable row level security;
-revoke all on "app_private"."deal_lines" from anon, authenticated;
+revoke all on "app_private"."deal_lines" from public, anon, authenticated;
 grant select on "app_private"."deal_lines" to authenticated;
 grant all on "app_private"."deal_lines" to service_role;
 drop policy if exists "deal_lines_read" on "app_private"."deal_lines";
@@ -3236,7 +3239,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_091_deals.sql
@@ -3256,7 +3259,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:7d5fbe4a6142e986baaa835cb8be25b00e8594e0ba838bc7d08eebe0d33e7aeb
+-- @bsb-hash sha256:6ace980c8b79cb4306e1cd795f0acfb2d81dc1c7c01d8193b003e0ed64009fe4
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3393,7 +3396,7 @@ create index if not exists deals_tenant_close_idx on "better_supabase"."deals" (
 create index if not exists deals_owner_idx on "better_supabase"."deals" ("owner_user_id");
 create index if not exists deals_company_idx on "better_supabase"."deals" ("company_type", "company_id");
 alter table "better_supabase"."deals" enable row level security;
-revoke all on "better_supabase"."deals" from anon, authenticated;
+revoke all on "better_supabase"."deals" from public, anon, authenticated;
 grant select on "better_supabase"."deals" to authenticated;
 grant all on "better_supabase"."deals" to service_role;
 
@@ -3409,7 +3412,7 @@ create table if not exists "better_supabase"."deal_contacts" (
 create index if not exists deal_contacts_contact_idx on "better_supabase"."deal_contacts" ("contact_type", "contact_id");
 create unique index if not exists deal_contacts_primary_idx on "better_supabase"."deal_contacts" ("deal_id") where "is_primary";
 alter table "better_supabase"."deal_contacts" enable row level security;
-revoke all on "better_supabase"."deal_contacts" from anon, authenticated;
+revoke all on "better_supabase"."deal_contacts" from public, anon, authenticated;
 grant select on "better_supabase"."deal_contacts" to authenticated;
 grant all on "better_supabase"."deal_contacts" to service_role;
 
@@ -3422,7 +3425,7 @@ create table if not exists "better_supabase"."deal_members" (
 );
 create index if not exists deal_members_user_idx on "better_supabase"."deal_members" ("user_id");
 alter table "better_supabase"."deal_members" enable row level security;
-revoke all on "better_supabase"."deal_members" from anon, authenticated;
+revoke all on "better_supabase"."deal_members" from public, anon, authenticated;
 grant select on "better_supabase"."deal_members" to authenticated;
 grant all on "better_supabase"."deal_members" to service_role;
 
@@ -3922,7 +3925,7 @@ create table if not exists "better_supabase"."deal_lines" (
 );
 create index if not exists "deal_lines_parent_idx" on "better_supabase"."deal_lines" ("parent_id", "position");
 alter table "better_supabase"."deal_lines" enable row level security;
-revoke all on "better_supabase"."deal_lines" from anon, authenticated;
+revoke all on "better_supabase"."deal_lines" from public, anon, authenticated;
 grant select on "better_supabase"."deal_lines" to authenticated;
 grant all on "better_supabase"."deal_lines" to service_role;
 drop policy if exists "deal_lines_read" on "better_supabase"."deal_lines";
@@ -4432,7 +4435,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_091_deals.sql
@@ -4452,7 +4455,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:c82f51f0d230497f942983d112ad244dadfc1273553a3c1d4fe432531fa697ae
+-- @bsb-hash sha256:515a8e6acc7a341740271a43dfb1f091b1f6fd1cce31741390fbc360c12a32f7
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5514,7 +5517,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_091_deals.sql
@@ -5534,7 +5537,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:c7fde66b216b9e9d334782acb1defc8efed3d869a76962d3866fa6b91069b28c
+-- @bsb-hash sha256:600c2f8d6964fb8c07b4e1d0474863703c678501fbc13a3d14de4dd56840bac0
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5671,7 +5674,7 @@ create index if not exists deals_tenant_close_idx on "better_supabase"."deals" (
 create index if not exists deals_owner_idx on "better_supabase"."deals" ("owner_user_id");
 create index if not exists deals_company_idx on "better_supabase"."deals" ("company_type", "company_id");
 alter table "better_supabase"."deals" enable row level security;
-revoke all on "better_supabase"."deals" from anon, authenticated;
+revoke all on "better_supabase"."deals" from public, anon, authenticated;
 grant select on "better_supabase"."deals" to authenticated;
 grant all on "better_supabase"."deals" to service_role;
 
@@ -5687,7 +5690,7 @@ create table if not exists "better_supabase"."deal_contacts" (
 create index if not exists deal_contacts_contact_idx on "better_supabase"."deal_contacts" ("contact_type", "contact_id");
 create unique index if not exists deal_contacts_primary_idx on "better_supabase"."deal_contacts" ("deal_id") where "is_primary";
 alter table "better_supabase"."deal_contacts" enable row level security;
-revoke all on "better_supabase"."deal_contacts" from anon, authenticated;
+revoke all on "better_supabase"."deal_contacts" from public, anon, authenticated;
 grant select on "better_supabase"."deal_contacts" to authenticated;
 grant all on "better_supabase"."deal_contacts" to service_role;
 
@@ -5700,7 +5703,7 @@ create table if not exists "better_supabase"."deal_members" (
 );
 create index if not exists deal_members_user_idx on "better_supabase"."deal_members" ("user_id");
 alter table "better_supabase"."deal_members" enable row level security;
-revoke all on "better_supabase"."deal_members" from anon, authenticated;
+revoke all on "better_supabase"."deal_members" from public, anon, authenticated;
 grant select on "better_supabase"."deal_members" to authenticated;
 grant all on "better_supabase"."deal_members" to service_role;
 
@@ -6200,7 +6203,7 @@ create table if not exists "better_supabase"."deal_lines" (
 );
 create index if not exists "deal_lines_parent_idx" on "better_supabase"."deal_lines" ("parent_id", "position");
 alter table "better_supabase"."deal_lines" enable row level security;
-revoke all on "better_supabase"."deal_lines" from anon, authenticated;
+revoke all on "better_supabase"."deal_lines" from public, anon, authenticated;
 grant select on "better_supabase"."deal_lines" to authenticated;
 grant all on "better_supabase"."deal_lines" to service_role;
 drop policy if exists "deal_lines_read" on "better_supabase"."deal_lines";
@@ -6589,7 +6592,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_091_deals.sql

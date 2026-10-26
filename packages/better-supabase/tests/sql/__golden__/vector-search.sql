@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_018_vector_search.sql
 -- better-supabase module: vector-search
 -- @bsb-block vector-search@1 managed
--- @bsb-hash sha256:20f535c1d18013c66f56294ce0e9beaa90d01f35ad92b7d6d2d0e2a72ffa2499
+-- @bsb-hash sha256:ae537807a7de4d49ecad0f34bbf0d2927567e9ddedf6dd679147d510e2bfe621
 -- search_<table>(query, k) for each table in vectorSearch: the k nearest rows the caller can read, with pgvector iterative index scans so RLS filters still return k rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -23,7 +23,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_018_vector_search.sql
@@ -45,7 +45,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_018_vector_search.sql
 -- better-supabase module: vector-search
 -- @bsb-block vector-search@1 managed
--- @bsb-hash sha256:20f535c1d18013c66f56294ce0e9beaa90d01f35ad92b7d6d2d0e2a72ffa2499
+-- @bsb-hash sha256:ae537807a7de4d49ecad0f34bbf0d2927567e9ddedf6dd679147d510e2bfe621
 -- search_<table>(query, k) for each table in vectorSearch: the k nearest rows the caller can read, with pgvector iterative index scans so RLS filters still return k rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -67,7 +67,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_018_vector_search.sql
@@ -89,7 +89,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_018_vector_search.sql
 -- better-supabase module: vector-search
 -- @bsb-block vector-search@1 managed
--- @bsb-hash sha256:20f535c1d18013c66f56294ce0e9beaa90d01f35ad92b7d6d2d0e2a72ffa2499
+-- @bsb-hash sha256:ae537807a7de4d49ecad0f34bbf0d2927567e9ddedf6dd679147d510e2bfe621
 -- search_<table>(query, k) for each table in vectorSearch: the k nearest rows the caller can read, with pgvector iterative index scans so RLS filters still return k rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -111,7 +111,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_018_vector_search.sql
@@ -133,7 +133,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_018_vector_search.sql
 -- better-supabase module: vector-search
 -- @bsb-block vector-search@1 managed
--- @bsb-hash sha256:20f535c1d18013c66f56294ce0e9beaa90d01f35ad92b7d6d2d0e2a72ffa2499
+-- @bsb-hash sha256:ae537807a7de4d49ecad0f34bbf0d2927567e9ddedf6dd679147d510e2bfe621
 -- search_<table>(query, k) for each table in vectorSearch: the k nearest rows the caller can read, with pgvector iterative index scans so RLS filters still return k rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -155,7 +155,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_018_vector_search.sql

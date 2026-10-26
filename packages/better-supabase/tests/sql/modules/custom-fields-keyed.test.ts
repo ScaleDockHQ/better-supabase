@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
+import { modulePermissionKeys } from "../../../src/sql/introspect.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
 
@@ -115,9 +116,11 @@ const sqlOf = (modules: AnyBlocksConfig = BLOCKS) =>
     ownTables: { "public.attributes": "app.sql" },
   });
 
-async function run(check: string): Promise<void> {
-  const files = sqlOf();
-
+async function run(
+  check: string,
+  files = sqlOf(),
+  allow = ALLOW,
+): Promise<void> {
   await using stack = await liteStack({
     driver: "pglite",
     migrations: [
@@ -131,7 +134,7 @@ async function run(check: string): Promise<void> {
       ...files
         .filter((file) => file.kind === "data")
         .map((file) => file.contents),
-      ALLOW,
+      allow,
       check,
     ],
   });
@@ -230,5 +233,170 @@ $$;`),
     );
     expect(sql).toContain("delete_field_value");
     expect(sql).not.toContain("save_field_definition");
+  });
+
+  it("ranks by an integer column of the app's own type", async () => {
+    const entry = BLOCKS["custom-fields"]!;
+
+    const modules: AnyBlocksConfig = {
+      "custom-fields": {
+        ...entry,
+        columns: { values: { ...entry.columns!["values"], rank: "position" } },
+        options: { layout: "keyed", rankType: "integer" },
+      },
+    };
+
+    const sql = sqlOf(modules)
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).not.toContain('collate "C"');
+
+    await expect(
+      run(
+        `do $$
+declare
+  v_row jsonb;
+  v_list jsonb;
+  v_hint text;
+begin
+  ${AS_ALICE}
+  perform better_supabase.set_field_value('${TENANT}', 'product', '${PRODUCT}', 'b', 'B', 'text', '"b"', '10');
+  v_row := better_supabase.set_field_value('${TENANT}', 'product', '${PRODUCT}', 'a', 'A', 'text', '"a"', '9');
+  if v_row ->> 'rank' <> '9' then
+    raise exception 'rank %', v_row;
+  end if;
+  perform better_supabase.set_field_value('${TENANT}', 'product', '${PRODUCT}', 'a', 'A', 'text', '"a"');
+  v_list := better_supabase.read_field_values('${TENANT}', 'product', '${PRODUCT}');
+  if v_list -> 0 ->> 'key' <> 'a' or v_list -> 1 ->> 'key' <> 'b' then
+    raise exception 'order %', v_list;
+  end if;
+  begin
+    perform better_supabase.set_field_value('${TENANT}', 'product', '${PRODUCT}', 'c', 'C', 'text', '"c"', 'x');
+    v_hint := 'none';
+  exception when others then
+    get stacked diagnostics v_hint = pg_exception_hint;
+  end;
+  if v_hint <> 'FIELD_VALUE_INVALID' then
+    raise exception 'rank text %', v_hint;
+  end if;
+end;
+$$;`,
+        sqlOf(modules),
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("keeps an integer rank column on a managed keyed table", () => {
+    const sql = renderBlocks(["custom-fields"], {
+      modules: {
+        "custom-fields": { options: { layout: "keyed", rankType: "integer" } },
+      },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain('"rank" integer');
+    expect(sql).toContain('"rank"::text');
+    expect(sql).toContain('v."rank" nulls last');
+  });
+
+  it("reads values by the record's own read check with readAccess record", async () => {
+    const entry = BLOCKS["custom-fields"]!;
+
+    const subjects = {
+      product: {
+        table: "public.products",
+        idType: "uuid",
+        permissions: { read: "product.read" },
+      },
+      asset: { table: "public.assets", idType: "uuid" },
+    };
+
+    const modules: AnyBlocksConfig = {
+      "custom-fields": {
+        ...entry,
+        options: { layout: "keyed", readAccess: "record" },
+      },
+    };
+
+    const files = renderBlocks(["subjects", "custom-fields"], {
+      modules,
+      subjects,
+      ownTables: { "public.attributes": "app.sql" },
+    });
+
+    const sql = files.map((file) => file.contents).join("\n");
+
+    expect(sql).toContain('can_subject"(read_field_values.subject_type');
+
+    const deny = ALLOW.replace(
+      "returns boolean language sql stable as $$ select true $$;",
+      () =>
+        "returns boolean language sql stable as $$ select permission not in ('product.read', 'custom_fields.read') $$;",
+    );
+
+    await expect(
+      run(
+        `do $$
+declare
+  v_list jsonb;
+begin
+  insert into public.attributes (organization_id, product_id, key, label, value_type, text_value)
+  values ('${TENANT}', '${PRODUCT}', 'color', 'Color', 'text', 'red');
+  insert into public.attributes (organization_id, asset_id, key, label, value_type, text_value)
+  values ('${TENANT}', '${ASSET}', 'serial', 'Serial', 'text', 'A1');
+  ${AS_ALICE}
+  v_list := better_supabase.read_field_values('${TENANT}', 'asset', '${ASSET}');
+  if jsonb_array_length(v_list) <> 1 then
+    raise exception 'asset %', v_list;
+  end if;
+  v_list := better_supabase.read_field_values('${TENANT}', 'product', '${PRODUCT}');
+  if jsonb_array_length(v_list) <> 0 then
+    raise exception 'product %', v_list;
+  end if;
+  v_list := better_supabase.read_field_values('${OTHER}', 'asset', '${ASSET}');
+  if jsonb_array_length(v_list) <> 0 then
+    raise exception 'other tenant %', v_list;
+  end if;
+end;
+$$;`,
+        files,
+        deny,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("reports no sensitive key in keyed layout and no read key with readAccess record", () => {
+    const actions = (options: Record<string, unknown>) =>
+      modulePermissionKeys({ "custom-fields": { options } }, [
+        "custom-fields",
+      ]).map((entry) => entry.action);
+
+    expect(actions({})).toContain("sensitive");
+    expect(actions({ layout: "keyed" })).toEqual(["manage", "read"]);
+    expect(actions({ layout: "keyed", readAccess: "record" })).toEqual([
+      "manage",
+    ]);
+  });
+
+  it("refuses unknown keyed options and keyed options in another layout", () => {
+    const keyed = (options: Record<string, unknown>) => () =>
+      renderBlocks(["custom-fields"], {
+        modules: { "custom-fields": { options } },
+      });
+
+    expect(keyed({ layout: "keyed", rankType: "float" })).toThrow(
+      /rankType must be/u,
+    );
+    expect(keyed({ layout: "keyed", readAccess: "any" })).toThrow(
+      /readAccess must be/u,
+    );
+    expect(keyed({ layout: "keyed", readAccess: "record" })).toThrow(
+      /add the subjects block/u,
+    );
+    expect(keyed({ rankType: "integer" })).toThrow(
+      /apply only to layout "keyed"/u,
+    );
   });
 });

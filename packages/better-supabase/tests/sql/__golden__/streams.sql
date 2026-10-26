@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:fb5e514ab6998845a3bc41655b86af0cf0dbb4c97c341d649dd5bce6c972a1c5
+-- @bsb-hash sha256:1dc694ddcd67cebc8ce9089592b51ea6f53e4f5945259974820c564c714b5863
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -74,7 +74,7 @@ create index if not exists streams_owner_idx on "better_supabase"."streams" ("ow
 create index if not exists streams_tenant_idx on "better_supabase"."streams" ("tenant_id");
 create index if not exists streams_expires_idx on "better_supabase"."streams" ("expires_at");
 alter table "better_supabase"."streams" enable row level security;
-revoke all on "better_supabase"."streams" from anon, authenticated;
+revoke all on "better_supabase"."streams" from public, anon, authenticated;
 grant select on "better_supabase"."streams" to authenticated;
 grant all on "better_supabase"."streams" to service_role;
 drop policy if exists streams_owner_read on "better_supabase"."streams";
@@ -88,7 +88,7 @@ create table if not exists "better_supabase"."stream_chunks" (
   primary key ("stream_id", "idx")
 );
 alter table "better_supabase"."stream_chunks" enable row level security;
-revoke all on "better_supabase"."stream_chunks" from anon, authenticated;
+revoke all on "better_supabase"."stream_chunks" from public, anon, authenticated;
 grant select on "better_supabase"."stream_chunks" to authenticated;
 grant all on "better_supabase"."stream_chunks" to service_role;
 drop policy if exists stream_chunks_owner_read on "better_supabase"."stream_chunks";
@@ -378,7 +378,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_040_streams.sql
@@ -398,7 +398,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:fb5e514ab6998845a3bc41655b86af0cf0dbb4c97c341d649dd5bce6c972a1c5
+-- @bsb-hash sha256:1dc694ddcd67cebc8ce9089592b51ea6f53e4f5945259974820c564c714b5863
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -471,7 +471,7 @@ create index if not exists streams_owner_idx on "better_supabase"."streams" ("ow
 create index if not exists streams_tenant_idx on "better_supabase"."streams" ("tenant_id");
 create index if not exists streams_expires_idx on "better_supabase"."streams" ("expires_at");
 alter table "better_supabase"."streams" enable row level security;
-revoke all on "better_supabase"."streams" from anon, authenticated;
+revoke all on "better_supabase"."streams" from public, anon, authenticated;
 grant select on "better_supabase"."streams" to authenticated;
 grant all on "better_supabase"."streams" to service_role;
 drop policy if exists streams_owner_read on "better_supabase"."streams";
@@ -485,7 +485,7 @@ create table if not exists "better_supabase"."stream_chunks" (
   primary key ("stream_id", "idx")
 );
 alter table "better_supabase"."stream_chunks" enable row level security;
-revoke all on "better_supabase"."stream_chunks" from anon, authenticated;
+revoke all on "better_supabase"."stream_chunks" from public, anon, authenticated;
 grant select on "better_supabase"."stream_chunks" to authenticated;
 grant all on "better_supabase"."stream_chunks" to service_role;
 drop policy if exists stream_chunks_owner_read on "better_supabase"."stream_chunks";
@@ -775,7 +775,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_040_streams.sql
@@ -795,7 +795,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:0446d128680bb4c0bce7f4141cb14a3273977f5fc41185d6b48b229d77ab4046
+-- @bsb-hash sha256:53b0b1c6e7a3111ef694463b1ec389abb6b42f1f56f1757cb4cee92a302276d2
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -852,6 +852,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Durable output streams: a writer appends ordered text chunks and any reader
 -- resumes from a chunk index. The service role writes; the owner reads
 -- through RLS.
@@ -870,7 +873,7 @@ create index if not exists streams_owner_idx on "app_private"."streams" ("owner_
 create index if not exists streams_tenant_idx on "app_private"."streams" ("tenant_id");
 create index if not exists streams_expires_idx on "app_private"."streams" ("expires_at");
 alter table "app_private"."streams" enable row level security;
-revoke all on "app_private"."streams" from anon, authenticated;
+revoke all on "app_private"."streams" from public, anon, authenticated;
 grant select on "app_private"."streams" to authenticated;
 grant all on "app_private"."streams" to service_role;
 drop policy if exists streams_owner_read on "app_private"."streams";
@@ -884,7 +887,7 @@ create table if not exists "app_private"."stream_chunks" (
   primary key ("stream_id", "idx")
 );
 alter table "app_private"."stream_chunks" enable row level security;
-revoke all on "app_private"."stream_chunks" from anon, authenticated;
+revoke all on "app_private"."stream_chunks" from public, anon, authenticated;
 grant select on "app_private"."stream_chunks" to authenticated;
 grant all on "app_private"."stream_chunks" to service_role;
 drop policy if exists stream_chunks_owner_read on "app_private"."stream_chunks";
@@ -1174,7 +1177,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_040_streams.sql
@@ -1194,7 +1197,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:4fa792ca84487ac37e21585ca3e35f87538563b76d234a2d9de2dbfaf87fa534
+-- @bsb-hash sha256:940a0c69e0c3b10b844d5e031d762cad73330635e2d3e0ddc48edd731230c36c
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1267,7 +1270,7 @@ create index if not exists streams_owner_idx on "better_supabase"."streams" ("ow
 create index if not exists streams_tenant_idx on "better_supabase"."streams" ("tenant_id");
 create index if not exists streams_expires_idx on "better_supabase"."streams" ("expires_at");
 alter table "better_supabase"."streams" enable row level security;
-revoke all on "better_supabase"."streams" from anon, authenticated;
+revoke all on "better_supabase"."streams" from public, anon, authenticated;
 grant select on "better_supabase"."streams" to authenticated;
 grant all on "better_supabase"."streams" to service_role;
 drop policy if exists streams_owner_read on "better_supabase"."streams";
@@ -1281,7 +1284,7 @@ create table if not exists "better_supabase"."stream_chunks" (
   primary key ("stream_id", "idx")
 );
 alter table "better_supabase"."stream_chunks" enable row level security;
-revoke all on "better_supabase"."stream_chunks" from anon, authenticated;
+revoke all on "better_supabase"."stream_chunks" from public, anon, authenticated;
 grant select on "better_supabase"."stream_chunks" to authenticated;
 grant all on "better_supabase"."stream_chunks" to service_role;
 drop policy if exists stream_chunks_owner_read on "better_supabase"."stream_chunks";
@@ -1656,7 +1659,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_040_streams.sql
@@ -1676,7 +1679,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:b72119e2bcc3d35259db2a72c12b6af5c3101acc38f93aea7274863155404e2c
+-- @bsb-hash sha256:fa5bc847594a6035e563e4b486acc2c1eb4b7937829256ee9e638b27e2d181d9
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2050,7 +2053,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_040_streams.sql
@@ -2070,7 +2073,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:4ed8466bb31777235a9ea65f776cba64dc8472fa88b61f514fa35983a7de84ce
+-- @bsb-hash sha256:4afe4a8b827cd45335cdf8014b237dd8c547e04b3f3011d613b2517ea82cdef5
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2143,7 +2146,7 @@ create index if not exists streams_owner_idx on "better_supabase"."streams" ("ow
 create index if not exists streams_tenant_idx on "better_supabase"."streams" ("org_id");
 create index if not exists streams_expires_idx on "better_supabase"."streams" ("expires_at");
 alter table "better_supabase"."streams" enable row level security;
-revoke all on "better_supabase"."streams" from anon, authenticated;
+revoke all on "better_supabase"."streams" from public, anon, authenticated;
 grant select on "better_supabase"."streams" to authenticated;
 grant all on "better_supabase"."streams" to service_role;
 drop policy if exists streams_owner_read on "better_supabase"."streams";
@@ -2157,7 +2160,7 @@ create table if not exists "better_supabase"."stream_chunks" (
   primary key ("stream_id", "idx")
 );
 alter table "better_supabase"."stream_chunks" enable row level security;
-revoke all on "better_supabase"."stream_chunks" from anon, authenticated;
+revoke all on "better_supabase"."stream_chunks" from public, anon, authenticated;
 grant select on "better_supabase"."stream_chunks" to authenticated;
 grant all on "better_supabase"."stream_chunks" to service_role;
 drop policy if exists stream_chunks_owner_read on "better_supabase"."stream_chunks";
@@ -2447,7 +2450,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_040_streams.sql

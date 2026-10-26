@@ -24,8 +24,11 @@ yours:
   migration created. This covers tables that exist in the database but in
   none of your files.
 
-For each table it also keeps the columns your files declare and any trigger
-that already keeps `updated_at` current. A block table counts as yours when
+For each table it also keeps the columns your files declare, any trigger
+that already keeps `updated_at` current, and the leading columns of your full
+btree indexes, primary keys and unique constraints. A block adds no plain
+index on your table when one of yours already starts with the same columns,
+and writes a comment in its place. A block table counts as yours when
 one of these tables is at the block's default name, or at the name
 `blocks.<name>.tables` maps it to. A table you create only by hand in the
 dashboard, outside both your files and the snapshot, isn't seen; save a
@@ -246,9 +249,9 @@ may be your own enum or domain.
   - `better_supabase.drive_nodes`: `id`, `tenant_id`, `parent_id`, `kind`, `name`, `created_at`
   - `better_supabase.drive_grants`: `id`, `tenant_id`, `node_id`, `role`, `created_at`
 - `employees`
-  - `better_supabase.employees`: `id`, `tenant_id`, `user_id`, `manager_id`, `status`; typed: `status`
+  - `better_supabase.employees`: `id`, `tenant_id`, `user_id`, `manager_id`, `status`; typed: `status`; typed with values: `employment_type`
   - `better_supabase.employee_private_details`: `employee_id`, `tenant_id`
-  - `better_supabase.employee_contracts`: `id`, `tenant_id`, `employee_id`, `starts_on`, `ends_on`, `hours_per_week`, `salary`, `currency`; typed with values: `salary_period`
+  - `better_supabase.employee_contracts`: `id`, `tenant_id`, `employee_id`, `starts_on`, `ends_on`, `hours_per_week`; typed with values: `salary_period`
 - `enrichment`
   - `better_supabase.enrichments`: `id`, `tenant_id`, `company_id`, `person_id`, `provider`, `status`, `data`, `filled`, `fetched_at`; typed: `status`
 - `enrollments`

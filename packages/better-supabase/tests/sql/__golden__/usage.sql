@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:8be1b64e383c0f53c2019092184d0c5f2d7b1cbc9ebc289bbf865b9283f2b32d
+-- @bsb-hash sha256:79ab3a630e4dd3b64673e845585de0e0decc326b90cd0d84a033cb2b954860a9
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -96,7 +96,7 @@ alter table "better_supabase"."usage_counters" alter column "reported_value" typ
 create index if not exists usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
   where "value" > "reported_value";
 alter table "better_supabase"."usage_counters" enable row level security;
-revoke all on "better_supabase"."usage_counters" from anon, authenticated;
+revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
 drop policy if exists "usage_counters_read" on "better_supabase"."usage_counters";
@@ -116,7 +116,7 @@ alter table "better_supabase"."usage_events" alter column "quantity" type numeri
 
 create index if not exists usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
 alter table "better_supabase"."usage_events" enable row level security;
-revoke all on "better_supabase"."usage_events" from anon, authenticated;
+revoke all on "better_supabase"."usage_events" from public, anon, authenticated;
 grant all on "better_supabase"."usage_events" to service_role;
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
@@ -137,7 +137,7 @@ alter table "better_supabase"."usage_quotas" alter column "limit" drop not null;
 alter table "better_supabase"."usage_quotas" drop constraint if exists "usage_quotas_period_check";
 alter table "better_supabase"."usage_quotas" add constraint "usage_quotas_period_check" check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "better_supabase"."usage_quotas" enable row level security;
-revoke all on "better_supabase"."usage_quotas" from anon, authenticated;
+revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
 drop policy if exists "usage_quotas_read" on "better_supabase"."usage_quotas";
@@ -747,7 +747,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
@@ -767,7 +767,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:f3e8a6476728e03e97c549cc8b035f646739d75280b60f6b4df30f00fd713645
+-- @bsb-hash sha256:42ed5122219dea0c90fb588a875fb07bb049af62893d7389f957d21cade899c0
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -862,7 +862,7 @@ alter table "better_supabase"."usage_counters" alter column "reported_value" typ
 create index if not exists usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
   where "value" > "reported_value";
 alter table "better_supabase"."usage_counters" enable row level security;
-revoke all on "better_supabase"."usage_counters" from anon, authenticated;
+revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
 drop policy if exists "usage_counters_read" on "better_supabase"."usage_counters";
@@ -894,7 +894,7 @@ create table if not exists "better_supabase"."usage_history" (
 );
 create index if not exists usage_history_tenant_idx on "better_supabase"."usage_history" ("organization_id", "recorded_at" desc, "id" desc);
 alter table "better_supabase"."usage_history" enable row level security;
-revoke all on "better_supabase"."usage_history" from anon, authenticated;
+revoke all on "better_supabase"."usage_history" from public, anon, authenticated;
 grant select on "better_supabase"."usage_history" to authenticated;
 grant all on "better_supabase"."usage_history" to service_role;
 drop policy if exists "usage_history_read" on "better_supabase"."usage_history";
@@ -903,7 +903,7 @@ create policy "usage_history_read" on "better_supabase"."usage_history" for sele
 
 create index if not exists usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
 alter table "better_supabase"."usage_events" enable row level security;
-revoke all on "better_supabase"."usage_events" from anon, authenticated;
+revoke all on "better_supabase"."usage_events" from public, anon, authenticated;
 grant all on "better_supabase"."usage_events" to service_role;
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
@@ -924,7 +924,7 @@ alter table "better_supabase"."usage_quotas" alter column "limit" drop not null;
 alter table "better_supabase"."usage_quotas" drop constraint if exists "usage_quotas_period_check";
 alter table "better_supabase"."usage_quotas" add constraint "usage_quotas_period_check" check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "better_supabase"."usage_quotas" enable row level security;
-revoke all on "better_supabase"."usage_quotas" from anon, authenticated;
+revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
 drop policy if exists "usage_quotas_read" on "better_supabase"."usage_quotas";
@@ -1595,7 +1595,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
@@ -1615,7 +1615,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:045ee49b619b247a90fcda53248dd531fce77c8448b7ca2b6d8e76ff7840c0ce
+-- @bsb-hash sha256:ce1ae2128dacb5016207f6d8974ab9b7ea81ba919e70e35225de306fea917656
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1696,6 +1696,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
 create table if not exists "app_private"."usage_counters" (
   "organization_id" uuid not null,
@@ -1712,7 +1715,7 @@ alter table "app_private"."usage_counters" alter column "reported_value" type nu
 create index if not exists usage_counters_unreported_idx on "app_private"."usage_counters" ("day")
   where "value" > "reported_value";
 alter table "app_private"."usage_counters" enable row level security;
-revoke all on "app_private"."usage_counters" from anon, authenticated;
+revoke all on "app_private"."usage_counters" from public, anon, authenticated;
 grant select on "app_private"."usage_counters" to authenticated;
 grant all on "app_private"."usage_counters" to service_role;
 drop policy if exists "usage_counters_read" on "app_private"."usage_counters";
@@ -1732,7 +1735,7 @@ alter table "app_private"."usage_events" alter column "quantity" type numeric;
 
 create index if not exists usage_events_recorded_at_idx on "app_private"."usage_events" ("recorded_at");
 alter table "app_private"."usage_events" enable row level security;
-revoke all on "app_private"."usage_events" from anon, authenticated;
+revoke all on "app_private"."usage_events" from public, anon, authenticated;
 grant all on "app_private"."usage_events" to service_role;
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
@@ -1753,7 +1756,7 @@ alter table "app_private"."usage_quotas" alter column "limit" drop not null;
 alter table "app_private"."usage_quotas" drop constraint if exists "usage_quotas_period_check";
 alter table "app_private"."usage_quotas" add constraint "usage_quotas_period_check" check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "app_private"."usage_quotas" enable row level security;
-revoke all on "app_private"."usage_quotas" from anon, authenticated;
+revoke all on "app_private"."usage_quotas" from public, anon, authenticated;
 grant select on "app_private"."usage_quotas" to authenticated;
 grant all on "app_private"."usage_quotas" to service_role;
 drop policy if exists "usage_quotas_read" on "app_private"."usage_quotas";
@@ -2363,7 +2366,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
@@ -2383,7 +2386,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:bd3be05ccd0fae49615d7f97375383dc1ae2268f3e00cf196b44673b01bdc2b1
+-- @bsb-hash sha256:7938dae6238196761fc96d0234e5e07fa64659b25d42e6a7dd75d9ea2b75c01b
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2478,7 +2481,7 @@ alter table "better_supabase"."usage_counters" alter column "reported_value" typ
 create index if not exists usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
   where "value" > "reported_value";
 alter table "better_supabase"."usage_counters" enable row level security;
-revoke all on "better_supabase"."usage_counters" from anon, authenticated;
+revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
 drop policy if exists "usage_counters_read" on "better_supabase"."usage_counters";
@@ -2498,7 +2501,7 @@ alter table "better_supabase"."usage_events" alter column "quantity" type numeri
 
 create index if not exists usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
 alter table "better_supabase"."usage_events" enable row level security;
-revoke all on "better_supabase"."usage_events" from anon, authenticated;
+revoke all on "better_supabase"."usage_events" from public, anon, authenticated;
 grant all on "better_supabase"."usage_events" to service_role;
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
@@ -2519,7 +2522,7 @@ alter table "better_supabase"."usage_quotas" alter column "limit" drop not null;
 alter table "better_supabase"."usage_quotas" drop constraint if exists "usage_quotas_period_check";
 alter table "better_supabase"."usage_quotas" add constraint "usage_quotas_period_check" check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "better_supabase"."usage_quotas" enable row level security;
-revoke all on "better_supabase"."usage_quotas" from anon, authenticated;
+revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
 drop policy if exists "usage_quotas_read" on "better_supabase"."usage_quotas";
@@ -3313,7 +3316,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
@@ -3333,7 +3336,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:ee93ec732266fe9dd9439ae0d3a9114d6eca905ef3fe41a7c96538a011a0c0ec
+-- @bsb-hash sha256:260bc106e342e7f57c9032222f7851e07cb03561bd2123048b60bde0cf559f1a
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4063,7 +4066,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
@@ -4083,7 +4086,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:bfc507154c4044ece9a7d27e0f5e1edcee52b3fdf924b20e56aaa49c03b7a762
+-- @bsb-hash sha256:9cc015a5ca8ab33c7aaba94d67e0ad0a00521e796a722bcbbd0073dd8c3d6cbd
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4178,7 +4181,7 @@ alter table "better_supabase"."usage_counters" alter column "reported_value" typ
 create index if not exists usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
   where "value" > "reported_value";
 alter table "better_supabase"."usage_counters" enable row level security;
-revoke all on "better_supabase"."usage_counters" from anon, authenticated;
+revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
 drop policy if exists "usage_counters_read" on "better_supabase"."usage_counters";
@@ -4198,7 +4201,7 @@ alter table "better_supabase"."usage_events" alter column "quantity" type numeri
 
 create index if not exists usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
 alter table "better_supabase"."usage_events" enable row level security;
-revoke all on "better_supabase"."usage_events" from anon, authenticated;
+revoke all on "better_supabase"."usage_events" from public, anon, authenticated;
 grant all on "better_supabase"."usage_events" to service_role;
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
@@ -4219,7 +4222,7 @@ alter table "better_supabase"."usage_quotas" alter column "limit" drop not null;
 alter table "better_supabase"."usage_quotas" drop constraint if exists "usage_quotas_period_check";
 alter table "better_supabase"."usage_quotas" add constraint "usage_quotas_period_check" check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "better_supabase"."usage_quotas" enable row level security;
-revoke all on "better_supabase"."usage_quotas" from anon, authenticated;
+revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
 drop policy if exists "usage_quotas_read" on "better_supabase"."usage_quotas";
@@ -4829,7 +4832,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
