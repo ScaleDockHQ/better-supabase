@@ -148,7 +148,7 @@ may be your own enum or domain.
   - `better_supabase.calendar_attendees`: `id`, `tenant_id`, `event_id`, `user_id`, `response`; typed with values: `role`, `response`
   - `better_supabase.calendar_working_hours`: `id`, `tenant_id`, `user_id`, `weekday`, `starts_at`, `ends_at`, `tz`
   - `better_supabase.calendar_grants`, once mapped: `id`, `tenant_id`, `calendar_id`, `user_id`, `role`; typed: `role`
-  - `better_supabase.calendar_event_rules`, once mapped: `id`, `event_id`; typed: `freq`, `by_day`, `by_month_day`, `by_month`, `by_set_pos`
+  - `better_supabase.calendar_event_rules`, once mapped: `event_id`; typed: `freq`, `by_day`, `by_month_day`, `by_month`, `by_set_pos`
   - `better_supabase.calendar_event_dates`, once mapped: `id`, `event_id`, `kind`, `starts_at`; typed: `kind`
 - `catalog`
   - `better_supabase.products`: `id`, `tenant_id`, `slug`, `title`, `status`, `created_at`, `updated_at`; typed: `status`, `kind`
@@ -669,6 +669,13 @@ the columns that take values: `typed` columns, and `typed with values`
 columns, which the block casts to your column's type only once they have an
 entry. An empty entry (`transparency: {}`) casts without renaming any label,
 for an enum whose labels match the block's.
+
+A read function returns a row of your table keyed as on the block's own
+table: a column you rename comes back under the block's name as well as
+yours, with a mapped value as its label, so the block's TypeScript client
+parses it the same way. Extra columns are written in the insert itself, with
+the type's default for a key the call leaves out, so a check constraint across
+them holds when the row is created.
 
 ### One tenant column name
 

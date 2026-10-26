@@ -2,6 +2,17 @@ import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
+/**
+ * How structured rule columns store BYDAY and BYMONTHDAY: weekday codes in
+ * lower case, one month day per rule, and an ordinal weekday (`2TU`) in two
+ * columns of the app's rules table.
+ */
+export type CalendarRuleDialect = {
+  readonly weekdays?: "upper" | "lower";
+  readonly monthDay?: "list" | "scalar";
+  readonly ordinal?: { readonly weekday: string; readonly position: string };
+};
+
 export type CalendarAccessFunctions = {
   readonly read?: string;
   readonly write?: string;
@@ -22,6 +33,7 @@ export type CalendarSqlOptions = {
   readonly rdates?: boolean;
   readonly attendeeKey?: "email" | "any";
   readonly calendarDetails?: boolean;
+  readonly ruleDialect?: CalendarRuleDialect;
 };
 
 export const calendarSqlOptions: BlockOptionsSchema<CalendarSqlOptions> =
@@ -35,4 +47,5 @@ export const calendarSqlOptions: BlockOptionsSchema<CalendarSqlOptions> =
     rdates: option.boolean({ default: false }),
     attendeeKey: option.string<"email" | "any">({ default: "email" }),
     calendarDetails: option.boolean({ default: false }),
+    ruleDialect: option.unknown<CalendarRuleDialect>(),
   });

@@ -522,6 +522,130 @@ describe("calendar over an app's tables with per-calendar access", () => {
     },
   );
 
+  it(
+    "stores structured rules keyed by event in the app's rule dialect",
+    { timeout: 60_000 },
+    async () => {
+      const app = APP.replace(
+        `create table public.event_rules (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references public.events (id) on delete cascade,
+  frequency public.repeat_freq not null,
+  every integer,
+  occurrences integer,
+  ends_at timestamptz,
+  weekdays text[],
+  month_days integer[]
+);`,
+        `create table public.event_rules (
+  event_id uuid primary key references public.events (id) on delete cascade,
+  frequency public.repeat_freq not null,
+  every integer,
+  occurrences integer,
+  ends_at timestamptz,
+  weekdays text[],
+  month_day integer,
+  month_weekday text,
+  month_ordinal integer
+);`,
+      );
+
+      const files = renderBlocks(["calendar", "share-links"], {
+        modules: {
+          calendar: {
+            ...CALENDAR,
+            columns: {
+              ...CALENDAR.columns,
+              rules: {
+                ...CALENDAR.columns?.["rules"],
+                id: null,
+                byMonthDay: "month_day",
+              },
+            },
+            options: {
+              ...CALENDAR.options,
+              ruleDialect: {
+                weekdays: "lower",
+                monthDay: "scalar",
+                ordinal: {
+                  weekday: "month_weekday",
+                  position: "month_ordinal",
+                },
+              },
+            },
+          },
+        },
+        ownTables: OWN_TABLES,
+      });
+
+      await using stack = await liteStack({
+        driver: "pglite",
+        migrations: [
+          ROLES,
+          app,
+          ...files
+            .filter((file) => file.kind !== "data")
+            .map((file) => file.contents),
+        ],
+        seed: [
+          ...files
+            .filter((file) => file.kind === "data")
+            .map((file) => file.contents),
+          KEYS,
+          `do $$
+declare
+  v_calendar uuid;
+  v_weekly uuid;
+  v_ordinal uuid;
+  v_day uuid;
+  v_feed jsonb;
+begin
+  ${as(ALICE)}
+  v_calendar := (better_supabase.create_calendar('${TENANT}', 'Alice', 'UTC', null, '${ALICE}', null) ->> 'id')::uuid;
+  v_weekly := (better_supabase.save_calendar_event(v_calendar, '{"title": "Gym", "startsAt": "2026-03-02T07:00:00Z", "endsAt": "2026-03-02T08:00:00Z", "rrule": "FREQ=WEEKLY;BYDAY=MO,WE"}') ->> 'id')::uuid;
+  v_ordinal := (better_supabase.save_calendar_event(v_calendar, '{"title": "Board", "startsAt": "2026-03-10T09:00:00Z", "endsAt": "2026-03-10T10:00:00Z", "rrule": "FREQ=MONTHLY;BYDAY=2TU"}') ->> 'id')::uuid;
+  v_day := (better_supabase.save_calendar_event(v_calendar, '{"title": "Rent", "startsAt": "2026-03-15T09:00:00Z", "endsAt": "2026-03-15T10:00:00Z", "rrule": "FREQ=MONTHLY;BYMONTHDAY=15"}') ->> 'id')::uuid;
+  if (select weekdays::text from public.event_rules where event_id = v_weekly) <> '{mo,we}'
+    or (select month_ordinal || month_weekday from public.event_rules where event_id = v_ordinal) <> '2tu'
+    or (select weekdays from public.event_rules where event_id = v_ordinal) is not null
+    or (select month_day from public.event_rules where event_id = v_day) <> 15 then
+    raise exception 'rules %', (select jsonb_agg(r) from public.event_rules r);
+  end if;
+  v_feed := better_supabase.list_calendar_events(array[v_calendar], '2026-03-01T00:00:00Z', '2026-03-31T00:00:00Z');
+  if (select string_agg(e ->> 'rrule', ' | ' order by e ->> 'title') from jsonb_array_elements(v_feed) e)
+    <> 'FREQ=MONTHLY;BYDAY=2TU | FREQ=WEEKLY;BYDAY=MO,WE | FREQ=MONTHLY;BYMONTHDAY=15' then
+    raise exception 'listed %', v_feed;
+  end if;
+end;
+$$;`,
+        ],
+      });
+
+      expect(stack.url).not.toBe("");
+    },
+  );
+
+  it("refuses a rule dialect over a raw rule column", () => {
+    expect(() =>
+      renderBlocks(["calendar"], {
+        modules: {
+          calendar: {
+            ...CALENDAR,
+            columns: {
+              ...CALENDAR.columns,
+              rules: { tenant: null, rrule: "rrule" },
+            },
+            options: {
+              ...CALENDAR.options,
+              ruleDialect: { weekdays: "lower" },
+            },
+          },
+        },
+        ownTables: OWN_TABLES,
+      }),
+    ).toThrow(/ruleDialect/);
+  });
+
   it("hides another member's private rows from direct reads", () => {
     const sql = renderBlocks(["calendar"], {
       modules: { calendar: CALENDAR },

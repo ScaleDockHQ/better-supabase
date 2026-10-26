@@ -53,6 +53,7 @@ export const CALENDAR_NAMES: BlockSqlNames = {
     "rdates",
     "attendeeKey",
     "calendarDetails",
+    "ruleDialect",
   ],
   tables: {
     calendars: {
@@ -208,6 +209,7 @@ export const CALENDAR_NAMES: BlockSqlNames = {
         bySetPos: "by_set_pos",
       },
       optional: [
+        "id",
         "tenant",
         "rrule",
         "freq",
