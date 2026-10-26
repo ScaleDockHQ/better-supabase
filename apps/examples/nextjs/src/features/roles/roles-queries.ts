@@ -33,13 +33,6 @@ export async function getRoles(): Promise<readonly CatalogRole[] | null> {
   return db.permissions.roles().orThrow();
 }
 
-/** One role of `getRoles`, `null` when the organization has no such role. */
-export async function getRole(id: string): Promise<CatalogRole | null> {
-  const roles = await getRoles();
-
-  return roles?.find((role) => role.id === id) ?? null;
-}
-
 /**
  * The roles the caller may give: each one whose keys in this organization the
  * caller holds, the rule `better_supabase.can_assign` applies. UI only: the SQL

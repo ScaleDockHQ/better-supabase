@@ -9,7 +9,7 @@ import type { PermissionSet } from "./user-permissions";
 // See https://bettersupabase.com/docs/frameworks/next-cache-components#permission-snapshots.
 
 /** The tag of a user's snapshot entries. */
-export function snapshotTag(sub: string | null): string {
+function snapshotTag(sub: string | null): string {
   return `permissions:${sub ?? "anon"}`;
 }
 

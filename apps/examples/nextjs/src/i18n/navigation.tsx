@@ -50,7 +50,7 @@ export type AppHref =
  * an `AppHref`. Any same-origin path is a valid target because the `[...rest]`
  * route renders the localized 404 for paths with no page.
  */
-export function isAppHref(value: string): value is AppHref {
+function isAppHref(value: string): value is AppHref {
   return (
     value.startsWith("/") && !value.startsWith("//") && !value.includes("\\")
   );

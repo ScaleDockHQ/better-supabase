@@ -122,15 +122,15 @@ Serve the endpoint and the metadata from two route handlers that share one
 server:
 
 ```ts title="src/app/api/mcp/route.ts"
-import { mcp } from "@/features/api/mcp-server";
+import { bsb } from "@/features/api/mcp-server";
 
-export const { fetch: GET, fetch: POST, fetch: OPTIONS, fetch: DELETE } = mcp;
+export const { fetch: GET, fetch: POST, fetch: OPTIONS, fetch: DELETE } = bsb;
 ```
 
 ```ts title="src/app/.well-known/oauth-protected-resource/[...path]/route.ts"
-import { mcp } from "@/features/api/mcp-server";
+import { bsb } from "@/features/api/mcp-server";
 
-export const { fetch: GET } = mcp;
+export const { fetch: GET } = bsb;
 ```
 
 The challenge then points to

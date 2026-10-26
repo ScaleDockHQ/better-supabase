@@ -15,7 +15,7 @@ const Id = v.pipe(v.string(), v.uuid());
  * no `Authorizer`, so `set_permission_override` gets no `permission`: its SQL
  * function checks `roles.manage` and the tool returns that refusal.
  */
-export const mcp = createMcp(betterSupabase, {
+export const bsb = createMcp(betterSupabase, {
   name: "example-saas",
   version: "1.0.0",
   instructions:
