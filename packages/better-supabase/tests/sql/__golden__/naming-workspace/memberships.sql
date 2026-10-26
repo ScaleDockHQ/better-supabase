@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:3a74172d0b66132a2d0287c7b9e77fc589419f128abd91f27755795625be8910
+-- @bsb-hash sha256:1a442f8063157b0a5eceb5f8c7b46434b9a20ea09be2aa3be6daea56cd4b244b
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -167,11 +167,11 @@ create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.member_workspace_ids()));
 
-revoke execute on function better_supabase.member_workspace_ids(text[]) from public, anon;
-revoke execute on function better_supabase.has_workspace_role(uuid, text[]) from public, anon;
+revoke execute on function better_supabase.member_workspace_ids(text[]) from public;
+revoke execute on function better_supabase.has_workspace_role(uuid, text[]) from public;
 revoke execute on function better_supabase.workspace_member_role(uuid, uuid) from public, anon, authenticated;
-grant execute on function better_supabase.member_workspace_ids(text[]) to authenticated, service_role;
-grant execute on function better_supabase.has_workspace_role(uuid, text[]) to authenticated, service_role;
+grant execute on function better_supabase.member_workspace_ids(text[]) to anon, authenticated, service_role;
+grant execute on function better_supabase.has_workspace_role(uuid, text[]) to anon, authenticated, service_role;
 grant execute on function better_supabase.workspace_member_role(uuid, uuid) to service_role;
 
 -- The memberships claim. `claimFormat: 'array'` (the default) is

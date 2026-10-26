@@ -911,14 +911,17 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           ]),
       ).rejects.toMatchObject({ hint: "INVITATION_EMAIL_UNCONFIRMED" });
 
-      for (const fn of [
-        `better_supabase.has_organization_role('${organization}')`,
-        "better_supabase.member_organization_ids()",
-      ]) {
-        await expect(
-          postgres.anon.queryRaw(`select ${fn}`),
-        ).rejects.toMatchObject({ code: "42501" });
-      }
+      // The tenant scope runs for anon too, so anon may call both and gets nothing.
+      expect(
+        await postgres.anon.queryRaw(
+          `select better_supabase.has_organization_role('${organization}') as held`,
+        ),
+      ).toEqual([{ held: false }]);
+      expect(
+        await postgres.anon.queryRaw(
+          "select better_supabase.member_organization_ids() as id",
+        ),
+      ).toEqual([]);
 
       const ids = await asInvitee.queryRaw<{ id: string }>(
         `select better_supabase.member_organization_ids('{admin}') as id`,

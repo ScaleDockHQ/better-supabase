@@ -1,7 +1,7 @@
 -- ==== memberships
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:01ea70d8de46a1e1d525e362de028e8b45c44448019eca01cbd4bae10f4cfa98
+-- @bsb-hash sha256:c8cc0ed214959fcb5afb189875ecd8ae6f043911dcb963b7f451939edd6103c6
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -223,11 +223,11 @@ create policy bsb_membership_roles_read on "better_supabase"."membership_roles"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
 
-revoke execute on function better_supabase.member_organization_ids(text[]) from public, anon;
-revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public, anon;
+revoke execute on function better_supabase.member_organization_ids(text[]) from public;
+revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public;
 revoke execute on function better_supabase.organization_member_role(uuid, uuid) from public, anon, authenticated;
-grant execute on function better_supabase.member_organization_ids(text[]) to authenticated, service_role;
-grant execute on function better_supabase.has_organization_role(uuid, text[]) to authenticated, service_role;
+grant execute on function better_supabase.member_organization_ids(text[]) to anon, authenticated, service_role;
+grant execute on function better_supabase.has_organization_role(uuid, text[]) to anon, authenticated, service_role;
 grant execute on function better_supabase.organization_member_role(uuid, uuid) to service_role;
 
 -- The memberships claim. `claimFormat: 'array'` (the default) is
