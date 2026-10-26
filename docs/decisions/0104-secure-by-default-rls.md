@@ -33,6 +33,9 @@ migration note.
 
 ## Status note
 
+- Done: the tenant scope is one restrictive policy per command (`bsb_tenant_scope_select`,
+  `_insert`, `_update`, `_delete`), `to public`; a block's anon or public policy keeps its
+  condition inside the matching command's scope policy.
 - Done: `rls-guard` catches `alter table` (0.23.x) and `init` writes it into a new config; the `none`
   scope refuses anonymous sign-ins.
 - Not done, by decision: the service-role check keeps reading the JWT claim. Block functions raise a

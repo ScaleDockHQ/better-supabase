@@ -7681,6 +7681,7 @@
       "SQL_MODULES",
       "subjectColumns",
       "templateFunctions",
+      "TENANT_SCOPE_NAMES",
       "TENANT_SCOPE_POLICY",
       "tenantsQuery",
       "upgradePlan",

@@ -160,7 +160,7 @@ export { scopePolicyName } from "./modules/app-table-enrich.ts";
 
 export { notNullCheckName } from "./shared.ts";
 
-export { TENANT_SCOPE_POLICY } from "./tenant-scope.ts";
+export { TENANT_SCOPE_NAMES, TENANT_SCOPE_POLICY } from "./tenant-scope.ts";
 
 export {
   appTablePolicyNotes,

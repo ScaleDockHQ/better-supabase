@@ -21,7 +21,7 @@ import {
 import { CONFIG_DEFAULTS } from "../../config/defaults.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { moduleContext } from "../module-context.ts";
-import { TENANT_SCOPE_POLICY, tenantScopePolicy } from "../tenant-scope.ts";
+import { TENANT_SCOPE_NAMES, tenantScopePolicy } from "../tenant-scope.ts";
 import {
   columnAccessChecks,
   columnAccessRefusals,
@@ -1009,7 +1009,7 @@ function testSql(table: AppTable): string {
       scopePolicyName(table, command),
     ),
     ...(table.sessionPolicy ? ["bsb_session_active"] : []),
-    ...(tenantScoped(table) ? [TENANT_SCOPE_POLICY] : []),
+    ...(tenantScoped(table) ? TENANT_SCOPE_NAMES : []),
   ];
 
   const policyList = policies.map((policy) => sqlString(policy)).join(", ");

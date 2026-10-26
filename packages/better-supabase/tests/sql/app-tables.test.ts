@@ -733,7 +733,7 @@ grant select, insert, update, delete on "public"."invoices" to authenticated;`,
 
       expect(test).not.toContain("policies_are");
       expect(test).toContain(
-        "select extensions.ok(array['bsb_invoices_select', 'bsb_invoices_insert', 'bsb_invoices_update', 'bsb_invoices_delete', 'bsb_tenant_scope']::name[] <@",
+        "select extensions.ok(array['bsb_invoices_select', 'bsb_invoices_insert', 'bsb_invoices_update', 'bsb_invoices_delete', 'bsb_tenant_scope_select', 'bsb_tenant_scope_insert', 'bsb_tenant_scope_update', 'bsb_tenant_scope_delete']::name[] <@",
       );
       expect(test).toContain(
         "'new rows of public.invoices must fill organization_id'",

@@ -784,10 +784,10 @@ column. Add the check after the backfill when the app still writes those rows.
 `tables.<name>` entry enriches a table your schema already creates, your own
 policies on it stay: the entry names its policies `bsb_<table>_<command>`, so it
 never replaces one of yours, even one named `<table>_select`. Postgres ORs permissive policies, so each one widens what
-the entry's scope allows. In `tenant` scope the restrictive `bsb_tenant_scope`
-policy still keeps every row inside the member's tenants, so BS237 is a hint
+the entry's scope allows. In `tenant` scope the restrictive `bsb_tenant_scope_*`
+policies still keeps every row inside the member's tenants, so BS237 is a hint
 (info): check that your policies need no role or permission the scope's
-policies ask for. In `user` scope, or without `bsb_tenant_scope`, nothing
+policies ask for. In `user` scope, or without `bsb_tenant_scope_*`, nothing
 narrows them, and a signed-in user reaches every row they allow. Drop your
 policies, or recreate them `as restrictive`.
 
