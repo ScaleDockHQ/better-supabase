@@ -2,6 +2,7 @@ import type { ResolvedConfig } from "../../config/index.ts";
 import type { BsbTag, TableFeature } from "../../sql/index.ts";
 
 import { setTableFeature } from "../../sql/index.ts";
+import { subjectTagArgs } from "../subject-tag.ts";
 
 /** One file `migrate schema-first` writes, relative to the schemas folder. */
 export interface SchemaFirstFile {
@@ -140,17 +141,11 @@ function tagsFor(
 
   for (const [type, subject] of Object.entries(config.subjects)) {
     if (subject.table === table || subject.table === `public.${table}`) {
-      tags.push({
-        feature: "subject",
-        tag: {
-          name: "subject",
-          args: {
-            ...(type === table ? {} : { type }),
-            ...(subject.title === undefined ? {} : { title: subject.title }),
-            ...(subject.url === undefined ? {} : { url: subject.url }),
-          },
-        },
-      });
+      const args = subjectTagArgs(type, subject, table);
+
+      if (args !== undefined) {
+        tags.push({ feature: "subject", tag: { name: "subject", args } });
+      }
     }
   }
 

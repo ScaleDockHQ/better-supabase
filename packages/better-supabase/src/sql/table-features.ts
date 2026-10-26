@@ -104,3 +104,25 @@ export function setTableFeature(
     commentOnTableSql(`${schema}.${table}`, next),
   );
 }
+
+const ANY_COMMENT =
+  /comment\s+on\s+table\s+(?:"?([a-z_][a-z0-9_]*)"?\.)?"?([a-z_][a-z0-9_]*)"?\s+is\s+'((?:[^']|'')*)'\s*;/giu;
+
+/**
+ * The `@bsb` table comments in `sql`, with an unqualified table in `public`.
+ * Comments without tags are left out.
+ */
+export function tableTagComments(
+  sql: string,
+): { schema: string; name: string; comment: string }[] {
+  return [...sql.matchAll(ANY_COMMENT)].flatMap((match) => {
+    const comment = match[3]?.replaceAll("''", "'");
+    const name = match[2];
+
+    return comment !== undefined &&
+      name !== undefined &&
+      parseBsbComment(comment).tags.length > 0
+      ? [{ schema: match[1] ?? "public", name, comment }]
+      : [];
+  });
+}

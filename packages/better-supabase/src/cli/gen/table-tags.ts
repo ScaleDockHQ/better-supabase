@@ -9,10 +9,17 @@ import type {
   SubjectConfig,
   VectorDistance,
 } from "../../config/index.ts";
-import type { Snapshot } from "../introspect/types.ts";
 
 import { APP_COLUMN_TYPES, APP_TABLE_EVENT_KINDS } from "../../config/index.ts";
 import { parseBsbComment } from "../../sql/index.ts";
+import { subjectFromTag } from "../subject-tag.ts";
+
+/** The part of a table a tag reader needs: its name and comment. */
+export interface TableComment {
+  readonly schema: string;
+  readonly name: string;
+  readonly comment: string | null;
+}
 
 const DISTANCES: ReadonlySet<string> = new Set([
   "cosine",
@@ -58,7 +65,7 @@ function text(value: string | true | undefined): string | undefined {
  */
 export function withTableTags(
   config: ResolvedConfig,
-  snapshot: Snapshot,
+  tables: readonly TableComment[],
 ): ResolvedConfig {
   const subjects: Record<string, SubjectConfig> = { ...config.subjects };
   const realtimeTables = [...config.realtime.tables];
@@ -69,7 +76,7 @@ export function withTableTags(
   const appTables: Record<string, AppTableConfig> = { ...config.appTables };
   let changed = false;
 
-  for (const table of snapshot.generator.tables) {
+  for (const table of tables) {
     if (!config.schemas.includes(table.schema)) {
       continue;
     }
@@ -89,17 +96,7 @@ export function withTableTags(
         const type = text(tag.args["type"]) ?? table.name;
 
         if (subjects[type] === undefined) {
-          const title = text(tag.args["title"]);
-          const url = text(tag.args["url"]);
-          const tenant = text(tag.args["tenant"]);
-
-          subjects[type] = {
-            table: short,
-            ...(title === undefined ? {} : { title }),
-            ...(url === undefined ? {} : { url }),
-            ...(tenant === undefined ? {} : { tenant }),
-          };
-
+          subjects[type] = subjectFromTag(tag.args, short);
           changed = true;
         }
       } else if (
