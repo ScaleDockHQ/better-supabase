@@ -4,6 +4,7 @@ import { sqlString } from "../../core/template.ts";
 import { fail, userGrant } from "../shared.ts";
 import { subjectTitle } from "../subject-check-sql.ts";
 import { splitName } from "./employees-options.ts";
+import { hiringCandidate } from "./hiring-adoption.ts";
 import { createdFromLink } from "./quotes-functions.ts";
 
 export interface EmployeeNames {
@@ -530,6 +531,7 @@ function fromApplication(ctx: BlockSqlContext, n: EmployeeNames): string {
   const a = (column: string): string => hiring.col("applications", column);
   const j = (column: string): string => hiring.col("jobs", column);
   const e = (column: string): string => n.c("employees", column);
+  const candidate = hiringCandidate(hiring, "v_application");
 
   return `
 -- The employee for a hired application, in preboarding: the name comes from
@@ -562,7 +564,7 @@ begin
   end if;
   select * into v_job from ${hiring.table("jobs")} x where x.${j("id")} = v_application.${a("job")};
   return ${n.fn("create_employee")}(v_application.${a("tenant")}, jsonb_strip_nulls(jsonb_build_object(
-      'name', ${subjectTitle(ctx, `v_application.${a("candidateType")}`, `v_application.${a("candidateId")}`)},
+      'name', ${subjectTitle(ctx, candidate.type, candidate.id)},
       'jobTitle', v_job.${j("title")},
       'teamId', v_job.${j("team")},
       'employmentType', case when v_job.${j("employmentType")} = any (${n.types}) then v_job.${j("employmentType")} end,

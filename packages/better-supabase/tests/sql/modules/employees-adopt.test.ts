@@ -209,6 +209,26 @@ describe("employees over the app's tables", () => {
     expect(firstOnly).not.toContain("generated always");
   });
 
+  it("names a hire from a fixed candidate type", () => {
+    const sql = renderBlocks(["hiring", "employees"], {
+      modules: {
+        hiring: {
+          columns: { applications: { candidateType: null } },
+          options: { candidate: "person" },
+        },
+      },
+      subjects: {
+        person: { table: "public.people", idType: "uuid", title: "full_name" },
+      },
+    })
+      .filter((file) => file.module === "employees")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain("employee_from_application");
+    expect(sql).toContain(`case 'person'`);
+  });
+
   it("refuses unknown options and a split name without a first name column", () => {
     expect(() =>
       renderBlocks(["employees"], {
