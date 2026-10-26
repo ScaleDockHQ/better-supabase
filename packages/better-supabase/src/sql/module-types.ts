@@ -165,6 +165,11 @@ export interface BlockSql {
     readonly setting: string;
   }[];
   /**
+   * Actions of the module's `OPERATIONS` this config never checks, so their
+   * keys aren't reported to the authorization provider.
+   */
+  readonly unusedPermissions?: (ctx: BlockSqlContext) => readonly string[];
+  /**
    * Functions granted to `anon` or `authenticated` only so the module's
    * policies and triggers can call them as the client. `api` writes no entry
    * point for them.

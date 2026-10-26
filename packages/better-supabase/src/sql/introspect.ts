@@ -66,10 +66,13 @@ export function modulePermissionKeys(
       return key === "" ? [] : [{ module: name, action, key, scope }];
     });
 
+    const unused = new Set(SQL_MODULES[name]?.unusedPermissions?.(ctx));
+
     return [
       ...Object.entries(moduleOperations(name)).flatMap(
         ([action, fallback]): BlockSqlPermissionKey[] =>
-          action === "invitePlatform" && !hasPlatformRoles(ctx)
+          unused.has(action) ||
+          (action === "invitePlatform" && !hasPlatformRoles(ctx))
             ? []
             : [
                 {
