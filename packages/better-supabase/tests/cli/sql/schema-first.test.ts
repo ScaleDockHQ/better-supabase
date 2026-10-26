@@ -74,4 +74,18 @@ describe("splitAppTables", () => {
     expect(files.map((file) => file.path)).toEqual(["public/tables/a.sql"]);
     expect(files[0]?.contents).not.toContain("@bsb");
   });
+
+  it("handles block comments, empty statements and a missing final semicolon", () => {
+    const sql =
+      'create table "public"."b" (id int); /* note; here */ ;; $x$ not; sql $x$; -- trailing';
+
+    const files = splitAppTables(
+      base,
+      `${sql}\ncreate index b_i on public.b (id)`,
+      ["b"],
+    );
+
+    expect(files[0]?.contents).toContain("create index b_i");
+    expect(files.at(-1)?.path).toBe("public/_custom/app_tables.sql");
+  });
 });
