@@ -33,6 +33,7 @@
   },
   "files": [
     "bin",
+    "codemods",
     "dist",
     "schemas",
     "skills",
@@ -987,6 +988,7 @@
       "default": "./dist/testing/index.js"
     },
     "./schemas/*.json": "./schemas/*.json",
+    "./codemods/*.json": "./codemods/*.json",
     "./testing/act-cases.json": "./testing/act-cases.json",
     "./sqlite": {
       "@better-supabase/source": "./src/sqlite/index.ts",
@@ -1843,6 +1845,7 @@
         "default": "./dist/testing/index.js"
       },
       "./schemas/*.json": "./schemas/*.json",
+      "./codemods/*.json": "./codemods/*.json",
       "./testing/act-cases.json": "./testing/act-cases.json",
       "./sqlite": {
         "types": "./dist/sqlite/index.d.ts",
@@ -1930,6 +1933,7 @@
     "build": "tsdown",
     "check:publish": "publint && pnpm pack --out pack.tgz && attw --profile esm-only pack.tgz && rm -f pack.tgz",
     "gen:check": "node scripts/gen-fixtures.ts --check",
+    "gen:codemods": "node scripts/gen-codemods.ts",
     "gen:config-schema": "node scripts/gen-config-schema.ts",
     "gen:fixtures": "node scripts/gen-fixtures.ts",
     "lint": "oxlint",
