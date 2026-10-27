@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "src/app/api/queues/settings-test/route.ts": {
+      "experimentalTriggers": [
+        { "type": "queue/v2beta", "topic": "settings_test" }
+      ]
+    }
+  }
+}

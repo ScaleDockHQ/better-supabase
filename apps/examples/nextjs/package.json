@@ -37,6 +37,7 @@
     "@tanstack/react-table": "catalog:",
     "@tanstack/react-virtual": "catalog:",
     "@valibot/to-json-schema": "catalog:",
+    "@vercel/queue": "catalog:",
     "@workflow/world": "catalog:",
     "@workflow/world-postgres": "catalog:",
     "@wrksz/themes": "catalog:",
