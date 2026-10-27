@@ -4,11 +4,12 @@ import type {
   CredentialRef,
   CredentialSubject,
   CredentialToken,
+  GetTokenOptions,
   StartAuthorizationResult,
 } from "../credentials/provider.ts";
 
 import { isRecord } from "../core/block-helpers.ts";
-import { dbError } from "../core/errors.ts";
+import { DbException, dbError } from "../core/errors.ts";
 import { importOptionalPeer } from "../core/optional-peer.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { optionalTemporal } from "../core/temporal.ts";
@@ -102,21 +103,123 @@ export interface VercelConnectModule {
   ): Promise<VercelConnectorMetadata>;
   experimental_startInstallation?(
     connector: string,
-    params?: { scopes?: string[] },
-    options?: {
-      vercelToken?: string;
-      returnUrl?: string;
-      tenantId?: string;
-      region?: string;
-    },
-  ): Promise<ConnectAuthorization>;
+    params?: Omit<ConnectTokenParams, "subject">,
+    options?: ConnectInstallationOptions,
+  ): Promise<VercelConnectInstallation>;
 }
+
+interface ConnectInstallationOptions {
+  vercelToken?: string;
+  returnUrl?: string;
+  webhook?: string;
+  tenantId?: string;
+  deviceCode?: boolean;
+  expiresInMs?: number;
+  region?: string;
+}
+
+/** What `experimental_startInstallation` returns, typed structurally. */
+export interface VercelConnectInstallation {
+  url: string;
+  request: string;
+  verifier: string;
+  deviceCode?: string;
+  expiresAt: number;
+  connector: { id: string; uid: string; type: string; name: string };
+}
+
+/** The Chat SDK platforms `@vercel/connect/chat` has an adapter config for. */
+export type VercelConnectChannel =
+  | "discord"
+  | "github"
+  | "linear"
+  | "linq"
+  | "notion"
+  | "sendblue"
+  | "slack"
+  | "teams"
+  | "telegram";
+
+type ChannelHelper = (
+  connector: string,
+  params: Omit<ConnectTokenParams, "subject">,
+  options: ConnectOptions,
+) => unknown;
+
+const isChannelHelper = (value: unknown): value is ChannelHelper =>
+  typeof value === "function";
+
+const CHANNEL_HELPERS: Readonly<Record<VercelConnectChannel, string>> = {
+  discord: "connectDiscordAdapter",
+  github: "connectGitHubAdapter",
+  linear: "connectLinearAdapter",
+  linq: "connectLinqAdapter",
+  notion: "connectNotionAdapter",
+  sendblue: "connectSendblueAdapter",
+  slack: "connectSlackAdapter",
+  teams: "connectTeamsAdapter",
+  telegram: "connectTelegramAdapter",
+};
 
 /** The part of `@vercel/connect/chat` `verifyInbound` calls. */
 export interface VercelConnectChatModule {
   createConnectWebhookVerifier(
     options?: Record<string, unknown>,
   ): (request: Request, body: string) => unknown;
+  [helper: string]: unknown;
+}
+
+/** The options `startInstallation` takes. */
+export interface VercelConnectInstallationOptions {
+  /** The tenant the installation belongs to; Connect returns it on tokens. */
+  readonly tenantId?: string;
+  readonly returnUrl?: string;
+  readonly webhook?: string;
+  readonly deviceCode?: boolean;
+  readonly expiresInMs?: number;
+}
+
+/** A Vercel Connect `CredentialProvider` with the calls only Connect has. */
+export interface VercelConnectCredentials extends CredentialProvider {
+  /**
+   * The whole token response: `tokenId`, `installationId`, `tenantId`,
+   * `externalSubject`, `metadata` and `claims` besides the token.
+   */
+  tokenDetails(
+    ref: CredentialRef,
+    options: GetTokenOptions,
+  ): AsyncResult<VercelConnectTokenResponse>;
+  /**
+   * Drops the cached token, for a token the provider rejected with a 401 before
+   * it expired. Resolves `false` when `@vercel/connect` has no cache to clear.
+   */
+  invalidateToken(
+    ref: CredentialRef,
+    options: {
+      readonly subject: CredentialSubject;
+      readonly installationId?: string;
+    },
+  ): AsyncResult<boolean>;
+  /** The connector's name, type and service, for a settings page. */
+  connectorMetadata(ref: CredentialRef): AsyncResult<VercelConnectorMetadata>;
+  /**
+   * Starts installing the connector for a tenant (a Slack workspace, a GitHub
+   * organization). Send an admin to `url`; read the tenant's tokens with an
+   * `installationRef` afterwards.
+   */
+  startInstallation(
+    ref: CredentialRef,
+    options?: VercelConnectInstallationOptions,
+  ): AsyncResult<VercelConnectInstallation>;
+  /**
+   * The Chat SDK adapter config for a connector, from `@vercel/connect/chat`: a
+   * token resolver and a webhook verifier, so the adapter reads a fresh token
+   * for every webhook. Pass it to the platform's adapter factory.
+   */
+  channelConfig(
+    ref: CredentialRef,
+    channel: VercelConnectChannel,
+  ): AsyncResult<Record<string, unknown>>;
 }
 
 /**
@@ -267,6 +370,10 @@ const NAMES: Readonly<Record<string, string>> = {
  * its class name), without importing the classes.
  */
 function connectError(cause: unknown): Result<never> {
+  if (cause instanceof DbException) {
+    return err(cause.error);
+  }
+
   const message = cause instanceof Error ? cause.message : String(cause);
   const fields = connectCause(cause);
   const name = cause instanceof Error ? cause.name : "";
@@ -313,7 +420,7 @@ function connectError(cause: unknown): Result<never> {
  */
 export function vercelConnectCredentials(
   options: VercelConnectCredentialsOptions = {},
-): CredentialProvider {
+): VercelConnectCredentials {
   let loaded: Promise<VercelConnectModule> | undefined;
 
   let verifier:
@@ -332,21 +439,42 @@ export function vercelConnectCredentials(
       return value;
     }));
 
-  const webhookVerifier = (): Promise<
-    (request: Request, body: string) => unknown
-  > =>
-    (verifier ??= (options.loadChat ?? loadConnectChat)().then((value) => {
+  let chatLoaded: Promise<VercelConnectChatModule> | undefined;
+
+  const chat = (): Promise<VercelConnectChatModule> =>
+    (chatLoaded ??= (options.loadChat ?? loadConnectChat)().then((value) => {
       if (!isChatModule(value)) {
-        verifier = undefined;
+        chatLoaded = undefined;
         throw new TypeError(
-          "verifyInbound needs @vercel/connect 2.2 or later: pnpm add @vercel/connect",
+          "@vercel/connect/chat needs @vercel/connect 2.2 or later: pnpm add @vercel/connect",
         );
       }
 
-      return value.createConnectWebhookVerifier(
-        options.inbound === undefined ? undefined : { ...options.inbound },
-      );
+      return value;
     }));
+
+  const webhookVerifier = (): Promise<
+    (request: Request, body: string) => unknown
+  > =>
+    (verifier ??= chat().then(
+      (module) =>
+        module.createConnectWebhookVerifier(
+          options.inbound === undefined ? undefined : { ...options.inbound },
+        ),
+      (cause: unknown) => {
+        verifier = undefined;
+        throw cause;
+      },
+    ));
+
+  // An optional call the installed @vercel/connect may lack fails with this.
+  const missing = (name: string): DbException =>
+    new DbException(
+      dbError(
+        "invalid_request",
+        `${name} needs a newer @vercel/connect: pnpm add @vercel/connect@latest`,
+      ),
+    );
 
   const connectOptions: ConnectOptions = {
     ...(options.vercelToken === undefined
@@ -355,21 +483,33 @@ export function vercelConnectCredentials(
     ...(options.region === undefined ? {} : { region: options.region }),
   };
 
+  const foreign = (): DbException =>
+    new DbException(
+      dbError(
+        "forbidden",
+        "vercel-connect has no per-tenant credentials; use a user subject, the tenant's installationRef or a provider with tenant namespaces",
+        { hint: "CREDENTIAL_REF_FOREIGN" },
+      ),
+    );
+
+  /**
+   * `installation` lets a tenant ref with an `installationId` through for the
+   * app subject; the caller then checks the token's `tenantId`.
+   */
   const run = <T>(
     ref: CredentialRef,
-    subject: CredentialSubject,
+    subject: CredentialSubject | undefined,
     fn: (module: VercelConnectModule, parsed: VercelConnectRef) => Promise<T>,
+    installation = false,
   ): AsyncResult<T> => {
     // Connect has no tenant namespace: the app subject would resolve the
     // app's own installation for every tenant.
-    if (ref.tenant !== undefined && subject.type === "app") {
-      return AsyncResult.err(
-        dbError(
-          "forbidden",
-          "vercel-connect has no per-tenant credentials; use a user subject or a provider with tenant namespaces",
-          { hint: "CREDENTIAL_REF_FOREIGN" },
-        ),
-      );
+    if (
+      subject?.type === "app" &&
+      ref.tenant !== undefined &&
+      !(installation && typeof ref["installationId"] === "string")
+    ) {
+      return AsyncResult.err(foreign().error);
     }
 
     const parsed = connectRef(ref);
@@ -389,17 +529,15 @@ export function vercelConnectCredentials(
     });
   };
 
-  const params = (
+  const refParams = (
     parsed: VercelConnectRef,
-    subject: CredentialSubject,
     scopes: readonly string[] | undefined,
     installationId: string | undefined,
-  ): ConnectTokenParams => {
+  ): Omit<ConnectTokenParams, "subject"> => {
     const chosen = scopes ?? parsed.scopes;
     const installation = installationId ?? parsed.installationId;
 
     return {
-      subject,
       ...(installation === undefined ? {} : { installationId: installation }),
       ...(chosen === undefined ? {} : { scopes: [...chosen] }),
       ...(parsed.audience === undefined
@@ -421,6 +559,16 @@ export function vercelConnectCredentials(
     };
   };
 
+  const params = (
+    parsed: VercelConnectRef,
+    subject: CredentialSubject,
+    scopes: readonly string[] | undefined,
+    installationId: string | undefined,
+  ): ConnectTokenParams => ({
+    subject,
+    ...refParams(parsed, scopes, installationId),
+  });
+
   const instant = (
     epochMilliseconds: number | undefined,
   ): Temporal.Instant | undefined => {
@@ -431,26 +579,132 @@ export function vercelConnectCredentials(
       : temporal.Instant.fromEpochMilliseconds(epochMilliseconds);
   };
 
+  const tokenResponse = async (
+    module: VercelConnectModule,
+    ref: CredentialRef,
+    parsed: VercelConnectRef,
+    getOptions: GetTokenOptions,
+  ): Promise<VercelConnectTokenResponse> => {
+    const response = await module.getTokenResponse(
+      parsed.connector,
+      params(
+        parsed,
+        getOptions.subject,
+        getOptions.scopes,
+        getOptions.installationId,
+      ),
+      getOptions.fresh === true
+        ? { ...connectOptions, forceRefresh: true }
+        : connectOptions,
+    );
+
+    // A tenant admin can store any installationId in a ref; only an
+    // installation started with this tenant's id resolves for it.
+    if (
+      getOptions.subject.type === "app" &&
+      ref.tenant !== undefined &&
+      response.tenantId !== ref.tenant
+    ) {
+      throw foreign();
+    }
+
+    return response;
+  };
+
   return {
     apiVersion: 1,
     name: "vercel-connect",
+    tokenDetails(ref, getOptions) {
+      return run(
+        ref,
+        getOptions.subject,
+        (module, parsed) => tokenResponse(module, ref, parsed, getOptions),
+        true,
+      );
+    },
+    invalidateToken(ref, invalidateOptions) {
+      return run(ref, invalidateOptions.subject, (module, parsed) => {
+        if (module.deleteTokenCacheEntry === undefined) {
+          return Promise.resolve(false);
+        }
+
+        module.deleteTokenCacheEntry(
+          parsed.connector,
+          params(
+            parsed,
+            invalidateOptions.subject,
+            undefined,
+            invalidateOptions.installationId,
+          ),
+        );
+
+        return Promise.resolve(true);
+      });
+    },
+    connectorMetadata(ref) {
+      return run(ref, undefined, async (module, parsed) => {
+        if (module.getConnectorMetadata === undefined) {
+          throw missing("connectorMetadata");
+        }
+
+        return module.getConnectorMetadata(parsed.connector, connectOptions);
+      });
+    },
+    startInstallation(ref, installOptions = {}) {
+      return run(ref, undefined, async (module, parsed) => {
+        if (module.experimental_startInstallation === undefined) {
+          throw missing("startInstallation");
+        }
+
+        return module.experimental_startInstallation(
+          parsed.connector,
+          refParams(parsed, undefined, undefined),
+          {
+            ...connectOptions,
+            ...(installOptions.tenantId === undefined
+              ? {}
+              : { tenantId: installOptions.tenantId }),
+            ...(installOptions.returnUrl === undefined
+              ? {}
+              : { returnUrl: installOptions.returnUrl }),
+            ...(installOptions.webhook === undefined
+              ? {}
+              : { webhook: installOptions.webhook }),
+            ...(installOptions.deviceCode === true ? { deviceCode: true } : {}),
+            ...(installOptions.expiresInMs === undefined
+              ? {}
+              : { expiresInMs: installOptions.expiresInMs }),
+          },
+        );
+      });
+    },
+    channelConfig(ref, channel) {
+      return run(ref, undefined, async (_module, parsed) => {
+        const helper = (await chat())[CHANNEL_HELPERS[channel]];
+
+        if (!isChannelHelper(helper)) {
+          throw missing(`channelConfig("${channel}")`);
+        }
+
+        const config: unknown = helper(
+          parsed.connector,
+          refParams(parsed, undefined, undefined),
+          connectOptions,
+        );
+
+        if (!isRecord(config)) {
+          throw missing(`channelConfig("${channel}")`);
+        }
+
+        return config;
+      });
+    },
     getToken(ref, getOptions) {
       return run(
         ref,
         getOptions.subject,
         async (module, parsed): Promise<CredentialToken> => {
-          const response = await module.getTokenResponse(
-            parsed.connector,
-            params(
-              parsed,
-              getOptions.subject,
-              getOptions.scopes,
-              getOptions.installationId,
-            ),
-            getOptions.fresh === true
-              ? { ...connectOptions, forceRefresh: true }
-              : connectOptions,
-          );
+          const response = await tokenResponse(module, ref, parsed, getOptions);
 
           const expiresAt = instant(response.expiresAt);
 
@@ -460,6 +714,7 @@ export function vercelConnectCredentials(
             headers: { authorization: `Bearer ${response.token}` },
           };
         },
+        true,
       );
     },
     capabilities(ref) {
@@ -558,4 +813,95 @@ export function vercelConnectCredentials(
       });
     },
   };
+}
+
+/**
+ * A ref for one tenant's installation of a connector, so the app subject reads
+ * that tenant's token. The installation must have been started with
+ * `startInstallation(ref, { tenantId: ref.tenant })`: a token whose `tenantId`
+ * differs fails with `CREDENTIAL_REF_FOREIGN`. Without `installationId`, a
+ * tenant ref resolves only for a user subject.
+ */
+export function installationRef<R extends CredentialRef>(
+  ref: R,
+  installationId: string,
+): R & { readonly installationId: string } {
+  return { ...ref, installationId };
+}
+
+/**
+ * The Connect subject for a Supabase Auth user. The issuer is the project's
+ * Auth URL, so local, preview and production deployments that share one
+ * Supabase project resolve the same Connect grant.
+ */
+export function connectSubject(
+  user: { readonly id: string },
+  options: { readonly supabaseUrl: string },
+): CredentialSubject {
+  return {
+    type: "user",
+    id: user.id,
+    issuer: `${options.supabaseUrl.replace(/\/+$/u, "")}/auth/v1`,
+  };
+}
+
+/** What `withConnectorToken` resolves with. */
+export type ConnectorTokenOutcome<T> =
+  | { readonly status: "ok"; readonly value: T }
+  | {
+      readonly status: "authorization_required";
+      readonly url: string;
+      readonly deviceCode?: string;
+    };
+
+/**
+ * Runs `fn` with the subject's token. When the subject hasn't authorized the
+ * connector, starts the authorization and resolves with its `url` instead, so a
+ * tool or route can hand the consent link to the user.
+ */
+export async function withConnectorToken<T>(
+  credentials: CredentialProvider,
+  ref: CredentialRef,
+  options: {
+    readonly subject: CredentialSubject;
+    readonly redirectUri: string;
+    readonly scopes?: readonly string[];
+    readonly deviceCode?: boolean;
+  },
+  fn: (token: CredentialToken) => Promise<T>,
+): Promise<Result<ConnectorTokenOutcome<T>>> {
+  const token = await credentials.getToken(ref, {
+    subject: options.subject,
+    ...(options.scopes === undefined ? {} : { scopes: options.scopes }),
+  });
+
+  if (token.ok) {
+    return ok({ status: "ok", value: await fn(token.data) });
+  }
+
+  if (
+    token.error.hint !== "CREDENTIAL_AUTHORIZATION_REQUIRED" ||
+    credentials.startAuthorization === undefined
+  ) {
+    return token;
+  }
+
+  const started = await credentials.startAuthorization(ref, {
+    subject: options.subject,
+    redirectUri: options.redirectUri,
+    ...(options.scopes === undefined ? {} : { scopes: options.scopes }),
+    ...(options.deviceCode === true ? { deviceCode: true } : {}),
+  });
+
+  if (!started.ok) {
+    return started;
+  }
+
+  return ok({
+    status: "authorization_required",
+    url: started.data.url,
+    ...(started.data.deviceCode === undefined
+      ? {}
+      : { deviceCode: started.data.deviceCode }),
+  });
 }

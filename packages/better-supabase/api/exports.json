@@ -4205,12 +4205,20 @@
   },
   "./vercel-connect": {
     "values": [
-      "vercelConnectCredentials"
+      "connectSubject",
+      "installationRef",
+      "vercelConnectCredentials",
+      "withConnectorToken"
     ],
     "types": [
+      "ConnectorTokenOutcome",
       "VercelConnectAuthorizationDetail",
+      "VercelConnectChannel",
       "VercelConnectChatModule",
+      "VercelConnectCredentials",
       "VercelConnectCredentialsOptions",
+      "VercelConnectInstallation",
+      "VercelConnectInstallationOptions",
       "VercelConnectModule",
       "VercelConnectorMetadata",
       "VercelConnectRef",
