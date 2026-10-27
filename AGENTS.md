@@ -227,6 +227,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0110: Flags keep revisions in Postgres, roll out on schedules and draw weighted splits from a second bucket.
 - 0111: Workflow SDK start keys are claimed in `workflow_run_keys`; ended runs purge in SQL (`retention`, `db prune-workflows`).
 - 0112: Vercel Sandbox runs chat sandboxes through an optional-peer adapter; credentials reach the VM only at its firewall.
+- 0113: eve tools run as the user through `forContext` with delegated scopes; approvals block approvals and queue schedules drive them.
 
 ## Pre-release pins
 
