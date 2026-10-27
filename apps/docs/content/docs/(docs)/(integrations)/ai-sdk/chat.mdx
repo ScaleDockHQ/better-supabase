@@ -32,12 +32,12 @@ export const assistant = createAssistant({
   streams: postgresStreamStore({
     transport: sqlTransport(postgres.asService()),
   }),
-  defaultModel: "anthropic/claude-sonnet-4.5",
+  defaultModel: "openai/gpt-5-mini",
   quota: usageQuota(usage, "ai.input_tokens"),
   run: ({ model, messages, abortSignal, providerOptions }) =>
     streamText({
       model,
-      system: "You are the Acme assistant.",
+      instructions: "You are the Acme assistant.",
       messages,
       abortSignal,
       providerOptions,
@@ -49,7 +49,23 @@ export const assistant = createAssistant({
 `run` gets the model the request may use, the history as model messages,
 the abort signal `stop` triggers and the [gateway options](/docs/ai-sdk#ai-gateway)
 for the user, tenant and chat. Return `streamText(...)` or
-`agent.stream(...)`.
+`agent.stream(...)`. AI SDK 7 calls the system prompt `instructions`.
+
+The assistant reads three members of what `run` returns: `stream`, the
+stream parts it turns into UI message chunks with the standalone
+`toUIMessageStream({ stream, originalMessages, onEnd })`; `usage`, the
+tokens of every step; and `finalStep`, whose `providerMetadata` carries the
+gateway's generation id and cost. `streamText({ experimental_lowMemory: true })`
+returns no `finalStep`, so the answer is stored without the generation id
+and cost; the tokens are still counted. A result with only the 0.31 members
+(`toUIMessageStream()`, `totalUsage`, `providerMetadata`) still works and is
+read the old way until 0.33. A result without a stream releases the run and
+answers `500 AI_CHAT_RUN_FAILED`.
+
+The stream is read once: the UI chunks go to the stream store, which tees
+them to the client and to every `resume` call, and `onEnd` stores the final
+message. That is why the answer survives a closed tab: the snapshot is built
+on the server, not from what the browser received.
 
 Three routes serve it. Each builds the per-request context: the chat block
 with the user's transport and a service transport, the user and the tenant.
@@ -87,6 +103,11 @@ export async function POST(
 
 `waitUntil` keeps the function running until the answer is stored after the
 response is sent: `after` in Next.js, `ctx.waitUntil` on Workers.
+
+The stop route aborts the generation through the run's abort signal and
+stores the answer so far as `aborted`. A `stop()` in the browser only
+closes its connection; without the route the model would keep running and
+the answer would be stored as complete.
 
 ## What a request does
 
@@ -134,7 +155,7 @@ export function Chat({ id, initial }: { id: string; initial: UIMessage[] }) {
   const { messages, sendMessage, stop, status, regenerate } = useAssistant({
     id,
     messages: initial,
-    model: "anthropic/claude-sonnet-4.5",
+    model: "openai/gpt-5-mini",
   });
   // ...
 }
@@ -154,6 +175,19 @@ import { toUIMessages } from "better-supabase/ai-sdk";
 
 const path = await aiChat.messages.path(id, { native: true }).orThrow();
 return <Chat id={id} initial={toUIMessages(path)} />;
+```
+
+`toUIMessages` trusts the stored history. To check it against the tools and
+schemas the app uses now, call `validUIMessages`, which runs the AI SDK's
+`safeValidateUIMessages` and returns a `validation` error
+(`AI_MESSAGES_INVALID`) for a history saved before a tool's input schema
+changed:
+
+```ts
+import { validUIMessages } from "better-supabase/ai-sdk";
+
+const checked = await validUIMessages(path, { tools });
+const initial = checked.ok ? checked.data : [];
 ```
 
 The UI message stream protocol version is pinned as

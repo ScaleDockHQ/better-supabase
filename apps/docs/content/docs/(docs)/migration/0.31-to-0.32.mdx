@@ -135,6 +135,23 @@ to `graphStarter`, and bind it as `requestApproval` in the executor. The
 [graph workflows](/docs/blocks/workflow-sdk#graph-workflows) section shows
 the step.
 
+## AI SDK
+
+| 0.31                                         | 0.32                                                       |
+| -------------------------------------------- | ---------------------------------------------------------- |
+| `run` returns `toUIMessageStream()`          | `run` returns `stream`; the assistant converts it          |
+| `totalUsage`, `providerMetadata` on a result | `usage`, `finalStep.providerMetadata`                      |
+| `usageOf({ totalUsage, providerMetadata })`  | `usageOf({ usage, finalStep })` (the old names still work) |
+| `stepCountIs(n)`                             | `isStepCount(n)`                                           |
+| `system` in `streamText`                     | `instructions`                                             |
+
+A `run` that returns `streamText(...)` or `agent.stream(...)` needs no
+change: AI SDK 7 results carry `stream`, `usage` and `finalStep`. A custom
+result that only has `toUIMessageStream()`, `totalUsage` and
+`providerMetadata` still works in 0.32 and stops working in 0.33. A result
+with no stream at all now answers `500 AI_CHAT_RUN_FAILED` instead of
+failing inside the stream.
+
 ## Names that stay
 
 Some names looked like candidates and keep their meaning:
