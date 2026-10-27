@@ -118,7 +118,17 @@ returns `{ processed, failed }`. Delivery status callbacks from WhatsApp,
 Messenger, Instagram and Twilio update the matching delivery instead of
 reaching Chat SDK; pass `parsers` to add more. `mirror` finds or opens the
 conversation for the thread, upserts the contact from the message's author
-and skips bot messages and the echoes of replies `deliver` posted.
+and skips the bot's own messages (`author.isMe`) and the echoes of replies
+`deliver` posted. Other bots' messages, such as a CI integration posting in
+the channel, are recorded.
+
+A replay runs the adapter's own request check again, so an adapter that
+rejects old signatures (Slack's five-minute window, or a Vercel Connect
+`webhookVerifier`) fails events older than that window. Drain within it, or
+let `webhook` verify the request and give the adapter a check that accepts
+the replay. By default a handler that throws is logged by Chat SDK and the
+event counts as processed; pass `propagateHandlerErrors: true` to fail the
+event so `drain` replays it.
 
 Each file on a channel message becomes a pending attachment on the
 message. Platform file URLs usually need the bot's token, so pass
@@ -157,7 +167,11 @@ only a `path`, such as the files the upgrade moved from `inbox-files`.
 
 A staff reply on a channel inbox queues an `inbox_outbound` job.
 `deliver()` posts it with the conversation's adapter, records the delivery
-with the platform's message id and throws on failure, so the job retries:
+with the platform's message id and throws on failure, so the job retries.
+When the platform rate-limits the post (a Chat SDK `RateLimitError` or an
+adapter's `AdapterRateLimitError`), `deliver` waits the `retryAfter` it
+asks for and tries again, up to `rateLimitRetries` times (2) and for waits
+of at most `maxRetryWaitMs` (10 seconds):
 
 ```ts title="app/api/jobs/drain/route.ts"
 import { deliver, whatsappWindowOpen } from "better-supabase/chat-sdk";
