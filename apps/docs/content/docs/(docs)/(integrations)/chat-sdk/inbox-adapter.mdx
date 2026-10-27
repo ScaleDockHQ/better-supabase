@@ -26,6 +26,7 @@ export const inboxBot = inboxAdapter({ inbox, userName: "Acme bot", streams });
 | `streams`          | none     | A [stream store](/docs/blocks/streams) for streamed replies a reader can resume                    |
 | `identities`       | none     | `principalByIdentity` (or `server`) and `ticketFor`: tickets for linked contacts                   |
 | `concurrencyScope` | none     | What `getConcurrencyScope()` returns, such as the tenant id when one `Chat` serves several tenants |
+| `dmInbox`          | none     | The inbox `openDM(contactId)` opens a bot conversation in                                          |
 
 ## Running the bot
 
@@ -129,8 +130,26 @@ posts one message with the full text. With `streams`, the chunks also go
 to the stream store as they arrive, and the message's `metadata.stream_id`
 names the stream, so a client can replay the reply chunk by chunk.
 
+## DMs, replies and listing threads
+
+With `dmInbox`, `openDM(contactId)` opens a conversation with the contact
+in that inbox with `botMode` set to `bot` and returns its thread id, so
+`chat.openDM()` works and `thread.postEphemeral(..., { fallbackToDM: true })`
+falls back to it. Without `dmInbox` the adapter has no `openDM`.
+
+`reply(threadId, messageId, message)` posts with `replyTo` set to the
+message. `fetchChannelInfo("inbox:<inboxId>")` names the inbox, and
+`listThreads(channelId, { limit, cursor })` pages through the inbox's
+conversations, newest activity first, each with its first message as
+`rootMessage`. The cursor is opaque; pass `nextCursor` back as it is.
+
+A card (`thread.post(<Card>...)` or `{ card }`) is posted as its markdown
+fallback, and the card itself lands in the message's `metadata.card`, so a
+client can render its buttons.
+
 ## Limits
 
-Cards and modals render as their fallback text, and `scheduleMessage`,
-`openModal` and `postEphemeral` aren't implemented: the in-app widget has
-no surface for them.
+`scheduleMessage` comes from a [scheduler](/docs/chat-sdk/scheduling):
+`scheduledAdapter(inboxBot, scheduler)`. `openModal` and a native
+`postEphemeral` aren't implemented, since the in-app widget has no surface
+for them, and button presses on a card don't reach the bot yet.

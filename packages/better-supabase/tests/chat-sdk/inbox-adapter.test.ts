@@ -1,4 +1,4 @@
-import type { ChatInstance, Message } from "chat";
+import type { CardElement, ChatInstance, Message } from "chat";
 
 import {
   createMockChatInstance,
@@ -547,5 +547,112 @@ describe("inboxAdapter identities", () => {
     expect(seen).toEqual(["ticket:u1"]);
     const [message] = messages;
     expect(message && adapter.ticketOf(message)).toBeUndefined();
+  });
+});
+
+describe("inboxAdapter optional methods", () => {
+  const second = { ...conversationRow, id: "c2", last_message_at: null };
+
+  const extras = (dmInbox?: string) => {
+    const { transport, call } = fakeTransport({
+      ...answers,
+      start_conversation: { ...conversationRow, id: "c9", inbox_id: "dm" },
+      list_inbox_conversations: (args: Record<string, unknown>) =>
+        args["filter"] !== null &&
+        typeof args["filter"] === "object" &&
+        "before" in args["filter"]
+          ? [second]
+          : [conversationRow, second],
+      list_inbox_messages: (args: Record<string, unknown>) =>
+        args["conversation"] === "c2" ? [] : [messageRow],
+    });
+
+    const adapter = inboxAdapter({
+      inbox: createInbox({ transport }),
+      ...(dmInbox === undefined ? {} : { dmInbox }),
+    });
+
+    return { adapter, call };
+  };
+
+  it("opens a bot conversation as a DM only with dmInbox", async () => {
+    expect("openDM" in extras().adapter).toBe(false);
+    const { adapter, call } = extras("dm");
+    expect(await adapter.openDM?.("ct1")).toBe("inbox:dm:c9");
+    expect(call).toHaveBeenCalledWith(
+      expect.anything(),
+      "start_conversation",
+      expect.objectContaining({
+        inbox: "dm",
+        input: expect.objectContaining({ bot_mode: "bot" }),
+      }),
+    );
+  });
+
+  it("replies to a message and keeps cards in metadata", async () => {
+    const { adapter, call } = extras();
+    const card: CardElement = { type: "card", title: "Order", children: [] };
+    await adapter.reply?.("inbox:i1:c1", "m1", "thanks");
+    await adapter.postMessage("inbox:i1:c1", card);
+    await adapter.postMessage("inbox:i1:c1", { card, fallbackText: "Order" });
+
+    const sends = call.mock.calls
+      .filter(([, fn]) => fn === "send_inbox_message")
+      .map(([, , args]) => args["input"]);
+
+    expect(sends[0]).toMatchObject({ body: "thanks", reply_to: "m1" });
+    expect(sends[1]["metadata"]).toMatchObject({ card });
+    expect(sends[2]["metadata"]).toMatchObject({ card });
+  });
+
+  it("describes a channel and rejects other ids", async () => {
+    const { adapter } = extras();
+    expect(await adapter.fetchChannelInfo?.("inbox:i1")).toEqual({
+      id: "inbox:i1",
+      isDM: true,
+      metadata: { inboxId: "i1" },
+    });
+    await expect(adapter.fetchChannelInfo?.("slack:C1")).rejects.toThrow(
+      "not an inbox channel id",
+    );
+    await expect(adapter.fetchChannelInfo?.("inbox:i1:c1")).rejects.toThrow(
+      "not an inbox channel id",
+    );
+  });
+
+  it("lists threads with their first message and pages on", async () => {
+    const { adapter, call } = extras();
+    const first = await adapter.listThreads?.("inbox:i1", { limit: 2 });
+
+    expect(first?.threads).toHaveLength(1);
+    expect(first?.threads[0]).toMatchObject({
+      id: "inbox:i1:c1",
+      rootMessage: { id: "m1", threadId: "inbox:i1:c1" },
+    });
+    expect(first?.threads[0]?.lastReplyAt).toBeInstanceOf(Date);
+    expect(JSON.parse(first?.nextCursor ?? "")).toEqual({
+      id: "c2",
+      lastMessageAt: null,
+    });
+
+    const next = await adapter.listThreads?.("inbox:i1", {
+      cursor: JSON.stringify({ id: "c1", lastMessageAt: AT }),
+    });
+
+    expect(next?.threads).toEqual([]);
+    expect(next?.nextCursor).toBeUndefined();
+    expect(call).toHaveBeenCalledWith(
+      expect.anything(),
+      "list_inbox_conversations",
+      expect.objectContaining({
+        filter: expect.objectContaining({ inbox_id: "i1", status: "all" }),
+      }),
+    );
+    await expect(
+      adapter.listThreads?.("inbox:i1", { cursor: "nope" }),
+    ).rejects.toThrow("invalid listThreads cursor");
+    await expect(
+      adapter.listThreads?.("inbox:i1", { cursor: "{}" }),
+    ).rejects.toThrow("invalid listThreads cursor");
   });
 });

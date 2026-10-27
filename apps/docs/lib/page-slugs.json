@@ -178,6 +178,7 @@
   "chat-sdk/channels",
   "chat-sdk/identities",
   "chat-sdk/inbox-adapter",
+  "chat-sdk/scheduling",
   "chat-sdk/state",
   "cli",
   "cli/agent-mode",

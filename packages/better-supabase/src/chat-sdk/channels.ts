@@ -24,6 +24,7 @@ import type {
   CredentialToken,
 } from "../credentials/provider.ts";
 import type { DeliveryParser, ParsedDeliveries } from "./delivery.ts";
+import type { ChatScheduler } from "./scheduler.ts";
 
 import { errorText } from "../core/block-helpers.ts";
 import { nowInstant } from "../core/temporal.ts";
@@ -708,6 +709,11 @@ export interface MaintainOptions {
   };
   /** How long processed webhook events stay. Defaults to 7 days. */
   readonly keepEvents?: number | string;
+  /** Posts the bot's scheduled messages that are due (`stateScheduler`). */
+  readonly scheduled?: {
+    readonly chat: Pick<ChatLike, "getAdapter">;
+    readonly scheduler: ChatScheduler;
+  };
 }
 
 export interface MaintainResult {
@@ -717,12 +723,14 @@ export interface MaintainResult {
   readonly purgedEvents: number;
   readonly replayed: DrainResult;
   readonly purgedState: number;
+  /** The bot's scheduled messages sent. */
+  readonly posted: number;
 }
 
 /**
  * The inbox's periodic work: wake snoozed conversations, send the scheduled
- * replies whose time came, replay and purge webhook events, sweep state. Run it
- * from a cron job.
+ * replies whose time came, replay and purge webhook events, sweep state and
+ * post the bot's due scheduled messages. Run it from a cron job.
  */
 export async function maintain(
   options: MaintainOptions,
@@ -740,5 +748,10 @@ export async function maintain(
 
   const purgedState = options.state ? await options.state.purge() : 0;
 
-  return { woken, published, purgedEvents, replayed, purgedState };
+  const posted = options.scheduled
+    ? (await options.scheduled.scheduler.publishDue(options.scheduled.chat))
+        .published
+    : 0;
+
+  return { woken, published, purgedEvents, replayed, purgedState, posted };
 }

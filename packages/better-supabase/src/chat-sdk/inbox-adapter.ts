@@ -6,10 +6,13 @@ import type {
   EmojiValue,
   FetchOptions,
   FetchResult,
+  ListThreadsOptions,
+  ListThreadsResult,
   RawMessage,
   Root,
   StreamChunk,
   ThreadInfo,
+  ThreadSummary,
   WebhookOptions,
 } from "chat";
 
@@ -25,7 +28,7 @@ import {
 } from "chat";
 
 import type { Inbox } from "../blocks/inbox/inbox.ts";
-import type { InboxMessage } from "../blocks/inbox/types.ts";
+import type { Conversation, InboxMessage } from "../blocks/inbox/types.ts";
 import type { MessageFile } from "../blocks/messaging/messaging.ts";
 import type { IdentityRef } from "../core/contracts/authorization-hooks.ts";
 import type { DbError, DbErrorKind } from "../core/errors.ts";
@@ -103,6 +106,12 @@ export interface InboxAdapterOptions {
    * id when one `Chat` instance serves several tenants' inboxes.
    */
   readonly concurrencyScope?: string;
+  /**
+   * The inbox `openDM(contactId)` opens a bot conversation in. Without it the
+   * adapter has no `openDM`, so `chat.openDM()` and the DM fallback of
+   * `postEphemeral` are not available.
+   */
+  readonly dmInbox?: string;
 }
 
 /** The parts of an inbox thread id, `inbox:<inbox id>:<conversation id>`. */
@@ -227,6 +236,19 @@ async function must<T>(result: AsyncResult<T>): Promise<T> {
   return settled.data;
 }
 
+/** The card in a message, kept in `metadata.card` for a client to render. */
+function cardOf(message: AdapterPostableMessage): unknown {
+  if (typeof message !== "object") {
+    return undefined;
+  }
+
+  if ("card" in message) {
+    return message.card;
+  }
+
+  return "type" in message ? message : undefined;
+}
+
 function bodyOf(message: AdapterPostableMessage): {
   readonly body: string;
   readonly format: "text" | "markdown";
@@ -244,6 +266,57 @@ function bodyOf(message: AdapterPostableMessage): {
   }
 
   return { body: converter.renderPostable(message), format: "markdown" };
+}
+
+function inboxIdOfChannel(channelId: string): string {
+  const inboxId = channelId.startsWith(PREFIX)
+    ? channelId.slice(PREFIX.length)
+    : "";
+
+  if (inboxId.length === 0 || inboxId.includes(":")) {
+    throw new ChatError(
+      `"${channelId}" is not an inbox channel id`,
+      "INVALID_CHANNEL_ID",
+    );
+  }
+
+  return inboxId;
+}
+
+type ConversationCursor = Pick<Conversation, "id" | "lastMessageAt">;
+
+function encodeCursor(conversation: ConversationCursor): string {
+  return JSON.stringify({
+    id: conversation.id,
+    lastMessageAt: conversation.lastMessageAt?.toString() ?? null,
+  });
+}
+
+function decodeCursor(cursor: string): ConversationCursor {
+  let value: unknown;
+
+  try {
+    value = JSON.parse(cursor);
+  } catch {
+    value = undefined;
+  }
+
+  if (
+    !isRecord(value) ||
+    typeof value["id"] !== "string" ||
+    (value["lastMessageAt"] !== null &&
+      typeof value["lastMessageAt"] !== "string")
+  ) {
+    throw new ChatError("invalid listThreads cursor", "VALIDATION_ERROR");
+  }
+
+  return {
+    id: value["id"],
+    lastMessageAt:
+      value["lastMessageAt"] === null
+        ? null
+        : toInstant(value["lastMessageAt"]),
+  };
 }
 
 const emojiOf = (value: EmojiValue | string): string =>
@@ -298,7 +371,7 @@ async function* textOnly(
  * queue; pass them to `dispatch`.
  */
 export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
-  const { inbox } = options;
+  const { inbox, dmInbox } = options;
   const userName = options.userName ?? "bot";
   let chat: ChatInstance | undefined;
   const tickets = new Map<string, string>();
@@ -400,6 +473,7 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     body: string,
     format: "text" | "markdown",
     metadata?: Readonly<Record<string, unknown>>,
+    replyTo?: string,
   ): Promise<RawMessage<InboxMessage>> =>
     rawOf(
       await must(
@@ -408,10 +482,59 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
           format,
           authorType: "bot",
           metadata: { author_name: userName, ...metadata },
+          ...(replyTo === undefined ? {} : { replyTo }),
         }),
       ),
       threadId,
     );
+
+  const postMessage = (
+    threadId: string,
+    message: AdapterPostableMessage,
+    replyTo?: string,
+  ): Promise<RawMessage<InboxMessage>> => {
+    const { body, format } = bodyOf(message);
+    const card = cardOf(message);
+
+    return post(
+      threadId,
+      body,
+      format,
+      card === undefined ? undefined : { card },
+      replyTo,
+    );
+  };
+
+  const summaryOf = async (
+    conversation: Conversation,
+  ): Promise<ThreadSummary<InboxMessage>[]> => {
+    const threadId = inboxThreadId({
+      inboxId: conversation.inboxId,
+      conversationId: conversation.id,
+    });
+
+    const [first] = await must(
+      inbox.messages.list(conversation.id, { limit: 1, direction: "forward" }),
+    );
+
+    if (first === undefined) {
+      return [];
+    }
+
+    return [
+      {
+        id: threadId,
+        rootMessage: parse(first, threadId),
+        ...(conversation.lastMessageAt === null
+          ? {}
+          : {
+              lastReplyAt: new Date(
+                conversation.lastMessageAt.epochMilliseconds,
+              ),
+            }),
+      },
+    ];
+  };
 
   const run = async (
     instance: ChatInstance,
@@ -512,6 +635,23 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     ...(options.concurrencyScope === undefined
       ? {}
       : { getConcurrencyScope: () => options.concurrencyScope }),
+    ...(dmInbox === undefined
+      ? {}
+      : {
+          openDM: async (contactId: string): Promise<string> => {
+            const conversation = await must(
+              inbox.conversations.open(dmInbox, {
+                contact: contactId,
+                botMode: "bot",
+              }),
+            );
+
+            return inboxThreadId({
+              inboxId: conversation.inboxId,
+              conversationId: conversation.id,
+            });
+          },
+        }),
     encodeThreadId: inboxThreadId,
     decodeThreadId: decodeInboxThreadId,
     channelIdFromThreadId: (threadId) =>
@@ -557,11 +697,9 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
 
       return new Response("ok", { status: 200 });
     },
-    postMessage: (threadId, message) => {
-      const { body, format } = bodyOf(message);
-
-      return post(threadId, body, format);
-    },
+    postMessage: (threadId, message) => postMessage(threadId, message),
+    reply: (threadId, messageId, message) =>
+      postMessage(threadId, message, messageId),
     editMessage: async (threadId, messageId, message) =>
       rawOf(
         await must(inbox.messages.edit(messageId, bodyOf(message).body)),
@@ -637,6 +775,42 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
         messages: visible.map((message) => parse(message, threadId)),
         ...(edge !== undefined && page.length >= limit
           ? { nextCursor: (edge.sentAt ?? edge.createdAt).toString() }
+          : {}),
+      };
+    },
+    fetchChannelInfo: (channelId) =>
+      new Promise((resolve) => {
+        resolve({
+          id: channelId,
+          isDM: true,
+          metadata: { inboxId: inboxIdOfChannel(channelId) },
+        });
+      }),
+    listThreads: async (
+      channelId,
+      listOptions: ListThreadsOptions = {},
+    ): Promise<ListThreadsResult<InboxMessage>> => {
+      const inboxId = inboxIdOfChannel(channelId);
+      const limit = listOptions.limit ?? 50;
+
+      const page = await must(
+        inbox.conversations.list(null, {
+          inboxId,
+          status: "all",
+          limit,
+          ...(listOptions.cursor === undefined
+            ? {}
+            : { cursor: decodeCursor(listOptions.cursor) }),
+        }),
+      );
+
+      const threads = await Promise.all(page.map(summaryOf));
+      const last = page.at(-1);
+
+      return {
+        threads: threads.flat(),
+        ...(last !== undefined && page.length >= limit
+          ? { nextCursor: encodeCursor(last) }
           : {}),
       };
     },

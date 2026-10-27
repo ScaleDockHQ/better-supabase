@@ -226,6 +226,10 @@ export { testChatState } from "./chat-state.ts";
 
 export type { TestChatStateOptions } from "./chat-state.ts";
 
+export { testChatAdapter } from "./chat-adapter.ts";
+
+export type { TestChatAdapterOptions } from "./chat-adapter.ts";
+
 export { testStreamStore } from "./streams.ts";
 
 export type { TestStreamStoreOptions } from "./streams.ts";

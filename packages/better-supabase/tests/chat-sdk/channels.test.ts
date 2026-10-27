@@ -861,21 +861,40 @@ describe("maintain", () => {
     };
 
     const state = { purge: vi.fn(async () => 7) };
+
+    const scheduler = {
+      schedule: vi.fn(),
+      pending: vi.fn(),
+      cancel: vi.fn(),
+      publishDue: vi.fn(async () => ({ published: 4, failed: 0, dropped: 0 })),
+    };
+
+    const chat = { getAdapter: vi.fn() };
+
     expect(
-      await maintain({ inbox, handler, state, keepEvents: "1 day" }),
+      await maintain({
+        inbox,
+        handler,
+        state,
+        keepEvents: "1 day",
+        scheduled: { chat, scheduler },
+      }),
     ).toEqual({
       woken: 2,
       published: 3,
       purgedEvents: 5,
       replayed: { processed: 1, failed: 0 },
       purgedState: 7,
+      posted: 4,
     });
+    expect(scheduler.publishDue).toHaveBeenCalledWith(chat);
     expect(
       call.mock.calls.find(([, fn]) => fn === "purge_inbound_events")?.[2],
     ).toMatchObject({ older_than: "1 day" });
     expect(await maintain({ inbox })).toMatchObject({
       replayed: { processed: 0, failed: 0 },
       purgedState: 0,
+      posted: 0,
     });
   });
 });
