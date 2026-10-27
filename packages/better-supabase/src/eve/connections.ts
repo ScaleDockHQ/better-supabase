@@ -4,8 +4,9 @@ import type {
   CredentialRef,
   CredentialSubject,
 } from "../credentials/provider.ts";
+import type { EveSessionContext } from "./types.ts";
 
-import { DbException } from "../core/errors.ts";
+import { DbException, dbError } from "../core/errors.ts";
 
 /** Eve's `ConnectionAuthorizationRequiredError`, matched by name. */
 export class ConnectionAuthorizationRequiredError extends Error {
@@ -273,6 +274,41 @@ export function credentialAuth(
       }
 
       return getToken(request);
+    },
+  };
+}
+
+/**
+ * The `auth` for eve's `defineOpenAPIConnection`: `credentialAuth` for an
+ * OpenAPI service, whose token eve sends as `Authorization: Bearer <token>`.
+ */
+export function openApiAuth(
+  options: CredentialAuthOptions,
+): EveConnectionAuthorization {
+  return credentialAuth(options);
+}
+
+/**
+ * A `toolCall.providedArguments` entry that fills `name` with the session's
+ * organization (`attributes.tenantId`), so the model can neither see nor set
+ * it. A session without one fails the call.
+ */
+export function tenantArgument(
+  name: string,
+): Readonly<Record<string, (ctx: EveSessionContext) => string>> {
+  return {
+    [name]: (ctx) => {
+      const tenant = ctx.session.auth.current?.attributes["tenantId"];
+
+      if (typeof tenant !== "string" || tenant === "") {
+        throw new DbException(
+          dbError("forbidden", `The call needs an organization for "${name}"`, {
+            hint: "TENANT_REQUIRED",
+          }),
+        );
+      }
+
+      return tenant;
     },
   };
 }

@@ -1,6 +1,6 @@
 ---
 title: eve on Supabase
-description: Run eve agents on Supabase with the Workflow World on Postgres, Supabase sign-in on eve routes, connections over credential providers, memory, sessions in the chat tables and the inbox as a channel.
+description: Run eve agents on Supabase with the Workflow World on Postgres, Supabase sign-in on eve routes, tools that run as the user, approvals, queue schedules, MCP and OpenAPI connections over credential providers, memory, sessions in the chat tables and the inbox as a channel.
 ---
 
 `better-supabase/eve` connects [eve](https://eve.dev/docs) agents to the
@@ -13,6 +13,8 @@ durable runs in the [Supabase World](/docs/blocks/workflow-sdk).
 ```bash
 pnpm add eve @workflow/world @workflow/world-postgres pg
 pnpm better-supabase add workflow-sdk ai-chat memory knowledge credentials inbox
+# for tools behind approvals and for schedules
+pnpm better-supabase add approvals queue
 ```
 
 `eve` is an optional peer (`>=0.71 <1`). The entry types eve structurally
@@ -21,14 +23,25 @@ and imports nothing from it at load time; the memory provider loads
 entry is Node-only, like the World. The inbox channel also needs `chat`
 (see [Chat SDK](/docs/chat-sdk)).
 
-| Export                    | Plugs into                                      | Does                                                                        |
-| ------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------- |
-| `supabaseAuth`            | `eveChannel({ auth })` and other channel `auth` | verifies the Supabase session locally and maps the user to an eve principal |
-| `credentialAuth`          | `defineMcpClientConnection({ auth })`           | reads connection tokens from Vault, Vercel Connect or your provider         |
-| `supabaseMemory`          | `defineMemory({ provider })`                    | recalls core and archival memory and tenant documents per turn              |
-| `supabaseDocumentBackend` | `fileMemory({ backend })`                       | stores eve's file memory in the memory module's `memory_documents` table    |
-| `persistSessions`         | `defineHook({ events })`                        | copies each session into `ai_chats`, `ai_messages` and `ai_runs`            |
-| `routeInbox`              | `chatSdkChannel()` over `inboxAdapter`          | hands inbox conversations in bot mode to eve, with the contact as principal |
+| Export                    | Plugs into                                      | Does                                                                         |
+| ------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------- |
+| `supabaseAuth`            | `eveChannel({ auth })` and other channel `auth` | verifies the Supabase session locally and maps the user to an eve principal  |
+| `supabaseTool`            | `defineTool()`                                  | runs the tool's `execute` as the session's user, under row-level security    |
+| `eveContext`              | `server.forContext()`                           | builds the user's request context with the agent's `act` claim               |
+| `approvalPolicy`          | a tool's `approval`                             | files each call as an approvals block request and settles it per decision    |
+| `tenantToolApproval`      | a tool's `approval`                             | applies the tenants' `auto`, `ask` and `deny` tool policies                  |
+| `queueSchedules`          | `defineSchedule({ run })`                       | enqueues the queue block's due schedules and starts a session for each job   |
+| `scheduleAgent`           | the queue block                                 | writes a schedule that sends a prompt to a channel target, per tenant        |
+| `agentJobHandler`         | `drain()` or a queue route                      | starts a session for one `eve` queue job, as the job's user                  |
+| `jobAuth`                 | `to(...).send(..., { auth })`                   | the session auth for a job: its user as a Supabase principal, else the app's |
+| `eveAgentJob`             | `createQueue({ queues })`                       | the Standard Schema of an `eve` queue job                                    |
+| `credentialAuth`          | `defineMcpClientConnection({ auth })`           | reads connection tokens from Vault, Vercel Connect or your provider          |
+| `openApiAuth`             | `defineOpenAPIConnection({ auth })`             | the same tokens for an OpenAPI service, sent as a bearer token               |
+| `tenantArgument`          | a connection's `toolCall.providedArguments`     | fills one argument with the session's organization, hidden from the model    |
+| `supabaseMemory`          | `defineMemory({ provider })`                    | recalls core and archival memory and tenant documents per turn               |
+| `supabaseDocumentBackend` | `fileMemory({ backend })`                       | stores eve's file memory in the memory module's `memory_documents` table     |
+| `persistSessions`         | `defineHook({ events })`                        | copies each session into `ai_chats`, `ai_messages` and `ai_runs`             |
+| `routeInbox`              | `chatSdkChannel()` over `inboxAdapter`          | hands inbox conversations in bot mode to eve, with the contact as principal  |
 
 The [eve example](/docs/examples) wires all of them into a Next.js app.
 
@@ -50,8 +63,9 @@ export default defineAgent({
 SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
 ```
 
-eve 0.71 runs Workflow spec version 8, the version the World speaks, and
-rejects a World with another one. The
+eve runs its sessions on the `workflow` package your app installs next to it.
+The World speaks the `@workflow/world` protocol in `WORKFLOW_WORLD_PROTOCOL`,
+so keep `workflow` on a release that speaks the same one. The
 [Workflow SDK page](/docs/blocks/workflow-sdk) lists the other variables.
 
 ## Sign-in on eve routes
@@ -79,6 +93,151 @@ roles come from the `memberships` claim, or the claim in `membershipsClaim`
 when your authorization hook writes memberships elsewhere.
 `attributes(claims)` adds your own. `principalOf(auth)` builds the same
 principal from an `AuthState` you already have.
+
+## Tools that run as the user
+
+`supabaseTool` builds the definition for eve's `defineTool`. Its `execute`
+gets `db` from `server.forContext()` for the session's user and tenant, so
+every query runs under row-level security. The token carries the agent's
+`act` claim (`auth.jwt() -> 'act'`), so your policies can tell the agent's
+calls from the user's own.
+
+```ts title="agent/tools/add_note.ts"
+import { supabaseTool } from "better-supabase/eve";
+import { defineTool } from "eve/tools";
+import * as v from "valibot";
+
+import { server } from "../lib/server";
+
+export default defineTool(
+  supabaseTool({
+    server,
+    agent: "assistant",
+    description: "Adds a note to one of the organization's customers",
+    inputSchema: v.object({ customerId: v.string(), body: v.string() }),
+    async execute({ customerId, body }, { db, context }) {
+      const note = await db.notes
+        .create({ customerId, body, organizationId: context.tenant ?? "" })
+        .orThrow();
+
+      return { id: note.id };
+    },
+  }),
+);
+```
+
+`server` is `createServer(betterSupabase, { postgres: createPostgres() })`;
+`forContext` needs the direct Postgres connection. A session without a
+signed-in user fails the call, unless `runAs` names the user an app-owned
+session (a schedule, a contact in the inbox) acts for.
+
+An agent claim is delegated: the token holds no permission keys unless
+`scopes` grants them. `scopes: ["tasks.*"]` lends the agent the user's
+`tasks.*` keys, and `["*"]` every key the user holds. `permissions` narrows
+the call further, the way `forContext({ permissions })` does. `readOnly: true`
+makes `actor_may_write()` refuse the block writes, and `tools` lists the
+tools the claim allows.
+
+Pass `policies` (such as `chats.approvals` from the AI chat block) to apply
+the tenants' tool settings: `deny` refuses the call, `ask` waits for a
+person, and `auto` leaves the decision to the tool's own `approval`. The
+stricter answer wins. `tenantToolApproval(source, inner)` does the same for
+a tool you define without `supabaseTool`.
+
+## Approvals
+
+`approvalPolicy` is a tool `approval` backed by the
+[approvals](/docs/blocks/approvals) block. Each call files one request as
+the session's user, with the subject `{ type: "eve_tool_call", id: callId }`
+and the tool name as the action, so a replayed call finds the request it
+filed. The agent gets the `approvals.read` and `approvals.request` scopes
+for this on its own.
+
+```ts title="agent/tools/add_note.ts"
+approval: approvalPolicy({ server, agent: "assistant" }),
+```
+
+Set who approves each tool in the block's policies, under the subject type
+`eve_tool_call`:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  approvals: {
+    options: {
+      policies: {
+        eve_tool_call: {
+          add_note: {
+            steps: [
+              { approvers: { role: "owner" }, required: 1 },
+              { approvers: { role: "admin" }, required: 1 },
+            ],
+          },
+        },
+      },
+    },
+  },
+},
+```
+
+When someone answers eve's prompt, `approvalPolicy` approves or rejects as
+that person through `forContext`, so the block decides whether they may.
+The requester can always withdraw the call. A multi-step policy keeps the
+prompt open until the last step, and a call whose request is already
+approved or rejected settles without asking. `action` and `subjectType`
+file requests under other names.
+
+## Schedules
+
+The [queue](/docs/blocks/queue) block keeps schedules per tenant, with a
+time zone and the user to run as. `queueSchedules` is the `run` of one
+eve schedule that fires every minute: it enqueues the due schedules, then
+drains the `eve` queue and sends each job's prompt to its channel target as
+the job's user.
+
+```ts title="agent/lib/server.ts"
+import { createQueue } from "better-supabase/blocks/queue";
+import { eveAgentJob } from "better-supabase/eve";
+
+export const agentJobs = createQueue({
+  sql: postgres.admin,
+  queues: { eve: eveAgentJob },
+});
+```
+
+```ts title="agent/schedules/dispatch.ts"
+import { queueSchedules } from "better-supabase/eve";
+import { defineSchedule } from "eve/schedules";
+
+import eve from "../channels/eve";
+import { agentJobs } from "../lib/server";
+
+export default defineSchedule({
+  cron: "* * * * *",
+  run: queueSchedules({ queue: agentJobs, channels: { eve } }),
+});
+```
+
+A member schedules their own run with `scheduleAgent`. `context` is the
+user the session runs as and `timeZone` the zone the cron is read in:
+
+```ts
+await scheduleAgent(
+  agentJobs,
+  `digest-${userId}`,
+  "0 9 * * 1-5",
+  { prompt: "Send my morning digest", channel: "eve", target: {} },
+  {
+    tenant,
+    timeZone: "Europe/Amsterdam",
+    context: { actor: { id: userId, kind: "user" }, tenant },
+  },
+).orThrow();
+```
+
+`channel` names a key of `channels`, and `target` is that channel's
+proactive target. A job without a user runs as eve's app principal. To
+drain the queue from your own route instead, pass
+`agentJobHandler({ channels }, args)` to `drain`.
 
 ## Connections
 
@@ -117,6 +276,32 @@ shows up in eve's challenge as "Enter the code ...". Pass
 errors map to eve's errors: a missing or unauthorized credential becomes
 `ConnectionAuthorizationRequiredError`, a forbidden or invalid one
 `ConnectionAuthorizationFailedError`, and anything else a `DbException`.
+
+`openApiAuth` takes the same options for eve's `defineOpenAPIConnection`,
+which turns each operation of an OpenAPI document into a tool and sends the
+token as `Authorization: Bearer <token>`. `tenantArgument(name)` fills one
+argument of every call with the session's organization; eve removes it from
+the schemas the model sees, and a session without an organization fails
+the call.
+
+```ts title="agent/connections/crm.ts"
+import { defineOpenAPIConnection } from "eve/connections";
+import { openApiAuth, tenantArgument } from "better-supabase/eve";
+
+import { credentials } from "../lib/blocks";
+
+export default defineOpenAPIConnection({
+  spec: "https://crm.example.com/openapi.json",
+  description: "The organization's CRM: accounts, contacts and open deals",
+  auth: openApiAuth({
+    provider: credentials,
+    ref: { provider: "vault", secret: "crm", scope: "app" },
+    owner: "app",
+    connection: "CRM",
+  }),
+  toolCall: { providedArguments: tenantArgument("organization_id") },
+});
+```
 
 ## Memory
 
@@ -278,3 +463,9 @@ contacts.
 - Recall and capture records sit in `memory_documents` under the scope
   `eve-ops` and expire after 7 days; `memory.documents.purge()` deletes
   them.
+- A decision made in the approvals block's own UI doesn't reach eve's open
+  prompt. The prompt settles when someone answers it in eve, and a replayed
+  call reads the request's final status.
+- `queueSchedules` starts the sessions from the eve schedule's own task, so
+  a drain is bounded by `budgetMs` (50 seconds by default). Jobs left over
+  wait for the next minute.

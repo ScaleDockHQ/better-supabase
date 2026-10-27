@@ -19,5 +19,10 @@ export default defineConfig({
       files: ["**/*.{ts,tsx}"],
       rules: { "node/no-process-env": "off" },
     },
+    {
+      // eve names a tool after its file, and tool names are snake_case (1 file).
+      files: ["agent/tools/*.ts"],
+      rules: { "unicorn/filename-case": "off" },
+    },
   ],
 });

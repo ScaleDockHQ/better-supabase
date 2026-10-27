@@ -11,6 +11,10 @@ import { DbException } from "../core/errors.ts";
 import { importOptionalPeer } from "../core/optional-peer.ts";
 import { stableUuid } from "./ids.ts";
 
+export { approvalPolicy } from "./approvals.ts";
+
+export type { ApprovalPolicyOptions, EveApprovalsClient } from "./approvals.ts";
+
 export { EveAuthRejection, principalOf, supabaseAuth } from "./auth.ts";
 
 export type { SupabaseAuthOptions } from "./auth.ts";
@@ -19,6 +23,8 @@ export {
   ConnectionAuthorizationFailedError,
   ConnectionAuthorizationRequiredError,
   credentialAuth,
+  openApiAuth,
+  tenantArgument,
 } from "./connections.ts";
 
 export type {
@@ -43,11 +49,55 @@ export type {
   RouteInboxOptions,
 } from "./inbox.ts";
 
+export {
+  agentJobHandler,
+  eveAgentJob,
+  jobAuth,
+  queueSchedules,
+  scheduleAgent,
+} from "./schedules.ts";
+
+export type {
+  AgentJobOptions,
+  EveAgentJob,
+  EveDispatchArgs,
+  EveQueueDrainer,
+  EveQueueJob,
+  EveQueueScheduler,
+  EveScheduleArgs,
+  EveTargetHandle,
+  QueueSchedulesOptions,
+  ScheduleAgentOptions,
+} from "./schedules.ts";
+
 export { chatIdOf, persistSessions } from "./sessions.ts";
 
 export type { EveSessionHooks, PersistSessionsOptions } from "./sessions.ts";
 
-export type { EveSessionAuth, EveSessionContext } from "./types.ts";
+export { eveContext, supabaseTool, tenantToolApproval } from "./tools.ts";
+
+export type {
+  EveContextOptions,
+  EveContextRunner,
+  EveRunAs,
+  EveToolPolicySource,
+  SupabaseToolCall,
+  SupabaseToolDefinition,
+  SupabaseToolOptions,
+} from "./tools.ts";
+
+export type {
+  EveApprovalConfiguration,
+  EveApprovalContext,
+  EveApprovalPolicy,
+  EveApprovalResponseContext,
+  EveApprovalResponseDecision,
+  EveApprovalStatus,
+  EveSessionAuth,
+  EveSessionContext,
+  EveToolApproval,
+  EveToolContext,
+} from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // File memory backend

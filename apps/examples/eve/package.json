@@ -2,11 +2,13 @@
   "name": "@better-supabase/example-eve",
   "version": "0.0.0",
   "private": true,
-  "description": "An eve agent in a Next.js app on Supabase: the Supabase World, Supabase sign-in on eve routes, a Vault-backed connection, memory, sessions in the chat tables and the inbox as a channel.",
+  "description": "An eve agent in a Next.js app on Supabase: the Supabase World, Supabase sign-in on eve routes, Vault-backed MCP and OpenAPI connections, a tool that runs as the member under row-level security behind an approval, queue schedules, memory, sessions in the chat tables and the inbox as a channel.",
   "type": "module",
   "scripts": {
     "dev": "next dev -p 3110",
     "dev:portless": "portless run --name eve next dev",
+    "gen": "better-supabase gen",
+    "gen:check": "better-supabase gen --check",
     "lint": "next typegen && oxlint",
     "typecheck": "next typegen && tsc --noEmit"
   },

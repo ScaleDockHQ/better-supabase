@@ -27,6 +27,7 @@ import {
   credentialAuth,
   EveAuthRejection,
   MemoryDocumentConflictError,
+  openApiAuth,
   persistSessions,
   principalOf,
   routeInbox,
@@ -225,6 +226,16 @@ describe("credentialAuth", () => {
     expect(p.getToken).toHaveBeenCalledWith(ref, {
       subject: { type: "app" },
       scopes: ["read"],
+    });
+  });
+
+  it("serves OpenAPI connections through openApiAuth", async () => {
+    const p = provider({ getToken: vi.fn(() => token("crm")) });
+    const auth = openApiAuth({ provider: p, ref, owner: "app" });
+
+    expect("startAuthorization" in auth).toBe(false);
+    await expect(auth.getToken(request())).resolves.toMatchObject({
+      token: "crm",
     });
   });
 

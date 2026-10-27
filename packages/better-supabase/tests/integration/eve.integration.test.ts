@@ -1,19 +1,36 @@
 import { Pool } from "pg";
+import * as v from "valibot";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { BlockTransport } from "../../src/blocks/ai-chat/index.ts";
-import type { EveSessionAuth } from "../../src/eve/index.ts";
+import type { DbTransportSource } from "../../src/core/block-transport.ts";
+import type { RequestContext } from "../../src/core/plugin.ts";
+import type {
+  EveApprovalResponseContext,
+  EveSessionAuth,
+  EveTargetHandle,
+} from "../../src/eve/index.ts";
 
+import { contextClaims } from "../../src/auth/delegation.ts";
 import { createAiChat } from "../../src/blocks/ai-chat/index.ts";
+import { createApprovals } from "../../src/blocks/approvals/index.ts";
 import { createMemory, sqlTransport } from "../../src/blocks/memory/index.ts";
+import { createQueue } from "../../src/blocks/queue/index.ts";
+import { dbError } from "../../src/core/errors.ts";
+import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import { vaultCredentials } from "../../src/credentials/index.ts";
 import {
+  approvalPolicy,
   chatIdOf,
   ConnectionAuthorizationRequiredError,
   credentialAuth,
+  eveAgentJob,
   persistSessions,
+  queueSchedules,
+  scheduleAgent,
   supabaseDocumentBackend,
   supabaseMemory,
+  supabaseTool,
 } from "../../src/eve/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 import { wordEmbedder } from "./word-embedder.ts";
@@ -32,6 +49,46 @@ function serviceTransport(s: BlockSession): BlockTransport {
     },
   };
 }
+
+/**
+ * `server.forContext` over the session: the context's claims, as `forContext`
+ * builds them, applied to the `authenticated` role so RLS decides.
+ */
+function contextServer(s: BlockSession) {
+  // SAFETY: the tests pass their own block clients, so nothing reads the executor.
+  const db = { $executor: { name: "block-session" } } as DbTransportSource;
+
+  return {
+    forContext: (
+      context: RequestContext,
+      options: { readonly permissions?: readonly string[] } = {},
+    ) =>
+      AsyncResult.from(async () => {
+        const built = contextClaims(
+          context,
+          options.permissions === undefined
+            ? {}
+            : { permissions: options.permissions },
+        );
+
+        if (!built.ok) {
+          return err(dbError("forbidden", built.message));
+        }
+
+        const { sub, ...claims } = built.claims;
+        await s.asRole({ id: sub, email: "eve@example.test" }, claims);
+
+        return ok(db);
+      }),
+  };
+}
+
+const member = (id: string, tenant: string): EveSessionAuth => ({
+  authenticator: "supabase",
+  principalType: "user",
+  principalId: id,
+  attributes: { tenantId: tenant },
+});
 
 describe.skipIf(!live)("better-supabase/eve", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
@@ -228,6 +285,244 @@ describe.skipIf(!live)("better-supabase/eve", () => {
       expect(await perUser.getToken({ principal: user, connection })).toEqual({
         token: "lin_user",
       });
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("runs a tool as the user with the agent claim, under RLS", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(["organizations"]);
+      const owner = await s.user("owner");
+      const tenant = await s.organization(owner);
+      const outsider = await s.user("outsider");
+      const elsewhere = await s.organization(outsider);
+      await s.service();
+      await s.client.query(`
+        create schema eve_it;
+        create table eve_it.tasks (
+          id serial primary key,
+          organization_id uuid not null,
+          title text not null,
+          created_by uuid not null default auth.uid(),
+          agent text default (auth.jwt() -> 'act' ->> 'sub')
+        );
+        alter table eve_it.tasks enable row level security;
+        create policy tasks_insert on eve_it.tasks for insert to authenticated
+          with check (
+            organization_id in (select better_supabase.tenant_ids_with('members.read'))
+            and auth.jwt() -> 'act' ->> 'kind' = 'agent'
+          );
+        create policy tasks_read on eve_it.tasks for select to authenticated using (true);
+        grant usage on schema eve_it to authenticated;
+        grant select, insert on eve_it.tasks to authenticated;
+        grant usage on sequence eve_it.tasks_id_seq to authenticated;
+      `);
+
+      const tool = (scopes?: readonly string[]) =>
+        supabaseTool({
+          server: contextServer(s),
+          agent: "planner",
+          ...(scopes === undefined ? {} : { scopes }),
+          description: "Creates a task",
+          inputSchema: v.object({ title: v.string() }),
+          execute: async ({ title }, { context }) => {
+            await s.client.query("savepoint tool");
+
+            try {
+              const { rows } = await s.client.query<{ id: number }>(
+                "insert into eve_it.tasks (organization_id, title) values ($1, $2) returning id",
+                [context.tenant, title],
+              );
+
+              return rows[0]?.id;
+            } catch (error) {
+              await s.client.query("rollback to savepoint tool");
+              throw error;
+            }
+          },
+        });
+
+      const scoped = tool(["members.read"]);
+
+      const call = (auth: EveSessionAuth) => ({
+        session: { id: "sess_tool", auth: { current: auth, initiator: auth } },
+        callId: "call_tool",
+        toolName: "create_task",
+      });
+
+      await expect(
+        tool().execute({ title: "Unscoped" }, call(member(owner.id, tenant))),
+      ).rejects.toThrow(/row-level security/);
+      await expect(
+        scoped.execute({ title: "Ship it" }, call(member(owner.id, tenant))),
+      ).resolves.toEqual(expect.any(Number));
+      await s.service();
+      expect(
+        await s.rows("select title, created_by, agent from eve_it.tasks"),
+      ).toEqual([{ title: "Ship it", created_by: owner.id, agent: "planner" }]);
+
+      await expect(
+        scoped.execute(
+          { title: "Not yours" },
+          call(member(owner.id, elsewhere)),
+        ),
+      ).rejects.toThrow(/row-level security/);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("settles a two-step approval only after the second approver", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(
+        ["organizations", "outbox", "notifications", "approvals"],
+        {
+          modules: {
+            approvals: {
+              options: {
+                policies: {
+                  eve_tool_call: {
+                    create_task: {
+                      steps: [
+                        { approvers: { role: "owner" } },
+                        { approvers: { role: "admin" } },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      );
+      const owner = await s.user("owner");
+      const requester = await s.user("requester");
+      const admin = await s.user("admin");
+      const tenant = await s.organization(owner, { member: requester, admin });
+
+      const policy = approvalPolicy({
+        server: contextServer(s),
+        agent: "planner",
+        approvals: (_transport, org) =>
+          createApprovals({ transport: sqlTransport(s.sql), tenant: org }),
+      });
+
+      const auth = member(requester.id, tenant);
+
+      const request = () =>
+        policy.request({
+          session: {
+            id: "sess_appr",
+            auth: { current: auth, initiator: auth },
+          },
+          callId: "call_appr",
+          toolName: "create_task",
+          toolInput: { title: "Ship it" },
+        });
+
+      const respond = (responder: string): EveApprovalResponseContext => ({
+        request: {
+          callId: "call_appr",
+          requestId: "input_1",
+          principal: auth,
+          toolName: "create_task",
+        },
+        response: { decision: "approve", principal: member(responder, tenant) },
+        session: { id: "sess_appr" },
+      });
+
+      await expect(request()).resolves.toBe("user-approval");
+      await expect(request()).resolves.toBe("user-approval");
+      await expect(policy.response?.(respond(owner.id))).resolves.toMatchObject(
+        { status: "rejected" },
+      );
+      await expect(request()).resolves.toBe("user-approval");
+      await expect(policy.response?.(respond(admin.id))).resolves.toEqual({
+        status: "allowed",
+      });
+      await expect(request()).resolves.toMatchObject({ type: "approved" });
+
+      await s.service();
+      expect(
+        await s.rows(
+          "select status, requested_by from better_supabase.approval_requests where subject_id = 'call_appr'",
+        ),
+      ).toEqual([{ status: "approved", requested_by: requester.id }]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("dispatches a tenant schedule once, as the user who set it", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(["organizations", "queue"], {
+        modules: {
+          queue: { options: { backend: "table", scheduler: "drain" } },
+        },
+      });
+      const owner = await s.user("owner");
+      const tenant = await s.organization(owner);
+      await s.service();
+
+      const queue = createQueue({ sql: s.sql, queues: { eve: eveAgentJob } });
+      const name = `eve-digest-${crypto.randomUUID().slice(0, 8)}`;
+
+      await scheduleAgent(
+        queue,
+        name,
+        "0 9 * * *",
+        { prompt: "Send the digest", channel: "slack", target: { id: "C1" } },
+        {
+          tenant,
+          timeZone: "Europe/Amsterdam",
+          context: { actor: { id: owner.id, kind: "user" }, tenant },
+        },
+      ).orThrow();
+      await s.client.query(
+        `update better_supabase.job_schedules
+         set next_run = date_trunc('milliseconds', now()) - interval '1 minute'
+         where job_name = $1`,
+        [name],
+      );
+
+      const sent: { message: string; auth: EveSessionAuth | null }[] = [];
+
+      const run = async () => {
+        const tasks: Promise<unknown>[] = [];
+
+        queueSchedules({ queue, channels: { slack: { name: "slack" } } })({
+          to: (): EveTargetHandle => ({
+            send: (message, { auth }) => {
+              sent.push({ message, auth });
+
+              return Promise.resolve({});
+            },
+          }),
+          appAuth: member("app", tenant),
+          waitUntil: (task) => {
+            tasks.push(task);
+          },
+        });
+
+        await Promise.all(tasks);
+      };
+
+      await run();
+      await run();
+
+      expect(sent).toEqual([
+        {
+          message: "Send the digest",
+          auth: { ...member(owner.id, tenant), subject: owner.id },
+        },
+      ]);
     } finally {
       await s.close();
     }
