@@ -1,11 +1,14 @@
 // oxlint-disable-next-line eslint/no-restricted-imports -- anthropicMemory takes the provider's tools, so the test needs their real type.
 import type { anthropic } from "@ai-sdk/anthropic";
+// oxlint-disable-next-line eslint/no-restricted-imports -- vercelSandboxes types the session adapter structurally; the test checks it against the real one.
+import type * as SandboxSessions from "@ai-sdk/sandbox-vercel";
 import type {
   CommonPowerSyncDatabase,
   PowerSyncBackendConnector,
 } from "@powersync/common";
 import type * as Connect from "@vercel/connect";
 import type * as ConnectChat from "@vercel/connect/chat";
+import type * as VercelSandbox from "@vercel/sandbox";
 import type {
   Adapter,
   FlagDeclaration,
@@ -31,6 +34,10 @@ import type {
   VercelConnectChatModule,
   VercelConnectModule,
 } from "../src/vercel-connect/index.ts";
+import type {
+  VercelSandboxModule,
+  VercelSandboxSessionModule,
+} from "../src/vercel-sandbox/index.ts";
 
 /**
  * The structural types better-supabase declares instead of importing an
@@ -42,6 +49,13 @@ describe("structurally typed optional peers", () => {
     expectTypeOf<typeof Connect>().toExtend<VercelConnectModule>();
     expectTypeOf<typeof ConnectChat>().toExtend<VercelConnectChatModule>();
     expectTypeOf<CredentialSubject>().toExtend<Connect.ConnectTokenSubject>();
+  });
+
+  it("@vercel/sandbox and its AI SDK adapter have what vercelSandboxes calls", () => {
+    expectTypeOf<typeof VercelSandbox>().toExtend<VercelSandboxModule>();
+    expectTypeOf<
+      typeof SandboxSessions
+    >().toExtend<VercelSandboxSessionModule>();
   });
 
   it("@ai-sdk/anthropic has the pinned memory tool", () => {

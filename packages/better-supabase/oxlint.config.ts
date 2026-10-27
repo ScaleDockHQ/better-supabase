@@ -148,13 +148,18 @@ export default defineConfig({
           {
             paths: [
               ...restrictedImportPaths,
-              ...["ai", "workflow", "chat", "@vercel/connect", "eve"].map(
-                (name) => ({
-                  name,
-                  message:
-                    "Blocks stay SDK-neutral (ADR 0010); put SDK code in an adapter subpath.",
-                }),
-              ),
+              ...[
+                "ai",
+                "workflow",
+                "chat",
+                "@vercel/connect",
+                "@vercel/sandbox",
+                "eve",
+              ].map((name) => ({
+                name,
+                message:
+                  "Blocks stay SDK-neutral (ADR 0010); put SDK code in an adapter subpath.",
+              })),
             ],
             patterns: [
               ...restrictedImportPatterns,

@@ -7,11 +7,12 @@ packages:
   - tests/types/*
 
 catalog:
-  # The AI SDK set shares one @ai-sdk/provider-utils, so ai, mcp, react and
-  # workflow move together.
+  # The AI SDK set shares one @ai-sdk/provider-utils, so ai, mcp, react,
+  # sandbox-vercel and workflow move together.
   "@ai-sdk/anthropic": 4.0.88
   "@ai-sdk/mcp": 2.0.84
   "@ai-sdk/react": 4.0.157
+  "@ai-sdk/sandbox-vercel": 1.0.164
   "@ai-sdk/workflow": 2.0.85
   "@arethetypeswrong/cli": 0.18.5
   "@base-ui/react": 1.9.0
@@ -82,6 +83,8 @@ catalog:
   "@vercel/connect": 2.2.0
   "@vercel/detect-agent": 1.2.5
   "@vercel/queue": 0.8.0
+  # 3.7 and later pull @vercel/oidc 4, which trustPolicy rejects as a downgrade.
+  "@vercel/sandbox": 3.6.1
   "@vercel/speed-insights": 2.0.0
   "@vitejs/plugin-react": 6.1.2
   "@workflow/world": 5.0.5
@@ -336,6 +339,10 @@ catalogs:
     "@vercel/connect": ">=2 <3"
     # 0.8 has PollingQueueClient with send and receive; the 0.x line may still change.
     "@vercel/queue": ">=0.8 <0.9"
+    # 3.x has Sandbox.create and Sandbox.get by name, persistent sandboxes and network policy transforms.
+    "@vercel/sandbox": ">=3 <4"
+    # 1.0 turns a @vercel/sandbox instance into the sandbox session of ai 7.
+    "@ai-sdk/sandbox-vercel": ">=1 <2"
     # 4.1.0 added bulkDecide and adapterId; 4.2.0 resolves an adapter factory passed by reference.
     flags: ">=4.2 <5"
 

@@ -4225,6 +4225,31 @@
       "VercelConnectTokenResponse"
     ]
   },
+  "./vercel-sandbox": {
+    "values": [
+      "AI_GATEWAY_HOST",
+      "brokered",
+      "gatewayOnly",
+      "mergeSandboxOptions",
+      "sandboxErrorToDbError",
+      "untrusted",
+      "VERCEL_SANDBOX_PROVIDER",
+      "vercelSandboxes"
+    ],
+    "types": [
+      "BrokeredOptions",
+      "ForChatOptions",
+      "VercelChatSandbox",
+      "VercelNetworkPolicy",
+      "VercelNetworkRule",
+      "VercelSandboxCreateOptions",
+      "VercelSandboxes",
+      "VercelSandboxesOptions",
+      "VercelSandboxInstance",
+      "VercelSandboxModule",
+      "VercelSandboxSessionModule"
+    ]
+  },
   "./stripe": {
     "values": [
       "stripeFromKey"
@@ -5027,6 +5052,7 @@
       "aiErrorToDbError",
       "BYOK_FIELD",
       "byokOptions",
+      "codeTool",
       "costBackfill",
       "DENIED_TOOL_OUTPUT",
       "fromModelMessages",
@@ -5052,6 +5078,10 @@
     "types": [
       "AiUsage",
       "AiUsageMeters",
+      "CodeLanguage",
+      "CodeToolInput",
+      "CodeToolOptions",
+      "CodeToolOutput",
       "CostBackfillOptions",
       "CostBackfillPayload",
       "FromModelMessagesOptions",

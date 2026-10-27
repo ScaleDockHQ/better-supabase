@@ -143,6 +143,7 @@ const PURE_BARRELS = [
   "streams/redis",
   "credentials",
   "vercel-connect",
+  "vercel-sandbox",
   "stripe",
   "yjs",
   "better-result",

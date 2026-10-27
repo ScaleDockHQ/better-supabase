@@ -173,6 +173,9 @@ catalogs:
     '@ai-sdk/react':
       specifier: 4.0.157
       version: 4.0.157
+    '@ai-sdk/sandbox-vercel':
+      specifier: 1.0.164
+      version: 1.0.164
     '@ai-sdk/workflow':
       specifier: 2.0.85
       version: 2.0.85
@@ -383,6 +386,9 @@ catalogs:
     '@vercel/queue':
       specifier: 0.8.0
       version: 0.8.0
+    '@vercel/sandbox':
+      specifier: 3.6.1
+      version: 3.6.1
     '@vercel/speed-insights':
       specifier: 2.0.0
       version: 2.0.0
@@ -1727,6 +1733,9 @@ importers:
       '@ai-sdk/react':
         specifier: 'catalog:'
         version: 4.0.157(react@19.3.1)(zod@4.6.7)
+      '@ai-sdk/sandbox-vercel':
+        specifier: 'catalog:'
+        version: 1.0.164(ws@8.22.0)(zod@4.6.7)
       '@ai-sdk/workflow':
         specifier: 'catalog:'
         version: 2.0.85(workflow@5.2.3(@aws-sdk/credential-provider-web-identity@3.972.49)(@nestjs/common@12.1.3(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@11.0.0))(@nestjs/core@12.1.2(@nestjs/common@12.1.3(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@11.0.0))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@opentelemetry/api@1.9.1)(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0)(supports-color@11.0.0))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(magicast@0.5.5)(next@16.4.3(@babel/core@7.29.7(supports-color@11.0.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(supports-color@11.0.0)(typescript@7.0.2)(ws@8.22.0))(zod@4.6.7)
@@ -1850,6 +1859,9 @@ importers:
       '@vercel/queue':
         specifier: 'catalog:'
         version: 0.8.0(@opentelemetry/api@1.9.1)
+      '@vercel/sandbox':
+        specifier: 'catalog:'
+        version: 3.6.1
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.0.5(vitest@5.0.5)
@@ -2445,6 +2457,16 @@ packages:
     peerDependencies:
       zod: 4.6.7
 
+  '@ai-sdk/harness@1.0.164':
+    resolution: {integrity: sha512-/cDUop0dQWyfc2fCXPRjS59BLyYHixvSEgHd0RKl87qSodBdXy1GQG4O1COfOlUR4PIkvQTDqXhw8L4JuCdr+w==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      ws: ^8.21.0
+      zod: 4.6.7
+    peerDependenciesMeta:
+      ws:
+        optional: true
+
   '@ai-sdk/mcp@2.0.84':
     resolution: {integrity: sha512-yVhkdm1cpN1L65Vfg8TjyNMFI+P20NsZ/WcYSI6kyv1MbbHWtOn7lBUSuXJ6H/+wGQaH410q1Um1h4PqoWxocA==}
     engines: {node: '>=22'}
@@ -2466,6 +2488,10 @@ packages:
     engines: {node: '>=22'}
     peerDependencies:
       react: 19.3.1
+
+  '@ai-sdk/sandbox-vercel@1.0.164':
+    resolution: {integrity: sha512-D5Yhu0WHql+TqzBT8fAhV0E9sVFOQwSRJcqfzM10x85WzR/MGJCnSXai3ZTskmaQdxOj5MzTw7I2M3FIzNMgBQ==}
+    engines: {node: '>=22'}
 
   '@ai-sdk/workflow@2.0.85':
     resolution: {integrity: sha512-gwfB0RQlOcAYhK8sPjcZlWcZfaRZAioyYHhI7YnOOrA/JiJFxgBqH7jblxkaSbFAuZqDHmUEp74nlH9vu8PzcA==}
@@ -8362,6 +8388,9 @@ packages:
       '@opentelemetry/api':
         optional: true
 
+  '@vercel/sandbox@3.6.1':
+    resolution: {integrity: sha512-U6dwyadp2SmW/M96W2Bb3UjIql6TOOYwu9McUIwob209pj0A3ks/wKrMv7lCE7INx50J5zOpqLhMOnFa+Yodlg==}
+
   '@vercel/speed-insights@2.0.0':
     resolution: {integrity: sha512-jwkNcrTeafWxjmWq4AHBaptSqZiJkYU5adLC9QBSqeim0GcqDMgN5Ievh8OG1rJ6W3A4l1oiP7qr9CWxGuzu3w==}
     peerDependencies:
@@ -9081,6 +9110,9 @@ packages:
   async-listen@3.0.0:
     resolution: {integrity: sha512-V+SsTpDqkrWTimiotsyl33ePSjA5/KrithwupuvJ6ztsqPvGv6ge4OredFhPffVXiLN/QUWvE0XcqJaYgt6fOg==}
     engines: {node: '>= 14'}
+
+  async-retry@1.3.3:
+    resolution: {integrity: sha512-wfr/jstw9xNi/0teMHrRW7dsz3Lt5ARhYNZ2ewpadnhaIp5mbALhOAP+EAdsC7t4Z6wqsDVv9+W6gm1Dk9mEyw==}
 
   async-sema@3.1.1:
     resolution: {integrity: sha512-tLRNUXati5MFePdAk8dw7Qt7DpxPB60ofAgn8WRhW6a2rcimZnYBP9oxHiv0OHy+Wz7kPMG+t4LGdt31+4EmGg==}
@@ -11733,6 +11765,9 @@ packages:
   jose@6.2.12:
     resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
 
+  jose@6.2.3:
+    resolution: {integrity: sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw==}
+
   js-tokens@10.0.0:
     resolution: {integrity: sha512-lM/UBzQmfJRo9ABXbPWemivdCW8V2G8FHaHdypQaIy523snUjog0W71ayWXTjiR+ixeMyVHN2XcpnTd/liPg/Q==}
 
@@ -14119,6 +14154,10 @@ packages:
     resolution: {integrity: sha512-9LkiTwjUh6rT555DtE9rTX+BKByPfrMzEAtnlEtdEwr3Nkffwiihqe2bWADg+OQRjt9gl6ICdmB/ZFDCGAtSow==}
     engines: {node: '>= 4'}
 
+  retry@0.13.1:
+    resolution: {integrity: sha512-XQBQ3I8W1Cge0Seh+6gjj03LbmRFWuoszgK9ooCpwYIrhhoO80pfq4cUkU5DkknwfOfFteRwlZ56PYOGYyFWdg==}
+    engines: {node: '>= 4'}
+
   reusify@1.1.0:
     resolution: {integrity: sha512-g6QUff04oZpHs0eG5p83rFLhHeV00ug/Yf9nZM6fLeUrPguBTkTQOdpAWWspMh55TZfVQDPaN3NQJfbVRAxdIw==}
     engines: {iojs: '>=1.0.0', node: '>=0.10.0'}
@@ -16052,6 +16091,15 @@ snapshots:
       '@vercel/oidc': 3.2.0
       zod: 4.6.7
 
+  '@ai-sdk/harness@1.0.164(ws@8.22.0)(zod@4.6.7)':
+    dependencies:
+      '@ai-sdk/provider': 4.0.34
+      '@ai-sdk/provider-utils': 5.0.68(zod@4.6.7)
+      ai: 7.0.153(zod@4.6.7)
+      zod: 4.6.7
+    optionalDependencies:
+      ws: 8.22.0
+
   '@ai-sdk/mcp@2.0.84(zod@4.6.7)':
     dependencies:
       '@ai-sdk/provider': 4.0.34
@@ -16083,6 +16131,17 @@ snapshots:
       swr: 2.5.1(react@19.3.1)
       throttleit: 2.1.0
     transitivePeerDependencies:
+      - zod
+
+  '@ai-sdk/sandbox-vercel@1.0.164(ws@8.22.0)(zod@4.6.7)':
+    dependencies:
+      '@ai-sdk/harness': 1.0.164(ws@8.22.0)(zod@4.6.7)
+      '@ai-sdk/provider-utils': 5.0.68(zod@4.6.7)
+      '@vercel/sandbox': 3.6.1
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - react-native-b4a
+      - ws
       - zod
 
   '@ai-sdk/workflow@2.0.85(workflow@5.2.3(@aws-sdk/credential-provider-web-identity@3.972.49)(@nestjs/common@12.1.3(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@11.0.0))(@nestjs/core@12.1.2(@nestjs/common@12.1.3(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@11.0.0))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@opentelemetry/api@1.9.1)(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0)(supports-color@11.0.0))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(magicast@0.5.5)(next@16.4.3(@babel/core@7.29.7(supports-color@11.0.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(supports-color@11.0.0)(typescript@7.0.2)(ws@8.22.0))(zod@4.6.7)':
@@ -22994,6 +23053,25 @@ snapshots:
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
 
+  '@vercel/sandbox@3.6.1':
+    dependencies:
+      '@vercel/detect-agent': 1.2.5
+      '@vercel/oidc': 3.2.0
+      '@workflow/serde': 4.1.0-beta.2
+      async-retry: 1.3.3
+      jose: 6.2.3
+      jsonlines: 0.1.1
+      lru-cache: 10.4.3
+      ms: 2.1.3
+      picocolors: 1.1.1
+      tar-stream: 3.1.7
+      undici: 7.30.1
+      xdg-app-paths: 5.1.0
+      zod: 4.6.7
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - react-native-b4a
+
   '@vercel/speed-insights@2.0.0(next@16.4.3(@babel/core@7.29.7(supports-color@11.0.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(nuxt@4.6.2(65a68bb39607e09c1a1896d9e460af65))(react@19.3.1)(svelte@5.57.2(@typescript-eslint/types@8.71.0))(vue-router@4.6.4(vue@3.5.44(typescript@7.0.2)))(vue@3.5.44(typescript@7.0.2))':
     optionalDependencies:
       next: 16.4.3(@babel/core@7.29.7(supports-color@11.0.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -24108,6 +24186,10 @@ snapshots:
       - yaml
 
   async-listen@3.0.0: {}
+
+  async-retry@1.3.3:
+    dependencies:
+      retry: 0.13.1
 
   async-sema@3.1.1: {}
 
@@ -27015,6 +27097,8 @@ snapshots:
   jose@5.10.0: {}
 
   jose@6.2.12: {}
+
+  jose@6.2.3: {}
 
   js-tokens@10.0.0: {}
 
@@ -30747,6 +30831,8 @@ snapshots:
       unist-util-visit: 5.1.0
 
   retry@0.12.0: {}
+
+  retry@0.13.1: {}
 
   reusify@1.1.0: {}
 
