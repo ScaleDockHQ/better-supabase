@@ -15,10 +15,12 @@
       ],
       "passThroughEnv": [
         "AI_GATEWAY_API_KEY",
+        "CONNECT_*",
         "CRON_SECRET",
         "JOBS_BACKEND",
         "PDL_API_KEY",
         "NEXT_RUNTIME",
+        "VERCEL_OIDC_TOKEN",
         "WORKFLOW_*"
       ],
       "inputs": [
@@ -45,12 +47,14 @@
     "dev:portless": {
       "passThroughEnv": [
         "AI_GATEWAY_API_KEY",
+        "CONNECT_*",
         "CRON_SECRET",
         "JOBS_BACKEND",
         "PDL_API_KEY",
         "FLAGS_SECRET",
         "NEXT_PUBLIC_SUPABASE_*",
         "NEXT_RUNTIME",
+        "VERCEL_OIDC_TOKEN",
         "WORKFLOW_*"
       ]
     }

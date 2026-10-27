@@ -4,6 +4,7 @@ import type { AppHref } from "@/i18n/navigation";
 export type SettingsTabId =
   | "profile"
   | "preferences"
+  | "integrations"
   | "security"
   | "privacy"
   | "organization"
@@ -34,6 +35,7 @@ export interface SettingsTab {
 export const settingsTabs: readonly SettingsTab[] = [
   { id: "profile", href: "/settings/profile" },
   { id: "preferences", href: "/settings/preferences" },
+  { id: "integrations", href: "/settings/integrations" },
   { id: "security", href: "/settings/security" },
   { id: "privacy", href: "/settings/privacy" },
   {
