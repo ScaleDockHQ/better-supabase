@@ -127,7 +127,9 @@ export type { Impersonator } from "../auth/impersonation.ts";
 
 export { supportOf } from "../auth/support-view.ts";
 
-export { tenantOf, toSession } from "../auth/view.ts";
+export { permissionsOf, tenantOf, toSession } from "../auth/view.ts";
+
+export type { PermissionsOfOptions } from "../auth/view.ts";
 
 export type {
   ActiveSupport,

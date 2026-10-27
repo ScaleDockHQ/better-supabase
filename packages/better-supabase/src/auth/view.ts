@@ -13,6 +13,10 @@ import { authzVersionOf, issuedAtOf } from "./snapshot.ts";
 
 export { tenantOf } from "./tenant.ts";
 
+export { permissionsOf } from "./permissions.ts";
+
+export type { PermissionsOfOptions } from "./permissions.ts";
+
 /**
  * The verified caller as plain data: no token, no clients. Safe to return from
  * a `'use cache: private'` function and to pass to Client Components.

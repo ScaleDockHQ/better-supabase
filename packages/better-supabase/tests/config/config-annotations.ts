@@ -104,6 +104,10 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "Claim the memberships hook writes. Defaults to `memberships`.",
   },
+  "auth.claims.permissions": {
+    description:
+      "Claim holding the caller's permission keys per tenant, written by permission_claims(). The hook sets `<permissions>_truncated` when it left keys out. Defaults to `permissions`.",
+  },
   "database.buckets.*.path": {
     description:
       "Path template, e.g. `{organizationId}/{customerId}/logo.webp`, or several for a bucket that stores objects in more than one layout. A last segment `{...rest}` matches one or more segments.",

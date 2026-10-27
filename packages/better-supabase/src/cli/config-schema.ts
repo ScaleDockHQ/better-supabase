@@ -638,6 +638,7 @@ const FLAT = {
       scope: v.optional(v.string()),
       features: v.optional(v.string()),
       memberships: v.optional(v.string()),
+      permissions: v.optional(v.string()),
     }),
   ),
   buckets: v.optional(v.record(v.string(), bucket)),

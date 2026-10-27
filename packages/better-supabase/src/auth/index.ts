@@ -24,7 +24,9 @@ export type {
   SessionRejection,
 } from "./resolve.ts";
 
-export { tenantOf, toSession } from "./view.ts";
+export { permissionsOf, tenantOf, toSession } from "./view.ts";
+
+export type { PermissionsOfOptions } from "./view.ts";
 
 export type { AuthSession } from "./view.ts";
 

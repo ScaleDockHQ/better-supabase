@@ -755,6 +755,10 @@
             "memberships": {
               "type": "string",
               "description": "Claim the memberships hook writes. Defaults to `memberships`."
+            },
+            "permissions": {
+              "type": "string",
+              "description": "Claim holding the caller's permission keys per tenant, written by permission_claims(). The hook sets `<permissions>_truncated` when it left keys out. Defaults to `permissions`."
             }
           },
           "additionalProperties": false,
