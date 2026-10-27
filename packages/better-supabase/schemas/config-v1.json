@@ -6430,6 +6430,14 @@
               "owner": {
                 "type": "string",
                 "default": "user"
+              },
+              "overlap": {
+                "type": "string",
+                "default": "refuse"
+              },
+              "timers": {
+                "type": "string",
+                "default": "one"
               }
             }
           }

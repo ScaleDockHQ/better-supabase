@@ -57,7 +57,7 @@ Every call acts in the block's `tenant`, an organization id or a function that r
 
 `log` records a finished entry with `startedAt` and `endedAt`. Its end must come after its start (`TIME_ENTRY_INVALID`), and it can't overlap another of the member's entries (`TIME_ENTRY_OVERLAP`). Passing `userId` logs time for another member of the organization, which needs `time_tracking.manage` (`TIME_USER_INVALID` when they aren't a member). `update(entryId, patch)` changes the times, the subject, `billable`, `rate` or `note`; `null` clears the subject, rate or note. `remove` deletes an entry. A member edits their own entries; anyone else's needs `time_tracking.manage`.
 
-A rate is a `Money` value from `better-supabase/commerce`: an hourly amount in minor units of its currency, so `money(12_000n, "EUR")` is 120 euros an hour. The client returns `CURRENCY_INVALID` before any database call for a code that isn't ISO 4217, and the table keeps `rate` and `rate_currency` set together (`TIME_RATE_INVALID`). The functions return `rate` as text, as every block amount is ([ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md)).
+A rate is a `Money` value from `better-supabase/commerce`: an hourly amount in minor units of its currency, so `money(12_000n, "EUR")` is 120 euros an hour. The client returns `CURRENCY_INVALID` before any database call for a code that isn't ISO 4217, and a rate needs its currency (`TIME_RATE_INVALID`). A currency without a rate is fine: pass `currency` (such as the organization's default) when your currency column can't be empty. The functions return `rate` as text, as every block amount is ([ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md)).
 
 An entry's `subject` is a `RecordRef`, `{ type, id }`, or none; an entry without one returns `subject: undefined`. The SQL functions take it as `subject_type` and `subject_id` and fail with `TIME_SUBJECT_INVALID` when a caller passes only one of them. With a subject, the caller must be able to read the record, through its registration in [`config.subjects`](/docs/blocks/sql#subject-registry) or the block's `on`. Entries stay when their record is deleted, so billed time keeps its history.
 
@@ -147,9 +147,21 @@ blocks: {
 },
 ```
 
-Stopping a timer writes the duration and clears the running mark, logging
-finished time writes the duration, and every read, total, overlap check and
-week lock computes the end as the start plus the duration.
+Stopping a timer adds the running segment to the duration and clears the
+running mark, logging finished time writes the duration, and every read,
+total, overlap check and week lock computes the end as the start plus the
+duration. `resume(entryId)` runs a stopped entry again from now: it keeps its
+start and its time, and the next stop adds the new segment
+(`TIME_TIMER_RUNNING` when it already runs).
+
+### Overlapping entries and several timers
+
+`options.overlap: "allow"` lets a member's entries overlap, for a weekly grid
+that logs every row's time from the same start of the day; the managed table
+then drops its exclusion constraint. `options.timers: "many"` (which needs
+`overlap: "allow"`) runs several timers side by side: `start` leaves the
+others running, `stop(entryId)` stops one (without an id, the newest),
+`running` returns the newest and `runningAll` every running timer.
 
 ### Records in their own columns
 

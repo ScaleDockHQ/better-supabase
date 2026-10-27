@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:766433420932380127c808cc8c39df368e5ea6092cf2aec5c15c62934ad6dd0a
+-- @bsb-hash sha256:5331985eb7a5ed49e3c22f650e53d92f30fe8f3613747790e2f5440e42021400
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -110,19 +110,20 @@ begin
   end if;
 end;
 $$;
+alter table "better_supabase"."time_entries" drop constraint if exists "time_entries_rate_pair_check";
 do $$
 begin
   if not exists (
     select 1 from pg_constraint
-    where conrelid = '"better_supabase"."time_entries"'::regclass and conname = 'time_entries_rate_pair_check'
+    where conrelid = '"better_supabase"."time_entries"'::regclass and conname = 'time_entries_rate_needs_currency_check'
   ) then
-    alter table "better_supabase"."time_entries" add constraint "time_entries_rate_pair_check"
-      check (("rate" is null) = ("rate_currency" is null)) not valid;
+    alter table "better_supabase"."time_entries" add constraint "time_entries_rate_needs_currency_check"
+      check ("rate" is null or "rate_currency" is not null) not valid;
     begin
-      alter table "better_supabase"."time_entries" validate constraint "time_entries_rate_pair_check";
+      alter table "better_supabase"."time_entries" validate constraint "time_entries_rate_needs_currency_check";
     exception when check_violation then
       raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."time_entries"', 'time_entries_rate_pair_check', '"better_supabase"."time_entries"', 'time_entries_rate_pair_check';
+        '"better_supabase"."time_entries"', 'time_entries_rate_needs_currency_check', '"better_supabase"."time_entries"', 'time_entries_rate_needs_currency_check';
     end;
   end if;
 end;
@@ -252,8 +253,8 @@ begin
   if start_timer.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
-  if (start_timer.rate is null) <> (start_timer.rate_currency is null) then
-    raise exception 'name both rate and rate_currency, or neither' using errcode = '22023', hint = 'TIME_RATE_INVALID';
+  if start_timer.rate is not null and start_timer.rate_currency is null then
+    raise exception 'a rate needs rate_currency' using errcode = '22023', hint = 'TIME_RATE_INVALID';
   end if;
   if start_timer.rate_currency !~ '^[A-Z]{3}$' then
     raise exception 'rate_currency must be a three-letter currency code' using errcode = '22023', hint = 'TIME_RATE_INVALID';
@@ -309,7 +310,8 @@ $$;
 revoke execute on function "better_supabase"."start_timer"(uuid, text, text, boolean, bigint, text, text) from public, anon;
 grant execute on function "better_supabase"."start_timer"(uuid, text, text, boolean, bigint, text, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."stop_timer"(tenant uuid)
+drop function if exists "better_supabase"."stop_timer"(uuid);
+create or replace function "better_supabase"."stop_timer"(tenant uuid, entry uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -326,6 +328,9 @@ begin
   end if;
   select * into v_row from "better_supabase"."time_entries" x
     where x."tenant_id" = stop_timer.tenant and x."user_id" = v_me and x."ended_at" is null
+      and (stop_timer.entry is null or x."id" = stop_timer.entry)
+    order by x."started_at" desc
+    limit 1
     for update;
   if not found then
     raise exception 'no timer is running' using errcode = 'P0002', hint = 'TIME_NO_TIMER';
@@ -345,8 +350,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'startedAt', v_row."started_at", 'endedAt', v_row."ended_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"::text, 'rateCurrency', v_row."rate_currency", 'note', v_row."note", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."stop_timer"(uuid) from public, anon;
-grant execute on function "better_supabase"."stop_timer"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."stop_timer"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."stop_timer"(uuid, uuid) to authenticated, service_role;
 
 -- The caller's running timer, or null.
 create or replace function "better_supabase"."running_timer"(tenant uuid)
@@ -361,6 +366,20 @@ as $$
 $$;
 revoke execute on function "better_supabase"."running_timer"(uuid) from public, anon;
 grant execute on function "better_supabase"."running_timer"(uuid) to authenticated, service_role;
+
+-- Every timer the caller has running, newest first.
+create or replace function "better_supabase"."running_timers"(tenant uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'startedAt', x."started_at", 'endedAt', x."ended_at", 'seconds', case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 'billable', x."billable", 'rate', x."rate"::text, 'rateCurrency', x."rate_currency", 'note', x."note", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."started_at" desc), '[]'::jsonb) from "better_supabase"."time_entries" x
+  where x."tenant_id" = running_timers.tenant and x."user_id" = auth.uid() and x."ended_at" is null;
+$$;
+revoke execute on function "better_supabase"."running_timers"(uuid) from public, anon;
+grant execute on function "better_supabase"."running_timers"(uuid) to authenticated, service_role;
 
 -- Records finished time. Logging for another member needs the manage permission.
 drop function if exists "better_supabase"."log_time"(uuid, timestamptz, timestamptz, text, text, boolean, bigint, text, text, uuid, jsonb);
@@ -400,8 +419,8 @@ begin
   if log_time.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
-  if (log_time.rate is null) <> (log_time.rate_currency is null) then
-    raise exception 'name both rate and rate_currency, or neither' using errcode = '22023', hint = 'TIME_RATE_INVALID';
+  if log_time.rate is not null and log_time.rate_currency is null then
+    raise exception 'a rate needs rate_currency' using errcode = '22023', hint = 'TIME_RATE_INVALID';
   end if;
   if log_time.rate_currency !~ '^[A-Z]{3}$' then
     raise exception 'rate_currency must be a three-letter currency code' using errcode = '22023', hint = 'TIME_RATE_INVALID';
@@ -505,8 +524,8 @@ begin
   if v_patch ? 'rate' or v_patch ? 'rateCurrency' then
     v_row."rate" := (v_patch ->> 'rate')::bigint;
     v_row."rate_currency" := v_patch ->> 'rateCurrency';
-    if (v_row."rate" is null) <> (v_row."rate_currency" is null) then
-    raise exception 'name both rate and rate_currency, or neither' using errcode = '22023', hint = 'TIME_RATE_INVALID';
+    if v_row."rate" is not null and v_row."rate_currency" is null then
+    raise exception 'a rate needs rate_currency' using errcode = '22023', hint = 'TIME_RATE_INVALID';
   end if;
   if v_row."rate_currency" !~ '^[A-Z]{3}$' then
     raise exception 'rate_currency must be a three-letter currency code' using errcode = '22023', hint = 'TIME_RATE_INVALID';

@@ -215,7 +215,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   templates:
     "fork_template publish_template_version record_template_application remove_template save_template save_template_draft set_default_template sync_templates template_applications_list template_apply_target template_get template_versions_list templates_list",
   "time-tracking":
-    "delete_time_entry get_timesheet list_time_entries list_timesheets log_time reopen_timesheet running_timer start_timer stop_timer submit_timesheet update_time_entry",
+    "delete_time_entry get_timesheet list_time_entries list_timesheets log_time reopen_timesheet running_timer running_timers start_timer stop_timer submit_timesheet update_time_entry",
   timeline: "list_activity record_activity",
   trash: "list_trash purge_trash restore_trash trash",
   usage:

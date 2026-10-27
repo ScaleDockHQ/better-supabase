@@ -106,7 +106,7 @@ describe("time-tracking module", () => {
       `add constraint "time_entries_rate_currency_check"\n      check ("rate_currency" is null or "rate_currency" ~ '^[A-Z]{3}$') not valid;`,
     );
     expect(sql).toContain(
-      `add constraint "time_entries_rate_pair_check"\n      check (("rate" is null) = ("rate_currency" is null)) not valid;`,
+      `add constraint "time_entries_rate_needs_currency_check"\n      check ("rate" is null or "rate_currency" is not null) not valid;`,
     );
     expect(sql).toContain(
       `'rate', v_row."rate"::text, 'rateCurrency', v_row."rate_currency"`,
@@ -169,7 +169,7 @@ describe("time-tracking module", () => {
       `alter column "rate" type bigint using round("rate" * 100)::bigint;`,
     );
     expect(sql).toContain("data_type = 'numeric'");
-    expect(sql).toContain("time_entries_rate_pair_check");
+    expect(sql).toContain("time_entries_rate_needs_currency_check");
   });
 
   it("needs the approvals tables", () => {
@@ -185,6 +185,7 @@ describe("time-tracking module", () => {
     expect(contract?.functions.map((fn) => fn.name)).toEqual([
       "start_timer",
       "stop_timer",
+      "running_timers",
       "log_time",
       "submit_timesheet",
       "get_timesheet",
