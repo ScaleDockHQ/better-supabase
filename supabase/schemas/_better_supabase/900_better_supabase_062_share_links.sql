@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:e7725dd7d9585c050a75319c9de3396d671a01febe8c412fc12a12b805ce9084
+-- @bsb-hash sha256:d4315d2e30d32bd87eeb33b0033cb91dd2a2f091da5c9043829dfbb756ce3c7b
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -71,6 +71,7 @@ create table if not exists "better_supabase"."share_links" (
 );
 alter table "better_supabase"."share_links" add column if not exists "version_id" uuid;
 alter table "better_supabase"."share_links" add column if not exists "use_count" integer not null default 0;
+alter table "better_supabase"."share_links" add column if not exists "last_used_at" timestamptz;
 alter table "better_supabase"."share_links" enable row level security;
 revoke all on "better_supabase"."share_links" from public, anon, authenticated;
 grant select on "better_supabase"."share_links" to authenticated;
@@ -203,6 +204,11 @@ begin
       end if;
     end;
   end if;
+  if create_share_link.subject_type in ('calendar') then
+    update "better_supabase"."share_links" x set "revoked_at" = now()
+    where x."tenant_id" = create_share_link.tenant and x."subject_type" = create_share_link.subject_type
+      and x."subject_id" = create_share_link.subject_id and x."created_by" is not distinct from auth.uid() and x."revoked_at" is null;
+  end if;
   insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "max_uses", "created_by", "version_id")
   values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id)
   returning "id" into v_id;
@@ -275,8 +281,7 @@ begin
   if not found then
     return null;
   end if;
-  update "better_supabase"."share_links" set "use_count" = "use_count" + 1
-  where "id" = v_link."id";
+  update "better_supabase"."share_links" set "use_count" = "use_count" + 1, "last_used_at" = now() where "id" = v_link."id";
   return jsonb_build_object('id', v_link."id", 'organizationId', v_link."tenant_id", 'subjectType', v_link."subject_type", 'subjectId', v_link."subject_id", 'role', v_link."role", 'versionId', v_link."version_id", 'expiresAt', v_link."expires_at", 'maxUses', v_link."max_uses");
 end;
 $$;
