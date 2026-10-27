@@ -17,12 +17,14 @@ rule can still target plans.
 better-supabase add flags   # adds tenant as well
 ```
 
-| Table            | Holds                                                                                                                                |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `flags`          | `key`, `type`, `description`, `variants`, `default_variant`, `enabled`, `archived`, `rules`, `rollout_percentage`, `rollout_variant` |
-| `flag_overrides` | A variant for one `organization_id`, one `user_id` or one custom context value (`context`, `context_key`)                            |
+| Table            | Holds                                                                                                                                                     |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `flags`          | `key`, `type`, `description`, `variants`, `default_variant`, `enabled`, `archived`, `rules`, `rollout_percentage`, `rollout_variants`, `rollout_schedule` |
+| `flag_overrides` | A variant for one `organization_id`, one `user_id` or one custom context value (`context`, `context_key`)                                                 |
+| `flag_revisions` | Every state `save_flag` left, numbered per flag, with a message and who changed it                                                                        |
+| `flag_segments`  | Named audiences that rules reuse, each one condition                                                                                                      |
 
-Only the service role reads and writes both tables. Manage flags from a
+Only the service role reads and writes these tables. Manage flags from a
 migration, the Studio or an admin route that runs as the service role.
 
 ## Defining flags
@@ -31,8 +33,9 @@ migration, the Studio or an admin route that runs as the service role.
 `on` (`true`) and `off` (`false`) by default:
 
 ```sql
-insert into better_supabase.flags (key, rules, rollout_percentage, rollout_variant) values
-  ('new_editor', '[{"variant": "on", "plans": ["pro"]}, {"variant": "on", "roles": ["admin"]}]', 10, 'on');
+insert into better_supabase.flags (key, rules, rollout_percentage, rollout_variants) values
+  ('new_editor', '[{"variant": "on", "plans": ["pro"]}, {"variant": "on", "roles": ["admin"]}]', 10,
+   '[{"variant": "on", "weight": 100}]');
 
 insert into better_supabase.flags (key, type, variants, default_variant) values
   ('checkout_theme', 'string', '{"classic": "classic", "compact": "compact"}', 'classic');
@@ -49,12 +52,15 @@ A flag resolves in this order:
    in the order the contexts are declared.
 3. The first rule whose lists all contain the caller. A rule lists any of
    `tenants`, `users`, `roles` (the caller's role in the tenant), `plans`
-   (entitlement lookup keys, one match is enough) and `contexts` (a context
-   name to its values, every one must match).
+   (entitlement lookup keys, one match is enough), `contexts` (a context
+   name to its values, every one must match) and `segments` (the caller
+   must be in one of them).
 4. The rollout: the first 32 bits of SHA-256 of `flag.target`, modulo 10000,
-   below `rollout_percentage * 100` returns `rollout_variant`. The target is
-   the user id, or the tenant id when there is no user.
-5. The default variant.
+   below the rollout percentage times 100, picks a variant from
+   `rollout_variants` by a second bucket of `flag/split.target` against the
+   cumulative weights. The target is the user id, or the tenant id when
+   there is no user.
+5. The default variant, also for a target past the last weight.
 
 The reason in each result follows OpenFeature: `DISABLED`,
 `TARGETING_MATCH`, `SPLIT` or `DEFAULT`.
@@ -97,6 +103,92 @@ OpenFeature provider and the Flags SDK adapter never read the tenant table;
 pass the values through `flagContext({ contexts })`, `contextClaims` or the
 Flags SDK `identify`.
 
+### Weighted splits and scheduled rollouts
+
+`rollout_variants` splits the rollout between variants by weight, as
+percentages of the targets inside it. A second bucket picks the variant, so
+raising `rollout_percentage` never moves a target from one variant to
+another. Weights that add up to less than 100 leave the rest on the default
+variant:
+
+```ts
+await db.flags.upsert("checkout_theme", {
+  rolloutPercentage: 50,
+  rolloutVariants: [
+    { variant: "compact", weight: 50 },
+    { variant: "dense", weight: 25 },
+  ],
+});
+```
+
+`rolloutSchedule` raises the percentage on its own. Before `startAt` the
+rollout serves no one; then each step holds its percentage for
+`durationSeconds`, and after the last step the rollout stays at
+`finalPercentage` (the last step's percentage when unset). The schedule
+replaces `rolloutPercentage` while it is set; pass `null` to clear it:
+
+```ts
+await db.flags.upsert("new_editor", {
+  rolloutVariants: [{ variant: "on", weight: 100 }],
+  rolloutSchedule: {
+    startAt: "2026-11-02T09:00:00Z",
+    steps: [
+      { percentage: 5, durationSeconds: 86_400 },
+      { percentage: 25, durationSeconds: 86_400 },
+    ],
+    finalPercentage: 100,
+  },
+});
+```
+
+SQL and TypeScript compute the same percentage at the same time:
+`flag_rollout_percentage(percentage, schedule, at)` and
+`rolloutPercentageAt(schedule, nowMs)`.
+
+### Segments
+
+A segment names an audience once, such as the beta testers or the staff of
+your largest customers, and rules reuse it by name. Each segment is one
+condition with the same lists a rule has; a rule with `segments` matches a
+caller in any of them, and its own lists must match as well. A rule that
+names a missing segment matches no one through it:
+
+```ts
+await db.flags.saveSegment({
+  name: "beta-testers",
+  description: "Opted in from settings",
+  users: [ana.id, ben.id],
+});
+await db.flags.upsert("new_editor", {
+  rules: [{ variant: "on", segments: ["beta-testers"] }],
+});
+```
+
+Changing a segment changes every flag that names it at once.
+`flag_definitions()` returns the segments a flag's rules name, so the
+OpenFeature provider evaluates them without another query.
+
+### History and restore
+
+Each `save_flag` records a revision: the flag as it was left, a message and
+the user who saved it. `history(key)` lists them newest first, and
+`restore(key, revision)` saves that revision again as a new one, so a
+restore is itself in the history:
+
+```ts
+await db.flags.upsert(
+  "new_editor",
+  { rolloutPercentage: 50 },
+  { message: "Widen to half after the error rate held" },
+);
+
+const [latest, previous] = await db.flags.history("new_editor").orThrow();
+await db.flags.restore("new_editor", previous.revision);
+```
+
+Overrides are not part of a revision. A deleted flag keeps its revisions,
+and `restore` brings it back.
+
 ### Archiving a flag
 
 `upsert(key, { archived: true })` archives a flag: it serves its default
@@ -109,7 +201,8 @@ checks it gets the default instead of an unknown flag.
 `createFlags` manages flags for platform staff with `flags.manage` (the
 module's `manage` permission, checked with `is_platform()` when the
 [access](/docs/repository/permissions) module is installed) or the service role. It
-calls `list_flags`, `save_flag`, `delete_flag` and `set_flag_override`,
+calls `list_flags`, `save_flag`, `delete_flag`, `set_flag_override`,
+`flag_history`, `restore_flag` and the segment functions,
 which are granted to `authenticated`, so an app that only reaches the
 database through the Data API manages flags with `blocks.flags.api`
 and `rpcTransport`:
@@ -128,7 +221,7 @@ import { createFlags, rpcTransport } from "better-supabase/blocks/flags";
 
 await db.flags.upsert("new_editor", {
   rolloutPercentage: 25,
-  rolloutVariant: "on",
+  rolloutVariants: [{ variant: "on", weight: 100 }],
 });
 await db.flags.override("new_editor", { organizationId }, "on");
 await db.flags.override(
@@ -283,14 +376,21 @@ returns the four `get*Details` methods that `withOpenFeature` calls (see
 
 ## Reference
 
-| Export                      | Does                                                                                                                      |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `createFlagsProvider(opts)` | An OpenFeature-shaped provider over `flag_definitions()`, or fixed `definitions`; `definitions()` returns the cached list |
-| `createFlagClient(source)`  | `getBooleanDetails`, `getStringDetails`, `getNumberDetails`, `getObjectDetails`                                           |
-| `flagContext(ctx, opts?)`   | The evaluation context from `jwtClaims`; claim names are options                                                          |
-| `evaluateFlag(flag, ctx)`   | `{ value, variant, reason }`, as `flag_evaluation()` computes it                                                          |
-| `flagBucket(key, target)`   | The rollout bucket, 0 to 9999                                                                                             |
-| `createFlags(opts)`         | `list`, `upsert`, `remove` and `override` for platform staff or the service role                                          |
+| Export                               | Does                                                                                                                                                     |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createFlagsProvider(opts)`          | An OpenFeature-shaped provider over `flag_definitions()`, or fixed `definitions`; `definitions()` returns the cached list; `onEvaluate` sees each result |
+| `createFlagClient(source)`           | `getBooleanDetails`, `getStringDetails`, `getNumberDetails`, `getObjectDetails`                                                                          |
+| `flagContext(ctx, opts?)`            | The evaluation context from `jwtClaims`; claim names are options                                                                                         |
+| `evaluateFlag(flag, ctx, opts?)`     | `{ value, variant, reason }`, as `flag_evaluation()` computes it; `opts.now` sets the time a schedule is read at                                         |
+| `flagBucket(key, target)`            | The rollout bucket, 0 to 9999                                                                                                                            |
+| `rolloutPercentageAt(schedule, now)` | The percentage a rollout schedule serves at a time, as `flag_rollout_percentage()` computes it                                                           |
+| `chooseSplitVariant(bucket, splits)` | The variant a split bucket falls in, or `undefined` past the last weight                                                                                 |
+| `expandSegments(rule, segments)`     | The conditions a rule's segments name; unknown names drop out                                                                                            |
+| `createFlags(opts)`                  | `list`, `upsert`, `remove`, `override`, `history`, `restore`, `segments`, `saveSegment` and `removeSegment` for platform staff or the service role       |
+
+`createFlagsProvider` takes `onEvaluate(key, value, details)`, called after
+each evaluation, for analytics or logs. An error it throws is ignored, so it
+can't change a result.
 
 The provider follows the OpenFeature specification pinned in
 `SPEC_PINS.openfeature` (see [standards](/docs/standards)).
@@ -308,7 +408,7 @@ const admin = createFlags({
 
 await admin.upsert("new_editor", {
   rolloutPercentage: 25,
-  rolloutVariant: "on",
+  rolloutVariants: [{ variant: "on", weight: 100 }],
 });
 await admin.override("new_editor", { organizationId }, "on");
 await admin.override(

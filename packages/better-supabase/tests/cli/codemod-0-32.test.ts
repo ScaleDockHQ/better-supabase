@@ -272,4 +272,15 @@ await bsb.signIn({ email, password });
         .toSorted((a, b) => a - b),
     ).toEqual([1, 2, 3]);
   });
+
+  it("lists a single rollout variant for review", () => {
+    const source = `await flags.upsert("beta", { rolloutVariant: "on" });
+`;
+
+    expect(
+      applyCodemod(v032, source, "src/flags.ts").review.map(
+        (entry) => entry.message,
+      ),
+    ).toEqual([expect.stringMatching(/rolloutVariants/)]);
+  });
 });

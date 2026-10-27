@@ -12,7 +12,7 @@ const FLAG = {
   enabled: true,
   rules: [],
   rollout_percentage: 0,
-  rollout_variant: null,
+  rollout_variants: [],
   overrides: [],
   fields: { owner: "ana@acme.test" },
 };

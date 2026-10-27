@@ -362,6 +362,11 @@ export const CODEMOD_0_32: Codemod = {
       message:
         "`handler.mirror` records messages from other bots now and skips only the bot's own (`author.isMe`); filter other bots in your handler if you don't want them in the inbox",
     },
+    {
+      pattern: /\brolloutVariant\s*:|\brollout_variant\b/,
+      message:
+        "A flag's single rollout variant is a weighted split now: `rolloutVariants: [{ variant, weight: 100 }]` (`rollout_variants` in SQL). `better-supabase upgrade` moves stored flags over",
+    },
   ],
   configFile: organizationToTenant,
   source: renameKeys,

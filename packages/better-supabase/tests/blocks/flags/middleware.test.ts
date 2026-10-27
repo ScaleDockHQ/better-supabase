@@ -39,7 +39,7 @@ const client = createFlagClient({
       enabled: true,
       rules: [{ variant: "on", roles: ["admin"] }],
       rolloutPercentage: 0,
-      rolloutVariant: undefined,
+      rolloutVariants: [],
       overrides: [],
     },
   ],

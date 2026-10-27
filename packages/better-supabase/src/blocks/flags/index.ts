@@ -1,9 +1,13 @@
 export {
+  chooseSplitVariant,
   createFlagClient,
   createFlagsProvider,
+  type EvaluateFlagOptions,
   evaluateFlag,
+  expandSegments,
   flagBucket,
   type FlagClient,
+  type FlagCondition,
   flagContext,
   type FlagContext,
   type FlagContextOptions,
@@ -16,12 +20,16 @@ export {
   type FlagOverride,
   type FlagReason,
   type FlagResolution,
+  type FlagRolloutSchedule,
+  type FlagRolloutStep,
   type FlagRule,
+  type FlagSplit,
   type FlagsProvider,
   type FlagsProviderOptions,
   type FlagType,
   type FlagValue,
   type RequestFlagContext,
+  rolloutPercentageAt,
 } from "./flags.ts";
 
 export {
@@ -29,7 +37,9 @@ export {
   type FlagInput,
   type FlagOverrideTarget,
   type FlagRecord,
+  type FlagRevision,
   type Flags,
+  type FlagSegment,
   type FlagsOptions,
 } from "./admin.ts";
 

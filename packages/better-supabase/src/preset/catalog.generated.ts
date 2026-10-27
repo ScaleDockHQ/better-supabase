@@ -505,7 +505,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "archived": "archived",
               "rules": "rules",
               "rolloutPercentage": "rollout_percentage",
-              "rolloutVariant": "rollout_variant",
+              "rolloutVariants": "rollout_variants",
+              "rolloutSchedule": "rollout_schedule",
+              "createdAt": "created_at",
               "updatedAt": "updated_at"
             }
           }
@@ -14237,7 +14239,13 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
+          "name": "EvaluateFlagOptions"
+        },
+        {
           "name": "FlagClient"
+        },
+        {
+          "name": "FlagCondition"
         },
         {
           "name": "FlagContext"
@@ -14281,6 +14289,15 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "FlagResolution"
         },
         {
+          "name": "FlagRevision"
+        },
+        {
+          "name": "FlagRolloutSchedule"
+        },
+        {
+          "name": "FlagRolloutStep"
+        },
+        {
           "name": "FlagRule"
         },
         {
@@ -14288,10 +14305,16 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "FlagSegment"
+        },
+        {
           "name": "FlagsEvents"
         },
         {
           "name": "FlagsOptions"
+        },
+        {
+          "name": "FlagSplit"
         },
         {
           "name": "FlagsProvider"

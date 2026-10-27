@@ -12,7 +12,7 @@ const row = {
   enabled: true,
   rules: [],
   rollout_percentage: "10",
-  rollout_variant: null,
+  rollout_variants: [],
   overrides: [],
 };
 
@@ -93,6 +93,92 @@ describe("createFlags", () => {
         },
       ],
     ]);
+  });
+
+  it("saves with a message, reads revisions and manages segments", async () => {
+    const calls: [string, Record<string, unknown>][] = [];
+
+    const transport: BlockTransport = {
+      call: (_schema, fn, args) => {
+        calls.push([fn, { ...args }]);
+
+        switch (fn) {
+          case "flag_history": {
+            return Promise.resolve([
+              {
+                revision: 2,
+                definition: row,
+                message: "Ship it",
+                changed_by: "u1",
+                changed_at: "2026-10-27T10:00:00Z",
+              },
+              { revision: 1, definition: null },
+            ]);
+          }
+
+          case "list_flag_segments": {
+            return Promise.resolve([
+              {
+                name: "beta-testers",
+                description: null,
+                rules: { users: ["u1"] },
+              },
+              { rules: {} },
+            ]);
+          }
+
+          case "save_flag_segment": {
+            return Promise.resolve({
+              name: "staff",
+              rules: { roles: ["owner"] },
+            });
+          }
+
+          default: {
+            return Promise.resolve(fn === "delete_flag_segment" ? true : row);
+          }
+        }
+      },
+    };
+
+    const admin = createFlags({ transport });
+
+    await admin
+      .upsert("beta", { enabled: true }, { message: "Ship it" })
+      .orThrow();
+    expect(calls[0]).toEqual([
+      "save_flag",
+      { key: "beta", definition: { enabled: true }, message: "Ship it" },
+    ]);
+
+    const history = await admin.history("beta").orThrow();
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({
+      revision: 2,
+      message: "Ship it",
+      changedBy: "u1",
+      definition: { key: "beta", rolloutVariants: [] },
+    });
+
+    expect(await admin.restore("beta", 2).orThrow()).toMatchObject({
+      key: "beta",
+    });
+    expect(calls.at(-1)).toEqual([
+      "restore_flag",
+      { key: "beta", revision: 2 },
+    ]);
+
+    expect(await admin.segments().orThrow()).toEqual([
+      { name: "beta-testers", users: ["u1"] },
+    ]);
+    expect(
+      await admin.saveSegment({ name: "staff", roles: ["owner"] }).orThrow(),
+    ).toMatchObject({ name: "staff", roles: ["owner"] });
+    expect(calls.at(-1)).toEqual([
+      "save_flag_segment",
+      { name: "staff", description: null, rules: { roles: ["owner"] } },
+    ]);
+    expect(await admin.removeSegment("staff").orThrow()).toBe(true);
   });
 
   it("reads a missing flag after save as undefined", async () => {

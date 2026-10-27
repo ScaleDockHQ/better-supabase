@@ -6,13 +6,20 @@ import type {
 } from "../../src/blocks/flags/index.ts";
 import type { FlagsSdkServer } from "../../src/flags-sdk/index.ts";
 
+import { createFlagsProvider } from "../../src/blocks/flags/index.ts";
 import {
   betterSupabaseAdapter,
   createBetterSupabaseAdapter,
   createIdentify,
+  explorerOverrides,
   flagContextOf,
+  flagDrift,
   flagOptions,
+  flagsDiscoveryHandler,
   getProviderData,
+  toFlagsSdkDefinition,
+  vercelEnvironmentContext,
+  withExplorerOverrides,
 } from "../../src/flags-sdk/index.ts";
 
 const USER = "8c5a3d3e-0000-4000-8000-000000000001";
@@ -25,7 +32,7 @@ const flag = (patch: Partial<FlagDefinition> = {}): FlagDefinition => ({
   enabled: true,
   rules: [],
   rolloutPercentage: 0,
-  rolloutVariant: undefined,
+  rolloutVariants: [],
   overrides: [],
   ...patch,
 });
@@ -436,6 +443,8 @@ describe("flagOptions and getProviderData", () => {
           ],
           description: "The new editor",
           origin: "/admin/new_editor",
+          declaredInCode: false,
+          defaultValue: false,
           updatedAt: Date.parse("2026-10-17T10:00:00Z"),
         },
         theme: {
@@ -443,10 +452,54 @@ describe("flagOptions and getProviderData", () => {
             { value: "light", label: "light" },
             { value: "dark", label: "dark" },
           ],
+          declaredInCode: false,
+          defaultValue: "light",
         },
       },
       hints: [],
     });
+  });
+
+  it("fills createdAt and takes an origin object", () => {
+    expect(
+      toFlagsSdkDefinition(
+        flag({ createdAt: "2026-10-01T00:00:00Z", updatedAt: "not a date" }),
+        { provider: "better-supabase", project: "demo" },
+      ),
+    ).toEqual({
+      options: [
+        { value: true, label: "on" },
+        { value: false, label: "off" },
+      ],
+      origin: { provider: "better-supabase", project: "demo" },
+      declaredInCode: false,
+      defaultValue: false,
+      createdAt: Date.parse("2026-10-01T00:00:00Z"),
+    });
+  });
+
+  it("hints at variants whose value has another type", async () => {
+    const data = await getProviderData({
+      provider: createBetterSupabaseAdapter({
+        definitions: [flag({ variants: { on: true, off: "no" } })],
+      }).provider,
+    });
+
+    expect(data.hints).toEqual([
+      {
+        key: "better-supabase/variant-type",
+        text: 'Flag "new_editor" is a boolean flag, but the variants "off" hold another type, so they serve the fallback',
+      },
+    ]);
+  });
+
+  it("compares declared and stored keys", () => {
+    expect(
+      flagDrift(
+        [{ key: "a" }, { key: "b" }],
+        [{ key: "b" }, { key: "c" }, { key: "d", archived: true }],
+      ),
+    ).toEqual({ notStored: ["a"], notDeclared: ["c"] });
   });
 
   it("joins the declared flags, single or in groups", async () => {
@@ -522,5 +575,89 @@ describe("flagOptions and getProviderData", () => {
         },
       ],
     });
+  });
+});
+
+describe("flagsDiscoveryHandler", () => {
+  const data = { definitions: {}, hints: [] };
+
+  it("answers 401 without access", async () => {
+    const handler = flagsDiscoveryHandler(() => data, {
+      verify: () => Promise.resolve(false),
+    });
+
+    const response = await handler(new Request("https://app.test/"));
+
+    expect(response.status).toBe(401);
+  });
+
+  it("answers the data with the encryption mode and version", async () => {
+    const verify = vi.fn(() => Promise.resolve(true));
+
+    const handler = flagsDiscoveryHandler(() => data, {
+      verify,
+      version: "4.3.1",
+      overrideEncryptionMode: "plaintext",
+    });
+
+    const response = await handler(
+      new Request("https://app.test/", {
+        headers: { authorization: "Bearer x" },
+      }),
+    );
+
+    expect(verify).toHaveBeenCalledWith("Bearer x");
+    expect(response.headers.get("x-flags-sdk-version")).toBe("4.3.1");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({
+      ...data,
+      overrideEncryptionMode: "plaintext",
+    });
+  });
+});
+
+describe("Explorer overrides", () => {
+  const cookies = (value?: string) => ({
+    get: (name: string) =>
+      name === "vercel-flag-overrides" && value !== undefined
+        ? { value }
+        : undefined,
+  });
+
+  it("reads plaintext or decrypted cookies, and {} for anything else", async () => {
+    expect(
+      await explorerOverrides(
+        cookies(encodeURIComponent('{"new_editor":true}')),
+      ),
+    ).toEqual({ new_editor: true });
+    expect(await explorerOverrides(cookies("not json"))).toEqual({});
+    expect(await explorerOverrides(cookies())).toEqual({});
+    expect(
+      await explorerOverrides(cookies("sealed"), {
+        decrypt: (value) =>
+          Promise.resolve(value === "sealed" ? { theme: "dark" } : undefined),
+      }),
+    ).toEqual({ theme: "dark" });
+  });
+
+  it("serves an override of the asked type with reason OVERRIDE", async () => {
+    const provider = withExplorerOverrides(
+      createFlagsProvider({ definitions: [flag()] }),
+      { new_editor: true, other: "x" },
+    );
+
+    expect(
+      await provider.resolveBooleanEvaluation("new_editor", false, {}),
+    ).toEqual({ value: true, reason: "OVERRIDE" });
+    expect(
+      await provider.resolveStringEvaluation("new_editor", "d", {}),
+    ).toMatchObject({ value: "d", reason: "ERROR" });
+  });
+
+  it("reads the Vercel environment", () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+
+    expect(vercelEnvironmentContext()).toEqual({ environment: "preview" });
+    vi.unstubAllEnvs();
   });
 });

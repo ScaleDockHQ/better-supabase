@@ -25,7 +25,7 @@ const definitions: readonly FlagDefinition[] = [
     enabled: true,
     rules: [{ variant: "on", plans: ["pro"] }],
     rolloutPercentage: 0,
-    rolloutVariant: undefined,
+    rolloutVariants: [],
     overrides: [],
   },
   {
@@ -36,7 +36,7 @@ const definitions: readonly FlagDefinition[] = [
     enabled: true,
     rules: [],
     rolloutPercentage: 100,
-    rolloutVariant: "dark",
+    rolloutVariants: [{ variant: "dark", weight: 100 }],
     overrides: [],
   },
 ];
