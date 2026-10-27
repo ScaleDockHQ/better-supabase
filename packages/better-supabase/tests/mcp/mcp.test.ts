@@ -2,6 +2,7 @@ import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { defineAuthorizer } from "../../src/core/authorizer.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err } from "../../src/core/result.ts";
@@ -706,6 +707,61 @@ describe("createMcp", () => {
     expect(() =>
       mcp.tool({ name: "echo", description: "again", run: () => null }),
     ).toThrow('Duplicate MCP tool "echo"');
+  });
+});
+
+describe("createMcp versions", () => {
+  it("hands ServerOptions.versions to tools/list and tools/call decisions", async () => {
+    const versions = { evict: () => undefined, epoch: 3 };
+    const seen: unknown[] = [];
+
+    const mcp = createMcp(defineSupabase(schema), {
+      env,
+      auth: { jwks: signer.jwks },
+      name: "crm",
+      version: "1.0.0",
+      versions,
+      authorizer: defineAuthorizer({
+        name: "versions",
+        key: (ref: string) => ref,
+        evaluate: (
+          _request,
+          runtime?: { readonly versions?: typeof versions },
+        ) => {
+          seen.push(runtime?.versions?.epoch);
+
+          return { outcome: "granted" };
+        },
+      }),
+      tools: [
+        defineTool({
+          name: "ping",
+          description: "Ping",
+          permission: "ping",
+          run: () => "pong",
+        }),
+      ],
+    });
+
+    const token = await signer.sign({ sub: USER });
+
+    const send = (id: number, method: string, params?: unknown) =>
+      mcp.fetch(
+        new Request(ENDPOINT, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${token}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
+        }),
+      );
+
+    expect((await send(1, "tools/list")).status).toBe(200);
+    expect(
+      (await send(2, "tools/call", { name: "ping", arguments: {} })).status,
+    ).toBe(200);
+    expect(seen).toEqual([3, 3]);
   });
 });
 

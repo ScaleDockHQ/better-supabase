@@ -6,7 +6,11 @@ import { cache } from "react";
 import type { AuthResolution, ResolvePhase } from "../auth/resolve.ts";
 import type { SessionSnapshot } from "../auth/snapshot.ts";
 import type { AuthSession } from "../auth/view.ts";
-import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
+import type {
+  AnyAuthorizer,
+  AuthzVersionCache,
+  PermissionRef,
+} from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { Result } from "../core/result.ts";
 import type { DbStats } from "../core/stats.ts";
@@ -96,15 +100,19 @@ export function createNext<
   E,
   C = unknown,
   P = unknown,
-  A extends AnyAuthorizer | undefined = undefined,
+  A extends AnyAuthorizer<V> | undefined = undefined,
   B = unknown,
+  V extends AuthzVersionCache = AuthzVersionCache,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
-  options: NextOptions & { readonly authorizer?: A } = {},
-): BetterNext<M, F, E, C, P, PermissionRef<A>, B> {
+  options: NextOptions & {
+    readonly authorizer?: A;
+    readonly versions?: V;
+  } = {},
+): BetterNext<M, F, E, C, P, PermissionRef<A>, B, V> {
   // SAFETY: a shared server was built from the same BetterSupabase, so its type parameters match.
   const base =
-    (options.server as BetterServer<M, F, E, C, P, B> | undefined) ??
+    (options.server as BetterServer<M, F, E, C, P, B, V> | undefined) ??
     createServer(betterSupabase, options);
 
   const core = serverCore(base);
@@ -481,8 +489,8 @@ export function createNext<
     },
   });
 
-  const next: BetterNext<M, F, E, C, P, PermissionRef<A>, B> = extendServer<
-    BetterNext<M, F, E, C, P, PermissionRef<A>, B>
+  const next: BetterNext<M, F, E, C, P, PermissionRef<A>, B, V> = extendServer<
+    BetterNext<M, F, E, C, P, PermissionRef<A>, B, V>
   >(withAccounts, {
     claims,
     getClaims,

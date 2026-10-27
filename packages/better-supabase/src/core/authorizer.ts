@@ -125,7 +125,10 @@ export type AuthorizationOutcome =
  * an adapter that implements it; better-supabase builds every request and fails
  * closed on anything but `granted`.
  */
-export interface Authorizer<Ref = string> {
+export interface Authorizer<
+  Ref = string,
+  V extends AuthzVersionCache = AuthzVersionCache,
+> {
   readonly apiVersion: 1;
   readonly name: string;
   /** The stable key of a permission reference, for specs, SQL and messages. */
@@ -137,7 +140,7 @@ export interface Authorizer<Ref = string> {
   forOperation?(table: string, operation: string): Ref | undefined;
   evaluate(
     request: AuthorizationRequest<Ref>,
-    runtime?: AuthorizerRuntime,
+    runtime?: AuthorizerRuntime<V>,
   ): AuthorizationOutcome | Promise<AuthorizationOutcome>;
   /**
    * The batch form (AuthZEN Access Evaluations); results keep the request
@@ -145,7 +148,7 @@ export interface Authorizer<Ref = string> {
    */
   evaluations?(
     requests: readonly AuthorizationRequest<Ref>[],
-    runtime?: AuthorizerRuntime,
+    runtime?: AuthorizerRuntime<V>,
   ): Promise<readonly AuthorizationOutcome[]>;
 }
 
@@ -222,9 +225,14 @@ export function requestMemo(): RequestMemo {
  * What better-supabase hands an authorizer next to each request. Optional, so
  * authorizers written for API v1 keep working.
  */
-export interface AuthorizerRuntime {
-  /** `ServerOptions.versions`, when the server has one. */
-  readonly versions?: AuthzVersionCache;
+export interface AuthorizerRuntime<
+  V extends AuthzVersionCache = AuthzVersionCache,
+> {
+  /**
+   * `ServerOptions.versions`, when the server has one, typed as the library's
+   * own cache.
+   */
+  readonly versions?: V;
   /** The scope's memo, for reads several checks in one scope share. */
   readonly memo?: RequestMemo;
 }
@@ -233,10 +241,10 @@ export interface AuthorizerRuntime {
  * `authorizer` with `runtime` merged under the runtime of every call, so a
  * server's `versions` reaches each decision.
  */
-export function bindAuthorizer<A extends AnyAuthorizer | undefined>(
-  authorizer: A,
-  runtime: AuthorizerRuntime,
-): A {
+export function bindAuthorizer<
+  A extends AnyAuthorizer<V> | undefined,
+  V extends AuthzVersionCache = AuthzVersionCache,
+>(authorizer: A, runtime: AuthorizerRuntime<V>): A {
   if (!authorizer || runtime.versions === undefined) {
     return authorizer;
   }
@@ -267,16 +275,26 @@ export function bindAuthorizer<A extends AnyAuthorizer | undefined>(
   return bound as A;
 }
 
-// oxlint-disable-next-line typescript/no-explicit-any -- Ref is invariant (key() takes it), so `unknown` would reject typed authorizers
-export type AnyAuthorizer = Authorizer<any>;
+/** An authorizer with any permission reference, for a version cache `V`. */
+export type AnyAuthorizer<V extends AuthzVersionCache = AuthzVersionCache> =
+  // oxlint-disable-next-line typescript/no-explicit-any -- Ref is invariant (key() takes it), so `unknown` would reject typed authorizers
+  Authorizer<any, V>;
 
 /** The permission reference type of an authorizer, `string` without one. */
 export type PermissionRef<A> = A extends Authorizer<infer R> ? R : string;
 
-/** Identity helper that fixes `apiVersion` and infers `Ref`. */
-export function defineAuthorizer<Ref = string>(
-  authorizer: Omit<Authorizer<Ref>, "apiVersion"> & { readonly apiVersion?: 1 },
-): Authorizer<Ref> {
+/**
+ * Identity helper that fixes `apiVersion` and infers `Ref`, and `V` from a
+ * typed `runtime` parameter.
+ */
+export function defineAuthorizer<
+  Ref = string,
+  V extends AuthzVersionCache = AuthzVersionCache,
+>(
+  authorizer: Omit<Authorizer<Ref, V>, "apiVersion"> & {
+    readonly apiVersion?: 1;
+  },
+): Authorizer<Ref, V> {
   return { ...authorizer, apiVersion: 1 };
 }
 

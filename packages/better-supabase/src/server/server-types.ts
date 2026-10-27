@@ -69,7 +69,9 @@ export interface ServerDbOptions {
   readonly urlLengthLimit?: number;
 }
 
-export interface ServerOptions {
+export interface ServerOptions<
+  V extends AuthzVersionCache = AuthzVersionCache,
+> {
   /**
    * A loaded env, or the variables to load it from (`{ SUPABASE_URL, ... }`),
    * read without falling back to the runtime's. Defaults to the variables
@@ -175,7 +177,7 @@ export interface ServerOptions {
    * routes and MCP tools ask for their `permission`. Without one, a declared
    * permission denies.
    */
-  readonly authorizer?: AnyAuthorizer;
+  readonly authorizer?: AnyAuthorizer<V>;
   /**
    * The runtime hooks of an authorization provider (`AuthorizationHooks` v1).
    * Support sessions read `support.authorize` and `approverOf`, and
@@ -187,7 +189,7 @@ export interface ServerOptions {
    * reaches every authorizer decision (`AuthorizerRuntime.versions`), and
    * `evictSession` evicts the user from it.
    */
-  readonly versions?: AuthzVersionCache;
+  readonly versions?: V;
   /**
    * The verified-session memo `snapshot()` and adapters share across cache
    * scopes: size and lifetime, or `false` to verify in every scope.
@@ -349,6 +351,7 @@ export interface BetterServer<
   C = unknown,
   P = unknown,
   B = unknown,
+  V extends AuthzVersionCache = AuthzVersionCache,
 > {
   readonly env: BetterSupabaseEnv;
   /** The definition's events; adapters pass `events.settled()` to `waitUntil`. */
@@ -471,11 +474,11 @@ export interface BetterServer<
   /** Support sessions; every method fails without `ServerOptions.support`. */
   readonly support: SupportApi;
   /** `options.authorizer`, when the server has one, bound to `options.versions`. */
-  readonly authorizer: AnyAuthorizer | undefined;
+  readonly authorizer: AnyAuthorizer<V> | undefined;
   /** `options.authorization`, when the server has one. */
   readonly authorization: AuthorizationHooks | undefined;
-  /** `options.versions`, when the server has one. */
-  readonly versions: AuthzVersionCache | undefined;
+  /** `options.versions`, when the server has one, with its own type. */
+  readonly versions: V | undefined;
   /**
    * The verified session of a request, shared by every scope that resolves the
    * same token: the first verifies it, the rest await that verification. `null`

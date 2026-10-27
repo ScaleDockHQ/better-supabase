@@ -10,7 +10,7 @@ import type {
   ResolvePhase,
 } from "../auth/resolve.ts";
 import type { SessionEncoding } from "../auth/session.ts";
-import type { RequestMemo } from "../core/authorizer.ts";
+import type { AuthzVersionCache, RequestMemo } from "../core/authorizer.ts";
 import type {
   DelegationPermissions,
   TicketSubject,
@@ -155,10 +155,11 @@ export function createServer<
   C = unknown,
   P = unknown,
   B = unknown,
+  V extends AuthzVersionCache = AuthzVersionCache,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
-  options: ServerOptions = {},
-): BetterServer<M, F, E, C, P, B> {
+  options: ServerOptions<V> = {},
+): BetterServer<M, F, E, C, P, B, V> {
   const credentials =
     options.credentials === undefined
       ? {}
@@ -795,7 +796,7 @@ export function createServer<
         ),
     });
 
-  const server: BetterServer<M, F, E, C, P, B> = {
+  const server: BetterServer<M, F, E, C, P, B, V> = {
     get env() {
       return env();
     },
