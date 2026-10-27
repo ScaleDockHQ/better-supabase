@@ -1875,7 +1875,7 @@ export interface BlockNameRegistry {
   };
   readonly "workflow-sdk": {
     readonly tables: {};
-    readonly functions: "dispatch_workflow_deliveries" | "workflow_sdk_mirror_run";
+    readonly functions: "dispatch_workflow_deliveries" | "workflow_claim_run_key" | "workflow_open_hooks" | "workflow_purge_runs" | "workflow_release_run_key" | "workflow_sdk_mirror_run" | "workflow_set_run_key";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};

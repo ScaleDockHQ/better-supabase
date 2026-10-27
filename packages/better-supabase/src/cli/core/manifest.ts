@@ -443,7 +443,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "db",
     description:
-      "Runs SQL files and seeds against the database, backfills columns, and diffs the declarative schema: the local stack by default, or the one in the connection string",
+      "Runs SQL files and seeds against the database, backfills columns, prunes ended workflow runs, and diffs the declarative schema: the local stack by default, or the one in the connection string",
     group: "local",
     docs: "/docs/cli/db",
     effects: [{ kind: "database", access: "write" }],
@@ -510,6 +510,25 @@ export const COMMANDS: readonly CommandSpec[] = [
             command:
               "better-supabase db backfill invoices.currency --value \"'EUR'\" --dry-run",
             description: "Counts the rows it would set to EUR",
+          },
+        ],
+        effects: [{ kind: "database", access: "write" }],
+      },
+      {
+        name: "prune-workflows",
+        description:
+          "Deletes ended Workflow SDK runs, with their events, steps, streams and hooks, in batches",
+        docs: "/docs/cli/db#prune-workflows",
+        examples: [
+          {
+            command: "better-supabase db prune-workflows --older-than 30d",
+            description:
+              "Deletes completed, failed and cancelled runs older than 30 days",
+          },
+          {
+            command:
+              "better-supabase db prune-workflows --older-than 7d --status failed --dry-run",
+            description: "Counts the failed runs it would delete",
           },
         ],
         effects: [{ kind: "database", access: "write" }],

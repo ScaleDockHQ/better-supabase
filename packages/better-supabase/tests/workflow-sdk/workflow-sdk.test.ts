@@ -37,6 +37,7 @@ const {
   hookMetadata,
   protectWebHandler,
   startFor,
+  startOnce,
   startOnEvent,
   workflowContext,
   workflowStarter,
@@ -185,6 +186,118 @@ describe("startFor", () => {
     });
     await startFor({}, approve, ["i1"]);
     expect(listRuns).not.toHaveBeenCalled();
+  });
+});
+
+function keyedWorld(
+  claims: { claimed: boolean; runId: string | undefined }[],
+): {
+  world: never;
+  runKeys: {
+    claim: ReturnType<typeof vi.fn>;
+    set: ReturnType<typeof vi.fn>;
+    release: ReturnType<typeof vi.fn>;
+  };
+} {
+  const runKeys = {
+    claim: vi.fn(
+      async () => claims.shift() ?? { claimed: false, runId: undefined },
+    ),
+    set: vi.fn(async () => undefined),
+    release: vi.fn(async () => undefined),
+  };
+
+  return { world: { ...world, runKeys } as never, runKeys };
+}
+
+describe("run keys", () => {
+  it("claims the key, starts, and records the run", async () => {
+    const { world: keyed, runKeys } = keyedWorld([
+      { claimed: true, runId: undefined },
+    ]);
+
+    const run = await startOnce(user, approve, ["i1"], {
+      key: "k1",
+      world: keyed,
+    });
+
+    expect(run.runId).toBe("wrun_new");
+    expect(runKeys.claim).toHaveBeenCalledWith("k1");
+    expect(runKeys.set).toHaveBeenCalledWith("k1", "wrun_new");
+    expect(start).toHaveBeenCalledOnce();
+  });
+
+  it("returns the run a concurrent start recorded", async () => {
+    const { world: keyed, runKeys } = keyedWorld([
+      { claimed: false, runId: "wrun_first" },
+    ]);
+
+    const run = await startFor(user, approve, ["i1"], {
+      idempotencyKey: "k1",
+      world: keyed,
+    });
+
+    expect(run.runId).toBe("wrun_first");
+    expect(start).not.toHaveBeenCalled();
+    expect(runKeys.set).not.toHaveBeenCalled();
+  });
+
+  it("waits while another start holds the key", async () => {
+    vi.useFakeTimers();
+
+    const { world: keyed } = keyedWorld([
+      { claimed: false, runId: undefined },
+      { claimed: false, runId: "wrun_first" },
+    ]);
+
+    const pending = startOnce(user, approve, ["i1"], {
+      key: "k1",
+      world: keyed,
+    });
+
+    await vi.advanceTimersByTimeAsync(300);
+    expect((await pending).runId).toBe("wrun_first");
+    vi.useRealTimers();
+  });
+
+  it("records a run that has the key as an attribute", async () => {
+    listRuns.mockResolvedValueOnce({ data: [{ runId: "wrun_legacy" }] });
+
+    const { world: keyed, runKeys } = keyedWorld([
+      { claimed: true, runId: undefined },
+    ]);
+
+    const run = await startOnce(user, approve, ["i1"], {
+      key: "k1",
+      world: keyed,
+    });
+
+    expect(run.runId).toBe("wrun_legacy");
+    expect(runKeys.set).toHaveBeenCalledWith("k1", "wrun_legacy");
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it("releases the key when the start fails", async () => {
+    start.mockRejectedValueOnce(new Error("down"));
+
+    const { world: keyed, runKeys } = keyedWorld([
+      { claimed: true, runId: undefined },
+    ]);
+
+    await expect(
+      startOnce(user, approve, ["i1"], { key: "k1", world: keyed }),
+    ).rejects.toThrow("down");
+    expect(runKeys.release).toHaveBeenCalledWith("k1");
+    expect(runKeys.set).not.toHaveBeenCalled();
+  });
+
+  it("refuses an empty or long key", () => {
+    expect(() => startOnce(user, approve, ["i1"], { key: "" })).toThrow(
+      TypeError,
+    );
+    expect(() =>
+      startOnce(user, approve, ["i1"], { key: "k".repeat(501) }),
+    ).toThrow(TypeError);
   });
 });
 
