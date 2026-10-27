@@ -13,7 +13,6 @@ export {
 } from "./builder.ts";
 
 export {
-  approvalToken,
   executeGraph,
   type GraphApprovalCall,
   type GraphRuntime,

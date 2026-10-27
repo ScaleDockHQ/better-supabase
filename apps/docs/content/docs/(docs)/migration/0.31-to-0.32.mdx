@@ -116,6 +116,25 @@ service client and `rpcTransport` are no longer needed. `createIdentify`
 takes a `visitor` for signed-out rollouts. `pnpm better-supabase codemod 0.32`
 renames the calls and flags `createIdentify({ claims: ... })` for review.
 
+## Workflow SDK
+
+| 0.31                                            | 0.32                                                                   |
+| ----------------------------------------------- | ---------------------------------------------------------------------- |
+| `approvalToken(runKey, node)`                   | the approvals request id that `requestApproval` returns                |
+| `requestApproval` optional on the graph runtime | required; an approval node always files a request                      |
+| `graphStarter` without `approval`               | `approval` is required for a live run of a graph with an approval node |
+| `WORKFLOW_POSTGRES_MAX_CONNECTIONS`             | `WORKFLOW_POSTGRES_MAX_POOL_SIZE` (the old name still works)           |
+
+An approval node used to wait on `<runKey>:<node>` when no `requestApproval`
+was passed, and anyone who knew the run key could resume it. Now the node
+always files an [approvals](/docs/blocks/approvals) request and waits on its
+id; resume it with `wakeOnApproval` from your outbox consumer instead of
+calling `resumeHook` with a token. Add an approvals policy for the subject
+type you file (`workflow_run` in the example), pass the step as `approval`
+to `graphStarter`, and bind it as `requestApproval` in the executor. The
+[graph workflows](/docs/blocks/workflow-sdk#graph-workflows) section shows
+the step.
+
 ## Names that stay
 
 Some names looked like candidates and keep their meaning:

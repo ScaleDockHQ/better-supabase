@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { HookNotFoundError } from "workflow/errors";
 
 interface FakeHook {
   token: string;
@@ -142,9 +143,7 @@ describe("wakeOnApproval", () => {
   });
 
   it("ignores a request no run waits on, and rethrows anything else", async () => {
-    const missing = Object.assign(new Error("Hook not found"), {
-      name: "HookNotFoundError",
-    });
+    const missing = new HookNotFoundError("req-4");
 
     await expect(
       wakeOnApproval(

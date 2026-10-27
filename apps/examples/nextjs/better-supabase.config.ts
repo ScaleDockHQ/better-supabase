@@ -278,6 +278,15 @@ export default defineConfig({
               selfApproval: true,
             },
           },
+          // Approval nodes of a builder graph; the request's subject is the run key.
+          workflow_run: {
+            approve: {
+              steps: [
+                { approvers: { permission: "approvals.manage" }, required: 1 },
+              ],
+              selfApproval: true,
+            },
+          },
         },
       },
     },

@@ -6,10 +6,11 @@ import type { WorkflowDeliveryMode } from "../../sql/modules/workflow-sdk.ts";
 
 /**
  * The `@workflow/world` protocol this World speaks: the package version its
- * types and queue format come from. Its tables come from
- * `@workflow/world-postgres` at `WORLD_POSTGRES_VERSION`.
+ * types and queue format come from, which a test keeps equal to the installed
+ * one. Its tables come from `@workflow/world-postgres` at
+ * `WORLD_POSTGRES_VERSION`.
  */
-export const WORKFLOW_WORLD_PROTOCOL = "5.0.2";
+export const WORKFLOW_WORLD_PROTOCOL = "5.0.4";
 
 export type { WorkflowDeliveryMode };
 
@@ -56,7 +57,10 @@ export interface SupabaseWorldOptions {
   readonly schema?: string;
   /** Deliveries in flight at once in poll mode (default 50). */
   readonly concurrency?: number;
-  /** Milliseconds between polls of an empty queue (default 250). */
+  /**
+   * Milliseconds between polls of an empty queue (default 250; world-postgres
+   * polls graphile-worker on its own schedule).
+   */
   readonly pollInterval?: number;
   /**
    * Seconds a claimed message stays leased; the delivery extends it while it

@@ -31,7 +31,7 @@ export interface GraphStepCall {
   readonly input: unknown;
   /** The outputs of the nodes that ran before it, by node id. */
   readonly results: Readonly<Record<string, unknown>>;
-  /** The run's key; approval hooks use `<runKey>:<node>` as their token. */
+  /** The run's key: the idempotency key it started with. */
   readonly runKey: string;
   /** The published version's id; pass it to `builder.versions.runAs`. */
   readonly version?: string;
@@ -82,17 +82,12 @@ export interface GraphRuntime {
    * Files the approval request for an approval node and returns its id, which
    * becomes the hook token. Run it as a step that calls the approvals block's
    * `request`; `wakeOnApproval` resumes the run once an eligible approver
-   * decides. Without it the token is `<runKey>:<node>`, which anyone who knows
-   * the run key can guess.
+   * decides. A test run never calls it.
    */
-  requestApproval?(call: GraphApprovalCall): PromiseLike<string>;
+  requestApproval(call: GraphApprovalCall): PromiseLike<string>;
   /** Waits for the approval hook with `token` and returns its payload. */
   approval(token: string, node: string): PromiseLike<unknown>;
 }
-
-/** The hook token of an approval node without `requestApproval`. */
-export const approvalToken = (runKey: string, node: string): string =>
-  `${runKey}:${node}`;
 
 const active = (
   edge: WorkflowGraphEdge,
@@ -287,17 +282,14 @@ async function runNode(
         return { output: payload ?? null, outcome: approved(payload) };
       }
 
-      const token =
-        runtime.requestApproval === undefined
-          ? approvalToken(runtime.runKey, node.id)
-          : await runtime.requestApproval({
-              node: node.id,
-              config: node.config ?? {},
-              input,
-              results: { ...results },
-              runKey: runtime.runKey,
-              ...extrasOf(runtime),
-            });
+      const token = await runtime.requestApproval({
+        node: node.id,
+        config: node.config ?? {},
+        input,
+        results: { ...results },
+        runKey: runtime.runKey,
+        ...extrasOf(runtime),
+      });
 
       const payload = await runtime.approval(token, node.id);
 

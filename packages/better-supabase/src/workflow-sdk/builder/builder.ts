@@ -56,7 +56,7 @@ export interface CompiledGraph {
 
 /** The second argument of a compiled or static run. */
 export interface GraphRunMeta {
-  /** Approval hooks use `<runKey>:<node>` as their token. */
+  /** The idempotency key the run started with. */
   readonly runKey: string;
   readonly definition: string;
   readonly version: number;
@@ -154,7 +154,8 @@ function nodeBody(node: WorkflowGraphNode, alias: string | undefined): string {
     }
 
     case "approval": {
-      return `const token = testing ? null : steps.${APPROVAL_ALIAS} === undefined ? runKey + ":" + ${id} : await steps.${APPROVAL_ALIAS}({ node: ${id}, config: ${literal(node.config ?? {})}, input, results: Object.assign({}, results), runKey, version: versionId, tenant, subject });
+      return `if (!testing && steps.${APPROVAL_ALIAS} === undefined) throw new TypeError("workflow-editor: pass approval to graphStarter to run approval nodes");
+    const token = testing ? null : await steps.${APPROVAL_ALIAS}({ node: ${id}, config: ${literal(node.config ?? {})}, input, results: Object.assign({}, results), runKey, version: versionId, tenant, subject });
     const payload = testing ? stub(${id}, { approved: true }) : await createHook({ token });
     results[${id}] = payload === undefined ? null : payload;
     ran[${id}] = !(payload !== null && typeof payload === "object" && !Array.isArray(payload) && payload.approved === false);`;
@@ -187,10 +188,10 @@ const guard = (edges: readonly WorkflowGraphEdge[]): string =>
  * Compiles a graph to Workflow SDK dynamic source: plain JavaScript that starts
  * at `meta.triggerNode` (or the only trigger), calls each step node through its
  * own alias, sleeps with `sleep` and waits on approvals with `createHook`: the
- * token is the id `steps.bsb_approval` returns (graphStarter's `approval`),
- * else `<runKey>:<node>`. A `meta.mode` of `test` returns `meta.stubs` instead.
- * It runs the same way `executeGraph` does. Throws when the graph is invalid or
- * the source is over 128 KiB. Pass it as `compile` to `createWorkflowEditor`.
+ * token is the id `steps.bsb_approval` returns (graphStarter's `approval`). A
+ * `meta.mode` of `test` returns `meta.stubs` instead. It runs the same way
+ * `executeGraph` does. Throws when the graph is invalid or the source is over
+ * 128 KiB. Pass it as `compile` to `createWorkflowEditor`.
  */
 export function compileGraph(graph: WorkflowGraph): CompiledGraph {
   const errors = validateGraph(graph);
@@ -324,9 +325,9 @@ export interface GraphStarterOptions {
   /**
    * A `"use step"` function that files the approval request for an approval
    * node (a `GraphApprovalCall`) and returns its id, the hook token. Resume
-   * runs with `wakeOnApproval` from your outbox consumer. Without it the token
-   * is `<runKey>:<node>`, which anyone who knows the run key can guess. The
-   * static executor passes it as `runtime.requestApproval` itself.
+   * runs with `wakeOnApproval` from your outbox consumer. Required to start a
+   * live run of a graph with an approval node on dynamic workflows; the static
+   * executor passes it as `runtime.requestApproval` itself.
    */
   readonly approval?: GraphStep;
 }
@@ -434,6 +435,16 @@ export function graphStarter(options: GraphStarterOptions): BuilderStarter {
     };
 
     if (options.dynamic ?? dynamicEnabled()) {
+      if (
+        !testing &&
+        options.approval === undefined &&
+        graph.nodes.some((node) => node.kind === "approval")
+      ) {
+        throw new Error(
+          "better-supabase: the graph has an approval node; pass approval to graphStarter to file its request",
+        );
+      }
+
       const compiled = compileGraph(graph);
       const steps: Record<string, GraphStep> = {};
 

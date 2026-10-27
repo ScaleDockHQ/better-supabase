@@ -11,6 +11,7 @@ import {
   setFieldAction,
 } from "better-supabase/blocks/automations";
 import { taskFromConversationAction } from "better-supabase/blocks/tasks";
+import { wakeOnApproval } from "better-supabase/workflow-sdk";
 import { connection } from "next/server";
 import * as v from "valibot";
 
@@ -51,7 +52,8 @@ const setTaskField: RuleFieldSetter = async (write) => {
  * Runs the rules on the `task.created`, `task.updated` and `task.deleted`
  * events the `tasks` app table writes to the outbox, and the automations the
  * blocks ship on their own events, such as the inbox's "Open a task for each
- * new conversation". Call it every minute from a cron (Vercel Cron sends
+ * new conversation". The `approvals` consumer resumes the graph runs waiting on
+ * a decided request. Call it every minute from a cron (Vercel Cron sends
  * `Authorization: Bearer $CRON_SECRET`).
  */
 export async function GET(request: Request): Promise<Response> {
@@ -121,6 +123,13 @@ export async function GET(request: Request): Promise<Response> {
 
   return admin.outbox.relayRoute({
     secret: env.CRON_SECRET,
-    consumers: { rules: sink },
+    consumers: {
+      rules: sink,
+      approvals: async (events) => {
+        for (const event of events) {
+          await wakeOnApproval(event);
+        }
+      },
+    },
   })(request);
 }

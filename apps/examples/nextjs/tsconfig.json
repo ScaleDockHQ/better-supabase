@@ -4,7 +4,8 @@
   "compilerOptions": {
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "plugins": [{ "name": "next" }, { "name": "workflow" }]
   },
   "include": [
     "next-env.d.ts",

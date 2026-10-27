@@ -57,6 +57,7 @@ export function fakeRuntime(
     sleep: async (ms) => {
       log.push(`sleep ${String(ms)}`);
     },
+    requestApproval: async (call) => `${call.runKey}:${call.node}`,
     approval: async (token, node) => {
       log.push(`approval ${token} ${node}`);
 
