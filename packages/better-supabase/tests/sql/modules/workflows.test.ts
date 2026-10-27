@@ -126,12 +126,18 @@ describe("workflow-sdk module", () => {
 
     const [contract] = customContracts(["workflow-sdk"], { modules: custom });
 
-    expect(contract!.functions).toEqual([
-      {
-        name: "dispatch_workflow_deliveries",
-        args: ["integer"],
-        returns: "integer",
-      },
+    expect(contract!.functions.map((fn) => fn.name)).toEqual([
+      "dispatch_workflow_deliveries",
+      "workflow_claim_run_key",
+      "workflow_set_run_key",
+      "workflow_release_run_key",
+      "workflow_purge_runs",
+      "workflow_open_hooks",
     ]);
+    expect(contract!.functions[0]).toEqual({
+      name: "dispatch_workflow_deliveries",
+      args: ["integer"],
+      returns: "integer",
+    });
   });
 });

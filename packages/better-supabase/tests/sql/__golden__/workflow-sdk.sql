@@ -1,8 +1,8 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@2 managed
--- @bsb-hash sha256:80aaa4db8c0d85d8d04ead47ef6bb7aa6101b86fd704f8cdb1520543b6932b5b
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.
+-- @bsb-block workflow-sdk@3 managed
+-- @bsb-hash sha256:3e8d1a1aac909363ac14524fa6a3dd40bf5c424cad314de75c467766f926f0d8
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -294,6 +294,16 @@ alter table workflow.workflow_waits
 
 create index if not exists workflow_waits_run_id_index ON workflow.workflow_waits USING btree (run_id);
 
+
+-- One row per start idempotency key: startFor claims the key before it starts
+-- a run, so two concurrent starts with one key start one run. run_id is null
+-- while the start that claimed it is still running.
+create table if not exists workflow.workflow_run_keys (
+  key text primary key check (length(key) between 1 and 500),
+  run_id character varying,
+  claimed_at timestamptz not null default now()
+);
+create index if not exists workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
 do $$
@@ -435,6 +445,143 @@ end;
 $$;
 revoke execute on function "better_supabase"."dispatch_workflow_deliveries"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."dispatch_workflow_deliveries"(integer) to service_role;
+
+-- Claims a start key: claimed is true when this caller may start the run,
+-- either because the key is new or because the start that claimed it left no
+-- run for stale_after. Otherwise run_id is the run of the earlier start (null
+-- while that start is still running).
+create or replace function "better_supabase"."workflow_claim_run_key"(run_key text, stale_after interval default '5 minutes')
+returns table (claimed boolean, run_id text)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  return query
+    insert into workflow.workflow_run_keys as k (key) values (run_key)
+    on conflict (key) do update set claimed_at = now()
+      where k.run_id is null and k.claimed_at < now() - coalesce(stale_after, interval '5 minutes')
+    returning true, k.run_id::text;
+  if not found then
+    return query select false, k.run_id::text from workflow.workflow_run_keys k where k.key = run_key;
+  end if;
+end;
+$$;
+
+-- Records the run a claimed key started.
+create or replace function "better_supabase"."workflow_set_run_key"(run_key text, run text)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  update workflow.workflow_run_keys set run_id = run, claimed_at = now() where key = run_key;
+$$;
+
+-- Frees a key whose start failed before it created a run.
+create or replace function "better_supabase"."workflow_release_run_key"(run_key text)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  delete from workflow.workflow_run_keys where key = run_key and run_id is null;
+$$;
+
+-- Deletes up to batch terminal runs that ended more than older_than ago, with
+-- their events, steps, waits, streams, snapshots and invocations; hooks whose
+-- token is still reserved (token_retention_until) stay, so a token can't be
+-- reused. The copies in workflow_runs follow purge_workflow_runs instead.
+create or replace function "better_supabase"."workflow_purge_runs"(
+  older_than interval default '30 days',
+  statuses text[] default array['completed', 'failed', 'cancelled'],
+  batch integer default 500
+)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_statuses text[] := coalesce(statuses, array['completed', 'failed', 'cancelled']);
+  v_ids text[];
+  v_count integer;
+begin
+  if exists (select 1 from unnest(v_statuses) s where s not in ('completed', 'failed', 'cancelled')) then
+    raise exception 'workflow_purge_runs deletes only completed, failed or cancelled runs'
+      using errcode = '22023', hint = 'WORKFLOW_PURGE_STATUS';
+  end if;
+  select coalesce(array_agg(x.id), '{}') into v_ids from (
+    select r.id from workflow.workflow_runs r
+    where r.status::text = any (v_statuses)
+      and coalesce(r.completed_at, r.updated_at) < (now() at time zone 'UTC') - coalesce(older_than, interval '30 days')
+    order by coalesce(r.completed_at, r.updated_at)
+    limit least(greatest(coalesce(batch, 500), 1), 10000)
+    for update skip locked
+  ) x;
+  if cardinality(v_ids) = 0 then
+    return 0;
+  end if;
+  delete from workflow.workflow_events where run_id = any (v_ids);
+  delete from workflow.workflow_event_slots where run_id = any (v_ids);
+  delete from workflow.workflow_steps where run_id = any (v_ids);
+  delete from workflow.workflow_waits where run_id = any (v_ids);
+  delete from workflow.workflow_stream_chunks where run_id = any (v_ids);
+  delete from workflow.workflow_snapshots where run_id = any (v_ids);
+  delete from workflow.workflow_invocations where run_id = any (v_ids);
+  delete from workflow.workflow_hooks
+    where run_id = any (v_ids) and (token_retention_until is null or token_retention_until < now());
+  delete from workflow.workflow_run_keys where run_id = any (v_ids);
+  delete from workflow.workflow_runs where id = any (v_ids);
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+-- The hooks of pending and running runs, newest first: what a run waits on.
+-- The token is left out; the app that created a hook knows it.
+create or replace function "better_supabase"."workflow_open_hooks"(
+  tenant text default null,
+  workflow_name text default null,
+  max integer default 50
+)
+returns table (
+  hook_id text,
+  run_id text,
+  workflow text,
+  tenant_id text,
+  actor_id text,
+  metadata jsonb,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select h.hook_id::text, h.run_id::text, r.name::text,
+    r.attributes ->> 'bsb.tenant', r.attributes ->> 'bsb.actor',
+    h.metadata, h.created_at at time zone 'UTC'
+  from workflow.workflow_hooks h
+  join workflow.workflow_runs r on r.id = h.run_id
+  where r.status::text in ('pending', 'running')
+    and not coalesce(h.is_system, false)
+    and (workflow_open_hooks.tenant is null or r.attributes ->> 'bsb.tenant' = workflow_open_hooks.tenant)
+    and (workflow_open_hooks.workflow_name is null or r.name = workflow_open_hooks.workflow_name)
+  order by h.created_at desc
+  limit least(greatest(coalesce(workflow_open_hooks.max, 50), 1), 500);
+$$;
+revoke execute on function "better_supabase"."workflow_claim_run_key"(text, interval) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_claim_run_key"(text, interval) to service_role;
+revoke execute on function "better_supabase"."workflow_set_run_key"(text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_set_run_key"(text, text) to service_role;
+revoke execute on function "better_supabase"."workflow_release_run_key"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_release_run_key"(text) to service_role;
+revoke execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer) to service_role;
+revoke execute on function "better_supabase"."workflow_open_hooks"(text, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_open_hooks"(text, text, integer) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -452,22 +599,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:73bb4504cb97d0078e4caf3a087531a42fbc583e026fe96f6db9c5e91987056b
+-- @bsb-hash sha256:074bf56c8ea1c04a26b7e5ac10159ae775306c562aa9cd6fada431f31f21d8a4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 2, 'managed')
+values ('workflow-sdk', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@2 managed
--- @bsb-hash sha256:80aaa4db8c0d85d8d04ead47ef6bb7aa6101b86fd704f8cdb1520543b6932b5b
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.
+-- @bsb-block workflow-sdk@3 managed
+-- @bsb-hash sha256:3e8d1a1aac909363ac14524fa6a3dd40bf5c424cad314de75c467766f926f0d8
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -759,6 +906,16 @@ alter table workflow.workflow_waits
 
 create index if not exists workflow_waits_run_id_index ON workflow.workflow_waits USING btree (run_id);
 
+
+-- One row per start idempotency key: startFor claims the key before it starts
+-- a run, so two concurrent starts with one key start one run. run_id is null
+-- while the start that claimed it is still running.
+create table if not exists workflow.workflow_run_keys (
+  key text primary key check (length(key) between 1 and 500),
+  run_id character varying,
+  claimed_at timestamptz not null default now()
+);
+create index if not exists workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
 do $$
@@ -901,6 +1058,143 @@ $$;
 revoke execute on function "better_supabase"."dispatch_workflow_deliveries"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."dispatch_workflow_deliveries"(integer) to service_role;
 
+-- Claims a start key: claimed is true when this caller may start the run,
+-- either because the key is new or because the start that claimed it left no
+-- run for stale_after. Otherwise run_id is the run of the earlier start (null
+-- while that start is still running).
+create or replace function "better_supabase"."workflow_claim_run_key"(run_key text, stale_after interval default '5 minutes')
+returns table (claimed boolean, run_id text)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  return query
+    insert into workflow.workflow_run_keys as k (key) values (run_key)
+    on conflict (key) do update set claimed_at = now()
+      where k.run_id is null and k.claimed_at < now() - coalesce(stale_after, interval '5 minutes')
+    returning true, k.run_id::text;
+  if not found then
+    return query select false, k.run_id::text from workflow.workflow_run_keys k where k.key = run_key;
+  end if;
+end;
+$$;
+
+-- Records the run a claimed key started.
+create or replace function "better_supabase"."workflow_set_run_key"(run_key text, run text)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  update workflow.workflow_run_keys set run_id = run, claimed_at = now() where key = run_key;
+$$;
+
+-- Frees a key whose start failed before it created a run.
+create or replace function "better_supabase"."workflow_release_run_key"(run_key text)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  delete from workflow.workflow_run_keys where key = run_key and run_id is null;
+$$;
+
+-- Deletes up to batch terminal runs that ended more than older_than ago, with
+-- their events, steps, waits, streams, snapshots and invocations; hooks whose
+-- token is still reserved (token_retention_until) stay, so a token can't be
+-- reused. The copies in workflow_runs follow purge_workflow_runs instead.
+create or replace function "better_supabase"."workflow_purge_runs"(
+  older_than interval default '30 days',
+  statuses text[] default array['completed', 'failed', 'cancelled'],
+  batch integer default 500
+)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_statuses text[] := coalesce(statuses, array['completed', 'failed', 'cancelled']);
+  v_ids text[];
+  v_count integer;
+begin
+  if exists (select 1 from unnest(v_statuses) s where s not in ('completed', 'failed', 'cancelled')) then
+    raise exception 'workflow_purge_runs deletes only completed, failed or cancelled runs'
+      using errcode = '22023', hint = 'WORKFLOW_PURGE_STATUS';
+  end if;
+  select coalesce(array_agg(x.id), '{}') into v_ids from (
+    select r.id from workflow.workflow_runs r
+    where r.status::text = any (v_statuses)
+      and coalesce(r.completed_at, r.updated_at) < (now() at time zone 'UTC') - coalesce(older_than, interval '30 days')
+    order by coalesce(r.completed_at, r.updated_at)
+    limit least(greatest(coalesce(batch, 500), 1), 10000)
+    for update skip locked
+  ) x;
+  if cardinality(v_ids) = 0 then
+    return 0;
+  end if;
+  delete from workflow.workflow_events where run_id = any (v_ids);
+  delete from workflow.workflow_event_slots where run_id = any (v_ids);
+  delete from workflow.workflow_steps where run_id = any (v_ids);
+  delete from workflow.workflow_waits where run_id = any (v_ids);
+  delete from workflow.workflow_stream_chunks where run_id = any (v_ids);
+  delete from workflow.workflow_snapshots where run_id = any (v_ids);
+  delete from workflow.workflow_invocations where run_id = any (v_ids);
+  delete from workflow.workflow_hooks
+    where run_id = any (v_ids) and (token_retention_until is null or token_retention_until < now());
+  delete from workflow.workflow_run_keys where run_id = any (v_ids);
+  delete from workflow.workflow_runs where id = any (v_ids);
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+-- The hooks of pending and running runs, newest first: what a run waits on.
+-- The token is left out; the app that created a hook knows it.
+create or replace function "better_supabase"."workflow_open_hooks"(
+  tenant text default null,
+  workflow_name text default null,
+  max integer default 50
+)
+returns table (
+  hook_id text,
+  run_id text,
+  workflow text,
+  tenant_id text,
+  actor_id text,
+  metadata jsonb,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select h.hook_id::text, h.run_id::text, r.name::text,
+    r.attributes ->> 'bsb.tenant', r.attributes ->> 'bsb.actor',
+    h.metadata, h.created_at at time zone 'UTC'
+  from workflow.workflow_hooks h
+  join workflow.workflow_runs r on r.id = h.run_id
+  where r.status::text in ('pending', 'running')
+    and not coalesce(h.is_system, false)
+    and (workflow_open_hooks.tenant is null or r.attributes ->> 'bsb.tenant' = workflow_open_hooks.tenant)
+    and (workflow_open_hooks.workflow_name is null or r.name = workflow_open_hooks.workflow_name)
+  order by h.created_at desc
+  limit least(greatest(coalesce(workflow_open_hooks.max, 50), 1), 500);
+$$;
+revoke execute on function "better_supabase"."workflow_claim_run_key"(text, interval) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_claim_run_key"(text, interval) to service_role;
+revoke execute on function "better_supabase"."workflow_set_run_key"(text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_set_run_key"(text, text) to service_role;
+revoke execute on function "better_supabase"."workflow_release_run_key"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_release_run_key"(text) to service_role;
+revoke execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer) to service_role;
+revoke execute on function "better_supabase"."workflow_open_hooks"(text, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_open_hooks"(text, text, integer) to service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -917,22 +1211,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:73bb4504cb97d0078e4caf3a087531a42fbc583e026fe96f6db9c5e91987056b
+-- @bsb-hash sha256:074bf56c8ea1c04a26b7e5ac10159ae775306c562aa9cd6fada431f31f21d8a4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 2, 'managed')
+values ('workflow-sdk', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@2 managed
--- @bsb-hash sha256:a93c7d41d0271562292fb52ed60c701e420426505fded8c815ddff154b4c5ef6
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.
+-- @bsb-block workflow-sdk@3 managed
+-- @bsb-hash sha256:3ef6ced1ef2527b9fe96e6630aecf2fb237114b983c79fd78123052e56fdd673
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1229,6 +1523,16 @@ alter table workflow.workflow_waits
 
 create index if not exists workflow_waits_run_id_index ON workflow.workflow_waits USING btree (run_id);
 
+
+-- One row per start idempotency key: startFor claims the key before it starts
+-- a run, so two concurrent starts with one key start one run. run_id is null
+-- while the start that claimed it is still running.
+create table if not exists workflow.workflow_run_keys (
+  key text primary key check (length(key) between 1 and 500),
+  run_id character varying,
+  claimed_at timestamptz not null default now()
+);
+create index if not exists workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
 do $$
@@ -1371,6 +1675,143 @@ $$;
 revoke execute on function "app_private"."dispatch_workflow_deliveries"(integer) from public, anon, authenticated;
 grant execute on function "app_private"."dispatch_workflow_deliveries"(integer) to service_role;
 
+-- Claims a start key: claimed is true when this caller may start the run,
+-- either because the key is new or because the start that claimed it left no
+-- run for stale_after. Otherwise run_id is the run of the earlier start (null
+-- while that start is still running).
+create or replace function "app_private"."workflow_claim_run_key"(run_key text, stale_after interval default '5 minutes')
+returns table (claimed boolean, run_id text)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  return query
+    insert into workflow.workflow_run_keys as k (key) values (run_key)
+    on conflict (key) do update set claimed_at = now()
+      where k.run_id is null and k.claimed_at < now() - coalesce(stale_after, interval '5 minutes')
+    returning true, k.run_id::text;
+  if not found then
+    return query select false, k.run_id::text from workflow.workflow_run_keys k where k.key = run_key;
+  end if;
+end;
+$$;
+
+-- Records the run a claimed key started.
+create or replace function "app_private"."workflow_set_run_key"(run_key text, run text)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  update workflow.workflow_run_keys set run_id = run, claimed_at = now() where key = run_key;
+$$;
+
+-- Frees a key whose start failed before it created a run.
+create or replace function "app_private"."workflow_release_run_key"(run_key text)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  delete from workflow.workflow_run_keys where key = run_key and run_id is null;
+$$;
+
+-- Deletes up to batch terminal runs that ended more than older_than ago, with
+-- their events, steps, waits, streams, snapshots and invocations; hooks whose
+-- token is still reserved (token_retention_until) stay, so a token can't be
+-- reused. The copies in workflow_runs follow purge_workflow_runs instead.
+create or replace function "app_private"."workflow_purge_runs"(
+  older_than interval default '30 days',
+  statuses text[] default array['completed', 'failed', 'cancelled'],
+  batch integer default 500
+)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_statuses text[] := coalesce(statuses, array['completed', 'failed', 'cancelled']);
+  v_ids text[];
+  v_count integer;
+begin
+  if exists (select 1 from unnest(v_statuses) s where s not in ('completed', 'failed', 'cancelled')) then
+    raise exception 'workflow_purge_runs deletes only completed, failed or cancelled runs'
+      using errcode = '22023', hint = 'WORKFLOW_PURGE_STATUS';
+  end if;
+  select coalesce(array_agg(x.id), '{}') into v_ids from (
+    select r.id from workflow.workflow_runs r
+    where r.status::text = any (v_statuses)
+      and coalesce(r.completed_at, r.updated_at) < (now() at time zone 'UTC') - coalesce(older_than, interval '30 days')
+    order by coalesce(r.completed_at, r.updated_at)
+    limit least(greatest(coalesce(batch, 500), 1), 10000)
+    for update skip locked
+  ) x;
+  if cardinality(v_ids) = 0 then
+    return 0;
+  end if;
+  delete from workflow.workflow_events where run_id = any (v_ids);
+  delete from workflow.workflow_event_slots where run_id = any (v_ids);
+  delete from workflow.workflow_steps where run_id = any (v_ids);
+  delete from workflow.workflow_waits where run_id = any (v_ids);
+  delete from workflow.workflow_stream_chunks where run_id = any (v_ids);
+  delete from workflow.workflow_snapshots where run_id = any (v_ids);
+  delete from workflow.workflow_invocations where run_id = any (v_ids);
+  delete from workflow.workflow_hooks
+    where run_id = any (v_ids) and (token_retention_until is null or token_retention_until < now());
+  delete from workflow.workflow_run_keys where run_id = any (v_ids);
+  delete from workflow.workflow_runs where id = any (v_ids);
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+-- The hooks of pending and running runs, newest first: what a run waits on.
+-- The token is left out; the app that created a hook knows it.
+create or replace function "app_private"."workflow_open_hooks"(
+  tenant text default null,
+  workflow_name text default null,
+  max integer default 50
+)
+returns table (
+  hook_id text,
+  run_id text,
+  workflow text,
+  tenant_id text,
+  actor_id text,
+  metadata jsonb,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select h.hook_id::text, h.run_id::text, r.name::text,
+    r.attributes ->> 'bsb.tenant', r.attributes ->> 'bsb.actor',
+    h.metadata, h.created_at at time zone 'UTC'
+  from workflow.workflow_hooks h
+  join workflow.workflow_runs r on r.id = h.run_id
+  where r.status::text in ('pending', 'running')
+    and not coalesce(h.is_system, false)
+    and (workflow_open_hooks.tenant is null or r.attributes ->> 'bsb.tenant' = workflow_open_hooks.tenant)
+    and (workflow_open_hooks.workflow_name is null or r.name = workflow_open_hooks.workflow_name)
+  order by h.created_at desc
+  limit least(greatest(coalesce(workflow_open_hooks.max, 50), 1), 500);
+$$;
+revoke execute on function "app_private"."workflow_claim_run_key"(text, interval) from public, anon, authenticated;
+grant execute on function "app_private"."workflow_claim_run_key"(text, interval) to service_role;
+revoke execute on function "app_private"."workflow_set_run_key"(text, text) from public, anon, authenticated;
+grant execute on function "app_private"."workflow_set_run_key"(text, text) to service_role;
+revoke execute on function "app_private"."workflow_release_run_key"(text) from public, anon, authenticated;
+grant execute on function "app_private"."workflow_release_run_key"(text) to service_role;
+revoke execute on function "app_private"."workflow_purge_runs"(interval, text[], integer) from public, anon, authenticated;
+grant execute on function "app_private"."workflow_purge_runs"(interval, text[], integer) to service_role;
+revoke execute on function "app_private"."workflow_open_hooks"(text, text, integer) from public, anon, authenticated;
+grant execute on function "app_private"."workflow_open_hooks"(text, text, integer) to service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1387,22 +1828,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:73bb4504cb97d0078e4caf3a087531a42fbc583e026fe96f6db9c5e91987056b
+-- @bsb-hash sha256:074bf56c8ea1c04a26b7e5ac10159ae775306c562aa9cd6fada431f31f21d8a4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 2, 'managed')
+values ('workflow-sdk', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@2 managed
--- @bsb-hash sha256:0e87387281f8596ed1e1142a3c7d8f73e30b0f9ece2be32cdc2371fb886d8852
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.
+-- @bsb-block workflow-sdk@3 managed
+-- @bsb-hash sha256:b7dbb90b4581b2e39f56f6418a84503cd83b6168f506c30e094cc09287c8bb65
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1694,6 +2135,16 @@ alter table workflow.workflow_waits
 
 create index if not exists workflow_waits_run_id_index ON workflow.workflow_waits USING btree (run_id);
 
+
+-- One row per start idempotency key: startFor claims the key before it starts
+-- a run, so two concurrent starts with one key start one run. run_id is null
+-- while the start that claimed it is still running.
+create table if not exists workflow.workflow_run_keys (
+  key text primary key check (length(key) between 1 and 500),
+  run_id character varying,
+  claimed_at timestamptz not null default now()
+);
+create index if not exists workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
 do $$
@@ -1836,6 +2287,143 @@ $$;
 revoke execute on function "better_supabase"."dispatch_workflow_deliveries"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."dispatch_workflow_deliveries"(integer) to service_role;
 
+-- Claims a start key: claimed is true when this caller may start the run,
+-- either because the key is new or because the start that claimed it left no
+-- run for stale_after. Otherwise run_id is the run of the earlier start (null
+-- while that start is still running).
+create or replace function "better_supabase"."workflow_claim_run_key"(run_key text, stale_after interval default '5 minutes')
+returns table (claimed boolean, run_id text)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  return query
+    insert into workflow.workflow_run_keys as k (key) values (run_key)
+    on conflict (key) do update set claimed_at = now()
+      where k.run_id is null and k.claimed_at < now() - coalesce(stale_after, interval '5 minutes')
+    returning true, k.run_id::text;
+  if not found then
+    return query select false, k.run_id::text from workflow.workflow_run_keys k where k.key = run_key;
+  end if;
+end;
+$$;
+
+-- Records the run a claimed key started.
+create or replace function "better_supabase"."workflow_set_run_key"(run_key text, run text)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  update workflow.workflow_run_keys set run_id = run, claimed_at = now() where key = run_key;
+$$;
+
+-- Frees a key whose start failed before it created a run.
+create or replace function "better_supabase"."workflow_release_run_key"(run_key text)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  delete from workflow.workflow_run_keys where key = run_key and run_id is null;
+$$;
+
+-- Deletes up to batch terminal runs that ended more than older_than ago, with
+-- their events, steps, waits, streams, snapshots and invocations; hooks whose
+-- token is still reserved (token_retention_until) stay, so a token can't be
+-- reused. The copies in workflow_runs follow purge_workflow_runs instead.
+create or replace function "better_supabase"."workflow_purge_runs"(
+  older_than interval default '30 days',
+  statuses text[] default array['completed', 'failed', 'cancelled'],
+  batch integer default 500
+)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_statuses text[] := coalesce(statuses, array['completed', 'failed', 'cancelled']);
+  v_ids text[];
+  v_count integer;
+begin
+  if exists (select 1 from unnest(v_statuses) s where s not in ('completed', 'failed', 'cancelled')) then
+    raise exception 'workflow_purge_runs deletes only completed, failed or cancelled runs'
+      using errcode = '22023', hint = 'WORKFLOW_PURGE_STATUS';
+  end if;
+  select coalesce(array_agg(x.id), '{}') into v_ids from (
+    select r.id from workflow.workflow_runs r
+    where r.status::text = any (v_statuses)
+      and coalesce(r.completed_at, r.updated_at) < (now() at time zone 'UTC') - coalesce(older_than, interval '30 days')
+    order by coalesce(r.completed_at, r.updated_at)
+    limit least(greatest(coalesce(batch, 500), 1), 10000)
+    for update skip locked
+  ) x;
+  if cardinality(v_ids) = 0 then
+    return 0;
+  end if;
+  delete from workflow.workflow_events where run_id = any (v_ids);
+  delete from workflow.workflow_event_slots where run_id = any (v_ids);
+  delete from workflow.workflow_steps where run_id = any (v_ids);
+  delete from workflow.workflow_waits where run_id = any (v_ids);
+  delete from workflow.workflow_stream_chunks where run_id = any (v_ids);
+  delete from workflow.workflow_snapshots where run_id = any (v_ids);
+  delete from workflow.workflow_invocations where run_id = any (v_ids);
+  delete from workflow.workflow_hooks
+    where run_id = any (v_ids) and (token_retention_until is null or token_retention_until < now());
+  delete from workflow.workflow_run_keys where run_id = any (v_ids);
+  delete from workflow.workflow_runs where id = any (v_ids);
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+-- The hooks of pending and running runs, newest first: what a run waits on.
+-- The token is left out; the app that created a hook knows it.
+create or replace function "better_supabase"."workflow_open_hooks"(
+  tenant text default null,
+  workflow_name text default null,
+  max integer default 50
+)
+returns table (
+  hook_id text,
+  run_id text,
+  workflow text,
+  tenant_id text,
+  actor_id text,
+  metadata jsonb,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select h.hook_id::text, h.run_id::text, r.name::text,
+    r.attributes ->> 'bsb.tenant', r.attributes ->> 'bsb.actor',
+    h.metadata, h.created_at at time zone 'UTC'
+  from workflow.workflow_hooks h
+  join workflow.workflow_runs r on r.id = h.run_id
+  where r.status::text in ('pending', 'running')
+    and not coalesce(h.is_system, false)
+    and (workflow_open_hooks.tenant is null or r.attributes ->> 'bsb.tenant' = workflow_open_hooks.tenant)
+    and (workflow_open_hooks.workflow_name is null or r.name = workflow_open_hooks.workflow_name)
+  order by h.created_at desc
+  limit least(greatest(coalesce(workflow_open_hooks.max, 50), 1), 500);
+$$;
+revoke execute on function "better_supabase"."workflow_claim_run_key"(text, interval) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_claim_run_key"(text, interval) to service_role;
+revoke execute on function "better_supabase"."workflow_set_run_key"(text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_set_run_key"(text, text) to service_role;
+revoke execute on function "better_supabase"."workflow_release_run_key"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_release_run_key"(text) to service_role;
+revoke execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer) to service_role;
+revoke execute on function "better_supabase"."workflow_open_hooks"(text, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_open_hooks"(text, text, integer) to service_role;
+
 -- blocks.workflow-sdk.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -1848,6 +2436,59 @@ set search_path = ''
 as $$ select "better_supabase"."dispatch_workflow_deliveries"($1) $$;
 revoke execute on function "api"."dispatch_workflow_deliveries"(integer) from public, anon, authenticated;
 grant execute on function "api"."dispatch_workflow_deliveries"(integer) to service_role;
+
+create or replace function "api"."workflow_claim_run_key"(run_key text, stale_after interval default '5 minutes')
+returns table (claimed boolean, run_id text)
+language sql
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."workflow_claim_run_key"($1, $2) $$;
+revoke execute on function "api"."workflow_claim_run_key"(text, interval) from public, anon, authenticated;
+grant execute on function "api"."workflow_claim_run_key"(text, interval) to service_role;
+
+create or replace function "api"."workflow_set_run_key"(run_key text, run text)
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."workflow_set_run_key"($1, $2) $$;
+revoke execute on function "api"."workflow_set_run_key"(text, text) from public, anon, authenticated;
+grant execute on function "api"."workflow_set_run_key"(text, text) to service_role;
+
+create or replace function "api"."workflow_release_run_key"(run_key text)
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."workflow_release_run_key"($1) $$;
+revoke execute on function "api"."workflow_release_run_key"(text) from public, anon, authenticated;
+grant execute on function "api"."workflow_release_run_key"(text) to service_role;
+
+create or replace function "api"."workflow_purge_runs"(older_than interval default '30 days', statuses text[] default array['completed', 'failed', 'cancelled'], batch integer default 500)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."workflow_purge_runs"($1, $2, $3) $$;
+revoke execute on function "api"."workflow_purge_runs"(interval, text[], integer) from public, anon, authenticated;
+grant execute on function "api"."workflow_purge_runs"(interval, text[], integer) to service_role;
+
+create or replace function "api"."workflow_open_hooks"(tenant text default null, workflow_name text default null, max integer default 50)
+returns table (
+  hook_id text,
+  run_id text,
+  workflow text,
+  tenant_id text,
+  actor_id text,
+  metadata jsonb,
+  created_at timestamptz
+)
+language sql
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."workflow_open_hooks"($1, $2, $3) $$;
+revoke execute on function "api"."workflow_open_hooks"(text, text, integer) from public, anon, authenticated;
+grant execute on function "api"."workflow_open_hooks"(text, text, integer) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1865,13 +2506,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:73bb4504cb97d0078e4caf3a087531a42fbc583e026fe96f6db9c5e91987056b
+-- @bsb-hash sha256:074bf56c8ea1c04a26b7e5ac10159ae775306c562aa9cd6fada431f31f21d8a4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 2, 'managed')
+values ('workflow-sdk', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

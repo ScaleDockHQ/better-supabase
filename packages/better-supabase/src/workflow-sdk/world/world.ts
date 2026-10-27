@@ -12,6 +12,7 @@ import { parseQueueRoute, reenqueueActiveRuns } from "@workflow/world";
 import { createWorld as createPostgresWorld } from "@workflow/world-postgres";
 import { Pool } from "pg";
 
+import type { WorkflowMaintenance } from "../run-keys.ts";
 import type {
   ClaimedJob,
   StoredMessage,
@@ -36,6 +37,7 @@ import {
   verifyDelivery,
 } from "./crypto.ts";
 import { env, resolveFlowUrl, worldOptionsFromEnv } from "./env.ts";
+import { createMaintenance } from "./maintenance.ts";
 import { JOB_HEADER, MAX_DELIVERIES, SIGNATURE_HEADER } from "./types.ts";
 
 /**
@@ -85,15 +87,16 @@ const backoffSeconds = (attempt: number): number =>
   Math.ceil(Math.exp(Math.min(attempt, 10)));
 
 /** The World plus the delivery helpers the tests and routes use. */
-export type SupabaseWorld = World & {
-  start(): Promise<void>;
-  close(): Promise<void>;
-  /**
-   * Claims and delivers the due messages once (poll mode); resolves with how
-   * many it delivered.
-   */
-  deliverOnce(): Promise<number>;
-};
+export type SupabaseWorld = World &
+  WorkflowMaintenance & {
+    start(): Promise<void>;
+    close(): Promise<void>;
+    /**
+     * Claims and delivers the due messages once (poll mode); resolves with how
+     * many it delivered.
+     */
+    deliverOnce(): Promise<number>;
+  };
 
 /**
  * A Workflow SDK World on Supabase Postgres: the run, step, event, hook and
@@ -683,6 +686,7 @@ export function createSupabaseWorld(
     },
     getEncryptionKeyForRun,
     deliverOnce,
+    ...createMaintenance(call),
     async start() {
       startPolling();
       await reenqueueActiveRuns(
