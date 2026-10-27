@@ -27,12 +27,12 @@ export const serializeClientNotesSearchParams: ReturnType<typeof createSerialize
 
 /** Search params for a list of `contacts`: filters, order, cursor and page size. */
 export const contactsSearchParams: {
-  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "email" | "fullName" | "createdAt" | "updatedAt">;
+  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "email" | "fullName" | "createdAt" | "updatedAt" | "emailDomain">;
   readonly direction: SingleParserBuilder<"asc" | "desc"> & { readonly defaultValue: "asc" | "desc" };
   readonly cursor: SingleParserBuilder<string>;
   readonly limit: SingleParserBuilder<number> & { readonly defaultValue: number };
 } = {
-  orderBy: parseAsStringLiteral(["id", "organizationId", "email", "fullName", "createdAt", "updatedAt"] as const),
+  orderBy: parseAsStringLiteral(["id", "organizationId", "email", "fullName", "createdAt", "updatedAt", "emailDomain"] as const),
   direction: parseAsStringLiteral(["asc", "desc"] as const).withDefault("asc"),
   cursor: parseAsString,
   limit: parseAsInteger.withDefault(25),
@@ -72,13 +72,13 @@ export const serializeCustomerTagsSearchParams: ReturnType<typeof createSerializ
 /** Search params for a list of `customers`: filters, order, cursor and page size. */
 export const customersSearchParams: {
   readonly status: SingleParserBuilder<"lead" | "active" | "archived">;
-  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "name" | "kvk" | "status" | "primaryContactId" | "updatedBy" | "archivedAt" | "createdAt" | "updatedAt" | "createdBy">;
+  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "name" | "kvk" | "status" | "primaryContactId" | "updatedBy" | "archivedAt" | "createdAt" | "updatedAt" | "createdBy" | "ownerTeamId">;
   readonly direction: SingleParserBuilder<"asc" | "desc"> & { readonly defaultValue: "asc" | "desc" };
   readonly cursor: SingleParserBuilder<string>;
   readonly limit: SingleParserBuilder<number> & { readonly defaultValue: number };
 } = {
   status: parseAsStringLiteral(["lead", "active", "archived"] as const),
-  orderBy: parseAsStringLiteral(["id", "organizationId", "name", "kvk", "status", "primaryContactId", "updatedBy", "archivedAt", "createdAt", "updatedAt", "createdBy"] as const),
+  orderBy: parseAsStringLiteral(["id", "organizationId", "name", "kvk", "status", "primaryContactId", "updatedBy", "archivedAt", "createdAt", "updatedAt", "createdBy", "ownerTeamId"] as const),
   direction: parseAsStringLiteral(["asc", "desc"] as const).withDefault("asc"),
   cursor: parseAsString,
   limit: parseAsInteger.withDefault(25),
@@ -92,6 +92,28 @@ export const loadCustomersSearchParams: LoaderFunction<typeof customersSearchPar
 
 /** Writes `customersSearchParams` into a URL, for links. */
 export const serializeCustomersSearchParams: ReturnType<typeof createSerializer<typeof customersSearchParams>> = createSerializer(customersSearchParams);
+
+/** Search params for a list of `customersWithOwner`: filters, order, cursor and page size. */
+export const customersWithOwnerSearchParams: {
+  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "name" | "status" | "ownerTeamId" | "ownerTeamName">;
+  readonly direction: SingleParserBuilder<"asc" | "desc"> & { readonly defaultValue: "asc" | "desc" };
+  readonly cursor: SingleParserBuilder<string>;
+  readonly limit: SingleParserBuilder<number> & { readonly defaultValue: number };
+} = {
+  orderBy: parseAsStringLiteral(["id", "organizationId", "name", "status", "ownerTeamId", "ownerTeamName"] as const),
+  direction: parseAsStringLiteral(["asc", "desc"] as const).withDefault("asc"),
+  cursor: parseAsString,
+  limit: parseAsInteger.withDefault(25),
+};
+
+/** Reads `customersWithOwnerSearchParams` once per request in Server Components. */
+export const customersWithOwnerSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof customersWithOwnerSearchParams>> = createSearchParamsCache(customersWithOwnerSearchParams);
+
+/** Parses `customersWithOwnerSearchParams` from a URL, a `Request` or `searchParams`. */
+export const loadCustomersWithOwnerSearchParams: LoaderFunction<typeof customersWithOwnerSearchParams> = createLoader(customersWithOwnerSearchParams);
+
+/** Writes `customersWithOwnerSearchParams` into a URL, for links. */
+export const serializeCustomersWithOwnerSearchParams: ReturnType<typeof createSerializer<typeof customersWithOwnerSearchParams>> = createSerializer(customersWithOwnerSearchParams);
 
 /** Search params for a list of `locations`: filters, order, cursor and page size. */
 export const locationsSearchParams: {
@@ -117,14 +139,12 @@ export const serializeLocationsSearchParams: ReturnType<typeof createSerializer<
 
 /** Search params for a list of `memberships`: filters, order, cursor and page size. */
 export const membershipsSearchParams: {
-  readonly role: SingleParserBuilder<"owner" | "admin" | "member">;
-  readonly orderBy: SingleParserBuilder<"organizationId" | "userId" | "role" | "createdAt" | "lastUsedAt" | "tierRole">;
+  readonly orderBy: SingleParserBuilder<"organizationId" | "userId" | "role" | "createdAt" | "lastUsedAt" | "updatedAt">;
   readonly direction: SingleParserBuilder<"asc" | "desc"> & { readonly defaultValue: "asc" | "desc" };
   readonly cursor: SingleParserBuilder<string>;
   readonly limit: SingleParserBuilder<number> & { readonly defaultValue: number };
 } = {
-  role: parseAsStringLiteral(["owner", "admin", "member"] as const),
-  orderBy: parseAsStringLiteral(["organizationId", "userId", "role", "createdAt", "lastUsedAt", "tierRole"] as const),
+  orderBy: parseAsStringLiteral(["organizationId", "userId", "role", "createdAt", "lastUsedAt", "updatedAt"] as const),
   direction: parseAsStringLiteral(["asc", "desc"] as const).withDefault("asc"),
   cursor: parseAsString,
   limit: parseAsInteger.withDefault(25),

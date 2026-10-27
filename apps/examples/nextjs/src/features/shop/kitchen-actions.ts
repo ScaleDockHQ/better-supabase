@@ -1,13 +1,10 @@
 "use server";
 
-import type { AuthSession } from "better-supabase/react";
-
 import { ok } from "better-supabase";
 import { PREPARATION_STATES } from "better-supabase/blocks/orders";
 import * as v from "valibot";
 
-import type { Claims } from "@/lib/claims";
-
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -16,8 +13,13 @@ import { shopOrders } from "./shop-server";
 
 const Id = v.pipe(v.string(), v.uuid());
 
-const canPrepare = (session: AuthSession<Claims>): boolean =>
-  can(session, "orders.prepare") || can(session, "orders.manage");
+async function canPrepare(): Promise<boolean> {
+  const permissions = await getPermissions();
+
+  return (
+    can(permissions, "orders.prepare") || can(permissions, "orders.manage")
+  );
+}
 
 /** Sends a paid order's lines to their stations as queued tickets. */
 export const sendToKitchen = bsb.action(

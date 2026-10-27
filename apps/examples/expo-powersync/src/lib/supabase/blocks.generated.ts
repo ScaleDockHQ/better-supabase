@@ -137,6 +137,10 @@ export const permissions = {
     send: "notifications.send",
     read: "notifications.read",
   },
+  permissions: {
+    listRoles: "members.read",
+    setOverride: "roles.manage",
+  },
   tags: {
     manage: "tags.manage",
     read: "tags.read",
@@ -149,10 +153,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "tags.apply" | "tags.manage" | "tags.read";
-
-/** The roles `blocks.permissions.roles` defines. @public */
-export type RoleName = "admin" | "member" | "owner";
+export type PermissionKey = "members.read" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "roles.manage" | "tags.apply" | "tags.manage" | "tags.read";
 
 /** Every installed block's events: type to data. @public */
 export type BlockEvents = MessagingEvents & NotificationsEvents & TagsEvents;

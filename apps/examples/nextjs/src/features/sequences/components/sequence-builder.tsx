@@ -39,8 +39,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import { getSequences } from "../sequences-queries";
 import {
@@ -71,10 +71,10 @@ const stepIcons = {
 
 /** Render inside `<Suspense>`: the organization's sequences and their steps. */
 export async function SequenceBuilder() {
-  const [view, session, t] = await Promise.all([
+  const [view, t, permissions] = await Promise.all([
     getSequences(),
-    getSession(),
     getExtracted("sequences"),
+    getPermissions(),
   ]);
 
   if (view.kind === "no-organization") {
@@ -98,7 +98,7 @@ export async function SequenceBuilder() {
     );
   }
 
-  const manage = can(session, "sequences.manage");
+  const manage = can(permissions, "sequences.manage");
 
   if (view.data.length === 0) {
     return (

@@ -1,3 +1,4 @@
+import { env } from "@/env";
 import { mailSync } from "@/features/crm/mail-server";
 
 /**
@@ -6,7 +7,7 @@ import { mailSync } from "@/features/crm/mail-server";
  * $CRON_SECRET`).
  */
 export async function GET(request: Request): Promise<Response> {
-  const secret = process.env["CRON_SECRET"];
+  const secret = env.CRON_SECRET;
 
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return new Response(null, { status: 401 });

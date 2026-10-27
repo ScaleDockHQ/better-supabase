@@ -32,11 +32,6 @@ apps/examples/nextjs/CLAUDE.md
 apps/marketing/AGENTS.md
 apps/marketing/CLAUDE.md
 
-# playwright (the e2e sessions hold access tokens)
-**/e2e/.auth/
-test-results/
-playwright-report/
-
 # the blocks catalog (scripts/build-catalog.ts) and the recipes (scripts/build-recipes.ts)
 apps/marketing/lib/catalog.json
 apps/marketing/lib/recipes.json

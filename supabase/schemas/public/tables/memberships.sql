@@ -1,17 +1,14 @@
--- Who belongs to which organization, with which role. The tenant module runs
--- in custom mode (apps/examples/nextjs/better-supabase.config.ts), so the
--- fixture owns this table; the organizations and invitations modules write
--- to it, and the access contract in better_supabase/functions reads it.
+-- Who belongs to which organization, with which role. The app owns this
+-- table and the memberships block runs over it (ADR 0098); `role` is a row
+-- of the permissions block's catalog (`permissions.model: "catalog"` in
+-- apps/examples/nextjs/better-supabase.config.ts).
 create table public.memberships (
   organization_id uuid not null references public.organizations (id) on delete cascade,
   user_id uuid not null references auth.users (id) on delete cascade,
-  role text not null default 'member',
+  role uuid not null references better_supabase.roles (id) on delete restrict,
   created_at timestamptz not null default now(),
   last_used_at timestamptz,
-  -- Stored generated column: the database fills it, so it is in Row but never writable.
-  tier_role text generated always as (case when role in ('owner', 'admin') then 'manager' else 'member' end) stored,
-  primary key (organization_id, user_id),
-  constraint memberships_role_check check (role in ('owner', 'admin', 'member'))
+  primary key (organization_id, user_id)
 );
 
 create index memberships_user_idx on public.memberships (user_id);
@@ -38,9 +35,6 @@ create policy memberships_no_client_update on public.memberships
 create policy memberships_no_client_delete on public.memberships
   for delete to authenticated
   using (false);
-
-create trigger memberships_clear_tenant_claim after delete on public.memberships
-  for each row execute function better_supabase.clear_tenant_claim();
 
 grant all on public.memberships to service_role;
 

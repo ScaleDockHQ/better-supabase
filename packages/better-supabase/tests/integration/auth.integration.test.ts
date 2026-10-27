@@ -90,6 +90,13 @@ describe.skipIf(!live)("auth against the local stack", () => {
 
     userId = created.user.id;
     postgres = createPostgres({ connectionString: dbUrl, max: 2 });
+    // The tenant scope reads the claim only for a member; deleting the user
+    // removes the membership.
+    await postgres.admin.queryRaw(
+      `insert into public.memberships (organization_id, user_id, role)
+       select $1, $2, r.id from better_supabase.roles r where r.key = 'member'`,
+      [ACME, userId],
+    );
   });
 
   afterAll(async () => {

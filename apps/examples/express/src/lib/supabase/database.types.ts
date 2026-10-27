@@ -57,6 +57,7 @@ export type Database = {
         Row: {
           created_at: string
           email: string
+          email_domain: string | null
           full_name: string | null
           id: string
           organization_id: string
@@ -66,6 +67,7 @@ export type Database = {
         Insert: {
           created_at?: string
           email: string
+          email_domain?: never
           full_name?: string | null
           id?: string
           organization_id: string
@@ -74,6 +76,7 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string
+          email_domain?: never
           full_name?: string | null
           id?: string
           organization_id?: string
@@ -118,6 +121,13 @@ export type Database = {
             referencedColumns: ["id", "organization_id"]
           },
           {
+            foreignKeyName: "customer_tags_customer_id_fkey"
+            columns: ["customer_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "customers_with_owner"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
             foreignKeyName: "customer_tags_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -144,6 +154,7 @@ export type Database = {
           metadata: NonNullable<Json>
           name: string
           organization_id: string
+          owner_team_id: string | null
           primary_contact_id: string | null
           status: string
           updated_at: string
@@ -160,6 +171,7 @@ export type Database = {
           metadata?: NonNullable<Json>
           name: string
           organization_id: string
+          owner_team_id?: string | null
           primary_contact_id?: string | null
           status?: string
           updated_at?: string
@@ -175,6 +187,7 @@ export type Database = {
           metadata?: NonNullable<Json>
           name?: string
           organization_id?: string
+          owner_team_id?: string | null
           primary_contact_id?: string | null
           status?: string
           updated_at?: string
@@ -238,6 +251,13 @@ export type Database = {
             referencedColumns: ["id", "organization_id"]
           },
           {
+            foreignKeyName: "locations_customer_id_fkey"
+            columns: ["customer_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "customers_with_owner"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
             foreignKeyName: "locations_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -252,7 +272,7 @@ export type Database = {
           last_used_at: string | null
           organization_id: string
           role: string
-          tier_role: string | null
+          updated_at: string
           user_id: string
         }
         ComputedFields: never
@@ -260,8 +280,8 @@ export type Database = {
           created_at?: string
           last_used_at?: string | null
           organization_id: string
-          role?: string
-          tier_role?: never
+          role: string
+          updated_at?: string
           user_id: string
         }
         Update: {
@@ -269,7 +289,7 @@ export type Database = {
           last_used_at?: string | null
           organization_id?: string
           role?: string
-          tier_role?: never
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
@@ -323,6 +343,13 @@ export type Database = {
             columns: ["customer_id", "organization_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "notes_customer_id_fkey"
+            columns: ["customer_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "customers_with_owner"
             referencedColumns: ["id", "organization_id"]
           },
           {
@@ -636,6 +663,26 @@ export type Database = {
       }
     }
     Views: {
+      customers_with_owner: {
+        Row: {
+          id: string
+          name: string
+          organization_id: string
+          owner_team_id: string | null
+          owner_team_name: string | null
+          status: string
+        }
+        ComputedFields: never
+        Relationships: [
+          {
+            foreignKeyName: "customers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects_view: {
         Row: {
           budget_minor: number
@@ -742,6 +789,7 @@ export type Database = {
           metadata: NonNullable<Json>
           name: string
           organization_id: string
+          owner_team_id: string | null
           primary_contact_id: string | null
           status: string
           updated_at: string

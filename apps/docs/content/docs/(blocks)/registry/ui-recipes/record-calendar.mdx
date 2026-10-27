@@ -30,7 +30,7 @@ export async function TaskCalendar({
   rows: readonly TaskRow[];
   first: Temporal.PlainDate;
   today: Temporal.PlainDate;
-  monthHref: (month: string) => string;
+  monthHref: (month: string) => AppHref;
 }) {
   const [t, format] = await Promise.all([
     getExtracted("projects"),

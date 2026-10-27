@@ -21,6 +21,9 @@ export const { useList: useCustomerTags, useOne: useCustomerTag } =
 export const { useList: useCustomers, useOne: useCustomer } =
   defineDataHooks("customers", (db: AppDb) => db.customers);
 
+export const { useList: useCustomersWithOwnerList, useOne: useCustomersWithOwner } =
+  defineDataHooks("customersWithOwner", (db: AppDb) => db.customersWithOwner);
+
 export const { useList: useLocations, useOne: useLocation } =
   defineDataHooks("locations", (db: AppDb) => db.locations);
 

@@ -8,9 +8,7 @@
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/CHANGELOG.md",
         "!tests/**",
-        "!e2e/**",
-        "!vitest.config.ts",
-        "!playwright.config.ts"
+        "!vitest.config.ts"
       ],
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", ".source/**"],
       "env": [

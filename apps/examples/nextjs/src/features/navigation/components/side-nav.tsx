@@ -46,6 +46,8 @@ import {
   ScrollTextIcon,
   SettingsIcon,
   UsersIcon,
+  GroupIcon,
+  ShieldIcon,
   UsersRoundIcon,
   WaypointsIcon,
   ListFilterIcon,
@@ -115,6 +117,8 @@ const ICONS = {
   aiTasks: CalendarClockIcon,
   beta: FlaskConicalIcon,
   members: UsersRoundIcon,
+  teams: GroupIcon,
+  roles: ShieldIcon,
   billing: CreditCardIcon,
   apiKeys: KeyRoundIcon,
   audit: ScrollTextIcon,
@@ -122,7 +126,7 @@ const ICONS = {
   settings: SettingsIcon,
 } satisfies Record<NavId, LucideIcon>;
 
-function useNavLabel() {
+export function useNavLabel(): (id: NavId) => string {
   const t = useExtracted("navigation");
 
   return (id: NavId): string => {
@@ -301,6 +305,14 @@ function useNavLabel() {
 
       case "members": {
         return t("Members");
+      }
+
+      case "teams": {
+        return t("Teams");
+      }
+
+      case "roles": {
+        return t("Roles");
       }
 
       case "billing": {

@@ -46,14 +46,28 @@ describe.skipIf(!live)("scopedSeed and withRollback", () => {
     row: (id: string) => ({ id, name: `scope-${id}`, slug: `scope-${id}` }),
   } as const;
 
-  const seed = (name: string) =>
-    scopedSeed(
+  // The tenant scope reads the claim only for a member. The membership goes
+  // when cleanup deletes the organization.
+  const join = (tenant: string) =>
+    postgres.admin.queryRaw(
+      `insert into public.memberships (organization_id, user_id, role)
+       select $1, $2, r.id from better_supabase.roles r where r.key = 'member'`,
+      [tenant, USER],
+    );
+
+  const seed = async (name: string) => {
+    const scope = await scopedSeed(
       betterSupabase,
       ({ tenant }) => ({
         customers: { first: { organizationId: tenant, name } },
       }),
       { tenant: organization },
     );
+
+    await join(scope.tenant);
+
+    return scope;
+  };
 
   it("gives concurrent tests their own tenant and rows, and cleans up", async () => {
     const [one, two] = await Promise.all([seed("one"), seed("two")]);
@@ -91,6 +105,8 @@ describe.skipIf(!live)("scopedSeed and withRollback", () => {
       tenant: organization,
     });
 
+    await join(scope.tenant);
+
     const alice = await asUser(
       betterSupabase,
       { sub: USER, tenant_id: scope.tenant },
@@ -121,6 +137,8 @@ describe.skipIf(!live)("scopedSeed and withRollback", () => {
     await using scope = await scopedSeed(betterSupabase, () => ({}), {
       tenant: organization,
     });
+
+    await join(scope.tenant);
 
     const seen = await withClaims(
       postgres,

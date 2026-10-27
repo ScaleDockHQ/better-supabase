@@ -1,4 +1,5 @@
 import type { Permission } from "@/features/user/user-permissions";
+import type { AppHref } from "@/i18n/navigation";
 
 export type SettingsTabId =
   | "profile"
@@ -7,6 +8,8 @@ export type SettingsTabId =
   | "privacy"
   | "organization"
   | "members"
+  | "teams"
+  | "roles"
   | "accessRequests"
   | "billing"
   | "apiKeys"
@@ -20,13 +23,13 @@ export type SettingsTabId =
 
 export interface SettingsTab {
   readonly id: SettingsTabId;
-  readonly href: string;
+  readonly href: AppHref;
   readonly requires?: Permission;
 }
 
 /**
- * The proxy reads the same permissions from `navItems` for the organization
- * tabs.
+ * `PermissionRedirect` reads the same permissions from `navItems` for the
+ * organization tabs.
  */
 export const settingsTabs: readonly SettingsTab[] = [
   { id: "profile", href: "/settings/profile" },
@@ -39,6 +42,8 @@ export const settingsTabs: readonly SettingsTab[] = [
     requires: "settings.read",
   },
   { id: "members", href: "/settings/members", requires: "members.read" },
+  { id: "teams", href: "/settings/teams", requires: "teams.read" },
+  { id: "roles", href: "/settings/roles", requires: "members.read" },
   {
     id: "accessRequests",
     href: "/settings/access-requests",

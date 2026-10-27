@@ -27,8 +27,8 @@ import {
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { settle } from "@/features/people/people-queries";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import { loadTechnicianDay } from "../field-queries";
@@ -87,15 +87,15 @@ export async function TechnicianDay({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, t, format, query] = await Promise.all([
-    getSession(),
+  const [t, format, query, permissions] = await Promise.all([
     getExtracted("field"),
     getFormatter(),
     searchParams,
+    getPermissions(),
     connection(),
   ]);
 
-  if (!can(session, "dispatch.work")) {
+  if (!can(permissions, "dispatch.work")) {
     forbidden();
   }
 

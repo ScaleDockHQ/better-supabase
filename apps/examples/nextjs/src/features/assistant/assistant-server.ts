@@ -1,5 +1,6 @@
-import "server-only";
 import type { LanguageModel, ToolSet } from "ai";
+
+import "server-only";
 import type { AssistantContext } from "better-supabase/ai-sdk/chat";
 import type { AiChat, AiRuns } from "better-supabase/blocks/ai-chat";
 import type { AiFiles, AiFileStorage } from "better-supabase/blocks/ai-files";
@@ -21,6 +22,7 @@ import { vaultCredentials } from "better-supabase/credentials";
 import { postgresStreamStore } from "better-supabase/streams";
 import { after } from "next/server";
 
+import { env } from "@/env";
 import { knowledge, memory } from "@/features/knowledge/knowledge-server";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
@@ -33,7 +35,7 @@ const API_SCHEMA = blockConfig["ai-chat"].api;
 const DEFAULT_MODEL = "openai/gpt-5-mini";
 
 /** Without a gateway key the sample answers with a scripted model. */
-const demoMode = (): boolean => !process.env["AI_GATEWAY_API_KEY"];
+const demoMode = (): boolean => !env.AI_GATEWAY_API_KEY;
 
 /**
  * Durable chats call the model inside workflow steps, which can't run the

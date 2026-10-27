@@ -1,5 +1,6 @@
-import "server-only";
 import type { Embedder, Knowledge } from "better-supabase/blocks/knowledge";
+
+import "server-only";
 import type { Memory } from "better-supabase/blocks/memory";
 import type { RpcClient } from "better-supabase/blocks/organizations";
 
@@ -8,6 +9,7 @@ import { createKnowledge } from "better-supabase/blocks/knowledge";
 import { createMemory } from "better-supabase/blocks/memory";
 import { rpcTransport } from "better-supabase/blocks/organizations";
 
+import { env } from "@/env";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
 
@@ -20,7 +22,7 @@ let embedderInstance: Embedder | undefined;
 
 /** The gateway's embedding model, or the demo embedder without a key. */
 function embedder(): Embedder {
-  embedderInstance ??= process.env["AI_GATEWAY_API_KEY"]
+  embedderInstance ??= env.AI_GATEWAY_API_KEY
     ? embedWith("openai/text-embedding-3-small")
     : demoEmbedder;
 

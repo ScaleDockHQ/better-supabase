@@ -38,9 +38,7 @@ export async function InvitationCard({
     return (
       <Card>
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">
-            {t("This invitation can't be used")}
-          </CardTitle>
+          <CardTitle>{t("This invitation can't be used")}</CardTitle>
           <CardDescription>
             {preview?.status === "expired"
               ? t("It expired. Ask for a new one.")
@@ -63,7 +61,7 @@ export async function InvitationCard({
     <Card data-testid="invitation">
       <CardHeader className="text-center">
         <MailIcon className="mx-auto size-8 text-primary" />
-        <CardTitle className="text-xl">
+        <CardTitle>
           {t("Join {organization}", {
             organization: preview.organizationName ?? "",
           })}

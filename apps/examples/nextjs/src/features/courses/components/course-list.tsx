@@ -27,8 +27,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import { getCourses } from "../courses-queries";
@@ -48,10 +48,10 @@ const statusVariants = {
 
 /** Render inside `<Suspense>`: the courses the caller can take. */
 export async function CourseList() {
-  const [view, session, t] = await Promise.all([
+  const [view, t, permissions] = await Promise.all([
     getCourses(),
-    getSession(),
     getExtracted("courses"),
+    getPermissions(),
   ]);
 
   if (view.kind === "no-organization") {
@@ -84,13 +84,13 @@ export async function CourseList() {
           </EmptyMedia>
           <EmptyTitle>{t("No courses yet")}</EmptyTitle>
           <EmptyDescription>
-            {can(session, "courses.manage")
+            {can(permissions, "courses.manage")
               ? t("Create a sample course to try the learner flow.")
               : t("An admin publishes courses for your team.")}
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
-          {can(session, "courses.manage") ? (
+          {can(permissions, "courses.manage") ? (
             <SampleCourseButton />
           ) : (
             <Link href="/" className={buttonVariants({ variant: "outline" })}>

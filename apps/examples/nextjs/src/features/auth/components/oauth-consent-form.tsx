@@ -78,9 +78,7 @@ export function OAuthConsentForm() {
     return (
       <Card>
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">
-            {t("This request can't continue")}
-          </CardTitle>
+          <CardTitle>{t("This request can't continue")}</CardTitle>
           <CardDescription data-testid="oauth-consent-error">
             {load.message}
           </CardDescription>
@@ -95,7 +93,7 @@ export function OAuthConsentForm() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-xl">
+        <CardTitle>
           {t("Connect {client}", { client: details.client.name })}
         </CardTitle>
         <CardDescription>

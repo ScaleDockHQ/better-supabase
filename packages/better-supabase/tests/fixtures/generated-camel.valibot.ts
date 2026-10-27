@@ -43,6 +43,7 @@ export const contactsRow: v.GenericSchema<RowOf<'contacts'>> = v.pipe(v.object({
   fullName: v.nullable(v.string()),
   createdAt: v.pipe(v.string(), v.isoTimestamp()),
   updatedAt: v.pipe(v.string(), v.isoTimestamp()),
+  emailDomain: v.nullable(v.string()),
 }), v.title("Contacts"));
 export const contactsInsert: v.GenericSchema<InsertOf<'contacts'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -94,6 +95,7 @@ export const customersRow: v.GenericSchema<RowOf<'customers'>> = v.pipe(v.object
   updatedAt: v.pipe(v.string(), v.isoTimestamp()),
   logoPath: v.nullable((v.string() as unknown as v.GenericSchema<NonNullable<RowOf<'customers'>['logoPath']>>)),
   createdBy: v.nullable(v.pipe(v.string(), v.uuid())),
+  ownerTeamId: v.nullable(v.pipe(v.string(), v.uuid())),
 }), v.title("Customers"), v.description("Companies the organization sells to."));
 export const customersInsert: v.GenericSchema<InsertOf<'customers'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -109,6 +111,7 @@ export const customersInsert: v.GenericSchema<InsertOf<'customers'>> = v.pipe(v.
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
   logoPath: v.exactOptional(v.nullable((v.string() as unknown as v.GenericSchema<NonNullable<RowOf<'customers'>['logoPath']>>))),
   createdBy: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
+  ownerTeamId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
 }), v.title("Customers insert"), v.description("Companies the organization sells to."));
 export const customersUpdate: v.GenericSchema<UpdateOf<'customers'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -124,7 +127,17 @@ export const customersUpdate: v.GenericSchema<UpdateOf<'customers'>> = v.pipe(v.
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
   logoPath: v.exactOptional(v.nullable((v.string() as unknown as v.GenericSchema<NonNullable<RowOf<'customers'>['logoPath']>>))),
   createdBy: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
+  ownerTeamId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
 }), v.title("Customers update"), v.description("Companies the organization sells to."));
+
+export const customersWithOwnerRow: v.GenericSchema<RowOf<'customersWithOwner'>> = v.pipe(v.object({
+  id: v.pipe(v.string(), v.uuid()),
+  organizationId: v.pipe(v.string(), v.uuid()),
+  name: v.string(),
+  status: v.string(),
+  ownerTeamId: v.nullable(v.pipe(v.string(), v.uuid())),
+  ownerTeamName: v.nullable(v.string()),
+}), v.title("Customers with owner"), v.description("Open customers with the name of the team that owns them, read with the caller's row level security on both tables."));
 
 export const locationsRow: v.GenericSchema<RowOf<'locations'>> = v.pipe(v.object({
   id: v.pipe(v.string(), v.uuid()),
@@ -160,24 +173,26 @@ export const locationsUpdate: v.GenericSchema<UpdateOf<'locations'>> = v.pipe(v.
 export const membershipsRow: v.GenericSchema<RowOf<'memberships'>> = v.pipe(v.object({
   organizationId: v.pipe(v.string(), v.uuid()),
   userId: v.pipe(v.string(), v.uuid()),
-  role: v.picklist(["owner", "admin", "member"]),
+  role: v.pipe(v.string(), v.uuid()),
   createdAt: v.pipe(v.string(), v.isoTimestamp()),
   lastUsedAt: v.nullable(v.pipe(v.string(), v.isoTimestamp())),
-  tierRole: v.nullable(v.string()),
+  updatedAt: v.pipe(v.string(), v.isoTimestamp()),
 }), v.title("Memberships"));
 export const membershipsInsert: v.GenericSchema<InsertOf<'memberships'>> = v.pipe(v.object({
   organizationId: v.pipe(v.string(), v.uuid()),
   userId: v.pipe(v.string(), v.uuid()),
-  role: v.exactOptional(v.picklist(["owner", "admin", "member"])),
+  role: v.pipe(v.string(), v.uuid()),
   createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
   lastUsedAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
 }), v.title("Memberships insert"));
 export const membershipsUpdate: v.GenericSchema<UpdateOf<'memberships'>> = v.pipe(v.object({
   organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
   userId: v.exactOptional(v.pipe(v.string(), v.uuid())),
-  role: v.exactOptional(v.picklist(["owner", "admin", "member"])),
+  role: v.exactOptional(v.pipe(v.string(), v.uuid())),
   createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
   lastUsedAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
 }), v.title("Memberships update"));
 
 export const notesRow: v.GenericSchema<RowOf<'notes'>> = v.pipe(v.object({

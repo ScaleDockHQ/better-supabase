@@ -127,26 +127,14 @@ export default defineConfig({
     "realtime-tables": { api: false },
     "rate-limit": { api: false },
     "vector-search": { api: false },
-    // The fixture writes the memberships table and the access contract
-    // itself (supabase/schemas/better_supabase/functions), so tokens that
-    // carry only a tenant claim keep working for the integration suite.
-    memberships: {
-      ownership: "custom",
-      api: false,
-      tables: { memberships: "public.memberships" },
-    },
-    // switch_organization writes app_metadata.tenant_id; the token hook
-    // copies it into the access token. In custom mode only the role names
-    // count: they are the roles invitations and member updates accept.
-    // Their permissions live in
-    // supabase/schemas/better_supabase/functions/role_permissions.sql.
-    // `<Can>` reads my_permissions through the hand-written
-    // supabase/schemas/api/functions/my_permissions.sql.
-    permissions: {
-      ownership: "custom",
-      activeTenant: "claim",
-      roles: { owner: [], admin: [], member: [] },
-    },
+    // The block runs over the fixture's own `public.memberships` table
+    // (ADR 0098); its `role` column references the catalog's roles.
+    memberships: { api: false, tables: { memberships: "public.memberships" } },
+    // Roles, permission keys and their links are rows in the catalog tables
+    // (seeded by a data migration), and admins override a role's keys per
+    // organization in `permission_overrides`. switch_organization writes
+    // app_metadata.tenant_id; the token hook copies it into the access token.
+    permissions: { model: "catalog", activeTenant: "claim" },
     // The fixture audits none of its CRM tables (doctor BS315). Members with
     // `audit.read` read their organization's log, and the app's actions
     // record events as the signed-in user.
@@ -303,7 +291,8 @@ export default defineConfig({
     // The example runs no malware scanner, so uploads are readable at once.
     attachments: { options: { requireScan: false } },
     waitlist: {},
-    teams: {},
+    // Teams can be renamed and restored from the trash in the app.
+    teams: { options: { patch: true, restore: true } },
     contacts: {
       names: {
         company: { url: "/crm/contacts/{id}" },

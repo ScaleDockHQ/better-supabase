@@ -167,6 +167,12 @@
           "type": "string",
           "format": "date-time",
           "readOnly": true
+        },
+        "emailDomain": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -175,7 +181,8 @@
         "email",
         "fullName",
         "createdAt",
-        "updatedAt"
+        "updatedAt",
+        "emailDomain"
       ],
       "additionalProperties": false
     },
@@ -421,6 +428,13 @@
           ],
           "format": "uuid",
           "readOnly": true
+        },
+        "ownerTeamId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
         }
       },
       "required": [
@@ -436,7 +450,8 @@
         "createdAt",
         "updatedAt",
         "logoPath",
-        "createdBy"
+        "createdBy",
+        "ownerTeamId"
       ],
       "additionalProperties": false
     },
@@ -527,6 +542,13 @@
           ],
           "format": "uuid",
           "readOnly": true
+        },
+        "ownerTeamId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
         }
       },
       "required": [
@@ -622,8 +644,58 @@
           ],
           "format": "uuid",
           "readOnly": true
+        },
+        "ownerTeamId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
         }
       },
+      "additionalProperties": false
+    },
+    "customersWithOwnerRow": {
+      "title": "Customers with owner",
+      "description": "Open customers with the name of the team that owns them, read with the caller's row level security on both tables.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "ownerTeamId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "ownerTeamName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "name",
+        "status",
+        "ownerTeamId",
+        "ownerTeamName"
+      ],
       "additionalProperties": false
     },
     "locationsRow": {
@@ -778,11 +850,7 @@
         },
         "role": {
           "type": "string",
-          "enum": [
-            "owner",
-            "admin",
-            "member"
-          ]
+          "format": "uuid"
         },
         "createdAt": {
           "type": "string",
@@ -796,11 +864,10 @@
           ],
           "format": "date-time"
         },
-        "tierRole": {
-          "type": [
-            "string",
-            "null"
-          ]
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
         }
       },
       "required": [
@@ -809,7 +876,7 @@
         "role",
         "createdAt",
         "lastUsedAt",
-        "tierRole"
+        "updatedAt"
       ],
       "additionalProperties": false
     },
@@ -827,11 +894,7 @@
         },
         "role": {
           "type": "string",
-          "enum": [
-            "owner",
-            "admin",
-            "member"
-          ]
+          "format": "uuid"
         },
         "createdAt": {
           "type": "string",
@@ -844,11 +907,17 @@
             "null"
           ],
           "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
         }
       },
       "required": [
         "organizationId",
-        "userId"
+        "userId",
+        "role"
       ],
       "additionalProperties": false
     },
@@ -866,11 +935,7 @@
         },
         "role": {
           "type": "string",
-          "enum": [
-            "owner",
-            "admin",
-            "member"
-          ]
+          "format": "uuid"
         },
         "createdAt": {
           "type": "string",
@@ -883,6 +948,11 @@
             "null"
           ],
           "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
         }
       },
       "additionalProperties": false

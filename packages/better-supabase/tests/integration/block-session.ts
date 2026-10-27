@@ -64,6 +64,16 @@ export class BlockSession {
     names: readonly string[],
     layout: BlockSqlLayout = {},
   ): Promise<void> {
+    // The seed's team members belong to the fixture's `public.memberships`,
+    // which a render over another memberships table can't reference.
+    await this.client.query(`do $$
+      begin
+        if to_regclass('better_supabase.team_members') is not null then
+          delete from better_supabase.team_members;
+        end if;
+      end
+    $$`);
+
     for (const file of renderBlocks(names, layout)) {
       if (file.kind !== "test") {
         await this.client.query(file.contents);

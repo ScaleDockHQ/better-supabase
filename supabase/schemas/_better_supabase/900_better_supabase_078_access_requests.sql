@@ -1,6 +1,6 @@
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:18a17f1bce91d8872ec350d5e6c5c55f687e599af86086dbc6efe5ff26cfa1e5
+-- @bsb-hash sha256:0f16b0c2bcc9ed79dc2faaddfcaeeecef95dcc7e23a0c113c2290f327098eca1
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -105,14 +105,14 @@ begin
   if v_me is null then
     raise exception 'sign in to request access' using errcode = '42501', hint = 'ACCESS_SIGN_IN';
   end if;
-  select m."role" into v_current from "public"."memberships" m
+  select (select r."key" from "better_supabase"."roles" r where r."id" = m."role") into v_current from "public"."memberships" m
   where m."organization_id" = request_access.tenant and m."user_id" = v_me;
   if not found then
     raise exception 'only members can request a role' using errcode = '42501', hint = 'ACCESS_REQUEST_FORBIDDEN';
   elsif not coalesce(better_supabase.can('tenant', request_access.tenant, 'access_requests.create'), false) then
     raise exception 'not allowed to request a role here' using errcode = '42501', hint = 'ACCESS_REQUEST_FORBIDDEN';
   end if;
-  if not (request_access.role = any (array['admin', 'member']::text[])) then
+  if not (request_access.role = any (array['admin', 'member', 'viewer']::text[])) then
     raise exception 'this role can''t be requested' using errcode = '22023', hint = 'ACCESS_ROLE_INVALID';
   end if;
   if v_current = request_access.role then
@@ -198,15 +198,15 @@ begin
         using v_row."id";
     end if;
   end;
-  select m."role" into v_previous from "public"."memberships" m
+  select (select r."key" from "better_supabase"."roles" r where r."id" = m."role") into v_previous from "public"."memberships" m
   where m."organization_id" = v_row."tenant_id" and m."user_id" = v_row."user_id"
   for update;
   if found then
-    update "public"."memberships" set "role" = v_row."role"
+    update "public"."memberships" set "role" = (select r."id" from "better_supabase"."roles" r where (r."id"::text = (v_row."role")::text or r."key" = (v_row."role")::text) order by (r."id"::text = (v_row."role")::text) desc limit 1)
     where "organization_id" = v_row."tenant_id" and "user_id" = v_row."user_id";
   else
     insert into "public"."memberships" ("organization_id", "user_id", "role")
-    values (v_row."tenant_id", v_row."user_id", v_row."role");
+    values (v_row."tenant_id", v_row."user_id", (select r."id" from "better_supabase"."roles" r where (r."id"::text = (v_row."role")::text or r."key" = (v_row."role")::text) order by (r."id"::text = (v_row."role")::text) desc limit 1));
   end if;
   update "better_supabase"."access_requests" r
   set "previous_role" = v_previous,
@@ -263,12 +263,12 @@ begin
   if exists (
     select 1 from "public"."memberships" m
     where m."organization_id" = v_row."tenant_id" and m."user_id" = v_row."user_id"
-      and m."role" = v_row."role"
+      and (select r."key" from "better_supabase"."roles" r where r."id" = m."role") = v_row."role"
   ) then
     if v_row."previous_role" is null then
       delete from "public"."memberships" where "organization_id" = v_row."tenant_id" and "user_id" = v_row."user_id";
     else
-      update "public"."memberships" set "role" = v_row."previous_role"
+      update "public"."memberships" set "role" = (select r."id" from "better_supabase"."roles" r where (r."id"::text = (v_row."previous_role")::text or r."key" = (v_row."previous_role")::text) order by (r."id"::text = (v_row."previous_role")::text) desc limit 1)
       where "organization_id" = v_row."tenant_id" and "user_id" = v_row."user_id";
     end if;
   end if;
@@ -310,12 +310,12 @@ begin
   if exists (
     select 1 from "public"."memberships" m
     where m."organization_id" = v_row."tenant_id" and m."user_id" = v_row."user_id"
-      and m."role" = v_row."role"
+      and (select r."key" from "better_supabase"."roles" r where r."id" = m."role") = v_row."role"
   ) then
     if v_row."previous_role" is null then
       delete from "public"."memberships" where "organization_id" = v_row."tenant_id" and "user_id" = v_row."user_id";
     else
-      update "public"."memberships" set "role" = v_row."previous_role"
+      update "public"."memberships" set "role" = (select r."id" from "better_supabase"."roles" r where (r."id"::text = (v_row."previous_role")::text or r."key" = (v_row."previous_role")::text) order by (r."id"::text = (v_row."previous_role")::text) desc limit 1)
       where "organization_id" = v_row."tenant_id" and "user_id" = v_row."user_id";
     end if;
   end if;

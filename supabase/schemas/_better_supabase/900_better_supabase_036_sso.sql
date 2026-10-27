@@ -1,6 +1,6 @@
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:59cf61ff5851e35afb91f5ce7a11a1136a64ce137c215ebb2811074c15cd8174
+-- @bsb-hash sha256:861be9ff73ec20d25a7f7497a3faf6b65186f823ddd4405bc9d1f4ebb4c1c2e3
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -90,7 +90,7 @@ create table if not exists "better_supabase"."organization_domains" (
   "domain" text not null check ("domain" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
   "verification_token" text not null default replace(gen_random_uuid()::text, '-', ''),
   "verified_at" timestamptz,
-  "auto_join_role" text check ("auto_join_role" = any (array['admin', 'member']::text[])),
+  "auto_join_role" text check ("auto_join_role" = any (array['admin', 'member', 'viewer']::text[])),
   "enforce_sso" boolean not null default false,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
@@ -181,7 +181,7 @@ set search_path = ''
 as $$
   select coalesce(
     (select t.role from (select null::text as name, null::text as role where false) as t(name, role) where t.name = lower(scim_group_role.display_name)),
-    case when lower(scim_group_role.display_name) = any (array['admin', 'member']::text[]) then lower(scim_group_role.display_name) end
+    case when lower(scim_group_role.display_name) = any (array['admin', 'member', 'viewer']::text[]) then lower(scim_group_role.display_name) end
   )
 $$;
 
@@ -207,7 +207,7 @@ begin
   end if;
   v_tenant := v_row."organization_id";
   v_user := v_row."user_id";
-  select mm."role" into v_current from "public"."memberships" mm where mm."organization_id" = v_tenant and mm."user_id" = v_user;
+  select (select r."key" from "better_supabase"."roles" r where r."id" = mm."role") into v_current from "public"."memberships" mm where mm."organization_id" = v_tenant and mm."user_id" = v_user;
   if v_current = 'owner' then
     return;
   end if;
@@ -229,11 +229,11 @@ begin
   select coalesce((
     select sg."role" from "better_supabase"."scim_group_members" sm join "better_supabase"."scim_groups" sg on sg."id" = sm."group_id"
     where sm."scim_user_id" = v_row."id" and sg."role" is not null
-    order by array_position(array['admin', 'member']::text[], sg."role")
+    order by array_position(array['admin', 'member', 'viewer']::text[], sg."role")
     limit 1
   ), 'member') into v_role;
   if v_current is null then
-    insert into "public"."memberships" ("organization_id", "user_id", "role") values (v_tenant, v_user, v_role);
+    insert into "public"."memberships" ("organization_id", "user_id", "role") values (v_tenant, v_user, (select r."id" from "better_supabase"."roles" r where (r."id"::text = (v_role)::text or r."key" = (v_role)::text) order by (r."id"::text = (v_role)::text) desc limit 1));
     perform "better_supabase".emit_event('organization.member_added', jsonb_build_object('organizationId', v_tenant::text, 'userId', v_user, 'role', v_role), 'organizations/' || v_tenant::text, (v_tenant)::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
     event_type => 'organization.member_added',
@@ -244,7 +244,7 @@ begin
     metadata => jsonb_build_object('organizationId', v_tenant::text, 'userId', v_user, 'role', v_role)
   );
   elsif v_current is distinct from v_role then
-    update "public"."memberships" mm set "role" = v_role where mm."organization_id" = v_tenant and mm."user_id" = v_user;
+    update "public"."memberships" mm set "role" = (select r."id" from "better_supabase"."roles" r where (r."id"::text = (v_role)::text or r."key" = (v_role)::text) order by (r."id"::text = (v_role)::text) desc limit 1) where mm."organization_id" = v_tenant and mm."user_id" = v_user;
     perform "better_supabase".emit_event('organization.role_changed', jsonb_build_object('organizationId', v_tenant::text, 'userId', v_user, 'role', v_role, 'previousRole', v_current), 'organizations/' || v_tenant::text, (v_tenant)::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
     event_type => 'organization.role_changed',
@@ -352,7 +352,7 @@ begin
   if v_row."id" is null or not coalesce(better_supabase.can('tenant', v_row."organization_id", 'sso.manage'), false) then
     raise exception 'No domain you manage has this id' using errcode = 'P0002', hint = 'SSO_DOMAIN_NOT_FOUND';
   end if;
-  if update_organization_domain.auto_join_role is not null and not (update_organization_domain.auto_join_role = any (array['admin', 'member']::text[])) then
+  if update_organization_domain.auto_join_role is not null and not (update_organization_domain.auto_join_role = any (array['admin', 'member', 'viewer']::text[])) then
     raise exception 'Auto-join cannot assign role %', update_organization_domain.auto_join_role using errcode = '22023', hint = 'SSO_ROLE_INVALID';
   end if;
   if update_organization_domain.auto_join_role is not null
@@ -694,7 +694,7 @@ begin
         and not exists (select 1 from "public"."memberships" mm where mm."organization_id" = x."organization_id" and mm."user_id" = new.id)
     loop
       v_tenant := v_join.tenant;
-      insert into "public"."memberships" ("organization_id", "user_id", "role") values (v_tenant, v_user, v_join.role);
+      insert into "public"."memberships" ("organization_id", "user_id", "role") values (v_tenant, v_user, (select r."id" from "better_supabase"."roles" r where (r."id"::text = (v_join.role)::text or r."key" = (v_join.role)::text) order by (r."id"::text = (v_join.role)::text) desc limit 1));
       perform "better_supabase".emit_event('organization.member_added', jsonb_build_object('organizationId', v_tenant::text, 'userId', v_user, 'role', v_join.role), 'organizations/' || v_tenant::text, (v_tenant)::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
     event_type => 'organization.member_added',

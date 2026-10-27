@@ -20,8 +20,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import { loadContact, settle } from "../crm-queries";
@@ -43,13 +43,13 @@ export async function ContactDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const [{ id }, session, t] = await Promise.all([
+  const [{ id }, t, permissions] = await Promise.all([
     params,
-    getSession(),
     getExtracted("crm"),
+    getPermissions(),
   ]);
 
-  if (!can(session, "parties.read")) {
+  if (!can(permissions, "parties.read")) {
     forbidden();
   }
 
@@ -180,7 +180,7 @@ export async function ContactDetail({
                 ))}
               </ul>
             )}
-            {can(session, "parties.write") ? (
+            {can(permissions, "parties.write") ? (
               <LinkPersonForm
                 companyId={contact.id}
                 people={contact.candidates.map((person) => ({

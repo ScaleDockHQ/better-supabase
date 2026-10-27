@@ -3,6 +3,7 @@
 import type { RequestContext } from "better-supabase";
 
 import { dbError, err, ok } from "better-supabase";
+import { can } from "better-supabase/blocks/permissions";
 import {
   authorizeHook,
   HookForbiddenError,
@@ -14,9 +15,7 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 import { getRun, resumeHook } from "workflow/api";
 
-import type { Permission } from "@/features/user/user-permissions";
-
-import { can, PERMISSIONS } from "@/features/user/user-permissions";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { bsb } from "@/lib/supabase/server";
 
 import {
@@ -27,9 +26,6 @@ import {
 } from "./workflow-definitions";
 
 const WorkflowName = v.picklist(["onboarding-drip", "document-ingestion"]);
-
-const isPermission = (value: string): value is Permission =>
-  PERMISSIONS.some((permission) => permission === value);
 
 function contextOf(userId: string, tenant: string): RequestContext {
   return { actor: { id: userId, kind: "user" }, tenant };
@@ -43,7 +39,7 @@ export const startWorkflow = bsb.action(
       text: v.optional(v.pipe(v.string(), v.maxLength(20_000))),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "workflow.run"),
+    authorize: async () => can(await getPermissions(), "workflow.run"),
   },
   async ({ workflow, text }, { tenant, auth }) => {
     if (auth.kind !== "user") {
@@ -71,7 +67,7 @@ export const requestApproval = bsb.action(
   {
     input: v.object({ amount: v.pipe(v.number(), v.minValue(1)) }),
     requireOrganization: true,
-    authorize: (session) => can(session, "workflow.run"),
+    authorize: async () => can(await getPermissions(), "workflow.run"),
   },
   async ({ amount }, { tenant, auth }) => {
     if (auth.kind !== "user") {
@@ -101,10 +97,12 @@ export const decideApproval = bsb.action(
     input: v.object({ run: v.string(), approved: v.boolean() }),
     requireOrganization: true,
   },
-  async ({ run, approved }, { tenant, auth, session }) => {
+  async ({ run, approved }, { tenant, auth }) => {
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to decide"));
     }
+
+    const permissions = await getPermissions();
 
     try {
       const hook = await authorizeHook(
@@ -112,9 +110,7 @@ export const decideApproval = bsb.action(
         contextOf(auth.user.id, tenant),
         {
           can: (hookTenant, permission) =>
-            hookTenant === tenant &&
-            isPermission(permission) &&
-            can(session, permission),
+            hookTenant === tenant && can(permissions, permission),
         },
       );
 
@@ -166,7 +162,7 @@ export const createSchedule = bsb.action(
       cron: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "workflow.admin"),
+    authorize: async () => can(await getPermissions(), "workflow.admin"),
   },
   async ({ name, workflow, cron }, { tenant, auth, db }) => {
     if (auth.kind !== "user") {

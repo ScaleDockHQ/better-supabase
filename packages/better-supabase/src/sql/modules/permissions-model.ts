@@ -349,6 +349,8 @@ export const OPERATIONS = {
   "numbering.assign": "number_sequences.assign",
   "teams.manage": "teams.manage",
   "teams.read": "teams.read",
+  "permissions.listRoles": "members.read",
+  "permissions.setOverride": "roles.manage",
   "tags.manage": "tags.manage",
   "tags.read": "tags.read",
   "tags.apply": "tags.apply",
@@ -676,6 +678,7 @@ export const MODULE_PERMISSION_SCOPES: {
   "ai-keys": { use: "tenant", manage: "tenant" },
   numbering: { assign: "tenant" },
   teams: { manage: "tenant", read: "tenant" },
+  permissions: { listRoles: "tenant", setOverride: "tenant" },
   tags: { manage: "tenant", read: "tenant", apply: "tenant" },
   catalog: { manage: "tenant", read: "tenant" },
   inventory: {

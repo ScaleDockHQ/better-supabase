@@ -1,21 +1,21 @@
 import { getExtracted } from "next-intl/server";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import { getCustomers } from "../customer-queries";
 import { CustomerTable } from "./customer-table";
 
 /** Render inside `<Suspense>`; the fallback is `CustomerListSkeleton`. */
 export async function CustomerList() {
-  const [session, page, t] = await Promise.all([
-    getSession(),
+  const [page, t, permissions] = await Promise.all([
     getCustomers(),
     getExtracted("customers"),
+    getPermissions(),
   ]);
 
-  const writer = can(session, "customers.write");
+  const writer = can(permissions, "customers.write");
 
   return (
     <div className="space-y-4">

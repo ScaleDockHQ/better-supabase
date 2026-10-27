@@ -20,7 +20,7 @@ npx shadcn add alert badge button card empty skeleton table
  * back to the previous one when the duration runs out.
  */
 export async function AccessRequestsInbox() {
-  if (!can(await getSession(), "access_requests.create")) {
+  if (!can(await getPermissions(), "access_requests.create")) {
     forbidden();
   }
 

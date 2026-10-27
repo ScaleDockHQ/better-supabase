@@ -57,21 +57,30 @@ The features and the better-supabase parts they use:
 | Notifications                         | the `notifications` module with `better-supabase/blocks/notifications`, a live unread badge                                                                                                                 |
 | Workflows                             | `better-supabase/blocks/workflows` and the Supabase World: a live runs list, run detail with cancel, an approval with `authorizeHook`, schedules                                                            |
 | Workflow builder                      | `better-supabase/blocks/workflow-editor` on `@xyflow/react`: a node palette from the step library, a live run overlay, approvals on the canvas, trigger and credential drawers, publish with a version diff |
-| Members, roles and permissions        | the `permissions` module in custom mode, `can()` in policies and the UI                                                                                                                                     |
+| Members, teams, roles and permissions | the `permissions` module in catalog mode with tenant overrides, the `teams` module, `can()` in policies and the UI                                                                                          |
 | Billing and plan features             | the `entitlements` and `usage` modules                                                                                                                                                                      |
 | API keys and audit log                | the `api-keys` and `audit` modules, with a CSV export                                                                                                                                                       |
 | Profile, settings, onboarding         | the `profiles`, `settings` and `onboarding` modules                                                                                                                                                         |
 | Announcements and a beta page         | the `announcements` and `flags` modules                                                                                                                                                                     |
 
+The app also serves its data to other programs, from the same code the pages
+use:
+
+| Route                                           | What it is                                                                                         |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `/api/v1`                                       | `bsb.resources` over customers, projects, tasks and organizations, with teams and roles as actions |
+| `/api/v1/openapi.json`                          | `createOpenApi` over the same resource map                                                         |
+| `/api/mcp`                                      | `createMcp` with read tools for customers, projects and tasks and three write tools                |
+| `/.well-known/oauth-protected-resource/api/mcp` | the MCP server's protected resource metadata                                                       |
+
+Both take a Supabase access token as a bearer token, and the database
+policies decide what each caller sees. Own tables (customers, projects,
+tasks) reference block tables (teams, memberships), so the app also shows
+how hand-written schemas and blocks sit together.
+
 The routes are localized under `/en` and `/nl` with `next/root-params`, and
 the translations are `.po` files read directly by next-intl. The theme
 (light, dark or system) is applied before the first paint.
-
-`pnpm --filter @better-supabase/example-nextjs test:e2e` resets the stack,
-builds the app with the testing API and runs the Playwright specs in
-`apps/examples/nextjs/e2e`. They click every menu page for each user in both
-languages under `instant()`, and walk through sign-in, the organization
-switch, the language and theme switches and an invitation.
 
 ## Real-world ports
 

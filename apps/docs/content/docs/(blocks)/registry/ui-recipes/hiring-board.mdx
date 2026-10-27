@@ -24,13 +24,13 @@ export async function HiringBoard({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, t, query] = await Promise.all([
-    getSession(),
+  const [t, query, permissions] = await Promise.all([
     getExtracted("people"),
     searchParams,
+    getPermissions(),
   ]);
 
-  if (!can(session, "hiring.read")) {
+  if (!can(permissions, "hiring.read")) {
     forbidden();
   }
 
@@ -40,8 +40,8 @@ export async function HiringBoard({
     return null;
   }
 
-  const canManage = can(session, "hiring.manage");
-  const canWrite = can(session, "hiring.write");
+  const canManage = can(permissions, "hiring.manage");
+  const canWrite = can(permissions, "hiring.write");
   const jobs = board.kind === "ok" ? board.data.jobs : [];
   const job = jobs.find((item) => item.id === query["job"]) ?? jobs[0];
 

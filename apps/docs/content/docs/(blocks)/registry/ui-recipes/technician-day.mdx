@@ -23,15 +23,15 @@ export async function TechnicianDay({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, t, format, query] = await Promise.all([
-    getSession(),
+  const [t, format, query, permissions] = await Promise.all([
     getExtracted("field"),
     getFormatter(),
     searchParams,
+    getPermissions(),
     connection(),
   ]);
 
-  if (!can(session, "dispatch.work")) {
+  if (!can(permissions, "dispatch.work")) {
     forbidden();
   }
 

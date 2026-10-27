@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getMembers } from "@/features/organization/organization-queries";
+import { getTeams } from "@/features/teams/teams-queries";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { initials } from "@/lib/initials";
@@ -38,6 +40,7 @@ import {
   CustomerTimeline,
   CustomerTimelineSkeleton,
 } from "./customer-timeline";
+import { OwnerTeamSelect } from "./owner-team-select";
 import { ReactionsBar } from "./reactions-bar";
 import {
   RelatedItemsPanel,
@@ -166,16 +169,22 @@ export async function CustomerDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const [{ id }, session] = await Promise.all([params, getSession()]);
+  const [{ id }, session, permissions] = await Promise.all([
+    params,
+    getSession(),
+    getPermissions(),
+  ]);
+
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
     notFound();
   }
 
-  const [customer, members, t, format] = await Promise.all([
+  const [customer, members, teams, t, format] = await Promise.all([
     getCustomer(id),
     getMembers(organizationId),
+    can(permissions, "teams.read") ? getTeams() : null,
     getExtracted("customers"),
     getFormatter(),
   ]);
@@ -226,10 +235,10 @@ export async function CustomerDetail({
           <CustomerStatus status={customer.status} />
         </div>
 
-        {can(session, "reactions.read") ? (
+        {can(permissions, "reactions.read") ? (
           <ReactionsBar
             customerId={customerId}
-            canReact={can(session, "reactions.create")}
+            canReact={can(permissions, "reactions.create")}
           />
         ) : null}
 
@@ -244,36 +253,36 @@ export async function CustomerDetail({
             <CommentThread
               subject={{ type: "customer", id: customer.id }}
               authors={authors}
-              canComment={can(session, "messages.send")}
+              canComment={can(permissions, "messages.send")}
             />
           </CardContent>
         </Card>
 
-        {can(session, "attachments.read") ? (
+        {can(permissions, "attachments.read") ? (
           <Suspense fallback={<AttachmentsUploaderSkeleton />}>
             <AttachmentsSection
               customerId={customerId}
-              canUpload={can(session, "attachments.upload")}
-              canRemove={can(session, "attachments.manage")}
+              canUpload={can(permissions, "attachments.upload")}
+              canRemove={can(permissions, "attachments.manage")}
             />
           </Suspense>
         ) : null}
-        {can(session, "relations.read") ? (
+        {can(permissions, "relations.read") ? (
           <Suspense fallback={<RelatedItemsPanelSkeleton />}>
             <RelationsSection
               customerId={customerId}
-              canManage={can(session, "relations.manage")}
+              canManage={can(permissions, "relations.manage")}
             />
           </Suspense>
         ) : null}
-        {can(session, "versions.read") ? (
+        {can(permissions, "versions.read") ? (
           <Suspense fallback={<VersionHistorySkeleton />}>
             <VersionsSection
               customerId={customerId}
-              canSave={can(session, "versions.create")}
+              canSave={can(permissions, "versions.create")}
               canRestore={
-                can(session, "versions.restore") &&
-                can(session, "customers.write")
+                can(permissions, "versions.restore") &&
+                can(permissions, "customers.write")
               }
             />
           </Suspense>
@@ -284,21 +293,42 @@ export async function CustomerDetail({
         <Suspense fallback={<CustomerTimelineSkeleton />}>
           <TimelineSection customerId={customerId} authors={authors} />
         </Suspense>
-        {can(session, "sla.read") ? (
+        {can(permissions, "sla.read") ? (
           <Suspense fallback={<SlaBadgesSkeleton />}>
             <SlaSection
               customerId={customerId}
-              canCreatePolicy={can(session, "sla.manage")}
+              canCreatePolicy={can(permissions, "sla.manage")}
             />
           </Suspense>
         ) : null}
-        {can(session, "share_links.read") ? (
+        {can(permissions, "share_links.read") ? (
           <Suspense fallback={<ShareLinkDialogSkeleton />}>
             <ShareLinksSection
               customerId={customerId}
-              canCreate={can(session, "share_links.create")}
+              canCreate={can(permissions, "share_links.create")}
             />
           </Suspense>
+        ) : null}
+        {teams ? (
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>{t("Owner team")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <OwnerTeamSelect
+                customerId={customer.id}
+                ownerTeamId={customer.ownerTeamId}
+                teams={teams
+                  .filter(
+                    (team) =>
+                      team.status === "active" ||
+                      team.id === customer.ownerTeamId,
+                  )
+                  .map((team) => ({ id: team.id, name: team.name }))}
+                disabled={!can(permissions, "customers.write")}
+              />
+            </CardContent>
+          </Card>
         ) : null}
         <Card size="sm" data-recipe="tag-input">
           <CardHeader>
@@ -332,7 +362,7 @@ export async function CustomerDetail({
             )}
           </CardContent>
         </Card>
-        {can(session, "customers.write") ? (
+        {can(permissions, "customers.write") ? (
           <Card size="sm">
             <CardContent>
               <CustomerLogoForm customerId={customer.id} />

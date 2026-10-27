@@ -10,7 +10,6 @@ export type * from "./schema.bsb";
 
 export const noteKindValues = ["call", "meeting", "email"] as const;
 export const customersStatusValues = ["lead", "active", "archived"] as const;
-export const membershipsRoleValues = ["owner", "admin", "member"] as const;
 export const subscriptionsStatusValues = ["active", "trialing", "past_due", "canceled"] as const;
 export const tagsColorValues = ["gray", "red", "green", "blue"] as const;
 export const tasksStatusValues = ["todo", "doing", "done"] as const;

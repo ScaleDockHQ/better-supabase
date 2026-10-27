@@ -1,4 +1,5 @@
 import type { Permission } from "@/features/user/user-permissions";
+import type { AppHref } from "@/i18n/navigation";
 
 export type NavId =
   | "dashboard"
@@ -45,6 +46,8 @@ export type NavId =
   | "aiTasks"
   | "beta"
   | "members"
+  | "teams"
+  | "roles"
   | "billing"
   | "apiKeys"
   | "audit"
@@ -54,7 +57,7 @@ export type NavId =
 export interface NavItem {
   readonly id: NavId;
   /** Without the locale prefix. */
-  readonly href: string;
+  readonly href: AppHref;
   readonly group: "workspace" | "organization";
   /** Hidden from the menu (and redirected by the proxy) without it. */
   readonly requires?: Permission;
@@ -259,6 +262,18 @@ export const navItems: readonly NavItem[] = [
   {
     id: "members",
     href: "/settings/members",
+    group: "organization",
+    requires: "members.read",
+  },
+  {
+    id: "teams",
+    href: "/settings/teams",
+    group: "organization",
+    requires: "teams.read",
+  },
+  {
+    id: "roles",
+    href: "/settings/roles",
     group: "organization",
     requires: "members.read",
   },

@@ -7,8 +7,8 @@ import { hasLocale } from "next-intl";
 import createMiddleware from "next-intl/middleware";
 import { NextResponse } from "next/server";
 
-import { requiredPermission } from "./features/navigation/nav-items";
-import { can } from "./features/user/user-permissions";
+import { env } from "@/env";
+
 import { pricingFlags } from "./flags";
 import { routing } from "./i18n/routing";
 import { bsb } from "./lib/supabase/server";
@@ -60,9 +60,7 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   // The pricing flags are evaluated here once, and the static page for
   // their values is served; `precompute` signs them with FLAGS_SECRET.
   if (path === "/pricing") {
-    const code = process.env["FLAGS_SECRET"]
-      ? await precompute(pricingFlags)
-      : "default";
+    const code = env.FLAGS_SECRET ? await precompute(pricingFlags) : "default";
 
     return NextResponse.rewrite(
       new URL(`/${locale}/pricing/${code}${search}`, request.url),
@@ -94,12 +92,6 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
     return NextResponse.redirect(new URL(`/${locale}`, request.url));
   }
 
-  const permission = requiredPermission(path);
-
-  if (permission && !can(session, permission)) {
-    return NextResponse.redirect(new URL(`/${locale}`, request.url));
-  }
-
   return;
 };
 
@@ -117,16 +109,15 @@ export const proxy = (request: NextRequest) =>
         response.headers.append("vary", "cookie");
       }
     },
-    // The e2e build reads the phases to prove a page load made no Auth call.
+    // The phases show whether a page load called Auth.
     serverTiming:
-      process.env.NODE_ENV !== "production" ||
-      process.env["EXPOSE_TESTING_API"] === "1",
+      env.NODE_ENV !== "production" || env.EXPOSE_TESTING_API === "1",
   });
 
 export const config = {
   matcher: [
-    // The workflow and Flags Explorer routes authenticate requests themselves;
-    // the proxy would redirect them to a locale or the sign-in page.
-    "/((?!_next/static|_next/image|favicon.ico|\\.well-known/workflow/|\\.well-known/vercel/|.*\\.(?:svg|png|jpg|webp|ico|txt|js)$).*)",
+    // The workflow, Flags Explorer and MCP metadata routes answer without a
+    // session; the proxy would redirect them to a locale or the sign-in page.
+    "/((?!_next/static|_next/image|favicon.ico|\\.well-known/workflow/|\\.well-known/vercel/|\\.well-known/oauth-protected-resource|.*\\.(?:svg|png|jpg|webp|ico|txt|js)$).*)",
   ],
 };

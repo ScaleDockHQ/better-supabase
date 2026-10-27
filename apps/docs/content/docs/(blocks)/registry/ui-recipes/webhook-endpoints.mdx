@@ -103,14 +103,14 @@ function EndpointStatusBadge({
  * delete endpoints, and retry finished deliveries.
  */
 export async function WebhookEndpoints() {
-  const [session, state, t, format] = await Promise.all([
-    getSession(),
+  const [state, t, format, permissions] = await Promise.all([
     loadWebhooksState(),
     getExtracted("webhooks"),
     getFormatter(),
+    getPermissions(),
   ]);
 
-  if (!can(session, "webhooks.read")) {
+  if (!can(permissions, "webhooks.read")) {
     forbidden();
   }
 
@@ -118,7 +118,7 @@ export async function WebhookEndpoints() {
     return null;
   }
 
-  const manage = can(session, "webhooks.manage");
+  const manage = can(permissions, "webhooks.manage");
 
   const firstEnabled =
     state.kind === "ok"

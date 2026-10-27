@@ -4,6 +4,8 @@ import type { Temporal } from "temporal-polyfill";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
 
+import type { AppHref } from "@/i18n/navigation";
+
 import { Badge } from "@/components/reui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -38,7 +40,7 @@ export async function TaskCalendar({
   rows: readonly TaskRow[];
   first: Temporal.PlainDate;
   today: Temporal.PlainDate;
-  monthHref: (month: string) => string;
+  monthHref: (month: string) => AppHref;
 }) {
   const [t, format] = await Promise.all([
     getExtracted("projects"),

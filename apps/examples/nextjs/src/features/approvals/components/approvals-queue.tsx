@@ -36,8 +36,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { SubjectChip } from "@/features/subjects/components/subject-chip";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import { retryApprovals } from "../approvals-actions";
 import { getApprovalsQueue } from "../approvals-queries";
@@ -51,13 +51,13 @@ import { RequestApprovalDialog } from "./request-approval-dialog";
  * caller is an approver of the current step.
  */
 export async function ApprovalsQueue() {
-  const [session, t, format] = await Promise.all([
-    getSession(),
+  const [t, format, permissions] = await Promise.all([
     getExtracted("approvals"),
     getFormatter(),
+    getPermissions(),
   ]);
 
-  if (!can(session, "approvals.read")) {
+  if (!can(permissions, "approvals.read")) {
     forbidden();
   }
 
@@ -67,8 +67,8 @@ export async function ApprovalsQueue() {
     return null;
   }
 
-  const canRequest = can(session, "approvals.request");
-  const canDecide = can(session, "approvals.manage");
+  const canRequest = can(permissions, "approvals.request");
+  const canDecide = can(permissions, "approvals.manage");
   const customers = queue.kind === "ok" ? queue.data.customers : [];
 
   const actionLabel = (action: string) =>

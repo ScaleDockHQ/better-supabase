@@ -43,7 +43,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { usePathname, useRouter } from "@/i18n/navigation";
+import { usePathname, useRouter, withSearch } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type {
@@ -225,7 +225,7 @@ export function WorkItemGrid({
 
   const go = (next: WorkGridQuery) => {
     startTransition(() => {
-      router.replace(`${pathname}${workGridSearch(next)}`);
+      router.replace(withSearch(pathname, workGridSearch(next)));
     });
   };
 

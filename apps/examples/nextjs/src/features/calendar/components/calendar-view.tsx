@@ -26,8 +26,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 
@@ -70,9 +70,9 @@ export async function CalendarView({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  if (!can(session, "calendar.read")) {
+  if (!can(permissions, "calendar.read")) {
     forbidden();
   }
 
@@ -83,8 +83,8 @@ export async function CalendarView({
     connection(),
   ]);
 
-  const canWrite = can(session, "calendar.write");
-  const canManage = can(session, "calendar.manage");
+  const canWrite = can(permissions, "calendar.write");
+  const canManage = can(permissions, "calendar.manage");
   const first = firstOfMonth(query["month"], "UTC");
   const weeks = weeksOf(first);
   const from = weeks[0]?.[0] ?? first;

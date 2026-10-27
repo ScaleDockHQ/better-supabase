@@ -10,7 +10,13 @@ import type {
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireOrganization } from "../../core/block-tenant.ts";
 import { AsyncResult } from "../../core/result.ts";
-import { blockCall } from "../shared.ts";
+import {
+  blockCall,
+  recordOf,
+  recordsOf,
+  stringsOf,
+  textOf,
+} from "../shared.ts";
 import { can, permissionFlags } from "./permissions-controller.ts";
 
 export interface PermissionsOptions extends BlockOptions {
@@ -23,6 +29,25 @@ export interface PermissionsOptions extends BlockOptions {
 /** Which tenant one call checks in, instead of the block's `tenant`. */
 export interface AccessCallOptions {
   readonly tenant?: BlockTenant;
+}
+
+/** A per-tenant grant (`true`) or deny (`false`) of one key to a role. */
+export interface PermissionOverride {
+  readonly permission: string;
+  readonly granted: boolean;
+}
+
+/** A catalog role and its keys in one tenant, as `roles()` lists it. */
+export interface CatalogRole {
+  readonly id: string;
+  readonly key: string;
+  /** How many members of the tenant hold the role. */
+  readonly members: number;
+  /** The keys the catalog grants the role everywhere. */
+  readonly defaultPermissions: readonly string[];
+  /** The keys the role holds in this tenant, after its overrides. */
+  readonly permissions: readonly string[];
+  readonly overrides: readonly PermissionOverride[];
 }
 
 /**
@@ -51,12 +76,45 @@ export interface Permissions<K extends string = string> {
     flags: M,
     options?: AccessCallOptions,
   ): AsyncResult<PermissionFlags<M>>;
+  /**
+   * The catalog's tenant roles with their keys in the tenant. Catalog model
+   * only; needs `members.read`.
+   */
+  roles(options?: AccessCallOptions): AsyncResult<readonly CatalogRole[]>;
+  /**
+   * Grants (`true`) or denies (`false`) `permission` to `role` (its key or id)
+   * in the tenant; `null` restores the role's default. Catalog model only;
+   * needs `roles.manage`, a role the caller could assign and a key the caller
+   * holds. Resolves to the role as it stands after the change.
+   */
+  setOverride(
+    role: string,
+    permission: K,
+    granted: boolean | null,
+    options?: AccessCallOptions,
+  ): AsyncResult<CatalogRole>;
 }
 
 const keysOf = (value: unknown): readonly string[] =>
   Array.isArray(value)
     ? value.filter((key): key is string => typeof key === "string")
     : [];
+
+function catalogRoleOf(value: unknown): CatalogRole {
+  const row = recordOf(value, "list_roles");
+
+  return {
+    id: textOf(row["id"]),
+    key: textOf(row["key"]),
+    members: Number(row["members"] ?? 0),
+    defaultPermissions: stringsOf(row["default_permissions"]),
+    permissions: stringsOf(row["permissions"]),
+    overrides: recordsOf(row["overrides"], "list_roles").map((entry) => ({
+      permission: textOf(entry["permission"]),
+      granted: entry["granted"] === true,
+    })),
+  };
+}
 
 /**
  * The `access` module's `my_permissions` as typed calls. It acts in the block's
@@ -87,6 +145,20 @@ export function createPermissions<K extends string = string>(
     flags: (flags, perCall) =>
       load(Object.values(flags), perCall).map((set) =>
         permissionFlags(set, flags),
+      ),
+    roles: (perCall) =>
+      requireOrganization(perCall?.tenant ?? options.tenant).andThen((tenant) =>
+        call("list_roles", { tenant }, (value) =>
+          recordsOf(value, "list_roles").map(catalogRoleOf),
+        ),
+      ),
+    setOverride: (role, permission, granted, perCall) =>
+      requireOrganization(perCall?.tenant ?? options.tenant).andThen((tenant) =>
+        call(
+          "set_permission_override",
+          { tenant, role, permission, granted },
+          catalogRoleOf,
+        ),
       ),
   };
 

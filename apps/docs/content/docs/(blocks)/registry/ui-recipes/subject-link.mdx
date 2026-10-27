@@ -28,7 +28,7 @@ import { useExtracted } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSubject } from "@/hooks/use-subjects";
-import { Link } from "@/i18n/navigation";
+import { Link, toAppHref } from "@/i18n/navigation";
 
 /**
  * A link to any subject in `config.subjects`, titled and routed by
@@ -75,7 +75,7 @@ export function SubjectLink({ subject }: { subject: RecordRef }) {
     <span className="truncate text-sm font-medium">{title}</span>
   ) : (
     <Link
-      href={resolved.url}
+      href={toAppHref(resolved.url)}
       className="truncate text-sm font-medium underline-offset-4 transition-colors hover:underline"
     >
       {title}

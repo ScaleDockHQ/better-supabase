@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { useExtracted } from "next-intl";
 
+import type { AppHref } from "@/i18n/navigation";
+
 import { buttonVariants } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Link } from "@/i18n/navigation";
@@ -32,7 +34,7 @@ export function ViewLinks({
   hrefs,
 }: {
   active: TaskView;
-  hrefs: Readonly<Record<TaskView, string>>;
+  hrefs: Readonly<Record<TaskView, AppHref>>;
 }) {
   const t = useExtracted("projects");
   const viewLabel = useViewLabel();

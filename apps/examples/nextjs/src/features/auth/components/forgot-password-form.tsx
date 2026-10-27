@@ -47,7 +47,7 @@ export function ForgotPasswordForm() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-xl">{t("Reset your password")}</CardTitle>
+        <CardTitle>{t("Reset your password")}</CardTitle>
         <CardDescription>
           {state && "sent" in state
             ? t("If that address has an account, a reset link is on its way.")

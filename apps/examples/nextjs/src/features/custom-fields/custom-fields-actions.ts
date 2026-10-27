@@ -4,6 +4,7 @@ import { dbError, err, ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -26,7 +27,7 @@ export const saveField = bsb.action(
       sensitive: v.optional(v.boolean(), false),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "custom_fields.manage"),
+    authorize: async () => can(await getPermissions(), "custom_fields.manage"),
   },
   async ({ entity, key, label, type, sensitive }, { db, auth }) => {
     const saved = await db.customFields.saveDefinition(
@@ -51,7 +52,7 @@ export const deleteField = bsb.action(
   {
     input: v.object({ id: Id }),
     requireOrganization: true,
-    authorize: (session) => can(session, "custom_fields.manage"),
+    authorize: async () => can(await getPermissions(), "custom_fields.manage"),
   },
   async ({ id }, { db, auth }) => {
     const deleted = await db.customFields.deleteDefinition(id);
@@ -78,7 +79,7 @@ export const moveField = bsb.action(
       direction: v.picklist(["up", "down"]),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "custom_fields.manage"),
+    authorize: async () => can(await getPermissions(), "custom_fields.manage"),
   },
   async ({ entity, id, direction }, { db, auth }) => {
     const { customFields } = db;

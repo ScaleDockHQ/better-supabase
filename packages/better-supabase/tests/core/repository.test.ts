@@ -460,7 +460,7 @@ describe("writes", () => {
     expect(query(requests[0] ?? (undefined as never))).toEqual([
       "id=eq.c1",
       "updated_at=eq.2026-01-01T00:00:00Z",
-      "select=id,organizationId:organization_id,name,kvk,status,primaryContactId:primary_contact_id,metadata,updatedBy:updated_by,archivedAt:archived_at,createdAt:created_at,updatedAt:updated_at,logoPath:logo_path,createdBy:created_by",
+      "select=id,organizationId:organization_id,name,kvk,status,primaryContactId:primary_contact_id,metadata,updatedBy:updated_by,archivedAt:archived_at,createdAt:created_at,updatedAt:updated_at,logoPath:logo_path,createdBy:created_by,ownerTeamId:owner_team_id",
     ]);
   });
 

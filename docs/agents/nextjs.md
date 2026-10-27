@@ -18,40 +18,28 @@ flag.
   (`apps/docs/components/chat-panel.tsx`) does; `ask-ai.tsx` loads it with
   `next/dynamic` and `ssr: false`, so its client code stays out of the page.
 - `experimental.globalNotFound` needs `app/global-not-found.tsx` with its own
-  `<html>`, fonts and `metadataBase`.
+  `<html>`, fonts and `metadataBase`. Next serves it only when routing
+  matches nothing; a `notFound()` in a root layout renders Next's built-in
+  404 instead. In the example, `[locale]` matches every path, so unknown
+  `/api` paths answer from `app/api/[...rest]/route.ts`.
 - Outside a Vercel production build, `BSB_BUILD_SCOPE` is `minimal` and every
   `generateStaticParams` in docs and marketing returns its first 3 entries
   through `scopeStaticParams` (ADR 0109). Wrap a new one the same way, and
   run `BSB_BUILD_SCOPE=full pnpm build` to prerender every page. The scope
   is read from the shell env, not from `.env` files.
 
-## Instant navigation tests
+## Instant navigation
 
-The Next.js example proves its navigations with `@next/playwright`'s
-`instant()` (`apps/examples/nextjs/e2e`, run with `test:e2e`).
-`instant-nav.rig.md` next to it records the build, the users and the
-contracts.
-
-- Never measure on `next dev`. The verdict comes from `next build` with
-  `EXPOSE_TESTING_API=1` and `next start`; Playwright's `webServer` builds
-  with it. A build without the testing API passes every test vacuously.
 - Build `packages/better-supabase` first in a fresh worktree, and again after
   every library change: the example imports its `dist`, so a stale `dist`
   builds the example against the old code.
-- The `latency` project runs `latency.spec.ts` against a second `next start`
-  on 3101 with `BS_FETCH_DELAY_MS=3000` (`e2e/serve.ts`). Time page loads to
-  `waitUntil: "commit"`; `load` waits for the whole stream. A shared
-  `"use cache"` read that uses `bsb.admin()` must sit behind a session read,
-  or the build prerenders it and fails without `SUPABASE_SECRET_KEY`.
-- Before trusting a GREEN, show that the spec can go RED: remove the cache
-  scope the contract depends on (replace `"use cache: private"` and
-  `bsb.cached()` in `getCustomers` with `bsb.context()`; `bsb.cached()` alone
-  outside a cache scope throws) and watch the rows disappear under the lock. No retries and no timeouts in
-  `instant()` specs.
+- A shared `"use cache"` read that uses `bsb.admin()` must sit behind a
+  session read, or the build prerenders it and fails without
+  `SUPABASE_SECRET_KEY`.
 - Routes you left stay mounted in a hidden `<Activity>`, and a streamed
-  Suspense boundary sits in a hidden `<div>` for a moment, so the same test
-  id, label or text can match twice. Use the visible-only helpers in
-  `e2e/nav.ts`, and `useId()` for form ids instead of fixed strings.
+  Suspense boundary sits in a hidden `<div>` for a moment, so the same id,
+  label or text can exist twice. Use `useId()` for form ids instead of fixed
+  strings.
 - Content that reads `params` can't be in the route's shared App Shell. A
   link to such a page needs `prefetch` to resolve its cached reads before
   the click (the customer rows in `customer-table.tsx`).
@@ -61,10 +49,6 @@ contracts.
   prop (`security-queries.ts` for the two-factor and connected agents cards).
   `supabase.auth` is off on the server client, which passes `accessToken`, so
   those reads call the Auth REST endpoints with `auth.token`.
-- `flows.spec.ts` signs users out with the default global scope, which ends
-  their other sessions. A saved `storageState` still renders pages (the
-  token verifies locally), but the Auth server refuses it, so a spec that
-  reaches Auth signs in fresh (`settings.spec.ts`).
 - A database budget (`maxCalls`, `maxWaves`) fails on a navigation served
   entirely from the client cache, because no response carries
   `x-bsb-request-id`. Budget only navigations that reach the server.
@@ -106,6 +90,64 @@ cache fails with `Could not resolve "better-supabase/blocks/..."`.
   Style the link with `buttonVariants()` instead.
 - `Math.random()` during render fails the prerender, including skeleton
   widths; use a fixed list.
+- next-intl's `Link` and `useRouter` take a plain string, so they bypass
+  `typedRoutes`. The example wraps them in `src/i18n/navigation.tsx` with
+  `Route` hrefs; import navigation from there, never from `next-intl`.
+- `typedEnv` writes `.next/dev/types/env.d.ts` only in `next dev`, and it
+  declares only the keys in local env files. Once it exists, Oxlint's
+  `dot-notation` flags `process.env["KEY"]` for those keys, while a clean
+  checkout flags nothing. Destructure `process.env` (`env.ts`) so both
+  pass.
+- Turbopack constant-folds `const s = "pkg"; import(s)` into a static
+  import and tries to resolve the package, even inside code that never
+  runs in the app (the testing entry through `instrumentation.ts`).
+  Library code loads optional peers through `importOptionalPeer`
+  (`src/core/optional-peer.ts`).
+- data-grid cells must be top-level components. Pass handlers through a
+  context whose value is `useMemo` over `useCallback`s, and put per-row
+  flags (`removable`, `busy`) in the row data
+  (`features/members/components/member-table.tsx`). Inline cell renderers,
+  context values built in render and fresh functions in deps all fail
+  Oxlint.
+- The commit hook runs `ultracite fix` on the staged files, and it fails
+  with "No files found" when every staged file is lint-ignored (generated
+  clients alone). Commit generated files with the change that needs them.
+- After `git mv`, stage the edited file again: the hook lints the staged
+  content, not the working tree.
+- Permissions with overrides live in the database, not in the token, so a
+  proxy check costs one round trip before the first byte of every gated page.
+  The example redirects from `PermissionRedirect` instead, which runs after
+  the shell on the permissions `AppNav` already reads.
+- Start a private read together with `getPermissions()` instead of after it.
+  Two reads in a row keep the response open for two round trips, and Chrome
+  holds a reload of the same URL until that response ends (its HTTP cache
+  lock), so a reload looks slow even when the server answers at once.
+
+## API and MCP in the example
+
+- `src/features/api/api-resources.ts` is the one resource map: `/api/v1`
+  serves it (`bsb.resources`) and `/api/v1/openapi.json` renders it
+  (`createOpenApi`). Check the map with `satisfies Parameters<typeof
+  bsb.resources>[0]`; a resource with only `select` then fails TypeScript's
+  weak-type check against the spec's `ResourceDescription`, so give it
+  `operations`.
+- `bsb.resources` serves models only. Block tables in `better_supabase`
+  (teams, catalog roles) are actions on `organizations`, and an action sees
+  only `{ id }` from the path.
+- Type an action's `data` with `defineAction` from `better-supabase/next`.
+  With an explicit `Db` type argument, pass the input schema's type as well
+  (`defineAction<Db, string, typeof Input>`); TypeScript doesn't infer the
+  rest.
+- The OpenAPI document ignores `select` and describes every column, and a
+  tag's description is the raw table comment, `@bsb` tags included.
+- The permissions block ships no `Authorizer`, so an MCP tool or action
+  `permission` is hidden and refused. The example's override tool relies on
+  `set_permission_override`, which refuses without `roles.manage`; the tool
+  returns that as a tool error.
+- An MCP tool that returns an array gets no `structuredContent`; clients
+  read the JSON from `content[0].text`.
+- The proxy matcher skips `/.well-known/oauth-protected-resource`, or
+  next-intl prefixes it with a locale and the metadata route answers 404.
 
 ## Routes and env
 

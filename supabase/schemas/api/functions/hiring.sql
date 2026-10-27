@@ -15,7 +15,7 @@ as $$
     'status', j.status,
     'location', j.location
   ) order by j.created_at desc), '[]'::jsonb)
-  from better_supabase.jobs j
+  from better_supabase.job_openings j
   where j.tenant_id = list_jobs.tenant;
 $$;
 

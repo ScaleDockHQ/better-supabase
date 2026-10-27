@@ -47,6 +47,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { env } from "@/env";
 import { useSupabase } from "@/lib/hooks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 
@@ -57,7 +58,7 @@ import { blockConfig } from "@/lib/supabase/blocks.generated";
 const WORKER_URL = "/push-sw.js";
 const PUSH_GUIDE = "https://bettersupabase.com/docs/blocks/push";
 
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+const VAPID_PUBLIC_KEY = env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
 type PushState =
   | { readonly kind: "checking" }

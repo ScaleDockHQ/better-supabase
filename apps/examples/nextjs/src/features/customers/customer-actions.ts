@@ -7,6 +7,7 @@ import * as v from "valibot";
 
 import { recordAudit } from "@/features/audit/record-audit";
 import { gettingStarted } from "@/features/onboarding/checklist";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { appErrors } from "@/lib/app-error";
 import { logos } from "@/lib/buckets";
@@ -27,7 +28,7 @@ export const createCustomer = bsb.action(
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "customers.write"),
+    authorize: async () => can(await getPermissions(), "customers.write"),
   },
   async ({ name }, { tenant: organizationId, db }) => {
     const { usage, onboarding } = db;
@@ -63,6 +64,25 @@ export const createCustomer = bsb.action(
 );
 
 /**
+ * Hands the customer to a team from the teams block, or to nobody. The
+ * `customers_owner_team_check` trigger refuses a team from another organization
+ * with `foreign_key_violation`.
+ */
+export const setCustomerOwnerTeam = bsb.action(
+  {
+    input: v.object({ customerId: Id, teamId: v.nullable(Id) }),
+    requireOrganization: true,
+    authorize: async () => can(await getPermissions(), "customers.write"),
+  },
+  async ({ customerId, teamId }, { db }) =>
+    db.customers.update(
+      customerId,
+      { ownerTeamId: teamId },
+      { select: ["id", "ownerTeamId"] },
+    ),
+);
+
+/**
  * Uploads a new logo, points the row at its path, then removes the old one. The
  * row keeps the path; URLs are built when rendering.
  */
@@ -76,7 +96,7 @@ export const uploadCustomerLogo = bsb.action(
       ),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "customers.write"),
+    authorize: async () => can(await getPermissions(), "customers.write"),
   },
   async ({ customerId, logo }, { tenant: organizationId, db, supabase }) => {
     // A better-result value with an AppError, converted back for the action.

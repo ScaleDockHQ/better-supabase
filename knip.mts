@@ -98,14 +98,11 @@ const config: KnipConfig = {
         // Copied from the registry, which knip checks as entries.
         "src/hooks/use-*.ts",
       ],
-      // Knip's Playwright plugin finds the specs and the `webServer`
-      // command; the setup project is a `testMatch` regex, which it can't read.
       // The browser loads the push worker by URL. `tsc` checks the type tests,
       // which the vitest config's `include` leaves out.
       entry: [
         "better-supabase.config.ts",
         "src/image-loader.ts",
-        "e2e/auth.setup.ts",
         "public/push-sw.js",
         "tests/**/*.test-d.ts",
       ],

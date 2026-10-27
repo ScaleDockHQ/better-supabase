@@ -22,6 +22,9 @@ const stack = {
 const CRON_KEY = "sb_secret_cron_validation";
 const ACME = "00000000-0000-4000-8000-000000000001";
 
+// A member of Acme in supabase/seed.sql.
+const SEEDED_MEMBER = "00000000-0000-4000-8000-0000000000a2";
+
 const up =
   stackUrl !== undefined &&
   (await fetch(`${stackUrl}/auth/v1/health`, {
@@ -64,6 +67,31 @@ async function signIn(): Promise<Session & { remove: () => Promise<void> }> {
 
   if (error) {
     throw error;
+  }
+
+  // The tenant claim counts only for members. The roles catalog isn't exposed
+  // through the API, so the member role comes from the seeded member's row.
+  const { data: seeded, error: roleError } = await admin
+    .from("memberships")
+    .select("role")
+    .eq("organization_id", ACME)
+    .eq("user_id", SEEDED_MEMBER)
+    .single();
+
+  if (roleError) {
+    throw roleError;
+  }
+
+  const { error: memberError } = await admin
+    .from("memberships")
+    .insert({
+      organization_id: ACME,
+      user_id: data.user.id,
+      role: seeded.role,
+    });
+
+  if (memberError) {
+    throw memberError;
   }
 
   const cookies = new Map<string, string>();

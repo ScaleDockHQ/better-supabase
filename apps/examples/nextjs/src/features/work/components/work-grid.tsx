@@ -14,6 +14,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
@@ -37,13 +38,14 @@ export async function WorkGrid({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, t, params] = await Promise.all([
+  const [session, t, params, permissions] = await Promise.all([
     getSession(),
     getExtracted("work"),
     searchParams,
+    getPermissions(),
   ]);
 
-  if (!can(session, "work_items.read")) {
+  if (!can(permissions, "work_items.read")) {
     forbidden();
   }
 
@@ -57,7 +59,7 @@ export async function WorkGrid({
 
   const [grid, views, members] = await Promise.all([
     settle(() => getWorkGrid(query)),
-    can(session, "views.read")
+    can(permissions, "views.read")
       ? settle(getWorkViews)
       : Promise.resolve({ kind: "ok" as const, data: [] }),
     settle(() => getAssignees(tenant)),
@@ -108,8 +110,8 @@ export async function WorkGrid({
                 members={members.kind === "ok" ? members.data : []}
                 views={views.kind === "ok" ? views.data : []}
                 query={query}
-                canWrite={can(session, "work_items.write")}
-                canBulk={can(session, "bulk.run")}
+                canWrite={can(permissions, "work_items.write")}
+                canBulk={can(permissions, "bulk.run")}
               />
               {grid.data.rows.length === 0 ? (
                 <Empty className="border">

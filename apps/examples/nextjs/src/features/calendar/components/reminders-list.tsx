@@ -19,8 +19,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import { loadUpcomingReminders, settle } from "../calendar-queries";
 import { CalendarLoadError } from "./calendar-load-error";
@@ -33,9 +33,9 @@ import { EventReminders } from "./event-reminders";
  * offset before every occurrence of the event, once per occurrence.
  */
 export async function RemindersList() {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  if (!can(session, "reminders.manage")) {
+  if (!can(permissions, "reminders.manage")) {
     return null;
   }
 
@@ -78,7 +78,7 @@ export async function RemindersList() {
                 {t("Add an event, then set a reminder for it here.")}
               </EmptyDescription>
             </EmptyHeader>
-            {calendars.length > 0 && can(session, "calendar.write") ? (
+            {calendars.length > 0 && can(permissions, "calendar.write") ? (
               <EmptyContent>
                 <CreateEventDialog
                   calendars={calendars}

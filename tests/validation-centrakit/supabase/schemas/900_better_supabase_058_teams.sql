@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:97350601b343fba19e70583563010e1222f94577236273f79035cfc43011ace3
+-- @bsb-hash sha256:155a919d96a6853f1fe8e716a927c5fa127fa6dd8a70bbea50a3fbd5bf6fd98c
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -107,6 +107,8 @@ grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated
 
 -- fields: the extra columns (blocks.teams.options.extraColumns) to set.
 drop function if exists "better_supabase"."create_team"(uuid, text, text, jsonb);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text, jsonb);
 create or replace function "better_supabase"."create_team"(tenant uuid, name text, description text)
 returns jsonb
 language plpgsql
@@ -194,7 +196,7 @@ begin
     tenant => (v_tenant)::uuid,
     metadata => jsonb_build_object('organizationId', v_tenant, 'id', update_team.team, 'name', update_team.name)
   );
-  return jsonb_build_object('id', update_team.team);
+  return (select jsonb_build_object('id', x."id", 'name', x."name", 'slug', x."slug", 'description', x."description", 'status', x."status") from "centrakit"."teams" x where x."id" = update_team.team);
 end;
 $$;
 revoke execute on function "better_supabase"."update_team"(uuid, text, text) from public, anon;
@@ -361,8 +363,14 @@ as $$
     'id', t."id",
     'name', t."name",
     'slug', t."slug",
-    'status', t."status"
-  )), '[]'::jsonb)
+    'description', t."description",
+    'status', t."status",
+    'member_ids', coalesce((
+      select jsonb_agg(m."user_id" order by m."created_at")
+      from "centrakit"."team_members" m
+      where m."team_id" = t."id"
+    ), '[]'::jsonb)
+  ) order by t."name"), '[]'::jsonb)
   from "centrakit"."teams" t
   where t."tenant_id" = list_teams.tenant
     and (

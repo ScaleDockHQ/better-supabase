@@ -21,8 +21,8 @@ import {
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getFields } from "@/features/custom-fields/custom-fields-queries";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import { getTeams, getWorkBoard, settle } from "../work-queries";
 import { WORK_ITEM_SUBJECT } from "../work-types";
@@ -42,13 +42,13 @@ export async function WorkBoard({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, t, params] = await Promise.all([
-    getSession(),
+  const [t, params, permissions] = await Promise.all([
     getExtracted("work"),
     searchParams,
+    getPermissions(),
   ]);
 
-  if (!can(session, "work_items.read")) {
+  if (!can(permissions, "work_items.read")) {
     forbidden();
   }
 
@@ -68,7 +68,7 @@ export async function WorkBoard({
   const teamOptions = teams.kind === "ok" ? teams.data : [];
   const customFields = fields.kind === "ok" ? fields.data : [];
   const teamId = teamOptions.find((each) => each.id === team)?.id ?? null;
-  const canWrite = can(session, "work_items.write");
+  const canWrite = can(permissions, "work_items.write");
 
   const empty =
     board.kind === "ok" &&
@@ -82,7 +82,7 @@ export async function WorkBoard({
         <TeamPicker
           teams={teamOptions}
           teamId={teamId}
-          canManage={can(session, "teams.manage")}
+          canManage={can(permissions, "teams.manage")}
         />
       )}
       <Card>

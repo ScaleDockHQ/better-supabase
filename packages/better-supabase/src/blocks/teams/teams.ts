@@ -15,9 +15,12 @@ import {
   applyTemporal,
   blockCall,
   isRecord,
+  nullableText,
+  oneOf,
   optionalText,
   recordOf,
   recordsOf,
+  stringsOf,
   textOf,
 } from "../shared.ts";
 
@@ -36,11 +39,20 @@ export interface TeamsOptions<
   readonly logger?: Logger;
 }
 
+export type TeamStatus = "active" | "archived";
+
+const TEAM_STATUSES: readonly TeamStatus[] = ["active", "archived"];
+
 /** A team. `F` types the extra columns the `fields` schema describes. */
 export interface Team<F extends object = Record<never, never>> {
   readonly id: string;
   readonly name: string;
   readonly slug: string;
+  readonly description: string | null;
+  /** `archived` teams stay in `list` until `restore` or `delete`. */
+  readonly status: TeamStatus;
+  /** The members' user ids, oldest first. Empty on `create` and `update`. */
+  readonly memberIds: readonly string[];
   /** The extra columns, keyed by database name. */
   readonly fields: ExtraFields<F>;
 }
@@ -99,6 +111,9 @@ function teamOf(value: unknown): Team {
     id: textOf(row["id"]),
     name: optionalText(row["name"]) ?? "",
     slug: optionalText(row["slug"]) ?? "",
+    description: nullableText(row["description"]),
+    status: oneOf(row["status"], TEAM_STATUSES, "active"),
+    memberIds: stringsOf(row["member_ids"]),
     fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
 }
@@ -127,7 +142,11 @@ export function createTeams<S extends StandardSchemaV1 | undefined = undefined>(
               ...(settings?.slug === undefined ? {} : { slug: settings.slug }),
               fields: checked,
             },
-            (value) => ({ ...teamOf(value), name }),
+            (value) => ({
+              ...teamOf(value),
+              name,
+              description: description ?? null,
+            }),
           ).andThen(fields.row),
         ),
     update: (id, name, description, extra, settings) =>
@@ -156,11 +175,7 @@ export function createTeams<S extends StandardSchemaV1 | undefined = undefined>(
                   }),
               fields: checked,
             },
-            (value) => ({
-              ...teamOf(value),
-              name,
-              slug: optionalText(recordOf(value, "team")["slug"]) ?? "",
-            }),
+            teamOf,
           ).andThen(fields.row),
         ),
     archive: (id) =>

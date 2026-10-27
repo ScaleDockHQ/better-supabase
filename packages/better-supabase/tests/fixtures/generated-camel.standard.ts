@@ -55,6 +55,7 @@ export const contactsRow: TableSchema<RowOf<'contacts'>> = tableSchema({
     fullName: { kind: "string", nullable: true },
     createdAt: { kind: "datetime", readOnly: true },
     updatedAt: { kind: "datetime", readOnly: true },
+    emailDomain: { kind: "string", nullable: true },
   },
 });
 
@@ -129,6 +130,7 @@ export const customersRow: TableSchema<RowOf<'customers'>> = tableSchema({
     updatedAt: { kind: "datetime", readOnly: true },
     logoPath: { kind: "string", nullable: true },
     createdBy: { kind: "uuid", nullable: true, readOnly: true },
+    ownerTeamId: { kind: "uuid", nullable: true },
   },
 });
 
@@ -149,6 +151,7 @@ export const customersInsert: TableSchema<InsertOf<'customers'>> = tableSchema({
     updatedAt: { kind: "datetime", optional: true, readOnly: true },
     logoPath: { kind: "string", nullable: true, optional: true },
     createdBy: { kind: "uuid", nullable: true, optional: true, readOnly: true },
+    ownerTeamId: { kind: "uuid", nullable: true, optional: true },
   },
 });
 
@@ -169,6 +172,20 @@ export const customersUpdate: TableSchema<UpdateOf<'customers'>> = tableSchema({
     updatedAt: { kind: "datetime", optional: true, readOnly: true },
     logoPath: { kind: "string", nullable: true, optional: true },
     createdBy: { kind: "uuid", nullable: true, optional: true, readOnly: true },
+    ownerTeamId: { kind: "uuid", nullable: true, optional: true },
+  },
+});
+
+export const customersWithOwnerRow: TableSchema<RowOf<'customersWithOwner'>> = tableSchema({
+  title: "Customers with owner",
+  description: "Open customers with the name of the team that owns them, read with the caller's row level security on both tables.",
+  fields: {
+    id: { kind: "uuid" },
+    organizationId: { kind: "uuid" },
+    name: { kind: "string" },
+    status: { kind: "string" },
+    ownerTeamId: { kind: "uuid", nullable: true },
+    ownerTeamName: { kind: "string", nullable: true },
   },
 });
 
@@ -219,10 +236,10 @@ export const membershipsRow: TableSchema<RowOf<'memberships'>> = tableSchema({
   fields: {
     organizationId: { kind: "uuid" },
     userId: { kind: "uuid" },
-    role: { kind: "enum", values: ["owner","admin","member"] },
+    role: { kind: "uuid" },
     createdAt: { kind: "datetime", readOnly: true },
     lastUsedAt: { kind: "datetime", nullable: true },
-    tierRole: { kind: "string", nullable: true },
+    updatedAt: { kind: "datetime", readOnly: true },
   },
 });
 
@@ -231,9 +248,10 @@ export const membershipsInsert: TableSchema<InsertOf<'memberships'>> = tableSche
   fields: {
     organizationId: { kind: "uuid" },
     userId: { kind: "uuid" },
-    role: { kind: "enum", values: ["owner","admin","member"], optional: true },
+    role: { kind: "uuid" },
     createdAt: { kind: "datetime", optional: true, readOnly: true },
     lastUsedAt: { kind: "datetime", nullable: true, optional: true },
+    updatedAt: { kind: "datetime", optional: true, readOnly: true },
   },
 });
 
@@ -242,9 +260,10 @@ export const membershipsUpdate: TableSchema<UpdateOf<'memberships'>> = tableSche
   fields: {
     organizationId: { kind: "uuid", optional: true },
     userId: { kind: "uuid", optional: true },
-    role: { kind: "enum", values: ["owner","admin","member"], optional: true },
+    role: { kind: "uuid", optional: true },
     createdAt: { kind: "datetime", optional: true, readOnly: true },
     lastUsedAt: { kind: "datetime", nullable: true, optional: true },
+    updatedAt: { kind: "datetime", optional: true, readOnly: true },
   },
 });
 

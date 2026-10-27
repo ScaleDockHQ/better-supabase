@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:76afaa9d2d0fedf3407b5d463a119b2b4b6eb54438a8ce8ed6739299108cda50
+-- @bsb-hash sha256:c646f67853bb68c5f1f87ca6125eb779a5f2ce7403904e2cf9bb0c593dcf40c9
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -107,7 +107,8 @@ alter table "better_supabase"."team_members" drop constraint if exists team_memb
 alter table "better_supabase"."team_members"
   add constraint team_members_membership_fkey
   foreign key ("tenant_id", "user_id")
-  references "better_supabase"."memberships" ("organization_id", "user_id");
+  references "better_supabase"."memberships" ("organization_id", "user_id")
+  on delete cascade;
 
 
 -- A signed-in caller may only read their own teams; the service role and
@@ -132,6 +133,8 @@ grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated
 
 -- fields: the extra columns (blocks.teams.options.extraColumns) to set.
 drop function if exists "better_supabase"."create_team"(uuid, text, text, jsonb);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text, jsonb);
 create or replace function "better_supabase"."create_team"(tenant uuid, name text, description text)
 returns jsonb
 language plpgsql
@@ -203,7 +206,7 @@ begin
       "updated_at" = now()
   where t."id" = update_team.team;
   null;
-  return jsonb_build_object('id', update_team.team);
+  return (select jsonb_build_object('id', x."id", 'name', x."name", 'slug', x."slug", 'description', x."description", 'status', x."status") from "better_supabase"."teams" x where x."id" = update_team.team);
 end;
 $$;
 revoke execute on function "better_supabase"."update_team"(uuid, text, text) from public, anon;
@@ -338,8 +341,14 @@ as $$
     'id', t."id",
     'name', t."name",
     'slug', t."slug",
-    'status', t."status"
-  )), '[]'::jsonb)
+    'description', t."description",
+    'status', t."status",
+    'member_ids', coalesce((
+      select jsonb_agg(m."user_id" order by m."created_at")
+      from "better_supabase"."team_members" m
+      where m."team_id" = t."id"
+    ), '[]'::jsonb)
+  ) order by t."name"), '[]'::jsonb)
   from "better_supabase"."teams" t
   where t."tenant_id" = list_teams.tenant
     and (
@@ -438,7 +447,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:16c3e98b26c35bd8061a5db4b58b08460b4ea1d8bde0ec36f4e6d4ee9bbde989
+-- @bsb-hash sha256:4bad82cb17b167f79554076e290faacc809515ec72f4de6a28bfcda272250845
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -544,7 +553,8 @@ alter table "better_supabase"."team_members" drop constraint if exists team_memb
 alter table "better_supabase"."team_members"
   add constraint team_members_membership_fkey
   foreign key ("tenant_id", "user_id")
-  references "better_supabase"."memberships" ("organization_id", "user_id");
+  references "better_supabase"."memberships" ("organization_id", "user_id")
+  on delete cascade;
 
 do $shared_teams$
 declare
@@ -601,6 +611,8 @@ grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated
 
 -- fields: the extra columns (blocks.teams.options.extraColumns) to set.
 drop function if exists "better_supabase"."create_team"(uuid, text, text, jsonb);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text, jsonb);
 create or replace function "better_supabase"."create_team"(tenant uuid, name text, description text)
 returns jsonb
 language plpgsql
@@ -688,7 +700,7 @@ begin
     tenant => (v_tenant)::uuid,
     metadata => jsonb_build_object('organizationId', v_tenant, 'id', update_team.team, 'name', update_team.name)
   );
-  return jsonb_build_object('id', update_team.team);
+  return (select jsonb_build_object('id', x."id", 'name', x."name", 'slug', x."slug", 'description', x."description", 'status', x."status") from "better_supabase"."teams" x where x."id" = update_team.team);
 end;
 $$;
 revoke execute on function "better_supabase"."update_team"(uuid, text, text) from public, anon;
@@ -855,8 +867,14 @@ as $$
     'id', t."id",
     'name', t."name",
     'slug', t."slug",
-    'status', t."status"
-  )), '[]'::jsonb)
+    'description', t."description",
+    'status', t."status",
+    'member_ids', coalesce((
+      select jsonb_agg(m."user_id" order by m."created_at")
+      from "better_supabase"."team_members" m
+      where m."team_id" = t."id"
+    ), '[]'::jsonb)
+  ) order by t."name"), '[]'::jsonb)
   from "better_supabase"."teams" t
   where t."tenant_id" = list_teams.tenant
     and (
@@ -955,7 +973,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:0dd78206ca116126322b6d80cbe61cb8e2149af1df6d678edea513785ba66c08
+-- @bsb-hash sha256:723c76aa0c1dcee335f18e729bb36b20cee42f8949e0a09e50d7904137647bb7
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1066,7 +1084,8 @@ alter table "app_private"."team_members" drop constraint if exists team_members_
 alter table "app_private"."team_members"
   add constraint team_members_membership_fkey
   foreign key ("tenant_id", "user_id")
-  references "better_supabase"."memberships" ("organization_id", "user_id");
+  references "better_supabase"."memberships" ("organization_id", "user_id")
+  on delete cascade;
 
 
 -- A signed-in caller may only read their own teams; the service role and
@@ -1091,6 +1110,8 @@ grant execute on function "app_private"."team_ids_of"(uuid) to authenticated, se
 
 -- fields: the extra columns (blocks.teams.options.extraColumns) to set.
 drop function if exists "app_private"."create_team"(uuid, text, text, jsonb);
+drop function if exists "app_private"."create_team"(uuid, text, text, text);
+drop function if exists "app_private"."create_team"(uuid, text, text, text, jsonb);
 create or replace function "app_private"."create_team"(tenant uuid, name text, description text)
 returns jsonb
 language plpgsql
@@ -1162,7 +1183,7 @@ begin
       "updated_at" = now()
   where t."id" = update_team.team;
   null;
-  return jsonb_build_object('id', update_team.team);
+  return (select jsonb_build_object('id', x."id", 'name', x."name", 'slug', x."slug", 'description', x."description", 'status', x."status") from "app_private"."teams" x where x."id" = update_team.team);
 end;
 $$;
 revoke execute on function "app_private"."update_team"(uuid, text, text) from public, anon;
@@ -1297,8 +1318,14 @@ as $$
     'id', t."id",
     'name', t."name",
     'slug', t."slug",
-    'status', t."status"
-  )), '[]'::jsonb)
+    'description', t."description",
+    'status', t."status",
+    'member_ids', coalesce((
+      select jsonb_agg(m."user_id" order by m."created_at")
+      from "app_private"."team_members" m
+      where m."team_id" = t."id"
+    ), '[]'::jsonb)
+  ) order by t."name"), '[]'::jsonb)
   from "app_private"."teams" t
   where t."tenant_id" = list_teams.tenant
     and (
@@ -1397,7 +1424,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:4a62eea23ee3982a5cbde52aaa4016935f918725d3ad3a79fc4329b3746ecad3
+-- @bsb-hash sha256:93846891a5899284bfd1c2b3fbc10fc98bfe121c5821b4696103f6e4f75d3894
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1503,7 +1530,8 @@ alter table "better_supabase"."team_members" drop constraint if exists team_memb
 alter table "better_supabase"."team_members"
   add constraint team_members_membership_fkey
   foreign key ("tenant_id", "user_id")
-  references "better_supabase"."memberships" ("organization_id", "user_id");
+  references "better_supabase"."memberships" ("organization_id", "user_id")
+  on delete cascade;
 
 
 -- A signed-in caller may only read their own teams; the service role and
@@ -1528,6 +1556,8 @@ grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated
 
 -- fields: the extra columns (blocks.teams.options.extraColumns) to set.
 drop function if exists "better_supabase"."create_team"(uuid, text, text, jsonb);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text, jsonb);
 create or replace function "better_supabase"."create_team"(tenant uuid, name text, description text)
 returns jsonb
 language plpgsql
@@ -1599,7 +1629,7 @@ begin
       "updated_at" = now()
   where t."id" = update_team.team;
   null;
-  return jsonb_build_object('id', update_team.team);
+  return (select jsonb_build_object('id', x."id", 'name', x."name", 'slug', x."slug", 'description', x."description", 'status', x."status") from "better_supabase"."teams" x where x."id" = update_team.team);
 end;
 $$;
 revoke execute on function "better_supabase"."update_team"(uuid, text, text) from public, anon;
@@ -1734,8 +1764,14 @@ as $$
     'id', t."id",
     'name', t."name",
     'slug', t."slug",
-    'status', t."status"
-  )), '[]'::jsonb)
+    'description', t."description",
+    'status', t."status",
+    'member_ids', coalesce((
+      select jsonb_agg(m."user_id" order by m."created_at")
+      from "better_supabase"."team_members" m
+      where m."team_id" = t."id"
+    ), '[]'::jsonb)
+  ) order by t."name"), '[]'::jsonb)
   from "better_supabase"."teams" t
   where t."tenant_id" = list_teams.tenant
     and (
@@ -1809,6 +1845,8 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."create_team"(uuid, text, text, jsonb);
+drop function if exists "api"."create_team"(uuid, text, text, text);
+drop function if exists "api"."create_team"(uuid, text, text, text, jsonb);
 drop function if exists "api"."update_team"(uuid, text, text, jsonb);
 
 create or replace function "api"."actor_may_write"()
@@ -1931,7 +1969,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:57cdd2eb4a246b332a6393aca6b64ee9e94e67d4d59476d3d56351c799dd545b
+-- @bsb-hash sha256:91f655fd25ad45ca1eb14e1d1d877158b2bfc61ca5c60141f92e245dac50599f
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2051,6 +2089,8 @@ grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated
 
 -- fields: the extra columns (blocks.teams.options.extraColumns) to set.
 drop function if exists "better_supabase"."create_team"(uuid, text, text, jsonb);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text, jsonb);
 create or replace function "better_supabase"."create_team"(tenant uuid, name text, description text)
 returns jsonb
 language plpgsql
@@ -2122,7 +2162,7 @@ begin
       "updated_at" = now()
   where t."id" = update_team.team;
   null;
-  return jsonb_build_object('id', update_team.team);
+  return (select jsonb_build_object('id', x."id", 'name', x."name", 'slug', x."slug", 'description', x."description", 'status', x."status") from "better_supabase"."teams" x where x."id" = update_team.team);
 end;
 $$;
 revoke execute on function "better_supabase"."update_team"(uuid, text, text) from public, anon;
@@ -2257,8 +2297,14 @@ as $$
     'id', t."id",
     'name', t."name",
     'slug', t."slug",
-    'status', t."status"
-  )), '[]'::jsonb)
+    'description', t."description",
+    'status', t."status",
+    'member_ids', coalesce((
+      select jsonb_agg(m."user_id" order by m."created_at")
+      from "better_supabase"."team_members" m
+      where m."team_id" = t."id"
+    ), '[]'::jsonb)
+  ) order by t."name"), '[]'::jsonb)
   from "better_supabase"."teams" t
   where t."tenant_id" = list_teams.tenant
     and (
@@ -2357,7 +2403,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:909b5a97f73d03c3e2fefb003949f5af6dc08ce0ccb16349ef4e88632fd9de93
+-- @bsb-hash sha256:6a38985de0eb4053eb30a0c4d0091a3cce3389a3e364e575d6f33831bb6bc272
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2463,7 +2509,8 @@ alter table "better_supabase"."team_members" drop constraint if exists team_memb
 alter table "better_supabase"."team_members"
   add constraint team_members_membership_fkey
   foreign key ("org_id", "user_id")
-  references "better_supabase"."memberships" ("org_id", "user_id");
+  references "better_supabase"."memberships" ("org_id", "user_id")
+  on delete cascade;
 
 
 -- A signed-in caller may only read their own teams; the service role and
@@ -2488,6 +2535,8 @@ grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated
 
 -- fields: the extra columns (blocks.teams.options.extraColumns) to set.
 drop function if exists "better_supabase"."create_team"(uuid, text, text, jsonb);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text);
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text, jsonb);
 create or replace function "better_supabase"."create_team"(tenant uuid, name text, description text)
 returns jsonb
 language plpgsql
@@ -2559,7 +2608,7 @@ begin
       "updated_at" = now()
   where t."id" = update_team.team;
   null;
-  return jsonb_build_object('id', update_team.team);
+  return (select jsonb_build_object('id', x."id", 'name', x."name", 'slug', x."slug", 'description', x."description", 'status', x."status") from "better_supabase"."teams" x where x."id" = update_team.team);
 end;
 $$;
 revoke execute on function "better_supabase"."update_team"(uuid, text, text) from public, anon;
@@ -2694,8 +2743,14 @@ as $$
     'id', t."id",
     'name', t."name",
     'slug', t."slug",
-    'status', t."status"
-  )), '[]'::jsonb)
+    'description', t."description",
+    'status', t."status",
+    'member_ids', coalesce((
+      select jsonb_agg(m."user_id" order by m."created_at")
+      from "better_supabase"."team_members" m
+      where m."team_id" = t."id"
+    ), '[]'::jsonb)
+  ) order by t."name"), '[]'::jsonb)
   from "better_supabase"."teams" t
   where t."org_id" = list_teams.tenant
     and (

@@ -1222,8 +1222,8 @@ export interface BlockNameRegistry {
       readonly "overrides": "tenant" | "role" | "permission" | "granted";
       readonly "platformAssignments": "user" | "role";
     };
-    readonly functions: "can" | "can_assign" | "can_assign_as" | "can_user" | "is_platform" | "member_can" | "permission_claims" | "tenant_ids_with";
-    readonly actions: never;
+    readonly functions: "can" | "can_assign" | "can_assign_as" | "can_user" | "is_platform" | "list_roles" | "member_can" | "permission_claims" | "set_permission_override" | "tenant_ids_with";
+    readonly actions: "listRoles" | "setOverride";
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;

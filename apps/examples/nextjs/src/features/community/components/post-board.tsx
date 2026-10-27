@@ -28,8 +28,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import { getBoard } from "../posts-queries";
@@ -60,10 +60,10 @@ const moderationVariants = {
 
 /** Render inside `<Suspense>`: the board's posts, top voted first. */
 export async function PostBoard() {
-  const [view, session, t] = await Promise.all([
+  const [view, t, permissions] = await Promise.all([
     getBoard(),
-    getSession(),
     getExtracted("community"),
+    getPermissions(),
   ]);
 
   if (view.kind === "no-organization") {
@@ -90,7 +90,7 @@ export async function PostBoard() {
   const board = view.data;
 
   if (board === null) {
-    const manage = can(session, "posts.manage");
+    const manage = can(permissions, "posts.manage");
 
     return (
       <Empty className="border">
@@ -118,7 +118,7 @@ export async function PostBoard() {
     );
   }
 
-  const write = can(session, "posts.write");
+  const write = can(permissions, "posts.write");
 
   const statusLabels: Record<PostStatus, string> = {
     open: t("Open"),

@@ -11,11 +11,11 @@ const contactsFactory: Factory<InsertOf<"contacts">, "organizationId", "organiza
 
 const customerTagsFactory: Factory<InsertOf<"customerTags">, "customerId" | "tagId" | "organizationId", "customerId" | "tagId" | "organizationId"> = defineFactory<InsertOf<"customerTags">, "customerId" | "tagId" | "organizationId", "customerId" | "tagId" | "organizationId">((_n) => ({}), { "customerId": "id", "tagId": "id", "organizationId": "id" });
 
-const customersFactory: Factory<InsertOf<"customers">, "organizationId" | "primaryContactId", "organizationId"> = defineFactory<InsertOf<"customers">, "organizationId" | "primaryContactId", "organizationId">((n) => ({ "name": `name-${String(n)}`.slice(0, 200) }), { "organizationId": "id", "primaryContactId": "id" });
+const customersFactory: Factory<InsertOf<"customers">, "organizationId" | "primaryContactId" | "ownerTeamId", "organizationId"> = defineFactory<InsertOf<"customers">, "organizationId" | "primaryContactId" | "ownerTeamId", "organizationId">((n) => ({ "name": `name-${String(n)}`.slice(0, 200) }), { "organizationId": "id", "primaryContactId": "id", "ownerTeamId": "id" });
 
 const locationsFactory: Factory<InsertOf<"locations">, "organizationId" | "customerId", "organizationId" | "customerId"> = defineFactory<InsertOf<"locations">, "organizationId" | "customerId", "organizationId" | "customerId">((n) => ({ "label": `label-${String(n)}` }), { "organizationId": "id", "customerId": "id" });
 
-const membershipsFactory: Factory<InsertOf<"memberships">, "organizationId" | "userId", "organizationId" | "userId"> = defineFactory<InsertOf<"memberships">, "organizationId" | "userId", "organizationId" | "userId">((_n) => ({}), { "organizationId": "id", "userId": "id" });
+const membershipsFactory: Factory<InsertOf<"memberships">, "organizationId" | "userId" | "role", "organizationId" | "userId" | "role"> = defineFactory<InsertOf<"memberships">, "organizationId" | "userId" | "role", "organizationId" | "userId" | "role">((_n) => ({}), { "organizationId": "id", "userId": "id", "role": "id" });
 
 const notesFactory: Factory<InsertOf<"notes">, "organizationId" | "customerId", "organizationId" | "customerId"> = defineFactory<InsertOf<"notes">, "organizationId" | "customerId", "organizationId" | "customerId">((n) => ({ "body": `body-${String(n)}` }), { "organizationId": "id", "customerId": "id" });
 

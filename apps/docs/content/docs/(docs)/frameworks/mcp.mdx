@@ -116,6 +116,31 @@ WWW-Authenticate: Bearer resource_metadata="https://<ref>.supabase.co/functions/
 
 The same rules apply to `createMcpAuth`.
 
+### In a Next.js app
+
+Serve the endpoint and the metadata from two route handlers that share one
+server:
+
+```ts title="src/app/api/mcp/route.ts"
+import { bsb } from "@/features/api/mcp-server";
+
+export const { fetch: GET, fetch: POST, fetch: OPTIONS, fetch: DELETE } = bsb;
+```
+
+```ts title="src/app/.well-known/oauth-protected-resource/[...path]/route.ts"
+import { bsb } from "@/features/api/mcp-server";
+
+export const { fetch: GET } = bsb;
+```
+
+The challenge then points to
+`/.well-known/oauth-protected-resource/api/mcp`. If `proxy.ts` rewrites
+paths (next-intl adds a locale prefix), leave
+`.well-known/oauth-protected-resource` out of its `matcher`, or the
+metadata route answers 404. The
+[Next.js example](/docs/examples#the-nextjs-saas-app) serves `/api/mcp`
+this way.
+
 ### Embedded product agents
 
 An agent inside your own product doesn't need OAuth: your backend forwards

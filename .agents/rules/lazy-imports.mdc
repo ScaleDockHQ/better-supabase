@@ -27,11 +27,11 @@ Imports stay at the top of the module. The exceptions are optional
     variable specifier in `src/vercel-connect/vercel-connect.ts` (an
     install message), `@supabase/mcp-server-supabase` through variable
     specifiers in `src/core/supabase-mcp.ts` (an install message),
-    `@next/playwright` through a variable specifier in
+    `@next/playwright` through `importOptionalPeer` in
     `src/testing/instant.ts` (an install message), `eve/tools` through a
     variable specifier in `src/eve/eve.ts` (the memory provider builds no
     tools without it), `yjs` through a variable specifier in `src/yjs/yjs.ts`
-    (an install message, or pass the module), `@supabase/lite` through variable specifiers in
+    (an install message, or pass the module), `@supabase/lite` through `importOptionalPeer` in
     `src/lite/runtime.ts` for `liteStack()` and in `src/cli/lite.ts` for
     `gen` and `doctor` on a Lite project (an install message), and `@nestjs/common` through a synchronous
     `createRequire` in `src/nestjs/index.ts`, because `@Ctx()` runs while

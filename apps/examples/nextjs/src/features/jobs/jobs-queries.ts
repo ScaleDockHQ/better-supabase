@@ -3,6 +3,7 @@ import { tenantOf } from "better-supabase/next";
 import * as v from "valibot";
 
 import { postgres } from "@/features/developer/postgres";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
@@ -74,10 +75,15 @@ function queueRuns(queue: string, param: string): string {
  */
 export async function loadJobRuns(): Promise<readonly JobRunRow[] | null> {
   "use cache: private";
-  const { session } = await bsb.cached();
+
+  const [{ session }, permissions] = await Promise.all([
+    bsb.cached(),
+    getPermissions(),
+  ]);
+
   const tenant = tenantOf(session);
 
-  if (!tenant || !can(session, JOBS_PERMISSION)) {
+  if (!tenant || !can(permissions, JOBS_PERMISSION)) {
     return null;
   }
 

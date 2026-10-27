@@ -1,14 +1,11 @@
 import "server-only";
+import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { bsb } from "@/lib/supabase/server";
 
-import type { Permission } from "./user-permissions";
+import type { PermissionSet } from "./user-permissions";
 
-import { PERMISSIONS, can } from "./user-permissions";
-
-// An authorization library with its own snapshot replaces `can` here and
-// keeps the `bsb.cached()` call.
 // See https://bettersupabase.com/docs/frameworks/next-cache-components#permission-snapshots.
 
 /** The tag of a user's snapshot entries. */
@@ -16,24 +13,29 @@ function snapshotTag(sub: string | null): string {
   return `permissions:${sub ?? "anon"}`;
 }
 
-interface PermissionSnapshot {
-  readonly permissions: readonly Permission[];
-  /** Unix seconds: the snapshot is valid as long as the token it was built from. */
-  readonly expiresAt: number | null;
+/** The tag of every member's snapshot in one organization. */
+export function organizationSnapshotTag(organizationId: string): string {
+  return `permissions:organization:${organizationId}`;
 }
 
 /**
- * The caller's permissions, cached per user. `bsb.cached()` tags the entry with
- * the session and snapshot tags, and keeps it no longer than the token or the
- * snapshot.
+ * The caller's keys in the active organization, through the permissions block's
+ * `my_permissions`: the role's catalog keys with the organization's overrides
+ * applied. Cached per user for the request; `bsb.cached()` keeps the entry no
+ * longer than the token. `null` without a user or an organization.
  */
-export async function getPermissionSnapshot(): Promise<PermissionSnapshot> {
+export async function getPermissions(): Promise<PermissionSet | null> {
   "use cache: private";
-  const { session } = await bsb.cached();
+  const { db, session } = await bsb.cached();
+  const tenant = tenantOf(session);
+
   cacheTag(snapshotTag(session.kind === "user" ? session.user.id : null));
 
-  return {
-    permissions: PERMISSIONS.filter((permission) => can(session, permission)),
-    expiresAt: session.kind === "user" ? session.expiresAt : null,
-  };
+  if (session.kind !== "user" || tenant === undefined) {
+    return null;
+  }
+
+  cacheTag(organizationSnapshotTag(tenant));
+
+  return db.permissions.permissions().orThrow();
 }

@@ -21,8 +21,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import { loadHiringBoard, settle } from "../people-queries";
@@ -42,13 +42,13 @@ export async function HiringBoard({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, t, query] = await Promise.all([
-    getSession(),
+  const [t, query, permissions] = await Promise.all([
     getExtracted("people"),
     searchParams,
+    getPermissions(),
   ]);
 
-  if (!can(session, "hiring.read")) {
+  if (!can(permissions, "hiring.read")) {
     forbidden();
   }
 
@@ -58,8 +58,8 @@ export async function HiringBoard({
     return null;
   }
 
-  const canManage = can(session, "hiring.manage");
-  const canWrite = can(session, "hiring.write");
+  const canManage = can(permissions, "hiring.manage");
+  const canWrite = can(permissions, "hiring.write");
   const jobs = board.kind === "ok" ? board.data.jobs : [];
   const job = jobs.find((item) => item.id === query["job"]) ?? jobs[0];
 

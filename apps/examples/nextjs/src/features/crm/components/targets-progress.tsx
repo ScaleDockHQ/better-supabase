@@ -22,8 +22,8 @@ import {
 } from "@/components/ui/empty";
 import { Progress, ProgressLabel } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import type { TargetRow } from "../crm-queries";
 
@@ -37,14 +37,14 @@ import { CrmLoadError } from "./crm-load-error";
  * are.
  */
 export async function TargetsProgress() {
-  const [session, t, format, locale] = await Promise.all([
-    getSession(),
+  const [t, format, locale, permissions] = await Promise.all([
     getExtracted("crm"),
     getFormatter(),
     getLocale(),
+    getPermissions(),
   ]);
 
-  if (!can(session, "targets.read")) {
+  if (!can(permissions, "targets.read")) {
     return null;
   }
 
@@ -54,7 +54,7 @@ export async function TargetsProgress() {
     return null;
   }
 
-  const canManage = can(session, "targets.manage");
+  const canManage = can(permissions, "targets.manage");
 
   const amountOf = (target: TargetRow, value: bigint) =>
     target.currency === null

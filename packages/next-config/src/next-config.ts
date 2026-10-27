@@ -94,6 +94,16 @@ export function createNextConfig(overrides: NextConfig = {}): NextConfig {
       requestInsights: true,
       authInterrupts: true,
       typedEnv: true,
+      optimisticRouting: true,
+      // Already the default; set so a default flip in a Next release shows up
+      // in this file's diff instead of in navigation request counts.
+      prefetchInlining: true,
+      instantInsights: { validationLevel: "warning" },
+      varyParams: true,
+      // Without collection the dev cache grows past 10 GB per app.
+      turbopackGc: true,
+      // A new git worktree starts from the main checkout's Turbopack cache.
+      turbopackSeedCacheFromWorktree: true,
       turbopackRustReactCompiler: true,
       serverComponentsHmrCancellation: true,
       exposeTestingApiInProductionBuild:

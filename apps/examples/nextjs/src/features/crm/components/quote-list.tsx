@@ -27,8 +27,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import { loadQuotes, settle } from "../crm-queries";
@@ -38,13 +38,13 @@ import { QuoteStatusBadge } from "./quote-status-badge";
 
 /** Render inside `<Suspense>`: the organization's latest quotes. */
 export async function QuoteList() {
-  const [session, t, locale] = await Promise.all([
-    getSession(),
+  const [t, locale, permissions] = await Promise.all([
     getExtracted("crm"),
     getLocale(),
+    getPermissions(),
   ]);
 
-  if (!can(session, "quotes.read")) {
+  if (!can(permissions, "quotes.read")) {
     forbidden();
   }
 
@@ -70,7 +70,7 @@ export async function QuoteList() {
             {t("Write a quote with line items and send it for acceptance.")}
           </EmptyDescription>
         </EmptyHeader>
-        {can(session, "quotes.write") ? (
+        {can(permissions, "quotes.write") ? (
           <EmptyContent>
             <CreateQuoteDialog />
           </EmptyContent>

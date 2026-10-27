@@ -15,7 +15,6 @@
       ],
       "passThroughEnv": [
         "AI_GATEWAY_API_KEY",
-        "BS_FETCH_DELAY_MS",
         "CRON_SECRET",
         "PDL_API_KEY",
         "NEXT_RUNTIME",
@@ -26,10 +25,8 @@
         ".env.production",
         "!**/*.md",
         "!tests/**",
-        "!e2e/**",
         "!**/*.test.{ts,tsx}",
-        "!vitest.config.ts",
-        "!playwright.config.ts"
+        "!vitest.config.ts"
       ]
     },
     "lint": {
@@ -41,7 +38,6 @@
     "dev:portless": {
       "passThroughEnv": [
         "AI_GATEWAY_API_KEY",
-        "BS_FETCH_DELAY_MS",
         "CRON_SECRET",
         "PDL_API_KEY",
         "FLAGS_SECRET",

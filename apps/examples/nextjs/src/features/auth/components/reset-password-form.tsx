@@ -64,7 +64,7 @@ export function ResetPasswordForm() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-xl">{t("Choose a new password")}</CardTitle>
+        <CardTitle>{t("Choose a new password")}</CardTitle>
         <CardDescription>{t("You stay signed in afterwards.")}</CardDescription>
       </CardHeader>
       <CardContent>

@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import {
   MembersSection,
   MembersSectionSkeleton,
-} from "@/features/organization/components/members-section";
+} from "@/features/members/components/members-section";
 
 export const instant = true;
 

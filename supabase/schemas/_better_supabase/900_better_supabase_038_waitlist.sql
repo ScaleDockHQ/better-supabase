@@ -1,6 +1,6 @@
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:501733463b58d32c3910b0e809bcf7950a23575563316f541e7168963dd4b88f
+-- @bsb-hash sha256:486dacf4cb01e314d646f5d120a87c7b12b15532f380a93b17e0aed575123673
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -252,7 +252,7 @@ begin
   if length(trim(create_invite_code.code)) < 8 then
     raise exception 'Invite codes need at least 8 characters' using errcode = '22023', hint = 'WAITLIST_CODE_INVALID';
   end if;
-  if create_invite_code.role is not null and not (create_invite_code.role = any (array['admin', 'member']::text[])) then
+  if create_invite_code.role is not null and not (create_invite_code.role = any (array['admin', 'member', 'viewer']::text[])) then
     raise exception 'An invite code can''t grant role %', create_invite_code.role using errcode = '22023', hint = 'WAITLIST_ROLE_INVALID';
   end if;
   if create_invite_code.role is not null
@@ -403,7 +403,7 @@ begin
   if v_code."organization_id" is not null then
     v_role := coalesce(v_code."role", 'member');
     insert into "public"."memberships" ("organization_id", "user_id", "role")
-    values (v_code."organization_id", redeem_for.member, v_role)
+    values (v_code."organization_id", redeem_for.member, (select r."id" from "better_supabase"."roles" r where (r."id"::text = (v_role)::text or r."key" = (v_role)::text) order by (r."id"::text = (v_role)::text) desc limit 1))
     on conflict do nothing;
     v_added := found;
     if v_added then

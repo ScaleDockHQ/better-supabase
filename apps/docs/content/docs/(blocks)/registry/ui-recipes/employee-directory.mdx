@@ -20,12 +20,12 @@ npx shadcn add card empty skeleton
  * with `employees.view_sensitive`.
  */
 export async function EmployeeDirectory() {
-  const [session, t] = await Promise.all([
-    getSession(),
+  const [t, permissions] = await Promise.all([
     getExtracted("people"),
+    getPermissions(),
   ]);
 
-  if (!can(session, "employees.read")) {
+  if (!can(permissions, "employees.read")) {
     forbidden();
   }
 
@@ -35,8 +35,8 @@ export async function EmployeeDirectory() {
     return null;
   }
 
-  const canWrite = can(session, "employees.write");
-  const canViewSensitive = can(session, "employees.view_sensitive");
+  const canWrite = can(permissions, "employees.write");
+  const canViewSensitive = can(permissions, "employees.view_sensitive");
 
   const managers =
     directory.kind === "ok"

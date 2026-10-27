@@ -4,6 +4,7 @@ import type { AiTaskRunStatus } from "better-supabase/blocks/ai-schedules";
 
 import { tenantOf } from "better-supabase/next";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { bsb } from "@/lib/supabase/server";
@@ -39,9 +40,10 @@ export type AiTasksRead =
  * `ai.admin`, newest first. Not cached: runs change their status.
  */
 export async function getAiTasks(): Promise<AiTasksRead> {
-  const [session, { supabase }] = await Promise.all([
+  const [session, { supabase }, permissions] = await Promise.all([
     getSession(),
     bsb.context(),
+    getPermissions(),
   ]);
 
   const organizationId = tenantOf(session);
@@ -51,7 +53,7 @@ export async function getAiTasks(): Promise<AiTasksRead> {
   }
 
   const result = await aiTasks(supabase).list(organizationId, {
-    all: can(session, "ai.admin"),
+    all: can(permissions, "ai.admin"),
   });
 
   if (!result.ok) {

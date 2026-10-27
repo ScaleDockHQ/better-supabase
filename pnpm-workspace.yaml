@@ -14,7 +14,6 @@ catalog:
   "@ai-sdk/react": 4.0.147
   "@ai-sdk/workflow": 2.0.75
   "@arethetypeswrong/cli": 0.18.5
-  "@axe-core/playwright": 4.14.0
   "@base-ui/react": 1.9.0
   "@changesets/assemble-release-plan": 7.0.0
   "@changesets/changelog-github": 1.0.1
@@ -147,7 +146,6 @@ catalog:
   nuxt: 4.6.2
   oxfmt: 0.74.0
   "@shadcn/lint": 0.2.1
-  eslint-plugin-playwright: 2.12.1
   eslint-plugin-turbo: 2.11.9
   oxlint-plugin-react-doctor: 0.9.18
   oxlint: 1.89.0
@@ -419,14 +417,10 @@ overrides:
   # through express and @modelcontextprotocol/sdk.
   "body-parser@>=2.0.0 <2.4.0": ^2.4.0
 
-# eslint-plugin-playwright and eslint-plugin-turbo peer on eslint but import
-# nothing from it at runtime; Oxlint loads their rules as JS plugins. An
-# optional peer keeps pnpm from installing ESLint for them.
+# eslint-plugin-turbo peers on eslint but imports nothing from it at runtime;
+# Oxlint loads its rules as a JS plugin. An optional peer keeps pnpm from
+# installing ESLint for it.
 packageExtensions:
-  eslint-plugin-playwright:
-    peerDependenciesMeta:
-      eslint:
-        optional: true
   eslint-plugin-turbo:
     peerDependenciesMeta:
       eslint:

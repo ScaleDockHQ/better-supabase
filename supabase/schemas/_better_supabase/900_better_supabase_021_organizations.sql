@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:baaff9e3872a469fcfa439e8f84dfd860029d929bec84beff216d5b0a11d4695
+-- @bsb-hash sha256:af58f5f4d62f52abb01a8fd0c46e282c44a416a9e1479a8c744110ec311dc838
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -121,7 +121,7 @@ begin
   from jsonb_populate_record(null::"public"."organizations", attrs) r
   returning "id" into organization;
   insert into "public"."memberships" ("organization_id", "user_id", "role")
-  values (organization, owner, 'owner');
+  values (organization, owner, (select r."id" from "better_supabase"."roles" r where (r."id"::text = ('owner')::text or r."key" = ('owner')::text) order by (r."id"::text = ('owner')::text) desc limit 1));
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_organization_create"(uuid, uuid)');
   begin
@@ -249,7 +249,7 @@ begin
   -- transactions can't each remove a different last owner.
   perform 1 from "public"."organizations" o where o."id" = old."organization_id" for update;
   if found and not exists (
-      select 1 from "public"."memberships" m where m."organization_id" = old."organization_id" and m."role" = 'owner'
+      select 1 from "public"."memberships" m where m."organization_id" = old."organization_id" and (select r."key" from "better_supabase"."roles" r where r."id" = m."role") = 'owner'
     ) then
     raise exception 'An organization needs an owner' using errcode = '23514', hint = 'ORGANIZATION_OWNER_REQUIRED';
   end if;
@@ -338,10 +338,10 @@ begin
   if not (exists (select 1 from "public"."organizations" o where o."id" = organization) and not better_supabase.tenant_disabled(organization)) then
     raise exception 'The organization is unavailable' using errcode = '42501', hint = 'ORGANIZATION_DISABLED';
   end if;
-  if not (role = any (array['owner', 'admin', 'member']::text[])) then
+  if not ((select r."id" from "better_supabase"."roles" r where (r."id"::text = (role)::text or r."key" = (role)::text) order by (r."id"::text = (role)::text) desc limit 1) is not null) then
     raise exception 'Unknown role %', role using errcode = '22023', hint = 'ORGANIZATION_ROLE_UNKNOWN';
   end if;
-  select m."role", m."role"::text into previous, previous_assignable
+  select (select r."key" from "better_supabase"."roles" r where r."id" = m."role"), m."role"::text into previous, previous_assignable
   from "public"."memberships" m where m."organization_id" = organization and m."user_id" = member;
   if not found then
     raise exception 'Not a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
@@ -352,10 +352,10 @@ begin
     raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
   end if;
   if not better_supabase.can_assign(organization, previous_assignable)
-    or not better_supabase.can_assign(organization, (role)::text) then
+    or not better_supabase.can_assign(organization, ((select r."id" from "better_supabase"."roles" r where (r."id"::text = (role)::text or r."key" = (role)::text) order by (r."id"::text = (role)::text) desc limit 1))::text) then
     raise exception 'That role is above your own' using errcode = '42501', hint = 'ORGANIZATION_ROLE_CEILING';
   end if;
-  update "public"."memberships" set "role" = role
+  update "public"."memberships" set "role" = (select r."id" from "better_supabase"."roles" r where (r."id"::text = (role)::text or r."key" = (role)::text) order by (r."id"::text = (role)::text) desc limit 1)
   where "organization_id" = organization and "user_id" = member;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_member_change"(uuid, uuid, text)');
@@ -485,14 +485,14 @@ begin
   -- Only an owner hands ownership on, so the permission alone can't make its
   -- holder an owner.
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not exists (
-    select 1 from "public"."memberships" m where m."organization_id" = organization and m."user_id" = me and m."role" = 'owner'
+    select 1 from "public"."memberships" m where m."organization_id" = organization and m."user_id" = me and (select r."key" from "better_supabase"."roles" r where r."id" = m."role") = 'owner'
   ) then
     raise exception 'Only an owner can transfer ownership' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
   if not (exists (select 1 from "public"."organizations" o where o."id" = organization) and not better_supabase.tenant_disabled(organization)) then
     raise exception 'The organization is unavailable' using errcode = '42501', hint = 'ORGANIZATION_DISABLED';
   end if;
-  if not (former_role = any (array['owner', 'admin', 'member']::text[])) then
+  if not ((select r."id" from "better_supabase"."roles" r where (r."id"::text = (former_role)::text or r."key" = (former_role)::text) order by (r."id"::text = (former_role)::text) desc limit 1) is not null) then
     raise exception 'Unknown role %', former_role using errcode = '22023', hint = 'ORGANIZATION_ROLE_UNKNOWN';
   end if;
   if not exists (select 1 from "public"."memberships" m where m."organization_id" = organization and m."user_id" = new_owner) then
@@ -504,12 +504,12 @@ begin
   -- One statement for both rows, so a statement-level guard on the number of
   -- owners sees the transfer as a whole.
   update "public"."memberships" m set "role" = case
-      when m."user_id" = new_owner then 'owner'
-      else former_role
+      when m."user_id" = new_owner then (select r."id" from "better_supabase"."roles" r where (r."id"::text = ('owner')::text or r."key" = ('owner')::text) order by (r."id"::text = ('owner')::text) desc limit 1)
+      else (select r."id" from "better_supabase"."roles" r where (r."id"::text = (former_role)::text or r."key" = (former_role)::text) order by (r."id"::text = (former_role)::text) desc limit 1)
     end
   where m."organization_id" = organization
     and (m."user_id" = new_owner
-      or (me is not null and me <> new_owner and m."user_id" = me and m."role" = 'owner'));
+      or (me is not null and me <> new_owner and m."user_id" = me and (select r."key" from "better_supabase"."roles" r where r."id" = m."role") = 'owner'));
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_member_change"(uuid, uuid, text)');
   begin

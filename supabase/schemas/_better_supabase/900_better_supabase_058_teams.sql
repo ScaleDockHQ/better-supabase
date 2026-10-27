@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:e54f40469e08976923edec3c21305dbc1b22abc98bf24d8a3eadfa6051360bc6
+-- @bsb-hash sha256:6156b300d4fafa0f591de1cfbb5aceb1191d4817a5ef9bd73365240f89286e20
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -106,7 +106,8 @@ alter table "better_supabase"."team_members" drop constraint if exists team_memb
 alter table "better_supabase"."team_members"
   add constraint team_members_membership_fkey
   foreign key ("tenant_id", "user_id")
-  references "public"."memberships" ("organization_id", "user_id");
+  references "public"."memberships" ("organization_id", "user_id")
+  on delete cascade;
 
 do $shared_teams$
 declare
@@ -162,8 +163,10 @@ revoke execute on function "better_supabase"."team_ids_of"(uuid) from public, an
 grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated, service_role;
 
 -- fields: the extra columns (blocks.teams.options.extraColumns) to set.
+drop function if exists "better_supabase"."create_team"(uuid, text, text);
 drop function if exists "better_supabase"."create_team"(uuid, text, text, jsonb);
-create or replace function "better_supabase"."create_team"(tenant uuid, name text, description text)
+drop function if exists "better_supabase"."create_team"(uuid, text, text, text, jsonb);
+create or replace function "better_supabase"."create_team"(tenant uuid, name text, description text, slug text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -171,7 +174,7 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
-  v_slug text := trim(both '-' from regexp_replace(lower(create_team.name), '[^a-z0-9]+', '-', 'g'));
+  v_slug text := coalesce(create_team.slug, trim(both '-' from regexp_replace(lower(create_team.name), '[^a-z0-9]+', '-', 'g')));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -179,7 +182,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_team.tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
-  if v_slug is null or v_slug = '' then
+  if v_slug is null or v_slug = '' or (create_team.slug is not null and create_team.slug !~ '^[a-z0-9]+(-[a-z0-9]+)*$') then
     raise exception 'team name needs a slug' using errcode = '22023', hint = 'TEAM_SLUG_INVALID';
   end if;
   declare
@@ -213,11 +216,15 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug);
 end;
 $$;
-revoke execute on function "better_supabase"."create_team"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."create_team"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_team"(uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."create_team"(uuid, text, text, text) to authenticated, service_role;
 
+drop function if exists "better_supabase"."update_team"(uuid, text, text);
 drop function if exists "better_supabase"."update_team"(uuid, text, text, jsonb);
-create or replace function "better_supabase"."update_team"(team uuid, name text, description text)
+drop function if exists "better_supabase"."update_team"(uuid, text, text, jsonb, jsonb);
+-- patch: name, slug and description to set; a key that is present sets its
+-- column, so null clears the description.
+create or replace function "better_supabase"."update_team"(team uuid, name text, description text, patch jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -236,9 +243,15 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
+  if update_team.patch is not null and (jsonb_typeof(update_team.patch) <> 'object'
+    or update_team.patch ? 'slug' and coalesce(update_team.patch ->> 'slug', '') !~ '^[a-z0-9]+(-[a-z0-9]+)*$'
+    or update_team.patch ? 'name' and nullif(trim(update_team.patch ->> 'name'), '') is null) then
+    raise exception 'patch sets name, slug or description; name and slug can''t be empty' using errcode = '22023', hint = 'TEAM_INVALID';
+  end if;
   update "better_supabase"."teams" as t
-  set "name" = coalesce(update_team.name, t."name"),
-      "description" = coalesce(update_team.description, t."description"),
+  set "name" = coalesce(update_team.patch ->> 'name', update_team.name, t."name"),
+      "slug" = case when update_team.patch ? 'slug' then update_team.patch ->> 'slug' else t."slug" end,
+      "description" = case when update_team.patch ? 'description' then update_team.patch ->> 'description' else coalesce(update_team.description, t."description") end,
       "updated_at" = now()
   where t."id" = update_team.team;
   perform "better_supabase".emit_event('team.updated', jsonb_build_object('organizationId', v_tenant, 'id', update_team.team, 'name', update_team.name), 'teams/' || (update_team.team)::text, (v_tenant)::text, null, 'better-supabase/teams');
@@ -250,11 +263,11 @@ begin
     tenant => (v_tenant)::uuid,
     metadata => jsonb_build_object('organizationId', v_tenant, 'id', update_team.team, 'name', update_team.name)
   );
-  return jsonb_build_object('id', update_team.team);
+  return (select jsonb_build_object('id', x."id", 'name', x."name", 'slug', x."slug", 'description', x."description", 'status', x."status") from "better_supabase"."teams" x where x."id" = update_team.team);
 end;
 $$;
-revoke execute on function "better_supabase"."update_team"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."update_team"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_team"(uuid, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."update_team"(uuid, text, text, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."archive_team"(team uuid)
 returns boolean
@@ -290,6 +303,41 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_team"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_team"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."restore_team"(team uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."teams" where "id" = restore_team.team;
+  if not found then
+    raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
+    raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
+  end if;
+  update "better_supabase"."teams" set "status" = 'active', "updated_at" = now() where "id" = restore_team.team;
+  perform "better_supabase".emit_event('team.restored', jsonb_build_object('organizationId', v_tenant, 'id', restore_team.team), 'teams/' || (restore_team.team)::text, (v_tenant)::text, null, 'better-supabase/teams');
+  perform better_supabase.audit_event(
+    event_type => 'team.restored',
+    category => 'membership',
+    target_type => 'team',
+    record_id => (restore_team.team)::text,
+    tenant => (v_tenant)::uuid,
+    metadata => jsonb_build_object('organizationId', v_tenant, 'id', restore_team.team)
+  );
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."restore_team"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_team"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_team"(team uuid)
 returns boolean
@@ -417,8 +465,14 @@ as $$
     'id', t."id",
     'name', t."name",
     'slug', t."slug",
-    'status', t."status"
-  )), '[]'::jsonb)
+    'description', t."description",
+    'status', t."status",
+    'member_ids', coalesce((
+      select jsonb_agg(m."user_id" order by m."created_at")
+      from "better_supabase"."team_members" m
+      where m."team_id" = t."id"
+    ), '[]'::jsonb)
+  ) order by t."name"), '[]'::jsonb)
   from "better_supabase"."teams" t
   where t."tenant_id" = list_teams.tenant
     and (
@@ -491,8 +545,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."team_members" as res
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."create_team"(uuid, text, text);
 drop function if exists "api"."create_team"(uuid, text, text, jsonb);
+drop function if exists "api"."create_team"(uuid, text, text, text, jsonb);
+drop function if exists "api"."update_team"(uuid, text, text);
 drop function if exists "api"."update_team"(uuid, text, text, jsonb);
+drop function if exists "api"."update_team"(uuid, text, text, jsonb, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -521,23 +579,23 @@ as $$ select * from "better_supabase"."team_ids_of"($1) $$;
 revoke execute on function "api"."team_ids_of"(uuid) from public, anon;
 grant execute on function "api"."team_ids_of"(uuid) to authenticated, service_role;
 
-create or replace function "api"."create_team"(tenant uuid, name text, description text)
+create or replace function "api"."create_team"(tenant uuid, name text, description text, slug text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."create_team"($1, $2, $3) $$;
-revoke execute on function "api"."create_team"(uuid, text, text) from public, anon;
-grant execute on function "api"."create_team"(uuid, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."create_team"($1, $2, $3, $4) $$;
+revoke execute on function "api"."create_team"(uuid, text, text, text) from public, anon;
+grant execute on function "api"."create_team"(uuid, text, text, text) to authenticated, service_role;
 
-create or replace function "api"."update_team"(team uuid, name text, description text)
+create or replace function "api"."update_team"(team uuid, name text, description text, patch jsonb default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."update_team"($1, $2, $3) $$;
-revoke execute on function "api"."update_team"(uuid, text, text) from public, anon;
-grant execute on function "api"."update_team"(uuid, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."update_team"($1, $2, $3, $4) $$;
+revoke execute on function "api"."update_team"(uuid, text, text, jsonb) from public, anon;
+grant execute on function "api"."update_team"(uuid, text, text, jsonb) to authenticated, service_role;
 
 create or replace function "api"."archive_team"(team uuid)
 returns boolean
@@ -547,6 +605,15 @@ set search_path = ''
 as $$ select "better_supabase"."archive_team"($1) $$;
 revoke execute on function "api"."archive_team"(uuid) from public, anon;
 grant execute on function "api"."archive_team"(uuid) to authenticated, service_role;
+
+create or replace function "api"."restore_team"(team uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_team"($1) $$;
+revoke execute on function "api"."restore_team"(uuid) from public, anon;
+grant execute on function "api"."restore_team"(uuid) to authenticated, service_role;
 
 create or replace function "api"."delete_team"(team uuid)
 returns boolean

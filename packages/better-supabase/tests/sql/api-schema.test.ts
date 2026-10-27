@@ -15,13 +15,20 @@ const schemaFile = (name: string, api: NonNullable<BlockConfig["api"]>) =>
     (file) => file.module === name && file.kind === "schema",
   )!.contents;
 
+// list_roles and set_permission_override exist only under the catalog model.
+const MODULE_OPTIONS: Readonly<Record<string, Record<string, unknown>>> = {
+  permissions: { model: "catalog" },
+};
+
 /** The schema file, with `billing` for a module that needs its customer column. */
 const schemaFileWith = (
   name: string,
   api: NonNullable<BlockConfig["api"]>,
 ): string => {
   try {
-    return schemaFile(name, api);
+    return renderBlocks([name], {
+      modules: { [name]: { ...MODULE_OPTIONS[name], api } },
+    }).find((file) => file.module === name && file.kind === "schema")!.contents;
   } catch {
     return renderBlocks(["billing", name], {
       modules: { [name]: { api } },

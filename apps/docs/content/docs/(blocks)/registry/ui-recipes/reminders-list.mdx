@@ -19,9 +19,9 @@ npx shadcn add card empty skeleton
  * offset before every occurrence of the event, once per occurrence.
  */
 export async function RemindersList() {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  if (!can(session, "reminders.manage")) {
+  if (!can(permissions, "reminders.manage")) {
     return null;
   }
 
@@ -64,7 +64,7 @@ export async function RemindersList() {
                 {t("Add an event, then set a reminder for it here.")}
               </EmptyDescription>
             </EmptyHeader>
-            {calendars.length > 0 && can(session, "calendar.write") ? (
+            {calendars.length > 0 && can(permissions, "calendar.write") ? (
               <EmptyContent>
                 <CreateEventDialog
                   calendars={calendars}

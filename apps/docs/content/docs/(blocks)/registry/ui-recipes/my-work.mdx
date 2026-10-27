@@ -112,7 +112,7 @@ export async function MyWorkList() {
                   <span className="truncate">{row.title}</span>
                 ) : (
                   <Link
-                    href={row.url}
+                    href={toAppHref(row.url)}
                     className="truncate font-medium underline-offset-4 transition-colors hover:underline"
                   >
                     {row.title}

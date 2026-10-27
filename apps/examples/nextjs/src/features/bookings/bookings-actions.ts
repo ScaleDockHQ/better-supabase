@@ -6,6 +6,7 @@ import { dbError, err, ok } from "better-supabase";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -40,7 +41,7 @@ export const setUpBookingPage = bsb.action(
       tz: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "bookings.manage"),
+    authorize: async () => can(await getPermissions(), "bookings.manage"),
   },
   async ({ tz }, { tenant, db, session, auth }) => {
     if (session.kind !== "user") {
@@ -116,7 +117,7 @@ export const saveWeeklyHours = bsb.action(
       ),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "bookings.manage"),
+    authorize: async () => can(await getPermissions(), "bookings.manage"),
   },
   async ({ hours }, { tenant, db, session, auth }) => {
     const page =
@@ -145,8 +146,9 @@ export const createBookingLink = bsb.action(
   {
     input: v.object({}),
     requireOrganization: true,
-    authorize: (session) =>
-      can(session, "bookings.manage") && can(session, "share_links.create"),
+    authorize: async () =>
+      can(await getPermissions(), "bookings.manage") &&
+      can(await getPermissions(), "share_links.create"),
   },
   async (_input, { tenant, db, session, auth }) => {
     const page =

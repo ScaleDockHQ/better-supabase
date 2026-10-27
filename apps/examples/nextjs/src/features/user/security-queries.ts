@@ -1,7 +1,7 @@
-import "server-only";
 import * as v from "valibot";
+import "server-only";
 
-import { serverFetch } from "@/lib/latency";
+import { env } from "@/env";
 import { bsb } from "@/lib/supabase/server";
 
 const AuthError = v.object({ msg: v.optional(v.string()) });
@@ -33,11 +33,11 @@ async function authGet<S extends v.GenericSchema>(
   path: string,
   schema: S,
 ): Promise<v.InferOutput<S>> {
-  const response = await (serverFetch ?? fetch)(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL!}/auth/v1${path}`,
+  const response = await fetch(
+    `${env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1${path}`,
     {
       headers: {
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+        apikey: env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
         Authorization: `Bearer ${token}`,
       },
     },

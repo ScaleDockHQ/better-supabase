@@ -21,8 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import { loadQuote, settle } from "../crm-queries";
 import { CrmLoadError } from "./crm-load-error";
@@ -41,14 +41,14 @@ export async function QuoteBuilder({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const [{ id }, session, t, locale] = await Promise.all([
+  const [{ id }, t, locale, permissions] = await Promise.all([
     params,
-    getSession(),
     getExtracted("crm"),
     getLocale(),
+    getPermissions(),
   ]);
 
-  if (!can(session, "quotes.read")) {
+  if (!can(permissions, "quotes.read")) {
     forbidden();
   }
 
@@ -68,7 +68,7 @@ export async function QuoteBuilder({
     notFound();
   }
 
-  const canWrite = can(session, "quotes.write");
+  const canWrite = can(permissions, "quotes.write");
 
   const editable =
     canWrite &&

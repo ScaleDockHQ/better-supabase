@@ -1,6 +1,7 @@
 import { tenantOf } from "better-supabase/next";
 import { forbidden, notFound } from "next/navigation";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
@@ -14,18 +15,23 @@ export async function RuleEditor({
 }: {
   params: Promise<{ rule: string }>;
 }) {
-  const [{ rule }, session] = await Promise.all([params, getSession()]);
+  const [{ rule }, session, permissions] = await Promise.all([
+    params,
+    getSession(),
+    getPermissions(),
+  ]);
+
   const tenant = tenantOf(session);
 
   if (rule !== "new" && !UUID.test(rule)) {
     notFound();
   }
 
-  if (!tenant || !can(session, "rules.read")) {
+  if (!tenant || !can(permissions, "rules.read")) {
     forbidden();
   }
 
-  const canEdit = can(session, "rules.edit");
+  const canEdit = can(permissions, "rules.edit");
 
   if (rule === "new" && !canEdit) {
     forbidden();
@@ -37,7 +43,7 @@ export async function RuleEditor({
       organizationId={tenant}
       rule={rule === "new" ? null : rule}
       canEdit={canEdit}
-      canPublish={can(session, "rules.publish")}
+      canPublish={can(permissions, "rules.publish")}
     />
   );
 }

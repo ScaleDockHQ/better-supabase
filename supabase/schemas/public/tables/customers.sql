@@ -14,6 +14,10 @@ create table public.customers (
   -- The object path in the customer-logos bucket, never a URL: signed URLs
   -- expire and public URLs pin the project host.
   logo_path text,
+  -- The team that owns the account, from the teams block. teams has no
+  -- (id, tenant_id) key to point a composite foreign key at, so
+  -- customers_owner_team_check keeps the team in the customer's organization.
+  owner_team_id uuid references better_supabase.teams (id) on delete set null,
   -- One way only: the softDelete plugin sets archived_at without a status.
   constraint customers_archived_check check (status <> 'archived' or archived_at is not null),
   -- Archived customers keep their KvK number, so restoring one can't create a
@@ -33,6 +37,15 @@ comment on column public.customers.name is 'Trading name.
 
 comment on column public.customers.kvk is 'Chamber of Commerce (KvK) number.
 @example "12345678"';
+
+create index customers_owner_team_id_idx on public.customers (owner_team_id)
+  where owner_team_id is not null;
+
+-- A constraint trigger, not a before trigger: it only validates, and gen reads a
+-- before insert trigger as one that may fill required columns.
+create constraint trigger customers_owner_team_check after insert or update of owner_team_id on public.customers
+  for each row when (new.owner_team_id is not null)
+  execute function public.customers_owner_team_check();
 
 create index customers_primary_contact_id_idx on public.customers (primary_contact_id, organization_id);
 

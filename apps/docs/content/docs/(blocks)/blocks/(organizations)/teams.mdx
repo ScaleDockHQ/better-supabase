@@ -31,6 +31,11 @@ argument of `update_team`. `archive(id)` sets a team's status to `archived`;
 with `options.restore: true`, `restore(id)` sets it back to `active` through
 `restore_team` and records `team.restored`.
 
+The [Next.js example](/docs/examples#the-nextjs-saas-app) builds its Teams
+settings on these: a list from `teams.list()` with a create dialog, and a
+team page that edits the slug, archives, restores and deletes the team and
+adds or removes members (`apps/examples/nextjs/src/features/teams`).
+
 ## Inbox
 
 The inbox assigns a conversation to a `teams` row. Installing both drops `inbox_teams` and `inbox_team_members` after copying their rows. `create_inbox_team` and `set_inbox_team_member` call the teams functions.
@@ -61,6 +66,11 @@ export const { useList: useTeams } = defineDataHooks(
 ```ts
 const rows = await db.teams.list(organizationId).orThrow();
 ```
+
+`list` returns the teams sorted by name. Each row has its `id`, `name`,
+`slug`, `description`, `status` (`active` or `archived`) and `memberIds`, the
+user ids on the team, so a page can show who is on a team or hide archived
+teams without reading `team_members`. `update` returns the stored row.
 
 ```tsx title="src/features/teams/list.tsx"
 "use client";

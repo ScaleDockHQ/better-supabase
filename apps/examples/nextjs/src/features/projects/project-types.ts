@@ -1,5 +1,7 @@
 import * as v from "valibot";
 
+import type { Search } from "@/i18n/navigation";
+
 /** The saved views list the task screens share. */
 export const TASK_LIST = "tasks";
 
@@ -112,7 +114,7 @@ export function parseTaskQuery(
 }
 
 /** The search string of a query, without the defaults. */
-export function taskSearch(query: TaskQuery): string {
+export function taskSearch(query: TaskQuery): Search {
   const params = new URLSearchParams();
 
   if (query.view !== "table") {

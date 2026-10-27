@@ -36,8 +36,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import type { JobRunRow, JobRunStatus } from "../jobs-queries";
 
@@ -111,13 +111,13 @@ function JobStatusBadge({ status, t }: { status: JobRunStatus; t: Translate }) {
  * it reads with the database owner.
  */
 export async function JobRunsTable() {
-  const [session, t, format] = await Promise.all([
-    getSession(),
+  const [t, format, permissions] = await Promise.all([
     getExtracted("jobs"),
     getFormatter(),
+    getPermissions(),
   ]);
 
-  if (!can(session, JOBS_PERMISSION)) {
+  if (!can(permissions, JOBS_PERMISSION)) {
     forbidden();
   }
 

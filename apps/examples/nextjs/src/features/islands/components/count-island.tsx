@@ -1,6 +1,8 @@
 import { DatabaseIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
 
+import type { AppHref } from "@/i18n/navigation";
+
 import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -26,7 +28,7 @@ import { getIslandSession, getTableCount } from "../islands-queries";
 import { IslandError } from "./island-error";
 
 /** Where a user adds the first row of each table. */
-const ADD_HREF: Record<IslandTable, string> = {
+const ADD_HREF: Record<IslandTable, AppHref> = {
   customers: "/customers",
   notes: "/customers",
   contacts: "/customers",

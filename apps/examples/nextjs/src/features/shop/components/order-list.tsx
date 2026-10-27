@@ -36,8 +36,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import type { OrderableProduct } from "./create-draft-order-dialog";
@@ -57,17 +57,17 @@ async function retry() {
  * orders.
  */
 export async function OrderList() {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  if (!can(session, "orders.read")) {
+  if (!can(permissions, "orders.read")) {
     forbidden();
   }
 
-  const canManage = can(session, "orders.manage");
+  const canManage = can(permissions, "orders.manage");
 
   const [list, products, t, format, locale] = await Promise.all([
     getOrders(),
-    canManage && can(session, "catalog.read")
+    canManage && can(permissions, "catalog.read")
       ? getProducts()
       : Promise.resolve(null),
     getExtracted("shop"),

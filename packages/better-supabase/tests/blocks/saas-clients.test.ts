@@ -38,12 +38,27 @@ describe("saas block clients", () => {
     const teams = createTeams(
       options({
         create_team: { id: "t1", slug: "ops" },
-        update_team: { id: "t1" },
+        update_team: {
+          id: "t1",
+          name: "Ops",
+          slug: "ops",
+          description: null,
+          status: "active",
+        },
         archive_team: true,
         delete_team: false,
         add_team_member: true,
         remove_team_member: false,
-        list_teams: [{ id: "t1", name: "Ops", slug: "ops" }],
+        list_teams: [
+          {
+            id: "t1",
+            name: "Ops",
+            slug: "ops",
+            description: "Desk",
+            status: "archived",
+            member_ids: ["u1", "u2"],
+          },
+        ],
       }),
     );
 
@@ -56,7 +71,15 @@ describe("saas block clients", () => {
     expect(await teams.addMember("t1", "u1").orThrow()).toBe(true);
     expect(await teams.removeMember("t1", "u1").orThrow()).toBe(false);
     expect(await teams.list("org").orThrow()).toEqual([
-      { id: "t1", name: "Ops", slug: "ops", fields: {} },
+      {
+        id: "t1",
+        name: "Ops",
+        slug: "ops",
+        description: "Desk",
+        status: "archived",
+        memberIds: ["u1", "u2"],
+        fields: {},
+      },
     ]);
   });
 

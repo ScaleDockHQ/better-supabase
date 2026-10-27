@@ -2,6 +2,7 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { notFound, unstable_rethrow } from "next/navigation";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
@@ -72,7 +73,12 @@ async function loadTarget(
   customerId: string,
 ): Promise<DocumentTarget | "not-found" | null> {
   "use cache: private";
-  const { session, db } = await bsb.cached();
+
+  const [{ session, db }, permissions] = await Promise.all([
+    bsb.cached(),
+    getPermissions(),
+  ]);
+
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
@@ -91,8 +97,8 @@ async function loadTarget(
     organizationId,
     customerId: customer.id,
     customerName: customer.name,
-    canWrite: can(session, "documents.write"),
-    canSuggest: can(session, "documents.suggest"),
+    canWrite: can(permissions, "documents.write"),
+    canSuggest: can(permissions, "documents.suggest"),
   };
 }
 

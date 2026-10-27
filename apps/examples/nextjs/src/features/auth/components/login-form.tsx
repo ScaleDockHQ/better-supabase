@@ -19,7 +19,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Link } from "@/i18n/navigation";
+import { isLocalizedRoute, Link } from "@/i18n/navigation";
 
 import { signIn } from "../auth-actions";
 
@@ -45,11 +45,12 @@ export function LoginForm() {
       }
 
       const { redirectTo, mfa } = result.data;
-      router.replace(
-        mfa
-          ? `/${locale}/mfa?next=${encodeURIComponent(redirectTo)}`
-          : redirectTo,
-      );
+
+      const target = mfa
+        ? `/${locale}/mfa?next=${encodeURIComponent(redirectTo)}`
+        : redirectTo;
+
+      router.replace(isLocalizedRoute(target) ? target : `/${locale}`);
 
       return null;
     },
@@ -59,7 +60,7 @@ export function LoginForm() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-xl">{t("Welcome back")}</CardTitle>
+        <CardTitle>{t("Welcome back")}</CardTitle>
         <CardDescription>{t("Sign in to your organization.")}</CardDescription>
       </CardHeader>
       <CardContent>

@@ -3,6 +3,7 @@ export {
   type CreateTeamOptions,
   type Team,
   type Teams,
+  type TeamStatus,
   type TeamsOptions,
   type UpdateTeamOptions,
 } from "./teams.ts";

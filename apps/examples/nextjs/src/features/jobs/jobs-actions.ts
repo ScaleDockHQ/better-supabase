@@ -6,6 +6,7 @@ import { dbError, err, ok } from "better-supabase";
 import * as v from "valibot";
 
 import { requirePostgres, sqlResult } from "@/features/developer/postgres";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -19,7 +20,7 @@ import { JOBS_PERMISSION, jobsOn, QUEUE_NAME, TEST_QUEUE } from "./jobs-server";
 export const enqueueTestJob = bsb.action(
   {
     requireOrganization: true,
-    authorize: (session) => can(session, JOBS_PERMISSION),
+    authorize: async () => can(await getPermissions(), JOBS_PERMISSION),
   },
   async (_input, { tenant, auth }): Promise<Result<number>> => {
     if (auth.kind !== "user") {
@@ -57,7 +58,7 @@ export const retryJobRun = bsb.action(
       id: v.pipe(v.number(), v.integer(), v.minValue(1)),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, JOBS_PERMISSION),
+    authorize: async () => can(await getPermissions(), JOBS_PERMISSION),
   },
   async ({ queue, id }, { tenant, auth }): Promise<Result<number>> => {
     const connection = requirePostgres();

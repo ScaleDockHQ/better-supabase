@@ -150,7 +150,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       .join("\n");
 
   const teamJson = (alias: string): string =>
-    `jsonb_build_object('id', ${alias}.${id}, 'slug', ${alias}.${slug}${extraFieldsJson(alias, extras)})`;
+    `jsonb_build_object('id', ${alias}.${id}, 'name', ${alias}.${name}, 'slug', ${alias}.${slug}, 'description', ${alias}.${description}, 'status', ${alias}.${status}${extraFieldsJson(alias, extras)})`;
 
   const idDefault =
     idType === "uuid"
@@ -227,7 +227,8 @@ ${
         ", jsonb",
         extras.length === 0 ? ", text, jsonb" : ", text",
       ])
-    : extra.drop(fn("create_team"), `${ctx.idType}, text, text`)
+    : `${extra.drop(fn("create_team"), `${ctx.idType}, text, text`)}
+${drops(fn("create_team"), `${ctx.idType}, text, text`, [", text", ", text, jsonb"])}`
 }
 create or replace function ${fn("create_team")}(tenant ${ctx.idType}, name text, description text${patching ? ", slug text default null" : ""}${extra.param})
 returns jsonb
@@ -308,7 +309,7 @@ ${
 }
   where t.${id} = update_team.team;${writeExtraColumns(teams, extras, "update_team.fields", `x.${id} = update_team.team`)}
   ${record(ctx, "team.updated", "update_team.team", "v_tenant", "update_team.name")}
-  return ${extras.length === 0 ? "jsonb_build_object('id', update_team.team)" : `(select ${teamJson("x")} from ${teams} x where x.${id} = update_team.team)`};
+  return (select ${teamJson("x")} from ${teams} x where x.${id} = update_team.team);
 end;
 $$;
 ${userGrant(`${fn("update_team")}(${idType}, text, text${patching ? ", jsonb" : ""}${extra.type})`)}
@@ -447,8 +448,14 @@ as $$
     'id', t.${id},
     'name', t.${name},
     'slug', t.${slug},
-    'status', t.${status}${extraFieldsJson("t", extras)}
-  )), '[]'::jsonb)
+    'description', t.${description},
+    'status', t.${status},
+    'member_ids', coalesce((
+      select jsonb_agg(m.${memberUser} order by m.${memberCreated})
+      from ${members} m
+      where m.${memberTeam} = t.${id}
+    ), '[]'::jsonb)${extraFieldsJson("t", extras)}
+  ) order by t.${name}), '[]'::jsonb)
   from ${teams} t
   where t.${tenant} = list_teams.tenant
     and (
@@ -482,7 +489,8 @@ function membershipFk(
 alter table ${members}
   add constraint ${ctx.naming.rename("team_members_membership_fkey")}
   foreign key (${tenant}, ${user})
-  references ${memberships.table("memberships")} (${memberships.col("memberships", "tenant")}, ${memberships.col("memberships", "user")});`;
+  references ${memberships.table("memberships")} (${memberships.col("memberships", "tenant")}, ${memberships.col("memberships", "user")})
+  on delete cascade;`;
 }
 
 function membershipCheck(

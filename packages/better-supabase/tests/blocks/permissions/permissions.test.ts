@@ -93,4 +93,80 @@ describe("createPermissions", () => {
     expect(result.ok ? undefined : result.error.hint).toBe("TENANT_REQUIRED");
     expect(fake.calls).toEqual([]);
   });
+
+  it("lists catalog roles with their keys in the tenant", async () => {
+    const fake = fakeTransport([
+      {
+        id: "r-1",
+        key: "admin",
+        members: 2,
+        default_permissions: ["members.read", "roles.manage"],
+        permissions: ["members.read"],
+        overrides: [{ permission: "roles.manage", granted: false }],
+      },
+    ]);
+
+    const access = createPermissions({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    await expect(access.roles().orThrow()).resolves.toEqual([
+      {
+        id: "r-1",
+        key: "admin",
+        members: 2,
+        defaultPermissions: ["members.read", "roles.manage"],
+        permissions: ["members.read"],
+        overrides: [{ permission: "roles.manage", granted: false }],
+      },
+    ]);
+    expect(fake.calls).toEqual([
+      ["better_supabase", "list_roles", { tenant: "org-1" }],
+    ]);
+  });
+
+  it("sets and clears an override in the call's tenant", async () => {
+    const fake = fakeTransport({
+      id: "r-1",
+      key: "member",
+      members: 1,
+      default_permissions: [],
+      permissions: ["teams.manage"],
+      overrides: [{ permission: "teams.manage", granted: true }],
+    });
+
+    const access = createPermissions({ transport: fake.transport });
+
+    const role = await access
+      .setOverride("member", "teams.manage", true, { tenant: "org-2" })
+      .orThrow();
+
+    expect(role.permissions).toEqual(["teams.manage"]);
+    await access
+      .setOverride("member", "teams.manage", null, { tenant: "org-2" })
+      .orThrow();
+    expect(fake.calls).toEqual([
+      [
+        "better_supabase",
+        "set_permission_override",
+        {
+          tenant: "org-2",
+          role: "member",
+          permission: "teams.manage",
+          granted: true,
+        },
+      ],
+      [
+        "better_supabase",
+        "set_permission_override",
+        {
+          tenant: "org-2",
+          role: "member",
+          permission: "teams.manage",
+          granted: null,
+        },
+      ],
+    ]);
+  });
 });
