@@ -20,65 +20,85 @@ doesn't use it, and a type test fails when a new `flags` release changes the
 `Adapter` shape. The entry imports no Node built-ins, so it runs in
 `proxy.ts`.
 
-| Export                  | Does                                                                                     |
-| ----------------------- | ---------------------------------------------------------------------------------------- |
-| `betterSupabaseAdapter` | an adapter factory over the flags block, with one definitions cache for every flag       |
-| `createIdentify`        | an `identify` that returns the user, the tenant and custom contexts from verified claims |
-| `getProviderData`       | Flags Explorer data for every flag that isn't archived                                   |
-| `flagOptions`           | a flag's variants as `options`, which a precomputed flag needs                           |
-| `flagContextOf`         | the evaluation context the adapter builds from the entities                              |
+| Export                        | Does                                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------------------- |
+| `betterSupabaseAdapter`       | a ready adapter that reads `SUPABASE_URL` and `SUPABASE_SECRET_KEY` on first use            |
+| `createBetterSupabaseAdapter` | an adapter over your own project, transport or definitions, with `origin` and `identify`    |
+| `createIdentify`              | an `identify` that returns the user, the tenant, a visitor and custom contexts from a token |
+| `getProviderData`             | Flags Explorer data for every stored flag, joined with the flags your code declares         |
+| `flagOptions`                 | a flag's variants as `options`, which a precomputed flag needs                              |
+| `flagContextOf`               | the evaluation context the adapter builds from the entities                                 |
 
 The [Next.js example](/docs/examples) wires all of them.
 
 ## Declaring flags
 
-`betterSupabaseAdapter` takes the options of `createFlagsProvider`: a
-`transport` (with `schema` for the Data API) or fixed `definitions`, and a
-`ttl` (30 seconds by default). It loads every flag with
-`flag_definitions()`, which only the service role may call, so give it a
-transport on the secret key. Never prefix that key with `NEXT_PUBLIC_`.
+Pass `betterSupabaseAdapter` to `flag()` the way the Flags SDK's own
+adapters are passed. It reads `SUPABASE_URL` (or `NEXT_PUBLIC_SUPABASE_URL`)
+and `SUPABASE_SECRET_KEY` when the first flag is decided, not at import, and
+loads every flag with `flag_definitions()`, which only the service role may
+call. Never prefix that key with `NEXT_PUBLIC_`.
 
 ```ts title="src/flags.ts"
 import "server-only";
 
-import { createClient } from "@supabase/supabase-js";
-import { rpcTransport } from "better-supabase/blocks";
 import {
   betterSupabaseAdapter,
+  type FlagsSdkEntities,
+} from "better-supabase/flags-sdk";
+import { flag } from "flags/next";
+
+export const newEditor = flag<boolean, FlagsSdkEntities>({
+  key: "new_editor",
+  adapter: betterSupabaseAdapter,
+  defaultValue: false,
+});
+```
+
+Without the keys, a flag answers its `defaultValue` and one without a
+default throws. To pick the project, the Data API schema or the cache
+yourself, call `createBetterSupabaseAdapter`. It takes `url` and
+`secretKey` (with `schema`, `ttl` and `fetch`), or the options of
+`createFlagsProvider`: a `transport` or fixed `definitions`. Give it an
+`identify` so every flag on it identifies the caller the same way:
+
+```ts title="src/flags.ts"
+import "server-only";
+
+import {
+  createBetterSupabaseAdapter,
   createIdentify,
   type FlagsSdkEntities,
 } from "better-supabase/flags-sdk";
 import { dedupe, flag } from "flags/next";
 
-const service = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SECRET_KEY!,
-  { auth: { persistSession: false, autoRefreshToken: false } },
-);
+import { bsb } from "@/lib/supabase/server";
 
-export const bsFlags = betterSupabaseAdapter({
-  transport: rpcTransport(service),
-  schema: "api",
-  origin: "https://admin.acme.test/flags/{key}",
-});
-
-const identify = dedupe(
+export const identify = dedupe(
   createIdentify({
-    claims: async ({ cookies }) => readVerifiedClaims(cookies),
+    server: bsb,
+    visitor: ({ cookies }) => cookies.get("visitor-id")?.value,
     contexts: ({ headers }) => ({ brand: brandOf(headers.get("host")) }),
   }),
 );
 
+export const bsFlags = createBetterSupabaseAdapter({
+  url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  secretKey: process.env.SUPABASE_SECRET_KEY!,
+  schema: "api",
+  origin: "https://admin.acme.test/flags/{key}",
+  identify,
+});
+
 export const newEditor = flag<boolean, FlagsSdkEntities>({
   key: "new_editor",
-  adapter: bsFlags(),
+  adapter: bsFlags,
   defaultValue: false,
-  identify,
 });
 ```
 
-Every adapter the factory makes shares one cache and one `adapterId`, so
-`evaluate([...])` decides a batch from one load. A flag that is missing,
+The adapter keeps one definitions cache (30 seconds by default) and one
+`adapterId`, so `evaluate([...])` decides a batch from one load. A flag that is missing,
 has another type or fails to load answers the declaration's
 `defaultValue`, so a database outage turns features off instead of
 breaking the page. Without a `defaultValue`, `decide` throws.
@@ -102,11 +122,17 @@ It returns these entities:
 | -------------- | ----------------------------------------------------------------------------- |
 | `user`         | `{ id }`, the user id from the claims                                         |
 | `organization` | `{ id, plans, roles }`, the active tenant with its features and roles         |
+| `visitor`      | `{ id }`, a signed-out visitor's id, only when there is no user               |
 | `brand`, ...   | `{ id }` for each custom context, named as in `blocks.flags.options.contexts` |
 
-`claims` must return claims you verified locally, such as from
-`getClaims()` or `bsb.context()`; `identify` runs for every flag and never
-calls the Auth server. `tenant` picks the active tenant when the claims
+Pass `server` (the object `createNext` or `createServer` returns) and
+`createIdentify` reads the session from the request's cookie or bearer
+token. It verifies the token locally and never refreshes it, so it never
+calls the Auth server; refreshing stays in the proxy. Pass `claims` instead
+to return claims you verified yourself. `visitor` gives a signed-out request
+a stable rollout bucket: the user id is the targeting key, and the visitor
+id stands in without one. Set the cookie it reads in the proxy. `tenant`
+picks the active tenant when the claims
 don't carry it, and `contexts` adds custom context values from a header,
 the host or a cookie. `contextClaims` from `flagContext` also works, such as
 `{ brand: "brand_id" }`. Wrap the result in `dedupe` so it runs once per
@@ -165,12 +191,31 @@ export default async function Pricing({
 }: PageProps<"/pricing/[code]">) {
   const { code } = await params;
   const banner = await pricingBanner(code, pricingFlags);
-  // ...
+
+  return (
+    <>
+      {banner ? <UpgradeBanner /> : null}
+      <Suspense fallback={<CurrentPlanSkeleton />}>
+        <CurrentPlan />
+      </Suspense>
+      <FlagValues values={{ [pricingBanner.key]: banner }} />
+    </>
+  );
 }
 ```
 
+The page never reads cookies or headers, so each code is a static shell.
+Anything per user, such as the signed-in plan, goes in a `<Suspense>`
+boundary with a skeleton, and streams in after the shell. `FlagValues` from
+`flags/react` tells Flags Explorer and Vercel Analytics which values the
+page was built with.
+
 `precompute` signs the code with `FLAGS_SECRET`, a random 32-byte base64url
-string. Set it in every environment (`openssl rand -base64url 32`).
+string. Set it in every environment
+(`node -e "console.log(crypto.randomBytes(32).toString('base64url'))"`).
+With Cache Components, `generateStaticParams` must return at least one
+code, so an app that builds without the secret returns one fixed code there
+and renders the flags' defaults for it, as the example does.
 
 Precompute only flags with a few values per visitor: a brand, a plan, a
 rollout bucket. A per-user flag multiplies the permutations, and a static
@@ -204,30 +249,25 @@ never reads a custom context from the tenant table, so pass it through
 [Flags Explorer](https://vercel.com/docs/flags/flags-explorer) in
 the Vercel Toolbar reads the flags from a discovery route. `getProviderData`
 lists every flag in the flags block that isn't archived, with its
-description, options, origin and last change; merge it with the declared
-flags:
+description, options, origin and last change. Pass the flags your code
+declares as `flags`, one at a time or in groups such as `pricingFlags`, and
+it joins them: a declared flag shows its `defaultValue` and is marked
+declared in code, and one the table lacks shows a hint.
 
 ```ts title="app/.well-known/vercel/flags/route.ts"
 import { getProviderData } from "better-supabase/flags-sdk";
-import { mergeProviderData } from "flags";
-import {
-  createFlagsDiscoveryEndpoint,
-  getProviderData as getDeclared,
-} from "flags/next";
+import { createFlagsDiscoveryEndpoint } from "flags/next";
 
-import { bsFlags, newEditor, pricingBanner } from "@/flags";
+import { bsFlags, newEditor, pricingFlags } from "@/flags";
 
-export const GET = createFlagsDiscoveryEndpoint(async () =>
-  mergeProviderData([
-    getDeclared({ newEditor, pricingBanner }),
-    await getProviderData(bsFlags),
-  ]),
+export const GET = createFlagsDiscoveryEndpoint(() =>
+  getProviderData(bsFlags, { flags: { newEditor, pricingFlags } }),
 );
 ```
 
 The route answers only requests signed with `FLAGS_SECRET`. A failed load
-shows as a hint in Explorer instead of an error, and so does a flag with
-an unknown type. Exclude
+still lists the declared flags, with a hint instead of an error, and a flag
+with an unknown type shows a hint too. Exclude
 `/.well-known/vercel/` from the proxy matcher. An override set in the
 toolbar applies before the adapter's `decide`.
 

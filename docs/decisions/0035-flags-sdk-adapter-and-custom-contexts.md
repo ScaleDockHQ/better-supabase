@@ -48,6 +48,13 @@ make it a dependency of every app (invariant 1). Nesting custom contexts
 under one `contexts` entity would break the entity paths Vercel Flags
 targets, so they sit at the top level.
 
+In 0.32 the adapter follows the Flags SDK's own adapters:
+`betterSupabaseAdapter` is a ready adapter read from the environment on
+first use, `createBetterSupabaseAdapter` builds one over a project or a
+transport and carries `identify`, and `createIdentify({ server })` reads the
+session the way the server does, without refreshing it. Refreshing stays in
+the proxy (invariant 7), so there is no auth-cookie flag.
+
 ## Consequences
 
 An app declares its contexts in config and passes their values through
