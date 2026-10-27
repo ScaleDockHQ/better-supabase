@@ -1,7 +1,7 @@
 -- better-supabase module: trash
--- @bsb-block trash@2 managed
--- @bsb-hash sha256:317a9b484d4cec952dd8eb4dc8f76b92330503bb0f27c05b4dd532354fd26c96
--- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
+-- @bsb-block trash@3 managed
+-- @bsb-hash sha256:0536724ef60d3a201f18a48a61e453bfccb761cbfbe1f32ac0f403792dac29c4
+-- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -386,6 +386,9 @@ declare
   v_count integer := 0;
 begin
   for v_item in select * from "better_supabase"."trash_items" where "batch_id" = trash_purge_batch.batch order by "depth" desc loop
+    if (false) then
+      raise exception 'a record in this batch is under a legal hold' using errcode = '42501', hint = 'TRASH_HELD';
+    end if;
     case v_item.subject_type
     when 'message' then
       delete from "better_supabase"."messages" s
@@ -464,10 +467,10 @@ declare
   v_count integer := 0;
 begin
   for v_batch in
-    select "batch_id" from "better_supabase"."trash_items"
-    where "depth" = 0 and "purge_after" <= now()
-      and not "better_supabase"."is_held"('trash', ("tenant_id")::text)
-    order by "purge_after"
+    select t."batch_id" from "better_supabase"."trash_items" t
+    where t."depth" = 0 and t."purge_after" <= now()
+      and not "better_supabase"."is_held"('trash', (t."tenant_id")::text)
+    order by t."purge_after"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
     v_count := v_count + "better_supabase"."trash_purge_batch"(v_batch);

@@ -32,6 +32,7 @@ const RECORDED = (() => {
       activities: { options: { recordings: true } },
       orders: { options: { kitchen: true } },
       passes: { options: { credits: true } },
+      drive: { options: { drives: true } },
     },
   });
 

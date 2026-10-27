@@ -209,12 +209,14 @@ describe("drive client", () => {
       parent: "f1",
       page_size: 5,
       skip: 5,
+      drive: null,
     });
     expect(fake.calls.find(([, fn]) => fn === "drive_move")?.[2]).toEqual({
       node: "n1",
       parent: null,
       rank: "a1",
       conflict: "fail",
+      drive: null,
     });
     expect(fake.calls.find(([, fn]) => fn === "drive_share")?.[2]).toEqual({
       node: "f1",
@@ -580,13 +582,17 @@ describe("drive client", () => {
           name: "Root",
           conflict: null,
           fields: null,
+          drive: null,
         },
       ],
       [
         "drive_list",
-        { tenant: "o", parent: null, page_size: null, skip: null },
+        { tenant: "o", parent: null, page_size: null, skip: null, drive: null },
       ],
-      ["drive_move", { node: "f1", parent: null, rank: null, conflict: null }],
+      [
+        "drive_move",
+        { node: "f1", parent: null, rank: null, conflict: null, drive: null },
+      ],
       [
         "drive_share",
         {

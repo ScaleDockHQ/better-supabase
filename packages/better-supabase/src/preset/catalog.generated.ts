@@ -2548,6 +2548,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "columns": {
               "id": "id",
               "tenant": "tenant_id",
+              "drive": "drive_id",
               "parent": "parent_id",
               "kind": "kind",
               "name": "name",
@@ -2555,6 +2556,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "path": "path",
               "rank": "rank",
               "deletedAt": "deleted_at",
+              "source": "source",
+              "externalId": "external_id",
+              "externalMetadata": "external_metadata",
+              "legalHoldUntil": "legal_hold_until",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -13644,7 +13649,16 @@ export const PRESET_CATALOG: PresetCatalog = {
           "drive.node_moved",
           "drive.node_shared",
           "drive.node_unshared",
-          "drive.node_purged"
+          "drive.node_purged",
+          "drive.node_hold_placed",
+          "drive.node_hold_released",
+          "drive.created",
+          "drive.renamed",
+          "drive.deleted",
+          "drive.shared",
+          "drive.unshared",
+          "drive.connection_created",
+          "drive.connection_removed"
         ]
       }
     },

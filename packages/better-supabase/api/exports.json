@@ -6598,7 +6598,10 @@
       "DriveBatch",
       "DriveBinEntry",
       "DriveConflict",
+      "DriveConnection",
       "DriveCrumb",
+      "DriveDrive",
+      "DriveDriveGrant",
       "DriveEvents",
       "DriveFile",
       "DriveFileType",
@@ -6615,6 +6618,7 @@
       "DriveStoredObject",
       "DriveTreeData",
       "DriveUpload",
+      "NewDrive",
       "NewDriveFile",
       "NewDriveFolder"
     ]

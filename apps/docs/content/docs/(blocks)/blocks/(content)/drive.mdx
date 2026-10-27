@@ -90,6 +90,9 @@ blocks: {
 | `memberRole`   | none                            | A role every member of the organization has on every node                              |
 | `conflict`     | `fail`                          | What a duplicate name in a folder does: `fail`, `rename` (`plan (2).pdf`) or `replace` |
 | `subjectType`  | `drive_node`                    | The subject type of nodes in events, audit entries, attachments, versions and trash    |
+| `drives`       | `false`                         | Several drives per organization, with drive-level grants and connected drives          |
+| `driveKinds`   | `["shared"]`                    | The kinds a drive can have; the first is the default                                   |
+| `sources`      | `["google-drive", "onedrive"]`  | The providers a connection can mirror                                                  |
 | `extraColumns` | none                            | Columns on the node table that `fields` reads and writes                               |
 
 Each call that creates, renames or moves a node can pass its own `conflict`. Names compare case-insensitively within one folder.
@@ -98,6 +101,40 @@ Pass a [Standard Schema](https://standardschema.dev) for the `extraColumns`
 as `fields` to `createDrive`: every node the client returns has its `fields`
 parsed, and `createFolder` and `upload` validate the ones you set before the
 call (see [extending blocks](/docs/extending/blocks#your-own-fields)).
+
+## Drives, connections and legal holds
+
+With `drives` on, every node belongs to a drive: `drive_drives` holds the drives of an organization, `drive_drive_grants` their grants and `drive_connections` the external accounts they mirror. A top-level node needs a drive; a child stays in its parent's drive. Drive-level grants apply to every node in the drive, on top of node grants, and a drive's owner and members with `drive.manage` have the top role on it.
+
+```ts
+const drive = await db.drive
+  .createDrive(organizationId, { name: "Projects", kind: "shared" })
+  .orThrow();
+const folder = await db.drive
+  .createFolder(organizationId, { name: "Launch", driveId: drive.id })
+  .orThrow();
+const roots = await db.drive
+  .list(organizationId, { driveId: drive.id })
+  .orThrow();
+
+await db.drive.shareDrive(drive.id, { type: "team", id: designTeam }, "editor");
+```
+
+`drives(organizationId)` lists the drives the caller can read, `drive(id)` reads one, and `renameDrive`, `deleteDrive`, `shareDrive`, `unshareDrive` and `driveGrants` manage them. `deleteDrive` fails while any node in the drive is under a legal hold.
+
+A connection is the caller's link to an external account: `connect(organizationId, provider, name)` records one and `connections(organizationId)` lists the caller's own. `createDrive(organizationId, { name, connectionId })` creates a drive that mirrors that account, owned by the connection's user. Mirrored nodes have a `source` other than `internal`, an `externalId` and `externalMetadata`, and the nodes are read-only: only the service role's `drive_sync_batch` changes them. Renaming, moving, sharing, uploading and trashing them fails with `DRIVE_READ_ONLY`.
+
+A legal hold keeps a node and everything under it from being purged. `hold(id, until)` sets `legalHoldUntil`, `releaseHold(id)` clears it, and every node reports `held` when it or something under it is held. `delete(id)` fails with `DRIVE_HELD` while a hold applies, and `trash(id)` refuses to move a held subtree to the bin. Configure trash with the node's hold column so a held batch stays there:
+
+```ts title="better-supabase.config.ts"
+trash: {
+  on: {
+    drive_node: { deletedAt: "deleted_at", held: "legal_hold_until" },
+  },
+},
+```
+
+`purge(binId)` then raises `TRASH_HELD`, and `purge_expired_trash` skips the batch until the hold ends.
 
 ## Files and revisions
 
@@ -213,6 +250,17 @@ drive: {
 | `DRIVE_REVISION_NOT_FOUND`   | The revision doesn't belong to the file                                                              |
 | `DRIVE_LINK_NOT_FOUND`       | The link is unknown, expired or revoked, or the node isn't under it                                  |
 | `DRIVE_STORAGE_CLIENT`       | A file call ran on a client created without `storage`                                                |
+| `DRIVE_READ_ONLY`            | The node mirrors an external account, so only the sync may change it                                 |
+| `DRIVE_HELD`                 | The node or something under it is under a legal hold                                                 |
+| `DRIVE_HOLD_INVALID`         | `hold` needs an end in the future                                                                    |
+| `DRIVE_REQUIRED`             | A top-level node needs a drive                                                                       |
+| `DRIVE_KIND_INVALID`         | The drive kind isn't one of `options.driveKinds`                                                     |
+| `DRIVE_CONNECTION_NOT_FOUND` | `createDrive` names a connection that doesn't exist or isn't the caller's                            |
+| `DRIVE_CONNECTION_EXISTS`    | The caller already connected this account under that name                                            |
+| `DRIVE_PROVIDER_INVALID`     | The provider isn't one of `options.sources`                                                          |
+| `DRIVE_NOT_CONNECTED`        | `drive_sync_batch` names a drive that doesn't mirror a connection                                    |
+| `DRIVE_OWNER_NOT_MEMBER`     | The owner isn't an active member of the organization                                                 |
+| `TRASH_HELD`                 | `purge` names a batch with a subject under a legal hold                                              |
 
 A read-only support session refuses every write with `ACTOR_READ_ONLY`. In a
 writable [support session](/docs/auth/impersonation#storage-in-a-support-session),
@@ -222,7 +270,7 @@ with the hint `DRIVE_FORBIDDEN`, and the upload stays uncommitted.
 
 ## Events and hooks
 
-The drive records `drive.node_created`, `drive.node_renamed`, `drive.node_moved`, `drive.node_shared`, `drive.node_unshared` and `drive.node_purged`; the [events page](/docs/extending/events) lists their payloads. Sharing and unsharing also write an `access` audit entry. The `before_` and `after_` SQL hooks run around `drive_node_create`, `drive_node_move`, `drive_node_rename` and `drive_node_share`, and the client takes `withBlockHooks` hooks on every method.
+The drive records `drive.node_created`, `drive.node_renamed`, `drive.node_moved`, `drive.node_shared`, `drive.node_unshared`, `drive.node_purged`, `drive.node_hold_placed` and `drive.node_hold_released`; with `drives` on it also records `drive.created`, `drive.renamed`, `drive.deleted`, `drive.shared`, `drive.unshared`, `drive.connection_created` and `drive.connection_removed`. The [events page](/docs/extending/events) lists their payloads. Sharing and unsharing also write an `access` audit entry. The `before_` and `after_` SQL hooks run around `drive_node_create`, `drive_node_move`, `drive_node_rename` and `drive_node_share`, and the client takes `withBlockHooks` hooks on every method.
 
 ## Without the client
 

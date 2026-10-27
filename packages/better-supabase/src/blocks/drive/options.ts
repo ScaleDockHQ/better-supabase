@@ -10,6 +10,9 @@ export type DriveSqlOptions = {
   readonly memberRole?: unknown;
   readonly subjectType?: string;
   readonly conflict?: string;
+  readonly drives?: boolean;
+  readonly driveKinds?: readonly string[];
+  readonly sources?: readonly string[];
   readonly extraColumns?: ExtraColumns;
 };
 
@@ -21,5 +24,8 @@ export const driveSqlOptions: BlockOptionsSchema<DriveSqlOptions> =
     memberRole: option.unknown(),
     subjectType: option.string({ default: "drive_node" }),
     conflict: option.string({ default: "fail" }),
+    drives: option.boolean({ default: false }),
+    driveKinds: option.strings({ default: ["shared"] }),
+    sources: option.strings({ default: ["google-drive", "onedrive"] }),
     extraColumns: option.extraColumns(),
   });

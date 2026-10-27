@@ -50,6 +50,11 @@ export interface SubjectConfig {
    * column.
    */
   readonly deletedAt?: string;
+  /**
+   * The column holding a legal hold's end time. The trash block keeps a batch
+   * with a held subject in the trash instead of purging it.
+   */
+  readonly held?: string;
   /** The columns a search index reads. */
   readonly search?: SubjectSearch;
   /**

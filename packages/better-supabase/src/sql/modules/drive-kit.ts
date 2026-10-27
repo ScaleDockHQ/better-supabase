@@ -14,6 +14,7 @@ import { trashTypes } from "./trash.ts";
 
 const SUBJECT_TYPE = /^[a-z][a-z0-9_]{0,62}$/;
 const ROLE = /^[a-z][a-z0-9_]{0,30}$/;
+const SOURCE = /^[a-z][a-z0-9-]{0,30}$/;
 export const CONFLICTS = ["fail", "rename", "replace"] as const;
 
 /**
@@ -51,6 +52,33 @@ const EVENTS: BlockSqlEvents<DriveEvents> = {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "principalType", "principalId"],
   },
+  "drive.node_hold_placed": {
+    subject: PATH_SEGMENT,
+    payload: [...SUBJECT, "legalHoldUntil"],
+  },
+  "drive.node_hold_released": { subject: PATH_SEGMENT, payload: [...SUBJECT] },
+  "drive.created": { subject: "drives", payload: [...SUBJECT, "name"] },
+  "drive.renamed": {
+    subject: "drives",
+    payload: [...SUBJECT, "name", "previousName"],
+  },
+  "drive.deleted": { subject: "drives", payload: [...SUBJECT] },
+  "drive.shared": {
+    subject: "drives",
+    payload: [...SUBJECT, "principalType", "principalId", "role"],
+  },
+  "drive.unshared": {
+    subject: "drives",
+    payload: [...SUBJECT, "principalType", "principalId"],
+  },
+  "drive.connection_created": {
+    subject: "drive-connections",
+    payload: [...SUBJECT, "name"],
+  },
+  "drive.connection_removed": {
+    subject: "drive-connections",
+    payload: [...SUBJECT],
+  },
 };
 
 export const FILE_EVENTS: BlockSqlEvents<DriveEvents> = {
@@ -80,6 +108,9 @@ export const NAMES: BlockSqlNames = {
     "memberRole",
     "subjectType",
     "conflict",
+    "drives",
+    "driveKinds",
+    "sources",
     "extraColumns",
   ],
   tables: {
@@ -90,6 +121,7 @@ export const NAMES: BlockSqlNames = {
       columns: {
         id: "id",
         tenant: "tenant_id",
+        drive: "drive_id",
         parent: "parent_id",
         kind: "kind",
         name: "name",
@@ -97,15 +129,24 @@ export const NAMES: BlockSqlNames = {
         path: "path",
         rank: "rank",
         deletedAt: "deleted_at",
+        source: "source",
+        externalId: "external_id",
+        externalMetadata: "external_metadata",
+        legalHoldUntil: "legal_hold_until",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
       optional: [
+        "drive",
         "attachment",
         "path",
         "rank",
         "deletedAt",
+        "source",
+        "externalId",
+        "externalMetadata",
+        "legalHoldUntil",
         "createdBy",
         "updatedAt",
       ],
@@ -139,6 +180,71 @@ export const NAMES: BlockSqlNames = {
         "team",
         "expiresAt",
         "createdBy",
+      ],
+    },
+    drives: {
+      name: "drive_drives",
+      app: {},
+      optionalTable: true,
+      lifecycle: { tenant: "tenant", user: "owner", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        name: "name",
+        kind: "kind",
+        owner: "owner_id",
+        connection: "connection_id",
+        createdBy: "created_by",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+      optional: ["kind", "owner", "connection", "createdBy", "updatedAt"],
+    },
+    driveGrants: {
+      name: "drive_drive_grants",
+      app: {},
+      optionalTable: true,
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        drive: "drive_id",
+        principalType: "principal_type",
+        principalId: "principal_id",
+        role: "role",
+        expiresAt: "expires_at",
+        createdBy: "created_by",
+        createdAt: "created_at",
+      },
+      optional: ["expiresAt", "createdBy"],
+    },
+    connections: {
+      name: "drive_connections",
+      app: {},
+      optionalTable: true,
+      lifecycle: { tenant: "tenant", user: "user", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        user: "user_id",
+        provider: "provider",
+        name: "name",
+        status: "status",
+        syncCursor: "sync_cursor",
+        syncClaimedAt: "sync_claimed_at",
+        lastSyncedAt: "last_synced_at",
+        lastSyncError: "last_sync_error",
+        createdBy: "created_by",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+      optional: [
+        "syncCursor",
+        "syncClaimedAt",
+        "lastSyncedAt",
+        "lastSyncError",
+        "createdBy",
+        "updatedAt",
       ],
     },
   },
@@ -314,6 +420,30 @@ export interface DriveKit {
   readonly typed: boolean;
   readonly teamColumn: boolean;
   readonly expiring: boolean;
+  readonly drives: boolean;
+  readonly driveKinds: readonly string[];
+  readonly driveKindsArray: string;
+  readonly sources: readonly string[];
+  readonly sourcesArray: string;
+  readonly D: string | undefined;
+  readonly DG: string | undefined;
+  readonly C: string | undefined;
+  readonly d: (value: string) => string;
+  readonly dg: (value: string) => string;
+  readonly c: (value: string) => string;
+  readonly driveColumn: boolean;
+  readonly sourceColumn: boolean;
+  readonly externalColumn: boolean;
+  readonly metadataColumn: boolean;
+  readonly holdColumn: boolean;
+  readonly readOnly: (alias: string) => string;
+  readonly held: (alias: string) => string;
+  readonly driveHeld: (alias: string) => string;
+  readonly driveJson: (drive: string) => string;
+  readonly connectionJson: (connection: string) => string;
+  readonly withDriveRole: (drive: string) => string;
+  readonly driveAudit: (row: string, summary: string) => BlockSqlAudit;
+  readonly connectionAudit: (row: string, summary: string) => BlockSqlAudit;
   readonly attachments: BlockSqlContext | undefined;
   readonly A: string | undefined;
   readonly a: (value: string) => string;
@@ -341,6 +471,18 @@ export interface DriveKit {
     extra: string,
     audit: BlockSqlAudit | false,
   ) => string;
+  readonly recordDrive: (
+    event: string,
+    row: string,
+    extra: string,
+    audit: BlockSqlAudit | false,
+  ) => string;
+  readonly recordConnection: (
+    event: string,
+    row: string,
+    extra: string,
+    audit: BlockSqlAudit | false,
+  ) => string;
   readonly dataAudit: (row: string, summary: string) => BlockSqlAudit;
   readonly accessAudit: (row: string, summary: string) => BlockSqlAudit;
   readonly principalMatch: (
@@ -349,6 +491,8 @@ export interface DriveKit {
     tenantId: string,
   ) => string;
   readonly grantLive: (value: string) => string;
+  readonly driveExpiring: boolean;
+  readonly driveGrantLive: (value: string) => string;
   readonly principalType: (value: string) => string;
   readonly principalId: (value: string) => string;
   readonly fileJson: string;
@@ -364,6 +508,7 @@ export interface DriveKit {
     alias: string,
     tenantId: string,
     parent: string,
+    drive?: string,
   ) => string;
 }
 
@@ -408,6 +553,106 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
 
   const teamColumn = !typed && ctx.has("grants", "team");
   const expiring = ctx.has("grants", "expiresAt");
+
+  const drives = ctx.flag("drives", false);
+  const driveColumn = has("drive");
+  const sourceColumn = has("source");
+  const externalColumn = has("externalId");
+  const metadataColumn = has("externalMetadata");
+  const holdColumn = has("legalHoldUntil");
+
+  if (drives && !driveColumn) {
+    throw new TypeError(
+      "blocks.drive.options.drives needs blocks.drive.columns.nodes.drive",
+    );
+  }
+
+  if (externalColumn && !sourceColumn) {
+    throw new TypeError(
+      "blocks.drive.columns.nodes.externalId needs blocks.drive.columns.nodes.source",
+    );
+  }
+
+  if (
+    drives &&
+    (!ctx.hasTable("drives") ||
+      !ctx.hasTable("driveGrants") ||
+      !ctx.hasTable("connections") ||
+      !ctx.has("drives", "kind") ||
+      !ctx.has("drives", "owner") ||
+      !ctx.has("drives", "connection"))
+  ) {
+    throw new TypeError(
+      "blocks.drive.options.drives needs the drives, driveGrants and connections tables with kind, owner and connection columns",
+    );
+  }
+
+  const driveKinds = ctx.list("driveKinds", ["shared"]);
+  const sources = ctx.list("sources", ["google-drive", "onedrive"]);
+
+  if (
+    driveKinds.length === 0 ||
+    new Set(driveKinds).size !== driveKinds.length ||
+    !driveKinds.every((kind) => ROLE.test(kind))
+  ) {
+    throw new TypeError(
+      "blocks.drive.options.driveKinds must list distinct lowercase names",
+    );
+  }
+
+  if (
+    sources.length === 0 ||
+    new Set(sources).size !== sources.length ||
+    !sources.every((source) => SOURCE.test(source)) ||
+    sources.includes("internal")
+  ) {
+    throw new TypeError(
+      "blocks.drive.options.sources must list distinct lowercase names other than internal",
+    );
+  }
+
+  const D = drives ? ctx.table("drives") : undefined;
+  const DG = drives ? ctx.table("driveGrants") : undefined;
+  const C = drives ? ctx.table("connections") : undefined;
+
+  const d = (column: string): string => ctx.col("drives", column);
+  const dg = (column: string): string => ctx.col("driveGrants", column);
+  const c = (column: string): string => ctx.col("connections", column);
+
+  const driveKindsArray = `array[${driveKinds.map(sqlString).join(", ")}]::text[]`;
+  const sourcesArray = `array[${["internal", ...sources].map(sqlString).join(", ")}]::text[]`;
+
+  const readOnly = (alias: string): string => {
+    const external = sourceColumn
+      ? `coalesce(${alias}.${n("source")}, 'internal') <> 'internal'`
+      : "false";
+
+    const connected =
+      D === undefined
+        ? "false"
+        : `exists (select 1 from ${D} d where d.${d("id")} = ${alias}.${n("drive")} and d.${d("connection")} is not null)`;
+
+    return `(${external} or ${connected})`;
+  };
+
+  const held = (alias: string): string =>
+    holdColumn
+      ? `${alias}.${n("legalHoldUntil")} is not null and ${alias}.${n("legalHoldUntil")} > now()`
+      : "false";
+
+  const driveHeld = (alias: string): string =>
+    drives && holdColumn
+      ? `exists (select 1 from ${T} h where h.${n("drive")} = ${alias}.${d("id")} and h.${n("legalHoldUntil")} is not null and h.${n("legalHoldUntil")} > now())`
+      : "false";
+
+  const driveJson = (drive: string): string =>
+    `jsonb_build_object('id', ${drive}.${d("id")}, 'organizationId', ${drive}.${d("tenant")}, 'name', ${drive}.${d("name")}, 'kind', ${drive}.${d("kind")}, 'ownerId', ${drive}.${d("owner")}, 'connectionId', ${drive}.${d("connection")}, 'createdBy', ${drive}.${d("createdBy")}, 'createdAt', ${drive}.${d("createdAt")}, 'updatedAt', ${drive}.${d("updatedAt")})`;
+
+  const connectionJson = (connection: string): string =>
+    `jsonb_build_object('id', ${connection}.${c("id")}, 'organizationId', ${connection}.${c("tenant")}, 'userId', ${connection}.${c("user")}, 'provider', ${connection}.${c("provider")}, 'name', ${connection}.${c("name")}, 'status', ${connection}.${c("status")}, 'syncCursor', ${connection}.${c("syncCursor")}, 'lastSyncedAt', ${connection}.${c("lastSyncedAt")}, 'lastSyncError', ${connection}.${c("lastSyncError")}, 'createdAt', ${connection}.${c("createdAt")}, 'updatedAt', ${connection}.${c("updatedAt")})`;
+
+  const withDriveRole = (drive: string): string =>
+    `(${driveJson(drive)} || jsonb_build_object('role', ${fn("drive_drive_role")}((${drive}).${d("id")}), 'readOnly', (${drive}).${d("connection")} is not null))`;
 
   const attachments = has("attachment")
     ? usable(ctx, "attachments")
@@ -480,6 +725,34 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
       audit,
     });
 
+  const recordDrive = (
+    event: string,
+    row: string,
+    extra: string,
+    audit: BlockSqlAudit | false,
+  ): string =>
+    own.record({
+      type: event,
+      payload: `jsonb_build_object('organizationId', ${row}.${d("tenant")}::text, 'subjectType', 'drive', 'subjectId', ${row}.${d("id")}::text${extra})`,
+      subject: `${sqlString("drives/")} || ${row}.${d("id")}::text`,
+      tenant: `${row}.${d("tenant")}`,
+      audit,
+    });
+
+  const recordConnection = (
+    event: string,
+    row: string,
+    extra: string,
+    audit: BlockSqlAudit | false,
+  ): string =>
+    own.record({
+      type: event,
+      payload: `jsonb_build_object('organizationId', ${row}.${c("tenant")}::text, 'subjectType', 'drive_connection', 'subjectId', ${row}.${c("id")}::text${extra})`,
+      subject: `${sqlString("drive-connections/")} || ${row}.${c("id")}::text`,
+      tenant: `${row}.${c("tenant")}`,
+      audit,
+    });
+
   const dataAudit = (row: string, summary: string): BlockSqlAudit => ({
     category: "data",
     targetType: type,
@@ -493,6 +766,22 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
     targetType: type,
     recordId: `${row}.${n("id")}::text`,
     targetLabel: `${row}.${n("name")}`,
+    summary: sqlString(summary),
+  });
+
+  const driveAudit = (row: string, summary: string): BlockSqlAudit => ({
+    category: "data",
+    targetType: "drive",
+    recordId: `${row}.${d("id")}::text`,
+    targetLabel: `${row}.${d("name")}`,
+    summary: sqlString(summary),
+  });
+
+  const connectionAudit = (row: string, summary: string): BlockSqlAudit => ({
+    category: "data",
+    targetType: "drive_connection",
+    recordId: `${row}.${c("id")}::text`,
+    targetLabel: `${row}.${c("name")}`,
     summary: sqlString(summary),
   });
 
@@ -520,6 +809,13 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
       ? ` and (${grant}.${g("expiresAt")} is null or ${grant}.${g("expiresAt")} > now())`
       : "";
 
+  const driveExpiring = drives && ctx.has("driveGrants", "expiresAt");
+
+  const driveGrantLive = (grant: string): string =>
+    driveExpiring
+      ? ` and (${grant}.${dg("expiresAt")} is null or ${grant}.${dg("expiresAt")} > now())`
+      : "";
+
   const principalType = (grant: string): string =>
     typed
       ? `${grant}.${g("principalType")}`
@@ -540,7 +836,7 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
       : `, 'attachmentId', ($1).${n("attachment")}, 'file', (select jsonb_build_object('mimeType', fa.${a("mimeType")}, 'size', fa.${a("size")}, 'status', fa.${a("status")}, 'uploadedAt', fa.${a("uploadedAt")}) from ${A} fa where fa.${a("id")} = ($1).${n("attachment")})`;
 
   const nodeJson = (file: string): string =>
-    `jsonb_build_object('id', ($1).${n("id")}, 'organizationId', ($1).${n("tenant")}, 'parentId', ($1).${n("parent")}, 'kind', ($1).${n("kind")}, 'name', ($1).${n("name")}, 'rank', ${ranked ? `($1).${n("rank")}` : "null"}, 'createdBy', ${has("createdBy") ? `($1).${n("createdBy")}` : "null"}, 'createdAt', ($1).${n("createdAt")}, 'updatedAt', ${has("updatedAt") ? `($1).${n("updatedAt")}` : "null"}, 'deletedAt', ${binColumn ? `($1).${n("deletedAt")}` : "null"}${file}${
+    `jsonb_build_object('id', ($1).${n("id")}, 'organizationId', ($1).${n("tenant")}, 'driveId', ${drives ? `($1).${n("drive")}` : "null"}, 'parentId', ($1).${n("parent")}, 'kind', ($1).${n("kind")}, 'name', ($1).${n("name")}, 'rank', ${ranked ? `($1).${n("rank")}` : "null"}, 'source', ${sourceColumn ? `($1).${n("source")}` : "null"}, 'externalId', ${externalColumn ? `($1).${n("externalId")}` : "null"}, 'externalMetadata', ${metadataColumn ? `($1).${n("externalMetadata")}` : "null"}, 'legalHoldUntil', ${holdColumn ? `($1).${n("legalHoldUntil")}` : "null"}, 'createdBy', ${has("createdBy") ? `($1).${n("createdBy")}` : "null"}, 'createdAt', ($1).${n("createdAt")}, 'updatedAt', ${has("updatedAt") ? `($1).${n("updatedAt")}` : "null"}, 'deletedAt', ${binColumn ? `($1).${n("deletedAt")}` : "null"}${file}${
       extras.length === 0
         ? ""
         : `, 'fields', ${columnsObject(
@@ -552,7 +848,7 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
   const json = (row: string): string => `${fn("drive_node_json")}(${row})`;
 
   const withRole = (row: string): string =>
-    `(${json(row)} || jsonb_build_object('role', ${fn("drive_role")}((${row}).${n("id")})))`;
+    `(${json(row)} || jsonb_build_object('role', ${fn("drive_role")}((${row}).${n("id")}), 'readOnly', ${readOnly(`(${row})`)}, 'held', ${fn("drive_node_held")}((${row}).${n("id")})))`;
 
   const orderBy = (alias: string): string =>
     `(${alias}.${n("kind")} = 'folder') desc${ranked ? `, ${alias}.${n("rank")}` : ""}, lower(${alias}.${n("name")}), ${alias}.${n("id")}`;
@@ -561,20 +857,26 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
 
   const insertColumns = [
     n("tenant"),
+    ...(drives ? [n("drive")] : []),
     n("parent"),
     n("kind"),
     n("name"),
     ...(ranked ? [n("rank")] : []),
+    ...(sourceColumn ? [n("source")] : []),
     ...(has("createdBy") ? [n("createdBy")] : []),
     ...extras.map((column) => column.ident),
   ];
 
   const insertValues = [
     "drive_insert_node.tenant",
+    ...(drives
+      ? [`coalesce(drive_insert_node.drive, v_parent.${n("drive")})`]
+      : []),
     "drive_insert_node.parent",
     "drive_insert_node.kind",
     "v_name",
     ...(ranked ? [rankAfter("v_last")] : []),
+    ...(sourceColumn ? ["'internal'"] : []),
     ...(has("createdBy") ? ["auth.uid()"] : []),
     ...extras.map(
       (column) =>
@@ -591,8 +893,18 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
     insert into ${G} (${g("tenant")}, ${g("node")}, ${g("user")}, ${g("role")})
     values (${node}.${n("tenant")}, ${node}.${n("id")}, ${uid}, ${role});`;
 
-  const siblings = (alias: string, tenantId: string, parent: string): string =>
-    `${alias}.${n("tenant")} = ${tenantId} and ${alias}.${n("parent")} is not distinct from ${parent}${live(alias)}`;
+  const siblings = (
+    alias: string,
+    tenantId: string,
+    parent: string,
+    drive?: string,
+  ): string => {
+    if (drives && drive === undefined) {
+      throw new Error("a drive-wide name check needs the drive");
+    }
+
+    return `${alias}.${n("tenant")} = ${tenantId} and ${alias}.${n("parent")} is not distinct from ${parent}${drives ? ` and ${alias}.${n("drive")} = ${drive}` : ""}${live(alias)}`;
+  };
 
   return {
     ctx,
@@ -617,6 +929,30 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
     typed,
     teamColumn,
     expiring,
+    drives,
+    driveKinds,
+    driveKindsArray,
+    sources,
+    sourcesArray,
+    D,
+    DG,
+    C,
+    d,
+    dg,
+    c,
+    driveColumn,
+    sourceColumn,
+    externalColumn,
+    metadataColumn,
+    holdColumn,
+    readOnly,
+    held,
+    driveHeld,
+    driveJson,
+    connectionJson,
+    withDriveRole,
+    driveAudit,
+    connectionAudit,
     attachments,
     A,
     a,
@@ -639,10 +975,14 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
     notFound,
     forbidden,
     record,
+    recordDrive,
+    recordConnection,
     dataAudit,
     accessAudit,
     principalMatch,
     grantLive,
+    driveExpiring,
+    driveGrantLive,
     principalType,
     principalId,
     fileJson,

@@ -29,6 +29,8 @@ export function driveFilesSql(kit: DriveKit): string {
     g,
     fn,
     read,
+    drives,
+    readOnly,
     typeLit,
     attachments,
     A,
@@ -126,7 +128,7 @@ export function driveFilesSql(kit: DriveKit): string {
 -- A new file and its pending attachment: upload to the attachment's
 -- object_path, then call drive_commit. With conflict 'replace', a file of
 -- the same name gets the upload as a new revision instead.
-create or replace function ${fn("drive_create_file")}(tenant ${ctx.idType}, parent uuid, name text, mime_type text, size bigint, conflict text default null, fields jsonb default null)
+create or replace function ${fn("drive_create_file")}(tenant ${ctx.idType}, parent uuid, name text, mime_type text, size bigint, conflict text default null, fields jsonb default null, drive uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -136,14 +138,22 @@ as $$
 declare
   v_name text := ${fn("drive_clean_name")}(drive_create_file.name);
   v_conflict text := ${fn("drive_conflict")}(drive_create_file.conflict);
+  v_drive uuid := drive_create_file.drive;
   v_node ${T}%rowtype;
 begin
   ${READ_ONLY_GUARD}
-  perform ${fn("drive_check_parent")}(drive_create_file.tenant, drive_create_file.parent);
+  perform ${fn("drive_check_parent")}(drive_create_file.tenant, drive_create_file.parent, drive_create_file.drive);${
+    drives
+      ? `
+  if drive_create_file.parent is not null then
+    select x.${n("drive")} into v_drive from ${T} x where x.${n("id")} = drive_create_file.parent;
+  end if;`
+      : ""
+  }
   if v_conflict = 'replace' then
-    perform ${fn("drive_lock_siblings")}(drive_create_file.tenant, drive_create_file.parent);
+    perform ${fn("drive_lock_siblings")}(drive_create_file.tenant, v_drive, drive_create_file.parent);
     select * into v_node from ${T} x
-    where ${siblings("x", "drive_create_file.tenant", "drive_create_file.parent")} and lower(x.${n("name")}) = lower(v_name);
+    where ${siblings("x", "drive_create_file.tenant", "drive_create_file.parent", "v_drive")} and lower(x.${n("name")}) = lower(v_name);
     if found then
       if v_node.${n("kind")} <> 'file' then
         ${fail("DRIVE_NAME_CONFLICT", "a folder already has this name", "23505")}
@@ -151,12 +161,12 @@ begin
       return ${fn("drive_upload_revision")}(v_node.${n("id")}, drive_create_file.mime_type, drive_create_file.size);
     end if;
   end if;
-  v_node := ${fn("drive_insert_node")}(drive_create_file.tenant, drive_create_file.parent, 'file', v_name, v_conflict, drive_create_file.fields);
+  v_node := ${fn("drive_insert_node")}(drive_create_file.tenant, v_drive, drive_create_file.parent, 'file', v_name, v_conflict, drive_create_file.fields);
   return jsonb_build_object('node', ${json("v_node")}, 'attachment',
     ${attachments.fn("create_attachment")}(v_node.${n("tenant")}, v_node.${n("name")}, drive_create_file.mime_type, drive_create_file.size, ${typeLit}, v_node.${n("id")}::text));
 end;
 $$;
-${userGrant(`${fn("drive_create_file")}(${ctx.idType}, uuid, text, text, bigint, text, jsonb)`)}
+${userGrant(`${fn("drive_create_file")}(${ctx.idType}, uuid, text, text, bigint, text, jsonb, uuid)`)}
 
 -- A pending attachment for a new revision of a file.
 create or replace function ${fn("drive_upload_revision")}(node uuid, mime_type text, size bigint)
@@ -176,6 +186,9 @@ begin
   end if;
   if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("change this file")}
+  end if;
+  if ${readOnly("v_node")} then
+    ${fail("DRIVE_READ_ONLY", "this item mirrors an external account and is read-only", "42501")}
   end if;
   if v_node.${n("kind")} <> 'file' then
     ${fail("DRIVE_NOT_A_FILE", "a folder has no content", "22023")}
@@ -204,6 +217,9 @@ begin
   end if;
   if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("change this file")}
+  end if;
+  if ${readOnly("v_node")} then
+    ${fail("DRIVE_READ_ONLY", "this item mirrors an external account and is read-only", "42501")}
   end if;
   if not exists (
     select 1 from ${A} f where f.${a("id")} = drive_commit.attachment
@@ -245,7 +261,7 @@ as $$
       when f.${a("subjectType")} is distinct from ${typeLit} then true
       when f.${a("subjectId")} !~ ${UUID_TEXT} then false
       when drive_object_allowed.action = 'select' then ${canRead(`f.${a("subjectId")}::uuid`)}
-      else ${canWrite(`f.${a("subjectId")}::uuid`)}
+      else ${fn("drive_node_writable")}(f.${a("subjectId")}::uuid)
     end
     from ${A} f
     where f.${a("bucket")} = drive_object_allowed.bucket and f.${a("path")} = drive_object_allowed.path
@@ -263,7 +279,7 @@ as $$
   select case
     when drive_attachment_allowed.subject_type is distinct from ${typeLit} then true
     when drive_attachment_allowed.subject_id !~ ${UUID_TEXT} then false
-    when drive_attachment_allowed.write then ${canWrite("drive_attachment_allowed.subject_id::uuid")}
+    when drive_attachment_allowed.write then ${fn("drive_node_writable")}(drive_attachment_allowed.subject_id::uuid)
     else ${canRead("drive_attachment_allowed.subject_id::uuid")}
   end
 $$;
@@ -367,6 +383,9 @@ begin
   if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("change this file")}
   end if;
+  if ${readOnly("v_node")} then
+    ${fail("DRIVE_READ_ONLY", "this item mirrors an external account and is read-only", "42501")}
+  end if;
   select r.${v("content")} into v_content from ${versions.table("versions")} r
   where r.${v("id")} = drive_restore_revision.version
     and r.${v("subjectType")} = ${typeLit} and r.${v("subjectId")} = v_node.${n("id")}::text;
@@ -414,6 +433,12 @@ begin
   if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("move this item to the bin")}
   end if;
+  if ${readOnly("v_node")} then
+    ${fail("DRIVE_READ_ONLY", "this item mirrors an external account and is read-only", "42501")}
+  end if;
+  if ${fn("drive_node_held")}(v_node.${n("id")}) then
+    ${fail("DRIVE_HELD", "this item is under a legal hold", "42501")}
+  end if;
   for v_child in
     select s.node_id, s.depth from ${fn("drive_subtree")}(v_node.${n("id")}) s
     join ${T} x on x.${n("id")} = s.node_id
@@ -457,12 +482,15 @@ begin
   if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("restore this item")}
   end if;
+  if ${readOnly("v_node")} then
+    ${fail("DRIVE_READ_ONLY", "this item mirrors an external account and is read-only", "42501")}
+  end if;
   if v_node.${n("parent")} is not null and exists (
     select 1 from ${T} p where p.${n("id")} = v_node.${n("parent")} and p.${n("deletedAt")} is not null
   ) then
     ${fail("DRIVE_PARENT_TRASHED", "restore the folder this item was in first", "22023")}
   end if;
-  v_name := ${fn("drive_free_name")}(v_node.${n("tenant")}, v_node.${n("parent")}, v_node.${n("name")}, v_node.${n("id")}, ${fn("drive_conflict")}(drive_restore.conflict));
+  v_name := ${fn("drive_free_name")}(v_node.${n("tenant")}, ${drives ? `v_node.${n("drive")}` : "null"}, v_node.${n("parent")}, v_node.${n("name")}, v_node.${n("id")}, ${fn("drive_conflict")}(drive_restore.conflict));
   if v_name <> v_node.${n("name")} then
     update ${T} x set ${n("name")} = v_name where x.${n("id")} = v_node.${n("id")};
   end if;

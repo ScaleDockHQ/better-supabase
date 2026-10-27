@@ -38,7 +38,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@1 managed
--- @bsb-hash sha256:e670833afa61c3aeed45fe7d5c4b7d076d9248b0131b3024a113b1f70c79d4d7
+-- @bsb-hash sha256:22e871fcc2fc72aa3ff4465844b99978671758ffcd8557137baa648b6d45b6eb
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -90,7 +90,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', ($1)."id", 'organizationId', ($1)."tenant_id", 'parentId', ($1)."parent_id", 'kind', ($1)."kind", 'name', ($1)."name", 'rank', ($1)."rank", 'createdBy', ($1)."created_by", 'createdAt', ($1)."created_at", 'updatedAt', ($1)."updated_at", 'deletedAt', ($1)."deleted_at", 'attachmentId', ($1)."attachment_id", 'file', (select jsonb_build_object('mimeType', fa."mime_type", 'size', fa."size", 'status', fa."status", 'uploadedAt', fa."uploaded_at") from "better_supabase"."attachments" fa where fa."id" = ($1)."attachment_id"), 'labels', (select coalesce(jsonb_agg(jsonb_build_object('id', lt."id", 'name', lt."name", 'color', lt."color") order by lt."rank" collate "C", lt."name", lt."id"), '[]'::jsonb)
+  select jsonb_build_object('id', ($1)."id", 'organizationId', ($1)."tenant_id", 'driveId', null, 'parentId', ($1)."parent_id", 'kind', ($1)."kind", 'name', ($1)."name", 'rank', ($1)."rank", 'source', ($1)."source", 'externalId', ($1)."external_id", 'externalMetadata', ($1)."external_metadata", 'legalHoldUntil', ($1)."legal_hold_until", 'createdBy', ($1)."created_by", 'createdAt', ($1)."created_at", 'updatedAt', ($1)."updated_at", 'deletedAt', ($1)."deleted_at", 'attachmentId', ($1)."attachment_id", 'file', (select jsonb_build_object('mimeType', fa."mime_type", 'size', fa."size", 'status', fa."status", 'uploadedAt', fa."uploaded_at") from "better_supabase"."attachments" fa where fa."id" = ($1)."attachment_id"), 'labels', (select coalesce(jsonb_agg(jsonb_build_object('id', lt."id", 'name', lt."name", 'color', lt."color") order by lt."rank" collate "C", lt."name", lt."id"), '[]'::jsonb)
       from "better_supabase"."taggings" lg join "better_supabase"."tags" lt on lt."id" = lg."tag_id"
       where lg."subject_type" = 'drive_node' and lg."subject_id" = ($1)."id"::text), 'approval', (select jsonb_build_object('id', lr."id", 'status', lr."status", 'createdAt', lr."created_at", 'decidedAt', lr."decided_at")
       from "better_supabase"."approval_requests" lr
@@ -154,7 +154,7 @@ create trigger "bsb_drive_node_purged"
 -- A new file and its pending attachment: upload to the attachment's
 -- object_path, then call drive_commit. With conflict 'replace', a file of
 -- the same name gets the upload as a new revision instead.
-create or replace function "better_supabase"."drive_create_file"(tenant uuid, parent uuid, name text, mime_type text, size bigint, conflict text default null, fields jsonb default null)
+create or replace function "better_supabase"."drive_create_file"(tenant uuid, parent uuid, name text, mime_type text, size bigint, conflict text default null, fields jsonb default null, drive uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -164,12 +164,13 @@ as $$
 declare
   v_name text := "better_supabase"."drive_clean_name"(drive_create_file.name);
   v_conflict text := "better_supabase"."drive_conflict"(drive_create_file.conflict);
+  v_drive uuid := drive_create_file.drive;
   v_node "better_supabase"."drive_nodes"%rowtype;
 begin
   perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
-  perform "better_supabase"."drive_check_parent"(drive_create_file.tenant, drive_create_file.parent);
+  perform "better_supabase"."drive_check_parent"(drive_create_file.tenant, drive_create_file.parent, drive_create_file.drive);
   if v_conflict = 'replace' then
-    perform "better_supabase"."drive_lock_siblings"(drive_create_file.tenant, drive_create_file.parent);
+    perform "better_supabase"."drive_lock_siblings"(drive_create_file.tenant, v_drive, drive_create_file.parent);
     select * into v_node from "better_supabase"."drive_nodes" x
     where x."tenant_id" = drive_create_file.tenant and x."parent_id" is not distinct from drive_create_file.parent and x."deleted_at" is null and lower(x."name") = lower(v_name);
     if found then
@@ -179,13 +180,13 @@ begin
       return "better_supabase"."drive_upload_revision"(v_node."id", drive_create_file.mime_type, drive_create_file.size);
     end if;
   end if;
-  v_node := "better_supabase"."drive_insert_node"(drive_create_file.tenant, drive_create_file.parent, 'file', v_name, v_conflict, drive_create_file.fields);
+  v_node := "better_supabase"."drive_insert_node"(drive_create_file.tenant, v_drive, drive_create_file.parent, 'file', v_name, v_conflict, drive_create_file.fields);
   return jsonb_build_object('node', "better_supabase"."drive_node_json"(v_node), 'attachment',
     "better_supabase"."create_attachment"(v_node."tenant_id", v_node."name", drive_create_file.mime_type, drive_create_file.size, 'drive_node', v_node."id"::text));
 end;
 $$;
-revoke execute on function "better_supabase"."drive_create_file"(uuid, uuid, text, text, bigint, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."drive_create_file"(uuid, uuid, text, text, bigint, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."drive_create_file"(uuid, uuid, text, text, bigint, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."drive_create_file"(uuid, uuid, text, text, bigint, text, jsonb, uuid) to authenticated, service_role;
 
 -- A pending attachment for a new revision of a file.
 create or replace function "better_supabase"."drive_upload_revision"(node uuid, mime_type text, size bigint)
@@ -205,6 +206,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'editor')) then
     raise exception 'not allowed to change this file' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if (coalesce(v_node."source", 'internal') <> 'internal' or false) then
+    raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
   end if;
   if v_node."kind" <> 'file' then
     raise exception 'a folder has no content' using errcode = '22023', hint = 'DRIVE_NOT_A_FILE';
@@ -238,6 +242,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'editor')) then
     raise exception 'not allowed to change this file' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
+  if (coalesce(v_node."source", 'internal') <> 'internal' or false) then
+    raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
+  end if;
   if not exists (
     select 1 from "better_supabase"."attachments" f where f."id" = drive_commit.attachment
       and f."subject_type" = 'drive_node' and f."subject_id" = v_node."id"::text
@@ -254,7 +261,7 @@ begin
       jsonb_build_object('attachmentId', v_file."id", 'name', v_file."name", 'mimeType', v_file."mime_type", 'size', v_file."size"),
       v_file."bucket" || '/' || v_file."object_path", null, 'manual', false, auth.uid());
   end if;
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
 end;
 $$;
 revoke execute on function "better_supabase"."drive_commit"(uuid, uuid) from public, anon;
@@ -275,7 +282,7 @@ as $$
       when f."subject_type" is distinct from 'drive_node' then true
       when f."subject_id" !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then false
       when drive_object_allowed.action = 'select' then "better_supabase"."drive_can"(f."subject_id"::uuid, 'viewer')
-      else "better_supabase"."drive_can"(f."subject_id"::uuid, 'editor')
+      else "better_supabase"."drive_node_writable"(f."subject_id"::uuid)
     end
     from "better_supabase"."attachments" f
     where f."bucket" = drive_object_allowed.bucket and f."object_path" = drive_object_allowed.path
@@ -294,7 +301,7 @@ as $$
   select case
     when drive_attachment_allowed.subject_type is distinct from 'drive_node' then true
     when drive_attachment_allowed.subject_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then false
-    when drive_attachment_allowed.write then "better_supabase"."drive_can"(drive_attachment_allowed.subject_id::uuid, 'editor')
+    when drive_attachment_allowed.write then "better_supabase"."drive_node_writable"(drive_attachment_allowed.subject_id::uuid)
     else "better_supabase"."drive_can"(drive_attachment_allowed.subject_id::uuid, 'viewer')
   end
 $$;
@@ -416,6 +423,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'editor')) then
     raise exception 'not allowed to change this file' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
+  if (coalesce(v_node."source", 'internal') <> 'internal' or false) then
+    raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
+  end if;
   select r."content" into v_content from "better_supabase"."versions" r
   where r."id" = drive_restore_revision.version
     and r."subject_type" = 'drive_node' and r."subject_id" = v_node."id"::text;
@@ -431,7 +441,7 @@ begin
   returning * into v_node;
   perform "better_supabase"."version_insert"(v_node."tenant_id", 'drive_node', v_node."id"::text,
     v_content, v_file."bucket" || '/' || v_file."object_path", null, 'restore', false, auth.uid());
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
 end;
 $$;
 revoke execute on function "better_supabase"."drive_restore_revision"(uuid, uuid) from public, anon;
@@ -482,7 +492,7 @@ begin
   values ('drive_node', v_node."id"::text, auth.uid(), now())
   on conflict ("subject_type", "subject_id", "user_id")
   do update set "last_opened_at" = now();
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
 end;
 $$;
 revoke execute on function "better_supabase"."drive_open"(uuid) from public, anon;
@@ -497,7 +507,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(t.node order by t.marked_at desc), '[]'::jsonb) from (
-    select ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"))) || jsonb_build_object('starredAt', s."starred_at", 'openedAt', s."last_opened_at") as node,
+    select ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"), 'readOnly', (coalesce((x)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((x)."id"))) || jsonb_build_object('starredAt', s."starred_at", 'openedAt', s."last_opened_at") as node,
       case when drive_marked.recent then s."last_opened_at" else s."starred_at" end as marked_at
     from "better_supabase"."subject_user_state" s
     join "better_supabase"."drive_nodes" x on x."id"::text = s."subject_id"
@@ -587,7 +597,7 @@ begin
   else
     perform "better_supabase"."untag"(v_node."tenant_id", 'drive_node', v_node."id"::text, drive_label.tag);
   end if;
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
 end;
 $$;
 revoke execute on function "better_supabase"."drive_label"(uuid, uuid, boolean) from public, anon;
@@ -602,7 +612,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(t.node order by t.ord), '[]'::jsonb) from (
-    select ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"))) as node, row_number() over (order by (x."kind" = 'folder') desc, x."rank", lower(x."name"), x."id") as ord
+    select ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"), 'readOnly', (coalesce((x)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((x)."id"))) as node, row_number() over (order by (x."kind" = 'folder') desc, x."rank", lower(x."name"), x."id") as ord
     from "better_supabase"."drive_nodes" x
     where x."tenant_id" = drive_labeled.tenant and x."deleted_at" is null
       and exists (select 1 from "better_supabase"."taggings" lg where lg."subject_type" = 'drive_node' and lg."subject_id" = x."id"::text and lg."tag_id" = drive_labeled.tag)

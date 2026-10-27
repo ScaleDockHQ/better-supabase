@@ -1425,6 +1425,9 @@
             "type": "string",
             "description": "The soft-delete column."
           },
+          "held": {
+            "type": "string"
+          },
           "search": {
             "type": "object",
             "properties": {
@@ -4494,6 +4497,24 @@
               "conflict": {
                 "type": "string",
                 "default": "fail"
+              },
+              "drives": {
+                "type": "boolean",
+                "default": false
+              },
+              "driveKinds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["shared"]
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["google-drive", "onedrive"]
               },
               "extraColumns": {
                 "type": "object",

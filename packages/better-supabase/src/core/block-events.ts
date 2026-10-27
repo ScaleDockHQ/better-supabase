@@ -573,6 +573,8 @@ export interface DriveEventData extends SubjectEventData {
   readonly principalId?: string;
   /** For `drive.node_shared`. */
   readonly role?: string;
+  /** For `drive.node_hold_placed`: when the legal hold ends. */
+  readonly legalHoldUntil?: string;
   /**
    * For `drive.node_purged`: the stored objects to delete, as `{ bucket, path
    * }`.

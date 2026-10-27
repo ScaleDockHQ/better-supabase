@@ -94,6 +94,8 @@ function fromRegistry(
       extraKeys.includes("deletedAt") && { deletedAt: entry.deletedAt }),
     ...(entry.title !== undefined &&
       extraKeys.includes("title") && { title: entry.title }),
+    ...(entry.held !== undefined &&
+      extraKeys.includes("held") && { held: entry.held }),
     ...(entry.versions !== undefined &&
       extraKeys.includes("versions") && { versions: entry.versions }),
   };

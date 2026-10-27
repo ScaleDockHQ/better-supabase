@@ -248,6 +248,9 @@ may be your own enum or domain.
 - `drive`
   - `better_supabase.drive_nodes`: `id`, `tenant_id`, `parent_id`, `kind`, `name`, `created_at`
   - `better_supabase.drive_grants`: `id`, `tenant_id`, `node_id`, `role`, `created_at`
+  - `better_supabase.drive_drives`: `id`, `tenant_id`, `name`, `created_at`
+  - `better_supabase.drive_drive_grants`: `id`, `tenant_id`, `drive_id`, `principal_type`, `principal_id`, `role`, `created_at`
+  - `better_supabase.drive_connections`: `id`, `tenant_id`, `user_id`, `provider`, `name`, `status`, `created_at`
 - `employees`
   - `better_supabase.employees`: `id`, `tenant_id`, `user_id`, `manager_id`, `status`; typed: `status`; typed with values: `employment_type`
   - `better_supabase.employee_private_details`: `employee_id`, `tenant_id`

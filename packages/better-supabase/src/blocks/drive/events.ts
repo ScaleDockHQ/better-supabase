@@ -11,6 +11,15 @@ export type DriveEvents = {
   readonly "drive.node_shared": DriveEventData;
   readonly "drive.node_unshared": DriveEventData;
   readonly "drive.node_purged": DriveEventData;
+  readonly "drive.node_hold_placed": DriveEventData;
+  readonly "drive.node_hold_released": DriveEventData;
+  readonly "drive.created": DriveEventData;
+  readonly "drive.renamed": DriveEventData;
+  readonly "drive.deleted": DriveEventData;
+  readonly "drive.shared": DriveEventData;
+  readonly "drive.unshared": DriveEventData;
+  readonly "drive.connection_created": DriveEventData;
+  readonly "drive.connection_removed": DriveEventData;
 };
 
 /** The `drive` block's event types, for its manifest and `onBlockEvent`. */
@@ -21,4 +30,13 @@ export const driveEvents: Events<DriveEvents> = defineEvents({
   "drive.node_shared": event<DriveEventData>(),
   "drive.node_unshared": event<DriveEventData>(),
   "drive.node_purged": event<DriveEventData>(),
+  "drive.node_hold_placed": event<DriveEventData>(),
+  "drive.node_hold_released": event<DriveEventData>(),
+  "drive.created": event<DriveEventData>(),
+  "drive.renamed": event<DriveEventData>(),
+  "drive.deleted": event<DriveEventData>(),
+  "drive.shared": event<DriveEventData>(),
+  "drive.unshared": event<DriveEventData>(),
+  "drive.connection_created": event<DriveEventData>(),
+  "drive.connection_removed": event<DriveEventData>(),
 });
