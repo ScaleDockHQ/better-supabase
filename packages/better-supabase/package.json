@@ -119,6 +119,11 @@
       "types": "./dist/claims/index.d.ts",
       "default": "./dist/claims/index.js"
     },
+    "./contract": {
+      "@better-supabase/source": "./src/contract/index.ts",
+      "types": "./dist/contract/index.d.ts",
+      "default": "./dist/contract/index.js"
+    },
     "./server": {
       "@better-supabase/source": "./src/server/index.ts",
       "types": "./dist/server/index.d.ts",
@@ -1142,6 +1147,10 @@
       "./claims": {
         "types": "./dist/claims/index.d.ts",
         "default": "./dist/claims/index.js"
+      },
+      "./contract": {
+        "types": "./dist/contract/index.d.ts",
+        "default": "./dist/contract/index.js"
       },
       "./server": {
         "types": "./dist/server/index.d.ts",

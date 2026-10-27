@@ -317,9 +317,15 @@ export {
 
 export type {
   AnyAuthorizer,
+  AuthorizationCallKind,
+  AuthorizationChange,
+  AuthorizationContext,
+  AuthorizationIntent,
   AuthorizationOutcome,
+  AuthorizationPurpose,
   AuthorizationRequest,
   AuthorizationResource,
+  AuthorizationResourceSource,
   AuthorizationSubject,
   Authorizer,
   AuthorizerRuntime,

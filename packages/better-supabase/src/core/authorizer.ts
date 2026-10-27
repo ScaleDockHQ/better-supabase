@@ -62,7 +62,7 @@ export type AuthorizationIntent = "read" | "write";
  * The kind of call that asks: a repository method, an action, a route or an MCP
  * tool.
  */
-export type AuthorizationOperation =
+export type AuthorizationCallKind =
   | "get"
   | "list"
   | "create"
@@ -75,7 +75,7 @@ export type AuthorizationOperation =
 /** The `intent` and `operation` a call site passes to `requestOf`. */
 export interface AuthorizationPurpose {
   readonly intent?: AuthorizationIntent;
-  readonly operation?: AuthorizationOperation;
+  readonly operation?: AuthorizationCallKind;
 }
 
 /**
