@@ -4028,6 +4028,7 @@
   "./flags-sdk": {
     "values": [
       "betterSupabaseAdapter",
+      "createBetterSupabaseAdapter",
       "createIdentify",
       "flagContextOf",
       "flagOptions",
@@ -4038,14 +4039,18 @@
       "BetterSupabaseAdapterOptions",
       "CreateIdentifyOptions",
       "FlagsSdkAdapter",
+      "FlagsSdkDeclaredFlag",
       "FlagsSdkDefinition",
       "FlagsSdkEntities",
       "FlagsSdkEntity",
       "FlagsSdkOption",
       "FlagsSdkOrganization",
       "FlagsSdkOrigin",
+      "FlagsSdkProjectOptions",
       "FlagsSdkProviderData",
-      "FlagsSdkRequest"
+      "FlagsSdkRequest",
+      "FlagsSdkServer",
+      "GetProviderDataOptions"
     ]
   },
   "./workflow-sdk/builder": {

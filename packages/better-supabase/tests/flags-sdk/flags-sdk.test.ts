@@ -4,9 +4,11 @@ import type {
   FlagDefinition,
   FlagsProvider,
 } from "../../src/blocks/flags/index.ts";
+import type { FlagsSdkServer } from "../../src/flags-sdk/index.ts";
 
 import {
   betterSupabaseAdapter,
+  createBetterSupabaseAdapter,
   createIdentify,
   flagContextOf,
   flagOptions,
@@ -76,9 +78,9 @@ describe("flagContextOf", () => {
   });
 });
 
-describe("betterSupabaseAdapter", () => {
+describe("createBetterSupabaseAdapter", () => {
   it("decides from cached definitions, called or by reference", async () => {
-    const bsb = betterSupabaseAdapter({
+    const bsb = createBetterSupabaseAdapter({
       definitions: DEFINITIONS,
       origin: "https://admin.example.com/flags/{key}",
     });
@@ -109,11 +111,11 @@ describe("betterSupabaseAdapter", () => {
   });
 
   it("falls back to defaultValue, and throws without one", async () => {
-    const adapter = betterSupabaseAdapter({ definitions: DEFINITIONS })();
+    const adapter = createBetterSupabaseAdapter({ definitions: DEFINITIONS })();
 
     expect(await adapter.decide({ key: "missing", defaultValue: 7 })).toBe(7);
     expect(
-      await betterSupabaseAdapter({
+      await createBetterSupabaseAdapter({
         definitions: [flag({ defaultVariant: "gone" })],
       })().decide({ key: "new_editor", defaultValue: true }),
     ).toBe(true);
@@ -125,7 +127,7 @@ describe("betterSupabaseAdapter", () => {
       'Flag "missing": it is missing, and it has no defaultValue',
     );
 
-    const failing = betterSupabaseAdapter({
+    const failing = createBetterSupabaseAdapter({
       transport: { call: () => Promise.reject(new Error("offline")) },
     })();
 
@@ -172,7 +174,7 @@ describe("betterSupabaseAdapter", () => {
     it.each(cases)(
       "variant %s with defaultValue %j serves %j",
       async (variant, defaultValue, expected) => {
-        const adapter = betterSupabaseAdapter(served(variant))();
+        const adapter = createBetterSupabaseAdapter(served(variant))();
 
         const params = {
           key: "layout",
@@ -187,7 +189,7 @@ describe("betterSupabaseAdapter", () => {
     );
 
     it("throws for a missing variant without a defaultValue", async () => {
-      const adapter = betterSupabaseAdapter(served("missing"))();
+      const adapter = createBetterSupabaseAdapter(served("missing"))();
 
       await expect(adapter.decide({ key: "layout" })).rejects.toThrow(
         "it has no such variant or has another type",
@@ -199,7 +201,7 @@ describe("betterSupabaseAdapter", () => {
   });
 
   it("never serves a flag of an unknown type", async () => {
-    const adapter = betterSupabaseAdapter({
+    const adapter = createBetterSupabaseAdapter({
       definitions: [flag({ invalidType: "json" })],
     })();
 
@@ -220,11 +222,11 @@ describe("betterSupabaseAdapter", () => {
     const definitions = vi.fn(() => Promise.resolve(DEFINITIONS));
 
     const provider: FlagsProvider<string> = {
-      ...betterSupabaseAdapter({ definitions: DEFINITIONS }).provider,
+      ...createBetterSupabaseAdapter({ definitions: DEFINITIONS }).provider,
       definitions,
     };
 
-    const adapter = betterSupabaseAdapter({ provider })();
+    const adapter = createBetterSupabaseAdapter({ provider })();
 
     expect(
       await adapter.bulkDecide({
@@ -238,6 +240,90 @@ describe("betterSupabaseAdapter", () => {
       }),
     ).toEqual({ new_editor: true, theme: "dark", missing: false });
     expect(definitions).toHaveBeenCalledOnce();
+  });
+
+  it("carries identify on every adapter it makes", () => {
+    const identify = () => ({ user: { id: USER } });
+    const bsb = createBetterSupabaseAdapter({ definitions: [], identify });
+
+    expect(bsb().identify).toBe(identify);
+    expect(
+      createBetterSupabaseAdapter({ definitions: [] })().identify,
+    ).toBeUndefined();
+  });
+
+  it("loads definitions over the Data API with a secret key", async () => {
+    const fetch = vi.fn((_url: string, _init: RequestInit) =>
+      Promise.resolve(
+        Response.json([
+          {
+            key: "new_editor",
+            type: "boolean",
+            variants: { on: true, off: false },
+            default_variant: "on",
+            enabled: true,
+            rules: [],
+            rollout_percentage: 0,
+            overrides: [],
+          },
+        ]),
+      ),
+    );
+
+    const adapter = createBetterSupabaseAdapter({
+      url: "https://project.supabase.co/",
+      secretKey: "sb_secret_abc",
+      schema: "api",
+      fetch,
+    })();
+
+    expect(await adapter.decide({ key: "new_editor" })).toBe(true);
+    expect(fetch).toHaveBeenCalledWith(
+      "https://project.supabase.co/rest/v1/rpc/flag_definitions",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          apikey: "sb_secret_abc",
+          "content-profile": "api",
+        }),
+      }),
+    );
+    expect(fetch.mock.calls[0]?.[1]).not.toHaveProperty(
+      "headers.authorization",
+    );
+
+    const failing = createBetterSupabaseAdapter({
+      url: "https://project.supabase.co",
+      secretKey: "eyJ.legacy.key",
+      fetch: () =>
+        Promise.resolve(
+          Response.json({ message: "permission denied" }, { status: 403 }),
+        ),
+    })();
+
+    await expect(failing.decide({ key: "new_editor" })).rejects.toThrow(
+      "permission denied",
+    );
+  });
+
+  it("reads the environment on first use only", async () => {
+    vi.stubEnv("SUPABASE_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "");
+
+    try {
+      const adapter = betterSupabaseAdapter<boolean>();
+
+      expect(await adapter.decide({ key: "x", defaultValue: true })).toBe(true);
+      await expect(adapter.decide({ key: "x" })).rejects.toThrow(
+        "betterSupabaseAdapter needs SUPABASE_URL",
+      );
+      expect(() => betterSupabaseAdapter.provider).toThrow(
+        "SUPABASE_SECRET_KEY",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 
@@ -277,6 +363,54 @@ describe("createIdentify", () => {
       {},
     );
   });
+
+  it("verifies the token through the server, with the request's cookies", async () => {
+    const resolve = vi.fn((req: Request) =>
+      Promise.resolve({
+        auth:
+          req.headers.get("cookie") === "sb=token"
+            ? {
+                kind: "user" as const,
+                token: "token",
+                claims: { sub: USER, tenant_id: "org-1" },
+                user: { id: USER },
+                source: "cookie",
+                expiresAt: null,
+              }
+            : { kind: "none" as const },
+      }),
+    );
+
+    // SAFETY: the stub answers with the fields `jwtClaimsOf` reads.
+    const server = { resolve } as unknown as FlagsSdkServer;
+    const identify = createIdentify({ server, visitor: () => "visitor-1" });
+
+    expect(
+      await identify({
+        headers: new Headers({ cookie: "sb=token" }),
+        cookies: { get: () => undefined },
+      }),
+    ).toEqual({ user: { id: USER }, organization: { id: "org-1" } });
+    expect(resolve).toHaveBeenCalledWith(expect.any(Request), {
+      refresh: false,
+    });
+
+    expect(
+      await identify({
+        headers: new Headers(),
+        cookies: { get: () => undefined, getAll: () => [] },
+      }),
+    ).toEqual({ visitor: { id: "visitor-1" } });
+  });
+
+  it("targets a visitor when there is no user", () => {
+    expect(flagContextOf({ visitor: { id: "visitor-1" } })).toEqual({
+      targetingKey: "visitor-1",
+    });
+    expect(
+      flagContextOf({ user: { id: USER }, visitor: { id: "visitor-1" } }),
+    ).toEqual({ targetingKey: USER });
+  });
 });
 
 describe("flagOptions and getProviderData", () => {
@@ -288,7 +422,7 @@ describe("flagOptions and getProviderData", () => {
   });
 
   it("describes every flag that is not archived", async () => {
-    const bsb = betterSupabaseAdapter({
+    const bsb = createBetterSupabaseAdapter({
       definitions: DEFINITIONS,
       origin: (key) => (key === "theme" ? undefined : `/admin/${key}`),
     });
@@ -315,9 +449,53 @@ describe("flagOptions and getProviderData", () => {
     });
   });
 
+  it("joins the declared flags, single or in groups", async () => {
+    const bsb = createBetterSupabaseAdapter({ definitions: DEFINITIONS });
+
+    const data = await getProviderData(bsb, {
+      flags: {
+        newEditor: {
+          key: "new_editor",
+          description: "From code",
+          origin: undefined,
+          defaultValue: false,
+        },
+        group: [
+          {
+            key: "signup-waitlist",
+            options: [{ value: false, label: "off" }, { value: true }],
+            defaultValue: false,
+          },
+        ],
+      },
+    });
+
+    expect(data.definitions["new_editor"]).toEqual({
+      options: [
+        { value: true, label: "on" },
+        { value: false, label: "off" },
+      ],
+      description: "From code",
+      updatedAt: Date.parse("2026-10-17T10:00:00Z"),
+      declaredInCode: true,
+      defaultValue: false,
+    });
+    expect(data.definitions["signup-waitlist"]).toEqual({
+      options: [{ value: false, label: "off" }, { value: true }],
+      declaredInCode: true,
+      defaultValue: false,
+    });
+    expect(data.hints).toEqual([
+      {
+        key: "better-supabase/not-stored",
+        text: 'Flag "signup-waitlist" is declared in code but missing from the flags table, so it always serves its defaultValue',
+      },
+    ]);
+  });
+
   it("hints at a flag of an unknown type", async () => {
     const data = await getProviderData({
-      provider: betterSupabaseAdapter({
+      provider: createBetterSupabaseAdapter({
         definitions: [flag({ invalidType: "json" })],
       }).provider,
     });
@@ -331,7 +509,7 @@ describe("flagOptions and getProviderData", () => {
   });
 
   it("turns a failed load into a hint", async () => {
-    const bsb = betterSupabaseAdapter({
+    const bsb = createBetterSupabaseAdapter({
       transport: { call: () => Promise.reject(new Error("offline")) },
     });
 
