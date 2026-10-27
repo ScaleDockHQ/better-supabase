@@ -3846,7 +3846,6 @@
   },
   "./blocks/workflow-editor": {
     "values": [
-      "approvalToken",
       "approved",
       "createWorkflowCanvasRunController",
       "createWorkflowEditor",
@@ -4055,7 +4054,6 @@
   },
   "./workflow-sdk/builder": {
     "values": [
-      "approvalToken",
       "compiledGraphOf",
       "compileGraph",
       "DYNAMIC_SOURCE_MAX_BYTES",

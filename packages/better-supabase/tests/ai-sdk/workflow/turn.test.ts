@@ -114,6 +114,7 @@ interface Harness {
   readonly calls: { name: string; input: unknown }[];
   readonly agentArgs: DurableAgentArgs[];
   readonly namespaces: string[];
+  phases: (string | undefined)[];
   readonly run: () => ReturnType<typeof durableTurn>;
 }
 
@@ -132,6 +133,7 @@ function harness(
   const calls: { name: string; input: unknown }[] = [];
   const agentArgs: DurableAgentArgs[] = [];
   const namespaces: string[] = [];
+  const phases: (string | undefined)[] = [];
 
   const step = vi.fn(async (name: string, stepInput: unknown) => {
     calls.push({ name, input: stepInput });
@@ -145,12 +147,16 @@ function harness(
     calls,
     agentArgs,
     namespaces,
+    phases,
     run: () =>
       durableTurn(input, {
         runId: "wrun",
         // SAFETY: the map holds a hook for each token the turn asks for.
         createHook: <T>({ token }: { token: string }) =>
           tokens.get(token) as DurableHook<T>,
+        setAttributes: async (attributes) => {
+          phases.push(attributes["bsb.phase"]);
+        },
         getWritable: ({ namespace }) => {
           namespaces.push(namespace);
 
@@ -188,6 +194,7 @@ describe("durableTurn", () => {
       segments: 1,
     });
     expect(h.namespaces).toEqual(["s1"]);
+    expect(h.phases).toEqual(["streaming"]);
     expect(h.agentArgs[0]).toMatchObject({
       chatId: "c1",
       runId: "run1",
@@ -287,6 +294,7 @@ describe("durableTurn", () => {
       segments: 2,
     });
     expect(h.namespaces).toEqual(["s1", "s2"]);
+    expect(h.phases).toEqual(["streaming", "waiting", "streaming"]);
     expect(h.agentArgs[1]?.runId).toBe("run2");
     expect(h.agentArgs[1]?.messages.at(-1)).toEqual({
       role: "tool",

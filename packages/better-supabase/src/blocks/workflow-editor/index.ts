@@ -56,7 +56,6 @@ export {
 } from "./graph.ts";
 
 export {
-  approvalToken,
   executeGraph,
   type GraphApprovalCall,
   type GraphRunFields,

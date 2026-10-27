@@ -7,6 +7,7 @@ import {
 } from "@ai-sdk/workflow";
 import { JsonToSseTransformStream } from "ai";
 import { getRun, resumeHook, start } from "workflow/api";
+import { HookNotFoundError } from "workflow/errors";
 
 import type {
   AiChatRecord,
@@ -516,9 +517,11 @@ export function durableChat(options: DurableChatOptions): DurableChat {
       });
 
       return problemResponse(
-        dbError("conflict", "The turn is no longer waiting.", {
-          code: "AI_CHAT_NOT_WAITING",
-        }),
+        HookNotFoundError.is(cause)
+          ? dbError("conflict", "The turn is no longer waiting.", {
+              code: "AI_CHAT_NOT_WAITING",
+            })
+          : dbError("unexpected", "The turn could not be resumed."),
       );
     }
 

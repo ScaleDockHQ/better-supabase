@@ -64,7 +64,12 @@ export function worldOptionsFromEnv(
   const namespace = read("WORKFLOW_QUEUE_NAMESPACE");
   const concurrency = positiveInt(read("WORKFLOW_POSTGRES_WORKER_CONCURRENCY"));
   const pollInterval = positiveInt(read("WORKFLOW_POSTGRES_POLL_INTERVAL_MS"));
-  const maxConnections = positiveInt(read("WORKFLOW_POSTGRES_MAX_CONNECTIONS"));
+
+  // world-postgres's name first; MAX_CONNECTIONS is this World's older alias.
+  const maxConnections = positiveInt(
+    read("WORKFLOW_POSTGRES_MAX_POOL_SIZE") ??
+      read("WORKFLOW_POSTGRES_MAX_CONNECTIONS"),
+  );
 
   const connectionTimeout = positiveInt(
     read("WORKFLOW_POSTGRES_CONNECTION_TIMEOUT_MS"),

@@ -8,7 +8,7 @@ import type {
   World,
 } from "@workflow/world";
 
-import { reenqueueActiveRuns } from "@workflow/world";
+import { parseQueueRoute, reenqueueActiveRuns } from "@workflow/world";
 import { createWorld as createPostgresWorld } from "@workflow/world-postgres";
 import { Pool } from "pg";
 
@@ -340,6 +340,51 @@ export function createSupabaseWorld(
 
   const flowUrl = (): string => resolveFlowUrl(options.flowUrl);
 
+  type RouteHandler = (req: Request) => Promise<Response>;
+
+  const handlers = new Map<QueuePrefix, RouteHandler>();
+  const routes = new Map<QueuePrefix, string>();
+
+  /** The entry of the longest prefix `queueName` starts with. */
+  const byPrefix = <T>(
+    entries: ReadonlyMap<QueuePrefix, T>,
+    queueName: string,
+  ): T | undefined => {
+    let found: T | undefined;
+    let length = -1;
+
+    for (const [prefix, value] of entries) {
+      if (queueName.startsWith(prefix) && prefix.length > length) {
+        found = value;
+        length = prefix.length;
+      }
+    }
+
+    return found;
+  };
+
+  /**
+   * Sends a message to the handler registered for its prefix in this process,
+   * else to its registered route, else to the flow route.
+   */
+  const post = (
+    queueName: string,
+    init: RequestInit & { readonly signal: AbortSignal },
+  ): Promise<Response> => {
+    const handler = byPrefix(handlers, queueName);
+
+    if (handler !== undefined) {
+      return handler(new Request(flowUrl(), init));
+    }
+
+    const route = byPrefix(routes, queueName);
+
+    return fetch(
+      route === undefined ? flowUrl() : new URL(route, flowUrl()),
+      init,
+    );
+  };
+
   const deliver = async (job: ClaimedJob): Promise<void> => {
     const payload = job.message.payload;
 
@@ -380,7 +425,7 @@ export function createSupabaseWorld(
         );
       }
 
-      const response = await fetch(flowUrl(), {
+      const response = await post(payload.queueName, {
         method: "POST",
         headers,
         body,
@@ -627,6 +672,15 @@ export function createSupabaseWorld(
     queue,
     queueBatch,
     createQueueHandler,
+    // The base World's versions register with its graphile queue, which never
+    // runs; poll delivery reads these instead. `pg_net` delivery posts every
+    // message to the flow route.
+    registerHandler(prefix, handler) {
+      handlers.set(prefix, handler);
+    },
+    registerRoute(prefix, path) {
+      routes.set(prefix, parseQueueRoute(path));
+    },
     getEncryptionKeyForRun,
     deliverOnce,
     async start() {
@@ -661,7 +715,7 @@ export function createSupabaseWorld(
  * `WORKFLOW_ENCRYPTION_KEY`, `WORKFLOW_DELIVERY_QUEUE`,
  * `WORKFLOW_QUEUE_NAMESPACE`, `WORKFLOW_POSTGRES_WORKER_CONCURRENCY`,
  * `WORKFLOW_POSTGRES_POLL_INTERVAL_MS`, and the pool settings
- * `WORKFLOW_POSTGRES_MAX_CONNECTIONS`,
+ * `WORKFLOW_POSTGRES_MAX_POOL_SIZE` (or `WORKFLOW_POSTGRES_MAX_CONNECTIONS`),
  * `WORKFLOW_POSTGRES_CONNECTION_TIMEOUT_MS`,
  * `WORKFLOW_POSTGRES_IDLE_TIMEOUT_MS`, `WORKFLOW_POSTGRES_STATEMENT_TIMEOUT_MS`
  * and `WORKFLOW_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS`.
