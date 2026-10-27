@@ -211,16 +211,16 @@ job every few minutes; it claims sandboxes that nobody used for their
 `idleSeconds`, or that passed `expiresAt`, and calls your stopper:
 
 ```ts title="jobs.ts"
-import { Sandbox } from "@vercel/sandbox";
+import { vercelSandboxes } from "better-supabase/vercel-sandbox";
 
-export const handlers = {
-  ai_sandbox_idle: sandboxes.idleStopJob((sandbox) =>
-    Sandbox.get({ sandboxId: sandbox.sandboxId }).then((s) => s.stop()),
-  ),
-};
+const vercel = vercelSandboxes({ sandboxes });
+
+export const handlers = { ai_sandbox_idle: sandboxes.idleStopJob(vercel.stop) };
 ```
 
-A harness sandbox reaches the stopper with its `harnessId` set. A stopper
+[Vercel Sandbox](/docs/vercel-sandbox) also creates, registers and resumes
+one sandbox per chat with `vercel.forChat`. A harness sandbox reaches the
+stopper with its `harnessId` set. A stopper
 that throws leaves the sandbox running with the error on the row, and the
 next run tries again.
 

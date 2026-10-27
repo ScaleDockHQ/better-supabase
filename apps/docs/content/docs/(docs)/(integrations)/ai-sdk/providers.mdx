@@ -1,14 +1,15 @@
 ---
 title: Tenant keys and sandboxes
-description: Send each tenant's own provider keys to the AI Gateway as BYOK, and keep the sandbox registry current while a sandbox runs.
+description: Send each tenant's own provider keys to the AI Gateway as BYOK, keep the sandbox registry current while a sandbox runs, and run model-written code in it.
 ---
 
-Two helpers in `better-supabase/ai-sdk` connect the blocks to model calls:
+Three helpers in `better-supabase/ai-sdk` connect the blocks to model calls:
 one turns a tenant's saved keys in the
 [AI providers block](/docs/blocks/ai-keys) into the AI Gateway's `byok`
-option, the other marks a sandbox in the
+option, another marks a sandbox in the
 [AI chat block](/docs/blocks/ai-chat#sandboxes) used so the idle-stop job
-leaves it running.
+leaves it running, and `codeTool` runs the code the model writes in that
+sandbox.
 
 ## Bring your own key
 
@@ -89,3 +90,38 @@ const sandbox = trackedSandbox(session, { sandboxes, id: row.id });
 Before starting a sandbox for a chat, `sandboxes.forChat(chatId, "vercel")`
 returns the one still running, so the next message reuses it. The
 [idle-stop job](/docs/blocks/ai-chat#sandboxes) stops the rest.
+[Vercel Sandbox](/docs/vercel-sandbox) does all of this for you.
+
+## Running code
+
+`codeTool()` is a tool the model calls to run a snippet in the call's
+`experimental_sandbox`. It writes the snippet to a file and runs it with
+`python3`, `node` or `bash`, and returns `{ exitCode, stdout, stderr,
+truncated, timedOut }`. A failing snippet is a result, not an error, so the
+model can read the error and try again.
+
+```ts
+import { streamText } from "ai";
+import { codeTool } from "better-supabase/ai-sdk";
+
+const result = streamText({
+  model,
+  messages,
+  tools: { runCode: codeTool({ languages: ["python"] }) },
+  toolApproval: { runCode: "user-approval" },
+  experimental_sandbox: session,
+});
+```
+
+| Option           | Default                      | Sets                                                 |
+| ---------------- | ---------------------------- | ---------------------------------------------------- |
+| `languages`      | `["python", "node", "bash"]` | the languages the model may pick                     |
+| `timeoutMs`      | 60000                        | when a run stops; the result then has `exitCode` 124 |
+| `maxOutputBytes` | 16384                        | the bytes kept of `stdout` and of `stderr`           |
+| `directory`      | `/tmp`                       | where snippets are written                           |
+| `sandbox`        | the call's sandbox           | a session to use instead of `experimental_sandbox`   |
+
+Approval belongs to the model call: `toolApproval: { runCode:
+"user-approval" }` holds each run until a person approves it in the chat.
+The tool works with any AI SDK sandbox session; give it one with no network
+access, such as Vercel Sandbox's `untrusted` preset.
