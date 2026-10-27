@@ -87,11 +87,8 @@ catalog:
   "@vercel/sandbox": 3.6.1
   "@vercel/speed-insights": 2.0.0
   "@vitejs/plugin-react": 6.1.2
-  # 5.0.5 adds migration 0027 (timestamps with time zone); the World's
-  # `if not exists` DDL can't alter existing columns, so it needs its own
-  # upgrade step before these move.
-  "@workflow/world": 5.0.4
-  "@workflow/world-postgres": 5.0.4
+  "@workflow/world": 5.0.5
+  "@workflow/world-postgres": 5.0.5
   "@workflow/world-testing": 5.0.6
   "@wrksz/themes": 2.1.1
   "@xyflow/react": 12.12.0
@@ -186,9 +183,8 @@ catalog:
   sonner: 2.0.8
   stripe: 23.0.1
   # debug's optional peer. Pinned to the copy the examples resolve, so
-  # better-supabase and the Next.js examples share one next instance. Stays on
-  # 8: 9 and later are ESM-only, and supports-hyperlinks (attw) requires it.
-  supports-color: 8.1.1
+  # better-supabase and the Next.js examples share one next instance.
+  supports-color: 11.0.0
   # CI runs this copy (`pnpm exec supabase`); 2.121.0 moves a stopped stack's
   # ports when config.toml changes them.
   supabase: 2.122.0
@@ -388,6 +384,12 @@ overrides:
   # debug's optional peer. Without one copy, workspaces that don't declare it
   # get @babel/core with chalk's supports-color 7, and next resolves twice.
   supports-color: "catalog:"
+  # 9 and later are ESM-only with a new API, so the packages that require()
+  # the old one keep the major they declare (attw crashes in
+  # supports-hyperlinks otherwise).
+  "chalk@2>supports-color": 5.5.0
+  "chalk@4>supports-color": 7.2.0
+  "supports-hyperlinks@<4>supports-color": 7.2.0
   # marketing validates its env with valibot; without this its @t3-oss/env
   # optional zod peer picks shadcn's Zod 3 and forks the env-core variant.
   "@t3-oss/env-core>zod": "catalog:"
