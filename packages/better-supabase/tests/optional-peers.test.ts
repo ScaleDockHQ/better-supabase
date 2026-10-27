@@ -58,8 +58,14 @@ const FRAMEWORKS = [
  */
 const GENERATED = ["nuqs"] as const;
 
+/**
+ * SDKs one subpath imports at its top (`better-supabase/chat-sdk` imports
+ * `chat`). Only apps that import that subpath install them.
+ */
+const SUBPATH_SDKS = ["ai", "chat", "workflow"] as const;
+
 describe("optional peers", () => {
-  it.each([...INTEGRATIONS, ...FRAMEWORKS, ...GENERATED])(
+  it.each([...INTEGRATIONS, ...FRAMEWORKS, ...GENERATED, ...SUBPATH_SDKS])(
     "%s is an optional peer and a devDependency",
     (name) => {
       expect(manifest.peerDependencies[name]).toBe("catalog:peers");

@@ -2,9 +2,9 @@ import type {
   Adapter,
   AdapterPostableMessage,
   Attachment,
+  ChatInstance,
   Message,
   RawMessage,
-  StateAdapter,
   WebhookOptions,
 } from "chat";
 
@@ -29,8 +29,11 @@ import { errorText } from "../core/block-helpers.ts";
 import { nowInstant } from "../core/temporal.ts";
 import { DELIVERY_PARSERS } from "./delivery.ts";
 
-/** The parts of a Chat SDK `Chat` the inbox helpers use. */
-export interface ChatLike {
+/**
+ * The parts of a Chat SDK `Chat` the inbox helpers use. `webhooks` and
+ * `getAdapter` live on `Chat`, not on `ChatInstance`.
+ */
+export interface ChatLike extends Pick<ChatInstance, "getState"> {
   readonly webhooks: Readonly<
     Record<
       string,
@@ -38,7 +41,6 @@ export interface ChatLike {
     >
   >;
   getAdapter(name: string): Adapter | undefined;
-  getState(): StateAdapter;
 }
 
 const APP: CredentialSubject = { type: "app" };
@@ -215,6 +217,12 @@ export interface InboundHandlerOptions {
    * `https://inbox.local/<adapter>`.
    */
   readonly baseUrl?: string;
+  /**
+   * Passed to each adapter's webhook as `propagateHandlerErrors`: a handler
+   * that throws fails the event, so `drain` replays it. Defaults to `false`,
+   * where Chat SDK logs the error and the event counts as processed.
+   */
+  readonly propagateHandlerErrors?: boolean;
 }
 
 export interface DrainResult {
@@ -234,9 +242,9 @@ export interface InboundHandler {
     readonly maxAttempts?: number;
   }): Promise<DrainResult>;
   /**
-   * Records a channel message in the inbox, from a Chat SDK handler. Skips bot
-   * messages, its own and the ones `deliver` posted (their echo); returns
-   * `null` for those.
+   * Records a channel message in the inbox, from a Chat SDK handler. Skips the
+   * bot's own messages (`author.isMe`) and the ones `deliver` posted (their
+   * echo), returning `null` for those; other bots' messages are recorded.
    */
   mirror(thread: MirrorThread, message: Message): Promise<InboundResult | null>;
   /**
@@ -276,7 +284,13 @@ async function readSource(file: PendingInboxFile): Promise<Blob> {
   return response.blob();
 }
 
-/** Replays stored webhook events and mirrors channel messages into the inbox. */
+/**
+ * Replays stored webhook events and mirrors channel messages into the inbox. A
+ * replay runs the adapter's own request check again, so an adapter that rejects
+ * old signatures (Slack's five-minute window, or a Vercel Connect
+ * `webhookVerifier`) fails events older than its window: drain them within it,
+ * or let `webhook` verify and give the adapter a check that accepts replays.
+ */
 export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
   const { chat, inbox } = options;
   const parsers = options.parsers ?? DELIVERY_PARSERS;
@@ -332,7 +346,12 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
           headers: event.headers,
           body: event.body,
         }),
-        { waitUntil: (task) => void tasks.push(task) },
+        {
+          waitUntil: (task) => void tasks.push(task),
+          ...(options.propagateHandlerErrors === true
+            ? { propagateHandlerErrors: true }
+            : {}),
+        },
       );
 
       await Promise.all(tasks);
@@ -406,7 +425,7 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
     mirror: async (thread, message) => {
       const adapter = thread.adapter.name;
 
-      if (message.author.isMe || message.author.isBot === true) {
+      if (message.author.isMe) {
         return null;
       }
 
@@ -498,7 +517,48 @@ export interface DeliverOptions {
     readonly message: InboxMessage;
     readonly adapter: Adapter;
   }) => Promise<AdapterPostableMessage | null> | AdapterPostableMessage | null;
+  /**
+   * How often a post the platform rate-limits is retried in place, after the
+   * `retryAfterMs` (or `retryAfter` seconds) the error carries. Defaults to 2.
+   */
+  readonly rateLimitRetries?: number;
+  /**
+   * The longest wait a retry takes; a longer `retryAfter` throws so the job
+   * retries later. Defaults to 10 seconds.
+   */
+  readonly maxRetryWaitMs?: number;
 }
+
+/**
+ * The wait a Chat SDK rate limit error asks for: `RateLimitError`'s
+ * `retryAfterMs`, or the `retryAfter` seconds of `@chat-adapter/shared`'s
+ * `AdapterRateLimitError`. `undefined` for any other error.
+ */
+function rateLimitWaitMs(error: unknown): number | undefined {
+  if (
+    typeof error !== "object" ||
+    error === null ||
+    !("code" in error) ||
+    error.code !== "RATE_LIMITED"
+  ) {
+    return undefined;
+  }
+
+  if ("retryAfterMs" in error && typeof error.retryAfterMs === "number") {
+    return error.retryAfterMs;
+  }
+
+  if ("retryAfter" in error && typeof error.retryAfter === "number") {
+    return error.retryAfter * 1000;
+  }
+
+  return 0;
+}
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 
 /**
  * True while WhatsApp's customer service window is open: within 24 hours of the
@@ -526,13 +586,34 @@ export async function whatsappWindowOpen(
 /**
  * Posts a staff reply the `inbox` module queued on its channel, records the
  * delivery with the platform's message id, and remembers the id so `mirror`
- * skips the platform's echo. A failed post is recorded and thrown, so the job
+ * skips the platform's echo. A rate-limited post waits and retries in place
+ * (`rateLimitRetries`); a failed post is recorded and thrown, so the job
  * retries.
  */
 export function deliver(
   options: DeliverOptions,
 ): (job: InboxOutboundJob) => Promise<RawMessage | null> {
   const { chat, inbox } = options;
+  const retries = options.rateLimitRetries ?? 2;
+  const maxWait = options.maxRetryWaitMs ?? 10_000;
+
+  const postWithRetry = async (
+    post: () => Promise<RawMessage>,
+  ): Promise<RawMessage> => {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await post();
+      } catch (error) {
+        const wait = rateLimitWaitMs(error);
+
+        if (wait === undefined || attempt >= retries || wait > maxWait) {
+          throw error;
+        }
+
+        await sleep(wait);
+      }
+    }
+  };
 
   return async (job) => {
     const message = await inbox.messages.get(job.message_id).orThrow();
@@ -572,12 +653,14 @@ export function deliver(
         adapter,
       });
 
-      const raw = await adapter.postMessage(
-        conversation.threadId,
+      const content =
         template ??
-          (message.format === "markdown"
-            ? { markdown: message.body }
-            : message.body),
+        (message.format === "markdown"
+          ? { markdown: message.body }
+          : message.body);
+
+      const raw = await postWithRetry(() =>
+        adapter.postMessage(conversation.threadId, content),
       );
 
       await chat.getState().set(echoKey(name, raw.id), true, ECHO_TTL_MS);

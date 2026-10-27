@@ -30,12 +30,16 @@ export {
 } from "./delivery.ts";
 
 export {
+  chatErrorOf,
   conversationIdOf,
+  decodeInboxThreadId,
   type InboxAdapter,
   inboxAdapter,
   type InboxAdapterOptions,
   type InboxBotJob,
   inboxIdentityOf,
+  type InboxThread,
+  inboxThreadId,
 } from "./inbox-adapter.ts";
 
 export {

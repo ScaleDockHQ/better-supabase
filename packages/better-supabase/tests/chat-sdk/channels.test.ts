@@ -3,6 +3,7 @@ import {
   createMockState,
   createTestMessage,
 } from "@chat-adapter/tests";
+import { RateLimitError } from "chat";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ChatLike } from "../../src/chat-sdk/index.ts";
@@ -357,6 +358,32 @@ describe("inboundHandler", () => {
     expect(await handler.drain()).toEqual({ processed: 0, failed: 1 });
   });
 
+  it("passes propagateHandlerErrors to the adapter's webhook", async () => {
+    const slack = vi.fn(async () => new Response("ok"));
+    const { chat } = chatOf({ slack });
+
+    const inbox = createInbox({
+      transport: fakeTransport({
+        set_inbound_event_status: true,
+        pending_inbound_events: [event("slack")],
+      }).transport,
+    });
+
+    await inboundHandler({ chat, inbox, inboxes: {} }).drain();
+    expect(slack.mock.calls[0]).not.toHaveProperty("1.propagateHandlerErrors");
+
+    await inboundHandler({
+      chat,
+      inbox,
+      inboxes: {},
+      propagateHandlerErrors: true,
+    }).drain();
+    expect(slack.mock.calls[1]).toHaveProperty(
+      "1.propagateHandlerErrors",
+      true,
+    );
+  });
+
   it("mirrors contact messages and skips bots and echoes", async () => {
     const { handler, call, state } = setup({});
     const thread = { id: "slack:C1:1.2", adapter: { name: "slack" } };
@@ -395,17 +422,29 @@ describe("inboundHandler", () => {
       contact: { external_id: "U1", name: "Ada" },
     });
 
-    const bot = createTestMessage("1.4", "beep", {
+    const self = createTestMessage("1.4", "beep", {
       author: {
         userId: "B1",
         userName: "bot",
         fullName: "Bot",
         isBot: true,
+        isMe: true,
+      },
+    });
+
+    expect(await handler.mirror(thread, self)).toBeNull();
+
+    const otherBot = createTestMessage("1.7", "deploy done", {
+      author: {
+        userId: "B2",
+        userName: "ci",
+        fullName: "CI",
+        isBot: true,
         isMe: false,
       },
     });
 
-    expect(await handler.mirror(thread, bot)).toBeNull();
+    expect(await handler.mirror(thread, otherBot)).not.toBeNull();
     await state.set("better-supabase:inbox:echo:slack:1.5", true);
     expect(
       await handler.mirror(thread, createTestMessage("1.5", "echo")),
@@ -672,6 +711,47 @@ describe("deliver", () => {
     expect(deliveries()).toMatchObject([
       { channel: "sms", status: "failed", error: "rate limited" },
     ]);
+  });
+
+  it("retries a rate-limited post after the wait it asks for", async () => {
+    const { chat, inbox, postMessage, deliveries } = setup();
+    postMessage
+      .mockRejectedValueOnce(new RateLimitError("slow down", 1))
+      .mockRejectedValueOnce(
+        Object.assign(new Error("slack 429"), {
+          code: "RATE_LIMITED",
+          retryAfter: 0,
+        }),
+      );
+
+    const raw = await deliver({ chat, inbox })({
+      message_id: "m1",
+      conversation_id: "c1",
+    });
+
+    expect(raw?.id).toBe("wamid.out");
+    expect(postMessage).toHaveBeenCalledTimes(3);
+    expect(deliveries()).toMatchObject([{ status: "sent" }]);
+
+    const long = setup();
+    long.postMessage.mockRejectedValue(new RateLimitError("later", 60_000));
+    await expect(
+      deliver({ chat: long.chat, inbox: long.inbox })({
+        message_id: "m1",
+        conversation_id: "c1",
+      }),
+    ).rejects.toThrow("later");
+    expect(long.postMessage).toHaveBeenCalledOnce();
+
+    const capped = setup();
+    capped.postMessage.mockRejectedValue(new RateLimitError("again"));
+    await expect(
+      deliver({ chat: capped.chat, inbox: capped.inbox, rateLimitRetries: 1 })({
+        message_id: "m1",
+        conversation_id: "c1",
+      }),
+    ).rejects.toThrow("again");
+    expect(capped.postMessage).toHaveBeenCalledTimes(2);
   });
 
   it("skips notes, deleted and orphaned messages", async () => {

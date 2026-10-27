@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@4 managed
--- @bsb-hash sha256:2ea8dc10c26f57e302e6cc0c505cc8b87e9c51b1da0d39b65a79d6128ed5c660
+-- @bsb-block inbox@5 managed
+-- @bsb-hash sha256:18105c80328e2d6266a91493aa53bf148cf5e7e7eb0ef5066dce1aacca15274e
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -963,7 +963,7 @@ begin
   insert into "better_supabase"."inbox_conversations" ("id", "tenant_id", "inbox_id", "contact_id", "subject", "priority", "bot_mode", "thread_id", "assignee_id", "metadata")
   values (
     v_id, v_inbox."tenant_id", v_inbox."id", v_contact."id", input ->> 'subject', coalesce(input ->> 'priority', 'normal'),
-    coalesce(input ->> 'bot_mode', v_inbox."bot_mode"), coalesce(input ->> 'thread_id', 'inbox:' || v_id::text),
+    coalesce(input ->> 'bot_mode', v_inbox."bot_mode"), coalesce(input ->> 'thread_id', 'inbox:' || v_inbox."id"::text || ':' || v_id::text),
     case when v_staff then (input ->> 'assignee_id')::uuid end, coalesce(input -> 'metadata', '{}'::jsonb)
   )
   returning * into v_conv;
@@ -1437,9 +1437,10 @@ $$;
 revoke execute on function "better_supabase"."get_conversation"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_conversation"(uuid) to authenticated, service_role;
 
--- A page of messages, oldest first, sent before the given instant. Staff
--- also get notes and each outbound message's delivery.
-create or replace function "better_supabase"."list_inbox_messages"(conversation uuid, before timestamptz default null, max integer default 50)
+-- A page of messages, oldest first: the newest sent before the given instant,
+-- or with after the oldest sent after it. Staff also get notes and each
+-- outbound message's delivery.
+create or replace function "better_supabase"."list_inbox_messages"(conversation uuid, before timestamptz default null, max integer default 50, after timestamptz default null)
 returns jsonb
 language plpgsql
 stable
@@ -1455,14 +1456,18 @@ begin
     where m."conversation_id" = list_inbox_messages.conversation
       and m."sent_at" is not null
       and (list_inbox_messages.before is null or m."sent_at" < list_inbox_messages.before)
+      and (list_inbox_messages.after is null or m."sent_at" > list_inbox_messages.after)
       and (m."kind" = 'message' or "better_supabase"."inbox_note_readable"(list_inbox_messages.conversation))
-    order by m."sent_at" desc, m."id" desc
+    order by
+      case when list_inbox_messages.after is null then m."sent_at" end desc,
+      case when list_inbox_messages.after is null then m."id" end desc,
+      m."sent_at", m."id"
     limit least(greatest(coalesce(list_inbox_messages.max, 50), 1), 200)
   ));
 end;
 $$;
-revoke execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer) from public, anon;
-grant execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer, timestamptz) to authenticated, service_role;
 
 -- One message as list_inbox_messages returns it, for a Realtime ping.
 create or replace function "better_supabase"."get_inbox_message"(message uuid)
@@ -2337,21 +2342,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:65631bea8db14c073a6798e5d4cae21de392115a8783244f7a1c033484482c9c
+-- @bsb-hash sha256:dd5c2301799399ddb9e9153f1c7cda2524a230e8bfd6107a0e1fa93f11a97478
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 4, 'managed')
+values ('inbox', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@4 managed
--- @bsb-hash sha256:253c3d23f0fadae65458979058814efe6b24c2a175f6f0ab4337a4c24871c1a7
+-- @bsb-block inbox@5 managed
+-- @bsb-hash sha256:74c8ec2783d54c9082a501a34585ada94aeb7ce36c590700b698bf6661a53b75
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3344,7 +3349,7 @@ begin
   insert into "better_supabase"."inbox_conversations" ("id", "tenant_id", "inbox_id", "contact_id", "subject", "priority", "bot_mode", "thread_id", "assignee_id", "metadata")
   values (
     v_id, v_inbox."tenant_id", v_inbox."id", v_contact."id", input ->> 'subject', coalesce(input ->> 'priority', 'normal'),
-    coalesce(input ->> 'bot_mode', v_inbox."bot_mode"), coalesce(input ->> 'thread_id', 'inbox:' || v_id::text),
+    coalesce(input ->> 'bot_mode', v_inbox."bot_mode"), coalesce(input ->> 'thread_id', 'inbox:' || v_inbox."id"::text || ':' || v_id::text),
     case when v_staff then (input ->> 'assignee_id')::uuid end, coalesce(input -> 'metadata', '{}'::jsonb)
   )
   returning * into v_conv;
@@ -3892,9 +3897,10 @@ $$;
 revoke execute on function "better_supabase"."get_conversation"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_conversation"(uuid) to authenticated, service_role;
 
--- A page of messages, oldest first, sent before the given instant. Staff
--- also get notes and each outbound message's delivery.
-create or replace function "better_supabase"."list_inbox_messages"(conversation uuid, before timestamptz default null, max integer default 50)
+-- A page of messages, oldest first: the newest sent before the given instant,
+-- or with after the oldest sent after it. Staff also get notes and each
+-- outbound message's delivery.
+create or replace function "better_supabase"."list_inbox_messages"(conversation uuid, before timestamptz default null, max integer default 50, after timestamptz default null)
 returns jsonb
 language plpgsql
 stable
@@ -3910,14 +3916,18 @@ begin
     where m."conversation_id" = list_inbox_messages.conversation
       and m."sent_at" is not null
       and (list_inbox_messages.before is null or m."sent_at" < list_inbox_messages.before)
+      and (list_inbox_messages.after is null or m."sent_at" > list_inbox_messages.after)
       and (m."kind" = 'message' or "better_supabase"."inbox_note_readable"(list_inbox_messages.conversation))
-    order by m."sent_at" desc, m."id" desc
+    order by
+      case when list_inbox_messages.after is null then m."sent_at" end desc,
+      case when list_inbox_messages.after is null then m."id" end desc,
+      m."sent_at", m."id"
     limit least(greatest(coalesce(list_inbox_messages.max, 50), 1), 200)
   ));
 end;
 $$;
-revoke execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer) from public, anon;
-grant execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer, timestamptz) to authenticated, service_role;
 
 -- One message as list_inbox_messages returns it, for a Realtime ping.
 create or replace function "better_supabase"."get_inbox_message"(message uuid)
@@ -4809,7 +4819,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:9d6cd11771ae051d6ce7e9799b622847b6e59ae2c0fdef18aaeeae9360b854cd
+-- @bsb-hash sha256:cc035b07edf84ff34d09e267ec1d7bb904ebf7e9d86d99b19424f09b510acf0c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4820,14 +4830,14 @@ values ('inbox.conversation_to_task', 'inbox', 'inbox_conversation', 'inbox_conv
 on conflict ("key") do update set "subject_type" = excluded."subject_type", "trigger" = excluded."trigger", "name" = excluded."name", "description" = excluded."description", "actions" = excluded."actions", "enabled" = excluded."enabled", "block" = excluded."block", "updated_at" = now();
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 4, 'managed')
+values ('inbox', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@4 managed
--- @bsb-hash sha256:bf9a46c885635d7701943bf757a9c5d7fd6e64a65e90ef033edfa3acd333f257
+-- @bsb-block inbox@5 managed
+-- @bsb-hash sha256:ddcbf7e45e21269f298fbcb73d20f8b42d57312ea17fc03017927249fa19fd2c
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5794,7 +5804,7 @@ begin
   insert into "app_private"."inbox_conversations" ("id", "tenant_id", "inbox_id", "contact_id", "subject", "priority", "bot_mode", "thread_id", "assignee_id", "metadata")
   values (
     v_id, v_inbox."tenant_id", v_inbox."id", v_contact."id", input ->> 'subject', coalesce(input ->> 'priority', 'normal'),
-    coalesce(input ->> 'bot_mode', v_inbox."bot_mode"), coalesce(input ->> 'thread_id', 'inbox:' || v_id::text),
+    coalesce(input ->> 'bot_mode', v_inbox."bot_mode"), coalesce(input ->> 'thread_id', 'inbox:' || v_inbox."id"::text || ':' || v_id::text),
     case when v_staff then (input ->> 'assignee_id')::uuid end, coalesce(input -> 'metadata', '{}'::jsonb)
   )
   returning * into v_conv;
@@ -6268,9 +6278,10 @@ $$;
 revoke execute on function "app_private"."get_conversation"(uuid) from public, anon;
 grant execute on function "app_private"."get_conversation"(uuid) to authenticated, service_role;
 
--- A page of messages, oldest first, sent before the given instant. Staff
--- also get notes and each outbound message's delivery.
-create or replace function "app_private"."list_inbox_messages"(conversation uuid, before timestamptz default null, max integer default 50)
+-- A page of messages, oldest first: the newest sent before the given instant,
+-- or with after the oldest sent after it. Staff also get notes and each
+-- outbound message's delivery.
+create or replace function "app_private"."list_inbox_messages"(conversation uuid, before timestamptz default null, max integer default 50, after timestamptz default null)
 returns jsonb
 language plpgsql
 stable
@@ -6286,14 +6297,18 @@ begin
     where m."conversation_id" = list_inbox_messages.conversation
       and m."sent_at" is not null
       and (list_inbox_messages.before is null or m."sent_at" < list_inbox_messages.before)
+      and (list_inbox_messages.after is null or m."sent_at" > list_inbox_messages.after)
       and (m."kind" = 'message' or "app_private"."inbox_note_readable"(list_inbox_messages.conversation))
-    order by m."sent_at" desc, m."id" desc
+    order by
+      case when list_inbox_messages.after is null then m."sent_at" end desc,
+      case when list_inbox_messages.after is null then m."id" end desc,
+      m."sent_at", m."id"
     limit least(greatest(coalesce(list_inbox_messages.max, 50), 1), 200)
   ));
 end;
 $$;
-revoke execute on function "app_private"."list_inbox_messages"(uuid, timestamptz, integer) from public, anon;
-grant execute on function "app_private"."list_inbox_messages"(uuid, timestamptz, integer) to authenticated, service_role;
+revoke execute on function "app_private"."list_inbox_messages"(uuid, timestamptz, integer, timestamptz) from public, anon;
+grant execute on function "app_private"."list_inbox_messages"(uuid, timestamptz, integer, timestamptz) to authenticated, service_role;
 
 -- One message as list_inbox_messages returns it, for a Realtime ping.
 create or replace function "app_private"."get_inbox_message"(message uuid)
@@ -7168,21 +7183,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:65631bea8db14c073a6798e5d4cae21de392115a8783244f7a1c033484482c9c
+-- @bsb-hash sha256:dd5c2301799399ddb9e9153f1c7cda2524a230e8bfd6107a0e1fa93f11a97478
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 4, 'managed')
+values ('inbox', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@4 managed
--- @bsb-hash sha256:e69f03401de8aa8e85adca9ae8022d39ecc7396a08d3af36131e12f0c691a354
+-- @bsb-block inbox@5 managed
+-- @bsb-hash sha256:1c8ab9be3f4db57e02cd2c28527790139a9f421b10758c8e13f4974738819089
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8144,7 +8159,7 @@ begin
   insert into "better_supabase"."inbox_conversations" ("id", "tenant_id", "inbox_id", "contact_id", "subject", "priority", "bot_mode", "thread_id", "assignee_id", "metadata")
   values (
     v_id, v_inbox."tenant_id", v_inbox."id", v_contact."id", input ->> 'subject', coalesce(input ->> 'priority', 'normal'),
-    coalesce(input ->> 'bot_mode', v_inbox."bot_mode"), coalesce(input ->> 'thread_id', 'inbox:' || v_id::text),
+    coalesce(input ->> 'bot_mode', v_inbox."bot_mode"), coalesce(input ->> 'thread_id', 'inbox:' || v_inbox."id"::text || ':' || v_id::text),
     case when v_staff then (input ->> 'assignee_id')::uuid end, coalesce(input -> 'metadata', '{}'::jsonb)
   )
   returning * into v_conv;
@@ -8618,9 +8633,10 @@ $$;
 revoke execute on function "better_supabase"."get_conversation"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_conversation"(uuid) to authenticated, service_role;
 
--- A page of messages, oldest first, sent before the given instant. Staff
--- also get notes and each outbound message's delivery.
-create or replace function "better_supabase"."list_inbox_messages"(conversation uuid, before timestamptz default null, max integer default 50)
+-- A page of messages, oldest first: the newest sent before the given instant,
+-- or with after the oldest sent after it. Staff also get notes and each
+-- outbound message's delivery.
+create or replace function "better_supabase"."list_inbox_messages"(conversation uuid, before timestamptz default null, max integer default 50, after timestamptz default null)
 returns jsonb
 language plpgsql
 stable
@@ -8636,14 +8652,18 @@ begin
     where m."conversation_id" = list_inbox_messages.conversation
       and m."sent_at" is not null
       and (list_inbox_messages.before is null or m."sent_at" < list_inbox_messages.before)
+      and (list_inbox_messages.after is null or m."sent_at" > list_inbox_messages.after)
       and (m."kind" = 'message' or "better_supabase"."inbox_note_readable"(list_inbox_messages.conversation))
-    order by m."sent_at" desc, m."id" desc
+    order by
+      case when list_inbox_messages.after is null then m."sent_at" end desc,
+      case when list_inbox_messages.after is null then m."id" end desc,
+      m."sent_at", m."id"
     limit least(greatest(coalesce(list_inbox_messages.max, 50), 1), 200)
   ));
 end;
 $$;
-revoke execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer) from public, anon;
-grant execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer, timestamptz) to authenticated, service_role;
 
 -- One message as list_inbox_messages returns it, for a Realtime ping.
 create or replace function "better_supabase"."get_inbox_message"(message uuid)
@@ -9696,14 +9716,14 @@ as $$ select "better_supabase"."get_conversation"($1) $$;
 revoke execute on function "api"."get_conversation"(uuid) from public, anon;
 grant execute on function "api"."get_conversation"(uuid) to authenticated, service_role;
 
-create or replace function "api"."list_inbox_messages"(conversation uuid, before timestamptz default null, max integer default 50)
+create or replace function "api"."list_inbox_messages"(conversation uuid, before timestamptz default null, max integer default 50, after timestamptz default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."list_inbox_messages"($1, $2, $3) $$;
-revoke execute on function "api"."list_inbox_messages"(uuid, timestamptz, integer) from public, anon;
-grant execute on function "api"."list_inbox_messages"(uuid, timestamptz, integer) to authenticated, service_role;
+as $$ select "better_supabase"."list_inbox_messages"($1, $2, $3, $4) $$;
+revoke execute on function "api"."list_inbox_messages"(uuid, timestamptz, integer, timestamptz) from public, anon;
+grant execute on function "api"."list_inbox_messages"(uuid, timestamptz, integer, timestamptz) to authenticated, service_role;
 
 create or replace function "api"."get_inbox_message"(message uuid)
 returns jsonb
@@ -9901,21 +9921,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:65631bea8db14c073a6798e5d4cae21de392115a8783244f7a1c033484482c9c
+-- @bsb-hash sha256:dd5c2301799399ddb9e9153f1c7cda2524a230e8bfd6107a0e1fa93f11a97478
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 4, 'managed')
+values ('inbox', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@4 managed
--- @bsb-hash sha256:222c931f4cc178e04c91fdd0f1507678a2bce0fe93f9577b6c2185c3563b99b1
+-- @bsb-block inbox@5 managed
+-- @bsb-hash sha256:670bb1d7855e0de257612301b73b9ea8e7bccd9bd995555ba5ed336ec58fe80a
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10871,7 +10891,7 @@ begin
   insert into "better_supabase"."inbox_conversations" ("id", "tenant_id", "inbox_id", "contact_id", "subject", "priority", "bot_mode", "thread_id", "assignee_id", "metadata")
   values (
     v_id, v_inbox."tenant_id", v_inbox."id", v_contact."id", input ->> 'subject', better_supabase.as_column_type(coalesce(input ->> 'priority', 'normal'), (null::"better_supabase"."inbox_conversations")."priority"),
-    better_supabase.as_column_type(coalesce(input ->> 'bot_mode', v_inbox."bot_mode"::text), (null::"better_supabase"."inbox_conversations")."bot_mode"), coalesce(input ->> 'thread_id', 'inbox:' || v_id::text),
+    better_supabase.as_column_type(coalesce(input ->> 'bot_mode', v_inbox."bot_mode"::text), (null::"better_supabase"."inbox_conversations")."bot_mode"), coalesce(input ->> 'thread_id', 'inbox:' || v_inbox."id"::text || ':' || v_id::text),
     case when v_staff then (input ->> 'assignee_id')::uuid end, coalesce(input -> 'metadata', '{}'::jsonb)
   )
   returning * into v_conv;
@@ -11345,9 +11365,10 @@ $$;
 revoke execute on function "better_supabase"."get_conversation"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_conversation"(uuid) to authenticated, service_role;
 
--- A page of messages, oldest first, sent before the given instant. Staff
--- also get notes and each outbound message's delivery.
-create or replace function "better_supabase"."list_inbox_messages"(conversation uuid, before timestamptz default null, max integer default 50)
+-- A page of messages, oldest first: the newest sent before the given instant,
+-- or with after the oldest sent after it. Staff also get notes and each
+-- outbound message's delivery.
+create or replace function "better_supabase"."list_inbox_messages"(conversation uuid, before timestamptz default null, max integer default 50, after timestamptz default null)
 returns jsonb
 language plpgsql
 stable
@@ -11363,14 +11384,18 @@ begin
     where m."conversation_id" = list_inbox_messages.conversation
       and m."sent_at" is not null
       and (list_inbox_messages.before is null or m."sent_at" < list_inbox_messages.before)
+      and (list_inbox_messages.after is null or m."sent_at" > list_inbox_messages.after)
       and (m."kind" = 'message' or "better_supabase"."inbox_note_readable"(list_inbox_messages.conversation))
-    order by m."sent_at" desc, m."id" desc
+    order by
+      case when list_inbox_messages.after is null then m."sent_at" end desc,
+      case when list_inbox_messages.after is null then m."id" end desc,
+      m."sent_at", m."id"
     limit least(greatest(coalesce(list_inbox_messages.max, 50), 1), 200)
   ));
 end;
 $$;
-revoke execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer) from public, anon;
-grant execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer, timestamptz) to authenticated, service_role;
 
 -- One message as list_inbox_messages returns it, for a Realtime ping.
 create or replace function "better_supabase"."get_inbox_message"(message uuid)
@@ -12251,21 +12276,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:65631bea8db14c073a6798e5d4cae21de392115a8783244f7a1c033484482c9c
+-- @bsb-hash sha256:dd5c2301799399ddb9e9153f1c7cda2524a230e8bfd6107a0e1fa93f11a97478
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 4, 'managed')
+values ('inbox', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@4 managed
--- @bsb-hash sha256:6564afe38e3d49d28f421d0cce149f3a05a943a392a6cacce847e9db9d9f3702
+-- @bsb-block inbox@5 managed
+-- @bsb-hash sha256:656c26f870b9c3106f2d65909597965231415a5921e4b27bf511ec8889ba4bec
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13227,7 +13252,7 @@ begin
   insert into "better_supabase"."inbox_conversations" ("id", "org_id", "inbox_id", "contact_id", "subject", "priority", "bot_mode", "thread_id", "assignee_id", "metadata")
   values (
     v_id, v_inbox."org_id", v_inbox."id", v_contact."id", input ->> 'subject', coalesce(input ->> 'priority', 'normal'),
-    coalesce(input ->> 'bot_mode', v_inbox."bot_mode"), coalesce(input ->> 'thread_id', 'inbox:' || v_id::text),
+    coalesce(input ->> 'bot_mode', v_inbox."bot_mode"), coalesce(input ->> 'thread_id', 'inbox:' || v_inbox."id"::text || ':' || v_id::text),
     case when v_staff then (input ->> 'assignee_id')::uuid end, coalesce(input -> 'metadata', '{}'::jsonb)
   )
   returning * into v_conv;
@@ -13701,9 +13726,10 @@ $$;
 revoke execute on function "better_supabase"."get_conversation"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_conversation"(uuid) to authenticated, service_role;
 
--- A page of messages, oldest first, sent before the given instant. Staff
--- also get notes and each outbound message's delivery.
-create or replace function "better_supabase"."list_inbox_messages"(conversation uuid, before timestamptz default null, max integer default 50)
+-- A page of messages, oldest first: the newest sent before the given instant,
+-- or with after the oldest sent after it. Staff also get notes and each
+-- outbound message's delivery.
+create or replace function "better_supabase"."list_inbox_messages"(conversation uuid, before timestamptz default null, max integer default 50, after timestamptz default null)
 returns jsonb
 language plpgsql
 stable
@@ -13719,14 +13745,18 @@ begin
     where m."conversation_id" = list_inbox_messages.conversation
       and m."sent_at" is not null
       and (list_inbox_messages.before is null or m."sent_at" < list_inbox_messages.before)
+      and (list_inbox_messages.after is null or m."sent_at" > list_inbox_messages.after)
       and (m."kind" = 'message' or "better_supabase"."inbox_note_readable"(list_inbox_messages.conversation))
-    order by m."sent_at" desc, m."id" desc
+    order by
+      case when list_inbox_messages.after is null then m."sent_at" end desc,
+      case when list_inbox_messages.after is null then m."id" end desc,
+      m."sent_at", m."id"
     limit least(greatest(coalesce(list_inbox_messages.max, 50), 1), 200)
   ));
 end;
 $$;
-revoke execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer) from public, anon;
-grant execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer, timestamptz) to authenticated, service_role;
 
 -- One message as list_inbox_messages returns it, for a Realtime ping.
 create or replace function "better_supabase"."get_inbox_message"(message uuid)
@@ -14601,13 +14631,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:65631bea8db14c073a6798e5d4cae21de392115a8783244f7a1c033484482c9c
+-- @bsb-hash sha256:dd5c2301799399ddb9e9153f1c7cda2524a230e8bfd6107a0e1fa93f11a97478
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 4, 'managed')
+values ('inbox', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

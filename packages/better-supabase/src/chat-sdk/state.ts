@@ -85,7 +85,9 @@ const ms = (value: number | undefined): number | undefined =>
 /**
  * A Chat SDK `StateAdapter` on the `chat-sdk-state` SQL module: thread
  * subscriptions, locks, the cache, lists and the per-thread queue in Postgres,
- * so a bot needs no Redis. Service role only.
+ * so a bot needs no Redis. Service role only. The keys are opaque: Chat SDK
+ * names them (`thread-state:`, `dedupe:`, `concurrency:` and others) and may
+ * add families in any release, so read them through the SDK, not by name.
  */
 export function createSupabaseState(
   options: SupabaseStateOptions,
