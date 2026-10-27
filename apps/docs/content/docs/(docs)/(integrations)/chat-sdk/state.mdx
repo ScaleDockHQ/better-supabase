@@ -46,6 +46,12 @@ Expired rows are ignored at once and deleted by `state.purge({ batch })`,
 which returns how many rows went. Call it from a cron, or pass the state to
 [`maintain`](/docs/chat-sdk/channels#maintenance).
 
+The cache keys are opaque. Chat SDK names them (`thread-state:`,
+`dedupe:<adapter>:<id>`, `concurrency:` and others) and may add families
+in any release, so read state through the SDK rather than by key. Message
+deduplication keeps a key for `dedupeTtlMs`, 600000 ms (10 minutes) unless
+you set it on `Chat`.
+
 ## Testing another state adapter
 
 `testChatState` from `better-supabase/testing` runs the same contract

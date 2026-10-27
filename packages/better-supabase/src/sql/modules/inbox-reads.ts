@@ -84,9 +84,10 @@ as $$
 $$;
 ${authed(`${fn("get_conversation")}(uuid)`)}
 
--- A page of messages, oldest first, sent before the given instant. Staff
--- also get notes and each outbound message's delivery.
-create or replace function ${fn("list_inbox_messages")}(conversation uuid, before timestamptz default null, max integer default 50)
+-- A page of messages, oldest first: the newest sent before the given instant,
+-- or with after the oldest sent after it. Staff also get notes and each
+-- outbound message's delivery.
+create or replace function ${fn("list_inbox_messages")}(conversation uuid, before timestamptz default null, max integer default 50, after timestamptz default null)
 returns jsonb
 language plpgsql
 stable
@@ -102,13 +103,17 @@ begin
     where m.${cm("conversation")} = list_inbox_messages.conversation
       and m.${cm("sentAt")} is not null
       and (list_inbox_messages.before is null or m.${cm("sentAt")} < list_inbox_messages.before)
+      and (list_inbox_messages.after is null or m.${cm("sentAt")} > list_inbox_messages.after)
       and (m.${cm("kind")} = 'message' or ${fn("inbox_note_readable")}(list_inbox_messages.conversation))
-    order by m.${cm("sentAt")} desc, m.${cm("id")} desc
+    order by
+      case when list_inbox_messages.after is null then m.${cm("sentAt")} end desc,
+      case when list_inbox_messages.after is null then m.${cm("id")} end desc,
+      m.${cm("sentAt")}, m.${cm("id")}
     limit ${pageSize("list_inbox_messages.max", 50, 200)}
   ));
 end;
 $$;
-${authed(`${fn("list_inbox_messages")}(uuid, timestamptz, integer)`)}
+${authed(`${fn("list_inbox_messages")}(uuid, timestamptz, integer, timestamptz)`)}
 
 -- One message as list_inbox_messages returns it, for a Realtime ping.
 create or replace function ${fn("get_inbox_message")}(message uuid)

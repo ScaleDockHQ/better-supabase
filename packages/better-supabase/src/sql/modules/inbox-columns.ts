@@ -187,7 +187,7 @@ export function inboxWrites(q: InboxSql): InboxWrites {
     ],
     [
       "thread",
-      `coalesce(input ->> 'thread_id', ${sqlString(`${q.topic}:`)} || v_id::text)`,
+      `coalesce(input ->> 'thread_id', ${sqlString(`${q.topic}:`)} || v_inbox.${ib("id")}::text || ':' || v_id::text)`,
     ],
     ["assignee", "case when v_staff then (input ->> 'assignee_id')::uuid end"],
     ["metadata", "coalesce(input -> 'metadata', '{}'::jsonb)"],

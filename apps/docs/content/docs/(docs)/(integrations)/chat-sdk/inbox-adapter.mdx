@@ -4,7 +4,8 @@ description: inboxAdapter, a Chat SDK adapter whose threads are inbox conversati
 ---
 
 `inboxAdapter` makes the [inbox](/docs/blocks/inbox) a Chat SDK platform.
-A thread is a conversation (thread id `inbox:<conversationId>`), the bot's replies
+A thread is a conversation (thread id `inbox:<inboxId>:<conversationId>`,
+channel id `inbox:<inboxId>`), the bot's replies
 are messages with the author type `bot`, and reactions, edits, typing and
 read state go through the same `createInbox` client.
 
@@ -17,13 +18,14 @@ const inbox = createInbox({ transport: sqlTransport(postgres.asService()) });
 export const inboxBot = inboxAdapter({ inbox, userName: "Acme bot", streams });
 ```
 
-| Option       | Default  | Meaning                                                                          |
-| ------------ | -------- | -------------------------------------------------------------------------------- |
-| `inbox`      | required | `createInbox` on a service transport; the bot writes as the service              |
-| `userName`   | `bot`    | The bot's name on its messages and reactions                                     |
-| `verify`     | none     | Checks requests to `handleWebhook`; without it `handleWebhook` answers 401       |
-| `streams`    | none     | A [stream store](/docs/blocks/streams) for streamed replies a reader can resume  |
-| `identities` | none     | `principalByIdentity` (or `server`) and `ticketFor`: tickets for linked contacts |
+| Option             | Default  | Meaning                                                                                            |
+| ------------------ | -------- | -------------------------------------------------------------------------------------------------- |
+| `inbox`            | required | `createInbox` on a service transport; the bot writes as the service                                |
+| `userName`         | `bot`    | The bot's name on its messages and reactions                                                       |
+| `verify`           | none     | Checks requests to `handleWebhook`; without it `handleWebhook` answers 401                         |
+| `streams`          | none     | A [stream store](/docs/blocks/streams) for streamed replies a reader can resume                    |
+| `identities`       | none     | `principalByIdentity` (or `server`) and `ticketFor`: tickets for linked contacts                   |
+| `concurrencyScope` | none     | What `getConcurrencyScope()` returns, such as the tenant id when one `Chat` serves several tenants |
 
 ## Running the bot
 
@@ -33,7 +35,21 @@ loads the message and runs the bot's Chat SDK handlers. Messages from
 staff, notes and other bots are skipped, so the bot never answers itself:
 
 ```ts
-await inboxBot.dispatch({ conversation_id, message_id });
+await inboxBot.dispatch({ conversation_id, message_id, inbox_id });
+```
+
+`dispatch` takes Chat SDK's `WebhookOptions` as its second argument and
+passes them to `processMessage`. With `waitUntil`, the whole job (loading
+the message, the ticket, the handlers) runs in the background and
+`dispatch` returns at once; an error is logged through the `Chat` logger
+unless `propagateHandlerErrors` is set. `handleWebhook(request, options)`
+passes its options the same way:
+
+```ts title="app/api/webhooks/inbox/route.ts"
+import { after } from "next/server";
+
+export const POST = (request: Request) =>
+  bot.webhooks.inbox(request, { waitUntil: (task) => after(() => task) });
 ```
 
 When the bot can't help, hand the conversation to staff. `handoff` sets
@@ -51,7 +67,25 @@ bot.onSubscribedMessage(async (thread, message) => {
 ```
 
 `conversationIdOf(threadId)` turns a thread id back into a conversation
-id. A staff reply in a bot conversation also switches it to `human`.
+id, and `decodeInboxThreadId` returns both ids; `inboxThreadId({ inboxId,
+conversationId })` builds one. A staff reply in a bot conversation also
+switches it to `human`.
+
+## Reading and errors
+
+`fetchMessages` honours `direction`: `backward` (the default) pages from the
+newest message toward older ones, `forward` from the cursor toward newer
+ones, and each page comes back oldest first. `markAsRead(threadId,
+messageId)` marks the whole conversation read, since the inbox keeps one
+read mark per conversation. Reactions resolve a Chat SDK emoji name
+(`thumbs_up`) to its unicode character, the form the widget shows.
+
+A failed call throws the error Chat SDK adapters throw: `chatErrorOf`
+turns the `DbError` into a `RateLimitError` (with `retryAfterMs`), a
+`NotImplementedError` for an operation the installed modules lack, or a
+`ChatError` with the adapter codes (`NOT_FOUND`, `AUTH_FAILED`,
+`PERMISSION_DENIED`, `VALIDATION_ERROR`, `NETWORK_ERROR`). The `DbError` is
+the `cause`. A thread id of another shape throws `INVALID_THREAD_ID`.
 
 ## Answering as the linked user
 

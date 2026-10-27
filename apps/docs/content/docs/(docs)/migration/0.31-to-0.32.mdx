@@ -152,6 +152,29 @@ result that only has `toUIMessageStream()`, `totalUsage` and
 with no stream at all now answers `500 AI_CHAT_RUN_FAILED` instead of
 failing inside the stream.
 
+## Chat SDK
+
+| 0.31                                     | 0.32                                                 |
+| ---------------------------------------- | ---------------------------------------------------- |
+| inbox thread id `inbox:<conversationId>` | `inbox:<inboxId>:<conversationId>` (`inboxThreadId`) |
+| `Adapter<string, InboxMessage>`          | `Adapter<InboxThread, InboxMessage>`                 |
+| `dispatch(job)`                          | `dispatch(job, webhookOptions?)`                     |
+| `handler.mirror` skips every bot         | skips only the bot's own messages (`author.isMe`)    |
+| adapter calls throw the `DbError`        | throw `ChatError`, with the `DbError` as `cause`     |
+| `list_inbox_messages(conv, before, max)` | `list_inbox_messages(conv, before, max, after)`      |
+
+Run `better-supabase upgrade` and generate a migration. The inbox module's
+upgrade rewrites the stored thread ids, the Chat SDK subscriptions and the
+`thread-state:` keys, so subscribed threads keep working. Code that builds or
+slices a thread id by hand breaks: use `inboxThreadId({ inboxId,
+conversationId })` and `decodeInboxThreadId(id)`, or `conversationIdOf(id)`
+as before. A legacy `inbox:<conversationId>` id is rejected with an
+`INVALID_THREAD_ID` error. A catch block that reads `error.kind` reads
+`error.cause.kind` instead, or matches `error.code` (`NOT_FOUND`,
+`PERMISSION_DENIED`, `RATE_LIMITED` and the other Chat SDK codes). Mirrored
+messages from other bots, such as an integration posting in Slack, now land
+in the inbox; filter them in your handler if you don't want them.
+
 ## Names that stay
 
 Some names looked like candidates and keep their meaning:

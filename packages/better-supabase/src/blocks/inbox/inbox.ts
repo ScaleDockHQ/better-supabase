@@ -161,6 +161,10 @@ export interface StartConversationInput {
   readonly message?: string | MessageInput;
 }
 
+export interface MessagePageOptions extends CursorPageOptions<Temporal.Instant> {
+  readonly direction?: "backward" | "forward";
+}
+
 export interface InboundInput {
   readonly inboxId: string;
   readonly threadId: string;
@@ -300,9 +304,13 @@ export interface Inbox {
       body: string,
       input?: Pick<MessageInput, "mentions" | "attachments" | "format">,
     ): AsyncResult<InboxMessage>;
+    /**
+     * A page oldest first. `backward` (the default) reads the newest messages
+     * sent before `cursor`; `forward` reads the oldest sent after it.
+     */
     list(
       conversationId: string,
-      options?: CursorPageOptions<Temporal.Instant>,
+      options?: MessagePageOptions,
     ): AsyncResult<readonly InboxMessage[]>;
     get(messageId: string): AsyncResult<InboxMessage | null>;
     edit(messageId: string, body: string): AsyncResult<InboxMessage>;
@@ -709,16 +717,21 @@ export function createInbox(options: InboxOptions): Inbox {
       send,
       note: (conversationId, body, input = {}) =>
         send(conversationId, { ...input, body, kind: "note" }),
-      list: (conversationId, page = {}) =>
-        call(
+      list: (conversationId, page = {}) => {
+        const cursor = instantArg(pageOf<Temporal.Instant>(page).cursor);
+
+        return call(
           "list_inbox_messages",
-          {
-            conversation: conversationId,
-            before: instantArg(pageOf<Temporal.Instant>(page).cursor),
-            max: page.limit,
-          },
+          page.direction === "forward"
+            ? {
+                conversation: conversationId,
+                max: page.limit,
+                after: cursor ?? "-infinity",
+              }
+            : { conversation: conversationId, before: cursor, max: page.limit },
           messagesOf,
-        ),
+        );
+      },
       get: (messageId) =>
         call("get_inbox_message", { message: messageId }, (value) =>
           value === null ? null : messageOf(value),

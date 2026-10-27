@@ -352,6 +352,16 @@ export const CODEMOD_0_32: Codemod = {
       message:
         "`bsb.evictSession()` returns a promise now (it also evicts the session memo and version cache): await it",
     },
+    {
+      pattern: /["'`]inbox:(?:\$\{|["'`])/,
+      message:
+        "Inbox thread ids are `inbox:<inboxId>:<conversationId>` now: build them with `inboxThreadId({ inboxId, conversationId })` and read them with `decodeInboxThreadId` or `conversationIdOf` from `better-supabase/chat-sdk`",
+    },
+    {
+      pattern: /\bhandler\.mirror\(|\.mirror\(\s*thread\b/,
+      message:
+        "`handler.mirror` records messages from other bots now and skips only the bot's own (`author.isMe`); filter other bots in your handler if you don't want them in the inbox",
+    },
   ],
   configFile: organizationToTenant,
   source: renameKeys,
