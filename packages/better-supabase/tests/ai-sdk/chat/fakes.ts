@@ -228,7 +228,7 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
   };
 }
 
-function mockModel(text = "Hello there"): MockLanguageModelV4 {
+export function mockModel(text = "Hello there"): MockLanguageModelV4 {
   return new MockLanguageModelV4({
     doStream: async () => ({
       stream: convertArrayToReadableStream([

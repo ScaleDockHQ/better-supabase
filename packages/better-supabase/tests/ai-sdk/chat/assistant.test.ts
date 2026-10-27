@@ -1,9 +1,12 @@
-import { toUIMessageStream } from "ai";
+import { APICallError, jsonSchema, streamText, toUIMessageStream } from "ai";
+import { convertArrayToReadableStream, MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AssistantOptions } from "../../../src/ai-sdk/chat/index.ts";
 
+import { assistantMetadata } from "../../../src/ai-sdk/chat/index.ts";
 import { AI_SDK_UI_FORMAT } from "../../../src/ai-sdk/index.ts";
+import { isRecord } from "../../../src/core/block-helpers.ts";
 import { dbError } from "../../../src/core/errors.ts";
 import { fakeChats, post, record, setup, userMessage } from "./fakes.ts";
 
@@ -460,5 +463,137 @@ describe("createAssistant", () => {
     expect(fake.released).toEqual([]);
     const bad = await assistant.prepare({ id: 1 }, context);
     expect(bad instanceof Response && bad.status).toBe(400);
+  });
+
+  it("sends the stream options and the metadata helper", async () => {
+    const { assistant, context, pending } = setup({
+      stream: (args) => ({ ...assistantMetadata(args), sendStart: true }),
+    });
+
+    const body = await (
+      await assistant.respond(
+        post({ id: "c1", message: userMessage() }),
+        context,
+      )
+    ).text();
+
+    await Promise.all(pending);
+
+    expect(body).toContain('"messageMetadata":{"model":"openai/gpt-5"');
+    expect(body).toContain('"finishReason":"stop"');
+    expect(body).toContain('"totalTokens":10');
+  });
+
+  it("takes stream options as an object", async () => {
+    const { assistant, context, pending } = setup({
+      stream: { sendFinish: false },
+    });
+
+    const body = await (
+      await assistant.respond(
+        post({ id: "c1", message: userMessage() }),
+        context,
+      )
+    ).text();
+
+    await Promise.all(pending);
+
+    expect(body).not.toContain('"type":"finish"');
+  });
+
+  it("checks the message against the validation schemas", async () => {
+    const { assistant, context, run } = setup({
+      validate: {
+        metadataSchema: jsonSchema(
+          { type: "object" },
+          {
+            validate: (value) =>
+              isRecord(value) && value["source"] === "web"
+                ? { success: true, value }
+                : { success: false, error: new Error("Expected web") },
+          },
+        ),
+      },
+    });
+
+    const bad = await assistant.respond(
+      post({
+        id: "c1",
+        message: { ...userMessage(), metadata: { source: 1 } },
+      }),
+      context,
+    );
+
+    expect(bad.status).toBe(422);
+    expect(await bad.json()).toMatchObject({ code: "AI_MESSAGE_INVALID" });
+    expect(run).not.toHaveBeenCalled();
+
+    const good = await assistant.respond(
+      post({
+        id: "c1",
+        message: { ...userMessage(), metadata: { source: "web" } },
+      }),
+      context,
+    );
+
+    expect(good.status).toBe(200);
+  });
+
+  it("answers with the mapped error when the provider refuses the start", async () => {
+    const { assistant, context } = setup({
+      run: () => {
+        throw new APICallError({
+          message: "slow down",
+          url: "https://p.test",
+          requestBodyValues: {},
+          statusCode: 429,
+        });
+      },
+    });
+
+    const response = await assistant.respond(
+      post({ id: "c1", message: userMessage() }),
+      context,
+    );
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toMatchObject({
+      code: "AI_PROVIDER_RATE_LIMITED",
+    });
+  });
+
+  it("sends a fixed message for a stream error by default", async () => {
+    const failing = new MockLanguageModelV4({
+      doStream: async () => ({
+        stream: convertArrayToReadableStream([
+          { type: "stream-start", warnings: [] },
+          {
+            type: "error",
+            error: new APICallError({
+              message: "key sk-123 is invalid",
+              url: "https://p.test",
+              requestBodyValues: {},
+              statusCode: 401,
+            }),
+          },
+        ]),
+      }),
+    });
+
+    const { assistant, context, pending } = setup({
+      run: (args) => streamText({ model: failing, messages: args.messages }),
+    });
+
+    const body = await (
+      await assistant.respond(
+        post({ id: "c1", message: userMessage() }),
+        context,
+      )
+    ).text();
+
+    await Promise.all(pending);
+
+    expect(body).toContain("The model provider refused the credentials.");
+    expect(body).not.toContain("sk-123");
   });
 });
