@@ -42,6 +42,101 @@ export default defineConfig({
     ).toEqual({ auth: { tenant: { claim: "org_id" } } });
   });
 
+  it("renames auth.organization in the $env blocks of a TypeScript config", () => {
+    const source = `export default {
+  schema: "public",
+  db: { schemas: ["public"] },
+  auth: { jwks: true },
+  $env: {
+    staging: { auth: { organization: { claim: "org" } } },
+    preview: "skip",
+  },
+};
+`;
+
+    expect(applyCodemod(v031, source, "better-supabase.config.ts").text).toBe(
+      source.replace("organization:", "tenant:"),
+    );
+  });
+
+  it("leaves a TypeScript config without auth.organization unchanged", () => {
+    const source = `export default { auth: { tenant: { claim: "org" } } };\n`;
+
+    expect(applyCodemod(v031, source, "better-supabase.config.ts").text).toBe(
+      source,
+    );
+  });
+
+  it("refuses a TypeScript config it can't read when it names organization", () => {
+    const source = `const auth = { organization: {} };\nexport default build(auth);\n`;
+
+    const result = applyCodemod(v031, source, "better-supabase.config.ts");
+
+    expect(result.text).toBe(source);
+    expect(result.review.map((entry) => entry.message).join("\n")).toMatch(
+      /by hand/,
+    );
+  });
+
+  it("leaves a TypeScript config it can't read alone when organization is absent", () => {
+    const source = `export default build();\n`;
+
+    expect(applyCodemod(v031, source, "better-supabase.config.ts").text).toBe(
+      source,
+    );
+  });
+
+  it("renames auth.organization in the $env and $<environment> blocks of a JSON config", () => {
+    const source = JSON.stringify({
+      schema: "public",
+      auth: "jwks",
+      $env: { staging: { auth: { organization: { claim: "org" } } } },
+      $production: { auth: { organization: { onMissing: "skip" } } },
+    });
+
+    expect(
+      JSON.parse(
+        applyCodemod(v031, source, "better-supabase.config.json").text,
+      ),
+    ).toEqual({
+      schema: "public",
+      auth: "jwks",
+      $env: { staging: { auth: { tenant: { claim: "org" } } } },
+      $production: { auth: { tenant: { onMissing: "skip" } } },
+    });
+  });
+
+  it("keeps a JSON config that needs no rename byte for byte", () => {
+    const source = `{ "auth": { "tenant": {} } }`;
+
+    expect(applyCodemod(v031, source, "better-supabase.config.json").text).toBe(
+      source,
+    );
+  });
+
+  it("lists a JSON config that sets both keys for review", () => {
+    const source = JSON.stringify({
+      auth: { organization: { claim: "org" }, tenant: { column: "org" } },
+    });
+
+    const result = applyCodemod(v031, source, "better-supabase.config.json");
+
+    expect(result.text).toBe(source);
+    expect(result.review).toHaveLength(1);
+  });
+
+  it("refuses a JSON config that doesn't parse", () => {
+    const result = applyCodemod(
+      v031,
+      "{ auth: ",
+      "better-supabase.config.json",
+    );
+
+    expect(result.review.map((entry) => entry.message).join("\n")).toMatch(
+      /not valid JSON/,
+    );
+  });
+
   it("lists a config that sets both keys for review", () => {
     const source = `export default {
   auth: { organization: { claim: "org_id" }, tenant: { column: "org" } },

@@ -17,6 +17,15 @@ describe("triggerFills", () => {
     ).toEqual(["Display", "kvk", "name"]);
   });
 
+  it("reads an assignment that follows a label", () => {
+    expect(
+      triggerFills(
+        "plpgsql",
+        "begin <<fill>> new.slug := 'a'; return new; end",
+      ),
+    ).toEqual(["slug"]);
+  });
+
   it("reads select into new columns", () => {
     expect(
       triggerFills(
