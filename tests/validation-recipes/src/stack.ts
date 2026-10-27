@@ -301,6 +301,14 @@ async function install(client: PoolClient, sql: string): Promise<void> {
       await client.query(
         "select pg_advisory_xact_lock(hashtext('better-supabase:validation-install'))",
       );
+      // The fixture runs the catalog permissions model: its invitations hold role ids
+      // and its team members reference public.memberships. A recipe re-adds those
+      // constraints for its own model, which the seeded rows fail. The rollback after
+      // each recipe brings the rows back.
+      await client.query(`do $$ begin
+        if to_regclass('better_supabase.team_members') is not null then delete from better_supabase.team_members; end if;
+        if to_regclass('better_supabase.invitations') is not null then delete from better_supabase.invitations; end if;
+      end $$`);
       await client.query(sql);
 
       return;
