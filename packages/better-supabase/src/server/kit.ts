@@ -4,10 +4,12 @@ import type { AuthState } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
 import type {
   AnyAuthorizer,
+  AuthorizationPurpose,
   AuthorizationResource,
   RequestMemo,
 } from "../core/authorizer.ts";
 import type { DbError } from "../core/errors.ts";
+import type { RequestContext } from "../core/plugin.ts";
 import type { GuardOptions } from "./respond.ts";
 
 import { authContext } from "../auth/context.ts";
@@ -155,6 +157,27 @@ function actionError(error: DbError): ActionResult<never> {
   return { ok: false, data: null, error };
 }
 
+/**
+ * The purpose of a route check: `GET` and `HEAD` read, other methods write.
+ * Without a method the route is read.
+ */
+export function routePurpose(method?: string): AuthorizationPurpose {
+  const upper = method?.toUpperCase();
+
+  return {
+    operation: "route",
+    intent:
+      upper === undefined || upper === "GET" || upper === "HEAD"
+        ? "read"
+        : "write",
+  };
+}
+
+const ACTION_PURPOSE: AuthorizationPurpose = {
+  operation: "action",
+  intent: "write",
+};
+
 /** What a `permission` on an action or route is checked against. */
 function callerResource(input: unknown): AuthorizationResource {
   if (input === undefined || input instanceof Request) {
@@ -174,6 +197,7 @@ function callerResource(input: unknown): AuthorizationResource {
   return {
     type: "action",
     properties: input as Readonly<Record<string, unknown>>,
+    source: "input",
   };
 }
 
@@ -215,7 +239,11 @@ async function loadResource(
 
   // SAFETY: the loader is typed to return an AuthorizationResource, and the
   // check above confirms the one field every resource has.
-  return data as AuthorizationResource;
+  const resource = data as AuthorizationResource;
+
+  return resource.properties === undefined || resource.source !== undefined
+    ? resource
+    : { ...resource, source: "loaded" };
 }
 
 /** The scope's `RequestMemo`, when the scope is a server context. */
@@ -223,6 +251,18 @@ function memoOf(scope: object | undefined): RequestMemo | undefined {
   return scope && "memo" in scope && isRequestMemo(scope.memo)
     ? scope.memo
     : undefined;
+}
+
+/** The scope's request id and approval, when the scope is a server context. */
+function scopeFields(scope: object | undefined): RequestContext {
+  const requestId = scope && "requestId" in scope ? scope.requestId : undefined;
+
+  const approval = scope && "approval" in scope ? scope.approval : undefined;
+
+  return {
+    ...(typeof requestId === "string" ? { requestId } : {}),
+    ...(typeof approval === "string" ? { approval } : {}),
+  };
 }
 
 /**
@@ -236,6 +276,7 @@ export async function authorizeCaller<I, C, P, X = ResourceLoaderContext<C, P>>(
   tenant: string | undefined,
   authorizer?: AnyAuthorizer,
   scope?: object,
+  purpose: AuthorizationPurpose = routePurpose(),
 ): Promise<
   | { readonly session: AuthSession<C, P>; readonly tenant: string | undefined }
   | DbError
@@ -276,7 +317,9 @@ export async function authorizeCaller<I, C, P, X = ResourceLoaderContext<C, P>>(
       context: {
         ...authContext(auth),
         ...(tenant === undefined ? {} : { tenant }),
+        ...scopeFields(scope),
       },
+      ...purpose,
       ...(memo ? { runtime: { memo } } : {}),
     });
 
@@ -301,6 +344,7 @@ export async function requireCaller<C, P, X = ResourceLoaderContext<C, P>>(
   tenant: string | undefined,
   authorizer?: AnyAuthorizer,
   scope?: object,
+  method?: string,
 ): Promise<
   | { readonly session: AuthSession<C, P>; readonly tenant: string | undefined }
   | DbError
@@ -309,7 +353,15 @@ export async function requireCaller<C, P, X = ResourceLoaderContext<C, P>>(
 
   return (
     denied ??
-    authorizeCaller(auth, options, undefined, tenant, authorizer, scope)
+    authorizeCaller(
+      auth,
+      options,
+      undefined,
+      tenant,
+      authorizer,
+      scope,
+      routePurpose(method),
+    )
   );
 }
 
@@ -367,6 +419,7 @@ export async function runAction<C, P, X = ResourceLoaderContext<C, P>>(
     tenant,
     authorizer,
     scope,
+    ACTION_PURPOSE,
   );
 
   if ("kind" in caller) {

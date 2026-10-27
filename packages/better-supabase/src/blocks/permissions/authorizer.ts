@@ -72,7 +72,7 @@ export function permissionsAuthorizer<Key extends string>(
     request: AuthorizationRequest<Key>,
     runtime: AuthorizerRuntime | undefined,
   ): Promise<readonly string[] | undefined> => {
-    const tenant = request.context["tenant"];
+    const tenant = request.context.tenant;
 
     if (typeof tenant !== "string" || request.subject.type === "anon") {
       return undefined;

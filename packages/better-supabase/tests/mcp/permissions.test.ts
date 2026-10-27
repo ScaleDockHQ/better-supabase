@@ -152,8 +152,40 @@ describe("checkTool", () => {
     expect(evaluate).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         action: "send",
-        resource: { type: "mcp_tool", id: "send", properties: { to: "a" } },
+        resource: {
+          type: "mcp_tool",
+          id: "send",
+          properties: { to: "a" },
+          source: "input",
+        },
         subject: { type: "anon", id: "anonymous" },
+        context: { scopes: [], intent: "write", operation: "tool" },
+      }),
+    );
+  });
+
+  it("reads a tool with readOnlyHint as a read", async () => {
+    const evaluate = vi.fn(() => ({ outcome: "granted" }) as const);
+
+    const authorizer = defineAuthorizer({
+      name: "test",
+      key: String,
+      evaluate,
+    });
+
+    await checkTool(
+      authorizer,
+      {
+        info: { name: "search", annotations: { readOnlyHint: true } },
+        permission: "search",
+      },
+      {},
+      {},
+    );
+
+    expect(evaluate).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        context: { scopes: [], intent: "read", operation: "tool" },
       }),
     );
   });

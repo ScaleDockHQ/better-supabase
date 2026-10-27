@@ -359,6 +359,7 @@ export function createHono<
           c.get("tenant"),
           server.authorizer,
           ctx,
+          c.req.method,
         );
 
         if ("kind" in caller) {

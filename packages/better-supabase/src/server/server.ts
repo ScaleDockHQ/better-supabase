@@ -10,6 +10,7 @@ import type {
   ResolvePhase,
 } from "../auth/resolve.ts";
 import type { SessionEncoding } from "../auth/session.ts";
+import type { RequestMemo } from "../core/authorizer.ts";
 import type {
   DelegationPermissions,
   TicketSubject,
@@ -302,6 +303,17 @@ export function createServer<
     : supportOff;
 
   /**
+   * The authorization scope of one context: its memo and the request id every
+   * check in the scope shares.
+   */
+  const authzScope = (
+    ids: RequestIds,
+  ): { readonly memo: RequestMemo; readonly requestId?: string } => ({
+    memo: requestMemo(),
+    ...(ids.requestId === undefined ? {} : { requestId: ids.requestId }),
+  });
+
+  /**
    * The target's context in a support session. Queries run over direct Postgres
    * with the target's claims plus `act`, read-only unless the session allows
    * writes; nothing reaches Supabase with the admin's token.
@@ -351,9 +363,13 @@ export function createServer<
 
     const scope = tenant ?? session.tenant;
     const base = userContext(user, claims);
+    const authz = authzScope(ids);
 
-    const context: RequestContext =
-      scope === undefined ? base : { ...base, tenant: scope };
+    const context: RequestContext = {
+      ...base,
+      ...(scope === undefined ? {} : { tenant: scope }),
+      ...authz,
+    };
 
     const sessionOptions = sessionWith(ids, scope, session.readOnly);
     const recorder = new StatsRecorder(parent);
@@ -406,7 +422,7 @@ export function createServer<
     return {
       ...credentials,
       ...ids,
-      memo: requestMemo(),
+      memo: authz.memo,
       auth,
       resolution,
       support: active,
@@ -459,9 +475,13 @@ export function createServer<
   ): ServerContext<M, F, E, C, P, B> => {
     const scope = tenant ?? auth.organizationId;
     const base = authContext(auth);
+    const authz = authzScope(ids);
 
-    const context: RequestContext =
-      scope === undefined ? base : { ...base, tenant: scope };
+    const context: RequestContext = {
+      ...base,
+      ...(scope === undefined ? {} : { tenant: scope }),
+      ...authz,
+    };
 
     const session = sessionWith(ids, scope);
     const recorder = new StatsRecorder(parent);
@@ -471,7 +491,7 @@ export function createServer<
     return {
       ...credentials,
       ...ids,
-      memo: requestMemo(),
+      memo: authz.memo,
       auth: resolution.auth,
       resolution,
       get supabase(): SupabaseClient {
@@ -523,10 +543,13 @@ export function createServer<
       return apiKeyContextFor(resolution, auth, parent, tenant, ids);
     }
 
-    const context: RequestContext =
-      tenant === undefined
-        ? authContext(auth)
-        : { ...authContext(auth), tenant };
+    const authz = authzScope(ids);
+
+    const context: RequestContext = {
+      ...authContext(auth),
+      ...(tenant === undefined ? {} : { tenant }),
+      ...authz,
+    };
 
     const clientHeaders =
       tenant === undefined
@@ -566,7 +589,7 @@ export function createServer<
     return {
       ...credentials,
       ...ids,
-      memo: requestMemo(),
+      memo: authz.memo,
       auth,
       resolution,
       get supabase() {

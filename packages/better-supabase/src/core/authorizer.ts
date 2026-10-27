@@ -25,12 +25,73 @@ export interface AuthorizationSubject {
   readonly properties?: JsonObject;
 }
 
+/**
+ * Where `resource.properties` came from: `loaded` from the database through the
+ * caller's client, or `input` the caller sent, which an authorizer must not
+ * trust as stored state.
+ */
+export type AuthorizationResourceSource = "loaded" | "input";
+
+/**
+ * The write a request makes: the stored row, when there is one, and the new
+ * values.
+ */
+export interface AuthorizationChange {
+  /** The row before the write; absent for a create. */
+  readonly current?: JsonObject;
+  /** The values the caller sends. Caller input, never trusted as stored state. */
+  readonly next: JsonObject;
+}
+
 /** What is acted on (AuthZEN Resource): a table, a topic or an action's target. */
 export interface AuthorizationResource {
   readonly type: string;
   readonly id?: string;
   /** The row, for decisions that read it (`get`, `update`, `delete`). */
   readonly properties?: JsonObject;
+  /** Where `properties` came from. */
+  readonly source?: AuthorizationResourceSource;
+  /** The write, for `create`, `upsert` and `update`. */
+  readonly change?: AuthorizationChange;
+}
+
+/** Whether a request reads or writes. */
+export type AuthorizationIntent = "read" | "write";
+
+/**
+ * The kind of call that asks: a repository method, an action, a route or an MCP
+ * tool.
+ */
+export type AuthorizationOperation =
+  | "get"
+  | "list"
+  | "create"
+  | "update"
+  | "delete"
+  | "action"
+  | "route"
+  | "tool";
+
+/** The `intent` and `operation` a call site passes to `requestOf`. */
+export interface AuthorizationPurpose {
+  readonly intent?: AuthorizationIntent;
+  readonly operation?: AuthorizationOperation;
+}
+
+/**
+ * The typed part of `AuthorizationRequest.context`. better-supabase builds it
+ * from the verified request context; every field is optional.
+ */
+export interface AuthorizationContext extends AuthorizationPurpose {
+  readonly tenant?: string;
+  /** The token's assurance level (`aal1`, `aal2`). */
+  readonly aal?: string;
+  /** The token's OAuth scopes, split from `scope`. */
+  readonly scopes?: readonly string[];
+  /** `RequestContext.requestId`: the same for every check in one request scope. */
+  readonly requestId?: string;
+  /** The approval id the client resumes with (`ServerOptions.approval`). */
+  readonly approval?: string;
 }
 
 /**
@@ -42,8 +103,8 @@ export interface AuthorizationRequest<Ref = string> {
   readonly subject: AuthorizationSubject;
   readonly action: Ref;
   readonly resource: AuthorizationResource;
-  /** The tenant, assurance level and scopes of the request. */
-  readonly context: JsonObject;
+  /** The tenant, assurance level, scopes, purpose and approval of the request. */
+  readonly context: AuthorizationContext & JsonObject;
 }
 
 export type AuthorizationOutcome =
@@ -238,9 +299,12 @@ function claimsProperty(claims: unknown): { readonly claims?: JsonObject } {
 }
 
 /** The subject and context of a request, from the verified context only. */
-export function requestOf(context: RequestContext | undefined): {
+export function requestOf(
+  context: RequestContext | undefined,
+  purpose: AuthorizationPurpose = {},
+): {
   readonly subject: AuthorizationSubject;
-  readonly context: JsonObject;
+  readonly context: AuthorizationContext & JsonObject;
 } {
   const actor = context?.actor;
   const claims = context?.claims;
@@ -272,6 +336,16 @@ export function requestOf(context: RequestContext | undefined): {
       ...(context?.tenant === undefined ? {} : { tenant: context.tenant }),
       ...(typeof aal === "string" ? { aal } : {}),
       scopes: scopesOf(claims),
+      ...(purpose.intent === undefined ? {} : { intent: purpose.intent }),
+      ...(purpose.operation === undefined
+        ? {}
+        : { operation: purpose.operation }),
+      ...(typeof context?.requestId === "string"
+        ? { requestId: context.requestId }
+        : {}),
+      ...(typeof context?.approval === "string"
+        ? { approval: context.approval }
+        : {}),
     },
   };
 }
@@ -332,12 +406,21 @@ function outcomeError(
   }
 }
 
-export interface CheckOptions<Ref> {
+export interface CheckOptions<Ref> extends AuthorizationPurpose {
   readonly authorizer: Authorizer<Ref> | undefined;
   readonly permission: Ref;
   readonly resource: AuthorizationResource;
   readonly context: RequestContext | undefined;
   readonly runtime?: AuthorizerRuntime;
+}
+
+function purposeOf(options: AuthorizationPurpose): AuthorizationPurpose {
+  return {
+    ...(options.intent === undefined ? {} : { intent: options.intent }),
+    ...(options.operation === undefined
+      ? {}
+      : { operation: options.operation }),
+  };
 }
 
 /**
@@ -369,7 +452,7 @@ export async function checkPermission<Ref>(
     );
   }
 
-  const { subject, context } = requestOf(options.context);
+  const { subject, context } = requestOf(options.context, purposeOf(options));
 
   try {
     const outcome = await evaluateWith(
@@ -401,12 +484,16 @@ export async function checkEach<Ref>(
   resources: readonly AuthorizationResource[],
   context: RequestContext | undefined,
   runtime?: AuthorizerRuntime,
+  purpose: AuthorizationPurpose = {},
 ): Promise<readonly boolean[]> {
   if (!authorizer || resources.length === 0) {
     return resources.map(() => false);
   }
 
-  const { subject, context: requestContext } = requestOf(context);
+  const { subject, context: requestContext } = requestOf(
+    context,
+    purposeOf(purpose),
+  );
 
   const requests = resources.map((resource) => ({
     subject,

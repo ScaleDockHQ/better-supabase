@@ -21,6 +21,28 @@ const claims = {
   roles: ["admin"],
 };
 
+describe("requestOf context", () => {
+  it("adds the purpose, request id and approval, never to the subject", () => {
+    const actor = { id: USER, kind: "user", role: "authenticated" } as const;
+    const plain = requestOf({ actor, claims });
+
+    const request = requestOf(
+      { actor, claims, requestId: "req_1", approval: "apr_1" },
+      { intent: "write", operation: "update" },
+    );
+
+    expect(request.context).toEqual({
+      aal: "aal2",
+      scopes: [],
+      intent: "write",
+      operation: "update",
+      requestId: "req_1",
+      approval: "apr_1",
+    });
+    expect(request.subject).toEqual(plain.subject);
+  });
+});
+
 describe("requestOf claims", () => {
   it("passes the verified claims of a user actor", () => {
     const { subject } = requestOf({

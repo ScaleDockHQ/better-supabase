@@ -373,6 +373,7 @@ export function createEdge<
             tenant,
             options.authorizer,
             ctx,
+            request.method,
           );
 
           if ("kind" in caller) {
