@@ -172,9 +172,12 @@ membership lasts until the next refresh. When that window matters:
 - Sign in and out from a Server Action with `bsb.signIn`, `verifyOtp`,
   `authorizeUrl` and `exchangeCode`, `verifyMfa` or `signOut`, then
   `redirect(result.data.redirectTo)`. The result is plain data
-  (`redirectTo`, `mfa`); reads later in the action (`bsb.context()`,
+  (`redirectTo`, `mfa`, `user`); reads later in the action (`bsb.context()`,
   `bsb.getRequestSession()`) see the new session, so build the landing
   context from them.
+- Start email link flows with `bsb.signInWithOtp`, `resetPasswordForEmail`,
+  `signUp` or `resend`, not supabase-js: they write the PKCE verifier cookie
+  that `exchangeCode` reads on the link's callback.
 - After signing in or out in the browser client: `useSessionChange(sessionChanged)` from
   `better-supabase/next/client`. After switching the active organization:
   `useSessionChange(sessionChanged, router, { refreshToken: supabase })`, so

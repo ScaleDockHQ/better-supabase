@@ -180,7 +180,8 @@ and gives every handler a `db` for the current user:
 | `createBrowserClient`                                           | `createClient(betterSupabase)` ([Browser client](/docs/frontend/client))  |
 | A client per request in Hono, oRPC or an Edge Function          | `bs.middleware()` or `bs.handler()` ([Frameworks](/docs/frameworks/hono)) |
 
-Auth flows (`supabase.auth.signInWithOtp()` and friends), storage and
+In Next.js, server-side auth flows move to the `createNext` helpers
+([Next.js auth](/docs/frameworks/next-auth)). Other auth flows, storage and
 realtime stay on the supabase-js client: `db.$client` on the server,
 `bs.supabase` in the browser.
 

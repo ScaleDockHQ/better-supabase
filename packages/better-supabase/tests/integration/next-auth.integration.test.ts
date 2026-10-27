@@ -219,7 +219,11 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
 
     expect(signed).toMatchObject({
       ok: true,
-      data: { redirectTo: "/home", mfa: false },
+      data: {
+        redirectTo: "/home",
+        mfa: false,
+        user: { id: user.id, email: user.email },
+      },
     });
     expect(token()).toBeDefined();
     expect((await bsb.getRequestSession())?.userId).toBe(user.id);
@@ -292,32 +296,20 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     expect((await bsb.getRequestSession())?.userId).toBe(user.id);
   });
 
-  it("exchanges a PKCE code and deletes the verifier cookie", async () => {
+  it("emails a magic link with signInWithOtp and exchanges its code", async () => {
     const user = await createUser();
     const { bsb, token, verifier } = setup();
+    const callback = "https://example.localhost/auth/callback";
 
-    const { url: authorize } = await bsb.authorizeUrl({
-      provider: "github",
-      redirectTo: "https://example.localhost/auth/callback",
+    const sent = await bsb.signInWithOtp({
+      email: user.email,
+      redirectTo: callback,
       next: "/projects",
+      shouldCreateUser: false,
     });
 
+    expect(sent).toEqual({ ok: true, data: null, error: null });
     expect(mocks.jar.has(verifier)).toBe(true);
-
-    const target = new URL(authorize);
-
-    const sent = await fetch(`${url}/auth/v1/otp`, {
-      method: "POST",
-      headers: { apikey: publishableKey, "content-type": "application/json" },
-      body: JSON.stringify({
-        email: user.email,
-        create_user: false,
-        code_challenge: target.searchParams.get("code_challenge"),
-        code_challenge_method: "s256",
-      }),
-    });
-
-    expect(sent.status).toBe(200);
 
     const { rows } = await pool.query<{ token_hash: string }>(
       "select token_hash from auth.one_time_tokens where user_id = $1",
@@ -327,10 +319,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     const link = new URL(`${url}/auth/v1/verify`);
     link.searchParams.set("token", rows[0]?.token_hash ?? "");
     link.searchParams.set("type", "magiclink");
-    link.searchParams.set(
-      "redirect_to",
-      target.searchParams.get("redirect_to") ?? "",
-    );
+    link.searchParams.set("redirect_to", `${callback}?next=%2Fprojects`);
 
     const landed = await fetch(link, { redirect: "manual" });
     const location = new URL(landed.headers.get("location") ?? "", url);
@@ -346,11 +335,43 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     expect(exchanged.error).toBeNull();
     expect(exchanged).toMatchObject({
       ok: true,
-      data: { redirectTo: "/projects", mfa: false },
+      data: {
+        redirectTo: "/projects",
+        mfa: false,
+        user: { id: user.id, email: user.email },
+      },
     });
     expect(mocks.jar.has(verifier)).toBe(false);
     expect((await bsb.getRequestSession())?.userId).toBe(user.id);
     expect(token()).toBe((await bsb.getRequestSession())?.accessToken);
+  });
+
+  it("commits the session signUp returns when confirmation is off", async () => {
+    const { bsb, token, verifier } = setup();
+    const email = `next-auth-${crypto.randomUUID()}@example.com`;
+
+    const signed = await bsb.signUp({
+      email,
+      password,
+      redirectTo: "https://example.localhost/auth/callback",
+      next: "/welcome",
+      data: { name: "New" },
+    });
+
+    const userId = signed.data?.user?.id ?? "";
+    users.push(userId);
+
+    expect(signed).toMatchObject({
+      ok: true,
+      data: {
+        redirectTo: "/welcome",
+        mfa: false,
+        user: { email, userMetadata: { name: "New" } },
+      },
+    });
+    expect(mocks.jar.has(verifier)).toBe(false);
+    expect((await bsb.getRequestSession())?.userId).toBe(userId);
+    expect(token()).toBeDefined();
   });
 
   it("verifies TOTP and commits the aal2 session", async () => {
@@ -410,7 +431,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
 
     expect(signedOut).toEqual({
       ok: true,
-      data: { redirectTo: "/signed-out", mfa: false },
+      data: { redirectTo: "/signed-out", mfa: false, user: null },
       error: null,
     });
     expect(token()).toBeUndefined();
