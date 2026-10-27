@@ -1,7 +1,6 @@
 import { generatePermutations } from "flags/next";
 import { FlagValues } from "flags/react";
 import { getExtracted } from "next-intl/server";
-import { Suspense } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -11,10 +10,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { env } from "@/env";
-import {
-  CurrentPlan,
-  CurrentPlanSkeleton,
-} from "@/features/billing/components/billing-overview";
 import { pricingBanner, pricingFlags } from "@/flags";
 
 /** The code the proxy rewrites to when FLAGS_SECRET isn't set. */
@@ -38,7 +33,7 @@ export async function generateStaticParams() {
 /**
  * `/pricing` is rewritten here by the proxy, which evaluates the flags for the
  * visitor's organization and plan (`precompute`). The page reads them from the
- * code, so its shell is static; only the signed-in plan streams in.
+ * code, so it never reads cookies or headers and stays static.
  */
 export default async function PricingPage({
   params,
@@ -70,9 +65,6 @@ export default async function PricingPage({
           </Alert>
         ) : null}
       </Card>
-      <Suspense fallback={<CurrentPlanSkeleton />}>
-        <CurrentPlan />
-      </Suspense>
       <FlagValues values={{ [pricingBanner.key]: showBanner }} />
     </div>
   );

@@ -195,18 +195,15 @@ export default async function Pricing({
   return (
     <>
       {banner ? <UpgradeBanner /> : null}
-      <Suspense fallback={<CurrentPlanSkeleton />}>
-        <CurrentPlan />
-      </Suspense>
       <FlagValues values={{ [pricingBanner.key]: banner }} />
     </>
   );
 }
 ```
 
-The page never reads cookies or headers, so each code is a static shell.
-Anything per user, such as the signed-in plan, goes in a `<Suspense>`
-boundary with a skeleton, and streams in after the shell. `FlagValues` from
+The page never reads cookies or headers, so each code is a static page.
+Read a per-user flag in a page without a `[code]` segment instead, inside a
+`<Suspense>` boundary with a skeleton. `FlagValues` from
 `flags/react` tells Flags Explorer and Vercel Analytics which values the
 page was built with.
 

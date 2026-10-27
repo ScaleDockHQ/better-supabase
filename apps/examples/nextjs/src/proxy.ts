@@ -134,11 +134,19 @@ export const proxy = (request: NextRequest) =>
 
       // The first request has no visitor id yet, so its rollouts use the
       // organization; every later request keeps one bucket.
-      if (!request.cookies.has(VISITOR_COOKIE)) {
-        response.headers.append(
-          "set-cookie",
-          `${VISITOR_COOKIE}=${crypto.randomUUID()}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly; Secure`,
-        );
+      // next-intl's response writes its cookies through `response.cookies`,
+      // which drops a `set-cookie` header appended beside it.
+      if (
+        !request.cookies.has(VISITOR_COOKIE) &&
+        response instanceof NextResponse
+      ) {
+        response.cookies.set(VISITOR_COOKIE, crypto.randomUUID(), {
+          path: "/",
+          maxAge: 60 * 60 * 24 * 365,
+          sameSite: "lax",
+          httpOnly: true,
+          secure: true,
+        });
       }
     },
     // The phases show whether a page load called Auth.
