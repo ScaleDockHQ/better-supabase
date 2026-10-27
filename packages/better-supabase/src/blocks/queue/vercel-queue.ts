@@ -17,7 +17,8 @@ export interface VercelQueueMetadata {
 
 /**
  * The part of a `PollingQueueClient` from `@vercel/queue` the backend uses,
- * typed structurally so the package stays an optional peer.
+ * typed structurally so the package stays an optional peer. A `QueueClient` has
+ * no `receive`: it sends, and `vercelQueueRoute` runs the pushed jobs.
  */
 export interface VercelQueueClient {
   send(
@@ -26,9 +27,10 @@ export interface VercelQueueClient {
     options?: {
       readonly idempotencyKey?: string;
       readonly delaySeconds?: number;
+      readonly retentionSeconds?: number;
     },
   ): PromiseLike<{ readonly messageId: string | null }>;
-  receive(
+  receive?(
     topic: string,
     consumerGroup: string,
     handler: (
@@ -46,8 +48,20 @@ export interface VercelQueueClient {
         | { readonly acknowledge: true }
         | undefined;
     },
-  ): PromiseLike<{ readonly ok: boolean }>;
+  ): PromiseLike<VercelReceiveResult>;
 }
+
+/** What `receive` answers: `ok`, or why nothing was processed. */
+export type VercelReceiveResult =
+  | { readonly ok: true }
+  | {
+      readonly ok: false;
+      readonly reason?:
+        | "empty"
+        | "not_found"
+        | "not_available"
+        | "already_processed";
+    };
 
 export interface VercelQueueProviderOptions {
   /** The consumer group that reads the topics. Default `better-supabase`. */
@@ -62,9 +76,36 @@ export interface VercelQueueProviderOptions {
    * Default 25.
    */
   readonly settle?: number;
+  /**
+   * Called after each `receive` with its result, so a drain can count empty
+   * polls apart from messages another consumer holds.
+   */
+  readonly onReceive?: (queue: string, result: VercelReceiveResult) => void;
 }
 
 const TOPIC = /^[A-Za-z0-9_-]+$/;
+
+const DAY = 86_400;
+const MAX_RETENTION = 7 * DAY;
+
+/**
+ * The retention a message delayed by `delay` seconds needs: the default day, or
+ * an hour past the delay, at most the 7-day cap. `undefined` without a delay,
+ * so the topic's default applies.
+ */
+export function vercelRetentionSeconds(delay: number): number | undefined {
+  if (delay <= 0) {
+    return undefined;
+  }
+
+  if (delay > MAX_RETENTION) {
+    throw new RangeError(
+      `Vercel Queues delays messages at most ${String(MAX_RETENTION)} seconds (7 days), got ${String(delay)}`,
+    );
+  }
+
+  return Math.min(Math.max(DAY, delay + 3600), MAX_RETENTION);
+}
 
 interface Held {
   readonly metadata: VercelQueueMetadata;
@@ -127,11 +168,14 @@ export function vercelQueueProvider(
     name: "vercel-queues",
     leases: false,
     async send(queue, payload, delay, maxAttempts, dedupeKey) {
+      const retentionSeconds = vercelRetentionSeconds(delay);
+
       const sent = await client.send(
         topicOf(queue),
         { payload: payload ?? {}, max_attempts: maxAttempts },
         {
           delaySeconds: delay,
+          ...(retentionSeconds === undefined ? {} : { retentionSeconds }),
           ...(dedupeKey === undefined ? {} : { idempotencyKey: dedupeKey }),
         },
       );
@@ -140,6 +184,15 @@ export function vercelQueueProvider(
     },
     read(queue, lease, batch) {
       const rows: QueueMessageRow[] = [];
+      const receive = client.receive?.bind(client);
+
+      if (receive === undefined) {
+        return Promise.reject(
+          new TypeError(
+            "This Vercel Queues client only sends; push delivery runs jobs through vercelQueueRoute, or pass a PollingQueueClient to poll",
+          ),
+        );
+      }
 
       return new Promise((resolve, reject) => {
         let timer: ReturnType<typeof setTimeout> | undefined;
@@ -177,25 +230,24 @@ export function vercelQueueProvider(
           });
         };
 
-        client
-          .receive(topicOf(queue), group, handler, {
-            limit: Math.min(Math.max(batch, 1), 10),
-            visibilityTimeoutSeconds: Math.min(Math.max(lease, 30), 3600),
-            retry: (_error, metadata) => {
-              const afterSeconds = delays.get(metadata.messageId) ?? retryAfter;
+        receive(topicOf(queue), group, handler, {
+          limit: Math.min(Math.max(batch, 1), 10),
+          visibilityTimeoutSeconds: Math.min(Math.max(lease, 30), 3600),
+          retry: (_error, metadata) => {
+            const afterSeconds = delays.get(metadata.messageId) ?? retryAfter;
 
-              delays.delete(metadata.messageId);
+            delays.delete(metadata.messageId);
 
-              return { afterSeconds };
-            },
-          })
-          .then(() => {
-            if (timer !== undefined) {
-              clearTimeout(timer);
-            }
+            return { afterSeconds };
+          },
+        }).then((result) => {
+          if (timer !== undefined) {
+            clearTimeout(timer);
+          }
 
-            finish();
-          }, reject);
+          options.onReceive?.(queue, result);
+          finish();
+        }, reject);
       });
     },
     complete(job) {

@@ -19,7 +19,8 @@ type PayloadIn<
   N extends keyof Q,
 > = StandardSchemaV1.InferInput<Q[N]>;
 
-type PayloadOut<
+/** The payload a handler of queue `N` gets, after its schema ran. */
+export type PayloadOut<
   Q extends QueueSchemas,
   N extends keyof Q,
 > = StandardSchemaV1.InferOutput<Q[N]>;
@@ -502,6 +503,36 @@ export interface Queue<Q extends QueueSchemas> {
     handler: JobHandler<PayloadOut<Q, N>>,
     options?: WorkOptions,
   ): Promise<DrainResult>;
+  /**
+   * Runs one job a push backend delivered (a Vercel Queues callback): checks
+   * the payload against the queue's schema and runs `handler`, with the same
+   * tenant context as `drain`. The job is not settled; the caller acknowledges
+   * it on `ok` and retries or drops it on an error.
+   */
+  runJob<N extends Extract<keyof Q, string>>(
+    queue: N,
+    delivery: JobDelivery,
+    handler: JobHandler<PayloadOut<Q, N>>,
+    options?: RunJobOptions,
+  ): AsyncResult<void>;
+}
+
+/** One message a push backend handed to `runJob`. */
+export interface JobDelivery {
+  /** A number for `Job.id`; push backends with string ids pass a local handle. */
+  readonly id: number;
+  /** 1 on the first delivery. */
+  readonly attempts: number;
+  readonly enqueuedAt: Date | string;
+  readonly visibleUntil?: Date | string;
+  /** The stored body, `{ payload, max_attempts }`. */
+  readonly message: unknown;
+}
+
+export interface RunJobOptions {
+  /** As in `WorkOptions`. */
+  readonly allTenants?: boolean;
+  readonly signal?: AbortSignal;
 }
 
 /**

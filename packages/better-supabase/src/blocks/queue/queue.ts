@@ -7,6 +7,7 @@ import type { Result } from "../../core/result.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 import type {
   QueueProvider,
+  QueueMessageBody,
   QueueMessageRow,
   QueueRpcClient,
   QueueStats,
@@ -268,6 +269,48 @@ export function createQueue<const Q extends QueueSchemas>(
     return false;
   };
 
+  /**
+   * Validates the payload and runs `handler`. A payload that fails the schema
+   * is an error result; a handler that throws, or returns an error `Result`,
+   * throws.
+   */
+  const execute = async (
+    job: Job,
+    handler: JobHandler<unknown>,
+    allTenants: boolean | undefined,
+    signal: AbortSignal,
+  ): Promise<Result<void>> => {
+    const payload = await validate(schemaOf(job.queue), job.payload, "payload");
+
+    if (!payload.ok) {
+      return payload;
+    }
+
+    const context =
+      allTenants && job.context.tenant === undefined
+        ? allTenantsContext(job.context)
+        : job.context;
+
+    const outcome: unknown = await handler(
+      payload.data,
+      { ...job, payload: payload.data, context },
+      signal,
+    );
+
+    if (
+      typeof outcome === "object" &&
+      outcome !== null &&
+      "ok" in outcome &&
+      outcome.ok === false &&
+      "error" in outcome
+    ) {
+      // SAFETY: the in check above proves outcome has an error field.
+      throw (outcome as { error: unknown }).error;
+    }
+
+    return ok(undefined);
+  };
+
   const handle = async (
     job: Job,
     handler: JobHandler<unknown>,
@@ -279,39 +322,18 @@ export function createQueue<const Q extends QueueSchemas>(
     }
 
     try {
-      const payload = await validate(
-        schemaOf(job.queue),
-        job.payload,
-        "payload",
-      );
-
-      if (!payload.ok) {
-        await fail(job, payload.error.message);
-        workOptions.onError?.(payload.error, job);
-
-        return false;
-      }
-
-      const context =
-        workOptions.allTenants && job.context.tenant === undefined
-          ? allTenantsContext(job.context)
-          : job.context;
-
-      const outcome: unknown = await handler(
-        payload.data,
-        { ...job, payload: payload.data, context },
+      const executed = await execute(
+        job,
+        handler,
+        workOptions.allTenants,
         controller.signal,
       );
 
-      if (
-        typeof outcome === "object" &&
-        outcome !== null &&
-        "ok" in outcome &&
-        outcome.ok === false &&
-        "error" in outcome
-      ) {
-        // SAFETY: the in check above proves outcome has an error field.
-        throw (outcome as { error: unknown }).error;
+      if (!executed.ok) {
+        await fail(job, executed.error.message);
+        workOptions.onError?.(executed.error, job);
+
+        return false;
       }
 
       if (controller.signal.reason === LEASE_LOST) {
@@ -891,6 +913,28 @@ export function createQueue<const Q extends QueueSchemas>(
       loop(queue, handler, drainOptions, false, budget(drainOptions.budgetMs)),
     work: (queue, handler, workOptions = {}) =>
       loop(queue, handler, workOptions, true),
+    runJob: (queue, delivery, handler, runOptions = {}) =>
+      run(async () => {
+        const job = toJob(queue, {
+          id: delivery.id,
+          attempts: delivery.attempts,
+          enqueued_at: delivery.enqueuedAt,
+          visible_until: delivery.visibleUntil ?? new Date(),
+          // SAFETY: a delivery carries the body `send` wrote, { payload, max_attempts }.
+          message: delivery.message as QueueMessageBody | null,
+        });
+
+        const executed = await execute(
+          job,
+          handler,
+          runOptions.allTenants,
+          runOptions.signal ?? new AbortController().signal,
+        );
+
+        if (!executed.ok) {
+          throw new DbException(executed.error);
+        }
+      }),
     drainRoute(routeOptions) {
       for (const queue of Object.keys(routeOptions.handlers)) {
         schemaOf(queue);
