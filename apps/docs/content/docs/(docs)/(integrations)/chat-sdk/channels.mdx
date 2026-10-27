@@ -203,9 +203,12 @@ picks another.
 ## Maintenance
 
 `maintain` runs the periodic work: it reopens snoozed conversations whose
-time came, replays events a crashed request left pending, deletes
-processed events after `keepEvents` (7 days by default) and purges expired
-[state](/docs/chat-sdk/state).
+time came, sends the staff replies scheduled for now, replays events a
+crashed request left pending, deletes processed events after `keepEvents`
+(7 days by default) and purges expired [state](/docs/chat-sdk/state). With
+`scheduled: { chat, scheduler }` it also posts the bot's
+[scheduled messages](/docs/chat-sdk/scheduling) that are due and reports
+them as `posted`.
 
 ```ts title="app/api/cron/inbox/route.ts"
 import { maintain } from "better-supabase/chat-sdk";
