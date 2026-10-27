@@ -47,6 +47,7 @@ export {
   type AttendeeRole,
   type CalendarAttendee,
   type CalendarEventStatus,
+  type CalendarReminder,
   type IcsEvent,
   type IcsSource,
   type ParsedIcs,

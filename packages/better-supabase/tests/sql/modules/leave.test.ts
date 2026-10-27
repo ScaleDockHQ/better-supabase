@@ -119,4 +119,15 @@ describe("leave module", () => {
     );
     expect(sql).toContain("create trigger bsb_leave_requests_employee_sync");
   });
+
+  it("bounds and limits the shared leave feed", () => {
+    const sql = sqlOf(
+      ["approvals", "leave", "share-links"],
+      options({ feed: { pastDays: 30, futureDays: 365, limit: 250 } }),
+    );
+
+    expect(sql).toContain("current_date - 30");
+    expect(sql).toContain("current_date + 365");
+    expect(sql).toContain("limit 250");
+  });
 });

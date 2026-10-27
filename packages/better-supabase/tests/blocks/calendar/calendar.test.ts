@@ -279,12 +279,19 @@ describe("calendar client", () => {
     const { calendar } = recorder({
       calendar_feed: {
         calendar: { id: "c1", name: "Team", tz: "UTC" },
-        events: [SERIES],
+        events: [
+          {
+            ...SERIES,
+            reminders: [{ method: "notification", offsetMinutes: 15 }],
+          },
+        ],
       },
     });
 
     const feed = await calendar.feed("t".repeat(48)).orThrow();
     expect(feed).toContain("UID:s1\r\n");
+    expect(feed).toContain("BEGIN:VALARM\r\n");
+    expect(feed).toContain("TRIGGER:-PT15M\r\n");
     const none = recorder({ calendar_feed: null });
     expect(await none.calendar.feed("bad").orThrow()).toBeNull();
   });

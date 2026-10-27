@@ -100,6 +100,11 @@ export interface ShareLinkContribution {
   readonly exists: (subject: ShareLinkSubjectSql) => string;
   /** Statements share-links adds for this subject type, such as wrappers. */
   readonly sql?: string;
+  /**
+   * One live link per record and creator: a new link revokes the creator's
+   * earlier ones, such as a feed whose old address should stop working.
+   */
+  readonly single?: boolean;
 }
 
 /** One section `record_summary` counts. */

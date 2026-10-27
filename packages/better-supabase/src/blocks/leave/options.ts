@@ -1,3 +1,4 @@
+import type { ShareLinkFeedOptions } from "../feed-options.ts";
 import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
@@ -8,6 +9,7 @@ export type LeaveSqlOptions = {
   readonly workingDays?: readonly string[];
   readonly allowNegative?: boolean;
   readonly extraColumns?: ExtraColumns;
+  readonly feed?: ShareLinkFeedOptions;
   /**
    * `false` runs leave without the approvals block: a request stays pending
    * until `decide_leave_request` approves or rejects it.
@@ -23,5 +25,6 @@ export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
     }),
     allowNegative: option.boolean({ default: false }),
     extraColumns: option.extraColumns(),
+    feed: option.unknown<ShareLinkFeedOptions>(),
     approvals: option.boolean({ default: true }),
   });

@@ -201,6 +201,8 @@ declare
   v_request jsonb;
   v_link jsonb;
   v_feed jsonb;
+  v_old_token text;
+  v_link_id uuid;
 begin
   ${SERVICE}
   v_type_id := (better_supabase.save_leave_type('${TENANT}', 'vacation', 'Vacation') ->> 'id')::uuid;
@@ -233,9 +235,19 @@ begin
   end if;
   ${AS_ALICE}
   v_link := better_supabase.create_share_link('${TENANT}', 'leave_feed', '${TENANT}', 'view');
+  v_old_token := v_link ->> 'token';
+  v_link := better_supabase.create_share_link('${TENANT}', 'leave_feed', '${TENANT}', 'view');
+  v_link_id := (v_link ->> 'id')::uuid;
+  if better_supabase.leave_feed(v_old_token) is not null then
+    raise exception 'the replaced leave feed remained live';
+  end if;
   v_feed := better_supabase.leave_feed(v_link ->> 'token');
   if jsonb_array_length(v_feed -> 'requests') <> 1 or v_feed -> 'requests' -> 0 ->> 'id' <> v_first::text then
     raise exception 'feed %', v_feed;
+  end if;
+  if (select use_count from better_supabase.share_links where id = v_link_id) <> 1
+    or (select last_used_at from better_supabase.share_links where id = v_link_id) is null then
+    raise exception 'leave feed access was not recorded';
   end if;
   if better_supabase.leave_feed(repeat('0', 48)) is not null then
     raise exception 'an unknown token read the feed';

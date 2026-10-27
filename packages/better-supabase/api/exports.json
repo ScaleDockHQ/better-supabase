@@ -6309,6 +6309,7 @@
       "CalendarOccurrence",
       "CalendarOccurrenceRef",
       "CalendarOptions",
+      "CalendarReminder",
       "CalendarSnapshot",
       "CalendarTransparency",
       "CalendarVisibility",

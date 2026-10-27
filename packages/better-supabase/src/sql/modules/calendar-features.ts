@@ -1,5 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { fillTemplate } from "../../core/access-sql.ts";
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy, renderPolicy } from "../policy.ts";
@@ -8,8 +9,9 @@ import { moduleOperations } from "./permissions-model.ts";
 
 export interface CalendarFeatures {
   readonly access: boolean;
-  readonly readFn: string | undefined;
-  readonly writeFn: string | undefined;
+  readonly readFn: AccessHook | undefined;
+  readonly writeFn: AccessHook | undefined;
+  readonly shareFn: AccessHook | undefined;
   readonly grants: boolean;
   readonly userFeed: boolean;
   readonly table: boolean;
@@ -18,20 +20,85 @@ export interface CalendarFeatures {
   readonly details: boolean;
 }
 
-const QUALIFIED = /^[A-Za-z_][\w$]*\.[A-Za-z_][\w$]*$/;
+/** SQL that is true when `user` may act on calendar `calendar` (uuids). */
+export type AccessHook = (calendar: string, user: string) => string;
 
-function appFunction(value: unknown, key: string): string | undefined {
+const QUALIFIED = /^[A-Za-z_][\w$]*\.[A-Za-z_][\w$]*$/;
+const RESOURCE = /^[a-z_][a-z0-9_]{0,62}$/;
+
+/**
+ * `accessFunctions.read` or `write`: an app function `(calendar_id, user_id)`,
+ * or `{ rows, key }`, the authorization provider's per-row grants of `key` on
+ * resource `rows`, through `rowsWithFor` (or `rowsWith` for the caller only).
+ */
+function appFunction(
+  ctx: BlockSqlContext,
+  value: unknown,
+  key: string,
+): AccessHook | undefined {
+  const where = `blocks.calendar.options.accessFunctions.${key}`;
+
   if (value === undefined) {
     return undefined;
   }
 
+  if (isRecord(value)) {
+    const { rows, key: permission } = value;
+
+    if (
+      typeof rows !== "string" ||
+      !RESOURCE.test(rows) ||
+      typeof permission !== "string" ||
+      permission === ""
+    ) {
+      throw new TypeError(
+        `${where} takes { rows, key }: the provider's resource name and the permission key`,
+      );
+    }
+
+    if (ctx.providerRowsWith === undefined) {
+      throw new TypeError(
+        `${where}.rows needs blocks.permissions.model "provider" and an authorization provider with functions.rowsWith`,
+      );
+    }
+
+    const forUser = ctx.providerRowsWithFor;
+    const rowsWith = ctx.providerRowsWith;
+
+    return (calendar, user) => {
+      const ids = `array[${calendar}::text]`;
+
+      const set =
+        forUser === undefined
+          ? fillTemplate(`authorization.functions.rowsWith`, rowsWith, {
+              resource: rows,
+              permission: sqlString(permission),
+              ids,
+            })
+          : fillTemplate(`authorization.functions.rowsWithFor`, forUser, {
+              user,
+              resource: rows,
+              permission: sqlString(permission),
+              ids,
+            });
+
+      const member = `${calendar}::text in (select r.id::text from ${set} as r(id))`;
+
+      return forUser === undefined
+        ? `(${user} = auth.uid() and ${member})`
+        : `(${member})`;
+    };
+  }
+
   if (typeof value !== "string" || !QUALIFIED.test(value)) {
     throw new TypeError(
-      `blocks.calendar.options.accessFunctions.${key} must be a schema-qualified function name, such as public.can_read_calendar`,
+      `${where} must be a schema-qualified function name, such as public.can_read_calendar, or { rows, key }`,
     );
   }
 
-  return value.split(".").map(sqlIdent).join(".");
+  const fn = value.split(".").map(sqlIdent).join(".");
+
+  return (calendar, user) => `${fn}(${calendar}, ${user})`;
 }
 
 interface RuleDialect {
@@ -135,17 +202,22 @@ export function calendarFeatures(ctx: BlockSqlContext): CalendarFeatures {
   }
 
   const readFn = isRecord(functions)
-    ? appFunction(functions["read"], "read")
+    ? appFunction(ctx, functions["read"], "read")
     : undefined;
 
   const writeFn = isRecord(functions)
-    ? appFunction(functions["write"], "write")
+    ? appFunction(ctx, functions["write"], "write")
+    : undefined;
+
+  const shareFn = isRecord(functions)
+    ? appFunction(ctx, functions["share"], "share")
     : undefined;
 
   return {
     access,
     readFn,
     writeFn,
+    shareFn,
     grants:
       access &&
       ctx.hasTable("grants") &&
@@ -223,13 +295,13 @@ export function privateCalendar(ctx: BlockSqlContext, alias: string): string {
     : "false";
 }
 
-function privateEvent(ctx: BlockSqlContext, alias: string): string {
+export function privateEvent(ctx: BlockSqlContext, alias: string): string {
   return ctx.has("events", "visibility")
     ? `coalesce(${ctx.is("events", "visibility", `${alias}${ctx.col("events", "visibility")}`, ["private"])}, false)`
     : "false";
 }
 
-function eventOwner(ctx: BlockSqlContext): string | undefined {
+export function eventOwner(ctx: BlockSqlContext): string | undefined {
   if (ctx.has("events", "owner")) {
     return ctx.col("events", "owner");
   }
@@ -242,7 +314,7 @@ function eventOwner(ctx: BlockSqlContext): string | undefined {
 export const accessCall = (
   ctx: BlockSqlContext,
   calendar: string,
-  action: "read" | "write" | "manage" | "private",
+  action: "read" | "write" | "manage" | "private" | "share",
   user = "auth.uid()",
 ): string => `${ctx.fn("calendar_access")}(${calendar}, ${user}, '${action}')`;
 
@@ -282,12 +354,12 @@ export function accessFunctions(ctx: BlockSqlContext): string {
   having count(*) > 0;`
     : "";
 
-  const custom = (fn: string | undefined, actions: string) =>
+  const custom = (fn: AccessHook | undefined, actions: string) =>
     fn === undefined
       ? ""
       : `
   if calendar_access.action in (${actions}) then
-    return coalesce(${fn}(calendar_access.calendar_id, ${user}), false);
+    return coalesce(${fn("calendar_access.calendar_id", user)}, false);
   end if;`;
 
   const owner = eventOwner(ctx);
@@ -319,7 +391,7 @@ begin
   where ${k("id")} = calendar_access.calendar_id;
   if not found or not ${can(read)} then
     return false;
-  end if;${custom(features.readFn, "'read'")}${custom(features.writeFn, "'write', 'manage', 'private'")}
+  end if;${custom(features.readFn, "'read'")}${custom(features.writeFn, "'write', 'manage', 'private'")}${custom(features.shareFn ?? features.writeFn, "'share'")}
   if v_owner then
     return true;
   end if;${grant}
@@ -328,6 +400,7 @@ begin
     when 'write' then coalesce(v_grant = 'editor', false) or (not v_private and ${can(write)})
     when 'manage' then not v_private and ${can(manage)}
     when 'private' then coalesce(v_grant = 'editor', false)
+    when 'share' then coalesce(v_grant = 'editor', false) or (not v_private and ${can(manage)})
     else false
   end;
 end;

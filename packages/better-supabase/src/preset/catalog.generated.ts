@@ -1586,7 +1586,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "createdBy": "created_by",
               "leaf": "leaf_id",
               "versionId": "version_id",
-              "createdAt": "created_at"
+              "createdAt": "created_at",
+              "lastUsedAt": "last_used_at"
             }
           }
         },

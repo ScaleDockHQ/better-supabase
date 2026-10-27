@@ -49,6 +49,7 @@ export const CALENDAR_NAMES: BlockSqlNames = {
     "access",
     "accessFunctions",
     "userFeed",
+    "feed",
     "recurrence",
     "rdates",
     "attendeeKey",

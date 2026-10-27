@@ -16,6 +16,7 @@ import type {
   AttendeeRole,
   CalendarAttendee,
   CalendarEventStatus,
+  CalendarReminder,
   IcsEvent,
 } from "./ics.ts";
 import type {
@@ -317,6 +318,16 @@ function attendeeOf(value: Record<string, unknown>): CalendarAttendee {
   };
 }
 
+function reminderOf(value: Record<string, unknown>): CalendarReminder {
+  return {
+    method: optionalText(value["method"]) ?? "notification",
+    offsetMinutes:
+      typeof value["offsetMinutes"] === "number"
+        ? Math.trunc(value["offsetMinutes"])
+        : 0,
+  };
+}
+
 /** A `list_calendar_events` or `calendar_feed` row as an event. */
 export function calendarEventOf(value: unknown): CalendarEvent {
   const row = recordOf(value, "calendar event");
@@ -367,6 +378,7 @@ export function calendarEventOf(value: unknown): CalendarEvent {
       ? { autoDecline: row["autoDecline"] }
       : {}),
     attendees: recordsOf(row["attendees"], "attendees").map(attendeeOf),
+    reminders: recordsOf(row["reminders"], "reminders").map(reminderOf),
     ...(updatedAt === undefined ? {} : { updatedAt }),
     ...(rdates === undefined
       ? {}

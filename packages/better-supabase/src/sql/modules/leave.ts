@@ -77,6 +77,7 @@ const NAMES: BlockSqlNames = {
     "workingDays",
     "allowNegative",
     "extraColumns",
+    "feed",
     "approvals",
   ],
   tables: {
