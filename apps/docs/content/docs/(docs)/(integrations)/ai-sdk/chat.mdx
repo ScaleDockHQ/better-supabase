@@ -32,12 +32,12 @@ export const assistant = createAssistant({
   streams: postgresStreamStore({
     transport: sqlTransport(postgres.asService()),
   }),
-  defaultModel: "anthropic/claude-sonnet-4.5",
+  defaultModel: "openai/gpt-5-mini",
   quota: usageQuota(usage, "ai.input_tokens"),
   run: ({ model, messages, abortSignal, providerOptions }) =>
     streamText({
       model,
-      system: "You are the Acme assistant.",
+      instructions: "You are the Acme assistant.",
       messages,
       abortSignal,
       providerOptions,
@@ -49,7 +49,23 @@ export const assistant = createAssistant({
 `run` gets the model the request may use, the history as model messages,
 the abort signal `stop` triggers and the [gateway options](/docs/ai-sdk#ai-gateway)
 for the user, tenant and chat. Return `streamText(...)` or
-`agent.stream(...)`.
+`agent.stream(...)`. AI SDK 7 calls the system prompt `instructions`.
+
+The assistant reads three members of what `run` returns: `stream`, the
+stream parts it turns into UI message chunks with the standalone
+`toUIMessageStream({ stream, originalMessages, onEnd })`; `usage`, the
+tokens of every step; and `finalStep`, whose `providerMetadata` carries the
+gateway's generation id and cost. `streamText({ experimental_lowMemory: true })`
+returns no `finalStep`, so the answer is stored without the generation id
+and cost; the tokens are still counted. A result with only the 0.31 members
+(`toUIMessageStream()`, `totalUsage`, `providerMetadata`) still works and is
+read the old way until 0.33. A result without a stream releases the run and
+answers `500 AI_CHAT_RUN_FAILED`.
+
+The stream is read once: the UI chunks go to the stream store, which tees
+them to the client and to every `resume` call, and `onEnd` stores the final
+message. That is why the answer survives a closed tab: the snapshot is built
+on the server, not from what the browser received.
 
 Three routes serve it. Each builds the per-request context: the chat block
 with the user's transport and a service transport, the user and the tenant.
@@ -88,6 +104,11 @@ export async function POST(
 `waitUntil` keeps the function running until the answer is stored after the
 response is sent: `after` in Next.js, `ctx.waitUntil` on Workers.
 
+The stop route aborts the generation through the run's abort signal and
+stores the answer so far as `aborted`. A `stop()` in the browser only
+closes its connection; without the route the model would keep running and
+the answer would be stored as complete.
+
 ## What a request does
 
 1. Reads `{ id, message, trigger, messageId, model }`. The chat is created
@@ -108,19 +129,89 @@ response is sent: `after` in Next.js, `ctx.waitUntil` on Workers.
 
 Errors are RFC 9457 problem details responses with a `code` (see [Results](/docs/concepts/results)).
 
-| Option                | Does                                                                    |
-| --------------------- | ----------------------------------------------------------------------- |
-| `streams`             | The stream store: `postgresStreamStore` or `redisStreamStore`           |
-| `run`                 | Starts the generation                                                   |
-| `defaultModel`        | The model when the request and the chat name none that is allowed       |
-| `quota`               | The quota check, such as `usageQuota(usage, meter)`                     |
-| `moderate`            | Checks the user's message: `allow`, `flag`, `redact` or `block`         |
-| `enqueueCostBackfill` | Called when the gateway hasn't reported the cost yet                    |
-| `onFinish`            | Called after the answer is stored, with its status and usage            |
-| `streamTtl`           | How long the stream is kept, seconds or an interval; one day by default |
-| `feature`             | The gateway's `feature:` tag, `chat` by default                         |
-| `onError`             | The message the client sees for a stream error                          |
-| `generateId`          | Message and stream ids, `crypto.randomUUID()` by default                |
+| Option                | Does                                                                        |
+| --------------------- | --------------------------------------------------------------------------- |
+| `streams`             | The stream store: `postgresStreamStore` or `redisStreamStore`               |
+| `run`                 | Starts the generation                                                       |
+| `defaultModel`        | The model when the request and the chat name none that is allowed           |
+| `quota`               | The quota check, such as `usageQuota(usage, meter)`                         |
+| `moderate`            | Checks the user's message: `allow`, `flag`, `redact` or `block`             |
+| `enqueueCostBackfill` | Called when the gateway hasn't reported the cost yet                        |
+| `onFinish`            | Called after the answer is stored, with its status and usage                |
+| `streamTtl`           | How long the stream is kept, seconds or an interval; one day by default     |
+| `feature`             | The gateway's `feature:` tag, `chat` by default                             |
+| `onError`             | The message the client sees for a stream error, `aiErrorMessage` by default |
+| `stream`              | What the client receives beside the text, such as `assistantMetadata`       |
+| `validate`            | Schemas the user's message must match before it is stored                   |
+| `generateId`          | Message and stream ids, `crypto.randomUUID()` by default                    |
+
+## Stream options
+
+`stream` sets the `toUIMessageStream` options that decide what the client
+receives beside the text: `messageMetadata`, `sendReasoning`, `sendSources`,
+`sendStart` and `sendFinish`. A function gets the run's arguments, so the
+metadata can name the model the request got. `assistantMetadata` sends the
+model and start time with the first chunk, and the finish reason and token
+usage with the last:
+
+```ts
+import {
+  assistantMetadata,
+  createAssistant,
+} from "better-supabase/ai-sdk/chat";
+
+export const assistant = createAssistant({
+  // ...
+  stream: (args) => ({ ...assistantMetadata(args), sendReasoning: false }),
+});
+```
+
+On the client, `message.metadata` then has `model`, `createdAt`,
+`finishReason` and `usage`. Type it with
+`useAssistant<UIMessage<AssistantMessageMetadata>>`.
+
+## Validation
+
+`validate` checks the user's message with the AI SDK's
+`safeValidateUIMessages` before anything is stored. A message whose
+metadata, data parts or tool parts don't match answers
+`422 AI_MESSAGE_INVALID`:
+
+```ts
+export const assistant = createAssistant({
+  // ...
+  validate: { metadataSchema, dataSchemas: { weather: weatherSchema }, tools },
+});
+```
+
+The AI SDK validates only schemas it can turn into JSON Schema: zod, the
+AI SDK's `jsonSchema(schema, { validate })`, or a Standard JSON Schema such
+as ArkType. A plain Standard Schema without a JSON Schema passes unchecked.
+
+## Errors
+
+`aiErrorToDbError` (from `better-supabase/ai-sdk`) turns an AI SDK or AI
+Gateway error into a `DbError`, so a route answers with the same problem
+details as the rest of the app. It matches errors by name, and the message
+is fixed per kind: the provider's message can quote the prompt or a key, so
+it never reaches the client.
+
+| Error                                               | Kind                                | Code                       |
+| --------------------------------------------------- | ----------------------------------- | -------------------------- |
+| `APICallError` 429, gateway `rate_limit_exceeded`   | `rate_limited` (with `Retry-After`) | `AI_PROVIDER_RATE_LIMITED` |
+| `APICallError` 408 or 504, gateway `timeout`        | `timeout`                           | `AI_PROVIDER_TIMEOUT`      |
+| `APICallError` 400, 413 or 422                      | `invalid_request`                   | `AI_PROVIDER_BAD_REQUEST`  |
+| `APICallError` 5xx, gateway `internal_server_error` | `network`                           | `AI_PROVIDER_UNAVAILABLE`  |
+| `NoSuchModelError`, gateway `model_not_found`       | `not_found`                         | `AI_MODEL_NOT_FOUND`       |
+| `TypeValidationError`                               | `validation`                        | `AI_TYPE_VALIDATION`       |
+| `RetryError`                                        | the last error's                    | the last error's           |
+| An abort                                            | `aborted`                           | `AI_ABORTED`               |
+
+The assistant uses it twice. When `run` throws a known provider error, the
+route answers with it (a 429 from the provider is a 429 for the client);
+other errors still answer `500 AI_CHAT_RUN_FAILED`. And `aiErrorMessage`,
+the fixed message of the mapped error, is the default `onError` for errors
+in the stream.
 
 ## Client
 
@@ -134,7 +225,7 @@ export function Chat({ id, initial }: { id: string; initial: UIMessage[] }) {
   const { messages, sendMessage, stop, status, regenerate } = useAssistant({
     id,
     messages: initial,
-    model: "anthropic/claude-sonnet-4.5",
+    model: "openai/gpt-5-mini",
   });
   // ...
 }
@@ -144,8 +235,14 @@ export function Chat({ id, initial }: { id: string; initial: UIMessage[] }) {
 only the new message, since the server keeps the history, reconnects to
 `/api/chat/{id}/stream` after a reload (`resume`, on by default) and makes
 `stop()` also stop the answer on the server, so it is stored as stopped.
-`api`, `body`, `headers`, `onError`, `onFinish` and `throttle` work as in
-`useChat`.
+`api`, `body`, `headers`, `onError`, `onFinish`, `throttle`, `onToolCall`,
+`onData`, `messageMetadataSchema` and `dataPartSchemas` work as in
+`useChat`. Pass your message type to type the metadata, data parts and
+tools: `useAssistant<MyUIMessage>({ ... })`.
+
+`assistantTransport(config)` is the transport `useAssistant` makes. Wrap it
+in your own `transport` function to change what the default does, such as
+adding a header per request.
 
 Load the history in a Server Component and pass it as `messages`:
 
@@ -154,6 +251,19 @@ import { toUIMessages } from "better-supabase/ai-sdk";
 
 const path = await aiChat.messages.path(id, { native: true }).orThrow();
 return <Chat id={id} initial={toUIMessages(path)} />;
+```
+
+`toUIMessages` trusts the stored history. To check it against the tools and
+schemas the app uses now, call `validUIMessages`, which runs the AI SDK's
+`safeValidateUIMessages` and returns a `validation` error
+(`AI_MESSAGES_INVALID`) for a history saved before a tool's input schema
+changed:
+
+```ts
+import { validUIMessages } from "better-supabase/ai-sdk";
+
+const checked = await validUIMessages(path, { tools });
+const initial = checked.ok ? checked.data : [];
 ```
 
 The UI message stream protocol version is pinned as

@@ -69,7 +69,7 @@ import { streamText } from "ai";
 import { gatewayOptions, usageOf } from "better-supabase/ai-sdk";
 
 const result = streamText({
-  model: "anthropic/claude-sonnet-4.5",
+  model: "openai/gpt-5-mini",
   messages,
   providerOptions: gatewayOptions({
     userId,
@@ -80,10 +80,14 @@ const result = streamText({
 });
 
 const usage = usageOf({
-  totalUsage: await result.totalUsage,
-  providerMetadata: await result.providerMetadata,
+  usage: await result.usage,
+  finalStep: await result.finalStep,
 });
 ```
+
+`usage` is the total of every step and `finalStep.providerMetadata` carries
+the gateway's generation id and cost. `usageOf` still reads the 0.31 names
+(`totalUsage`, `providerMetadata`) when the new ones are missing.
 
 `user` is always `userId`, the caller from the verified session: a `user`
 in the second argument (gateway options such as `order`) is dropped, so a
@@ -110,7 +114,7 @@ the tenant and the `summary` feature:
 ```ts
 import { summarizeWith } from "better-supabase/ai-sdk";
 
-const summarizer = summarizeWith("anthropic/claude-sonnet-4.5", {
+const summarizer = summarizeWith("openai/gpt-5-mini", {
   providers, // the tenant's own keys as BYOK, when the app installs ai-keys
   maxOutputTokens: 400,
 });

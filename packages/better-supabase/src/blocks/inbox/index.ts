@@ -13,6 +13,7 @@ export type {
   ConversationFilter,
   CreateInboxInput,
   InboundInput,
+  MessagePageOptions,
   Inbox,
   InboxHooks,
   InboxOptions,

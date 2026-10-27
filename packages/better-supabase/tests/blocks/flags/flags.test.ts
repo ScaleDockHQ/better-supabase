@@ -3,13 +3,64 @@ import { describe, expect, it, vi } from "vitest";
 import type { FlagDefinition } from "../../../src/blocks/flags/index.ts";
 
 import {
+  chooseSplitVariant,
   createFlagClient,
   createFlagsProvider,
   evaluateFlag,
+  expandSegments,
   flagBucket,
   flagContext,
   flagDefinitionsOf,
+  rolloutPercentageAt,
 } from "../../../src/blocks/flags/index.ts";
+
+describe("rollout helpers", () => {
+  const schedule = {
+    startAt: "2026-10-20T00:00:00Z",
+    steps: [
+      { percentage: 1, durationSeconds: 60 },
+      { percentage: 10, durationSeconds: 60 },
+    ],
+  };
+
+  const start = Date.parse(schedule.startAt);
+
+  it("walks a schedule's steps, then holds the last percentage", () => {
+    expect(rolloutPercentageAt(schedule, start - 1)).toBe(0);
+    expect(rolloutPercentageAt(schedule, start)).toBe(1);
+    expect(rolloutPercentageAt(schedule, start + 60_000)).toBe(10);
+    expect(rolloutPercentageAt(schedule, start + 120_000)).toBe(10);
+    expect(
+      rolloutPercentageAt(
+        { ...schedule, finalPercentage: 50 },
+        start + 120_000,
+      ),
+    ).toBe(50);
+    expect(rolloutPercentageAt({ startAt: "never", steps: [] }, start)).toBe(0);
+  });
+
+  it("picks a split by cumulative weight, leaving the rest to the default", () => {
+    const splits = [
+      { variant: "a", weight: 25 },
+      { variant: "b", weight: 25 },
+    ];
+
+    expect(chooseSplitVariant(0, splits)).toBe("a");
+    expect(chooseSplitVariant(2499, splits)).toBe("a");
+    expect(chooseSplitVariant(2500, splits)).toBe("b");
+    expect(chooseSplitVariant(5000, splits)).toBeUndefined();
+  });
+
+  it("expands a rule's segments, dropping unknown names", () => {
+    expect(
+      expandSegments(
+        { segments: ["beta", "gone"] },
+        { beta: { plans: ["pro"] } },
+      ),
+    ).toEqual([{ plans: ["pro"] }]);
+    expect(expandSegments({})).toEqual([]);
+  });
+});
 
 const USER = "8c5a3d3e-0000-4000-8000-000000000001";
 
@@ -21,7 +72,7 @@ const flag = (patch: Partial<FlagDefinition> = {}): FlagDefinition => ({
   enabled: true,
   rules: [],
   rolloutPercentage: 0,
-  rolloutVariant: undefined,
+  rolloutVariants: [],
   overrides: [],
   ...patch,
 });
@@ -125,7 +176,10 @@ describe("evaluateFlag", () => {
   it("rolls out by bucket, by user first and then by tenant", async () => {
     // new_editor buckets USER at 1154 and org-1 at 697.
     const at = (rolloutPercentage: number) =>
-      flag({ rolloutPercentage, rolloutVariant: "on" });
+      flag({
+        rolloutPercentage,
+        rolloutVariants: [{ variant: "on", weight: 100 }],
+      });
 
     expect(await evaluateFlag(at(11.55), { targetingKey: USER })).toMatchObject(
       { variant: "on", reason: "SPLIT" },
@@ -137,6 +191,67 @@ describe("evaluateFlag", () => {
       reason: "SPLIT",
     });
     expect(await evaluateFlag(at(100))).toMatchObject({ reason: "DEFAULT" });
+  });
+
+  it("splits the rollout by weight on a second bucket", async () => {
+    const split = flag({
+      type: "string",
+      variants: { a: "a", b: "b", control: "control" },
+      defaultVariant: "control",
+      rolloutPercentage: 100,
+      rolloutVariants: [
+        { variant: "a", weight: 50 },
+        { variant: "b", weight: 50 },
+      ],
+    });
+
+    const bucket = await flagBucket("new_editor/split", USER);
+
+    expect(await evaluateFlag(split, { targetingKey: USER })).toMatchObject({
+      variant: bucket < 5000 ? "a" : "b",
+      reason: "SPLIT",
+    });
+  });
+
+  it("reads a scheduled rollout at options.now", async () => {
+    const scheduled = flag({
+      rolloutVariants: [{ variant: "on", weight: 100 }],
+      rolloutSchedule: {
+        startAt: "2026-10-20T00:00:00Z",
+        steps: [{ percentage: 5, durationSeconds: 3600 }],
+        finalPercentage: 100,
+      },
+    });
+
+    const start = Date.parse("2026-10-20T00:00:00Z");
+    const user = { targetingKey: USER };
+
+    expect(
+      await evaluateFlag(scheduled, user, { now: start - 1 }),
+    ).toMatchObject({ reason: "DEFAULT" });
+    // USER's bucket is 1154: out at 5 percent, in at 100.
+    expect(
+      await evaluateFlag(scheduled, user, { now: start + 60_000 }),
+    ).toMatchObject({ reason: "DEFAULT" });
+    expect(
+      await evaluateFlag(scheduled, user, { now: start + 3_600_000 }),
+    ).toMatchObject({ variant: "on", reason: "SPLIT" });
+  });
+
+  it("matches a rule's segments, any of them", async () => {
+    const segmented = flag({
+      rules: [{ variant: "on", segments: ["beta", "missing"] }],
+      segments: { beta: { tenants: ["org-1"] } },
+    });
+
+    expect(await evaluateFlag(segmented, { tenant: "org-1" })).toMatchObject({
+      variant: "on",
+      reason: "TARGETING_MATCH",
+    });
+    expect(await evaluateFlag(segmented, { tenant: "org-2" })).toMatchObject({
+      variant: "off",
+      reason: "DEFAULT",
+    });
   });
 
   it("serves the default variant for an archived flag", async () => {
@@ -246,7 +361,13 @@ describe("flagDefinitionsOf", () => {
             { nope: 1 },
           ],
           rollout_percentage: "12.50",
-          rollout_variant: null,
+          rollout_variants: [{ variant: "b", weight: "50" }, { nope: 1 }],
+          rollout_schedule: {
+            startAt: "2026-10-20T00:00:00Z",
+            steps: [{ percentage: 10, durationSeconds: 3600 }],
+          },
+          segments: { beta: { tenants: ["org-2"] } },
+          created_at: "2026-10-01T10:00:00+00:00",
           overrides: [
             { organization_id: "org-1", user_id: null, variant: "b" },
             {
@@ -274,7 +395,13 @@ describe("flagDefinitionsOf", () => {
           { variant: "a", contexts: { brand: ["acme", "3"], region: [] } },
         ],
         rolloutPercentage: 12.5,
-        rolloutVariant: undefined,
+        rolloutVariants: [{ variant: "b", weight: 50 }],
+        rolloutSchedule: {
+          startAt: "2026-10-20T00:00:00Z",
+          steps: [{ percentage: 10, durationSeconds: 3600 }],
+        },
+        segments: { beta: { tenants: ["org-2"] } },
+        createdAt: "2026-10-01T10:00:00+00:00",
         overrides: [
           { organizationId: "org-1", userId: undefined, variant: "b" },
           {
@@ -296,7 +423,7 @@ describe("flagDefinitionsOf", () => {
         enabled: false,
         rules: [],
         rolloutPercentage: 0,
-        rolloutVariant: undefined,
+        rolloutVariants: [],
         overrides: [],
       },
     ]);
@@ -306,6 +433,27 @@ describe("flagDefinitionsOf", () => {
 describe("createFlagsProvider", () => {
   it("needs a transport or definitions", () => {
     expect(() => createFlagsProvider({})).toThrow(TypeError);
+  });
+
+  it("reports each evaluation to onEvaluate, which can't change it", async () => {
+    const seen: unknown[] = [];
+
+    const provider = createFlagsProvider({
+      definitions: [flag()],
+      onEvaluate(key, value, details) {
+        seen.push([key, value, details.reason]);
+        throw new Error("reporting failed");
+      },
+    });
+
+    expect(
+      await provider.resolveBooleanEvaluation("new_editor", true, {}),
+    ).toMatchObject({ value: false, reason: "DEFAULT" });
+    await provider.resolveBooleanEvaluation("gone", true, {});
+    expect(seen).toEqual([
+      ["new_editor", false, "DEFAULT"],
+      ["gone", true, "ERROR"],
+    ]);
   });
 
   it("resolves each type and reports missing flags and type mismatches", async () => {

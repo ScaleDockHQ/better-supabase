@@ -9,6 +9,7 @@ import type { AiMessage } from "../../blocks/ai-chat/message.ts";
 import type { AiUsage, GatewayOptions } from "../gateway.ts";
 import type { ModelApproval, ModelSource } from "../model-messages.ts";
 
+import { WORKFLOW_ATTRIBUTES } from "../../workflow-sdk/attributes.ts";
 import { usageOf } from "../gateway.ts";
 import { fromModelMessages } from "../model-messages.ts";
 
@@ -176,6 +177,13 @@ export interface DurableTurnDeps {
   readonly getWritable: (options: {
     readonly namespace: string;
   }) => WritableStream<ModelCallStreamPart>;
+  /**
+   * `setAttributes` from `workflow`: records `bsb.phase` (`streaming` or
+   * `waiting`) on the run, so the runs list shows a turn waiting on approvals.
+   */
+  readonly setAttributes?: (
+    attributes: Record<string, string | undefined>,
+  ) => Promise<void>;
   /** Runs the agent for one segment: `(args) => agent.stream(args)`. */
   readonly agent: (args: DurableAgentArgs) => Promise<DurableAgentResult>;
   readonly step: DurableStep;
@@ -290,6 +298,8 @@ export async function durableTurn(
     let usage: AiUsage | undefined;
     let requests: DurableApprovalRequest[] = [];
 
+    await deps.setAttributes?.({ [WORKFLOW_ATTRIBUTES.phase]: "streaming" });
+
     try {
       const result = await deps.agent({
         chatId: input.chatId,
@@ -305,8 +315,8 @@ export async function durableTurn(
       sources.push(...sourcesOf(result));
       requests = newRequests(conversation.slice(historyLength), approvals);
       usage = usageOf({
-        totalUsage: result.totalUsage,
-        providerMetadata: result.steps.at(-1)?.providerMetadata,
+        usage: result.totalUsage,
+        finalStep: result.steps.at(-1),
       });
     } catch (cause) {
       status = "failed";
@@ -369,6 +379,7 @@ export async function durableTurn(
       return { status, messageId: input.messageId, segments };
     }
 
+    await deps.setAttributes?.({ [WORKFLOW_ATTRIBUTES.phase]: "waiting" });
     const waiting = requests.map((request) => request.approvalId);
     let decided: DurableDecision[] = [];
     let next: DurableResume | undefined;

@@ -1574,6 +1574,16 @@ msgid "Your chats show up here after the first answer."
 msgstr "Your chats show up here after the first answer."
 
 #: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.Aw3qRf"
+msgid "Reasoning"
+msgstr "Reasoning"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.fhwTpA"
+msgid "Sources"
+msgstr "Sources"
+
+#: src/features/assistant/components/chat-view.tsx
 msgctxt "assistant._7Q2I5"
 msgid "{tool} needs your approval"
 msgstr "{tool} needs your approval"
@@ -7121,6 +7131,111 @@ msgctxt "inbox.pC2KQV"
 msgid "Cancel scheduled reply"
 msgstr "Cancel scheduled reply"
 
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.IvjoDS"
+msgid "Connected"
+msgstr "Connected"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.PuU15u"
+msgid "Not connected"
+msgstr "Not connected"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.-vVZ_G"
+msgid "Connect"
+msgstr "Connect"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.GMtgah"
+msgid "{name} disconnected"
+msgstr "{name} disconnected"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.qj1uhz"
+msgid "Disconnect"
+msgstr "Disconnect"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.angwak"
+msgid "Disconnect {name}?"
+msgstr "Disconnect {name}?"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.9Yk1Q2"
+msgid "The app loses access to your account until you connect it again. Mail sync for it stops."
+msgstr "The app loses access to your account until you connect it again. Mail sync for it stops."
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.TwyMau"
+msgid "Account"
+msgstr "Account"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.wL7VAE"
+msgid "Actions"
+msgstr "Actions"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.MZe0nQ"
+msgid "{name} is connected"
+msgstr "{name} is connected"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.vmz_rI"
+msgid "{name} didn't connect"
+msgstr "{name} didn't connect"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.o1qevE"
+msgid "Consent was declined or expired. Try connecting again."
+msgstr "Consent was declined or expired. Try connecting again."
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.6cBDhe"
+msgid "Integrations"
+msgstr "Integrations"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.7lMzB0"
+msgid "Your own accounts the app may use on your behalf, such as the mailbox mail sync reads."
+msgstr "Your own accounts the app may use on your behalf, such as the mailbox mail sync reads."
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.vDGz5L"
+msgid "No integrations set up"
+msgstr "No integrations set up"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.sDpXLP"
+msgid "Add a Vercel Connect connector and set its UID in the environment to list it here."
+msgstr "Add a Vercel Connect connector and set its UID in the environment to list it here."
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.543-Vw"
+msgid "Read the Connect docs"
+msgstr "Read the Connect docs"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.bVfjdz"
+msgid "The integrations didn't load"
+msgstr "The integrations didn't load"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
 #: src/features/islands/components/count-island.tsx
 msgctxt "islands.TkYZBT"
 msgid "Customers"
@@ -10490,6 +10605,11 @@ msgstr "Profile"
 msgctxt "settings.PCSt5T"
 msgid "Preferences"
 msgstr "Preferences"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.6cBDhe"
+msgid "Integrations"
+msgstr "Integrations"
 
 #: src/features/settings/components/settings-nav-links.tsx
 msgctxt "settings.Py189G"

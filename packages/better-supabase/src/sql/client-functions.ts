@@ -94,7 +94,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   expenses:
     "add_expense_line archive_expense_category cancel_expense_report check_expense_report create_expense_report get_expense_report list_expense_categories list_expense_reports reimburse_expense_report remove_expense_line save_expense_category submit_expense_report update_expense_line",
   "field-history": "field_history",
-  flags: "delete_flag flag_definitions list_flags save_flag set_flag_override",
+  flags:
+    "delete_flag delete_flag_segment flag_definitions flag_history list_flag_segments list_flags restore_flag save_flag save_flag_segment set_flag_override",
   forecasts:
     "forecast_changes forecast_snapshot forecast_snapshots take_forecast_snapshot",
   forms:

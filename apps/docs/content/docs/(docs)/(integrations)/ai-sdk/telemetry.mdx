@@ -33,6 +33,29 @@ An agent with several steps records each step. The tenant comes from the
 a call without either isn't metered. Pass `tenant(event)` to read it from
 somewhere else, and `meters` to rename the meters.
 
+`registerTelemetry` takes several integrations, and each gets every event.
+Register `meterTelemetry` next to an OpenTelemetry integration, such as
+`@ai-sdk/otel`, to meter usage and export traces from the same calls. Set
+`telemetry: { functionId }` on a call to tell its spans apart; metering
+doesn't need it:
+
+```ts title="instrumentation.ts"
+import { OpenTelemetry } from "@ai-sdk/otel";
+import { registerTelemetry } from "ai";
+import { meterTelemetry } from "better-supabase/ai-sdk";
+
+export function register() {
+  registerTelemetry(
+    meterTelemetry({ usage: serviceUsage }),
+    new OpenTelemetry(),
+  );
+}
+```
+
+A call that passes `telemetry: { integrations }` uses those instead of the
+registered ones, so list `meterTelemetry` there too or the call isn't
+metered.
+
 Each row carries an idempotency key per call and step, so a retried event
 is counted once. Don't also record the same tokens with `usageEntries`, or
 they count twice. A failed write goes to `onError`; it never fails the

@@ -269,6 +269,8 @@ may be your own enum or domain.
   - `better_supabase.field_changes`: `id`, `tenant_id`, `subject_type`, `subject_id`, `field`, `old_value`, `new_value`
 - `flags`
   - `better_supabase.flags`: `key`, `type`, `variants`, `default_variant`, `enabled`, `rules`; typed: `type`
+  - `better_supabase.flag_revisions`: `id`, `flag_key`, `revision`, `definition`, `message`, `changed_by`, `changed_at`
+  - `better_supabase.flag_segments`: `name`, `description`, `rules`, `updated_at`
   - `better_supabase.flag_overrides`: `id`, `flag_key`, `organization_id`, `user_id`, `context`, `context_key`, `variant`
 - `forecasts`
   - `better_supabase.forecast_snapshots`: `id`, `tenant_id`, `pipeline_id`, `period_start`, `period_end`, `currency`, `totals`, `deal_count`, `taken_at`

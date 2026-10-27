@@ -60,3 +60,10 @@ cacheMiddleware({
 
 Dates, byte arrays and URLs in a result (a generated file, a response
 timestamp) survive the round trip through JSON.
+
+A cached answer comes back with the usage and provider metadata it was
+stored with. [`meterTelemetry`](/docs/ai-sdk/telemetry) and `usageOf` count
+its tokens and the gateway cost again, although no provider ran, so quotas
+treat a cache hit as a call. The AI Gateway's spend report doesn't include
+it, so `ai.gateway_cost` from the nightly reconciliation is lower than the
+per-call cost meter by the cached calls.

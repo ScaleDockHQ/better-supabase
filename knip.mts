@@ -27,7 +27,8 @@ const config: KnipConfig = {
   // Vendored maintainer skills (ADR 0004) carry their own scripts.
   ignore: [".agents/**"],
   // The Vercel CLI runs from the user's machine (`pnpm env:pull`).
-  ignoreBinaries: ["vercel"],
+  // The shadcn MCP server runs from apps/marketing (`.mcp.json`).
+  ignoreBinaries: ["vercel", "shadcn"],
   ignoreIssues: {
     // `better-supabase init` writes these; gen --check fails on hand edits.
     "apps/examples/*/src/lib/{supabase/index,supabase/hooks,hooks}.ts": [

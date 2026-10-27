@@ -2,11 +2,15 @@ import type {
   GraphStepCall,
   WorkflowGraph,
 } from "better-supabase/blocks/workflow-editor";
+import type { GraphRunMeta } from "better-supabase/workflow-sdk/builder";
 
-import { executeGraph } from "better-supabase/blocks/workflow-editor";
+import {
+  executeGraph,
+  graphRunFields,
+} from "better-supabase/blocks/workflow-editor";
 import { createHook, sleep } from "workflow";
 
-import { graphSteps } from "./graph-steps";
+import { graphSteps, requestGraphApproval } from "./graph-steps";
 
 const isStep = (name: string): name is keyof typeof graphSteps =>
   Object.hasOwn(graphSteps, name);
@@ -19,12 +23,12 @@ const isStep = (name: string): name is keyof typeof graphSteps =>
 export async function graphExecutor(
   graph: WorkflowGraph,
   input: GraphStepCall["input"],
-  meta: { readonly runKey: string },
+  meta: GraphRunMeta,
 ): ReturnType<typeof executeGraph> {
   "use workflow";
 
   return executeGraph(graph, input, {
-    runKey: meta.runKey,
+    ...graphRunFields(meta),
     step: (call) => {
       if (!isStep(call.step)) {
         throw new Error(`Unknown step ${call.step}`);
@@ -33,6 +37,7 @@ export async function graphExecutor(
       return graphSteps[call.step](call);
     },
     sleep: (ms) => sleep(ms),
+    requestApproval: (call) => requestGraphApproval(call),
     approval: (token) => createHook<unknown>({ token }),
   });
 }

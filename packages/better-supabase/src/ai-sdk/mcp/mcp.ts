@@ -25,8 +25,9 @@ import type { CredentialProvider } from "../../credentials/provider.ts";
 import type { VaultCredentials } from "../../credentials/vault.ts";
 import type { McpToolSchemas } from "./supabase.ts";
 
-import { errorText, sha256Hex } from "../../core/block-helpers.ts";
+import { errorText, isRecord, sha256Hex } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
+import { importOptionalPeer } from "../../core/optional-peer.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   credentialRefInTenant,
@@ -45,6 +46,8 @@ export interface ConnectToolsOptions {
   readonly credentials?: CredentialProvider;
   /** The OAuth callback URL, for refreshing tokens. */
   readonly redirectUrl?: string;
+  /** Returns `@vercel/connect/mcp`; defaults to importing it on first use. */
+  readonly loadConnectMcp?: () => Promise<unknown>;
   /** Reuses the MCP session per chat. */
   readonly chatKey?: string;
   /** Asks for MCP Apps and returns their app-only tools apart. */
@@ -53,6 +56,17 @@ export interface ConnectToolsOptions {
   readonly elicit?: (request: ElicitationRequest) => Promise<ElicitResult>;
   /** Prefixes tool names, such as `github_`, so servers don't collide. */
   readonly prefix?: string;
+  /**
+   * `follow` lets the transport follow an HTTP redirect from this server. The
+   * default, `error`, refuses one, so a moved server can't send the user's
+   * token to another origin.
+   */
+  readonly redirect?: "follow" | "error";
+  /**
+   * `false` skips the `server/discover` probe for a server that needs
+   * `initialize` as its first request. Defaults to `true`.
+   */
+  readonly protocolVersionDiscovery?: boolean;
   /**
    * Types the tools and keeps only the ones it names, such as
    * `supabaseMcp().schemas`. The fingerprint still covers every tool the server
@@ -72,6 +86,50 @@ export interface ConnectedTools {
 
 const forbidden = (message: string, hint: string): DbError =>
   dbError("forbidden", message, { hint });
+
+interface ConnectMcpModule {
+  connectAuthProvider(
+    connector: string,
+    params: {
+      subject: { type: "user"; id: string };
+      scopes?: string[];
+      installationId?: string;
+    },
+    options?: { redirectUrl?: string },
+  ): OAuthClientProvider;
+}
+
+const isConnectMcp = (value: unknown): value is ConnectMcpModule =>
+  isRecord(value) && typeof value["connectAuthProvider"] === "function";
+
+/**
+ * Loads `@vercel/connect/mcp` only for a server whose grant is a Connect
+ * connector; it needs `@ai-sdk/mcp`, which this entry already imports.
+ */
+const loadConnectMcp = (): Promise<unknown> =>
+  importOptionalPeer("@vercel/connect/mcp");
+
+/**
+ * The transport's error, as a `DbError`. A Connect grant without consent throws
+ * `ConsentRequiredError` with the URL the user approves it at.
+ */
+function transportError(cause: unknown): DbError {
+  if (
+    cause instanceof Error &&
+    cause.name === "ConsentRequiredError" &&
+    isRecord(cause) &&
+    typeof cause["url"] === "string"
+  ) {
+    return dbError("forbidden", cause.message, {
+      hint: "CONNECTOR_AUTHORIZATION_REQUIRED",
+      details: cause["url"],
+    });
+  }
+
+  return dbError("network", errorText(cause), {
+    hint: "CONNECTOR_UNREACHABLE",
+  });
+}
 
 async function authOf(
   options: ConnectToolsOptions,
@@ -153,6 +211,41 @@ async function authOf(
             userId: options.userId,
             redirectUrl: options.redirectUrl ?? "http://localhost/",
           }),
+        };
+      }
+
+      const { connector, installationId } = grant.credentialRef;
+
+      if (
+        grant.credentialRef.provider === "vercel-connect" &&
+        typeof connector === "string"
+      ) {
+        const module = await (options.loadConnectMcp ?? loadConnectMcp)();
+
+        if (!isConnectMcp(module)) {
+          return {
+            ok: false,
+            error: forbidden(
+              "Connect grants need the @vercel/connect package: pnpm add @vercel/connect",
+              "CONNECTOR_NOT_AUTHORIZED",
+            ),
+          };
+        }
+
+        return {
+          ok: true,
+          headers: {},
+          provider: module.connectAuthProvider(
+            connector,
+            {
+              subject: { type: "user", id: options.userId },
+              scopes: [...grant.scopes],
+              ...(typeof installationId === "string" ? { installationId } : {}),
+            },
+            options.redirectUrl === undefined
+              ? {}
+              : { redirectUrl: options.redirectUrl },
+          ),
         };
       }
 
@@ -245,6 +338,9 @@ export function connectTools(
           ...(previous?.sessionId === undefined
             ? {}
             : { initialSessionId: previous.sessionId }),
+          ...(options.redirect === undefined
+            ? {}
+            : { redirect: options.redirect }),
           onSessionIdChange: (next) => {
             sessionId = next;
 
@@ -261,15 +357,16 @@ export function connectTools(
               initialInitializeResult:
                 previous.initializeResult as InitializeResult,
             }),
+        ...(options.protocolVersionDiscovery === undefined
+          ? {}
+          : { protocolVersionDiscovery: options.protocolVersionDiscovery }),
         capabilities: {
           ...(options.apps === true ? mcpAppClientCapabilities : {}),
           elicitation: {},
         },
       });
     } catch (cause) {
-      return err(
-        dbError("network", errorText(cause), { hint: "CONNECTOR_UNREACHABLE" }),
-      );
+      return err(transportError(cause));
     }
 
     const close = (): Promise<void> => client.close().catch(() => {});
@@ -343,11 +440,23 @@ export function connectTools(
     } catch (cause) {
       await close();
 
-      return err(
-        dbError("network", errorText(cause), { hint: "CONNECTOR_UNREACHABLE" }),
-      );
+      return err(transportError(cause));
     }
   });
+}
+
+export interface ConnectAllOptions extends Omit<
+  ConnectToolsOptions,
+  "server" | "prefix"
+> {
+  /**
+   * The transport options for one server, such as `{ redirect: "follow" }` for
+   * a server that moved or `{ protocolVersionDiscovery: false }` for one that
+   * needs `initialize` first. They win over the shared ones.
+   */
+  readonly serverOptions?: (
+    server: ConnectorServer,
+  ) => Pick<ConnectToolsOptions, "redirect" | "protocolVersionDiscovery">;
 }
 
 export interface ConnectAllResult {
@@ -367,13 +476,16 @@ export interface ConnectAllResult {
  */
 export async function connectAll(
   servers: readonly ConnectorServer[],
-  options: Omit<ConnectToolsOptions, "server" | "prefix">,
+  options: ConnectAllOptions,
 ): Promise<ConnectAllResult> {
+  const { serverOptions, ...shared } = options;
+
   const results = await Promise.all(
     servers.map(async (server) => ({
       server,
       result: await connectTools({
-        ...options,
+        ...shared,
+        ...serverOptions?.(server),
         server,
         prefix: `${server.name.toLowerCase().replaceAll(/[^a-z0-9]+/g, "_")}_`,
       }),

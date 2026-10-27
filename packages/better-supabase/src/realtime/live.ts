@@ -381,6 +381,8 @@ export function liveQuery(
         if (!closed && tables.length > 0) {
           options.onStatus?.("subscribed");
         }
+
+        return void 0;
       },
       (cause: unknown) => {
         const error = cause instanceof Error ? cause : new Error(String(cause));
@@ -409,10 +411,10 @@ export function liveQuery(
       memberships = joinAll();
       options.onStatus?.("joining");
       // Changes made while the channel was down were missed.
-      settle(memberships).then(
+      void settle(memberships).then(
         () => {
           if (closed) {
-            return;
+            return true;
           }
 
           for (const table of tables) {
@@ -420,8 +422,10 @@ export function liveQuery(
           }
 
           flush();
+
+          return true;
         },
-        () => undefined,
+        () => false,
       );
     }, delay);
     delay = Math.min(delay * 2, 30_000);
@@ -512,7 +516,7 @@ export function liveCount(
     const call = latest;
     void Promise.resolve(db.$run(spec)).then((result) => {
       if (closed || call !== latest) {
-        return;
+        return result;
       }
 
       if (result.ok) {
@@ -521,6 +525,8 @@ export function liveCount(
       } else {
         options.onError?.(result.error);
       }
+
+      return result;
     });
   };
 
@@ -541,13 +547,15 @@ export function liveCount(
   const since = options.since;
 
   if (since !== undefined) {
-    live.ready.then(
+    void live.ready.then(
       () => {
         if (!closed && Date.now() - since > 1000) {
           refetch();
         }
+
+        return true;
       },
-      () => undefined,
+      () => false,
     );
   }
 

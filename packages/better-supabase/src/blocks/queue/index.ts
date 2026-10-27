@@ -60,13 +60,38 @@ export {
   transportQueueProvider,
 } from "./backends.ts";
 
-export { vercelQueueProvider } from "./vercel-queue.ts";
+export {
+  vercelIdempotencyKey,
+  vercelQueueProvider,
+  vercelQueueTriggers,
+  vercelRetentionSeconds,
+  vercelSendOptionsOf,
+  vercelTopicOf,
+} from "./vercel-queue.ts";
 
 export type {
   VercelQueueProviderOptions,
   VercelQueueClient,
   VercelQueueMetadata,
+  VercelQueueTrigger,
+  VercelReceiveResult,
+  VercelSendOptions,
 } from "./vercel-queue.ts";
+
+export { withDeadLetters } from "./dead-letters.ts";
+
+export type { DeadLetterSink } from "./dead-letters.ts";
+
+export { vercelQueueNodeRoute, vercelQueueRoute } from "./vercel-route.ts";
+
+export type {
+  VercelNodeRequest,
+  VercelNodeResponse,
+  VercelQueueCallbackClient,
+  VercelQueueNodeCallbackClient,
+  VercelQueueRouteOptions,
+  VercelRetryDirective,
+} from "./vercel-route.ts";
 
 export type {
   DeadJobRow,
@@ -113,6 +138,7 @@ export type {
   FailOptions,
   Job,
   JobContext,
+  JobDelivery,
   JobHandler,
   Queue,
   QueueOptions,
@@ -120,6 +146,7 @@ export type {
   QueueSchemas,
   RetryDeadOptions,
   PurgeJobsOptions,
+  RunJobOptions,
   RunSchedulesOptions,
   ScheduleDefinition,
   ScheduleDefinitions,

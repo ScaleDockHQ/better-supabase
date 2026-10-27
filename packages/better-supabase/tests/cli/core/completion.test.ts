@@ -43,6 +43,7 @@ describe("__complete", () => {
       "diff",
       "seed",
       "backfill",
+      "prune-workflows",
     ]);
     expect(await values("codemod", "0.")).toEqual([
       "0.4",

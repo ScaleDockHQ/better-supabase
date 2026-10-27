@@ -11,7 +11,7 @@ import { NextResponse } from "next/server";
 import { env } from "@/env";
 
 import { requiredPermission } from "./features/navigation/nav-items";
-import { pricingFlags } from "./flags";
+import { pricingFlags, signupWaitlist, VISITOR_COOKIE } from "./flags";
 import { routing } from "./i18n/routing";
 import { bsb } from "./lib/supabase/server";
 
@@ -82,6 +82,12 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
     path.startsWith("/status/");
 
   if (session.kind !== "user") {
+    if (path === "/signup" && (await signupWaitlist())) {
+      return NextResponse.rewrite(
+        new URL(`/${locale}/waitlist${search}`, request.url),
+      );
+    }
+
     if (isPublic) {
       return;
     }
@@ -124,6 +130,23 @@ export const proxy = (request: NextRequest) =>
       // Shared caches must never store a signed-in response.
       if (auth.kind === "user") {
         response.headers.append("vary", "cookie");
+      }
+
+      // The first request has no visitor id yet, so its rollouts use the
+      // organization; every later request keeps one bucket.
+      // next-intl's response writes its cookies through `response.cookies`,
+      // which drops a `set-cookie` header appended beside it.
+      if (
+        !request.cookies.has(VISITOR_COOKIE) &&
+        response instanceof NextResponse
+      ) {
+        response.cookies.set(VISITOR_COOKIE, crypto.randomUUID(), {
+          path: "/",
+          maxAge: 60 * 60 * 24 * 365,
+          sameSite: "lax",
+          httpOnly: true,
+          secure: true,
+        });
       }
     },
     // The phases show whether a page load called Auth.

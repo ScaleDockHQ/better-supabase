@@ -230,7 +230,7 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
   const send = (): Promise<void> => {
     sending = sending.then(async () => {
       if (opened === undefined || pending.length === 0 || yjs === undefined) {
-        return;
+        return void 0;
       }
 
       const update =
@@ -244,12 +244,14 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
         fail(pushed.error);
         setStatus("offline");
 
-        return;
+        return void 0;
       }
 
       stalled = false;
       pending.splice(0, count);
       await broadcast({ seq: pushed.data, update: toBase64(update) });
+
+      return void 0;
     });
 
     return sending;

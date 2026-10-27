@@ -119,6 +119,8 @@ export function DealKanban({
               setColumns(meta.previousValue);
               toast.error(errorMessage(result.error));
             }
+
+            return result;
           });
       }}
     >

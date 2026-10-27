@@ -30,12 +30,16 @@ export {
 } from "./delivery.ts";
 
 export {
+  chatErrorOf,
   conversationIdOf,
+  decodeInboxThreadId,
   type InboxAdapter,
   inboxAdapter,
   type InboxAdapterOptions,
   type InboxBotJob,
   inboxIdentityOf,
+  type InboxThread,
+  inboxThreadId,
 } from "./inbox-adapter.ts";
 
 export {
@@ -64,6 +68,18 @@ export {
   createChatInstallations,
   type InstallInput,
 } from "./installations.ts";
+
+export {
+  type ChatScheduler,
+  type PublishDueOptions,
+  type PublishDueResult,
+  type ScheduledAdapter,
+  scheduledAdapter,
+  type ScheduledPost,
+  type ScheduleInput,
+  stateScheduler,
+  type StateSchedulerOptions,
+} from "./scheduler.ts";
 
 export {
   createSupabaseState,

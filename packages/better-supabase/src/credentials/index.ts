@@ -18,6 +18,7 @@ export {
   type GetTokenOptions,
   type SetCredentialOptions,
   type StartAuthorizationOptions,
+  type StartAuthorizationResult,
 } from "./provider.ts";
 
 export {

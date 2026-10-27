@@ -92,6 +92,42 @@ const LEGACY_FUNCTIONS = [
   "inbox_add_message(uuid, jsonb, text, uuid, text)",
 ];
 
+// Chat SDK keys a subscription and the thread state on the thread id, so both
+// move with the conversation; locks and queued messages expire within minutes.
+const THREAD_IDS: BlockSqlUpgrade = {
+  from: 4,
+  description:
+    "Widget conversations get the Chat SDK thread id <topic>:<inbox id>:<conversation id>, so channelIdFromThreadId names the inbox; Chat SDK subscriptions and thread state move with them. list_inbox_messages takes after, for pages read oldest first.",
+  sql: (ctx) => {
+    const q = inboxSql(ctx);
+    const cv = q.cols("conversations");
+    const conversations = q.t("conversations");
+    const prefix = sqlString(`${q.topic}:`);
+    const oldId = `${prefix} || v.${cv("id")}::text`;
+    const newId = `${prefix} || v.${cv("inbox")}::text || ':' || v.${cv("id")}::text`;
+
+    const state = (() => {
+      if (!ctx.installed("chat-sdk-state")) {
+        return "";
+      }
+
+      const s = ctx.of("chat-sdk-state");
+      const thread = s.col("subscriptions", "thread");
+      const key = s.col("cache", "key");
+
+      return `update ${s.table("subscriptions")} x set ${thread} = ${newId}
+from ${conversations} v where x.${thread} = ${oldId} and v.${cv("thread")} = ${oldId};
+update ${s.table("cache")} x set ${key} = 'thread-state:' || ${newId}
+from ${conversations} v where x.${key} = 'thread-state:' || ${oldId} and v.${cv("thread")} = ${oldId};
+`;
+    })();
+
+    return `${state}update ${conversations} v set ${cv("thread")} = ${newId}
+where v.${cv("thread")} = ${oldId};
+drop function if exists ${q.fn("list_inbox_messages")}(uuid, timestamptz, integer);`;
+  },
+};
+
 // The data moves before the module files run, so the step creates the core
 // tables and the details table it copies into; the schema diff adds the rest.
 const TO_MESSAGING: BlockSqlUpgrade = {
@@ -301,7 +337,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "get_conversation", args: ["uuid"], returns: "jsonb" },
     {
       name: "list_inbox_messages",
-      args: ["uuid", "timestamptz", "integer"],
+      args: ["uuid", "timestamptz", "integer", "timestamptz"],
       returns: "jsonb",
     },
     { name: "list_conversation_events", args: ["uuid"], returns: "jsonb" },
@@ -407,7 +443,7 @@ export const INBOX: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 4,
+  version: 5,
   upgrades: [
     {
       from: 1,
@@ -422,6 +458,7 @@ export const INBOX: BlockSqlDefinition = {
       sql: renamedFunctions,
     },
     TO_MESSAGING,
+    THREAD_IDS,
   ],
   names: INBOX_NAMES,
   contract,

@@ -8,7 +8,12 @@ import type {
 import { WorkflowAgent } from "@ai-sdk/workflow";
 import { jsonSchema, tool } from "ai";
 import { durableTurn } from "better-supabase/ai-sdk/workflow";
-import { createHook, getWorkflowMetadata, getWritable } from "workflow";
+import {
+  createHook,
+  getWorkflowMetadata,
+  getWritable,
+  setAttributes,
+} from "workflow";
 
 import {
   answerQuestion,
@@ -26,6 +31,7 @@ function turn(
     runId: getWorkflowMetadata().workflowRunId,
     createHook,
     getWritable,
+    setAttributes,
     agent,
     step: chatStep,
   });
@@ -113,6 +119,8 @@ function researchAgent(input: DurableTurnInput, args: DurableAgentArgs) {
           properties: { title: { type: "string" } },
           required: ["title"],
         }),
+        // The AI SDK's WorkflowAgent guide: "For `WorkflowAgent`, human approval is configured
+        // on the tool definition with `needsApproval`."
         // oxlint-disable-next-line typescript/no-deprecated -- WorkflowAgent reads approvals only from the tool, not from stream options.
         needsApproval: true,
         execute: async ({ title }) => {

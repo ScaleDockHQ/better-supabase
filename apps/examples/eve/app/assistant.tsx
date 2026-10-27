@@ -103,6 +103,8 @@ export function Assistant(): ReactNode {
     const auth = browserClient().auth;
     void auth.getSession().then(({ data }) => {
       setSession(data.session);
+
+      return data.session;
     });
 
     const { data } = auth.onAuthStateChange((_event, next) => {

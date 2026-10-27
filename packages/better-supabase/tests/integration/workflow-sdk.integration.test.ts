@@ -54,6 +54,11 @@ afterAll(async () => {
       [created],
     );
 
+    await pool.query(
+      "delete from workflow.workflow_run_keys where key like $1 or run_id = any($2)",
+      [`${KEY}%`, created],
+    );
+
     for (const table of ["events", "steps", "hooks", "waits", "runs"]) {
       await pool.query(
         `delete from workflow.workflow_${table} where ${table === "runs" ? "id" : "run_id"} = any($1)`,
@@ -242,5 +247,94 @@ describe.skipIf(!live)("Supabase World", () => {
     );
 
     expect(run.runId).toBe(runId);
+    expect(await world.runKeys.claim(`${KEY}:once`)).toEqual({
+      claimed: false,
+      runId,
+    });
+  });
+
+  it("lets one of several concurrent claims win a key", async () => {
+    const key = `${KEY}:race`;
+
+    const claims = await Promise.all(
+      Array.from({ length: 6 }, () => world.runKeys.claim(key)),
+    );
+
+    expect(claims.filter((claim) => claim.claimed)).toHaveLength(1);
+    expect(await world.runKeys.claim(key)).toEqual({
+      claimed: false,
+      runId: undefined,
+    });
+
+    await world.runKeys.release(key);
+    expect((await world.runKeys.claim(key)).claimed).toBe(true);
+
+    const runId = await createRun("workflow//./race//race", {});
+    await world.runKeys.set(key, runId);
+    await world.runKeys.release(key);
+    expect(await world.runKeys.claim(key)).toEqual({ claimed: false, runId });
+  });
+
+  it("lists the hooks open runs wait on, without their tokens", async () => {
+    const name = `workflow//./open_${SUFFIX}//open`;
+
+    const runId = await createRun(name, {
+      [WORKFLOW_ATTRIBUTES.tenant]: ACME,
+      [WORKFLOW_ATTRIBUTES.actor]: ADMIN,
+    });
+
+    await world.events.create(runId, { eventType: "run_started" });
+    await world.events.create(runId, {
+      eventType: "hook_created",
+      correlationId: `open_${SUFFIX}`,
+      eventData: { token: `token-${crypto.randomUUID()}` },
+    });
+
+    const hooks = await world.openHooks({ tenantId: ACME, workflowName: name });
+
+    expect(hooks).toHaveLength(1);
+    expect(hooks[0]).toMatchObject({
+      hookId: `open_${SUFFIX}`,
+      runId,
+      workflowName: name,
+      tenantId: ACME,
+      actorId: ADMIN,
+    });
+    expect(hooks[0]).not.toHaveProperty("token");
+    expect(
+      await world.openHooks({ tenantId: FOREIGN_TENANT, workflowName: name }),
+    ).toEqual([]);
+  });
+
+  it("purges ended runs older than the cutoff with their rows", async () => {
+    const runId = await createRun(`workflow//./purge_${SUFFIX}//purge`, {});
+    await world.events.create(runId, { eventType: "run_started" });
+    await world.events.create(runId, {
+      eventType: "run_completed",
+      eventData: { output: null },
+    });
+    const fresh = await createRun(`workflow//./purge_${SUFFIX}//purge`, {});
+    await pool.query(
+      "update workflow.workflow_runs set completed_at = completed_at - interval '40 days' where id = $1",
+      [runId],
+    );
+
+    await expect(
+      world.purgeRuns({ statuses: ["running" as never] }),
+    ).rejects.toThrow("deletes only completed, failed or cancelled runs");
+    expect(await world.purgeRuns({ olderThan: "30 days" })).toBeGreaterThan(0);
+
+    const left = await pool.query<{ id: string }>(
+      "select id from workflow.workflow_runs where id = any($1)",
+      [[runId, fresh]],
+    );
+
+    const events = await pool.query(
+      "select 1 from workflow.workflow_events where run_id = $1",
+      [runId],
+    );
+
+    expect(left.rows.map((row) => row.id)).toEqual([fresh]);
+    expect(events.rowCount).toBe(0);
   });
 });

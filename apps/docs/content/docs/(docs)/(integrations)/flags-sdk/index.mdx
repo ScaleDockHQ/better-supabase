@@ -20,65 +20,85 @@ doesn't use it, and a type test fails when a new `flags` release changes the
 `Adapter` shape. The entry imports no Node built-ins, so it runs in
 `proxy.ts`.
 
-| Export                  | Does                                                                                     |
-| ----------------------- | ---------------------------------------------------------------------------------------- |
-| `betterSupabaseAdapter` | an adapter factory over the flags block, with one definitions cache for every flag       |
-| `createIdentify`        | an `identify` that returns the user, the tenant and custom contexts from verified claims |
-| `getProviderData`       | Flags Explorer data for every flag that isn't archived                                   |
-| `flagOptions`           | a flag's variants as `options`, which a precomputed flag needs                           |
-| `flagContextOf`         | the evaluation context the adapter builds from the entities                              |
+| Export                        | Does                                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------------------- |
+| `betterSupabaseAdapter`       | a ready adapter that reads `SUPABASE_URL` and `SUPABASE_SECRET_KEY` on first use            |
+| `createBetterSupabaseAdapter` | an adapter over your own project, transport or definitions, with `origin` and `identify`    |
+| `createIdentify`              | an `identify` that returns the user, the tenant, a visitor and custom contexts from a token |
+| `getProviderData`             | Flags Explorer data for every stored flag, joined with the flags your code declares         |
+| `flagOptions`                 | a flag's variants as `options`, which a precomputed flag needs                              |
+| `flagContextOf`               | the evaluation context the adapter builds from the entities                                 |
 
 The [Next.js example](/docs/examples) wires all of them.
 
 ## Declaring flags
 
-`betterSupabaseAdapter` takes the options of `createFlagsProvider`: a
-`transport` (with `schema` for the Data API) or fixed `definitions`, and a
-`ttl` (30 seconds by default). It loads every flag with
-`flag_definitions()`, which only the service role may call, so give it a
-transport on the secret key. Never prefix that key with `NEXT_PUBLIC_`.
+Pass `betterSupabaseAdapter` to `flag()` the way the Flags SDK's own
+adapters are passed. It reads `SUPABASE_URL` (or `NEXT_PUBLIC_SUPABASE_URL`)
+and `SUPABASE_SECRET_KEY` when the first flag is decided, not at import, and
+loads every flag with `flag_definitions()`, which only the service role may
+call. Never prefix that key with `NEXT_PUBLIC_`.
 
 ```ts title="src/flags.ts"
 import "server-only";
 
-import { createClient } from "@supabase/supabase-js";
-import { rpcTransport } from "better-supabase/blocks";
 import {
   betterSupabaseAdapter,
+  type FlagsSdkEntities,
+} from "better-supabase/flags-sdk";
+import { flag } from "flags/next";
+
+export const newEditor = flag<boolean, FlagsSdkEntities>({
+  key: "new_editor",
+  adapter: betterSupabaseAdapter,
+  defaultValue: false,
+});
+```
+
+Without the keys, a flag answers its `defaultValue` and one without a
+default throws. To pick the project, the Data API schema or the cache
+yourself, call `createBetterSupabaseAdapter`. It takes `url` and
+`secretKey` (with `schema`, `ttl` and `fetch`), or the options of
+`createFlagsProvider`: a `transport` or fixed `definitions`. Give it an
+`identify` so every flag on it identifies the caller the same way:
+
+```ts title="src/flags.ts"
+import "server-only";
+
+import {
+  createBetterSupabaseAdapter,
   createIdentify,
   type FlagsSdkEntities,
 } from "better-supabase/flags-sdk";
 import { dedupe, flag } from "flags/next";
 
-const service = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SECRET_KEY!,
-  { auth: { persistSession: false, autoRefreshToken: false } },
-);
+import { bsb } from "@/lib/supabase/server";
 
-export const bsFlags = betterSupabaseAdapter({
-  transport: rpcTransport(service),
-  schema: "api",
-  origin: "https://admin.acme.test/flags/{key}",
-});
-
-const identify = dedupe(
+export const identify = dedupe(
   createIdentify({
-    claims: async ({ cookies }) => readVerifiedClaims(cookies),
+    server: bsb,
+    visitor: ({ cookies }) => cookies.get("visitor-id")?.value,
     contexts: ({ headers }) => ({ brand: brandOf(headers.get("host")) }),
   }),
 );
 
+export const bsFlags = createBetterSupabaseAdapter({
+  url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  secretKey: process.env.SUPABASE_SECRET_KEY!,
+  schema: "api",
+  origin: "https://admin.acme.test/flags/{key}",
+  identify,
+});
+
 export const newEditor = flag<boolean, FlagsSdkEntities>({
   key: "new_editor",
-  adapter: bsFlags(),
+  adapter: bsFlags,
   defaultValue: false,
-  identify,
 });
 ```
 
-Every adapter the factory makes shares one cache and one `adapterId`, so
-`evaluate([...])` decides a batch from one load. A flag that is missing,
+The adapter keeps one definitions cache (30 seconds by default) and one
+`adapterId`, so `evaluate([...])` decides a batch from one load. A flag that is missing,
 has another type or fails to load answers the declaration's
 `defaultValue`, so a database outage turns features off instead of
 breaking the page. Without a `defaultValue`, `decide` throws.
@@ -102,11 +122,17 @@ It returns these entities:
 | -------------- | ----------------------------------------------------------------------------- |
 | `user`         | `{ id }`, the user id from the claims                                         |
 | `organization` | `{ id, plans, roles }`, the active tenant with its features and roles         |
+| `visitor`      | `{ id }`, a signed-out visitor's id, only when there is no user               |
 | `brand`, ...   | `{ id }` for each custom context, named as in `blocks.flags.options.contexts` |
 
-`claims` must return claims you verified locally, such as from
-`getClaims()` or `bsb.context()`; `identify` runs for every flag and never
-calls the Auth server. `tenant` picks the active tenant when the claims
+Pass `server` (the object `createNext` or `createServer` returns) and
+`createIdentify` reads the session from the request's cookie or bearer
+token. It verifies the token locally and never refreshes it, so it never
+calls the Auth server; refreshing stays in the proxy. Pass `claims` instead
+to return claims you verified yourself. `visitor` gives a signed-out request
+a stable rollout bucket: the user id is the targeting key, and the visitor
+id stands in without one. Set the cookie it reads in the proxy. `tenant`
+picks the active tenant when the claims
 don't carry it, and `contexts` adds custom context values from a header,
 the host or a cookie. `contextClaims` from `flagContext` also works, such as
 `{ brand: "brand_id" }`. Wrap the result in `dedupe` so it runs once per
@@ -165,12 +191,28 @@ export default async function Pricing({
 }: PageProps<"/pricing/[code]">) {
   const { code } = await params;
   const banner = await pricingBanner(code, pricingFlags);
-  // ...
+
+  return (
+    <>
+      {banner ? <UpgradeBanner /> : null}
+      <FlagValues values={{ [pricingBanner.key]: banner }} />
+    </>
+  );
 }
 ```
 
+The page never reads cookies or headers, so each code is a static page.
+Read a per-user flag in a page without a `[code]` segment instead, inside a
+`<Suspense>` boundary with a skeleton. `FlagValues` from
+`flags/react` tells Flags Explorer and Vercel Analytics which values the
+page was built with.
+
 `precompute` signs the code with `FLAGS_SECRET`, a random 32-byte base64url
-string. Set it in every environment (`openssl rand -base64url 32`).
+string. Set it in every environment
+(`node -e "console.log(crypto.randomBytes(32).toString('base64url'))"`).
+With Cache Components, `generateStaticParams` must return at least one
+code, so an app that builds without the secret returns one fixed code there
+and renders the flags' defaults for it, as the example does.
 
 Precompute only flags with a few values per visitor: a brand, a plan, a
 rollout bucket. A per-user flag multiplies the permutations, and a static
@@ -204,37 +246,138 @@ never reads a custom context from the tenant table, so pass it through
 [Flags Explorer](https://vercel.com/docs/flags/flags-explorer) in
 the Vercel Toolbar reads the flags from a discovery route. `getProviderData`
 lists every flag in the flags block that isn't archived, with its
-description, options, origin and last change; merge it with the declared
-flags:
+description, options, origin and last change. Pass the flags your code
+declares as `flags`, one at a time or in groups such as `pricingFlags`, and
+it joins them: a declared flag shows its `defaultValue` and is marked
+declared in code, and one the table lacks shows a hint.
 
 ```ts title="app/.well-known/vercel/flags/route.ts"
 import { getProviderData } from "better-supabase/flags-sdk";
-import { mergeProviderData } from "flags";
-import {
-  createFlagsDiscoveryEndpoint,
-  getProviderData as getDeclared,
-} from "flags/next";
+import { createFlagsDiscoveryEndpoint } from "flags/next";
 
-import { bsFlags, newEditor, pricingBanner } from "@/flags";
+import { bsFlags, newEditor, pricingFlags } from "@/flags";
 
-export const GET = createFlagsDiscoveryEndpoint(async () =>
-  mergeProviderData([
-    getDeclared({ newEditor, pricingBanner }),
-    await getProviderData(bsFlags),
-  ]),
+export const GET = createFlagsDiscoveryEndpoint(() =>
+  getProviderData(bsFlags, { flags: { newEditor, pricingFlags } }),
 );
 ```
 
 The route answers only requests signed with `FLAGS_SECRET`. A failed load
-shows as a hint in Explorer instead of an error, and so does a flag with
-an unknown type. Exclude
-`/.well-known/vercel/` from the proxy matcher. An override set in the
-toolbar applies before the adapter's `decide`.
+still lists the declared flags, with a hint instead of an error, and a flag
+with an unknown type shows a hint too, as does a variant whose value doesn't
+match the flag's type. Exclude `/.well-known/vercel/` from the proxy
+matcher. An override set in the toolbar applies before the adapter's
+`decide`.
+
+`toFlagsSdkDefinition(flag, origin)` turns one stored flag into the
+definition Flags Explorer shows, and `origin` may be a URL or an object
+such as `{ provider: "better-supabase", projectId }`, or a function of the
+key. `flagDrift(declared, stored)` lists the keys your code declares that the
+table lacks (`notStored`) and the ones the table has that no code declares
+(`notDeclared`); archived flags count as neither. Run it in a test to catch
+a flag someone deleted while code still reads it.
+
+### Outside Next.js
+
+`flagsDiscoveryHandler(getData, { verify })` is the discovery route as a
+`(request: Request) => Promise<Response>`, for any framework with web
+requests. It answers 401 unless `verify` accepts the `Authorization` header,
+and otherwise sends the data with `cache-control: no-store` and, given
+`version`, the `x-flags-sdk-version` header. Pass `verifyAccess` from
+`flags`:
+
+```ts title="src/routes/flags.ts (Hono)"
+import {
+  flagsDiscoveryHandler,
+  getProviderData,
+} from "better-supabase/flags-sdk";
+import { verifyAccess } from "flags";
+
+const discovery = flagsDiscoveryHandler(() => getProviderData(bsFlags), {
+  verify: (header) => verifyAccess(header ?? "", process.env.FLAGS_SECRET),
+});
+
+app.get("/.well-known/vercel/flags", (c) => discovery(c.req.raw));
+```
+
+```ts title="src/routes/.well-known/vercel/flags/+server.ts (SvelteKit)"
+import { FLAGS_SECRET } from "$env/static/private";
+import {
+  flagsDiscoveryHandler,
+  getProviderData,
+} from "better-supabase/flags-sdk";
+import { verifyAccess } from "flags";
+
+const discovery = flagsDiscoveryHandler(() => getProviderData(bsFlags), {
+  verify: (header) => verifyAccess(header ?? "", FLAGS_SECRET),
+});
+
+export const GET = ({ request }) => discovery(request);
+```
+
+`overrideEncryptionMode` defaults to `encrypted`, which is what the toolbar
+writes when `FLAGS_SECRET` is set. Pass `plaintext` for an app that reads
+overrides without decrypting them.
+
+### Overrides on the OpenFeature path
+
+`flag()` reads the toolbar's `vercel-flag-overrides` cookie itself. Code
+that evaluates through the OpenFeature provider reads it with
+`explorerOverrides(cookies, { decrypt })` and wraps the provider for that
+request with `withExplorerOverrides`. An overridden flag of the asked type
+resolves with the reason `OVERRIDE`; any other flag evaluates as usual:
+
+```ts
+import {
+  explorerOverrides,
+  withExplorerOverrides,
+} from "better-supabase/flags-sdk";
+import { decryptOverrides } from "flags";
+
+const overrides = await explorerOverrides(await cookies(), {
+  decrypt: (value) => decryptOverrides(value),
+});
+const client = createFlagClient(withExplorerOverrides(provider, overrides));
+```
+
+`decrypt` is yours to pass, so better-supabase never loads `flags` for it.
+Without one, the cookie is read as plaintext JSON. These overrides apply to
+server code only: `flag_enabled()` in a policy never sees a browser cookie.
+
+## Testing with overrides
+
+`flagOverrideCookie(values)` from `better-supabase/testing` builds the cookie
+Flags Explorer would set, so an end-to-end test serves the variants it needs
+without the toolbar:
+
+```ts title="e2e/checkout.spec.ts"
+import { flagOverrideCookie } from "better-supabase/testing";
+import { encryptOverrides } from "flags";
+
+const cookie = await flagOverrideCookie(
+  { checkoutTheme: "compact" },
+  { encrypt: (values) => encryptOverrides(values) },
+);
+await context.addCookies([{ ...cookie, url: baseURL }]);
+```
+
+Leave out `encrypt` when the app reads plaintext overrides. For a request
+in a unit test, send `cookie.header` as the `cookie` header.
+
+## Environments
+
+`vercelEnvironmentContext()` returns `{ environment }` from `VERCEL_ENV`
+(or `NODE_ENV` outside Vercel), for a rule that turns a flag on in preview
+only. Merge it into `identify`, and target it with a rule such as
+`{ variant: "on", contexts: { environment: ["preview"] } }`.
 
 ## Reporting exposures
 
-`flag()` reports each value to Vercel Analytics. To send evaluations
-elsewhere, wrap the adapter. This one sends PostHog's
+`flag()` reports each value to Vercel Web Analytics when the page renders
+`<FlagValues>` from `flags/react`, or when you pass the values to
+`track()` from `@vercel/analytics`; custom events then carry the flags the
+visitor saw. On the OpenFeature path, `createFlagsProvider({ onEvaluate })`
+sees each evaluation. To send evaluations elsewhere, wrap the adapter. This one sends PostHog's
 `$feature_flag_called` event:
 
 ```ts
@@ -267,11 +410,12 @@ same place.
 
 These are left to the app or to other tools for now:
 
-- Reusable segments, such as a list of beta customers that many rules share.
-  A rule lists its tenants, users, plans, roles and contexts itself.
 - Self-serve previews that a tenant admin turns on. Build them as a flag
   with tenant overrides that your settings page writes.
-- Scheduled changes. Run `flags.save` from a [job](/docs/blocks/queue).
+- Scheduled changes other than a rollout. A rollout follows
+  `rolloutSchedule` (see
+  [scheduled rollouts](/docs/blocks/flags#weighted-splits-and-scheduled-rollouts));
+  for anything else, run `flags.upsert` from a [job](/docs/blocks/queue).
 - Approval before a change. A `save` hook can require one (see
   [extending blocks](/docs/extending/blocks)).
 - Experiments and metrics. Use PostHog or Statsig through their own Flags

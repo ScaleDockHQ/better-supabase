@@ -211,6 +211,8 @@ function DocumentSession({
       } else {
         setFailed(true);
       }
+
+      return opened;
     });
 
     return () => {

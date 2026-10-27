@@ -16,6 +16,7 @@ import type { Actor, RequestContext } from "../core/plugin.ts";
 import { PERMISSION_CAP_CLAIM } from "../auth/delegation.ts";
 import { unwrap, withContext } from "../blocks/queue/envelope.ts";
 import { subjectAttribute, WORKFLOW_ATTRIBUTES } from "./attributes.ts";
+import { runKeysOf } from "./run-keys.ts";
 
 /** A workflow function (a `"use workflow"` export), typed structurally. */
 export type WorkflowFn<
@@ -111,8 +112,9 @@ export async function runForKey(
  * `start(workflow, args)` for the caller in `context`: the run carries
  * `bsb.tenant` and `bsb.actor`, so `workflow_runs` lists it to the tenant and
  * the actor under RLS. With `idempotencyKey`, a run that already has the key is
- * returned instead of starting another (the key lookup needs a World with
- * `analytics`, as the Supabase World has).
+ * returned instead of starting another. The Supabase World claims the key in
+ * `workflow.workflow_run_keys` first, so concurrent starts with one key start
+ * one run; other Worlds need `analytics` to look the key up.
  */
 export function startFor<TArgs extends unknown[], TResult>(
   context: RequestContext,
@@ -121,6 +123,41 @@ export function startFor<TArgs extends unknown[], TResult>(
   options: StartForOptions = {},
 ): Promise<Run<TResult>> {
   return startRun(context, workflow, args, options, {});
+}
+
+export interface StartOnceOptions extends Omit<
+  StartForOptions,
+  "idempotencyKey"
+> {
+  /** The idempotency key: one run per key while the run is in the World. */
+  readonly key: string;
+}
+
+/**
+ * `startFor` with a required idempotency key: every start with `key` resolves
+ * to the run the first one created, also when they race.
+ */
+export function startOnce<TArgs extends unknown[], TResult>(
+  context: RequestContext,
+  workflow: WorkflowFn<TArgs, TResult>,
+  args: TArgs,
+  options: StartOnceOptions,
+): Promise<Run<TResult>> {
+  const { key, ...rest } = options;
+
+  if (typeof key !== "string" || key === "" || key.length > 500) {
+    throw new TypeError(
+      "better-supabase: startOnce needs a key of 1 to 500 characters",
+    );
+  }
+
+  return startRun(
+    context,
+    workflow,
+    args,
+    { ...rest, idempotencyKey: key },
+    {},
+  );
 }
 
 const RUN_AS_ATTRIBUTES: ReadonlySet<string> = new Set([
@@ -141,15 +178,6 @@ async function startRun<TArgs extends unknown[], TResult>(
   trusted: Readonly<Record<string, string | undefined>>,
 ): Promise<Run<TResult>> {
   const key = options.idempotencyKey;
-
-  if (key !== undefined) {
-    const existing = await runForKey(key, options.world);
-
-    if (existing !== undefined) {
-      return getRun<TResult>(existing);
-    }
-  }
-
   const attributes: Record<string, string> = {};
 
   for (const [name, value] of Object.entries(options.attributes ?? {})) {
@@ -178,10 +206,80 @@ async function startRun<TArgs extends unknown[], TResult>(
     }
   }
 
-  return start(workflow, args, {
-    attributes,
-    ...(options.world === undefined ? {} : { world: options.world }),
+  const launch = (): Promise<Run<TResult>> =>
+    start(workflow, args, {
+      attributes,
+      ...(options.world === undefined ? {} : { world: options.world }),
+    });
+
+  return key === undefined ? launch() : startKeyed(key, options.world, launch);
+}
+
+const KEY_WAIT_ATTEMPTS = 20;
+const KEY_WAIT_MS = 250;
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
   });
+
+/**
+ * Starts the run for `key` once. A World with run keys claims the key first, so
+ * a concurrent start with the same key waits for the first one's run instead of
+ * starting another; other Worlds look the key up in `analytics`.
+ */
+async function startKeyed<TResult>(
+  key: string,
+  world: World | undefined,
+  launch: () => Promise<Run<TResult>>,
+): Promise<Run<TResult>> {
+  const target = world ?? (await getWorld());
+  const keys = runKeysOf(target);
+
+  if (keys === undefined) {
+    const existing = await runForKey(key, target);
+
+    return existing === undefined ? launch() : getRun<TResult>(existing);
+  }
+
+  for (let attempt = 0; attempt < KEY_WAIT_ATTEMPTS; attempt += 1) {
+    const claim = await keys.claim(key);
+
+    if (claim.runId !== undefined) {
+      return getRun<TResult>(claim.runId);
+    }
+
+    if (claim.claimed) {
+      // A run started before the key table existed carries the key only as
+      // its `bsb.key` attribute.
+      const existing = await runForKey(key, target);
+      let run: Run<TResult>;
+
+      try {
+        run =
+          existing === undefined ? await launch() : getRun<TResult>(existing);
+      } catch (cause) {
+        await keys.release(key).catch(() => undefined);
+        throw cause;
+      }
+
+      await keys.set(key, run.runId);
+
+      return run;
+    }
+
+    await sleep(KEY_WAIT_MS);
+  }
+
+  const existing = await runForKey(key, target);
+
+  if (existing === undefined) {
+    throw new Error(
+      `better-supabase: another start with idempotency key ${JSON.stringify(key)} has not finished`,
+    );
+  }
+
+  return getRun<TResult>(existing);
 }
 
 /**

@@ -28,6 +28,8 @@ export function usePushRegistration(): void {
       if (result.ok && result.data) {
         token = result.data.token;
       }
+
+      return result;
     });
   }, []);
 }

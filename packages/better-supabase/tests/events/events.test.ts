@@ -175,6 +175,8 @@ describe("CloudEvents", () => {
 
     const flush = betterSupabase.events.settled().then(() => {
       flushed = true;
+
+      return true;
     });
 
     await Promise.resolve();

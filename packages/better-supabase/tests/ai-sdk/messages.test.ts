@@ -1,5 +1,6 @@
 import type { ModelMessage, UIMessage } from "ai";
 
+import { jsonSchema } from "ai";
 import { describe, expect, it } from "vitest";
 
 import type { AiMessage } from "../../src/blocks/ai-chat/index.ts";
@@ -12,6 +13,7 @@ import {
   isUIMessage,
   toUIMessage,
   toUIMessages,
+  validUIMessages,
 } from "../../src/ai-sdk/index.ts";
 import { isAiMessage } from "../../src/blocks/ai-chat/index.ts";
 
@@ -641,5 +643,61 @@ describe("fromModelMessages", () => {
         state: "requested",
       },
     ]);
+  });
+});
+
+describe("validUIMessages", () => {
+  const idOf = (type: "number" | "string") =>
+    jsonSchema<{ id: number | string }>(
+      { type: "object", properties: { id: { type } }, required: ["id"] },
+      {
+        validate: (value) => {
+          const id =
+            typeof value === "object" && value !== null && "id" in value
+              ? value.id
+              : undefined;
+
+          return (typeof id === "number" || typeof id === "string") &&
+            typeof id === type
+            ? { success: true, value: { id } }
+            : { success: false, error: new Error(`id must be a ${type}`) };
+        },
+      },
+    );
+
+  const history: AiMessage[] = [
+    { id: "u", role: "user", parts: [{ type: "text", text: "hi" }] },
+    {
+      id: "a",
+      role: "assistant",
+      parts: [
+        {
+          type: "tool-call",
+          toolCallId: "t",
+          toolName: "get",
+          input: { id: 1 },
+        },
+        { type: "tool-result", toolCallId: "t", toolName: "get", output: 3 },
+      ],
+    },
+  ];
+
+  it("returns the converted history when it matches the schemas", async () => {
+    const out = await validUIMessages(history, {
+      tools: { get: { inputSchema: idOf("number") } },
+    }).orThrow();
+
+    expect(out.map((message) => message.id)).toEqual(["u", "a"]);
+  });
+
+  it("fails as validation when a stored call no longer fits its tool", async () => {
+    const result = await validUIMessages(history, {
+      tools: { get: { inputSchema: idOf("string") } },
+    });
+
+    expect(result.ok ? undefined : result.error).toMatchObject({
+      kind: "validation",
+      hint: "AI_MESSAGES_INVALID",
+    });
   });
 });

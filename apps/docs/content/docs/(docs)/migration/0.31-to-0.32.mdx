@@ -99,6 +99,97 @@ memo and the authorization version cache, so await it. `bsb.cacheTag` and
 `bsb.cacheTags` are `bsb.tag` and `bsb.tags`. The `cacheTags: false` option of
 `createNext` keeps its name, because it turns tagging off.
 
+## Flags SDK
+
+| 0.31                                            | 0.32                                                    |
+| ----------------------------------------------- | ------------------------------------------------------- |
+| `betterSupabaseAdapter(options)`                | `createBetterSupabaseAdapter(options)`                  |
+| `adapter: bsFlags()` on every flag              | `adapter: bsFlags`, or `adapter: betterSupabaseAdapter` |
+| `identify` on every flag                        | `identify` once, on `createBetterSupabaseAdapter`       |
+| `createIdentify({ claims })` over `bsb.context` | `createIdentify({ server: bsb })`                       |
+| `mergeProviderData` with the declared flags     | `getProviderData(adapter, { flags })`                   |
+
+`betterSupabaseAdapter` is now a ready adapter that reads `SUPABASE_URL` and
+`SUPABASE_SECRET_KEY` on first use, the way `@flags-sdk/vercel` reads its own
+key. `createBetterSupabaseAdapter` also takes `url` and `secretKey`, so a
+service client and `rpcTransport` are no longer needed. `createIdentify`
+takes a `visitor` for signed-out rollouts. `pnpm better-supabase codemod 0.32`
+renames the calls and flags `createIdentify({ claims: ... })` for review.
+
+## Flags
+
+| 0.31                                        | 0.32                                                         |
+| ------------------------------------------- | ------------------------------------------------------------ |
+| `rolloutVariant: "on"`                      | `rolloutVariants: [{ variant: "on", weight: 100 }]`          |
+| `rollout_variant` column and definition key | `rollout_variants`, a JSON array of `{ variant, weight }`    |
+| `save_flag(key, definition)`                | `save_flag(key, definition, message)`; `message` may be null |
+
+`better-supabase upgrade` writes a migration step that moves each stored
+`rollout_variant` into `rollout_variants` with weight 100 and drops the old
+column, so existing rollouts serve the same targets. Update SQL that inserts
+`rollout_variant` and code that passes `rolloutVariant`. The module adds
+`flag_revisions` and `flag_segments`; see
+[the flags block](/docs/blocks/flags#history-and-restore).
+
+## Workflow SDK
+
+| 0.31                                            | 0.32                                                                   |
+| ----------------------------------------------- | ---------------------------------------------------------------------- |
+| `approvalToken(runKey, node)`                   | the approvals request id that `requestApproval` returns                |
+| `requestApproval` optional on the graph runtime | required; an approval node always files a request                      |
+| `graphStarter` without `approval`               | `approval` is required for a live run of a graph with an approval node |
+| `WORKFLOW_POSTGRES_MAX_CONNECTIONS`             | `WORKFLOW_POSTGRES_MAX_POOL_SIZE` (the old name still works)           |
+
+An approval node used to wait on `<runKey>:<node>` when no `requestApproval`
+was passed, and anyone who knew the run key could resume it. Now the node
+always files an [approvals](/docs/blocks/approvals) request and waits on its
+id; resume it with `wakeOnApproval` from your outbox consumer instead of
+calling `resumeHook` with a token. Add an approvals policy for the subject
+type you file (`workflow_run` in the example), pass the step as `approval`
+to `graphStarter`, and bind it as `requestApproval` in the executor. The
+[graph workflows](/docs/blocks/workflow-sdk#graph-workflows) section shows
+the step.
+
+## AI SDK
+
+| 0.31                                         | 0.32                                                       |
+| -------------------------------------------- | ---------------------------------------------------------- |
+| `run` returns `toUIMessageStream()`          | `run` returns `stream`; the assistant converts it          |
+| `totalUsage`, `providerMetadata` on a result | `usage`, `finalStep.providerMetadata`                      |
+| `usageOf({ totalUsage, providerMetadata })`  | `usageOf({ usage, finalStep })` (the old names still work) |
+| `stepCountIs(n)`                             | `isStepCount(n)`                                           |
+| `system` in `streamText`                     | `instructions`                                             |
+
+A `run` that returns `streamText(...)` or `agent.stream(...)` needs no
+change: AI SDK 7 results carry `stream`, `usage` and `finalStep`. A custom
+result that only has `toUIMessageStream()`, `totalUsage` and
+`providerMetadata` still works in 0.32 and stops working in 0.33. A result
+with no stream at all now answers `500 AI_CHAT_RUN_FAILED` instead of
+failing inside the stream.
+
+## Chat SDK
+
+| 0.31                                     | 0.32                                                 |
+| ---------------------------------------- | ---------------------------------------------------- |
+| inbox thread id `inbox:<conversationId>` | `inbox:<inboxId>:<conversationId>` (`inboxThreadId`) |
+| `Adapter<string, InboxMessage>`          | `Adapter<InboxThread, InboxMessage>`                 |
+| `dispatch(job)`                          | `dispatch(job, webhookOptions?)`                     |
+| `handler.mirror` skips every bot         | skips only the bot's own messages (`author.isMe`)    |
+| adapter calls throw the `DbError`        | throw `ChatError`, with the `DbError` as `cause`     |
+| `list_inbox_messages(conv, before, max)` | `list_inbox_messages(conv, before, max, after)`      |
+
+Run `better-supabase upgrade` and generate a migration. The inbox module's
+upgrade rewrites the stored thread ids, the Chat SDK subscriptions and the
+`thread-state:` keys, so subscribed threads keep working. Code that builds or
+slices a thread id by hand breaks: use `inboxThreadId({ inboxId,
+conversationId })` and `decodeInboxThreadId(id)`, or `conversationIdOf(id)`
+as before. A legacy `inbox:<conversationId>` id is rejected with an
+`INVALID_THREAD_ID` error. A catch block that reads `error.kind` reads
+`error.cause.kind` instead, or matches `error.code` (`NOT_FOUND`,
+`PERMISSION_DENIED`, `RATE_LIMITED` and the other Chat SDK codes). Mirrored
+messages from other bots, such as an integration posting in Slack, now land
+in the inbox; filter them in your handler if you don't want them.
+
 ## Names that stay
 
 Some names looked like candidates and keep their meaning:

@@ -77,7 +77,7 @@ export function createBlockQuery<
 
       void Promise.resolve(call(...args)).then((result) => {
         if (run !== state.run()) {
-          return;
+          return result;
         }
 
         // SAFETY: the method's `Result` carries `BlockDataOf<C, K>`.
@@ -90,6 +90,8 @@ export function createBlockQuery<
               }
             : { status: "error", error: result.error },
         );
+
+        return result;
       });
     };
 

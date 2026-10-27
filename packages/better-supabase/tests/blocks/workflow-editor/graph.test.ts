@@ -7,7 +7,6 @@ import type {
 } from "../../../src/blocks/workflow-editor/graph.ts";
 
 import {
-  approvalToken,
   executeGraph,
   graphRunFields,
 } from "../../../src/blocks/workflow-editor/executor.ts";
@@ -338,7 +337,6 @@ describe("executeGraph", () => {
       ok: { approved: true, by: "u1" },
       welcome: null,
     });
-    expect(approvalToken("k", "n")).toBe("k:n");
   });
 
   it("waits on the request id requestApproval returns", async () => {

@@ -30,6 +30,13 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     "db backfill",
     () => import("./commands/backfill.ts").then((m) => m.dbBackfillCommand),
   ],
+  [
+    "db prune-workflows",
+    () =>
+      import("./commands/prune-workflows.ts").then(
+        (m) => m.dbPruneWorkflowsCommand,
+      ),
+  ],
   ["dev env", () => import("./commands/env.ts").then((m) => m.envCommand)],
   ["dev run", () => import("./commands/run.ts").then((m) => m.runCommand)],
   ["dev keys", () => import("./commands/keys.ts").then((m) => m.keysCommand)],

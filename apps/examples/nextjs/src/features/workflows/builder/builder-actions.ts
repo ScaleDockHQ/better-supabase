@@ -1,14 +1,14 @@
 "use server";
 
 import { dbError, err, ok } from "better-supabase";
-import { approvalToken } from "better-supabase/blocks/workflow-editor";
+import { wakeOnApproval } from "better-supabase/workflow-sdk";
 import { refresh } from "next/cache";
 import * as v from "valibot";
-import { resumeHook } from "workflow/api";
 
 import { bsb } from "@/lib/supabase/server";
 
 import { builderFor } from "./builder-server";
+import { GRAPH_APPROVAL } from "./graph-steps";
 
 const Id = v.pipe(v.string(), v.minLength(1), v.maxLength(100));
 
@@ -277,9 +277,10 @@ export const revokeCredential = bsb.action(
 );
 
 /**
- * Resumes an approval node of a graph run. The run is read under RLS and must
- * belong to the active organization, so a caller can only decide the runs they
- * can see.
+ * Decides the approvals request of a graph run's approval node, then resumes
+ * the run. The run is read under RLS and must belong to the active
+ * organization, and the approvals block checks that the caller may decide the
+ * request's current step.
  */
 export const decideNode = bsb.action(
   {
@@ -304,7 +305,38 @@ export const decideNode = bsb.action(
       return err(dbError("not_found", "No such run"));
     }
 
-    await resumeHook(approvalToken(key, node), { approved, by: auth.user.id });
+    const pending = await db.approvals.list({
+      subject: { type: GRAPH_APPROVAL.subject, id: key },
+    });
+
+    if (!pending.ok) {
+      return pending;
+    }
+
+    const request = pending.data.find(
+      (candidate) => candidate.payload["node"] === node,
+    );
+
+    if (request === undefined) {
+      return err(
+        dbError("not_found", "The node is not waiting on an approval"),
+      );
+    }
+
+    const decided = approved
+      ? await db.approvals.approve(request.id)
+      : await db.approvals.reject(request.id);
+
+    if (!decided.ok) {
+      return decided;
+    }
+
+    if (decided.data.status !== "pending") {
+      await wakeOnApproval({
+        type: `approval.${decided.data.status}`,
+        payload: { id: decided.data.id },
+      });
+    }
 
     return ok(true);
   },

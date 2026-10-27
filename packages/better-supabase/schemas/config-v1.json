@@ -6755,6 +6755,9 @@
               "schedule": {
                 "type": "string",
                 "default": "1 seconds"
+              },
+              "retention": {
+                "type": "string"
               }
             }
           }

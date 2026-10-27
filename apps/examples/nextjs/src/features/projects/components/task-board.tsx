@@ -118,6 +118,8 @@ export function TaskBoard({
                 setColumns(meta.previousValue);
                 toast.error(errorMessage(result.error));
               }
+
+              return result;
             });
         }}
       >

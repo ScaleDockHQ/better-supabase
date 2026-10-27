@@ -101,7 +101,12 @@ The sync runs as the service role, from a job or a cron route.
 (`5 minutes`), at most `accounts` (25) of them, reading up to `pages` (5)
 pages of `limit` (50) messages each. A mailbox whose provider fails is
 marked `error` with the message; a rate limit leaves it `active` for the
-next run.
+next run. When the member's grant is gone (the credential provider fails
+with `CREDENTIAL_AUTHORIZATION_REQUIRED` or `CREDENTIAL_NOT_FOUND`), the
+stored message starts with that hint, and `accounts()` and the report's
+`failed` entries set `reconnect: true`. Show those members a button that
+sends them through the provider's consent flow again, such as
+`startAuthorization` on [Vercel Connect](/docs/extending/credentials#connecting-a-users-account).
 
 ```ts title="app/api/cron/mail/route.ts"
 export async function GET() {

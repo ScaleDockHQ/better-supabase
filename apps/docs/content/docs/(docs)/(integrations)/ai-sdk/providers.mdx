@@ -30,7 +30,7 @@ const providerOptions = await tenantGatewayOptions(providers, {
 }).orThrow();
 
 const result = streamText({
-  model: "anthropic/claude-sonnet-4.5",
+  model: "openai/gpt-5-mini",
   messages,
   providerOptions,
 });

@@ -291,3 +291,9 @@ Read [references/routing.md](references/routing.md) before adding any of these f
 - FAQ: <https://vercel.com/docs/ai-gateway/faq>
 - Coding agents: <https://vercel.com/docs/ai-gateway/coding-agents>
 - AI SDK provider: <https://ai-sdk.dev/providers/ai-sdk-providers/ai-gateway>
+
+## In this repo
+
+- `gatewayOptions({ userId, organizationId, chatId, feature })` from `better-supabase/ai-sdk` sets `user` and the `org:`, `chat:` and `feature:` tags; the tenant's BYOK keys go through `tenantGatewayOptions`.
+- `usageOf({ usage, finalStep })` returns the tokens, the `generationId` and the cost in micro-dollars from `finalStep.providerMetadata.gateway`; `createAssistant` backfills a missing cost through `enqueueCostBackfill`.
+- `meterTelemetry` meters every call on the usage block and `spendReconciliation` records the gateway's daily spend per tenant on `ai.gateway_cost`.

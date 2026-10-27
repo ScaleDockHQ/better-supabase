@@ -4,13 +4,27 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { FlagDefinition, FlagRule, FlagType, FlagValue } from "./flags.ts";
+import type {
+  FlagCondition,
+  FlagDefinition,
+  FlagRolloutSchedule,
+  FlagRule,
+  FlagSplit,
+  FlagType,
+  FlagValue,
+} from "./flags.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
-import { blockCall } from "../shared.ts";
-import { flagDefinitionsOf } from "./flags.ts";
+import {
+  blockCall,
+  isRecord,
+  optionalText,
+  recordsOf,
+  textOf,
+} from "../shared.ts";
+import { conditionOf, flagDefinitionsOf } from "./flags.ts";
 
 export interface FlagsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -54,9 +68,34 @@ export interface FlagInput<F extends object = Record<never, never>> {
   readonly rules?: readonly FlagRule[];
   /** 0 to 100. */
   readonly rolloutPercentage?: number;
-  readonly rolloutVariant?: string | null;
+  /** How the rollout splits between variants; `[]` turns the rollout off. */
+  readonly rolloutVariants?: readonly FlagSplit[];
+  /** A rollout that grows on its own; `null` removes it. */
+  readonly rolloutSchedule?: FlagRolloutSchedule | null;
   /** Values for the extra columns, by column name. */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
+}
+
+/** One saved state of a flag (`flag_revisions`). */
+export interface FlagRevision {
+  readonly revision: number;
+  /** The flag as `save_flag` left it, in `flag_definitions()` form. */
+  readonly definition: FlagDefinition;
+  readonly message: string | undefined;
+  readonly changedBy: string | undefined;
+  /** An ISO 8601 string. */
+  readonly changedAt: string;
+}
+
+/** A named audience that rules target through `segments`. */
+export interface FlagSegment extends FlagCondition {
+  readonly name: string;
+  readonly description?: string;
+}
+
+export interface FlagSaveOptions {
+  /** Why the flag changed; kept with the revision. */
+  readonly message?: string;
 }
 
 /** A flag as staff manage it: its definition and its extra columns. */
@@ -90,13 +129,30 @@ export type FlagOverrideTarget =
 export interface Flags<F extends object = Record<never, never>> {
   /** Every flag with its overrides. */
   list(): AsyncResult<readonly FlagRecord<F>[]>;
-  /** Creates or updates a flag; returns it as stored. */
+  /** Creates or updates a flag and records a revision; returns it as stored. */
   upsert(
     key: string,
     input: FlagInput<F>,
+    options?: FlagSaveOptions,
   ): AsyncResult<FlagRecord<F> | undefined>;
-  /** `false` when there was no such flag. */
+  /** `false` when there was no such flag. Its revisions stay. */
   remove(key: string): AsyncResult<boolean>;
+  /** The flag's revisions, newest first. */
+  history(key: string): AsyncResult<readonly FlagRevision[]>;
+  /**
+   * Saves revision `revision` again as a new revision, recreating a deleted
+   * flag; `undefined` when there is no such revision.
+   */
+  restore(
+    key: string,
+    revision: number,
+  ): AsyncResult<FlagRecord<F> | undefined>;
+  /** Every segment, by name. */
+  segments(): AsyncResult<readonly FlagSegment[]>;
+  /** Creates or replaces a segment. */
+  saveSegment(segment: FlagSegment): AsyncResult<FlagSegment>;
+  /** `false` when there was no such segment; rules naming it stop matching. */
+  removeSegment(name: string): AsyncResult<boolean>;
   /**
    * Sets the variant of a tenant, a user or a context value; `null` removes the
    * override.
@@ -128,11 +184,62 @@ const rowOf = (
   set("archived", input.archived);
   set("rules", input.rules);
   set("rollout_percentage", input.rolloutPercentage);
-  set("rollout_variant", input.rolloutVariant);
+  set("rollout_variants", input.rolloutVariants);
+  set("rollout_schedule", input.rolloutSchedule);
   set("fields", fields);
 
   return row;
 };
+
+const segmentRow = (segment: FlagSegment): Record<string, unknown> => {
+  const { name, description, ...condition } = segment;
+
+  return { name, description: description ?? null, rules: condition };
+};
+
+function segmentsOf(value: unknown): readonly FlagSegment[] {
+  return recordsOf(value, "list_flag_segments").flatMap((row) => {
+    const name = row["name"];
+
+    if (typeof name !== "string") {
+      return [];
+    }
+
+    const description = optionalText(row["description"]);
+
+    return [
+      {
+        name,
+        ...(description !== undefined && { description }),
+        ...conditionOf(isRecord(row["rules"]) ? row["rules"] : {}),
+      },
+    ];
+  });
+}
+
+function revisionsOf(value: unknown): readonly FlagRevision[] {
+  return recordsOf(value, "flag_history").flatMap((row) => {
+    const stored = row["definition"];
+
+    if (!(isRecord(stored) && typeof stored["key"] === "string")) {
+      return [];
+    }
+
+    const [definition] = flagDefinitionsOf([stored]);
+
+    return definition
+      ? [
+          {
+            revision: Number(row["revision"]),
+            definition,
+            message: optionalText(row["message"]),
+            changedBy: optionalText(row["changed_by"]),
+            changedAt: textOf(row["changed_at"]),
+          },
+        ]
+      : [];
+  });
+}
 
 const recordOf = async <F extends object>(
   fields: BlockFields<F>,
@@ -175,22 +282,47 @@ export function createFlags<S extends StandardSchemaV1 | undefined = undefined>(
       return ok(out);
     });
 
+  const single = (value: unknown): readonly FlagDefinition[] =>
+    flagDefinitionsOf(value === null ? [] : [value]);
+
   const client: Flags<F> = {
     list: () => call("list_flags", {}, flagDefinitionsOf).andThen(records),
-    upsert: (key, input) =>
+    upsert: (key, input, saveOptions = {}) =>
       AsyncResult.from(() =>
         input.fields === undefined
           ? Promise.resolve(ok(undefined))
           : fields.write({ ...input.fields }),
       )
         .andThen((valid) =>
-          call("save_flag", { key, definition: rowOf(input, valid) }, (value) =>
-            flagDefinitionsOf(value === null ? [] : [value]),
+          call(
+            "save_flag",
+            {
+              key,
+              definition: rowOf(input, valid),
+              ...(saveOptions.message === undefined
+                ? {}
+                : { message: saveOptions.message }),
+            },
+            single,
           ),
         )
         .andThen(records)
         .map((saved) => saved[0]),
     remove: (key) => call("delete_flag", { key }, (value) => value === true),
+    history: (key) => call("flag_history", { key }, revisionsOf),
+    restore: (key, revision) =>
+      call("restore_flag", { key, revision }, single)
+        .andThen(records)
+        .map((saved) => saved[0]),
+    segments: () => call("list_flag_segments", {}, segmentsOf),
+    saveSegment: (segment) =>
+      call("save_flag_segment", segmentRow(segment), (value) => {
+        const [saved] = segmentsOf([value]);
+
+        return saved ?? segment;
+      }),
+    removeSegment: (name) =>
+      call("delete_flag_segment", { name }, (value) => value === true),
     override: (key, target, variant) =>
       call(
         "set_flag_override",

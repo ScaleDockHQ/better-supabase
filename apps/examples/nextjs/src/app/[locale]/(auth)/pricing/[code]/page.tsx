@@ -1,4 +1,5 @@
 import { generatePermutations } from "flags/next";
+import { FlagValues } from "flags/react";
 import { getExtracted } from "next-intl/server";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -16,8 +17,8 @@ const DEFAULTS = "default";
 
 /**
  * Every combination of the precomputed flags is a static page. Cache Components
- * needs at least one param, so without the secret the page is built once with
- * the flags' defaults.
+ * rejects an empty list, so without the secret the page is built once with the
+ * flags' declared defaults.
  */
 export async function generateStaticParams() {
   if (!env.FLAGS_SECRET) {
@@ -32,7 +33,7 @@ export async function generateStaticParams() {
 /**
  * `/pricing` is rewritten here by the proxy, which evaluates the flags for the
  * visitor's organization and plan (`precompute`). The page reads them from the
- * code, so it never reads cookies or headers.
+ * code, so it never reads cookies or headers and stays static.
  */
 export default async function PricingPage({
   params,
@@ -40,26 +41,31 @@ export default async function PricingPage({
   const { code } = await params;
 
   const [showBanner, t] = await Promise.all([
-    code === DEFAULTS ? false : pricingBanner(code, pricingFlags),
+    code === DEFAULTS
+      ? pricingBanner.defaultValue
+      : pricingBanner(code, pricingFlags),
     getExtracted("pricing"),
   ]);
 
   return (
-    <Card data-testid="pricing">
-      <CardHeader>
-        <CardTitle>{t("Pricing")}</CardTitle>
-        <CardDescription>
-          {t("One plan per organization, billed monthly.")}
-        </CardDescription>
-      </CardHeader>
-      {showBanner ? (
-        <Alert data-testid="pricing-banner">
-          <AlertTitle>{t("Upgrade and save")}</AlertTitle>
-          <AlertDescription>
-            {t("The pricing-banner flag is on for your plan.")}
-          </AlertDescription>
-        </Alert>
-      ) : null}
-    </Card>
+    <div className="flex flex-col gap-6">
+      <Card data-testid="pricing">
+        <CardHeader>
+          <CardTitle>{t("Pricing")}</CardTitle>
+          <CardDescription>
+            {t("One plan per organization, billed monthly.")}
+          </CardDescription>
+        </CardHeader>
+        {showBanner ? (
+          <Alert data-testid="pricing-banner">
+            <AlertTitle>{t("Upgrade and save")}</AlertTitle>
+            <AlertDescription>
+              {t("The pricing-banner flag is on for your plan.")}
+            </AlertDescription>
+          </Alert>
+        ) : null}
+      </Card>
+      <FlagValues values={{ [pricingBanner.key]: showBanner }} />
+    </div>
   );
 }

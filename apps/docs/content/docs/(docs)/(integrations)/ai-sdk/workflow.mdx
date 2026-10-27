@@ -4,7 +4,7 @@ description: Answers that run as Workflow SDK workflows with durableChat and dur
 ---
 
 `better-supabase/ai-sdk/workflow` runs an answer as a
-[Workflow SDK](https://useworkflow.dev) workflow instead of inside the
+[Workflow SDK](https://workflow-sdk.dev/docs/getting-started/next) workflow instead of inside the
 request. The answer keeps going when the user closes the tab or the
 function is redeployed, a tool call can wait hours for an approval, and a
 research agent can record its progress for an activity page. It uses the
@@ -42,7 +42,12 @@ import {
   durableTurn,
   runDurableStep,
 } from "better-supabase/ai-sdk/workflow";
-import { createHook, getWorkflowMetadata, getWritable } from "workflow";
+import {
+  createHook,
+  getWorkflowMetadata,
+  getWritable,
+  setAttributes,
+} from "workflow";
 
 export async function chatStep<K extends DurableStepName>(
   name: K,
@@ -58,6 +63,7 @@ export async function assistantTurn(input: DurableTurnInput) {
     runId: getWorkflowMetadata().workflowRunId,
     createHook,
     getWritable,
+    setAttributes,
     step: chatStep,
     agent: (args) =>
       new WorkflowAgent({
@@ -68,6 +74,11 @@ export async function assistantTurn(input: DurableTurnInput) {
   });
 }
 ```
+
+`setAttributes` is optional. With it, the turn sets the run's `bsb.phase`
+attribute to `streaming` while the agent answers and to `waiting` while it
+waits on approvals, so the Workflow SDK's observability shows where each run
+is.
 
 The model is a gateway string such as `"openai/gpt-5-mini"`: the agent
 passes it to a step, so it has to be serializable. `args` also carries the

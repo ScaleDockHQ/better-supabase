@@ -1,0 +1,82 @@
+---
+title: Scheduled messages
+description: stateScheduler and scheduledAdapter, so thread.schedule() works on any Chat SDK adapter, with the messages held in your state adapter until a cron job posts them.
+---
+
+Chat SDK's `thread.schedule(message, { postAt })` calls the adapter's
+`scheduleMessage`, and only some platforms have one. `scheduledAdapter`
+gives any adapter, the [inbox adapter](/docs/chat-sdk/inbox-adapter)
+included, a `scheduleMessage` that holds the message in a
+`ChatScheduler`. `publishDue` posts the due ones through each adapter's
+`postMessage`.
+
+```ts title="lib/bot.ts"
+import { Chat } from "chat";
+import {
+  createSupabaseState,
+  scheduledAdapter,
+  stateScheduler,
+} from "better-supabase/chat-sdk";
+
+const state = createSupabaseState({ transport });
+export const scheduler = stateScheduler(state);
+
+export const bot = new Chat({
+  userName: "acme",
+  state,
+  adapters: {
+    inbox: scheduledAdapter(inboxBot, scheduler),
+    telegram: scheduledAdapter(createTelegramAdapter(), scheduler),
+  },
+});
+
+bot.onNewMention(async (thread) => {
+  const reminder = await thread.schedule("Did that fix it?", {
+    postAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  });
+  await thread.setState({ reminder: reminder.scheduledMessageId });
+});
+```
+
+`scheduledAdapter` changes the adapter in place and returns it, because
+Chat SDK hands threads the instance the adapter's webhook passes along,
+not a wrapper. It replaces a native `scheduleMessage`, so leave out
+adapters whose platform schedules natively if you'd rather use that.
+
+## Posting due messages
+
+Run `publishDue` from a cron job, or pass the scheduler to
+[`maintain`](/docs/chat-sdk/channels#maintenance) as `scheduled`:
+
+```ts title="app/api/cron/chat/route.ts"
+import { bot, scheduler } from "@/lib/bot";
+
+export async function GET() {
+  return Response.json(await scheduler.publishDue(bot));
+}
+```
+
+It returns `{ published, failed, dropped }`. Each due message goes out at
+most once unless its adapter throws; then it waits for the next run, and
+after `maxAttempts` (3 by default) failures, or when no adapter has its
+name any more, it is dropped. A message posts no earlier than `postAt` and
+no later than the next run after it, so the cron interval is the delay you
+accept.
+
+## The scheduler
+
+| Method                                             | What it does                                               |
+| -------------------------------------------------- | ---------------------------------------------------------- |
+| `schedule({ adapter, threadId, message, postAt })` | Holds a message; `postAt` must be in the future            |
+| `pending()`                                        | The waiting messages, soonest first                        |
+| `cancel(id)`                                       | Removes one; `false` when it was already sent or cancelled |
+| `publishDue(chat, { now?, limit? })`               | Posts what is due, at most `limit` (100) per call          |
+
+`stateScheduler(state, { key?, maxAttempts?, lockWaitMs? })` keeps the
+waiting messages as one value under `key` (`chat:scheduled`) in any Chat SDK
+`StateAdapter`, changed under the state's lock. That suits hundreds of
+waiting messages, not millions. For more, implement `ChatScheduler` over
+your own table or a queue with delayed jobs.
+
+The inbox's own [scheduled replies](/docs/blocks/inbox) are a separate
+feature: staff schedule them as themselves, and `maintain` sends them.

@@ -30,6 +30,8 @@ export function batchSubjects(source: Subjects): Subjects {
       for (const waiter of batch.waiters) {
         waiter(result);
       }
+
+      return result;
     });
   };
 

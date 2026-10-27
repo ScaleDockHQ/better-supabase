@@ -230,6 +230,8 @@ function EndAccessButton({
                 if (done) {
                   setOpen(false);
                 }
+
+                return done;
               });
             }}
           >

@@ -119,6 +119,8 @@ export function PlanPicker({
                     if (!started.ok) {
                       toast.error(errorMessage(started.error));
                     }
+
+                    return started;
                   });
                 }}
               >

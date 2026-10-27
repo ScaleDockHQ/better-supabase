@@ -32,6 +32,11 @@ export const WORKFLOW_ATTRIBUTES = {
   mode: "bsb.mode",
   /** The trigger node a builder run started at. */
   triggerNode: "bsb.trigger_node",
+  /**
+   * Where a durable chat turn is: `streaming` while the agent runs, `waiting`
+   * on tool approvals.
+   */
+  phase: "bsb.phase",
 } as const;
 
 /**

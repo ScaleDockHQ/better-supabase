@@ -122,6 +122,8 @@ export function serve(
       if (response !== undefined) {
         output.write(encodeFrame(response));
       }
+
+      return response;
     });
   });
 

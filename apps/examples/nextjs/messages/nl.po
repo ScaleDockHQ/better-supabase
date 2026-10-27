@@ -1574,6 +1574,16 @@ msgid "Your chats show up here after the first answer."
 msgstr "Je chats verschijnen hier na het eerste antwoord."
 
 #: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.Aw3qRf"
+msgid "Reasoning"
+msgstr "Redenering"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.fhwTpA"
+msgid "Sources"
+msgstr "Bronnen"
+
+#: src/features/assistant/components/chat-view.tsx
 msgctxt "assistant._7Q2I5"
 msgid "{tool} needs your approval"
 msgstr "{tool} heeft je goedkeuring nodig"
@@ -7121,6 +7131,111 @@ msgctxt "inbox.pC2KQV"
 msgid "Cancel scheduled reply"
 msgstr "Ingepland antwoord annuleren"
 
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.IvjoDS"
+msgid "Connected"
+msgstr "Verbonden"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.PuU15u"
+msgid "Not connected"
+msgstr "Niet verbonden"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.-vVZ_G"
+msgid "Connect"
+msgstr "Verbinden"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.GMtgah"
+msgid "{name} disconnected"
+msgstr "{name} losgekoppeld"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.qj1uhz"
+msgid "Disconnect"
+msgstr "Loskoppelen"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.angwak"
+msgid "Disconnect {name}?"
+msgstr "{name} loskoppelen?"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.9Yk1Q2"
+msgid "The app loses access to your account until you connect it again. Mail sync for it stops."
+msgstr "De app verliest de toegang tot je account tot je het opnieuw verbindt. De mailsynchronisatie ervoor stopt."
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.TwyMau"
+msgid "Account"
+msgstr "Account"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.wL7VAE"
+msgid "Actions"
+msgstr "Acties"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.MZe0nQ"
+msgid "{name} is connected"
+msgstr "{name} is verbonden"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.vmz_rI"
+msgid "{name} didn't connect"
+msgstr "{name} is niet verbonden"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.o1qevE"
+msgid "Consent was declined or expired. Try connecting again."
+msgstr "De toestemming is geweigerd of verlopen. Probeer opnieuw te verbinden."
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.6cBDhe"
+msgid "Integrations"
+msgstr "Integraties"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.7lMzB0"
+msgid "Your own accounts the app may use on your behalf, such as the mailbox mail sync reads."
+msgstr "Je eigen accounts die de app namens jou mag gebruiken, zoals de mailbox die de mailsynchronisatie leest."
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.vDGz5L"
+msgid "No integrations set up"
+msgstr "Nog geen integraties ingesteld"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.sDpXLP"
+msgid "Add a Vercel Connect connector and set its UID in the environment to list it here."
+msgstr "Voeg een Vercel Connect-connector toe en zet de UID ervan in de omgeving om hem hier te tonen."
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.543-Vw"
+msgid "Read the Connect docs"
+msgstr "Lees de Connect-documentatie"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.bVfjdz"
+msgid "The integrations didn't load"
+msgstr "De integraties zijn niet geladen"
+
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
 #: src/features/islands/components/count-island.tsx
 msgctxt "islands.TkYZBT"
 msgid "Customers"
@@ -10490,6 +10605,11 @@ msgstr "Profiel"
 msgctxt "settings.PCSt5T"
 msgid "Preferences"
 msgstr "Voorkeuren"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.6cBDhe"
+msgid "Integrations"
+msgstr "Integraties"
 
 #: src/features/settings/components/settings-nav-links.tsx
 msgctxt "settings.Py189G"

@@ -220,6 +220,20 @@ describe("vaultCredentials", () => {
     expect(revoked.ok ? undefined : revoked.error.hint).toBe(
       "CREDENTIAL_SUBJECT_REQUIRED",
     );
+
+    for (const subject of [
+      { type: "jwt-bearer", sub: "agent" },
+      { type: "token", token: "t" },
+    ] as const) {
+      const exchanged = await vault.getToken(
+        { provider: "vault", secret: "x" },
+        { subject },
+      );
+
+      expect(exchanged.ok ? undefined : exchanged.error.hint).toBe(
+        "CREDENTIAL_SUBJECT_UNSUPPORTED",
+      );
+    }
   });
 
   it("verifies hmac-sha256 and shared-secret requests", async () => {

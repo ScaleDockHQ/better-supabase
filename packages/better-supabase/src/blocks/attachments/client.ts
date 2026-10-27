@@ -286,10 +286,12 @@ export function createAttachmentUploadController(
                 patch(key, { status: "error", error: next.error });
               }
 
-              return;
+              return next;
             }
 
             await settle(key, id, next.data, signal);
+
+            return next;
           });
         }, interval);
 

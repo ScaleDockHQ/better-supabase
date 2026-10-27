@@ -84,7 +84,7 @@ export function batchingExecutor(
       );
     }
 
-    base
+    void base
       .batch(
         items.map((item) => item.op),
         context,
@@ -103,11 +103,15 @@ export function batchingExecutor(
                 ),
             );
           }
+
+          return results;
         },
         (cause: unknown) => {
           for (const item of items) {
             item.resolve(err(toDbError(cause)));
           }
+
+          return cause;
         },
       );
   };

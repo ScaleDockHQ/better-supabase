@@ -711,14 +711,16 @@ export interface BlockNameRegistry {
   };
   readonly "flags": {
     readonly tables: {
-      readonly "flags": "key" | "type" | "description" | "variants" | "defaultVariant" | "enabled" | "archived" | "rules" | "rolloutPercentage" | "rolloutVariant" | "updatedAt";
+      readonly "flags": "key" | "type" | "description" | "variants" | "defaultVariant" | "enabled" | "archived" | "rules" | "rolloutPercentage" | "rolloutVariants" | "rolloutSchedule" | "createdAt" | "updatedAt";
+      readonly "revisions": "id" | "flag" | "revision" | "definition" | "message" | "changedBy" | "changedAt";
+      readonly "segments": "name" | "description" | "rules" | "updatedAt";
       readonly "overrides": "id" | "flag" | "tenant" | "user" | "context" | "contextKey" | "variant" | "createdAt";
     };
-    readonly functions: "delete_flag" | "flag_bucket" | "flag_definitions" | "flag_enabled" | "flag_evaluation" | "list_flags" | "save_flag" | "set_flag_override" | "tenant_ids_with_flag";
+    readonly functions: "delete_flag" | "delete_flag_segment" | "flag_bucket" | "flag_condition_matches" | "flag_definitions" | "flag_enabled" | "flag_evaluation" | "flag_history" | "flag_rollout_percentage" | "list_flag_segments" | "list_flags" | "restore_flag" | "save_flag" | "save_flag_segment" | "set_flag_override" | "tenant_ids_with_flag";
     readonly actions: "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "flag": "key" | "type" | "description" | "variants" | "default_variant" | "enabled" | "archived" | "rules" | "rollout_percentage" | "rollout_variant" | "updated_at";
+      readonly "flag": "key" | "type" | "description" | "variants" | "default_variant" | "enabled" | "archived" | "rules" | "rollout_percentage" | "rollout_variants" | "rollout_schedule" | "created_at" | "updated_at";
     };
     readonly primary: "flag";
   };
@@ -1877,7 +1879,7 @@ export interface BlockNameRegistry {
   };
   readonly "workflow-sdk": {
     readonly tables: {};
-    readonly functions: "dispatch_workflow_deliveries" | "workflow_sdk_mirror_run";
+    readonly functions: "dispatch_workflow_deliveries" | "workflow_claim_run_key" | "workflow_open_hooks" | "workflow_purge_runs" | "workflow_release_run_key" | "workflow_sdk_mirror_run" | "workflow_set_run_key";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};

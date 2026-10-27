@@ -28,6 +28,8 @@ function useAuthLinks(): void {
       if (url) {
         void handleAuthDeepLink(supabase, url);
       }
+
+      return url;
     });
 
     const subscription = Linking.addEventListener("url", ({ url }) => {

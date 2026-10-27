@@ -3,6 +3,8 @@ import type {
   Experimental_BatchProvider,
   Experimental_BatchReference,
   Experimental_BatchStatus,
+  Experimental_ListBatchesOptions,
+  Experimental_ListBatchesResult,
   Experimental_StartBatchOptions,
   Experimental_StartBatchResult,
 } from "ai";
@@ -11,6 +13,7 @@ import {
   experimental_cancelBatch,
   experimental_getBatchResults,
   experimental_getBatchStatus,
+  experimental_listBatches,
   experimental_startBatch,
 } from "ai";
 
@@ -47,6 +50,9 @@ export interface BatchApi {
     provider?: Experimental_BatchProvider;
     batch: Experimental_BatchReference;
   }): PromiseLike<unknown>;
+  list(
+    options: Experimental_ListBatchesOptions,
+  ): PromiseLike<Experimental_ListBatchesResult>;
 }
 
 const DEFAULT_API: BatchApi = {
@@ -54,6 +60,7 @@ const DEFAULT_API: BatchApi = {
   status: (options) => experimental_getBatchStatus(options),
   results: (options) => experimental_getBatchResults(options),
   cancel: (options) => experimental_cancelBatch(options),
+  list: (options) => experimental_listBatches(options),
 };
 
 export interface AiBatchesOptions {
@@ -106,6 +113,17 @@ export interface AiBatches {
    */
   collect(batch: AiBatch): AsyncResult<number>;
   cancel(batch: AiBatch): AsyncResult<AiBatch>;
+  /**
+   * One page of the batches the provider holds, including ones started outside
+   * this app. Nothing is stored; pass `nextCursor` back for the next page. Uses
+   * the `provider` option when it is a provider, not a function.
+   */
+  list(
+    options?: Pick<
+      Experimental_ListBatchesOptions,
+      "provider" | "limit" | "cursor" | "abortSignal"
+    >,
+  ): AsyncResult<Experimental_ListBatchesResult>;
   /**
    * Claims due batches, refreshes them and collects finished ones. Returns how
    * many it polled.
@@ -387,6 +405,18 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
           api.cancel({ ...providerFor(reference), batch: reference }),
         ).andThen(() => store.update(batch.id, { status: "cancelled" })),
       ),
+    list: (listOptions = {}) => {
+      const provider =
+        listOptions.provider ??
+        (typeof options.provider === "function" ? undefined : options.provider);
+
+      return call(() =>
+        api.list({
+          ...listOptions,
+          ...(provider === undefined ? {} : { provider }),
+        }),
+      );
+    },
     poll,
     pollJob: (jobOptions) => async () => poll(jobOptions).orThrow(),
   };

@@ -136,6 +136,8 @@ function SaveViewDialog({ query }: { query: WorkGridQuery }) {
                   setName("");
                   setOpen(false);
                 }
+
+                return result;
               });
           }}
         >

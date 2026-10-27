@@ -517,6 +517,56 @@ describe("connectTools", () => {
     expect(typed.fingerprint).toBe(all.fingerprint);
   });
 
+  it("passes redirect and protocol discovery only when set", async () => {
+    fakeClient();
+    const fake = fakeConnectors();
+
+    await connectTools({
+      connectors: fake.connectors,
+      server: server(),
+      userId: "u1",
+    }).orThrow();
+
+    await connectTools({
+      connectors: fake.connectors,
+      server: server(),
+      userId: "u1",
+      redirect: "follow",
+      protocolVersionDiscovery: false,
+    }).orThrow();
+
+    const [plain, tuned] = mcp.createMCPClient.mock.calls.map(
+      ([options]) => options,
+    );
+
+    expect(plain.transport).not.toHaveProperty("redirect");
+    expect(plain).not.toHaveProperty("protocolVersionDiscovery");
+    expect(tuned.transport.redirect).toBe("follow");
+    expect(tuned.protocolVersionDiscovery).toBe(false);
+  });
+
+  it("lets connectAll set the transport options per server", async () => {
+    fakeClient();
+    const fake = fakeConnectors();
+
+    await connectAll([server(), { ...server(), id: "s2", name: "Legacy" }], {
+      connectors: fake.connectors,
+      userId: "u1",
+      redirect: "follow",
+      serverOptions: (each) =>
+        each.id === "s2"
+          ? { redirect: "error", protocolVersionDiscovery: false }
+          : {},
+    });
+
+    const options = mcp.createMCPClient.mock.calls.map(([each]) => each);
+
+    expect(options[0].transport.redirect).toBe("follow");
+    expect(options[0]).not.toHaveProperty("protocolVersionDiscovery");
+    expect(options[1].transport.redirect).toBe("error");
+    expect(options[1].protocolVersionDiscovery).toBe(false);
+  });
+
   it("resumes a stored session and declines elicitation by default", async () => {
     const { elicit } = fakeClient(null);
     const fake = fakeConnectors();
@@ -598,10 +648,10 @@ describe("connectTools", () => {
       "CREDENTIAL_REF_FOREIGN",
     );
     expect(tokens).toHaveLength(1);
-    const connectRef = { provider: "vercel-connect", connector: "gh" };
+    const otherRef = { provider: "fake", connector: "gh" };
     await connectTools({
       connectors: fake.connectors,
-      server: server({ authType: "oauth", grant: grant(connectRef) }),
+      server: server({ authType: "oauth", grant: grant(otherRef) }),
       userId: "u1",
       credentials,
     }).orThrow();
@@ -611,11 +661,77 @@ describe("connectTools", () => {
       ),
     ).toEqual([
       { authorization: "Bearer vault" },
-      { authorization: "Bearer vercel-connect" },
+      { authorization: "Bearer fake" },
     ]);
     expect(tokens[1]).toEqual([
-      connectRef,
+      otherRef,
       { subject: { type: "user", id: "u1" }, scopes: ["repo"] },
+    ]);
+  });
+
+  it("hands Connect grants to connectAuthProvider and maps missing consent", async () => {
+    fakeClient();
+    const calls: unknown[] = [];
+    const provider = { redirectUrl: "https://app.test/cb" };
+
+    await connectTools({
+      connectors: fakeConnectors().connectors,
+      server: server({
+        authType: "oauth",
+        grant: grant({
+          provider: "vercel-connect",
+          connector: "gh",
+          installationId: "inst_1",
+        }),
+      }),
+      userId: "u1",
+      redirectUrl: "https://app.test/cb",
+      loadConnectMcp: async () => ({
+        connectAuthProvider: (...args: unknown[]) => {
+          calls.push(args);
+
+          return provider;
+        },
+      }),
+    }).orThrow();
+
+    expect(calls).toEqual([
+      [
+        "gh",
+        {
+          subject: { type: "user", id: "u1" },
+          scopes: ["repo"],
+          installationId: "inst_1",
+        },
+        { redirectUrl: "https://app.test/cb" },
+      ],
+    ]);
+    expect(mcp.createMCPClient.mock.calls[0]?.[0].transport.authProvider).toBe(
+      provider,
+    );
+
+    const consent = Object.assign(new Error("Approve GitHub first"), {
+      name: "ConsentRequiredError",
+      url: "https://vercel.com/connect/consent?r=1",
+    });
+
+    mcp.createMCPClient.mockRejectedValueOnce(consent);
+
+    const result = await connectTools({
+      connectors: fakeConnectors().connectors,
+      server: server({
+        authType: "oauth",
+        grant: grant({ provider: "vercel-connect", connector: "gh" }),
+      }),
+      userId: "u1",
+      loadConnectMcp: async () => ({ connectAuthProvider: () => provider }),
+    });
+
+    expect(
+      result.ok ? undefined : [result.error.hint, result.error.details],
+    ).toEqual([
+      "CONNECTOR_AUTHORIZATION_REQUIRED",
+      "https://vercel.com/connect/consent?r=1",
     ]);
   });
 
@@ -659,6 +775,7 @@ describe("connectTools", () => {
           connectors,
           server: target,
           userId: "u1",
+          loadConnectMcp: async () => undefined,
         });
 
         return result.ok ? undefined : result.error.hint;

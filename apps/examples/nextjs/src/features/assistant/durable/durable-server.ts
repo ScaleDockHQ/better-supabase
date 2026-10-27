@@ -21,12 +21,12 @@ import { assistantTurn, researchTurn } from "./durable-workflows";
 const API_SCHEMA = blockConfig["ai-chat"].api;
 
 /** The agents a durable chat can run; the client sends one as `agent`. */
-export type DurableAgent = "assistant" | "research";
+export type DurableAgentKind = "assistant" | "research";
 
-const instances = new Map<DurableAgent, DurableChat>();
+const instances = new Map<DurableAgentKind, DurableChat>();
 
 /** One durable chat per agent and process. */
-export function durable(agent: DurableAgent = "assistant"): DurableChat {
+export function durable(agent: DurableAgentKind = "assistant"): DurableChat {
   let instance = instances.get(agent);
 
   if (instance === undefined) {
@@ -50,7 +50,7 @@ const AgentBody = v.object({
 });
 
 /** The agent a POST body asks for; anything else is the plain assistant. */
-export async function agentOf(request: Request): Promise<DurableAgent> {
+export async function agentOf(request: Request): Promise<DurableAgentKind> {
   const body = v.safeParse(
     AgentBody,
     await request

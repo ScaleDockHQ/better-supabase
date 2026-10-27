@@ -1,5 +1,9 @@
+import type * as WorkflowWorld from "@workflow/world";
 import type { Pool } from "pg";
 
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const inner = vi.fn(
@@ -18,7 +22,10 @@ vi.mock("@workflow/world-postgres", () => ({
   }),
 }));
 
-vi.mock("@workflow/world", () => ({ reenqueueActiveRuns: reenqueue }));
+vi.mock("@workflow/world", async (importOriginal) => ({
+  ...(await importOriginal<typeof WorkflowWorld>()),
+  reenqueueActiveRuns: reenqueue,
+}));
 
 const {
   createSupabaseWorld,
@@ -226,6 +233,12 @@ describe("options", () => {
       idleTimeout: 1000,
       statementTimeout: 60_000,
     });
+    expect(
+      worldOptionsFromEnv({
+        WORKFLOW_POSTGRES_MAX_POOL_SIZE: "8",
+        WORKFLOW_POSTGRES_MAX_CONNECTIONS: "20",
+      }),
+    ).toEqual({ maxConnections: 8 });
     expect(() => worldOptionsFromEnv({ WORKFLOW_DELIVERY: "push" })).toThrow(
       'WORKFLOW_DELIVERY must be "poll" or "pg_net"',
     );
@@ -263,7 +276,13 @@ describe("options", () => {
   });
 
   it("names the protocol it speaks and builds from the environment", async () => {
-    expect(WORKFLOW_WORLD_PROTOCOL).toMatch(/^\d+\.\d+\.\d+$/);
+    const entry = createRequire(import.meta.url).resolve("@workflow/world");
+
+    const manifest: unknown = JSON.parse(
+      readFileSync(join(dirname(entry), "..", "package.json"), "utf-8"),
+    );
+
+    expect(manifest).toMatchObject({ version: WORKFLOW_WORLD_PROTOCOL });
     const world = createWorld();
     expect(typeof world.queue).toBe("function");
     await world.close();
@@ -329,6 +348,63 @@ describe("createSupabaseWorld", () => {
     expect(jobs).toHaveLength(1);
     expect(jobs[0]).toMatchObject({ attempt: 2 });
     expect(queries.map((query) => query.fn)).toContain("complete_job");
+  });
+
+  it("delivers a prefix to its registered handler or route", async () => {
+    const jobs: unknown[] = [];
+
+    const { pool } = fakePool({
+      enqueue_job: (params) => {
+        jobs.push(JSON.parse(String(params[1])));
+
+        return [{ enqueue_job: 1 }];
+      },
+      claim_jobs: () =>
+        jobs
+          .splice(0)
+          .map((payload, index) => ({
+            id: index + 1,
+            attempts: 1,
+            message: { payload },
+          })),
+      complete_job: () => [{ complete_job: true }],
+      vault: () => [],
+    });
+
+    const fetch = vi.fn(async (_url: string | URL, _init: RequestInit) =>
+      Response.json({}, { status: 200 }),
+    );
+
+    vi.stubGlobal("fetch", fetch);
+
+    const world = createSupabaseWorld({
+      pool,
+      flowUrl: "https://app.test/.well-known/workflow/v1/flow",
+      deliverySecret: "sec",
+    });
+
+    await world.close();
+
+    const handler = vi.fn(async (_req: Request) => Response.json({}));
+    world.registerHandler?.("__agent_wkf_workflow_", handler);
+    world.registerRoute?.("__jobs_wkf_workflow_", "/api/jobs/queue");
+
+    await world.queue("__agent_wkf_workflow_a", { runId: "r1" });
+    await world.queue("__jobs_wkf_workflow_b", { runId: "r2" });
+    await world.queue("__wkf_workflow_c", { runId: "r3" });
+    expect(await world.deliverOnce()).toBe(3);
+
+    expect(handler).toHaveBeenCalledOnce();
+    expect(handler.mock.calls[0]![0].headers.get("x-vqs-queue-name")).toBe(
+      "__agent_wkf_workflow_a",
+    );
+    expect(fetch.mock.calls.map(([url]) => String(url)).toSorted()).toEqual([
+      "https://app.test/.well-known/workflow/v1/flow",
+      "https://app.test/api/jobs/queue",
+    ]);
+    expect(() =>
+      world.registerRoute?.("__x_wkf_workflow_", "https://evil.test/"),
+    ).toThrow("must be an absolute path");
   });
 
   it("polls in the background once a message is queued, and survives a failed claim", async () => {

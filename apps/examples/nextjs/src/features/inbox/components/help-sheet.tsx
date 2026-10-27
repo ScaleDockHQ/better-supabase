@@ -137,11 +137,13 @@ function HelpChat() {
           }
 
           setSending(true);
-          widget
+          void widget
             .submit(message)
             .then(() => {
               setBody("");
               widget.setTyping(false);
+
+              return true;
             })
             .catch(() => {
               toast.error(t("Could not send"));

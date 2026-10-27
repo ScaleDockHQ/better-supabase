@@ -1,5 +1,6 @@
 import { createHook, sleep } from "workflow";
 import { resumeHook } from "workflow/api";
+import { HookNotFoundError } from "workflow/errors";
 
 /** How `approvalWaiter.wait` ended. */
 export type ApprovalWaitResult<P> =
@@ -163,7 +164,7 @@ export async function wakeOnApproval(
   try {
     await waiter.wake(requestId, outcome);
   } catch (cause) {
-    if (!isMissingHook(cause)) {
+    if (!HookNotFoundError.is(cause)) {
       throw cause;
     }
   }
@@ -190,10 +191,3 @@ function statusOf(type: string): ApprovalOutcome["status"] {
     }
   }
 }
-
-/**
- * The Workflow SDK's `HookNotFoundError`, matched by name as
- * `HookNotFoundError.is` does.
- */
-const isMissingHook = (cause: unknown): boolean =>
-  cause instanceof Error && cause.name === "HookNotFoundError";

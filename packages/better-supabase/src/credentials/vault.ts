@@ -167,6 +167,16 @@ function storageName(
       ? ref.secret
       : `${TENANT_PREFIX}${ref.tenant}/${ref.secret}`;
 
+  if (subject?.type === "jwt-bearer" || subject?.type === "token") {
+    return err(
+      dbError(
+        "forbidden",
+        `Vault stores secrets, so it can't exchange a ${subject.type} subject`,
+        { hint: "CREDENTIAL_SUBJECT_UNSUPPORTED" },
+      ),
+    );
+  }
+
   if (ref.scope !== "user") {
     return ok(base);
   }

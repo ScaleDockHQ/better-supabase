@@ -26,6 +26,8 @@ export {
   isUIMessage,
   toUIMessage,
   toUIMessages,
+  type UIMessageSchemas,
+  validUIMessages,
 } from "./messages.ts";
 
 export {
@@ -63,3 +65,5 @@ export {
   type TelemetryStart,
   tenantOfEvent,
 } from "./telemetry.ts";
+
+export { aiErrorMessage, aiErrorToDbError } from "./errors.ts";

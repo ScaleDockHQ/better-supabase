@@ -1351,6 +1351,8 @@ export function PlanPicker({
                     if (!started.ok) {
                       toast.error(errorMessage(started.error));
                     }
+
+                    return started;
                   });
                 }}
               >
@@ -1953,6 +1955,8 @@ function SettingsSection<E extends SettingEntries>({
                       if (!saved.ok) {
                         toast.error(errorMessage(saved.error));
                       }
+
+                      return saved;
                     });
                   }}
                 />
@@ -3856,6 +3860,8 @@ export function TagInput({ customerId }: { readonly customerId: string }) {
             if (result.ok) {
               setName("");
             }
+
+            return result;
           })
         }
       />
@@ -7701,9 +7707,18 @@ export function PushOptIn() {
   });
 
   const read = () => {
-    currentState().then(setState, () => {
-      setState({ kind: "error" });
-    });
+    void currentState().then(
+      (state) => {
+        setState(state);
+
+        return state;
+      },
+      () => {
+        setState({ kind: "error" });
+
+        return null;
+      },
+    );
   };
 
   const check = () => {
@@ -12501,7 +12516,7 @@ export function WorkItemBoard({
                     errorMessage(result.error),
                 );
 
-                return;
+                return result;
               }
 
               if (!result.data.ordered) {
@@ -12509,6 +12524,8 @@ export function WorkItemBoard({
                   t("Moved, but its place in the column wasn't saved."),
                 );
               }
+
+              return result;
             });
         }}
       >
@@ -14143,6 +14160,8 @@ export function BulkActionBar({
                   onClick={() => {
                     void run({ action: "delete" }).then(() => {
                       setConfirming(false);
+
+                      return true;
                     });
                   }}
                 >
@@ -16552,6 +16571,8 @@ export function OrderStateBoard({
                 setColumns(meta.previousValue);
                 toast.error(errorMessage(result.error));
               }
+
+              return result;
             });
         }}
       >
@@ -20071,6 +20092,8 @@ function DocumentSession({
       } else {
         setFailed(true);
       }
+
+      return opened;
     });
 
     return () => {
@@ -22531,6 +22554,8 @@ function SaveTaskViewDialog({ query }: { query: TaskQuery }) {
                 setName("");
                 setOpen(false);
               }
+
+              return result;
             });
           }}
         >
@@ -23410,6 +23435,8 @@ export function TaskBoard({
                 setColumns(meta.previousValue);
                 toast.error(errorMessage(result.error));
               }
+
+              return result;
             });
         }}
       >

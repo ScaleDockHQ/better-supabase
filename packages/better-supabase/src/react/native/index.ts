@@ -203,11 +203,13 @@ export function useAuthDeepLinks(
       seen.add(url);
       void handleAuthDeepLink(client, url).then((result) => {
         if (!active || result.type === "none") {
-          return;
+          return result;
         }
 
         setLast(result);
         latest.current.onResult?.(result);
+
+        return result;
       });
     };
 

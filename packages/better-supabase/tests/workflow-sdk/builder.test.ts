@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { GraphStepCall } from "../../src/blocks/workflow-editor/executor.ts";
+import type {
+  GraphApprovalCall,
+  GraphStepCall,
+} from "../../src/blocks/workflow-editor/executor.ts";
 import type { BuilderStartCall } from "../../src/blocks/workflow-editor/workflow-editor.ts";
 
 import { executeGraph } from "../../src/blocks/workflow-editor/executor.ts";
@@ -45,12 +48,15 @@ function load(
   runtime: ReturnType<typeof fakeRuntime>,
   aliases: Readonly<Record<string, string>>,
 ): Compiled {
-  const steps = Object.fromEntries(
-    Object.keys(aliases).map((alias) => [
-      alias,
-      (call: GraphStepCall) => runtime.step(call),
-    ]),
-  );
+  const steps = {
+    ...Object.fromEntries(
+      Object.keys(aliases).map((alias) => [
+        alias,
+        (call: GraphStepCall) => runtime.step(call),
+      ]),
+    ),
+    bsb_approval: (call: GraphApprovalCall) => runtime.requestApproval(call),
+  };
 
   // oxlint-disable-next-line eslint/no-new-func, typescript/no-implied-eval -- the test runs the compiled source the way the SDK's VM does.
   const factory = new Function(
@@ -398,8 +404,10 @@ describe("graphStarter", () => {
     "slack.post": { stepId: "slack" },
   };
 
+  const approval = { stepId: "approval" };
+
   it("starts dynamic source with the steps bound by alias and the run attributes", async () => {
-    const starter = graphStarter({ steps, dynamic: true });
+    const starter = graphStarter({ steps, approval, dynamic: true });
     expect(await starter(CALL)).toBe("wrun_new");
     const [source, args, options] = start.mock.calls[0] ?? [];
     expect(source).toBe(compileGraph(GRAPH).source);
@@ -437,11 +445,19 @@ describe("graphStarter", () => {
       steps["email.send"],
       steps["email.send"],
       steps["slack.post"],
+      approval,
     ]);
   });
 
+  it("refuses a live run of an approval node without approval", async () => {
+    await expect(graphStarter({ steps, dynamic: true })(CALL)).rejects.toThrow(
+      "pass approval to graphStarter",
+    );
+    await graphStarter({ steps, dynamic: true })({ ...CALL, mode: "test" });
+    expect(start).toHaveBeenCalledOnce();
+  });
+
   it("binds the approval step as steps.bsb_approval", async () => {
-    const approval = { stepId: "approval" };
     await graphStarter({ steps, approval, dynamic: true })(CALL);
     const [, , options] = start.mock.calls[0] ?? [];
 
@@ -458,13 +474,13 @@ describe("graphStarter", () => {
       source: "async function workflow() { globalThis.pwned = true; }",
     };
 
-    await graphStarter({ steps, dynamic: true })({
+    await graphStarter({ steps, approval, dynamic: true })({
       ...CALL,
       version: { ...CALL.version, compiled },
     });
     expect(start.mock.calls[0]?.[0]).toBe(compileGraph(GRAPH).source);
     await expect(
-      graphStarter({ steps: {}, dynamic: true })(CALL),
+      graphStarter({ steps: {}, approval, dynamic: true })(CALL),
     ).rejects.toThrow('the graph uses step "crm.lookup"');
   });
 
@@ -474,7 +490,7 @@ describe("graphStarter", () => {
     });
 
     vi.stubEnv(DYNAMIC_WORKFLOWS_ENV, "true");
-    await graphStarter({ steps, executor })(CALL);
+    await graphStarter({ steps, approval, executor })(CALL);
     expect(typeof start.mock.calls[0]?.[0]).toBe("string");
     vi.stubEnv(DYNAMIC_WORKFLOWS_ENV, "0");
     const world = {} as never;
@@ -506,7 +522,7 @@ describe("graphStarter", () => {
   });
 
   it("records the subject, and a test run's mode and stubs without a principal", async () => {
-    await graphStarter({ steps, dynamic: true })({
+    await graphStarter({ steps, approval, dynamic: true })({
       ...CALL,
       subject: { type: "deal", id: "d9" },
       mode: "test",
@@ -530,7 +546,7 @@ describe("graphStarter", () => {
   });
 
   it("records the service principal for an organization-owned version", async () => {
-    await graphStarter({ steps, dynamic: true })({
+    await graphStarter({ steps, approval, dynamic: true })({
       ...CALL,
       version: {
         ...CALL.version,
@@ -567,7 +583,9 @@ describe("graphStarter", () => {
 
   it("returns the run a repeated key already started", async () => {
     listRuns.mockResolvedValue({ data: [{ runId: "wrun_old" }] });
-    expect(await graphStarter({ steps, dynamic: true })(CALL)).toBe("wrun_old");
+    expect(await graphStarter({ steps, approval, dynamic: true })(CALL)).toBe(
+      "wrun_old",
+    );
     expect(start).not.toHaveBeenCalled();
   });
 });

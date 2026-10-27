@@ -321,16 +321,20 @@ export function memoryEngine(options: DataEngineOptions = {}): DataEngine {
     const run = record.run;
     set(record, { status: "loading" });
 
-    load().then(
+    void load().then(
       (data) => {
         if (run === record.run) {
           set(record, { status: "success", data, error: undefined });
         }
+
+        return data;
       },
       (cause: unknown) => {
         if (run === record.run) {
           set(record, { status: "error", error: loadError(cause) });
         }
+
+        return cause;
       },
     );
   };

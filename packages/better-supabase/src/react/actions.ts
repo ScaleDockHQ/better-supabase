@@ -191,12 +191,12 @@ export function useActionForm<T>(
       onSubmit: (event) => {
         event.preventDefault();
         const form = event.currentTarget;
-        handle.run(new FormData(form)).then(
+        void handle.run(new FormData(form)).then(
           (result) => {
             if (!result.ok) {
               options.onError?.(result.error, form);
 
-              return;
+              return result;
             }
 
             if (options.resetOnSuccess ?? true) {
@@ -204,8 +204,10 @@ export function useActionForm<T>(
             }
 
             options.onSuccess?.(result.data, form);
+
+            return result;
           },
-          () => undefined,
+          () => false,
         );
       },
     },

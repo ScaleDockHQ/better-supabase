@@ -108,7 +108,7 @@ async function persist(
     next += batch.length;
     writing = writing.then(async () => {
       if (failure) {
-        return;
+        return void 0;
       }
 
       const appended = await store.append(id, from, batch);
@@ -116,13 +116,15 @@ async function persist(
       if (!appended.ok) {
         failure = appended.error;
 
-        return;
+        return void 0;
       }
 
       if (appended.data.cancelled && !cancelled) {
         cancelled = true;
         onCancel?.();
       }
+
+      return void 0;
     });
 
     return writing;

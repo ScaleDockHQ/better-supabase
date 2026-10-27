@@ -2,6 +2,7 @@ import type { UIMessageChunk } from "ai";
 
 import { Temporal } from "temporal-polyfill";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { HookNotFoundError } from "workflow/errors";
 
 import type { AssistantTurn } from "../../../src/ai-sdk/chat/index.ts";
 import type { DurableChatContext } from "../../../src/ai-sdk/workflow/index.ts";
@@ -430,7 +431,7 @@ describe("durableChat respond", () => {
   });
 
   it("releases the new segment when the turn no longer waits", async () => {
-    api.resumeHook.mockRejectedValue(new Error("hook gone"));
+    api.resumeHook.mockRejectedValue(new HookNotFoundError("t1"));
     const s = setup();
 
     const response = await s.durable.respond(
@@ -443,7 +444,22 @@ describe("durableChat respond", () => {
     });
     expect(s.calls.find((call) => call.name === "release")?.args[2]).toEqual({
       status: "failed",
-      error: "Error: hook gone",
+      error: expect.stringContaining("HookNotFoundError"),
+    });
+  });
+
+  it("answers a failed resume that is not a missing hook as unexpected", async () => {
+    api.resumeHook.mockRejectedValue(new Error("world down"));
+    const s = setup();
+
+    const response = await s.durable.respond(
+      post({ id: "c1", approvals: [{ approvalId: "a1", approved: true }] }),
+      s.context,
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).not.toMatchObject({
+      code: "AI_CHAT_NOT_WAITING",
     });
   });
 

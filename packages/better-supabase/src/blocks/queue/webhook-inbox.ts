@@ -586,14 +586,18 @@ export function createWebhookInbox<
           const controller = new AbortController();
 
           const stopHeartbeat = leaseHeartbeat(leaseSeconds, () => {
-            extend().then(
+            void extend().then(
               (renewed) => {
                 if (renewed === undefined) {
                   controller.abort();
                 }
+
+                return renewed;
               },
               () => {
                 controller.abort();
+
+                return true;
               },
             );
           });

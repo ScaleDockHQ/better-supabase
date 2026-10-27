@@ -82,7 +82,7 @@ export function useSignedUrl<T>(
 
       void bucket.signedUrl(current, latest.current.options).then((result) => {
         if (!active) {
-          return;
+          return result;
         }
 
         if (!result.ok) {
@@ -92,10 +92,12 @@ export function useSignedUrl<T>(
             error: result.error,
           }));
 
-          return;
+          return result;
         }
 
         setState({ key, url: result.data, error: undefined });
+
+        return result;
       });
     };
 
@@ -255,7 +257,7 @@ export function useImage<T, V extends string = never>(
 
       void Promise.all(signing).then((results) => {
         if (!active) {
-          return;
+          return results;
         }
 
         const urls: string[] = [];
@@ -268,13 +270,15 @@ export function useImage<T, V extends string = never>(
               error: result.error,
             }));
 
-            return;
+            return results;
           }
 
           urls.push(result.data);
         }
 
         setState({ key, urls, error: undefined });
+
+        return results;
       });
     };
 

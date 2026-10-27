@@ -187,12 +187,14 @@ export function credentialAuth(
   const displayName =
     options.connection === undefined ? {} : { displayName: options.connection };
 
-  const getToken = async ({
-    principal,
-  }: EveConnectionRequest): Promise<EveTokenResult> => {
+  const getToken = async (
+    { principal }: EveConnectionRequest,
+    fresh = false,
+  ): Promise<EveTokenResult> => {
     const result = await options.provider.getToken(options.ref, {
       subject: subjectOf(principal),
       ...(options.scopes === undefined ? {} : { scopes: options.scopes }),
+      ...(fresh ? { fresh } : {}),
     });
 
     if (!result.ok) {
@@ -212,19 +214,22 @@ export function credentialAuth(
     options.owner === "app" ||
     options.interactive === false ||
     !provider.capabilities(ref).authorization ||
-    !provider.startAuthorization ||
-    !provider.completeAuthorization
+    !provider.startAuthorization
   ) {
-    return { credentialOwner: options.owner, ...displayName, getToken };
+    return {
+      credentialOwner: options.owner,
+      ...displayName,
+      getToken: (request) => getToken(request),
+    };
   }
 
   const start = provider.startAuthorization.bind(provider);
-  const complete = provider.completeAuthorization.bind(provider);
+  const complete = provider.completeAuthorization?.bind(provider);
 
   return {
     principalType: "user",
     ...displayName,
-    getToken,
+    getToken: (request) => getToken(request),
     startAuthorization: async ({ principal, callbackUrl }) => {
       const result = await start(ref, {
         subject: subjectOf(principal),
@@ -236,9 +241,22 @@ export function credentialAuth(
         throw connectionError(name, result.error);
       }
 
-      return { challenge: { url: result.data.url } };
+      const { url, deviceCode } = result.data;
+
+      return {
+        challenge:
+          deviceCode === undefined
+            ? { url }
+            : { url, instructions: `Enter the code ${deviceCode}` },
+      };
     },
     completeAuthorization: async (request) => {
+      // A provider that finishes the grant itself (Vercel Connect) has no
+      // callback to exchange: the next token request sees the new grant.
+      if (complete === undefined) {
+        return getToken(request, true);
+      }
+
       const callback = new URL(request.callbackUrl);
 
       for (const [key, value] of Object.entries(request.callback.params)) {

@@ -68,3 +68,20 @@ after a 2xx answer. `usageRoute` runs it from a cron caller.
 The module is version 2. Its upgrade adds columns and functions and sets
 `reported_quantity` to the quantity of every row already reported, so the
 next report sends only what was added since.
+
+## Amendment: push delivery
+
+On Vercel, Queues pushes each message to a route by default; polling is the
+exception. The backend only polled, so an app on push delivery wrote its own
+callback, parsed the `{ payload, max_attempts }` body and skipped the schema
+check. `vercelQueueRoute(jobs, options)` wraps the client's `handleCallback`
+and runs each message through `jobs.runJob`, the schema check and tenant
+context `drain` uses. The client's `retry` callback acknowledges the delivery
+that reaches `maxAttempts`, and returns `afterSeconds` before that.
+
+`receive` became optional on `VercelQueueClient`, so a `QueueClient` (which
+only sends and handles callbacks) fits; `read` rejects without it. `send` sets
+`retentionSeconds` for a delayed message, an hour past the delay and at most
+the 7-day cap, since Vercel Queues refuses a delay longer than the retention.
+The default consumer group stays `better-supabase`: a new group name would
+move every polling app's cursor.

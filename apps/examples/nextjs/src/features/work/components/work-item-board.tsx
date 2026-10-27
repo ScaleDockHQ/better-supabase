@@ -148,7 +148,7 @@ export function WorkItemBoard({
                     errorMessage(result.error),
                 );
 
-                return;
+                return result;
               }
 
               if (!result.data.ordered) {
@@ -156,6 +156,8 @@ export function WorkItemBoard({
                   t("Moved, but its place in the column wasn't saved."),
                 );
               }
+
+              return result;
             });
         }}
       >
