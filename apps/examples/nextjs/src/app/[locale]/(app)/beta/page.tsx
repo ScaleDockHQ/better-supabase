@@ -7,8 +7,6 @@ import {
   BetaContentSkeleton,
 } from "@/features/flags/components/beta-content";
 
-export const instant = true;
-
 export default function BetaPage() {
   const t = useExtracted("beta");
 

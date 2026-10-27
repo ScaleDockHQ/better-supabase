@@ -11,8 +11,6 @@ import {
   InvoicesTableSkeleton,
 } from "@/features/billing/components/invoices-table";
 
-export const instant = true;
-
 export default function BillingSettingsPage() {
   return (
     <div className="space-y-6">

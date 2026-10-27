@@ -24,6 +24,10 @@ import {
   UserMenuSkeleton,
 } from "@/features/user/components/user-menu";
 
+// A default <Link> into the app loads only this static frame; everything
+// that reads the session renders on a per-link prefetch or the navigation.
+export const ensureStatic = "shell";
+
 /**
  * Synchronous on purpose: the sidebar frame, header and skeletons are the
  * static shell. The sidebar starts open instead of reading its cookie, which

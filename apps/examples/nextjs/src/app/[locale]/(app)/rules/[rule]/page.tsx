@@ -7,8 +7,6 @@ import { RuleBuilderSkeleton } from "@/features/rules/components/rule-builder";
 import { RuleEditor } from "@/features/rules/components/rule-editor";
 import { Link } from "@/i18n/navigation";
 
-export const instant = true;
-
 /** The back link is the static shell; the editor loads with the session. */
 export default function RulePage({
   params,

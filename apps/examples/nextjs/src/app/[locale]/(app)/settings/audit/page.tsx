@@ -5,8 +5,6 @@ import {
   AuditLogSkeleton,
 } from "@/features/audit/components/audit-log";
 
-export const instant = true;
-
 export default function AuditSettingsPage() {
   return (
     <Suspense fallback={<AuditLogSkeleton />}>

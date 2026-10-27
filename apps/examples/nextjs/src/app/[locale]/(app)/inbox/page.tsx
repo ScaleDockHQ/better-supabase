@@ -7,8 +7,6 @@ import {
   InboxListSkeleton,
 } from "@/features/inbox/components/inbox-list";
 
-export const instant = true;
-
 export default function InboxPage() {
   const t = useExtracted("inbox");
 

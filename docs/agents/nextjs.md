@@ -54,6 +54,17 @@ flag.
 - A database budget (`maxCalls`, `maxWaves`) fails on a navigation served
   entirely from the client cache, because no response carries
   `x-bsb-request-id`. Budget only navigations that reach the server.
+- Don't export `instant = true`. With `instantInsights.validationLevel`
+  at `warning` (the default), Next validates every page for an instant
+  navigation already; the export only adds noise. Export `instant = false`
+  with a reason on a segment that may block.
+- `ensureStatic` levels only tighten down the tree: a page can't set
+  `"shell"` under a layout that says `"prefetch"`. The example sets
+  `"shell"` on the `(app)` layout and `"prefetch"` on the list pages.
+- `instant()` from `@next/playwright` is a no-op under `next dev` and in a
+  build without `EXPOSE_TESTING_API=1`, so its tests pass without testing
+  anything there. `pnpm test:e2e` in the example builds with the flag and
+  runs `next start`; it needs the local stack and is not part of `verify`.
 
 ## Lint needs generated Next types
 

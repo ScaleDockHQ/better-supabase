@@ -138,6 +138,7 @@ export async function TeamDetail({
                 >
                   <Link
                     href={`/customers/${customer.id}`}
+                    prefetch
                     className="truncate text-sm font-medium hover:underline"
                   >
                     {customer.name}

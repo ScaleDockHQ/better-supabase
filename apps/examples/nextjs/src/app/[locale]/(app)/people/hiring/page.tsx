@@ -7,8 +7,6 @@ import {
   HiringBoardSkeleton,
 } from "@/features/people/components/hiring-board";
 
-export const instant = true;
-
 export default function HiringPage({
   searchParams,
 }: {

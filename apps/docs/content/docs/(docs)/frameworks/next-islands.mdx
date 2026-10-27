@@ -28,8 +28,6 @@ The page renders the static chrome and one `<Suspense>` per island. It reads
 nothing from the request, so it prerenders into the shell:
 
 ```tsx title="src/app/[locale]/(app)/islands/page.tsx"
-export const instant = true;
-
 export default function IslandsPage() {
   return (
     <>

@@ -9,8 +9,6 @@ import {
 } from "@/features/shop/components/order-detail";
 import { Link } from "@/i18n/navigation";
 
-export const instant = true;
-
 /** The back link is the static shell; the order streams in. */
 export default function OrderPage({
   params,

@@ -13,7 +13,8 @@ import {
 } from "@/features/notes/components/similar-notes";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
-export const instant = true;
+// A prefetch of this list stays static; the rows render on navigation.
+export const ensureStatic = "prefetch";
 
 export default function CustomersPage() {
   const t = useExtracted("customers");

@@ -7,8 +7,6 @@ import {
   MetricsDashboardSkeleton,
 } from "@/features/metrics/components/metrics-dashboard";
 
-export const instant = true;
-
 export default function MetricsPage() {
   const t = useExtracted("metrics");
 

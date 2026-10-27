@@ -9,8 +9,6 @@ import {
 import { NewChat } from "@/features/assistant/components/new-chat";
 import { StoredChatSkeleton } from "@/features/assistant/components/stored-chat";
 
-export const instant = true;
-
 export default function AssistantPage() {
   const t = useExtracted("assistant");
 

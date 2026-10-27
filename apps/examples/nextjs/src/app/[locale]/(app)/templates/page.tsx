@@ -9,8 +9,6 @@ import {
 } from "@/features/templates/components/templates-gallery";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
-export const instant = true;
-
 export default function TemplatesPage() {
   const t = useExtracted("templates");
 

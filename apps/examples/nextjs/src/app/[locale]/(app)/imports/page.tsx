@@ -6,8 +6,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CsvImportWizard } from "@/features/imports/components/csv-import-wizard";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
-export const instant = true;
-
 export default function ImportsPage() {
   const t = useExtracted("imports");
 

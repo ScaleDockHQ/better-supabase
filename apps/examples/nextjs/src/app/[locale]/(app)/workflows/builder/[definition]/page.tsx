@@ -9,8 +9,6 @@ import {
 } from "@/features/workflows/builder/components/builder-editor";
 import { Link } from "@/i18n/navigation";
 
-export const instant = true;
-
 /** The back link is the static shell; the canvas loads with the definition. */
 export default function WorkflowDefinitionPage({
   params,

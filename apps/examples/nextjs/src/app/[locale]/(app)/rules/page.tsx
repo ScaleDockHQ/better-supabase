@@ -7,8 +7,6 @@ import {
   RuleListSkeleton,
 } from "@/features/rules/components/rule-list";
 
-export const instant = true;
-
 export default function RulesPage() {
   const t = useExtracted("rules");
 

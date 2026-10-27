@@ -57,8 +57,38 @@ flag is on everywhere, remove the per-segment exports with
 `src/` project).
 
 The [Next.js example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/nextjs)
-uses the flag app-wide. Its customer rows keep `prefetch` because the detail
-reads `params`; the dashboard and the settings tabs use the shared App Shell.
+uses the flag app-wide. Its customer, member, team and role rows keep
+`prefetch` because the detail reads `params`, and so do the settings tabs,
+which a user clicks through one after another. The dashboard uses the shared
+App Shell.
+
+## Static shell
+
+`export const ensureStatic` on a layout or page tells `next build` how much of
+the segment must prerender, and fails the build when a change makes it block:
+
+| `ensureStatic` | What must be static                                                            |
+| -------------- | ------------------------------------------------------------------------------ |
+| `"shell"`      | The App Shell a default `<Link>` loads. Session reads sit behind `<Suspense>`. |
+| `"prefetch"`   | The shell plus what `<Link prefetch>` loads for each URL.                      |
+| `false`        | Nothing; the segment is allowed to block.                                      |
+
+The level covers every segment above the export too, and a child can only
+ask for more, never less. Put `"shell"` on the synchronous app layout and
+`"prefetch"` on list pages whose filters live in `searchParams`:
+
+```tsx title="src/app/[locale]/(app)/layout.tsx"
+export const ensureStatic = "shell";
+```
+
+```tsx title="src/app/[locale]/(app)/customers/page.tsx"
+export const ensureStatic = "prefetch";
+```
+
+`createNext` needs nothing extra for either level: `bsb.claims()` and
+`bsb.cached()` read the session through `cookies()`, so a component that
+calls them is dynamic and must sit inside a `<Suspense>` boundary, which is
+what the levels check.
 
 ## 1. Read the session once, privately cached
 
@@ -126,12 +156,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 }
 ```
 
-Pages follow the same rule and export `instant = true`, so Next.js flags
-anything that would block the navigation in development:
+Pages follow the same rule. With `cacheComponents` on, Next.js validates
+every page for an instant navigation in development, so it flags anything
+that would block one without an `instant` export. Export `instant = false`
+only on a segment that is allowed to block, and say why next to it:
 
 ```tsx title="src/app/(app)/customers/page.tsx"
-export const instant = true;
-
 export default function CustomersPage() {
   return (
     <>

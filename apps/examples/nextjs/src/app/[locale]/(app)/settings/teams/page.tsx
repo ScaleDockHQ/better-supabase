@@ -6,8 +6,6 @@ import {
 } from "@/features/teams/components/teams-section";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
-export const instant = true;
-
 export default function TeamsSettingsPage() {
   return (
     <Suspense fallback={<TeamsSectionSkeleton />}>

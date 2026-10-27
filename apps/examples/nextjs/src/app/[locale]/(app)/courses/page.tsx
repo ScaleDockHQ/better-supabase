@@ -8,8 +8,6 @@ import {
 } from "@/features/courses/components/course-list";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
-export const instant = true;
-
 export default function CoursesPage() {
   const t = useExtracted("courses");
 

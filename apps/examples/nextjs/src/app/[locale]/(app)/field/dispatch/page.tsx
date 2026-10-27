@@ -7,8 +7,6 @@ import {
   DispatchBoardSkeleton,
 } from "@/features/field/components/dispatch-board";
 
-export const instant = true;
-
 export default function DispatchPage({
   searchParams,
 }: {

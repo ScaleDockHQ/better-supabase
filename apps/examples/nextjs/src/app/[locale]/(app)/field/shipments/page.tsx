@@ -7,8 +7,6 @@ import {
   ShipmentTrackingSkeleton,
 } from "@/features/field/components/shipment-tracking";
 
-export const instant = true;
-
 export default function ShipmentsPage({
   searchParams,
 }: {

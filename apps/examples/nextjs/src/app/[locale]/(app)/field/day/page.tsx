@@ -7,8 +7,6 @@ import {
   TechnicianDaySkeleton,
 } from "@/features/field/components/technician-day";
 
-export const instant = true;
-
 export default function MyDayPage({
   searchParams,
 }: {

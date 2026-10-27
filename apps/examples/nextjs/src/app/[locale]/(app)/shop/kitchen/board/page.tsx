@@ -10,8 +10,6 @@ import {
 } from "@/features/shop/components/order-board";
 import { Link } from "@/i18n/navigation";
 
-export const instant = true;
-
 export default function OrderBoardPage() {
   const t = useExtracted("shop");
 

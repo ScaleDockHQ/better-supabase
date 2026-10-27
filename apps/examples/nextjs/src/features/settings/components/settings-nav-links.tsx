@@ -120,6 +120,7 @@ export function SettingsNavLinks({
             <Link
               key={tab.id}
               href={tab.href}
+              prefetch
               aria-current={active ? "page" : undefined}
               className={cn(
                 "inline-flex h-full items-center rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors",

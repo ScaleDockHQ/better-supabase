@@ -5,8 +5,6 @@ import {
   SharedCustomerCardSkeleton,
 } from "@/features/customers/components/shared-customer-card";
 
-export const instant = true;
-
 export default function SharePage({
   params,
 }: PageProps<"/[locale]/share/[token]">) {

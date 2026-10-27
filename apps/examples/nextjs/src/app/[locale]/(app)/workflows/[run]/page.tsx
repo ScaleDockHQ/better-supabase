@@ -9,8 +9,6 @@ import {
 } from "@/features/workflows/components/workflow-run-detail";
 import { Link } from "@/i18n/navigation";
 
-export const instant = true;
-
 /**
  * The back link is the static shell; the run loads in the browser and stays
  * live.

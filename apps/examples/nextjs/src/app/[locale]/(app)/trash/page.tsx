@@ -8,8 +8,6 @@ import {
 } from "@/features/trash/components/trash-bin";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
-export const instant = true;
-
 export default function TrashPage() {
   const t = useExtracted("trash");
 

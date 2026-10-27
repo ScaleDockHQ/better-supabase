@@ -159,6 +159,7 @@ export function TeamMembers({
                 <div className="grid min-w-0 leading-tight">
                   <Link
                     href={`/settings/members/${person.userId}`}
+                    prefetch
                     className="truncate text-sm font-medium hover:underline"
                   >
                     {label(person)}

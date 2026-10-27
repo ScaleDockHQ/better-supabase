@@ -7,7 +7,8 @@ import {
   TaskViewsSkeleton,
 } from "@/features/projects/components/task-views";
 
-export const instant = true;
+// A prefetch of this list stays static; the rows render on navigation.
+export const ensureStatic = "prefetch";
 
 export default function ProjectsPage({
   searchParams,

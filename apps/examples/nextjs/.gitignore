@@ -2,3 +2,7 @@
 # The workflow plugin writes these routes, and a .gitignore for them, during
 # `next typegen`; Knip can read the folder before that .gitignore exists.
 /src/app/.well-known/workflow/
+
+# Playwright
+/test-results/
+/playwright-report/

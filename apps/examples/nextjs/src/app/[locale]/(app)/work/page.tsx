@@ -10,7 +10,8 @@ import {
 } from "@/features/work/components/work-board";
 import { Link } from "@/i18n/navigation";
 
-export const instant = true;
+// A prefetch of this list stays static; the rows render on navigation.
+export const ensureStatic = "prefetch";
 
 export default function WorkPage({
   searchParams,
