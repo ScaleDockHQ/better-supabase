@@ -70,6 +70,18 @@ export {
 } from "./installations.ts";
 
 export {
+  type ChatScheduler,
+  type PublishDueOptions,
+  type PublishDueResult,
+  type ScheduledAdapter,
+  scheduledAdapter,
+  type ScheduledPost,
+  type ScheduleInput,
+  stateScheduler,
+  type StateSchedulerOptions,
+} from "./scheduler.ts";
+
+export {
   createSupabaseState,
   type SupabaseState,
   type SupabaseStateOptions,
