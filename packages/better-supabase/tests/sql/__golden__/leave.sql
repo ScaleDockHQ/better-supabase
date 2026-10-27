@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:70043819e4c795821dcf31b2eac9de739fbe538ad93aa056b382fbc7765cecda
+-- @bsb-hash sha256:a3714088f9884f8e19134bc5e8dd61916245e44da955ccfaab24132c91e2eb20
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -219,7 +219,7 @@ declare
   v_rows jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
+    or (coalesce(v_user = auth.uid(), false) and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_user is null then
@@ -271,7 +271,7 @@ declare
   v_rows jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
+    or (coalesce(v_user = auth.uid(), false) and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', x."tenant_id", 'userId', x."owner_id",
@@ -675,7 +675,7 @@ begin
     raise exception 'leave request not found' using errcode = 'P0002', hint = 'LEAVE_REQUEST_NOT_FOUND';
   end if;
   v_manager := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false);
-  if not (v_manager or v_row."user_id" = auth.uid()) then
+  if not (v_manager or coalesce(v_row."user_id" = auth.uid(), false)) then
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_row."cancelled_at" is not null then
@@ -718,7 +718,7 @@ begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.request'), false)) then
     raise exception 'not allowed to list leave requests' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
-  if not v_reader and (coalesce(list_leave_requests.everyone, false) or (list_leave_requests.user_id is not null and list_leave_requests.user_id <> auth.uid())) then
+  if not v_reader and (coalesce(list_leave_requests.everyone, false) or (list_leave_requests.user_id is not null and list_leave_requests.user_id is distinct from auth.uid())) then
     raise exception 'not allowed to read another member''s leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(z.item order by z.starts, z.created), '[]'::jsonb) into v_rows
@@ -832,7 +832,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:3c8eed2c6efa3c92676ab09cfe190b25cbeb358cf86bbf3dee0c0b44d8143185
+-- @bsb-hash sha256:d9e33000ab3f942fdd2a59375a4fd624bec4de8dc2676858cd4a07af732bb040
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1098,7 +1098,7 @@ declare
   v_rows jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
+    or (coalesce(v_user = auth.uid(), false) and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_user is null then
@@ -1150,7 +1150,7 @@ declare
   v_rows jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
+    or (coalesce(v_user = auth.uid(), false) and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', x."tenant_id", 'userId', x."owner_id",
@@ -1581,7 +1581,7 @@ begin
     raise exception 'leave request not found' using errcode = 'P0002', hint = 'LEAVE_REQUEST_NOT_FOUND';
   end if;
   v_manager := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false);
-  if not (v_manager or v_row."user_id" = auth.uid()) then
+  if not (v_manager or coalesce(v_row."user_id" = auth.uid(), false)) then
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_row."cancelled_at" is not null then
@@ -1633,7 +1633,7 @@ begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.request'), false)) then
     raise exception 'not allowed to list leave requests' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
-  if not v_reader and (coalesce(list_leave_requests.everyone, false) or (list_leave_requests.user_id is not null and list_leave_requests.user_id <> auth.uid())) then
+  if not v_reader and (coalesce(list_leave_requests.everyone, false) or (list_leave_requests.user_id is not null and list_leave_requests.user_id is distinct from auth.uid())) then
     raise exception 'not allowed to read another member''s leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(z.item order by z.starts, z.created), '[]'::jsonb) into v_rows
@@ -1747,7 +1747,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:14b8a2c22f58d3e96411dd6fc0fbec94ed24b81d2574ba4bfdbe58f862c45d45
+-- @bsb-hash sha256:878c98886bb61c5b00e1c6c99d408f66498ab0aa8d5e38566f507ff26930caad
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1970,7 +1970,7 @@ declare
   v_rows jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
+    or (coalesce(v_user = auth.uid(), false) and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_user is null then
@@ -2022,7 +2022,7 @@ declare
   v_rows jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
+    or (coalesce(v_user = auth.uid(), false) and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', x."tenant_id", 'userId', x."owner_id",
@@ -2426,7 +2426,7 @@ begin
     raise exception 'leave request not found' using errcode = 'P0002', hint = 'LEAVE_REQUEST_NOT_FOUND';
   end if;
   v_manager := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false);
-  if not (v_manager or v_row."user_id" = auth.uid()) then
+  if not (v_manager or coalesce(v_row."user_id" = auth.uid(), false)) then
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_row."cancelled_at" is not null then
@@ -2469,7 +2469,7 @@ begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.request'), false)) then
     raise exception 'not allowed to list leave requests' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
-  if not v_reader and (coalesce(list_leave_requests.everyone, false) or (list_leave_requests.user_id is not null and list_leave_requests.user_id <> auth.uid())) then
+  if not v_reader and (coalesce(list_leave_requests.everyone, false) or (list_leave_requests.user_id is not null and list_leave_requests.user_id is distinct from auth.uid())) then
     raise exception 'not allowed to read another member''s leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(z.item order by z.starts, z.created), '[]'::jsonb) into v_rows
@@ -2583,7 +2583,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:bb34733a84396945bba49a34db5ed42268177cda22e88ed175773f744248ba35
+-- @bsb-hash sha256:d903e7d21b7eaf32163d1170c867963d4a5eac1e4179d5d803216069ad610e71
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2801,7 +2801,7 @@ declare
   v_rows jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
+    or (coalesce(v_user = auth.uid(), false) and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_user is null then
@@ -2853,7 +2853,7 @@ declare
   v_rows jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
+    or (coalesce(v_user = auth.uid(), false) and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', x."tenant_id", 'userId', x."owner_id",
@@ -3257,7 +3257,7 @@ begin
     raise exception 'leave request not found' using errcode = 'P0002', hint = 'LEAVE_REQUEST_NOT_FOUND';
   end if;
   v_manager := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false);
-  if not (v_manager or v_row."user_id" = auth.uid()) then
+  if not (v_manager or coalesce(v_row."user_id" = auth.uid(), false)) then
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_row."cancelled_at" is not null then
@@ -3300,7 +3300,7 @@ begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.request'), false)) then
     raise exception 'not allowed to list leave requests' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
-  if not v_reader and (coalesce(list_leave_requests.everyone, false) or (list_leave_requests.user_id is not null and list_leave_requests.user_id <> auth.uid())) then
+  if not v_reader and (coalesce(list_leave_requests.everyone, false) or (list_leave_requests.user_id is not null and list_leave_requests.user_id is distinct from auth.uid())) then
     raise exception 'not allowed to read another member''s leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(z.item order by z.starts, z.created), '[]'::jsonb) into v_rows
@@ -3546,7 +3546,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:798b9408e04b4d119ad58c6eaa8d239734d178c87f759f78718da28d3b9745af
+-- @bsb-hash sha256:039e6474947adb934040bfa85f2cffc7071147e7a8243cdf14f3ff464573bb5c
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3770,7 +3770,7 @@ declare
   v_rows jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
+    or (coalesce(v_user = auth.uid(), false) and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_user is null then
@@ -3822,7 +3822,7 @@ declare
   v_rows jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
+    or (coalesce(v_user = auth.uid(), false) and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', x."tenant_id", 'userId', x."owner_id",
@@ -4226,7 +4226,7 @@ begin
     raise exception 'leave request not found' using errcode = 'P0002', hint = 'LEAVE_REQUEST_NOT_FOUND';
   end if;
   v_manager := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false);
-  if not (v_manager or v_row."user_id" = auth.uid()) then
+  if not (v_manager or coalesce(v_row."user_id" = auth.uid(), false)) then
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_row."cancelled_at" is not null then
@@ -4269,7 +4269,7 @@ begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.request'), false)) then
     raise exception 'not allowed to list leave requests' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
-  if not v_reader and (coalesce(list_leave_requests.everyone, false) or (list_leave_requests.user_id is not null and list_leave_requests.user_id <> auth.uid())) then
+  if not v_reader and (coalesce(list_leave_requests.everyone, false) or (list_leave_requests.user_id is not null and list_leave_requests.user_id is distinct from auth.uid())) then
     raise exception 'not allowed to read another member''s leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(z.item order by z.starts, z.created), '[]'::jsonb) into v_rows
@@ -4383,7 +4383,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:32af30c88ebc9f8778caa13134f5e27aa61cb542d1dbb9233377b3bf4e34c8ea
+-- @bsb-hash sha256:6cf1bc362ef4271e52b7af268d87faf0adcb3274a22e48afe8834f3aa656d687
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4601,7 +4601,7 @@ declare
   v_rows jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
+    or (coalesce(v_user = auth.uid(), false) and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_user is null then
@@ -4653,7 +4653,7 @@ declare
   v_rows jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
+    or (coalesce(v_user = auth.uid(), false) and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', x."org_id", 'userId', x."owner_id",
@@ -5057,7 +5057,7 @@ begin
     raise exception 'leave request not found' using errcode = 'P0002', hint = 'LEAVE_REQUEST_NOT_FOUND';
   end if;
   v_manager := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'leave.manage'), false);
-  if not (v_manager or v_row."user_id" = auth.uid()) then
+  if not (v_manager or coalesce(v_row."user_id" = auth.uid(), false)) then
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_row."cancelled_at" is not null then
@@ -5100,7 +5100,7 @@ begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.request'), false)) then
     raise exception 'not allowed to list leave requests' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
-  if not v_reader and (coalesce(list_leave_requests.everyone, false) or (list_leave_requests.user_id is not null and list_leave_requests.user_id <> auth.uid())) then
+  if not v_reader and (coalesce(list_leave_requests.everyone, false) or (list_leave_requests.user_id is not null and list_leave_requests.user_id is distinct from auth.uid())) then
     raise exception 'not allowed to read another member''s leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(z.item order by z.starts, z.created), '[]'::jsonb) into v_rows

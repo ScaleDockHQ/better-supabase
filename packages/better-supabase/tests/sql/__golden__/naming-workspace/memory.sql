@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:d7221c8558121ad5ebd9e836b57c45eb5c2287a8ed2e3129a6f0f5a7c69074c7
+-- @bsb-hash sha256:768aa2faa0a24481d10dec3cdc2f5b6a2b3d49eb20efa0db72abab53ea64b5ab
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -702,7 +702,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."memories" x where x."id" = memory_forget.memory_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = auth.uid() or (v_row."scope" = 'organization' and coalesce(better_supabase.can('tenant', v_row."workspace_id", 'ai.admin'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or (v_row."scope" = 'organization' and coalesce(better_supabase.can('tenant', v_row."workspace_id", 'ai.admin'), false))) then
     return false;
   end if;
   if memory_forget.superseded_by is null then

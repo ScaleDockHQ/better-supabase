@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:6633c53f003be23ea3f4bf5b52ad188526cbd44d269c82339564fd92f038e0cf
+-- @bsb-hash sha256:3b295858928b1f11ac7e797242eac2ab7155518311d335377ed9761bd1190874
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -710,7 +710,7 @@ begin
   if v_row."workspace_id" is null then
     return null;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."requested_by" = auth.uid() or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_workspace_deletion.tenant, 'organization.delete'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_workspace_deletion.tenant, 'organization.delete'), false)) then
     raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   update "better_supabase"."workspace_deletions" x set "cancelled_at" = now()

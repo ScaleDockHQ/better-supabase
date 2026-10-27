@@ -831,7 +831,7 @@ begin
   if not found then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or v_req.${c("requestedBy")} = auth.uid() or ${ctx.can("tenant", `v_req.${c("tenant")}`, manage)}) then
+  if not (${SERVICE_CALLER} or coalesce(v_req.${c("requestedBy")} = auth.uid(), false) or ${ctx.can("tenant", `v_req.${c("tenant")}`, manage)}) then
     ${fail("APPROVAL_FORBIDDEN", "only the requester or a manager can cancel this request")}
   end if;
   if v_req.${c("status")} <> 'pending' then
@@ -859,7 +859,7 @@ begin
   if not found then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or v_req.${c("requestedBy")} = auth.uid() or ${fn("approval_eligible")}(v_req.${c("id")})
+  if not (${SERVICE_CALLER} or coalesce(v_req.${c("requestedBy")} = auth.uid(), false) or ${fn("approval_eligible")}(v_req.${c("id")})
     or (${ctx.can("tenant", `v_req.${c("tenant")}`, read)} and ${readable("v_req")})) then
     ${notFound}
   end if;

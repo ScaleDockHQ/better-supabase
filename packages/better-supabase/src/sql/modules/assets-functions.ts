@@ -141,7 +141,7 @@ export function assetsFunctions(ctx: BlockSqlContext): string {
     allowed(`${row}.${l("tenant")}`, read);
 
   const readsAsset = (row: string): string =>
-    `(${allowed(`${row}.${s("tenant")}`, read)} or (${row}.${s("assigneeType")} = 'member' and ${row}.${s("assigneeId")} = auth.uid()::text))`;
+    `(${allowed(`${row}.${s("tenant")}`, read)} or (${row}.${s("assigneeType")} = 'member' and coalesce(${row}.${s("assigneeId")} = auth.uid()::text, false)))`;
 
   const forbidden = (message: string): string =>
     fail("ASSETS_FORBIDDEN", message);

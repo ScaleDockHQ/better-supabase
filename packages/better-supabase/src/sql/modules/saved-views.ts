@@ -180,14 +180,14 @@ ${lockTable(views, { read: true })}
 
   const mayEdit = (alias: string): string =>
     `(auth.role() = 'service_role'
-    or (${alias}.${scope} = 'user' and ${alias}.${owner} = auth.uid())
+    or (${alias}.${scope} = 'user' and coalesce(${alias}.${owner} = auth.uid(), false))
     or (${alias}.${scope} <> 'user' and ${ctx.scope.can(`${alias}.${tenant}`, share)}))`;
 
   // `visible` for a row a security definer function has read.
   const maySee = (alias: string): string =>
     `(auth.role() = 'service_role'
     or (${ctx.scope.can(`${alias}.${tenant}`, read)} and (
-      (${alias}.${scope} = 'user' and ${alias}.${owner} = auth.uid())
+      (${alias}.${scope} = 'user' and coalesce(${alias}.${owner} = auth.uid(), false))
       or (${alias}.${scope} = 'team' and ${inTeam(`${alias}.${team}`)})
       or ${alias}.${scope} = 'tenant')))`;
 

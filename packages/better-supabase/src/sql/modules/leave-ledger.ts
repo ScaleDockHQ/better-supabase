@@ -184,7 +184,7 @@ declare
   v_rows jsonb;
 begin
   if not (${SERVICE_CALLER} or ${ctx.can("tenant", "leave_balances.tenant", read)}
-    or (v_user = auth.uid() and ${ctx.can("tenant", "leave_balances.tenant", request)})) then
+    or (coalesce(v_user = auth.uid(), false) and ${ctx.can("tenant", "leave_balances.tenant", request)})) then
     ${forbidden("not allowed to read this member's leave balance")}
   end if;
   if v_user is null then
@@ -229,7 +229,7 @@ declare
   v_rows jsonb;
 begin
   if not (${SERVICE_CALLER} or ${ctx.can("tenant", "leave_ledger_entries.tenant", read)}
-    or (v_user = auth.uid() and ${ctx.can("tenant", "leave_ledger_entries.tenant", request)})) then
+    or (coalesce(v_user = auth.uid(), false) and ${ctx.can("tenant", "leave_ledger_entries.tenant", request)})) then
     ${forbidden("not allowed to read this member's leave balance")}
   end if;
   select coalesce(jsonb_agg(${entryJson} order by y.${le("createdAt")} desc, y.${le("id")} desc), '[]'::jsonb) into v_rows

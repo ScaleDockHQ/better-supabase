@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:e42c94018752adaf6e696c2d08d212548acf70397c56e7a857417b55fdc35793
+-- @bsb-hash sha256:7c14a28ec3d2f3351fc7d02c0951fa8409688c599972448268c2c47b1ead0ec1
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -355,7 +355,7 @@ begin
   end if;
   -- Checked here whatever blocks.organizations.options.assignmentGuard
   -- says: a guard that checks only client writes never sees this function's.
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and member = auth.uid() then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and coalesce(member = auth.uid(), false) then
     raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
   end if;
   if not better_supabase.can_assign(organization, previous_assignable)
@@ -764,7 +764,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:9d61ae104195be63a6aef68d71d1ecbf2777c91f2e0872a31f93ff133e49f235
+-- @bsb-hash sha256:a6759002bffc0763105a79d5ebef5a286b36e8c42639e15d3a470bc1fb2d26d0
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1159,7 +1159,7 @@ begin
   end if;
   -- Checked here whatever blocks.organizations.options.assignmentGuard
   -- says: a guard that checks only client writes never sees this function's.
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and member = auth.uid() then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and coalesce(member = auth.uid(), false) then
     raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
   end if;
   if not better_supabase.can_assign(organization, previous_assignable)
@@ -1642,7 +1642,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:781614cd9240f8829625dea8d4416b86f73894a4cb8101dd41fad957b4cb7c4f
+-- @bsb-hash sha256:6aaa00dd2fd596b1c8f486532311ffa3ed41a9fda9e075776d190f4cc9033fbe
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2001,7 +2001,7 @@ begin
   end if;
   -- Checked here whatever blocks.organizations.options.assignmentGuard
   -- says: a guard that checks only client writes never sees this function's.
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and member = auth.uid() then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and coalesce(member = auth.uid(), false) then
     raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
   end if;
   if not better_supabase.can_assign(organization, previous_assignable)
@@ -2410,7 +2410,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:793810d6196a1db0f6cf1fa3899092b64aed274cba8c49dee602d1940f3d3999
+-- @bsb-hash sha256:6720fead67db6edf40c13558eb1d6a83728ab113ae6480828194d08e3edc7b4a
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2764,7 +2764,7 @@ begin
   end if;
   -- Checked here whatever blocks.organizations.options.assignmentGuard
   -- says: a guard that checks only client writes never sees this function's.
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and member = auth.uid() then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and coalesce(member = auth.uid(), false) then
     raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
   end if;
   if not better_supabase.can_assign(organization, previous_assignable)
@@ -3333,7 +3333,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:c1e44842b2fd4eb55d968e3d097059107c98f15d1a7537aaa9eb98f899f5b1d5
+-- @bsb-hash sha256:7152b8b149990d148f8da48bf2395b2ac68cf5b99c70dc0a3d87f1e282947fcd
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3668,7 +3668,7 @@ begin
   end if;
   -- Checked here whatever blocks.organizations.options.assignmentGuard
   -- says: a guard that checks only client writes never sees this function's.
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and member = auth.uid() then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and coalesce(member = auth.uid(), false) then
     raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
   end if;
   if not better_supabase.can_assign(organization, previous_assignable)

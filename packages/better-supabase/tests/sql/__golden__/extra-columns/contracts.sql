@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:43ceae7f1d24bdfd0f7632a0b0642fbf3c8e03e207d93f5cb3b732f2c93180f7
+-- @bsb-hash sha256:971d6c6d1babf7ccd67ae479405ab697a3c8c3e7408f31372d75315dd29f2333
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -642,7 +642,7 @@ begin
   if not found then
     raise exception 'obligation not found' using errcode = 'P0002', hint = 'OBLIGATION_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) or v_row."owner_id" = auth.uid()) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) or coalesce(v_row."owner_id" = auth.uid(), false)) then
     raise exception 'not allowed to change this obligation' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if set_obligation_status.status is null or set_obligation_status.status not in ('open', 'done', 'waived') then

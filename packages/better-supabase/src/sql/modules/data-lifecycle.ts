@@ -570,7 +570,7 @@ begin
   if v_row.${cd("tenant")} is null then
     return null;
   end if;
-  if not (${SERVICE_CALLER} or ${requested("requestedBy") ? `v_row.${cd("requestedBy")} = auth.uid() or ` : ""}${allowed})${platform} then
+  if not (${SERVICE_CALLER} or ${requested("requestedBy") ? `coalesce(v_row.${cd("requestedBy")} = auth.uid(), false) or ` : ""}${allowed})${platform} then
     ${fail("ORGANIZATION_DELETION_FORBIDDEN", "You may not cancel this deletion")}
   end if;
   update ${d} x set ${cd("cancelledAt")} = now()

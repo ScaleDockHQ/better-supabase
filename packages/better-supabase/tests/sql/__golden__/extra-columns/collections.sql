@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:52e75543e3ebe2b0aa85d104e4ea050728b0d57b4973cea5780a3e5f4a27cb13
+-- @bsb-hash sha256:4a8d21354e21267abb4ddeeab2e396ebb7155b75b76bb5bfc5ed3809882834ce
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -298,13 +298,13 @@ begin
   
   select * into v_row from "better_supabase"."subject_collections" where "id" = rename_collection.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) then
     raise exception 'collection not found' using errcode = 'P0002', hint = 'COLLECTION_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.write'), false))
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.write'), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.share'), false))) then
     raise exception 'not allowed to change this collection' using errcode = '42501', hint = 'COLLECTION_FORBIDDEN';
   end if;
@@ -355,13 +355,13 @@ begin
   
   select * into v_row from "better_supabase"."subject_collections" where "id" = archive_collection.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) then
     raise exception 'collection not found' using errcode = 'P0002', hint = 'COLLECTION_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.write'), false))
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.write'), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.share'), false))) then
     raise exception 'not allowed to change this collection' using errcode = '42501', hint = 'COLLECTION_FORBIDDEN';
   end if;
@@ -435,14 +435,14 @@ begin
   
   select * into v_row from "better_supabase"."subject_collections" where "id" = add_collection_entries.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) then
     raise exception 'collection not found' using errcode = 'P0002', hint = 'COLLECTION_NOT_FOUND';
   end if;
   
   if not (auth.role() = 'service_role' or ((auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.write'), false))) then
     raise exception 'not allowed to change this collection''s entries' using errcode = '42501', hint = 'COLLECTION_FORBIDDEN';
@@ -520,14 +520,14 @@ begin
   
   select * into v_row from "better_supabase"."subject_collections" where "id" = remove_collection_entries.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) then
     raise exception 'collection not found' using errcode = 'P0002', hint = 'COLLECTION_NOT_FOUND';
   end if;
   
   if not (auth.role() = 'service_role' or ((auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.write'), false))) then
     raise exception 'not allowed to change this collection''s entries' using errcode = '42501', hint = 'COLLECTION_FORBIDDEN';
@@ -569,14 +569,14 @@ begin
   
   select * into v_row from "better_supabase"."subject_collections" where "id" = rank_collection_entry.collection;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) then
     raise exception 'collection not found' using errcode = 'P0002', hint = 'COLLECTION_NOT_FOUND';
   end if;
   
   if not (auth.role() = 'service_role' or ((auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.write'), false))) then
     raise exception 'not allowed to change this collection''s entries' using errcode = '42501', hint = 'COLLECTION_FORBIDDEN';

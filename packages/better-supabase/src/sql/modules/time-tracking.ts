@@ -906,7 +906,7 @@ begin
     : `  v_user uuid := coalesce(list_time_entries.user_id, auth.uid());
   v_rows jsonb;
 begin
-  if not (${SERVICE_CALLER} or ((v_user = auth.uid() and not list_time_entries.everyone) and ${ctx.can("tenant", "list_time_entries.tenant", track)}) or ${ctx.can("tenant", "list_time_entries.tenant", read)}) then`
+  if not (${SERVICE_CALLER} or ((coalesce(v_user = auth.uid(), false) and not list_time_entries.everyone) and ${ctx.can("tenant", "list_time_entries.tenant", track)}) or ${ctx.can("tenant", "list_time_entries.tenant", read)}) then`
 }
     ${forbidden("not allowed to read these entries")}
   end if;

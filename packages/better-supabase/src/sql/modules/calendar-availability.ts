@@ -458,7 +458,7 @@ begin
   end if;
   if not (
     ${allowed("set_calendar_working_hours.tenant", manage)}
-    or (v_user = auth.uid() and ${ctx.scope.can("set_calendar_working_hours.tenant", read)})
+    or (coalesce(v_user = auth.uid(), false) and ${ctx.scope.can("set_calendar_working_hours.tenant", read)})
   ) then
     ${fail("CALENDAR_FORBIDDEN", "not allowed to set these working hours")}
   end if;

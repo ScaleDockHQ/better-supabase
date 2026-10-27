@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:06b025ac6920a51b55b29fb3a424aa525684a41208935563b7b1764f5a4670aa
+-- @bsb-hash sha256:77b197a644781b1100940287f05bc357bf7a379d46cde0423e5dcc684b1868f3
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -982,7 +982,7 @@ begin
   end if;
   if not (
     (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', set_calendar_working_hours.tenant, 'calendar.manage'), false))
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', set_calendar_working_hours.tenant, 'calendar.read'), false))
+    or (coalesce(v_user = auth.uid(), false) and coalesce(better_supabase.can('tenant', set_calendar_working_hours.tenant, 'calendar.read'), false))
   ) then
     raise exception 'not allowed to set these working hours' using errcode = '42501', hint = 'CALENDAR_FORBIDDEN';
   end if;

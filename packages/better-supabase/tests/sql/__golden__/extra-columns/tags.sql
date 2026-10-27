@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:51c7cb369e9551ad4886a002e99f06e1f889ea848d6d38e54248828f9411e1ae
+-- @bsb-hash sha256:72b1b86e8f4951eb12c4c07199fd4839089328345b6ee665e11b8eae74cb9a2c
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -124,7 +124,7 @@ begin
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
   insert into "better_supabase"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "rank", "created_at", "app_note")
-  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now(), (jsonb_populate_record(null::"better_supabase"."tags", coalesce(create_tag.fields, '{}'::jsonb)))."app_note")
+  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now(), (jsonb_populate_record(null::"better_supabase"."tags", jsonb_build_object('app_note', create_tag.fields -> 'app_note')))."app_note")
   returning "id" into v_id;
   update "better_supabase"."tags" x set "app_note" = case when create_tag.fields ? 'app_note' then r."app_note" else x."app_note" end
   from jsonb_populate_record(null::"better_supabase"."tags", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(create_tag.fields) e where e.key in ('app_note'))) r

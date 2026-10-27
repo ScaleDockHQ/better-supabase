@@ -48,7 +48,7 @@ export function ledgerFunctions(ctx: BlockSqlContext): string {
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, permission)})`;
 
   const visible = (row: string): string =>
-    `(${SERVICE_CALLER} or ${ctx.can("tenant", `${row}.${a("tenant")}`, read)} or ${row}.${a("owner")} = auth.uid() or (${row}.${a("readPermission")} is not null and ${ctx.can("tenant", `${row}.${a("tenant")}`, `${row}.${a("readPermission")}`)}))`;
+    `(${SERVICE_CALLER} or ${ctx.can("tenant", `${row}.${a("tenant")}`, read)} or coalesce(${row}.${a("owner")} = auth.uid(), false) or (${row}.${a("readPermission")} is not null and ${ctx.can("tenant", `${row}.${a("tenant")}`, `${row}.${a("readPermission")}`)}))`;
 
   const forbidden = (message: string): string =>
     fail("LEDGER_FORBIDDEN", message);

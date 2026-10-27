@@ -584,7 +584,7 @@ declare
   v_row ${passes}%rowtype;
 begin
   select * into v_row from ${passes} x where x.${p("id")} = get_pass.pass_id;
-  if not found or not (v_row.${p("holderUser")} = auth.uid() or ${allowed(`v_row.${p("tenant")}`, manage)}) then
+  if not found or not (coalesce(v_row.${p("holderUser")} = auth.uid(), false) or ${allowed(`v_row.${p("tenant")}`, manage)}) then
     return null;
   end if;
   return ${withNonce("v_row")};
@@ -704,7 +704,7 @@ declare
   v_pass ${passes}%rowtype;
 begin
   select * into v_pass from ${passes} x where x.${p("id")} = list_pass_check_ins.pass_id;
-  if not found or not (v_pass.${p("holderUser")} = auth.uid() or ${allowed(`v_pass.${p("tenant")}`, read)}) then
+  if not found or not (coalesce(v_pass.${p("holderUser")} = auth.uid(), false) or ${allowed(`v_pass.${p("tenant")}`, read)}) then
     return '[]'::jsonb;
   end if;
   return (

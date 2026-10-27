@@ -822,7 +822,7 @@ begin
   if not (
     ${allowed(p.scope, `v_booking.${b("tenant")}`, p.manage)}
     or (change_booking.access_token is not null and v_booking.${b("accessHash")} = ${sha256Hex("convert_to(change_booking.access_token, 'utf8')")})
-    or (change_booking.access_token is null and v_booking.${b("customerUser")} = auth.uid() and ${allowed(p.scope, `v_booking.${b("tenant")}`, p.create)})
+    or (change_booking.access_token is null and coalesce(v_booking.${b("customerUser")} = auth.uid(), false) and ${allowed(p.scope, `v_booking.${b("tenant")}`, p.create)})
   ) then
     ${fail("BOOKING_FORBIDDEN", "not allowed to change this booking")}
   end if;

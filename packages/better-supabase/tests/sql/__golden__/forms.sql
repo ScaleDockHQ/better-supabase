@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:4d5010dbec9bd015e22f9ab63dc4801bcaf613834cc3d4e0615c1cbd222f5038
+-- @bsb-hash sha256:adb9bde928deb0ae81b9d0f32c622c4f214966e4931599d7a4265dda0ed87412
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -871,7 +871,7 @@ begin
   if not found then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."respondent_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."respondent_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
@@ -1039,7 +1039,7 @@ begin
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)
-    or (v_row."respondent_id" = auth.uid() and v_row."status" = 'draft')) then
+    or (coalesce(v_row."respondent_id" = auth.uid(), false) and v_row."status" = 'draft')) then
     raise exception 'not allowed to delete this submission' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   delete from "better_supabase"."form_submissions" x where x."id" = delete_form_submission.submission_id;
@@ -1159,7 +1159,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:558d2596a2c148ca047b2f8e1dd822f5bcf24dca7e6ac89efd23c50026990f2d
+-- @bsb-hash sha256:f6e8dae8cd4da2b5d58669b4ccfc987557b20e64ee72db80579e353a15b9dfe6
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2161,7 +2161,7 @@ begin
   if not found then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."respondent_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."respondent_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
@@ -2337,7 +2337,7 @@ begin
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)
-    or (v_row."respondent_id" = auth.uid() and v_row."status" = 'draft')) then
+    or (coalesce(v_row."respondent_id" = auth.uid(), false) and v_row."status" = 'draft')) then
     raise exception 'not allowed to delete this submission' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   delete from "better_supabase"."form_submissions" x where x."id" = delete_form_submission.submission_id;
@@ -2465,7 +2465,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:7cfd640432f31caff2d8f64d953f1a76e8b2ad45ce695193156d54c82fb40b0f
+-- @bsb-hash sha256:b08918ffe01d55a0d292d0a3bcb7d9ec917d3a354264f00790e1429090c5023e
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3340,7 +3340,7 @@ begin
   if not found then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."respondent_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."respondent_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
@@ -3508,7 +3508,7 @@ begin
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)
-    or (v_row."respondent_id" = auth.uid() and v_row."status" = 'draft')) then
+    or (coalesce(v_row."respondent_id" = auth.uid(), false) and v_row."status" = 'draft')) then
     raise exception 'not allowed to delete this submission' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   delete from "app_private"."form_submissions" x where x."id" = delete_form_submission.submission_id;
@@ -3628,7 +3628,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:5792e7de1bf94db87937adc00ddb58784e04eb577d2de4c05a9b7964b951dc24
+-- @bsb-hash sha256:222c7d07e8cc2cd1cdb355bfbbc8291c3f42524bac9858686296195e9905ca65
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4498,7 +4498,7 @@ begin
   if not found then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."respondent_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."respondent_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
@@ -4666,7 +4666,7 @@ begin
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)
-    or (v_row."respondent_id" = auth.uid() and v_row."status" = 'draft')) then
+    or (coalesce(v_row."respondent_id" = auth.uid(), false) and v_row."status" = 'draft')) then
     raise exception 'not allowed to delete this submission' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   delete from "better_supabase"."form_submissions" x where x."id" = delete_form_submission.submission_id;
@@ -4919,7 +4919,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:2af9aac5c8ccca6da67905b67e4e4b75bc46554d483a08acca1e3b1bd0ad755a
+-- @bsb-hash sha256:3d715f302e049517005ec7c253a12efed9a644e1025c24125d43817ab82b8f26
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5796,7 +5796,7 @@ begin
   if not found then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."respondent_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."respondent_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
@@ -5964,7 +5964,7 @@ begin
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)
-    or (v_row."respondent_id" = auth.uid() and v_row."status" = 'draft')) then
+    or (coalesce(v_row."respondent_id" = auth.uid(), false) and v_row."status" = 'draft')) then
     raise exception 'not allowed to delete this submission' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   delete from "better_supabase"."form_submissions" x where x."id" = delete_form_submission.submission_id;
@@ -6084,7 +6084,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:b9cd90ad815d71703c634909f7d270a1a6cc22b294f58ba717615982070bb091
+-- @bsb-hash sha256:abcbe012a65355813d82c23758b8c7d5201cb433b339b6b6fcab1b4922013339
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6954,7 +6954,7 @@ begin
   if not found then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."respondent_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."org_id", 'forms.review'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."respondent_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'forms.review'), false)) then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
@@ -7122,7 +7122,7 @@ begin
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'forms.review'), false)
-    or (v_row."respondent_id" = auth.uid() and v_row."status" = 'draft')) then
+    or (coalesce(v_row."respondent_id" = auth.uid(), false) and v_row."status" = 'draft')) then
     raise exception 'not allowed to delete this submission' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   delete from "better_supabase"."form_submissions" x where x."id" = delete_form_submission.submission_id;

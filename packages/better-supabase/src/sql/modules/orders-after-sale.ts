@@ -303,7 +303,7 @@ declare
   v_units integer := 0;
 begin
   ${load("request_return.order_id")}
-  if not (auth.role() = 'service_role' or v_order.customer = auth.uid() or ${ctx.scope.can("v_order.tenant", names.manage)}) then
+  if not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or ${ctx.scope.can("v_order.tenant", names.manage)}) then
     ${fail("ORDERS_FORBIDDEN", "not allowed to return this order")}
   end if;
   if v_order.status not in ('paid', 'fulfilled', 'completed') then

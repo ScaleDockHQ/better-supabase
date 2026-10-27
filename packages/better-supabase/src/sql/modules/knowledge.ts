@@ -324,7 +324,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const readable = `(${d.owner} = (select auth.uid()) or (${d.scope} in ('organization', 'agent') and ${ctx.scope.check(d.tenant, read)}) or ${ctx.scope.check(d.tenant, manage)} or (${d.scope} = 'chat' and ${chatReadable(d.scopeId)}))`;
 
   const ownDocument = (row: string): string =>
-    `(${SERVICE_CALLER} or ${row}.${d.owner} = auth.uid() or ${ctx.scope.can(`${row}.${d.tenant}`, manage)})`;
+    `(${SERVICE_CALLER} or coalesce(${row}.${d.owner} = auth.uid(), false) or ${ctx.scope.can(`${row}.${d.tenant}`, manage)})`;
 
   const notFound = raise(
     "document % not found",

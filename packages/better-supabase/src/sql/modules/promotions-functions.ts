@@ -393,7 +393,7 @@ declare
 begin
   select x.${c("tenant")} as tenant, x.${c("user")} as owner, x.${c("status")} as status
   into v_cart from ${orders.table("carts")} x where x.${c("id")} = apply_promotion_code.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     ${fail("ORDERS_CART_NOT_FOUND", "cart not found", "P0002")}
   end if;
   if v_cart.status <> 'open' then
@@ -436,7 +436,7 @@ declare
 begin
   select x.${c("user")} as owner, x.${c("status")} as status
   into v_cart from ${orders.table("carts")} x where x.${c("id")} = remove_promotion_code.cart;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     ${fail("ORDERS_CART_NOT_FOUND", "cart not found", "P0002")}
   end if;
   if v_cart.status <> 'open' then

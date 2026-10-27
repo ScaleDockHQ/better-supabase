@@ -793,7 +793,7 @@ declare
   v_before uuid;${notifyDeclare}
 begin
   ${loadConversation("assign_conversation.conversation")}
-  if not (${service} or ${command("assign", "assign")} or (assignee = (select auth.uid()) and ${staffCan("reply")})) then
+  if not (${service} or ${command("assign", "assign")} or (coalesce(assignee = (select auth.uid()), false) and ${staffCan("reply")})) then
     ${forbidden("not allowed to assign this conversation")}
   end if;
   if assignee is not null and not ${ctx.scope.canUser("assignee", `v_conv.${cv("tenant")}`, q.key("read"))} then
@@ -962,7 +962,7 @@ begin
   if not found then
     ${missing("message", "MESSAGE_NOT_FOUND")}
   end if;
-  if not (${service} or (v_msg.${cm("author")} is not null and v_msg.${cm("author")} = (select auth.uid()))) then
+  if not (${service} or (v_msg.${cm("author")} is not null and coalesce(v_msg.${cm("author")} = (select auth.uid()), false))) then
     ${forbidden("only the author edits a message")}
   end if;
   if v_msg.${cm("deletedAt")} is not null then

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:2307d1bfd9d58977668cc4ef982840b1df92164cef6a3191a5a2a0361f75863b
+-- @bsb-hash sha256:27afebca1b282cfe6966bb95ade4d5e15d227abca4efc3ce0d47933be6bb9c18
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -180,7 +180,7 @@ begin
   for update;
   if not found or not (
     auth.role() = 'service_role'
-    or (v_creator is not null and v_creator = auth.uid())
+    or (v_creator is not null and coalesce(v_creator = auth.uid(), false))
     or coalesce(better_supabase.can('tenant', v_tenant, 'share_links.create'), false)
   ) then
     raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';

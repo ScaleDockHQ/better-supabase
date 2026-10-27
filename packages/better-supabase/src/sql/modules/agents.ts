@@ -301,7 +301,7 @@ function build(ctx: BlockSqlContext): string {
     `(${row}.${a.owner} = (select auth.uid()) or (${row}.${a.publishedAt} is not null and (${row}.${a.visibility} = 'public' or (${row}.${a.visibility} = 'organization' and ${ctx.scope.check(`${row}.${a.tenant}`, read)}))) or ${ctx.scope.check(`${row}.${a.tenant}`, moderate)})`;
 
   const canChange = (row: string): string =>
-    `(${SERVICE_CALLER} or ${row}.${a.owner} = auth.uid() or ${ctx.scope.can(`${row}.${a.tenant}`, moderate)})`;
+    `(${SERVICE_CALLER} or coalesce(${row}.${a.owner} = auth.uid(), false) or ${ctx.scope.can(`${row}.${a.tenant}`, moderate)})`;
 
   const notFound = (agent: string): string =>
     raise("agent % not found", "P0002", "AGENT_NOT_FOUND", agent);
@@ -462,7 +462,7 @@ begin
     ${notFound("publish_agent.id")}
   end if;
   if publish_agent.visibility <> 'private' and not (${SERVICE_CALLER} or ${ctx.scope.can(`v_row.${a.tenant}`, moderate)}
-    or (v_row.${a.owner} = auth.uid() and ${ctx.scope.can(`v_row.${a.tenant}`, publish)})) then
+    or (coalesce(v_row.${a.owner} = auth.uid(), false) and ${ctx.scope.can(`v_row.${a.tenant}`, publish)})) then
     ${raise("you may not publish agents here", "42501", "AGENT_FORBIDDEN")}
   end if;
   update ${agents} x set

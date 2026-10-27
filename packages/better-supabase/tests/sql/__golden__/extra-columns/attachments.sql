@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:d89bfccfc26e196bd54c5507771d6de6482c292011113299d48dd502e72463df
+-- @bsb-hash sha256:97f3386bb68c758707972620a878b199f5bee05f53f663343eea1b61f6d84243
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -479,7 +479,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."attachments" a where a."id" = replace_attachment.id for update;
-  if v_row."id" is null or not ((v_row."uploaded_by" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.upload'), false)) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
+  if v_row."id" is null or not ((coalesce(v_row."uploaded_by" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.upload'), false)) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
     raise exception 'No attachment you may replace has this id' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_FOUND';
   end if;
   if v_row."uploaded_at" is not null then
@@ -526,7 +526,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."attachments" a where a."id" = restore_attachment_version.id for update;
-  if v_row."id" is null or not ((v_row."uploaded_by" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.upload'), false)) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
+  if v_row."id" is null or not ((coalesce(v_row."uploaded_by" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.upload'), false)) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
     raise exception 'No attachment you may restore has this id' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_FOUND';
   end if;
   select * into v_old from "better_supabase"."attachment_versions" v

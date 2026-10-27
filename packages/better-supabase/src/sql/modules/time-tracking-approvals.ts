@@ -66,7 +66,7 @@ declare
   v_entries jsonb;
   v_totals jsonb;
 begin
-  if not (${SERVICE_CALLER} or (v_user = auth.uid() and ${ctx.can("tenant", "get_timesheet.tenant", track)}) or ${ctx.can("tenant", "get_timesheet.tenant", read)}) then
+  if not (${SERVICE_CALLER} or (coalesce(v_user = auth.uid(), false) and ${ctx.can("tenant", "get_timesheet.tenant", track)}) or ${ctx.can("tenant", "get_timesheet.tenant", read)}) then
     ${forbidden("not allowed to read this timesheet")}
   end if;
   select * into v_sheet from ${timesheets} s
@@ -236,7 +236,7 @@ begin
   if not (v_reader or ${ctx.can("tenant", "list_timesheets.tenant", track)}) then
     ${forbidden("not allowed to list timesheets")}
   end if;
-  if not v_reader and list_timesheets.user_id is not null and list_timesheets.user_id <> auth.uid() then
+  if not v_reader and list_timesheets.user_id is not null and list_timesheets.user_id is distinct from auth.uid() then
     ${forbidden("not allowed to read another member's timesheets")}
   end if;
   select coalesce(jsonb_agg(q.item order by q.week desc, q.created desc), '[]'::jsonb) into v_rows

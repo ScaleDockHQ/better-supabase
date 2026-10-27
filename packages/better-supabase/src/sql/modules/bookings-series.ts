@@ -99,7 +99,7 @@ export function seriesFunctions(p: Parts): string {
     `jsonb_build_object('id', ${alias}.${e("id")}, 'organizationId', ${alias}.${e("tenant")}::text, 'serviceId', ${alias}.${e("service")}, 'resourceId', ${alias}.${e("resource")}, 'rule', ${alias}.${e("rule")}, 'startsAt', ${alias}.${e("startsAt")}, 'tz', ${alias}.${e("tz")}, 'customerName', ${alias}.${e("customerName")}, 'customerEmail', ${alias}.${e("customerEmail")}, 'customerUserId', ${alias}.${e("customerUser")}, 'status', ${alias}.${e("status")}, 'endsAt', ${alias}.${e("endsAt")}, 'createdAt', ${alias}.${e("createdAt")})`;
 
   const mayChange = (tenant: string, customer: string): string =>
-    `(${allowed(p.scope, tenant, p.manage)} or (${customer} = auth.uid() and ${allowed(p.scope, tenant, p.create)}))`;
+    `(${allowed(p.scope, tenant, p.manage)} or (coalesce(${customer} = auth.uid(), false) and ${allowed(p.scope, tenant, p.create)}))`;
 
   return `
 -- The starts of a rule's occurrences from first_start: { freq: daily or

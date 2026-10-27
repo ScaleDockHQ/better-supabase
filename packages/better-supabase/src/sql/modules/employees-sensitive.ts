@@ -115,7 +115,7 @@ export function sensitiveFunctions(
   const employees = n.t("employees");
 
   const reader = (alias: string): string =>
-    `(${n.service} or ${ctx.scope.can(`${alias}.${e("tenant")}`, n.sensitive)} or ${alias}.${e("user")} = auth.uid())`;
+    `(${n.service} or ${ctx.scope.can(`${alias}.${e("tenant")}`, n.sensitive)} or coalesce(${alias}.${e("user")} = auth.uid(), false))`;
 
   const load = (fnName: string, arg: string, allowed: string): string => `
   select * into v_employee from ${employees} x where x.${e("id")} = ${fnName}.${arg};
@@ -124,7 +124,7 @@ export function sensitiveFunctions(
   end if;`;
 
   const contractReader = (alias: string): string =>
-    `(${n.service} or ${ctx.scope.can(`${alias}.${e("tenant")}`, n.contractsRead)} or ${alias}.${e("user")} = auth.uid())`;
+    `(${n.service} or ${ctx.scope.can(`${alias}.${e("tenant")}`, n.contractsRead)} or coalesce(${alias}.${e("user")} = auth.uid(), false))`;
 
   return `${privateSql(ctx, n, reader, load)}${contractsSql(ctx, n, contractReader, load)}`;
 }
@@ -251,7 +251,7 @@ as $$
 declare
   v_employee ${n.t("employees")};
   v_row ${table};
-begin${load("save_employee_private_details", "employee", n.privateDetailsWrite === undefined ? reader("v_employee") : `(${n.service} or (${ctx.scope.can(`v_employee.${e("tenant")}`, n.sensitive)} and ${ctx.scope.can(`v_employee.${e("tenant")}`, n.privateDetailsWrite)}) or v_employee.${e("user")} = auth.uid())`)}
+begin${load("save_employee_private_details", "employee", n.privateDetailsWrite === undefined ? reader("v_employee") : `(${n.service} or (${ctx.scope.can(`v_employee.${e("tenant")}`, n.sensitive)} and ${ctx.scope.can(`v_employee.${e("tenant")}`, n.privateDetailsWrite)}) or coalesce(v_employee.${e("user")} = auth.uid(), false))`)}
   if jsonb_typeof(coalesce(save_employee_private_details.attrs, '{}')) <> 'object' then
     ${fail("EMPLOYEE_PRIVATE_INVALID", "attrs must be an object", "22023")}
   end if;
@@ -491,7 +491,7 @@ function editContractsSql(
       : []),
     ...(has("currency")
       ? [
-          `${k("currency")} = case when ${attrs} ? 'salary' or ${attrs} ? 'currency' then upper(${text("currency")}) else x.${k("currency")} end`,
+          `${k("currency")} = case when ${attrs} ? 'currency' then upper(${text("currency")})${ctx.owns("contracts") ? ` when ${attrs} ? 'salary' and ${text("salary")} is null then null` : ""} else x.${k("currency")} end`,
         ]
       : []),
     ...(has("salaryPeriod")

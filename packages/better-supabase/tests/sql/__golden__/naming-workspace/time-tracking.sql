@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:b37b014621f060a718e98719f57d80b1ba7155b7d87592a992d59947242e19c4
+-- @bsb-hash sha256:766433420932380127c808cc8c39df368e5ea6092cf2aec5c15c62934ad6dd0a
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -474,7 +474,7 @@ begin
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
   v_previous_started_at := v_row."started_at";
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(v_row."user_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to change this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if v_patch ? 'startedAt' then
@@ -574,7 +574,7 @@ begin
   if not found then
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(v_row."user_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to delete this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   delete from "better_supabase"."time_entries" x where x."id" = v_row."id";
@@ -598,7 +598,7 @@ declare
   v_user uuid := coalesce(list_time_entries.user_id, auth.uid());
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_user = auth.uid() and not list_time_entries.everyone) and coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.read'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((coalesce(v_user = auth.uid(), false) and not list_time_entries.everyone) and coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.read'), false)) then
     raise exception 'not allowed to read these entries' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'startedAt', q."started_at", 'endedAt', q."ended_at", 'seconds', case when q."ended_at" is null then null else extract(epoch from q."ended_at" - q."started_at")::bigint end, 'billable', q."billable", 'rate', q."rate"::text, 'rateCurrency', q."rate_currency", 'note', q."note", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."started_at" desc), '[]'::jsonb) into v_rows
@@ -637,7 +637,7 @@ declare
   v_entries jsonb;
   v_totals jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.read'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(v_user = auth.uid(), false) and coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.read'), false)) then
     raise exception 'not allowed to read this timesheet' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   select * into v_sheet from "better_supabase"."timesheets" s
@@ -826,7 +826,7 @@ begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.track'), false)) then
     raise exception 'not allowed to list timesheets' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
-  if not v_reader and list_timesheets.user_id is not null and list_timesheets.user_id <> auth.uid() then
+  if not v_reader and list_timesheets.user_id is not null and list_timesheets.user_id is distinct from auth.uid() then
     raise exception 'not allowed to read another member''s timesheets' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(q.item order by q.week desc, q.created desc), '[]'::jsonb) into v_rows

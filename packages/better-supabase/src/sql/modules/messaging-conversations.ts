@@ -319,8 +319,8 @@ begin
   end if;
   if not (${q.service}
     or ${fn("can_conversation")}(v_conv.${cv("id")}, 'moderate')
-    or (${fn("can_conversation")}(v_conv.${cv("id")}, 'send') and (v_conv.${cv("access")} = 'members' or add_conversation_members.users <@ array[auth.uid()]))
-    or (v_conv.${cv("access")} = 'tenant' and v_conv.${cv("archivedAt")} is null and add_conversation_members.users <@ array[auth.uid()])) then
+    or (${fn("can_conversation")}(v_conv.${cv("id")}, 'send') and (v_conv.${cv("access")} = 'members' or coalesce(add_conversation_members.users <@ array[auth.uid()], false)))
+    or (v_conv.${cv("access")} = 'tenant' and v_conv.${cv("archivedAt")} is null and coalesce(add_conversation_members.users <@ array[auth.uid()], false))) then
     ${fail("MESSAGING_FORBIDDEN", "not allowed to add members here")}
   end if;
   for v_user in select distinct x from unnest(add_conversation_members.users) x where x is not null loop
@@ -359,7 +359,7 @@ begin
     ${fail("MESSAGING_MEMBERS_FIXED", "this conversation's members can't change", "22023")}
   end if;
   if not (${q.service}
-    or remove_conversation_member.member = auth.uid()
+    or coalesce(remove_conversation_member.member = auth.uid(), false)
     or ${fn("can_conversation")}(v_conv.${cv("id")}, 'moderate')
     or exists (select 1 from ${t("members")} k where k.${mb("conversation")} = v_conv.${cv("id")} and k.${mb("user")} = auth.uid() and k.${mb("role")} = 'owner')) then
     ${fail("MESSAGING_FORBIDDEN", "not allowed to remove this member")}
@@ -391,7 +391,7 @@ begin
   end if;
   if not (${q.service}
     or ${fn("can_conversation")}(v_conv.${cv("id")}, 'moderate')
-    or v_conv.${cv("createdBy")} = auth.uid()
+    or coalesce(v_conv.${cv("createdBy")} = auth.uid(), false)
     or exists (select 1 from ${t("members")} k where k.${mb("conversation")} = v_conv.${cv("id")} and k.${mb("user")} = auth.uid() and k.${mb("role")} = 'owner')) then
     ${fail("MESSAGING_FORBIDDEN", "not allowed to archive this conversation")}
   end if;

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:f0da2fd7bd714cab4a0c6b5b00dd2dcfa9ddfc33d5b1959ccea250d27fe3b321
+-- @bsb-hash sha256:87824209478f2de0250181859c43dda38ea5d135c05c5f4673d6b70ace6e477c
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -388,7 +388,7 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_deal := (v_change ->> 'dealId')::uuid;
-      select * into v_row from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+      select * into v_row from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid())))) and x."archived_at" is null;
       if v_row."id" is null then
@@ -508,7 +508,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."deals" x where x."id" = close_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select * into v_row from "better_supabase"."deals" x where x."id" = close_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_row."id" is null then
@@ -550,7 +550,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."deals" x where x."id" = reopen_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select * into v_row from "better_supabase"."deals" x where x."id" = reopen_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_row."id" is null then
@@ -586,7 +586,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_tenant is null then
@@ -632,7 +632,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_tenant is null then
@@ -766,7 +766,7 @@ begin
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."deals" x where x."id" = v_parent and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  if not exists (select 1 from "better_supabase"."deals" x where x."id" = v_parent and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))))) then
     raise exception 'no such deal you can edit' using errcode = 'P0002', hint = 'DEAL_NOT_FOUND';
@@ -819,7 +819,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "better_supabase"."deals" x set "archived_at" = case when archive_deal.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))))
   returning * into v_row;
@@ -1079,7 +1079,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:81e022331e4df9ae4b68f4385aafbdf414a974d3d5e90fcec2aecb6d9a7df62a
+-- @bsb-hash sha256:4c708aea972ed04e51a3d2ce90e6b0c7955d527078aa693dec12ded79fdadd7b
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1488,7 +1488,7 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_deal := (v_change ->> 'dealId')::uuid;
-      select * into v_row from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+      select * into v_row from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid())))) and x."archived_at" is null;
       if v_row."id" is null then
@@ -1608,7 +1608,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."deals" x where x."id" = close_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select * into v_row from "better_supabase"."deals" x where x."id" = close_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_row."id" is null then
@@ -1650,7 +1650,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."deals" x where x."id" = reopen_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select * into v_row from "better_supabase"."deals" x where x."id" = reopen_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_row."id" is null then
@@ -1686,7 +1686,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_tenant is null then
@@ -1732,7 +1732,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_tenant is null then
@@ -1871,7 +1871,7 @@ begin
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."deals" x where x."id" = v_parent and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  if not exists (select 1 from "better_supabase"."deals" x where x."id" = v_parent and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))))) then
     raise exception 'no such deal you can edit' using errcode = 'P0002', hint = 'DEAL_NOT_FOUND';
@@ -1924,7 +1924,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "better_supabase"."deals" x set "archived_at" = case when archive_deal.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))))
   returning * into v_row;
@@ -2185,7 +2185,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:0c4d178ad1f2e2dab5e545c29e1168dac4f5d63b855b9a233614533a6e65b19a
+-- @bsb-hash sha256:309e187085a8dbff18f2b74f74db42ac94253848c69f0cbedf8e128fade4f790
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2577,7 +2577,7 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_deal := (v_change ->> 'dealId')::uuid;
-      select * into v_row from "app_private"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+      select * into v_row from "app_private"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "app_private"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid())))) and x."archived_at" is null;
       if v_row."id" is null then
@@ -2697,7 +2697,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."deals" x where x."id" = close_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select * into v_row from "app_private"."deals" x where x."id" = close_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "app_private"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_row."id" is null then
@@ -2739,7 +2739,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."deals" x where x."id" = reopen_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select * into v_row from "app_private"."deals" x where x."id" = reopen_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "app_private"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_row."id" is null then
@@ -2775,7 +2775,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "app_private"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select x."tenant_id" into v_tenant from "app_private"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "app_private"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_tenant is null then
@@ -2821,7 +2821,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "app_private"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select x."tenant_id" into v_tenant from "app_private"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "app_private"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_tenant is null then
@@ -2955,7 +2955,7 @@ begin
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
-  if not exists (select 1 from "app_private"."deals" x where x."id" = v_parent and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  if not exists (select 1 from "app_private"."deals" x where x."id" = v_parent and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "app_private"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))))) then
     raise exception 'no such deal you can edit' using errcode = 'P0002', hint = 'DEAL_NOT_FOUND';
@@ -3008,7 +3008,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "app_private"."deals" x set "archived_at" = case when archive_deal.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "app_private"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))))
   returning * into v_row;
@@ -3268,7 +3268,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:53c5dc8c0aa7be4bcd3f7e0c42d4d0f4d51465871375e445b0cc88014641b461
+-- @bsb-hash sha256:1d206554473df014f8435b7ffc68f1ebae1f4f79eb882440878e324125f407e8
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3655,7 +3655,7 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_deal := (v_change ->> 'dealId')::uuid;
-      select * into v_row from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+      select * into v_row from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid())))) and x."archived_at" is null;
       if v_row."id" is null then
@@ -3775,7 +3775,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."deals" x where x."id" = close_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select * into v_row from "better_supabase"."deals" x where x."id" = close_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_row."id" is null then
@@ -3817,7 +3817,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."deals" x where x."id" = reopen_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select * into v_row from "better_supabase"."deals" x where x."id" = reopen_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_row."id" is null then
@@ -3853,7 +3853,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_tenant is null then
@@ -3899,7 +3899,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_tenant is null then
@@ -4033,7 +4033,7 @@ begin
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."deals" x where x."id" = v_parent and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  if not exists (select 1 from "better_supabase"."deals" x where x."id" = v_parent and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))))) then
     raise exception 'no such deal you can edit' using errcode = 'P0002', hint = 'DEAL_NOT_FOUND';
@@ -4086,7 +4086,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "better_supabase"."deals" x set "archived_at" = case when archive_deal.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))))
   returning * into v_row;
@@ -4467,7 +4467,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:9c57fb99445963c3cb9acebd2f8b9598fb6bbe1c7fe1d1fe93528275edf5bd6e
+-- @bsb-hash sha256:1fbe145cdc8379f876721935273b5681b7b7d4687a49066c0b07fe36b88b83a3
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4862,7 +4862,7 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_deal := (v_change ->> 'dealId')::uuid;
-      select * into v_row from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+      select * into v_row from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid())))) and x."archived_at" is null;
       if v_row."id" is null then
@@ -4982,7 +4982,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."deals" x where x."id" = close_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select * into v_row from "better_supabase"."deals" x where x."id" = close_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_row."id" is null then
@@ -5024,7 +5024,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."deals" x where x."id" = reopen_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select * into v_row from "better_supabase"."deals" x where x."id" = reopen_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_row."id" is null then
@@ -5060,7 +5060,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_tenant is null then
@@ -5106,7 +5106,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_tenant is null then
@@ -5238,7 +5238,7 @@ begin
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."deals" x where x."id" = v_parent and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  if not exists (select 1 from "better_supabase"."deals" x where x."id" = v_parent and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))))) then
     raise exception 'no such deal you can edit' using errcode = 'P0002', hint = 'DEAL_NOT_FOUND';
@@ -5292,7 +5292,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "better_supabase"."deals" x set "archived_at" = case when archive_deal.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))))
   returning * into v_row;
@@ -5552,7 +5552,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:0d35f2912430f34d0e4beb36f78332d8023382664be06a0f710605d9125fb726
+-- @bsb-hash sha256:1e2e58a8d33e4fda7095f626e7f3a7bdd794adc4d2c7319c9bac6155558fb5f8
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5939,7 +5939,7 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_deal := (v_change ->> 'dealId')::uuid;
-      select * into v_row from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+      select * into v_row from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."org_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid())))) and x."archived_at" is null;
       if v_row."id" is null then
@@ -6059,7 +6059,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."deals" x where x."id" = close_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select * into v_row from "better_supabase"."deals" x where x."id" = close_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."org_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_row."id" is null then
@@ -6101,7 +6101,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."deals" x where x."id" = reopen_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select * into v_row from "better_supabase"."deals" x where x."id" = reopen_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."org_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_row."id" is null then
@@ -6137,7 +6137,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."org_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select x."org_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."org_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_tenant is null then
@@ -6183,7 +6183,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."org_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  select x."org_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."org_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_tenant is null then
@@ -6317,7 +6317,7 @@ begin
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."deals" x where x."id" = v_parent and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  if not exists (select 1 from "better_supabase"."deals" x where x."id" = v_parent and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."org_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))))) then
     raise exception 'no such deal you can edit' using errcode = 'P0002', hint = 'DEAL_NOT_FOUND';
@@ -6370,7 +6370,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "better_supabase"."deals" x set "archived_at" = case when archive_deal.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+  where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."org_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))))
   returning * into v_row;

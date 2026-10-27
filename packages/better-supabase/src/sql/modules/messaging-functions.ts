@@ -751,7 +751,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (${q.service} or v_msg.${ms("author")} = auth.uid() or ${fn("can_conversation")}(v_msg.${ms("conversation")}, 'moderate')) then
+  if not (${q.service} or coalesce(v_msg.${ms("author")} = auth.uid(), false) or ${fn("can_conversation")}(v_msg.${ms("conversation")}, 'moderate')) then
     ${fail("MESSAGING_FORBIDDEN", "not allowed to delete this message")}
   end if;
   update ${t("messages")} m set ${ms("body")} = '', ${ms("document")} = null, ${ms("mentions")} = '{}', ${ms("mentionScope")} = null,

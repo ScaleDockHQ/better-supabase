@@ -457,7 +457,7 @@ begin
   for update;
   if not found or not (
     auth.role() = 'service_role'
-    or (v_creator is not null and v_creator = auth.uid())
+    or (v_creator is not null and coalesce(v_creator = auth.uid(), false))
     or ${revokeShare === undefined ? ctx.scope.can("v_tenant", create) : `(${ctx.scope.can("v_tenant", create)} and ${revokeShare})`}
   ) then
     ${fail("SHARE_NOT_FOUND", "share link not found", "P0002")}

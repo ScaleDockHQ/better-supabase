@@ -291,6 +291,75 @@ describe.skipIf(!live)("employees", () => {
     }
   });
 
+  it("keeps an unlinked employee's details and contracts from colleagues", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const owner = await s.user("owner");
+      const colleague = await s.user("colleague");
+      await s.install(MODULES, {
+        ...layout,
+        modules: {
+          employees: {
+            options: {
+              contracts: "editable",
+              extraColumns: {
+                show_birthday: "boolean not null default false",
+                tier: "text",
+              },
+            },
+          },
+        },
+      });
+      const org = await s.organization(owner, { member: colleague });
+      const employees = createEmployees({ transport: sqlTransport(s.sql) });
+
+      await s.as(owner);
+
+      const sam = await employees
+        .create(org, { name: "Sam", fields: { tier: "gold" } })
+        .orThrow();
+
+      expect(sam.userId).toBeUndefined();
+      expect(sam.fields).toEqual({ show_birthday: false, tier: "gold" });
+      await employees
+        .savePrivateDetails(sam.id, { iban: "NL91ABNA0417164300" })
+        .orThrow();
+
+      const contract = await employees
+        .addContract(sam.id, {
+          startsOn: date("2024-01-01"),
+          salary: money(5_400_000n, "EUR"),
+        })
+        .orThrow();
+
+      await employees.updateContract(contract.id, { salary: null }).orThrow();
+      expect(
+        await s.value<string>(
+          "(select currency from better_supabase.employee_contracts where id = $1)",
+          [contract.id],
+        ),
+      ).toBeNull();
+
+      await s.as(colleague);
+      expect(hint(await employees.privateDetails(sam.id))).toBe(
+        "EMPLOYEE_NOT_FOUND",
+      );
+      expect(hint(await employees.contracts(sam.id))).toBe(
+        "EMPLOYEE_NOT_FOUND",
+      );
+      expect(
+        hint(
+          await employees.savePrivateDetails(sam.id, {
+            iban: "NL02ABNA0123456789",
+          }),
+        ),
+      ).toBe("EMPLOYEE_NOT_FOUND");
+    } finally {
+      await s.close();
+    }
+  });
+
   it("makes one employee from a hired application", async () => {
     const s = await BlockSession.open(pool);
 

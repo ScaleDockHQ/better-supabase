@@ -741,7 +741,7 @@ begin
   if not found then
     ${fail("OBLIGATION_NOT_FOUND", "obligation not found", "P0002")}
   end if;
-  if not (${allowed(`v_row.${o("tenant")}`, write)} or v_row.${o("owner")} = auth.uid()) then
+  if not (${allowed(`v_row.${o("tenant")}`, write)} or coalesce(v_row.${o("owner")} = auth.uid(), false)) then
     ${forbidden("not allowed to change this obligation")}
   end if;
   if set_obligation_status.status is null or set_obligation_status.status not in ('open', 'done', 'waived') then

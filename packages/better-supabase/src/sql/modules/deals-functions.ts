@@ -217,7 +217,7 @@ export function dealFunctions(ctx: BlockSqlContext, n: DealNames): string {
   const editable = (alias: string): string =>
     `(${n.service} or (${ctx.scope.can(`${alias}.${d("tenant")}`, n.write)} and (${
       n.readAll ? "true" : "false"
-    } or ${alias}.${d("owner")} = auth.uid()
+    } or coalesce(${alias}.${d("owner")} = auth.uid(), false)
       or ${ctx.scope.can(`${alias}.${d("tenant")}`, n.manage)}
       or exists (select 1 from ${t("members")} mm where mm.${m("deal")} = ${alias}.${d("id")} and mm.${m("user")} = auth.uid()))))`;
 

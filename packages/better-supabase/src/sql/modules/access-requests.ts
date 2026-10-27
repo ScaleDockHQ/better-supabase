@@ -400,7 +400,7 @@ begin
   if not found then
     ${fail("ACCESS_REQUEST_NOT_FOUND", "access request not found", "P0002")}
   end if;
-  if not (${SERVICE_CALLER} or v_row.${c("user")} = auth.uid() or ${ctx.can("tenant", `v_row.${c("tenant")}`, manage)}) then
+  if not (${SERVICE_CALLER} or coalesce(v_row.${c("user")} = auth.uid(), false) or ${ctx.can("tenant", `v_row.${c("tenant")}`, manage)}) then
     ${fail("ACCESS_REQUEST_FORBIDDEN", "not allowed to end this access")}
   end if;
   if v_row.${c("grantedAt")} is null or v_row.${c("endedAt")} is not null then
@@ -453,7 +453,7 @@ declare
   v_approval ${ar}%rowtype;
 begin
   select * into v_row from ${requests} r where r.${c("id")} = get_access_request.request_id;
-  if not found or not (${SERVICE_CALLER} or v_row.${c("user")} = auth.uid() or ${ctx.can("tenant", `v_row.${c("tenant")}`, read)}) then
+  if not found or not (${SERVICE_CALLER} or coalesce(v_row.${c("user")} = auth.uid(), false) or ${ctx.can("tenant", `v_row.${c("tenant")}`, read)}) then
     ${fail("ACCESS_REQUEST_NOT_FOUND", "access request not found", "P0002")}
   end if;
   select * into v_approval from ${ar} x where x.${a("id")} = v_row.${c("approval")};

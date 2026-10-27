@@ -79,14 +79,14 @@ export function collectionFunctions(
   // `subject_collections_read` for a row a security definer function has read.
   const maySee = (alias: string): string =>
     `(${SERVICE} or (${ctx.scope.can(`${alias}.${co("tenant")}`, names.read)} and (
-      (${alias}.${co("scope")} = 'user' and ${alias}.${co("owner")} = auth.uid())
+      (${alias}.${co("scope")} = 'user' and coalesce(${alias}.${co("owner")} = auth.uid(), false))
       or (${alias}.${co("scope")} = 'team' and ${names.inTeam(`${alias}.${co("team")}`)})
       or ${alias}.${co("scope")} = 'tenant')))`;
 
   // Renaming and archiving: the owner of a personal list, or collections.share.
   const mayManage = (alias: string): string =>
     `(${SERVICE}
-    or (${alias}.${co("scope")} = 'user' and ${alias}.${co("owner")} = auth.uid() and ${ctx.scope.can(`${alias}.${co("tenant")}`, names.write)})
+    or (${alias}.${co("scope")} = 'user' and coalesce(${alias}.${co("owner")} = auth.uid(), false) and ${ctx.scope.can(`${alias}.${co("tenant")}`, names.write)})
     or (${alias}.${co("scope")} <> 'user' and ${ctx.scope.can(`${alias}.${co("tenant")}`, names.share)}))`;
 
   // Adding, removing and ordering entries: anyone who sees the list and holds collections.write.
