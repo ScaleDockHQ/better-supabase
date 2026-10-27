@@ -5,6 +5,7 @@ import type {
 } from "./backends.ts";
 import type { Job } from "./types.ts";
 
+import { DbException, dbError } from "../../core/errors.ts";
 import { sqlOnly } from "./backends.ts";
 
 /** What the backend reads of `@vercel/queue`'s message metadata. */
@@ -13,6 +14,9 @@ export interface VercelQueueMetadata {
   readonly deliveryCount: number;
   readonly createdAt: Date;
   readonly expiresAt: Date;
+  readonly topicName?: string;
+  readonly consumerGroup?: string;
+  readonly region?: string;
 }
 
 /**
@@ -28,6 +32,7 @@ export interface VercelQueueClient {
       readonly idempotencyKey?: string;
       readonly delaySeconds?: number;
       readonly retentionSeconds?: number;
+      readonly headers?: Readonly<Record<string, string>>;
     },
   ): PromiseLike<{ readonly messageId: string | null }>;
   receive?(
@@ -64,8 +69,19 @@ export type VercelReceiveResult =
     };
 
 export interface VercelQueueProviderOptions {
-  /** The consumer group that reads the topics. Default `better-supabase`. */
-  readonly consumerGroup?: string;
+  /**
+   * The consumer group that reads the topics, or one per queue. Default
+   * `better-supabase`.
+   */
+  readonly consumerGroup?: string | ((queue: string) => string);
+  /**
+   * Seconds a message is kept, clamped to 60 through 604800 (7 days). A delayed
+   * message keeps at least its delay plus an hour. Default: the topic's 24
+   * hours.
+   */
+  readonly retention?: number;
+  /** Headers sent with every message, for consumers that route on them. */
+  readonly headers?: Readonly<Record<string, string>>;
   /**
    * Seconds a failed message waits before redelivery when `fail` gives no
    * delay. Default 30.
@@ -107,6 +123,127 @@ export function vercelRetentionSeconds(delay: number): number | undefined {
   return Math.min(Math.max(DAY, delay + 3600), MAX_RETENTION);
 }
 
+const MIN_RETENTION = 60;
+const MAX_KEY = 256;
+
+/**
+ * The topic of a queue: `.` and `:` become `-`, so `billing.invoice` and
+ * `tenant:sync` are valid topic names. Throws for any other character a topic
+ * can't hold.
+ */
+export function vercelTopicOf(queue: string): string {
+  const topic = queue.replaceAll(/[.:]/g, "-");
+
+  if (!TOPIC.test(topic)) {
+    throw new TypeError(
+      `Vercel Queues topic names match ${TOPIC.source}, got "${queue}"`,
+    );
+  }
+
+  return topic;
+}
+
+/**
+ * An idempotency key Vercel Queues accepts: keys of at most 256 characters pass
+ * through, longer ones become their SHA-256 hex digest.
+ */
+export async function vercelIdempotencyKey(key: string): Promise<string> {
+  if (key.length <= MAX_KEY) {
+    return key;
+  }
+
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(key),
+  );
+
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+/** What `send` passes to `@vercel/queue`. */
+export interface VercelSendOptions {
+  readonly delaySeconds: number;
+  readonly retentionSeconds?: number;
+  readonly idempotencyKey?: string;
+  readonly headers?: Readonly<Record<string, string>>;
+}
+
+/**
+ * The send options for a message delayed by `delay` seconds: the retention
+ * clamped to 60 through 604800 and raised to cover the delay, the hashed
+ * idempotency key and the headers. Throws a `RangeError` naming the limit for a
+ * delay past 7 days.
+ */
+export async function vercelSendOptionsOf(
+  delay: number,
+  dedupeKey: string | undefined,
+  options: Pick<VercelQueueProviderOptions, "retention" | "headers"> = {},
+): Promise<VercelSendOptions> {
+  const needed = vercelRetentionSeconds(delay);
+
+  const configured =
+    options.retention === undefined
+      ? undefined
+      : Math.min(Math.max(options.retention, MIN_RETENTION), MAX_RETENTION);
+
+  const retentionSeconds =
+    configured === undefined
+      ? needed
+      : Math.max(configured, needed === undefined ? 0 : delay + 3600);
+
+  return {
+    delaySeconds: delay,
+    ...(retentionSeconds === undefined
+      ? {}
+      : { retentionSeconds: Math.min(retentionSeconds, MAX_RETENTION) }),
+    ...(dedupeKey === undefined
+      ? {}
+      : { idempotencyKey: await vercelIdempotencyKey(dedupeKey) }),
+    ...(options.headers === undefined ? {} : { headers: options.headers }),
+  };
+}
+
+/** One Vercel Queues trigger of a route in `vercel.json`. */
+export interface VercelQueueTrigger {
+  readonly type: "queue/v2beta";
+  readonly topic: string;
+  readonly maxDeliveries?: number;
+}
+
+/**
+ * The `functions` fragment of `vercel.json` that points the topics of `queues`
+ * at `route`, so a push route receives them. `maxAttempts` caps deliveries, for
+ * every queue or per queue.
+ */
+export function vercelQueueTriggers(
+  route: string,
+  queues: readonly string[],
+  options: {
+    readonly maxAttempts?: number | Readonly<Record<string, number>>;
+  } = {},
+): {
+  readonly [route: string]: {
+    readonly experimentalTriggers: readonly VercelQueueTrigger[];
+  };
+} {
+  const triggers = queues.map((queue): VercelQueueTrigger => {
+    const max =
+      typeof options.maxAttempts === "number"
+        ? options.maxAttempts
+        : options.maxAttempts?.[queue];
+
+    return {
+      type: "queue/v2beta",
+      topic: vercelTopicOf(queue),
+      ...(max === undefined ? {} : { maxDeliveries: max }),
+    };
+  });
+
+  return { [route]: { experimentalTriggers: triggers } };
+}
+
 interface Held {
   readonly metadata: VercelQueueMetadata;
   readonly done: () => void;
@@ -126,7 +263,11 @@ export function vercelQueueProvider(
   client: VercelQueueClient,
   options: VercelQueueProviderOptions = {},
 ): QueueProvider {
-  const group = options.consumerGroup ?? "better-supabase";
+  const groupOf = (queue: string): string =>
+    typeof options.consumerGroup === "function"
+      ? options.consumerGroup(queue)
+      : (options.consumerGroup ?? "better-supabase");
+
   const retryAfter = options.retryAfter ?? 30;
   const settle = options.settle ?? 25;
   const held = new Map<string, Held>();
@@ -151,16 +292,6 @@ export function vercelQueueProvider(
     return next;
   };
 
-  const topicOf = (queue: string): string => {
-    if (!TOPIC.test(queue)) {
-      throw new TypeError(
-        `Vercel Queues topic names match ${TOPIC.source}, got "${queue}"`,
-      );
-    }
-
-    return queue;
-  };
-
   const key = (job: Job): string => `${job.queue}:${job.id}`;
 
   return {
@@ -168,16 +299,10 @@ export function vercelQueueProvider(
     name: "vercel-queues",
     leases: false,
     async send(queue, payload, delay, maxAttempts, dedupeKey) {
-      const retentionSeconds = vercelRetentionSeconds(delay);
-
       const sent = await client.send(
-        topicOf(queue),
+        vercelTopicOf(queue),
         { payload: payload ?? {}, max_attempts: maxAttempts },
-        {
-          delaySeconds: delay,
-          ...(retentionSeconds === undefined ? {} : { retentionSeconds }),
-          ...(dedupeKey === undefined ? {} : { idempotencyKey: dedupeKey }),
-        },
+        await vercelSendOptionsOf(delay, dedupeKey, options),
       );
 
       return handleOf(sent.messageId);
@@ -230,7 +355,7 @@ export function vercelQueueProvider(
           });
         };
 
-        receive(topicOf(queue), group, handler, {
+        receive(vercelTopicOf(queue), groupOf(queue), handler, {
           limit: Math.min(Math.max(batch, 1), 10),
           visibilityTimeoutSeconds: Math.min(Math.max(lease, 30), 3600),
           retry: (_error, metadata) => {
@@ -286,6 +411,15 @@ export function vercelQueueProvider(
       return Promise.resolve("queued");
     },
     extend: () => Promise.resolve(false),
+    stats: () =>
+      Promise.reject(
+        new DbException(
+          dbError(
+            "invalid_request",
+            "Vercel Queues returns no queue counts through its API; read them in the Vercel dashboard under Observability, Queues",
+          ),
+        ),
+      ),
     schedule: () => sqlOnly("schedule"),
     unschedule: () => sqlOnly("unschedule"),
   };

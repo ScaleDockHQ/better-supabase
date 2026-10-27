@@ -41,7 +41,7 @@
   "./edge": 115395,
   "./mcp": 135084,
   "./mcp/sdk": 101986,
-  "./blocks/queue": 64809,
+  "./blocks/queue": 65781,
   "./blocks": 42857,
   "./blocks/audit": 51082,
   "./blocks/outbox": 35440,

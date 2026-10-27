@@ -60,14 +60,27 @@ export {
   transportQueueProvider,
 } from "./backends.ts";
 
-export { vercelQueueProvider, vercelRetentionSeconds } from "./vercel-queue.ts";
+export {
+  vercelIdempotencyKey,
+  vercelQueueProvider,
+  vercelQueueTriggers,
+  vercelRetentionSeconds,
+  vercelSendOptionsOf,
+  vercelTopicOf,
+} from "./vercel-queue.ts";
 
 export type {
   VercelQueueProviderOptions,
   VercelQueueClient,
   VercelQueueMetadata,
+  VercelQueueTrigger,
   VercelReceiveResult,
+  VercelSendOptions,
 } from "./vercel-queue.ts";
+
+export { withDeadLetters } from "./dead-letters.ts";
+
+export type { DeadLetterSink } from "./dead-letters.ts";
 
 export { vercelQueueNodeRoute, vercelQueueRoute } from "./vercel-route.ts";
 
