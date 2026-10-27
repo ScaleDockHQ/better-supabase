@@ -485,5 +485,6 @@
   "standards/overlay",
   "standards/webhooks",
   "supabase-packages",
-  "testing"
+  "testing",
+  "vercel-sandbox"
 ]

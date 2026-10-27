@@ -258,6 +258,11 @@ const config: OxlintConfig = defineConfig({
     // Migrations, pages and retries run in order on purpose; 663 findings
     // when measured.
     "eslint/no-await-in-loop": "off",
+    // Ultracite 8.0.2 turned these on. A `.then` that only runs a side effect
+    // (a flush, a resolve, a state update) is deliberate; 57 always-return and
+    // 10 catch-or-return findings when measured, 45 of them in the library.
+    "promise/always-return": "off",
+    "promise/catch-or-return": "off",
     // Closures next to their single caller read better than hoisted helpers;
     // 596 findings when measured.
     "unicorn/consistent-function-scoping": "off",

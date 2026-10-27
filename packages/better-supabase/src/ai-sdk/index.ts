@@ -45,6 +45,14 @@ export {
   type TrackedSandboxOptions,
 } from "./providers.ts";
 
+export {
+  type CodeLanguage,
+  codeTool,
+  type CodeToolInput,
+  type CodeToolOptions,
+  type CodeToolOutput,
+} from "./code-tool.ts";
+
 export { summarizeWith, type SummarizeWithOptions } from "./summaries.ts";
 
 export type {

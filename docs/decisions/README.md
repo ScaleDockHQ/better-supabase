@@ -115,3 +115,4 @@ add one, and link it from the code or config it explains.
 | [0109](0109-dev-and-ci-performance.md)                    | Hooks run an affected gate, CI shards the tests, Next.js builds prerender a few pages outside Vercel production                                    |
 | [0110](0110-flag-revisions-schedules-and-splits.md)       | Flags keep revisions in Postgres, roll out on schedules and draw weighted splits from a second bucket                                              |
 | [0111](0111-workflow-run-keys-and-retention.md)           | Workflow SDK start keys are claimed in a table; ended runs are purged in SQL, hourly with the `retention` option                                   |
+| [0112](0112-vercel-sandbox-adapter.md)                    | Vercel Sandbox runs chat sandboxes through an optional-peer adapter; credentials reach the VM only at its firewall                                 |

@@ -67,6 +67,8 @@ peer as BS601.
 | `@powersync/common`                     | `>=1 <3`                  | `better-supabase/powersync`                                                                                            |
 | `@vercel/connect`                       | `>=2 <3`                  | `better-supabase/vercel-connect`                                                                                       |
 | `@vercel/queue`                         | `>=0.8 <0.9`              | `vercelQueueProvider` and `vercelQueueRoute` in `better-supabase/blocks/queue`                                         |
+| `@vercel/sandbox`                       | `>=3 <4`                  | `better-supabase/vercel-sandbox`                                                                                       |
+| `@ai-sdk/sandbox-vercel`                | `>=1 <2`                  | `better-supabase/vercel-sandbox`                                                                                       |
 | `flags`                                 | `>=4.2 <5`                | `better-supabase/flags-sdk`                                                                                            |
 
 Two ranges are narrower than the rest. `@modelcontextprotocol/server` starts
@@ -81,7 +83,7 @@ its range stops at the next minor release.
 `flags` starts at 4.2 because `better-supabase/flags-sdk` relies on the Flags
 SDK resolving an adapter factory passed by reference.
 
-better-supabase imports none of the last six peers, and none of the
+better-supabase imports none of the last eight peers, and none of the
 frameworks from `react-router` to `koa`: it types them structurally or loads
 them on first use. They are peers so that your package manager warns you when
 you upgrade one past the major releases the conformance tests cover. A
@@ -94,7 +96,8 @@ bundlers leave alone. That works in Node, Bun and Deno, and in a bundled app
 that keeps the package external. When your bundler includes the package
 instead, pass the client or module yourself; for Stripe, pass
 `stripeFromKey()` from `better-supabase/stripe`, which imports `stripe` by name
-so the bundler and file tracing pick it up.
+so the bundler and file tracing pick it up. For Vercel Sandbox, pass `load`
+and `loadSession` to `vercelSandboxes()`.
 
 When another package in your app needs a version outside a range, and you
 don't import the subpath that needs it, allow it in `pnpm-workspace.yaml`:

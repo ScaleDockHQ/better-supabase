@@ -26,8 +26,8 @@ const config: KnipConfig = {
   ignoreExportsUsedInFile: { interface: true, type: true },
   // Vendored maintainer skills (ADR 0004) carry their own scripts.
   ignore: [".agents/**"],
-  // The Vercel CLI runs from the user's machine (`pnpm env:pull`).
-  // The shadcn MCP server runs from apps/marketing (`.mcp.json`).
+  // The Vercel CLI runs from the user's machine (`pnpm env:pull`). The MCP
+  // configs run shadcn with `pnpm --dir apps/marketing`, which declares it.
   ignoreBinaries: ["vercel", "shadcn"],
   ignoreIssues: {
     // `better-supabase init` writes these; gen --check fails on hand edits.

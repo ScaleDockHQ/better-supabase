@@ -19,6 +19,7 @@ const {
   WORKFLOW_POSTGRES_URL,
   PDL_API_KEY,
   JOBS_BACKEND,
+  ASSISTANT_SANDBOX,
   CONNECT_GMAIL_CONNECTOR,
   CONNECT_OUTLOOK_CONNECTOR,
 } = process.env;
@@ -46,6 +47,8 @@ export const env = createEnv({
     PDL_API_KEY: v.optional(v.string()),
     // `vercel` sends the settings page's test jobs to Vercel Queues.
     JOBS_BACKEND: v.optional(v.picklist(["sql", "vercel"]), "sql"),
+    // `vercel` gives the assistant a Vercel sandbox per chat to run code in.
+    ASSISTANT_SANDBOX: v.optional(v.picklist(["off", "vercel"]), "off"),
     // Vercel Connect connector UIDs; the Integrations tab lists each one set.
     CONNECT_GMAIL_CONNECTOR: v.optional(v.string()),
     CONNECT_OUTLOOK_CONNECTOR: v.optional(v.string()),
@@ -66,6 +69,7 @@ export const env = createEnv({
     WORKFLOW_POSTGRES_URL,
     PDL_API_KEY,
     JOBS_BACKEND,
+    ASSISTANT_SANDBOX,
     CONNECT_GMAIL_CONNECTOR,
     CONNECT_OUTLOOK_CONNECTOR,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
