@@ -30,6 +30,72 @@ const textOf = (message: UIMessage): string =>
 const filesOf = (message: UIMessage): FileUIPart[] =>
   message.parts.flatMap((part) => (part.type === "file" ? [part] : []));
 
+const reasoningOf = (message: UIMessage): string =>
+  message.parts
+    .flatMap((part) => (part.type === "reasoning" ? [part.text] : []))
+    .join("\n\n")
+    .trim();
+
+interface Source {
+  readonly id: string;
+  readonly title: string;
+  readonly url: string | undefined;
+}
+
+const sourcesOf = (message: UIMessage): Source[] =>
+  message.parts.flatMap((part): Source[] => {
+    if (part.type === "source-url") {
+      return [
+        { id: part.sourceId, title: part.title ?? part.url, url: part.url },
+      ];
+    }
+
+    return part.type === "source-document"
+      ? [{ id: part.sourceId, title: part.title, url: undefined }]
+      : [];
+  });
+
+/** The model's reasoning, folded away until the user opens it. */
+function Reasoning({ text }: { text: string }) {
+  const t = useExtracted("assistant");
+
+  return (
+    <details className="mb-1 text-xs text-muted-foreground">
+      <summary className="cursor-pointer">{t("Reasoning")}</summary>
+      <p className="mt-1 whitespace-pre-wrap">{text}</p>
+    </details>
+  );
+}
+
+/** The sources the answer cites, as links when they have a URL. */
+function Sources({ sources }: { sources: readonly Source[] }) {
+  const t = useExtracted("assistant");
+
+  return (
+    <ul
+      className="mt-2 flex flex-col gap-1 text-xs text-muted-foreground"
+      aria-label={t("Sources")}
+    >
+      {sources.map((source) => (
+        <li key={source.id}>
+          {source.url === undefined ? (
+            source.title
+          ) : (
+            <a
+              href={source.url}
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2 transition-colors hover:text-foreground"
+            >
+              {source.title}
+            </a>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /** Reserves the file, uploads it to its signed URL, then confirms it. */
 async function uploadAttachment(
   supabase: ReturnType<typeof useSupabase>,
@@ -181,27 +247,34 @@ export function ChatView({ id, chat }: { id: string; chat: AssistantState }) {
   return (
     <div className="flex min-h-96 flex-col gap-4 rounded-xl border p-4">
       <ol className="flex flex-1 flex-col gap-3" aria-live="polite">
-        {chat.messages.map((message) => (
-          <li
-            key={message.id}
-            className={
-              message.role === "user"
-                ? "max-w-4/5 self-end rounded-xl bg-primary px-3 py-2 text-sm text-primary-foreground"
-                : "max-w-4/5 self-start rounded-xl bg-muted px-3 py-2 text-sm"
-            }
-          >
-            {filesOf(message).map((file) => (
-              <p key={file.url} className="flex items-center gap-1 text-xs">
-                <FileIcon className="size-3" aria-hidden />
-                {file.filename ?? file.mediaType}
-              </p>
-            ))}
-            {message.parts.filter(isToolUIPart).map((part) => (
-              <ToolCall key={part.toolCallId} part={part} chat={chat} />
-            ))}
-            <p className="whitespace-pre-wrap">{textOf(message)}</p>
-          </li>
-        ))}
+        {chat.messages.map((message) => {
+          const reasoning = reasoningOf(message);
+          const sources = sourcesOf(message);
+
+          return (
+            <li
+              key={message.id}
+              className={
+                message.role === "user"
+                  ? "max-w-4/5 self-end rounded-xl bg-primary px-3 py-2 text-sm text-primary-foreground"
+                  : "max-w-4/5 self-start rounded-xl bg-muted px-3 py-2 text-sm"
+              }
+            >
+              {filesOf(message).map((file) => (
+                <p key={file.url} className="flex items-center gap-1 text-xs">
+                  <FileIcon className="size-3" aria-hidden />
+                  {file.filename ?? file.mediaType}
+                </p>
+              ))}
+              {reasoning === "" ? null : <Reasoning text={reasoning} />}
+              {message.parts.filter(isToolUIPart).map((part) => (
+                <ToolCall key={part.toolCallId} part={part} chat={chat} />
+              ))}
+              <p className="whitespace-pre-wrap">{textOf(message)}</p>
+              {sources.length === 0 ? null : <Sources sources={sources} />}
+            </li>
+          );
+        })}
       </ol>
       {chat.error ? (
         <p role="alert" className="text-sm text-destructive">
