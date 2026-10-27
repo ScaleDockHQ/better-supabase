@@ -40,7 +40,7 @@ type StringPaths<T, Depth extends readonly unknown[]> = T extends object
 export interface MembershipsExtensionOptions<C = unknown> {
   /**
    * JWT claim path(s) holding the tenant id when `context.tenant` is not set.
-   * Dots walk into objects. Defaults to `config.auth.organization.claim`
+   * Dots walk into objects. Defaults to `config.auth.tenant.claim`
    * (`tenant_id`), then the same key in `app_metadata`. `user_metadata` is
    * never a source: users can write it.
    */
@@ -119,7 +119,7 @@ function tenantColumn(table: TableMeta): string | undefined {
  * organization (nested includes and relation filters too), fills the
  * organization column on insert and rejects writes that would move rows to
  * another organization. It complements RLS; it does not replace it. `gen`
- * installs it with `auth.organization`; `.use()` it again to replace it.
+ * installs it with `auth.tenant`; `.use()` it again to replace it.
  */
 export function membershipsExtension<C = unknown>(
   options: MembershipsExtensionOptions<C> = {},

@@ -177,7 +177,7 @@ function optionOf(
 /**
  * The columns each installed block's repository extension manages. The
  * organization one is on with the `memberships` block, or with
- * `auth.organization.column` set for an app's own tenancy.
+ * `auth.tenant.column` set for an app's own tenancy.
  */
 function extensionsOf(
   { blocks, blockNames }: Pick<ResolvedConfig, "blocks" | "blockNames">,

@@ -5,8 +5,6 @@ import { tenantCredentialRef } from "better-supabase/credentials";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
 import { PROVIDERS } from "./ai-provider-options";
@@ -28,8 +26,8 @@ export const addProviderKey = bsb.action(
       ),
       apiKey: v.pipe(v.string(), v.trim(), v.minLength(8), v.maxLength(500)),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "ai.admin"),
+    requireTenant: true,
+    permission: "ai.admin",
   },
   async ({ provider, name, model, apiKey }, { tenant, supabase }) => {
     const keyName = name ?? "default";
@@ -66,8 +64,8 @@ export const addProviderKey = bsb.action(
 export const removeProviderKey = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "ai.admin"),
+    requireTenant: true,
+    permission: "ai.admin",
   },
   async ({ id }, { supabase }) => {
     const removed = await aiProviders(supabase).keys.remove(id);

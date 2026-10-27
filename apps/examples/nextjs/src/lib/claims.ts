@@ -46,8 +46,8 @@ const Memberships = v.fallback(
  * (`betterSupabase.claims(Claims)`), in the claim contract better-supabase
  * reads. The custom access token hook
  * (supabase/schemas/rbac/functions/custom_access_token_hook.sql) writes
- * `memberships` and `features`; `tenant_id` in `app_metadata` is the active
- * organization, which `switch_organization` changes.
+ * `memberships`, `features` and `permissions`; `tenant_id` in `app_metadata` is
+ * the active organization, which `switch_organization` changes.
  *
  * Every object is loose, so claims this schema doesn't name reach other readers
  * unchanged.
@@ -58,6 +58,15 @@ export const Claims = v.looseObject({
     v.looseObject({ tenant_id: v.optional(v.pipe(v.string(), v.uuid())) }),
   ),
   memberships: Memberships,
+  // `better_supabase.permission_claims()` through the hook: the permission
+  // keys of the active organization, keyed by its id. Past the hook's budget
+  // the record is empty and `permissions_truncated` is set; `permissionsOf()`
+  // then returns `undefined` and the app reads `my_permissions()`.
+  permissions: v.fallback(
+    v.optional(v.record(v.string(), v.array(v.string()))),
+    undefined,
+  ),
+  permissions_truncated: v.optional(v.boolean()),
   // `better_supabase.feature_claims()` (entitlements SQL module). Keys the
   // app doesn't sell yet are dropped instead of rejecting the token.
   features: v.fallback(

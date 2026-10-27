@@ -5,8 +5,6 @@ import {
   CustomFieldsEditorSkeleton,
 } from "@/features/custom-fields/components/custom-fields-editor";
 
-export const instant = true;
-
 export default function CustomFieldsSettingsPage({
   searchParams,
 }: {

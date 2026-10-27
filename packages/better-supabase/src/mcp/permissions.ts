@@ -21,7 +21,7 @@ export function missingRole(
   auth: AuthState,
   required: RequiredRoles | undefined,
 ): DbError | undefined {
-  if (!required || auth.kind === "service") {
+  if (!required || auth.kind === "secret") {
     return undefined;
   }
 

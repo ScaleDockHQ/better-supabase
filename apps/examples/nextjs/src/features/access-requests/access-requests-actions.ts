@@ -5,8 +5,6 @@ import { refresh } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -29,9 +27,8 @@ export const requestAccess = bsb.action(
       duration: v.picklist(DURATIONS),
       reason: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(500))),
     }),
-    requireOrganization: true,
-    authorize: async () =>
-      can(await getPermissions(), "access_requests.create"),
+    requireTenant: true,
+    permission: "access_requests.create",
   },
   async ({ role, duration, reason }, { tenant, db, auth }) => {
     const input: AccessRequestDraft = { organizationId: tenant, role };
@@ -50,7 +47,7 @@ export const requestAccess = bsb.action(
       return requested;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(requested.data.id);
   },
@@ -63,8 +60,8 @@ export const decideAccessRequest = bsb.action(
       approvalId: ID,
       decision: v.picklist(["approve", "reject"]),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "members.update_role"),
+    requireTenant: true,
+    permission: "members.update_role",
   },
   async ({ approvalId, decision }, { db, auth }) => {
     const { approvals } = db;
@@ -78,7 +75,7 @@ export const decideAccessRequest = bsb.action(
       return decided;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(decided.data.id);
   },
@@ -86,7 +83,7 @@ export const decideAccessRequest = bsb.action(
 
 /** Withdraws the caller's own pending request. */
 export const cancelAccessRequest = bsb.action(
-  { input: v.object({ approvalId: ID }), requireOrganization: true },
+  { input: v.object({ approvalId: ID }), requireTenant: true },
   async ({ approvalId }, { db, auth }) => {
     const cancelled = await db.approvals.cancel(approvalId);
 
@@ -94,7 +91,7 @@ export const cancelAccessRequest = bsb.action(
       return cancelled;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(cancelled.data.id);
   },
@@ -102,7 +99,7 @@ export const cancelAccessRequest = bsb.action(
 
 /** Ends a granted role early: a manager, or the holder giving it up. */
 export const endAccess = bsb.action(
-  { input: v.object({ id: ID }), requireOrganization: true },
+  { input: v.object({ id: ID }), requireTenant: true },
   async ({ id }, { db, auth }) => {
     const ended = await db.accessRequests.end(id);
 
@@ -110,7 +107,7 @@ export const endAccess = bsb.action(
       return ended;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(ended.data.id);
   },

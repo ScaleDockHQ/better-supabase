@@ -25,6 +25,9 @@ const config = createNextConfig({
   // the TypeScript 7 build path the other apps skip.
   typescript: { ignoreBuildErrors: false },
   images: { loader: "custom", loaderFile: "./src/image-loader.ts" },
+  // `[locale]` matches every path, so no URL reaches a global not-found page;
+  // `[locale]/not-found.tsx` and `api/[...rest]` answer unknown paths.
+  experimental: { globalNotFound: false },
 });
 
 // Compiles the "use workflow" and "use step" functions and adds the

@@ -42,7 +42,7 @@ export interface SessionStatusBody {
 export interface SessionStatusServer {
   resolve(
     request: Request,
-    options?: { readonly refresh?: boolean; readonly checkSession?: boolean },
+    options?: { readonly refresh?: boolean; readonly verifySession?: boolean },
   ): Promise<AuthResolution>;
   readonly support: {
     current(
@@ -58,7 +58,7 @@ export interface SessionStatusRouteOptions {
    * revoked session or a ban shows up before the token expires. Defaults to
    * true.
    */
-  readonly checkSession?: boolean;
+  readonly verifySession?: boolean;
   /**
    * Refresh an expiring session cookie and send the new cookies. Defaults to
    * false: the proxy refreshes, and an expired token answers `expired`.
@@ -141,8 +141,8 @@ export async function claimsFingerprint(
 }
 
 const statusOf = (resolution: AuthResolution): SessionWatchStatus => {
-  if (resolution.sessionEnded) {
-    return resolution.sessionEndedReason ?? "ended";
+  if (resolution.sessionVerified === false) {
+    return resolution.reason === "user_banned" ? "banned" : "ended";
   }
 
   const { auth } = resolution;
@@ -151,7 +151,7 @@ const statusOf = (resolution: AuthResolution): SessionWatchStatus => {
     return "active";
   }
 
-  return auth.kind === "anon" && auth.reason === "expired"
+  return auth.kind === "none" && auth.reason === "expired"
     ? "expired"
     : "signed_out";
 };
@@ -172,7 +172,7 @@ export function sessionStatusRoute(
   server: SessionStatusServer,
   options: SessionStatusRouteOptions = {},
 ): (request: Request) => Promise<Response> {
-  const checkSession = options.checkSession ?? true;
+  const verifySession = options.verifySession ?? true;
   const refresh = options.refresh ?? false;
 
   return async (request) => {
@@ -183,7 +183,10 @@ export function sessionStatusRoute(
       });
     }
 
-    const resolution = await server.resolve(request, { checkSession, refresh });
+    const resolution = await server.resolve(request, {
+      verifySession,
+      refresh,
+    });
 
     const status = statusOf(resolution);
     const { auth } = resolution;

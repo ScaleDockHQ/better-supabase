@@ -167,7 +167,7 @@ describe("auth flows", () => {
     const token = await signer.sign({ sub: USER });
     const { bsb, fetch } = setup(() => tokens(token));
 
-    const signed = await bsb.signIn(
+    const signed = await bsb.signInWithPassword(
       { email: "a@b.test", password: "pw", next: "//evil.test" },
       { fallback: "/en" },
     );
@@ -226,7 +226,7 @@ describe("auth flows", () => {
       "/ok\nevil",
       null,
     ]) {
-      const signed = await bsb.signIn(
+      const signed = await bsb.signInWithPassword(
         { email: "a@b.test", password: "pw", next },
         { fallback: "/home" },
       );
@@ -254,7 +254,9 @@ describe("auth flows", () => {
     const results = [];
 
     for (let index = 0; index < 5; index += 1) {
-      results.push(await bsb.signIn({ email: "a@b.test", password: "no" }));
+      results.push(
+        await bsb.signInWithPassword({ email: "a@b.test", password: "no" }),
+      );
     }
 
     expect(results.map((result) => result.error)).toMatchObject([
@@ -278,13 +280,19 @@ describe("auth flows", () => {
     });
 
     expect(
-      (await thrown.bsb.signIn({ email: "a@b.test", password: "pw" })).error,
+      (
+        await thrown.bsb.signInWithPassword({
+          email: "a@b.test",
+          password: "pw",
+        })
+      ).error,
     ).toMatchObject({ kind: "network", message: "connect ECONNREFUSED" });
 
     const odd = setup(() => Promise.reject("down"));
 
     expect(
-      (await odd.bsb.signIn({ email: "a@b.test", password: "pw" })).error,
+      (await odd.bsb.signInWithPassword({ email: "a@b.test", password: "pw" }))
+        .error,
     ).toMatchObject({ kind: "network", message: "fetch failed" });
 
     const fetch = vi.fn<Fetch>(
@@ -302,7 +310,8 @@ describe("auth flows", () => {
     });
 
     expect(
-      (await slow.signIn({ email: "a@b.test", password: "pw" })).error,
+      (await slow.signInWithPassword({ email: "a@b.test", password: "pw" }))
+        .error,
     ).toMatchObject({ kind: "timeout" });
   });
 
@@ -311,7 +320,10 @@ describe("auth flows", () => {
     const token = await other.sign({ sub: USER });
     const { bsb } = setup(() => tokens(token));
 
-    const signed = await bsb.signIn({ email: "a@b.test", password: "pw" });
+    const signed = await bsb.signInWithPassword({
+      email: "a@b.test",
+      password: "pw",
+    });
 
     expect(signed).toMatchObject({
       ok: false,
@@ -329,7 +341,7 @@ describe("auth flows", () => {
       auth: { jwks: signer.jwks, fetch, clientIp: () => "203.0.113.9" },
     });
 
-    await bsb.signIn({ email: "a@b.test", password: "pw" });
+    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
 
     expect(callsOf(fetch)[0]?.headers).toMatchObject({
       apikey: "sb_secret_test",
@@ -345,15 +357,18 @@ describe("auth flows", () => {
 
     const { bsb } = setup(() => tokens(token));
 
-    expect(await bsb.getRequestSession()).toBeNull();
-    expect((await bsb.session()).kind).toBe("anon");
-    expect((await bsb.context()).auth.kind).toBe("anon");
-    expect((await bsb.context({ tenant: "org-1" })).auth.kind).toBe("anon");
+    expect(await bsb.getClaims()).toBeNull();
+    expect((await bsb.claims()).kind).toBe("none");
+    expect((await bsb.context()).auth.kind).toBe("none");
+    expect((await bsb.context({ tenant: "org-1" })).auth.kind).toBe("none");
 
-    const signed = await bsb.signIn({ email: "a@b.test", password: "pw" });
+    const signed = await bsb.signInWithPassword({
+      email: "a@b.test",
+      password: "pw",
+    });
 
-    expect((await bsb.getRequestSession())?.userId).toBe(USER);
-    expect(await bsb.session()).toMatchObject({
+    expect((await bsb.getClaims())?.userId).toBe(USER);
+    expect(await bsb.claims()).toMatchObject({
       kind: "user",
       user: { id: USER },
     });
@@ -386,32 +401,32 @@ describe("auth flows", () => {
 
     mocks.cacheOff = true;
 
-    expect(await bsb.getRequestSession()).toBeNull();
+    expect(await bsb.getClaims()).toBeNull();
 
-    await bsb.signIn({ email: "a@b.test", password: "pw" });
+    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
 
-    expect((await bsb.getRequestSession())?.userId).toBe(USER);
+    expect((await bsb.getClaims())?.userId).toBe(USER);
     expect((await bsb.context({ tenant: "org-1" })).auth.kind).toBe("user");
 
     await bsb.signOut();
 
-    expect(await bsb.getRequestSession()).toBeNull();
-    expect((await bsb.session()).kind).toBe("anon");
+    expect(await bsb.getClaims()).toBeNull();
+    expect((await bsb.claims()).kind).toBe("none");
   });
 
   it("resolves once for a render that never commits", async () => {
     const token = await signer.sign({ sub: USER });
     const { bsb, server } = setup(() => tokens(token));
 
-    await bsb.signIn({ email: "a@b.test", password: "pw" });
+    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
     nextRequest();
 
     const resolve = vi.spyOn(server, "resolve");
-    const [first, second] = await Promise.all([bsb.session(), bsb.session()]);
+    const [first, second] = await Promise.all([bsb.claims(), bsb.claims()]);
 
     await bsb.context();
     await bsb.context({ tenant: "org-1" });
-    await bsb.getRequestSession();
+    await bsb.getClaims();
 
     expect(first).toBe(second);
     expect(first.kind).toBe("user");
@@ -433,10 +448,10 @@ describe("auth flows", () => {
       { cookieScopes: [{ domain: ".old.test" }] },
     );
 
-    await bsb.signIn({ email: "a@b.test", password: "pw" });
+    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
     nextRequest();
 
-    expect((await bsb.session()).kind).toBe("user");
+    expect((await bsb.claims()).kind).toBe("user");
 
     const signedOut = await bsb.signOut({ scope: "global", next: "/bye" });
 
@@ -452,9 +467,9 @@ describe("auth flows", () => {
     });
     expect(sessionToken()).toBeUndefined();
     expect(mocks.updateTag).toHaveBeenCalledWith(expect.stringContaining(USER));
-    expect(await bsb.getRequestSession()).toBeNull();
-    expect((await bsb.session()).kind).toBe("anon");
-    expect((await bsb.context({ tenant: "org-1" })).auth.kind).toBe("anon");
+    expect(await bsb.getClaims()).toBeNull();
+    expect((await bsb.claims()).kind).toBe("none");
+    expect((await bsb.context({ tenant: "org-1" })).auth.kind).toBe("none");
   });
 
   it("treats a session Auth already ended as signed out", async () => {
@@ -466,7 +481,7 @@ describe("auth flows", () => {
         : tokens(token),
     );
 
-    await bsb.signIn({ email: "a@b.test", password: "pw" });
+    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
     nextRequest();
 
     expect((await bsb.signOut()).ok).toBe(true);
@@ -482,7 +497,7 @@ describe("auth flows", () => {
         : tokens(token),
     );
 
-    await bsb.signIn({ email: "a@b.test", password: "pw" });
+    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
     nextRequest();
 
     expect((await bsb.signOut()).error).toMatchObject({ kind: "network" });
@@ -498,7 +513,7 @@ describe("auth flows", () => {
         : tokens(token),
     );
 
-    await bsb.signIn({ email: "a@b.test", password: "pw" });
+    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
     nextRequest();
 
     const kept = await bsb.signOut({ scope: "others" });
@@ -510,7 +525,7 @@ describe("auth flows", () => {
     });
     expect(callsOf(fetch)[1]?.url).toContain("scope=others");
     expect(sessionToken()).toBe(token);
-    expect((await bsb.getRequestSession())?.userId).toBe(USER);
+    expect((await bsb.getClaims())?.userId).toBe(USER);
     // The other sessions' tokens stay valid, so their memo entries and tags go.
     expect(mocks.updateTag).toHaveBeenCalledWith(expect.stringContaining(USER));
   });
@@ -544,7 +559,7 @@ describe("auth flows", () => {
 
     expect(linked.data?.redirectTo).toBe("/welcome");
     expect(coded.data?.redirectTo).toBe("/");
-    expect((await bsb.getRequestSession())?.userId).toBe(USER);
+    expect((await bsb.getClaims())?.userId).toBe(USER);
     expect(callsOf(fetch).map((call) => [call.url, call.body])).toEqual([
       [
         `${PROJECT_URL}/auth/v1/verify`,
@@ -564,22 +579,22 @@ describe("auth flows", () => {
     const answers = [tokens(first), tokens(second)];
     const { bsb } = setup(() => answers.shift() ?? Response.error());
 
-    await bsb.signIn({ email: "a@b.test", password: "pw" });
+    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
     nextRequest();
 
     const verified = await bsb.verifyOtp({ type: "invite", tokenHash: "h" });
 
     expect(verified.ok).toBe(true);
-    expect((await bsb.getRequestSession())?.userId).toBe(OTHER);
+    expect((await bsb.getClaims())?.userId).toBe(OTHER);
     expect(sessionToken()).toBe(second);
-    expect(await bsb.session()).toMatchObject({ user: { id: OTHER } });
+    expect(await bsb.claims()).toMatchObject({ user: { id: OTHER } });
   });
 
   it("starts OAuth with a PKCE verifier cookie and exchanges the code once", async () => {
     const token = await signer.sign({ sub: USER });
     const { bsb, fetch } = setup(() => tokens(token));
 
-    const { url } = await bsb.authorizeUrl({
+    const { url } = await bsb.signInWithOAuth({
       provider: "github",
       redirectTo: "https://app.test/auth/callback",
       next: "/projects",
@@ -620,7 +635,10 @@ describe("auth flows", () => {
 
     nextRequest();
 
-    const exchanged = await bsb.exchangeCode({ code: "c1", next: "/projects" });
+    const exchanged = await bsb.exchangeCodeForSession({
+      code: "c1",
+      next: "/projects",
+    });
 
     expect(exchanged.data?.redirectTo).toBe("/projects");
     expect(callsOf(fetch)[0]).toMatchObject({
@@ -630,7 +648,7 @@ describe("auth flows", () => {
     expect(mocks.jar.has(VERIFIER)).toBe(false);
     expect(sessionToken()).toBe(token);
 
-    const replayed = await bsb.exchangeCode({ code: "c1" });
+    const replayed = await bsb.exchangeCodeForSession({ code: "c1" });
 
     expect(replayed.error).toMatchObject({
       kind: "unauthorized",
@@ -642,7 +660,7 @@ describe("auth flows", () => {
   it("drops an unsafe next from the OAuth callback", async () => {
     const { bsb } = setup(() => Response.error());
 
-    const { url } = await bsb.authorizeUrl({
+    const { url } = await bsb.signInWithOAuth({
       provider: "google",
       redirectTo: "https://app.test/auth/callback",
       next: "https://evil.test",
@@ -658,12 +676,12 @@ describe("auth flows", () => {
       Response.json({ error_code: "flow_state_expired" }, { status: 400 }),
     );
 
-    await bsb.authorizeUrl({
+    await bsb.signInWithOAuth({
       provider: "github",
       redirectTo: "https://app.test/cb",
     });
 
-    const exchanged = await bsb.exchangeCode({ code: "old" });
+    const exchanged = await bsb.exchangeCodeForSession({ code: "old" });
 
     expect(exchanged.error).toMatchObject({ code: "flow_state_expired" });
     expect(mocks.jar.has(VERIFIER)).toBe(false);
@@ -682,7 +700,10 @@ describe("auth flows", () => {
       return tokens(url.endsWith("/verify") ? aal2 : aal1, factors);
     });
 
-    const signed = await bsb.signIn({ email: "a@b.test", password: "pw" });
+    const signed = await bsb.signInWithPassword({
+      email: "a@b.test",
+      password: "pw",
+    });
 
     expect(signed.data?.mfa).toBe(true);
 
@@ -708,7 +729,7 @@ describe("auth flows", () => {
       },
     ]);
     expect(sessionToken()).toBe(aal2);
-    expect((await bsb.getRequestSession())?.claims["aal"]).toBe("aal2");
+    expect((await bsb.getClaims())?.claims["aal"]).toBe("aal2");
   });
 
   it("refuses MFA without a session or a challenge id", async () => {
@@ -724,7 +745,7 @@ describe("auth flows", () => {
       (await bsb.verifyMfa({ factorId: "f1", code: "1" })).error,
     ).toMatchObject({ kind: "unauthorized" });
 
-    await bsb.signIn({ email: "a@b.test", password: "pw" });
+    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
 
     expect(
       (await bsb.verifyMfa({ factorId: "f1", code: "1" })).error,
@@ -740,7 +761,7 @@ describe("auth flows", () => {
         : tokens(token),
     );
 
-    await bsb.signIn({ email: "a@b.test", password: "pw" });
+    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
 
     expect(
       (await bsb.verifyMfa({ factorId: "f1", code: "1" })).error,
@@ -796,7 +817,10 @@ describe("auth flows", () => {
 
     nextRequest();
 
-    const exchanged = await bsb.exchangeCode({ code: "c1", next: "/projects" });
+    const exchanged = await bsb.exchangeCodeForSession({
+      code: "c1",
+      next: "/projects",
+    });
 
     expect(exchanged.data).toMatchObject({
       redirectTo: "/projects",
@@ -837,7 +861,7 @@ describe("auth flows", () => {
 
     nextRequest();
 
-    const exchanged = await bsb.exchangeCode({ code: "r1" });
+    const exchanged = await bsb.exchangeCodeForSession({ code: "r1" });
 
     expect(exchanged.ok).toBe(true);
     expect(callsOf(fetch)[1]?.body).toEqual({
@@ -932,7 +956,7 @@ describe("auth flows", () => {
     });
     expect(sessionToken()).toBe(token);
     expect(mocks.jar.has(VERIFIER)).toBe(false);
-    expect((await bsb.getRequestSession())?.userId).toBe(USER);
+    expect((await bsb.getClaims())?.userId).toBe(USER);
   });
 
   it("resends a link with a new verifier", async () => {

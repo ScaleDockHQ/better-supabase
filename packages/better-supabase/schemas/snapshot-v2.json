@@ -1289,6 +1289,13 @@
               "comment": {
                 "description": "The function comment, for the same functions as source.",
                 "type": "string"
+              },
+              "fills": {
+                "description": "Columns a row-level before insert trigger's PL/pgSQL function assigns on new. Absent when unknown and for every other trigger.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             }
           }

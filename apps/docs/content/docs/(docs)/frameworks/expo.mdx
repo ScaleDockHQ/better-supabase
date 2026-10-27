@@ -215,6 +215,17 @@ reads, a [PowerSync database](/docs/frontend/powersync). The
 runs one list definition on both, and its organization switcher reads the
 synced memberships, so it lists the user's organizations offline.
 
+### Social sign-in
+
+On iOS and Android, sign in with Apple or Google through the native SDK
+(`expo-apple-authentication`, `@react-native-google-signin/google-signin`)
+and pass its ID token to `supabase.auth.signInWithIdToken` on the native
+client. There is no browser redirect, so no PKCE callback route. The session
+lands in `secureStorage`, and API routes verify its access token like any
+other. Supabase's guides cover the provider setup for
+[Apple](https://supabase.com/docs/guides/auth/social-login/auth-apple) and
+[Google](https://supabase.com/docs/guides/auth/social-login/auth-google).
+
 ## Session snapshot
 
 In an API route, `bsb.snapshot(request)` returns the verified user, shared by

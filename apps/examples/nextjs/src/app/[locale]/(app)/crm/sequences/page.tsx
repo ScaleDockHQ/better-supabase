@@ -8,8 +8,6 @@ import {
 } from "@/features/sequences/components/sequence-builder";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
-export const instant = true;
-
 export default function SequencesPage() {
   const t = useExtracted("sequences");
 

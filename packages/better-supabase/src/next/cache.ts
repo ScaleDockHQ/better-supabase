@@ -39,13 +39,13 @@ export function sessionStale(
       return 0;
     }
 
-    case "anon": {
+    case "none": {
       return session.reason === "expired" || session.reason === "refresh_failed"
         ? 0
         : max;
     }
 
-    case "service":
+    case "secret":
     case "apiKey": {
       return max;
     }

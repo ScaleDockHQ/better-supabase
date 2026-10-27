@@ -758,7 +758,7 @@ from.
 
 | Source                   | Reads                                                                             |
 | ------------------------ | --------------------------------------------------------------------------------- |
-| `'claim'`                | the `auth.organization.claim` claim, at the top level or in `app_metadata`        |
+| `'claim'`                | the `auth.tenant.claim` claim, at the top level or in `app_metadata`              |
 | `'resolver'` (default)   | the tenant the server resolved for the request, then the claim                    |
 | `{ profileColumn, key }` | the claim, then a profile column such as `public.profiles.active_organization_id` |
 
@@ -854,7 +854,7 @@ To close that window sooner:
   `supabase.auth.admin.signOut(jwt, "global")` with one of their access
   tokens, or delete their rows in `auth.sessions` from a security definer
   function. The current access token still works until it expires, but
-  `bsb.proxy({ endedSession })` turns away their page loads right away (see
+  `bsb.proxy({ verifySession })` turns away their page loads right away (see
   [Ended sessions](/docs/auth/sessions#ended-sessions-in-your-own-proxy)).
 - Prefer the module's `current_tenant_id()` or `tenant_ids_with()` over the
   raw claim in your own policies, since both read the membership table.
@@ -863,7 +863,7 @@ To close that window sooner:
 
 The block never owns your access token hook. It gives you claim builders to
 call from it: `membership_claims(user)` from the `memberships` module and
-`permission_claims(user)` from this one.
+`permission_claims(user, tenant)` from this one.
 
 ```sql
 create or replace function public.custom_access_token_hook(event jsonb)
@@ -872,10 +872,93 @@ declare
   user_id uuid := (event ->> 'user_id')::uuid;
 begin
   event := jsonb_set(event, '{claims,memberships}', better_supabase.membership_claims(user_id));
-  return jsonb_set(event, '{claims,permissions}', better_supabase.permission_claims(user_id));
+  return event;
 end $$;
 ```
+
+`permission_claims(user)` without a tenant still returns every tenant's keys,
+but a user in several organizations quickly outgrows the token. Write the
+active tenant's keys instead, as the next section shows.
 
 `blocks.memberships.options.claimFormat` picks the memberships claim's form:
 `'array'` (the default, `[{ scope, id, roles }]`) or `'map'`
 (`{ "<tenant id>": "<role>" }`).
+
+## Permissions in the token
+
+The access token can carry the caller's permission keys for the active
+tenant, so the proxy, a page and an action check a permission without a
+database read. The hook writes them with `permission_claims(user, tenant)`:
+
+```sql
+create or replace function public.custom_access_token_hook(event jsonb)
+returns jsonb language plpgsql stable set search_path = '' as $$
+declare
+  claims jsonb := event -> 'claims';
+  tenant text := claims #>> '{app_metadata,tenant_id}';
+  keys jsonb := '{}'::jsonb;
+begin
+  if tenant ~* '^[0-9a-f-]{36}$' then
+    keys := better_supabase.permission_claims((event ->> 'user_id')::uuid, tenant::uuid);
+  end if;
+
+  if octet_length(keys::text) > 2048 then
+    claims := jsonb_set(claims, '{permissions}', '{}'::jsonb);
+    claims := jsonb_set(claims, '{permissions_truncated}', 'true'::jsonb);
+  else
+    claims := jsonb_set(claims, '{permissions}', keys) - 'permissions_truncated';
+  end if;
+
+  return jsonb_set(event, '{claims}', claims);
+end $$;
+```
+
+The claim is `{ "<tenant id>": ["customers.read", ...] }`. Keep it under
+about 2 KB: the token rides in the session cookie on every request, and
+`@supabase/ssr` splits that cookie into chunks past about 3 KB. When the
+keys don't fit, the hook writes an empty claim and
+`permissions_truncated: true`. A catalog with many keys per
+resource can fold a resource whose every action is granted into
+`resource.*` before measuring; `permissionMatches` reads the wildcard. The
+example's `rbac.compact_permission_keys` does this and takes an owner from
+4.7 KB to 1.3 KB.
+
+Read the claim with `permissionsOf`:
+
+```ts
+import { permissionsOf } from "better-supabase/next";
+
+const keys = permissionsOf(await bsb.claims());
+```
+
+`undefined` means the token can't answer: no claim, no entry for the active
+tenant, or the truncation marker. Fall back to `my_permissions` then. An
+empty list means the token says the caller holds nothing there.
+
+```ts
+const keys = permissionsOf(session, tenant);
+const permissions =
+  keys === undefined
+    ? await db.permissions.permissions().orThrow()
+    : { tenant, keys };
+```
+
+On the server, `permissionsAuthorizer()` answers an action's or route's
+`permission:` from the same claim and calls `load` for a token that can't
+answer, once per request:
+
+```ts
+import { permissions } from "./blocks.generated";
+import { permissionsAuthorizer } from "better-supabase/blocks/permissions";
+
+export const bsb = createNext(betterSupabase, {
+  authorizer: permissionsAuthorizer({ permissions, load: myPermissions }),
+});
+```
+
+The claim is a cache. A role change, a membership change or a permission
+override bumps the user's `authz_ver`, and `subscribeAuthzVersions` evicts
+the cached session so the next request refreshes and the hook writes the new
+keys ([version cache](/docs/extending/authorization-providers#version-cache)).
+Until that refresh the old token still decides optimistic checks, so RLS and
+`can()` in SQL stay the authority for every read and write.

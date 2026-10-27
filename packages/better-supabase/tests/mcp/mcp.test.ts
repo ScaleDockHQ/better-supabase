@@ -404,7 +404,7 @@ describe("createMcp", () => {
       auth: { jwks: signer.jwks },
       name: "admin",
       version: "1.0.0",
-      allow: ["service"],
+      allow: ["secret"],
       advertisedScopes: ["openid", "crm.read", "offline_access"],
     });
 

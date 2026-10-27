@@ -6,8 +6,6 @@ import { dbError, err, ok } from "better-supabase";
 import * as v from "valibot";
 
 import { requireCaller, sqlResult } from "@/features/developer/postgres";
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -38,11 +36,7 @@ const CreateEndpoint = v.object({
   ),
 });
 
-const manage = { requireOrganization: true, authorize: canManage } as const;
-
-async function canManage(): Promise<boolean> {
-  return can(await getPermissions(), "webhooks.manage");
-}
+const manage = { requireTenant: true, permission: "webhooks.manage" } as const;
 
 /**
  * Adds an endpoint and its first signing secret in one transaction, as the
@@ -92,7 +86,7 @@ export const createWebhookEndpoint = bsb.action(
     );
 
     if (created.ok) {
-      refreshCaller(auth);
+      await refreshCaller(auth);
     }
 
     return created;
@@ -132,7 +126,7 @@ export const setWebhookEndpointEnabled = bsb.action(
       return err(dbError("not_found", "Webhook endpoint not found"));
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(enabled);
   },
@@ -167,7 +161,7 @@ export const deleteWebhookEndpoint = bsb.action(
       return err(dbError("not_found", "Webhook endpoint not found"));
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(true);
   },
@@ -184,7 +178,7 @@ export const sendTestWebhook = bsb.action(
     });
 
     if (sent.ok) {
-      refreshCaller(auth);
+      await refreshCaller(auth);
     }
 
     return sent;
@@ -198,7 +192,7 @@ export const redeliverWebhook = bsb.action(
     const queued = await db.webhooks.redeliver(id);
 
     if (queued.ok) {
-      refreshCaller(auth);
+      await refreshCaller(auth);
     }
 
     return queued;

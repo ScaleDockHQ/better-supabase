@@ -2,9 +2,9 @@
  * The 0.15 move of the `plugins` config key: each flag becomes the block whose
  * repository extension replaces the plugin (`timestamps` to `updated-at`,
  * `actor` to `created-by`, `softDelete` to `trash`), with its columns as the
- * block's options, and `tenant` becomes `auth.organization.column` when the
+ * block's options, and `tenant` becomes `auth.tenant.column` when the
  * `memberships` block is not installed. `tenant` also pins
- * `auth.organization.onMissing: "error"`, the 0.14 plugin's default.
+ * `auth.tenant.onMissing: "error"`, the 0.14 plugin's default.
  */
 
 import type { ConfigEdit, Property } from "./config-edit.ts";
@@ -216,7 +216,7 @@ export function movePluginsInSource(source: string): ConfigEdit {
           (text: string) =>
             setPathInConfig(
               text,
-              ["auth", "organization", "column"],
+              ["auth", "tenant", "column"],
               DEFAULT_ORGANIZATION_COLUMN,
             ),
         ]
@@ -224,11 +224,7 @@ export function movePluginsInSource(source: string): ConfigEdit {
     ...(moves.tenant && !onMissing
       ? [
           (text: string) =>
-            setPathInConfig(
-              text,
-              ["auth", "organization", "onMissing"],
-              "error",
-            ),
+            setPathInConfig(text, ["auth", "tenant", "onMissing"], "error"),
         ]
       : []),
   ];
@@ -244,7 +240,7 @@ export function movePluginsInSource(source: string): ConfigEdit {
   return edit;
 }
 
-/** The source of `auth.organization`, or `""` without one. */
+/** The source of `auth.tenant`, or `""` without one. */
 function organizationText(
   source: string,
   code: string,
@@ -257,7 +253,7 @@ function organizationText(
   }
 
   const organization = (properties(source, code, auth.valueStart) ?? []).find(
-    (prop) => prop.key === "organization",
+    (prop) => prop.key === "tenant",
   );
 
   return organization === undefined
@@ -349,14 +345,14 @@ export function movePluginsInJson(source: string): ConfigEdit {
 
   if (moves.tenant) {
     const auth = objectAt(next["auth"]);
-    const organization = objectAt(auth["organization"]);
+    const tenant = objectAt(auth["tenant"]);
 
     next["auth"] = {
       ...auth,
-      organization: {
+      tenant: {
         ...(memberships ? {} : { column: DEFAULT_ORGANIZATION_COLUMN }),
         onMissing: "error",
-        ...organization,
+        ...tenant,
       },
     };
   }

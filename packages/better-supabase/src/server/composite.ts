@@ -171,7 +171,7 @@ function betterSupabaseParts<
     waitUntil,
     encode,
     cookieScopes,
-    checkSession,
+    verifySession,
     ...guardConfig
   } = config;
 
@@ -182,7 +182,7 @@ function betterSupabaseParts<
       ...(waitUntil === undefined ? {} : { waitUntil }),
       ...(encode === undefined ? {} : { encode }),
       ...(cookieScopes === undefined ? {} : { cookieScopes }),
-      ...(checkSession === undefined ? {} : { checkSession }),
+      ...(verifySession === undefined ? {} : { verifySession }),
     }),
     withTenant(core),
     withSupport(core),
@@ -278,7 +278,7 @@ export function withBetterSupabase<
     waitUntil,
     encode,
     cookieScopes,
-    checkSession,
+    verifySession,
     allow,
     aal,
     scopes,
@@ -291,7 +291,7 @@ export function withBetterSupabase<
     ...(waitUntil === undefined ? {} : { waitUntil }),
     ...(encode === undefined ? {} : { encode }),
     ...(cookieScopes === undefined ? {} : { cookieScopes }),
-    ...(checkSession === undefined ? {} : { checkSession }),
+    ...(verifySession === undefined ? {} : { verifySession }),
     ...(allow === undefined ? {} : { allow }),
     ...(aal === undefined ? {} : { aal }),
     ...(scopes === undefined ? {} : { scopes }),

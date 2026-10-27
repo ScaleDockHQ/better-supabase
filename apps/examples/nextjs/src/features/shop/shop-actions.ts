@@ -5,8 +5,6 @@ import { ADJUST_REASONS } from "better-supabase/blocks/inventory";
 import { money, parseMoney } from "better-supabase/commerce";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -40,8 +38,8 @@ export const createProduct = bsb.action(
       sku: v.pipe(Text(64), v.toUpperCase()),
       price: Decimal,
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "catalog.manage"),
+    requireTenant: true,
+    permission: "catalog.manage",
   },
   async ({ title, sku, price }, { tenant, db, auth }) => {
     const { catalog } = db;
@@ -71,7 +69,7 @@ export const createProduct = bsb.action(
       return activated;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(product.data.id);
   },
@@ -79,11 +77,7 @@ export const createProduct = bsb.action(
 
 /** The first stock location, so counts have somewhere to go. */
 export const createMainLocation = bsb.action(
-  {
-    input: v.object({}),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "inventory.manage"),
-  },
+  { input: v.object({}), requireTenant: true, permission: "inventory.manage" },
   async (_input, { tenant, db, auth }) => {
     const saved = await db.inventory.saveLocation(tenant, {
       code: "MAIN",
@@ -94,7 +88,7 @@ export const createMainLocation = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(saved.data.id);
   },
@@ -113,8 +107,8 @@ export const adjustStock = bsb.action(
       reason: v.picklist(ADJUST_REASONS),
       note: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(500))),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "inventory.manage"),
+    requireTenant: true,
+    permission: "inventory.manage",
   },
   async ({ variantId, locationId, quantity, reason, note }, { db, auth }) => {
     const adjusted = await db.inventory.adjustStock(
@@ -129,7 +123,7 @@ export const adjustStock = bsb.action(
       return adjusted;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(adjusted.data.onHand);
   },
@@ -145,8 +139,8 @@ export const createDraftOrder = bsb.action(
       variantId: Id,
       quantity: v.pipe(Count, v.minValue(1), v.maxValue(999)),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "orders.manage"),
+    requireTenant: true,
+    permission: "orders.manage",
   },
   async ({ variantId, quantity }, { tenant, supabase, auth }) => {
     const orders = shopOrders(supabase);
@@ -162,7 +156,7 @@ export const createDraftOrder = bsb.action(
       return added;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(cart.data.id);
   },
@@ -172,8 +166,8 @@ export const createDraftOrder = bsb.action(
 export const placeOrder = bsb.action(
   {
     input: v.object({ cartId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "orders.manage"),
+    requireTenant: true,
+    permission: "orders.manage",
   },
   async ({ cartId }, { supabase, auth }) => {
     const checkout = await shopOrders(supabase).checkout(cartId);
@@ -182,7 +176,7 @@ export const placeOrder = bsb.action(
       return checkout;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(checkout.data.order.id);
   },
@@ -195,8 +189,8 @@ export const placeOrder = bsb.action(
 export const markOrderPaid = bsb.action(
   {
     input: v.object({ orderId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "orders.manage"),
+    requireTenant: true,
+    permission: "orders.manage",
   },
   async ({ orderId }, { supabase, auth }) => {
     const orders = shopOrders(supabase);
@@ -233,7 +227,7 @@ export const markOrderPaid = bsb.action(
       return recorded;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(recorded.data.status);
   },
@@ -243,8 +237,8 @@ export const markOrderPaid = bsb.action(
 export const cancelOrder = bsb.action(
   {
     input: v.object({ orderId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "orders.manage"),
+    requireTenant: true,
+    permission: "orders.manage",
   },
   async ({ orderId }, { supabase, auth }) => {
     const cancelled = await shopOrders(supabase).cancelOrder(
@@ -256,7 +250,7 @@ export const cancelOrder = bsb.action(
       return cancelled;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(cancelled.data);
   },
@@ -266,8 +260,8 @@ export const cancelOrder = bsb.action(
 export const fulfillOrder = bsb.action(
   {
     input: v.object({ orderId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "orders.manage"),
+    requireTenant: true,
+    permission: "orders.manage",
   },
   async ({ orderId }, { supabase, auth }) => {
     const created = await shopOrders(supabase).createFulfillment(orderId);
@@ -276,7 +270,7 @@ export const fulfillOrder = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(created.data.id);
   },
@@ -285,8 +279,8 @@ export const fulfillOrder = bsb.action(
 export const shipFulfillment = bsb.action(
   {
     input: v.object({ fulfillmentId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "orders.manage"),
+    requireTenant: true,
+    permission: "orders.manage",
   },
   async ({ fulfillmentId }, { supabase, auth }) => {
     const shipped = await shopOrders(supabase).shipFulfillment(fulfillmentId);
@@ -295,7 +289,7 @@ export const shipFulfillment = bsb.action(
       return shipped;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(shipped.data);
   },
@@ -304,8 +298,8 @@ export const shipFulfillment = bsb.action(
 export const deliverFulfillment = bsb.action(
   {
     input: v.object({ fulfillmentId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "orders.manage"),
+    requireTenant: true,
+    permission: "orders.manage",
   },
   async ({ fulfillmentId }, { supabase, auth }) => {
     const delivered =
@@ -315,7 +309,7 @@ export const deliverFulfillment = bsb.action(
       return delivered;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(delivered.data);
   },
@@ -332,8 +326,8 @@ const Code = v.pipe(
 export const applyPromotionCode = bsb.action(
   {
     input: v.object({ cartId: Id, code: Code }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "orders.manage"),
+    requireTenant: true,
+    permission: "orders.manage",
   },
   async ({ cartId, code }, { db, auth }) => {
     const applied = await db.promotions.applyCode(cartId, code);
@@ -342,7 +336,7 @@ export const applyPromotionCode = bsb.action(
       return applied;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(code);
   },
@@ -351,8 +345,8 @@ export const applyPromotionCode = bsb.action(
 export const removePromotionCode = bsb.action(
   {
     input: v.object({ cartId: Id, code: Code }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "orders.manage"),
+    requireTenant: true,
+    permission: "orders.manage",
   },
   async ({ cartId, code }, { db, auth }) => {
     const removed = await db.promotions.removeCode(cartId, code);
@@ -361,7 +355,7 @@ export const removePromotionCode = bsb.action(
       return removed;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(removed.data);
   },
@@ -382,8 +376,8 @@ export const createPromotionCode = bsb.action(
         ),
       ),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "promotions.manage"),
+    requireTenant: true,
+    permission: "promotions.manage",
   },
   async ({ code, percent }, { tenant, db }) => {
     const { promotions } = db;

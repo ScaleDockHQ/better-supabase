@@ -7,8 +7,6 @@ import {
   OrderListSkeleton,
 } from "@/features/shop/components/order-list";
 
-export const instant = true;
-
 export default function OrdersPage() {
   const t = useExtracted("shop");
 

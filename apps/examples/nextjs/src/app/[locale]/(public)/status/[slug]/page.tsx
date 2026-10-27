@@ -5,8 +5,6 @@ import {
   StatusPageSkeleton,
 } from "@/features/status/components/status-page";
 
-export const instant = true;
-
 export default function StatusRoute({
   params,
 }: PageProps<"/[locale]/status/[slug]">) {

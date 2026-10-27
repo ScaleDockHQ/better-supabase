@@ -214,8 +214,8 @@ export interface AuthorizationTokenHook {
   /** The claim it writes the active tenant id to. */
   readonly tenantClaim?: string;
   /**
-   * Where it reads the active organization from: the `auth.organization.claim`
-   * key in `app_metadata` (`"claim"`), a profile column, or the request
+   * Where it reads the active organization from: the `auth.tenant.claim` key in
+   * `app_metadata` (`"claim"`), a profile column, or the request
    * (`"resolver"`). Doctor BS409 warns when `switch_organization` writes it
    * somewhere else (`blocks.permissions.activeTenant`).
    */

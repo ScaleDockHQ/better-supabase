@@ -17,7 +17,7 @@ export const notifyMe = bsb.action(
     input: v.object({
       title: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
   },
   async ({ title }, { tenant, auth, db }) => {
     if (auth.kind !== "user") {
@@ -43,7 +43,7 @@ export const notifyMe = bsb.action(
 
 /** Marks the caller's notifications in the active organization read. */
 export const markAllRead = bsb.action(
-  { requireOrganization: true },
+  { requireTenant: true },
   async (_input, { tenant, db }) => {
     const updated = await db.notifications.markRead({ tenant });
 
@@ -61,7 +61,7 @@ export const markAllRead = bsb.action(
 export const loadNotificationCounts = bsb.blockAction(
   ({ db }) => db.notifications,
   "counts",
-  { requireOrganization: true, args: (_input, { tenant }) => [{ tenant }] },
+  { requireTenant: true, args: (_input, { tenant }) => [{ tenant }] },
 );
 
 /**
@@ -69,7 +69,7 @@ export const loadNotificationCounts = bsb.blockAction(
  * broadcast.
  */
 export const loadNotifications = bsb.action(
-  { requireOrganization: true },
+  { requireTenant: true },
   async (_input, { tenant, db }) => {
     const items = await db.notifications.list({ tenant, limit: 20 });
 

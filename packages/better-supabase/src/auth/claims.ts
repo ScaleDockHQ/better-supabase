@@ -56,7 +56,7 @@ export function authModeOf(auth: AuthState): AuthMode {
       return "user";
     }
 
-    case "service": {
+    case "secret": {
       return "secret";
     }
 
@@ -64,7 +64,7 @@ export function authModeOf(auth: AuthState): AuthMode {
       return auth.userId ? "user" : "secret";
     }
 
-    case "anon":
+    case "none":
     case "invalid": {
       return "none";
     }

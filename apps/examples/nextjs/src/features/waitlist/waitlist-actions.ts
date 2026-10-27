@@ -14,7 +14,7 @@ export const joinWaitlist = bsb.action(
     input: v.object({
       email: v.pipe(v.string(), v.trim(), v.email(), v.maxLength(320)),
     }),
-    allow: ["anon", "user"],
+    allow: ["none", "user"],
   },
   async ({ email }, { db }) => {
     const joined = await db.waitlist.join(email.toLowerCase(), {

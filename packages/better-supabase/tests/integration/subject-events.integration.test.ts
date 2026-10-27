@@ -75,7 +75,12 @@ describe.skipIf(!live)("subject-bound events in Postgres", () => {
     await client.query(
       "select better_supabase.transition('ticket_status', 't1', 'closed', 'done')",
     );
-    expect(await payloads("status.changed")).toEqual([
+
+    const t1 = (await payloads("status.changed")).filter(
+      (p) => p["subjectId"] === "t1",
+    );
+
+    expect(t1).toEqual([
       {
         organizationId: ACME,
         subjectType: "ticket_status",

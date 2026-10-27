@@ -217,7 +217,7 @@ export function useSession<C = unknown, P = unknown>(): ComputedRef<
     );
   }
 
-  // SAFETY: provideSession receives `bsb.session()` from the same
+  // SAFETY: provideSession receives `bsb.claims()` from the same
   // `betterSupabase`, whose schemas fix `C` and `P`.
   return computed(() => toValue(session) as AuthSession<C, P>);
 }

@@ -41,6 +41,40 @@ settings, so pass the app's `ignore` and `redact` from `audit_settings(table)`
 instead of calling it with defaults. See the
 [audit log](/docs/blocks/sql#audit-log).
 
+## Who owns what
+
+better-supabase and an authorization library split the work at the token.
+better-supabase verifies tokens, keeps sessions and refreshes them, reads
+the claim names you configure, and builds each request's context. The
+library writes the claims its access token hook adds, ships its SQL helpers
+and policies, and makes every decision.
+
+| better-supabase owns                                   | The library owns                                |
+| ------------------------------------------------------ | ----------------------------------------------- |
+| Token verification, the session memo and refresh       | The access token hook and the claims it writes  |
+| The claim names it reads (`config.claims`)             | The SQL functions the provider object points at |
+| Building the request (`AuthorizationRequest`, context) | Its policies, roles, grants and their storage   |
+| The slots below, each versioned with `apiVersion: 1`   | Every allow or deny decision behind those slots |
+
+The library plugs in through these slots:
+
+| Slot                                                 | Where                                                            |
+| ---------------------------------------------------- | ---------------------------------------------------------------- |
+| `authorization` (`AuthorizationProvider`)            | `auth.authorization` in `better-supabase.config.ts`              |
+| `authorizer` (`Authorizer`)                          | `createServer` and `createNext`                                  |
+| `authorization` (`AuthorizationHooks`)               | `createServer` and `createNext`                                  |
+| `versions` (`AuthzVersionCache`)                     | `createServer` and `createNext`                                  |
+| `policy` (`AccessBucketPolicy`, `AccessTopicPolicy`) | a bucket or a realtime topic                                     |
+| `keys` (`ApiKeyResolverOptions`)                     | the API key resolver                                             |
+| `credentials` (`CredentialProvider`)                 | MCP clients and Chat SDK installations                           |
+| `authorize` (`McpOptions`)                           | `createMcp`, per tool call                                       |
+| `authorize` (`SupportAuthorize`)                     | support sessions                                                 |
+| `SessionSnapshot`                                    | what subject builders and a version cache read, on every adapter |
+
+A change to one of these types fails
+`tests/core/authorization-library-contract.test-d.ts`, so it can't land
+without a new `apiVersion`.
+
 ## What reads it
 
 | Feature                                                                                    | What it takes from the provider                                                   |
@@ -238,7 +272,7 @@ isn't marked. Leave row-conditioned keys to the provider's table policies.
 | Field                    | Used for                                                                                     |
 | ------------------------ | -------------------------------------------------------------------------------------------- |
 | `function`               | BS404 checks its grants, BS405 its shape                                                     |
-| `tenantClaim`            | BS409 compares it with `auth.organization.claim`                                             |
+| `tenantClaim`            | BS409 compares it with `auth.tenant.claim`                                                   |
 | `activeOrganizationFrom` | BS409 compares it with `blocks.permissions.activeTenant`, where `switch_organization` writes |
 | `ownedClaims`            | BS407 reports another hook that writes them; `add memberships` stops on them                 |
 | `registeredClaims`       | BS407 accepts these claims from the functions named, such as `features`                      |
@@ -513,7 +547,7 @@ Every authorizer call then gets `{ versions, memo }` as its runtime
 (`AuthorizerRuntime`): `versions` is the shared cache, and `memo` is a
 `RequestMemo` for reads that several checks in one scope share. Create a
 memo with `requestMemo()` from `better-supabase/server`; nothing request-specific lives in module state.
-`bsb.invalidateSession(userId)` calls `versions.evict(userId)` next to
+`bsb.evictSession(userId)` calls `versions.evict(userId)` next to
 expiring the user's cache entries.
 
 To evict on other instances too, have the database broadcast each change on
@@ -558,7 +592,7 @@ Cloudflare Workers) freeze between requests and miss the broadcasts sent
 in the meantime. There, don't call `subscribeAuthzVersions`. Give the
 provider's cache a short maximum age instead, so each instance reads a
 user's version again once it is older than that, and keep calling
-`bsb.invalidateSession(userId)` where the change happens, which evicts the
+`bsb.evictSession(userId)` where the change happens, which evicts the
 user on that instance right away:
 
 ```ts title="src/lib/supabase/authz.ts"

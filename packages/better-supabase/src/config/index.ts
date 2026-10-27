@@ -133,7 +133,7 @@ export type {
   EnvironmentConfig,
   FlatConfig,
   GenGroupConfig,
-  OrganizationConfig,
+  TenantConfig,
   ResolvedConfig,
   ResolvedExtensions,
   SqlInput,

@@ -10,8 +10,6 @@ import {
 } from "@/features/shop/components/kitchen-display";
 import { Link } from "@/i18n/navigation";
 
-export const instant = true;
-
 export default function KitchenPage({
   searchParams,
 }: {

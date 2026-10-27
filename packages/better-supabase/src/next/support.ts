@@ -4,7 +4,7 @@ import { NextResponse } from "next/server.js";
 
 import type { Aal } from "../auth/mfa.ts";
 import type { AuthState } from "../auth/resolve.ts";
-import type { EndedSessionOptions, RequireAalOptions } from "./types.ts";
+import type { VerifySessionOptions, RequireAalOptions } from "./types.ts";
 
 import { checkAal } from "../auth/mfa.ts";
 import { problemResponse } from "../core/problem.ts";
@@ -26,7 +26,7 @@ export function endedRedirect(
 
 export function shouldCheckSession(
   request: NextRequest,
-  options: EndedSessionOptions = {},
+  options: VerifySessionOptions = {},
 ): boolean {
   if (request.method !== "GET" && request.method !== "HEAD") {
     return false;

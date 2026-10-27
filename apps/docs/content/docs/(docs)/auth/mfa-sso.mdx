@@ -12,7 +12,7 @@ claim, so enforcing MFA costs no Auth server call.
 ## The session
 
 ```ts
-const session = await bsb.session();
+const session = await bsb.claims();
 if (session.kind === "user") {
   session.aal; // 'aal1' | 'aal2'
   session.amr; // [{ method: 'totp', timestamp: 1767225600 }, { method: 'password', ... }]

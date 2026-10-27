@@ -24,9 +24,15 @@ describe("claimPaths", () => {
       features: "features",
       memberships: "memberships",
       scope: "tenant",
+      permissions: "permissions",
+      permissionsTruncated: "permissions_truncated",
     });
     expect(claimPaths({ tenant: "org_id", memberships: "orgs" })).toMatchObject(
       { tenant: ["org_id", "app_metadata.org_id"], memberships: "orgs" },
     );
+    expect(claimPaths({ permissions: "perms" })).toMatchObject({
+      permissions: "perms",
+      permissionsTruncated: "perms_truncated",
+    });
   });
 });

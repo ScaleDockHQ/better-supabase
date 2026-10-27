@@ -7,8 +7,6 @@ import {
   AgentActivitySkeleton,
 } from "@/features/assistant/components/agent-activity";
 
-export const instant = true;
-
 export default function AgentActivityPage() {
   const t = useExtracted("assistant");
 

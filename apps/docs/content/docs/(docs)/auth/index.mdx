@@ -19,8 +19,8 @@ const { auth } = await resolveAuth(request, { env });
 
 switch (auth.kind) {
   case "user": // auth.user.id, auth.claims, auth.token
-  case "service": // a secret key, when `secret: true`
-  case "anon": // auth.reason: 'none' | 'expired' | 'signed_out' | 'refresh_failed'
+  case "secret": // a secret key, when `secret: true`
+  case "none": // auth.reason: 'none' | 'expired' | 'signed_out' | 'refresh_failed'
   case "invalid": // auth.reason: 'token' (did not verify) | 'claims' (failed betterSupabase.claims) | 'actor' (malformed act chain): answer 401
 }
 ```
@@ -51,11 +51,11 @@ The `realtime-tables` SQL module sends them no change signals.
 | `allow`                  | Full users | Anonymous sign-ins   | No session |
 | ------------------------ | ---------- | -------------------- | ---------- |
 | `['user']` (the default) | admitted   | 403 `ANONYMOUS_USER` | 401        |
-| `['user', 'anon']`       | admitted   | 403 `ANONYMOUS_USER` | admitted   |
+| `['user', 'none']`       | admitted   | 403 `ANONYMOUS_USER` | admitted   |
 | `['user', 'anonymous']`  | admitted   | admitted             | 401        |
 | `['anonymous']`          | 403        | admitted             | 401        |
 
-`'anon'` is the caller without a session and never admits an anonymous
+`'none'` is the caller without a session and never admits an anonymous
 sign-in; until 0.5.1 it did. Draw the same line in your RLS policies: a
 policy that should not serve a guest session checks
 `(select (auth.jwt() ->> 'is_anonymous')::boolean) is not true`.
@@ -81,7 +81,7 @@ which you should only do where cookies can be written: the proxy or
 middleware in front of page loads and server actions. With `refresh: true`
 the session is refreshed when its token expires within `leeway` seconds (60
 by default). Everywhere else the token stays valid until its `exp`, and only
-an expired session reads as `{ kind: 'anon', reason: 'expired' }`.
+an expired session reads as `{ kind: 'none', reason: 'expired' }`.
 
 When it does refresh:
 
@@ -98,7 +98,7 @@ When it does refresh:
   rejection is reused for ten seconds as well; a network failure keeps the
   session so the next request can retry, and a token refreshed early (inside
   `leeway`) still resolves the user until it expires, otherwise the caller is
-  `anon` with `reason: "refresh_failed"`;
+  `none` with `reason: "refresh_failed"`;
 - a refresh that takes longer than `refreshTimeoutMs` (5000 by default)
   counts as a network failure, so a slow Auth server never holds up the proxy;
 - a network failure, timeout, 5xx or 429 sets `resolution.outage` to
@@ -136,7 +136,7 @@ const apiKeys: AuthResolver = {
     const key = request.headers.get("x-api-key");
     if (!key) return undefined;
     const partner = await lookupPartner(key);
-    return partner ? { kind: "service", keyName: partner.id } : undefined;
+    return partner ? { kind: "secret", keyName: partner.id } : undefined;
   },
 };
 
@@ -180,7 +180,7 @@ export const betterSupabase = defineSupabase(schema)
 
 The memberships extension, `current_tenant_id()` and the storage and realtime policies
 read the active tenant from `tenant_id` (or `app_metadata.tenant_id`).
-`auth.organization.claim` in the config renames it for all of them at once. Memberships
+`auth.tenant.claim` in the config renames it for all of them at once. Memberships
 have the shape `{ scope, id, roles }`, and roles and memberships are never
 read from `user_metadata`, which users can edit. Use `v.looseObject` so claims
 your schema doesn't list, such as fields another hook adds, stay on the
@@ -200,12 +200,12 @@ that one instead.
   level deep: a nested object in the schema, like `app_metadata`, replaces
   the payload's, so describe it with `v.looseObject()` (or your library's
   equivalent) to keep its other keys.
-- `ctx.auth.claims`, `await bsb.session()` and the `useSession` from
+- `ctx.auth.claims`, `await bsb.claims()` and the `useSession` from
   `createHooks<typeof bsb>()` are typed `JWTClaims & Claims`. The
   standalone `useSession<Claims>()` takes the type explicitly.
 - `tenant<Claims>({ claim })` only accepts dotted paths to string claims,
   such as `'tenant_id'` or `'app_metadata.tenant_id'`. Without `claim` it
-  reads `auth.organization.claim` from the generated schema.
+  reads `auth.tenant.claim` from the generated schema.
 
 Keep the schema small: it runs on every request, and anything the hook
 doesn't always set should be optional or have a default.
@@ -236,7 +236,7 @@ token lifetimes narrow the window for everyone
 
 `user_metadata` holds what users say about themselves: a display name, an
 avatar, a theme. `betterSupabase.userMetadata(schema)` parses it into a typed
-`session.profile` for rendering:
+`session.userMetadata` for rendering:
 
 ```ts title="src/lib/supabase/index.ts"
 export const Profile = v.object({
@@ -250,9 +250,11 @@ export const betterSupabase = defineSupabase(schema)
 ```
 
 ```tsx title="src/app/account/page.tsx"
-const session = await bsb.session();
+const session = await bsb.claims();
 if (session.kind === "user") {
-  return <h1>Hello, {session.profile?.display_name ?? session.user.email}</h1>;
+  return (
+    <h1>Hello, {session.userMetadata?.display_name ?? session.user.email}</h1>
+  );
 }
 ```
 
@@ -265,8 +267,8 @@ policy come from the verified claims, never from `profile` or
   verified token. Metadata that fails it leaves `profile` undefined and logs
   one warning per schema through the `logger` of `defineSupabase` with the
   failing paths, never the values. The request still resolves as the user.
-- `session.profile` is typed `Profile | undefined` in `ctx.auth`,
-  `bsb.session()` and the `useSession` from `createHooks<typeof bsb>()`.
+- `session.userMetadata` is typed `Profile | undefined` in `ctx.auth`,
+  `bsb.claims()` and the `useSession` from `createHooks<typeof bsb>()`.
 - Supabase Auth copies `user_metadata` into the access token. A custom access
   token hook must keep that claim for `profile` to be
   set. The claims budget ([BS405](/docs/cli/doctor#bs405)) counts it, so

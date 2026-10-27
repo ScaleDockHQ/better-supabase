@@ -97,6 +97,7 @@ function MemberCellView({ row }: MemberCell) {
       <div className="grid min-w-0 leading-tight">
         <Link
           href={`/settings/members/${member.userId}`}
+          prefetch
           className="truncate font-medium hover:underline"
         >
           {member.name ?? member.email}

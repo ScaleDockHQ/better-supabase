@@ -6,8 +6,6 @@ import { dbError, err, ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -44,7 +42,7 @@ export const createProject = bsb.action(
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
   },
   async ({ name }, { tenant, db, auth }) => {
     const created = await db.projects.create(
@@ -56,7 +54,7 @@ export const createProject = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(created.data.id);
   },
@@ -86,7 +84,7 @@ export const createTask = bsb.action(
         "The start date is after the due date.",
       ),
     ),
-    requireOrganization: true,
+    requireTenant: true,
   },
   async (task, { tenant, db, auth }) => {
     const created = await db.tasks.create(
@@ -98,7 +96,7 @@ export const createTask = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(created.data.id);
   },
@@ -116,7 +114,7 @@ export const moveTask = bsb.action(
       previousId: v.nullable(Id),
       nextId: v.nullable(Id),
     }),
-    requireOrganization: true,
+    requireTenant: true,
   },
   async ({ id, status, previousId, nextId }, { db, auth }) => {
     const moved = await db.rank.move(TASK_SUBJECT, id, {
@@ -125,7 +123,7 @@ export const moveTask = bsb.action(
       group: status,
     });
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return moved;
   },
@@ -145,7 +143,7 @@ export const runTaskBulkAction = bsb.action(
         ids: v.pipe(v.array(Id), v.minLength(1), v.maxLength(500)),
       }),
     ]),
-    requireOrganization: true,
+    requireTenant: true,
   },
   async (input, { db, auth }) => {
     const where = { id: { in: input.ids } };
@@ -159,7 +157,7 @@ export const runTaskBulkAction = bsb.action(
       return changed;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(changed.data);
   },
@@ -179,8 +177,8 @@ export const setTaskField = bsb.action(
         v.object({ assignee_id: v.nullable(Id) }),
       ]),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "bulk.run"),
+    requireTenant: true,
+    permission: "bulk.run",
   },
   async ({ ids, values }, { db, auth }) => {
     const patch =
@@ -192,7 +190,7 @@ export const setTaskField = bsb.action(
       ids.map((id) => db.tasks.update(id, patch)),
     );
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(results.filter((result) => result.ok).length);
   },
@@ -214,8 +212,8 @@ export const saveTaskView = bsb.action(
       status: v.nullable(TaskStatusSchema),
       projectId: v.nullable(Id),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "views.read"),
+    requireTenant: true,
+    permission: "views.read",
   },
   async ({ name, view, q, status, projectId }, { tenant, db, auth }) => {
     const query: TaskViewQuery = {};
@@ -249,7 +247,7 @@ export const saveTaskView = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(saved.data.id);
   },
@@ -258,8 +256,8 @@ export const saveTaskView = bsb.action(
 export const deleteTaskView = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "views.read"),
+    requireTenant: true,
+    permission: "views.read",
   },
   async ({ id }, { db, auth }) => {
     const deleted = await db.$blocks.savedViews.delete(id);
@@ -268,7 +266,7 @@ export const deleteTaskView = bsb.action(
       return deleted;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(deleted.data);
   },
@@ -289,8 +287,8 @@ export const restoreProjectFields = bsb.action(
         v.minLength(1),
       ),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "versions.restore"),
+    requireTenant: true,
+    permission: "versions.restore",
   },
   async ({ projectId, versionId, fields }, { db, auth }) => {
     const { versions } = db;
@@ -315,7 +313,7 @@ export const restoreProjectFields = bsb.action(
       return restored;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(null);
   },

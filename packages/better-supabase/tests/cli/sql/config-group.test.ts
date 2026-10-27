@@ -61,7 +61,7 @@ export default defineConfig({
     teams: { ownership: "adopt", names: { team: "squad" } },
   },
   auth: {
-    organization: { claim: "app_metadata.org_id" },
+    tenant: { claim: "app_metadata.org_id" },
   },
 });
 `);
@@ -110,7 +110,7 @@ export default defineConfig({
           sql: { owner: "tenant" },
         },
         auth: {
-          organization: { claim: "org_id", column: "workspace_id" },
+          tenant: { claim: "org_id", column: "workspace_id" },
           claims: { features: "app_metadata.features" },
         },
         plugins: { tenant: true },
@@ -188,11 +188,11 @@ generated.ts\`,
     );
   });
 
-  it("adds auth.organization to an inline object", () => {
+  it("adds auth.tenant to an inline object", () => {
     expect(
       grouped(`export default { claims: { tenant: "org_id" }, blocks: [] };\n`),
     ).toMatchInlineSnapshot(`
-      "export default { blocks: [], auth: { organization: { claim: "org_id" } } };
+      "export default { blocks: [], auth: { tenant: { claim: "org_id" } } };
       "
     `);
   });

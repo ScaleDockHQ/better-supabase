@@ -822,7 +822,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Tenant claim the hook does not write",
     description:
-      "With the `tenant` module and `blocks.permissions.activeTenant: 'claim'`, `current_tenant_id()` and `membershipsExtension()` read the tenant from the `auth.organization.claim` claim, at the top level or in `app_metadata`. With `--as <user id>` doctor calls the custom access token hook for that user and warns when the claims it returns have neither. The default source, `'resolver'`, takes the tenant from the request instead.",
+      "With the `tenant` module and `blocks.permissions.activeTenant: 'claim'`, `current_tenant_id()` and `membershipsExtension()` read the tenant from the `auth.tenant.claim` claim, at the top level or in `app_metadata`. With `--as <user id>` doctor calls the custom access token hook for that user and warns when the claims it returns have neither. The default source, `'resolver'`, takes the tenant from the request instead.",
     check: missingTenantClaim,
   },
   {

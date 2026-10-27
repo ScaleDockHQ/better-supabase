@@ -220,7 +220,7 @@ export interface BetterOrpc<
    *
    * ```ts
    * export const list = bsb
-   *   .authed({ requireOrganization: true })
+   *   .authed({ requireTenant: true })
    *   .handler(({ context }) => bsb.unwrap(context.db.customers.list()));
    * ```
    */

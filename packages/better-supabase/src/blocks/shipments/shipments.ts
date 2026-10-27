@@ -27,7 +27,7 @@ import { compareMoney } from "../../commerce/money.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { optionalRecordRefOf } from "../../core/block-subjects.ts";
-import { requireOrganization } from "../../core/block-tenant.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { amountText, optionalMoneyOf } from "../money-codec.ts";
@@ -365,7 +365,7 @@ export function createShipments<
     options.mappers,
   );
 
-  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
   const logger = options.logger ?? console;
   const fields: BlockFields<F> = blockFields(options.fields, "shipment fields");
 

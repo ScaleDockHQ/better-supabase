@@ -64,7 +64,7 @@ function Customers() {
 ```
 
 `useLiveQuery` needs `<BetterSupabaseProvider queryClient={queryClient}>`.
-The tenant defaults to the `tenant_id` claim (`auth.organization.claim` in the config); pass `{ tenant }` to override it.
+The tenant defaults to the `tenant_id` claim (`auth.tenant.claim` in the config); pass `{ tenant }` to override it.
 Changes are debounced (100 ms by default, `debounceMs`), so a bulk update
 causes one refetch. It returns the channel status.
 

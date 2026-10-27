@@ -36,7 +36,7 @@ refreshed cookies and `bsb-primary-until` reach it.
 
 `guard(bridge, options)` from `better-supabase/elysia` is a `beforeHandle`
 hook that refuses callers per route, with the options every adapter takes
-(`allow`, `aal`, `scopes`, `roles`, `requireOrganization`, `permission`,
+(`allow`, `aal`, `scopes`, `roles`, `requireTenant`, `permission`,
 `authorize`, `signIn`, `mfa`). A `permission` is decided by the guard's
 `authorizer` (see [Authorizers](/docs/extending/authorizers)); without one,
 the route refuses every caller:

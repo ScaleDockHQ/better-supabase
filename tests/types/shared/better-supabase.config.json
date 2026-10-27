@@ -28,7 +28,7 @@
     "tasks": ["types"]
   },
   "auth": {
-    "organization": {
+    "tenant": {
       "column": "organization_id"
     }
   },

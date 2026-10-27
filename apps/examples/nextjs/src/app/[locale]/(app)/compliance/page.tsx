@@ -12,8 +12,6 @@ import {
 } from "@/features/compliance/components/control-posture";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
-export const instant = true;
-
 export default function CompliancePage() {
   const t = useExtracted("compliance");
 

@@ -62,7 +62,7 @@ export function shouldRefresh(request: Request): boolean {
 
 /**
  * Whether a request should ask the Auth server if the session still exists
- * (`checkSession`): full page loads, and `paths` you list for client
+ * (`verifySession`): full page loads, and `paths` you list for client
  * navigations. Never prefetches or mutations.
  */
 export function shouldCheckSession(

@@ -20,8 +20,8 @@ const Name = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200));
 export const createTemplate = bsb.action(
   {
     input: v.object({ name: Name, ...CustomerTemplateBody.entries }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "templates.manage"),
+    requireTenant: true,
+    permission: "templates.manage",
   },
   async ({ name, status }, { tenant, supabase, auth }) => {
     const templates = templatesOf(supabase);
@@ -48,7 +48,7 @@ export const createTemplate = bsb.action(
       return published;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: saved.data.id, name: saved.data.name });
   },
@@ -58,10 +58,9 @@ export const createTemplate = bsb.action(
 export const applyTemplate = bsb.action(
   {
     input: v.object({ templateId: v.pipe(v.string(), v.uuid()), name: Name }),
-    requireOrganization: true,
-    authorize: async () =>
-      can(await getPermissions(), "templates.apply") &&
-      can(await getPermissions(), "customers.write"),
+    requireTenant: true,
+    permission: "templates.apply",
+    authorize: async () => can(await getPermissions(), "customers.write"),
   },
   async ({ templateId, name }, { tenant, supabase, db, auth }) => {
     const applied = await customerTemplates(supabase, (row) =>
@@ -72,7 +71,7 @@ export const applyTemplate = bsb.action(
       return applied;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ customerId: applied.data.subject.id });
   },

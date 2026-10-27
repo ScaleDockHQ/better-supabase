@@ -289,7 +289,7 @@ of key names to accept only some of the keys in `SUPABASE_SECRET_KEYS`:
 ```ts
 // SUPABASE_SECRET_KEYS={"default":"sb_secret_…","cron":"sb_secret_…"}
 export const bsb = createServer(betterSupabase, { auth: { secret: ["cron"] } });
-// ctx.auth is { kind: 'service', keyName: 'cron' }; guard with allow: ['service']
+// ctx.auth is { kind: 'secret', keyName: 'cron' }; guard with allow: ['secret']
 ```
 
 `secret: true` accepts any configured key. The admin client is created on the

@@ -5,8 +5,6 @@ import type { SequenceStep } from "better-supabase/blocks/sequences";
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -22,8 +20,8 @@ export const createSampleSequence = bsb.action(
       text: v.pipe(v.string(), v.maxLength(4000)),
       task: Text,
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "sequences.manage"),
+    requireTenant: true,
+    permission: "sequences.manage",
   },
   async ({ name, subject, text, task }, { db, auth }) => {
     const saved = await db.sequences.upsert({
@@ -40,7 +38,7 @@ export const createSampleSequence = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: saved.data.id });
   },
@@ -53,8 +51,8 @@ export const setSequenceStatus = bsb.action(
       sequenceId: Id,
       status: v.picklist(["active", "paused"]),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "sequences.manage"),
+    requireTenant: true,
+    permission: "sequences.manage",
   },
   async ({ sequenceId, status }, { db, auth }) => {
     const saved = await db.sequences.upsert({ id: sequenceId, status });
@@ -63,7 +61,7 @@ export const setSequenceStatus = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ status: saved.data.status });
   },
@@ -112,8 +110,8 @@ function stepOf(input: v.InferOutput<typeof StepInput>): SequenceStep {
 export const addSequenceStep = bsb.action(
   {
     input: v.intersect([v.object({ sequenceId: Id }), StepInput]),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "sequences.manage"),
+    requireTenant: true,
+    permission: "sequences.manage",
   },
   async (input, { db, auth }) => {
     const { sequences } = db;
@@ -132,7 +130,7 @@ export const addSequenceStep = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ steps: saved.data.steps.length });
   },

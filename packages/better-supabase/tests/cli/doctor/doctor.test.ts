@@ -70,7 +70,7 @@ const table = (tables: CatalogTable[], name: string) =>
   edit(tables.find((entry) => entry.name === name)!);
 
 const ORGANIZATION = resolveConfig(
-  { auth: { organization: { column: "organization_id" } } },
+  { auth: { tenant: { column: "organization_id" } } },
   "/project",
 );
 
@@ -2412,7 +2412,7 @@ describe("doctor command", () => {
       "better-supabase.config.json",
       JSON.stringify({
         tooling: { doctor: { ignore: ["BS303"] } },
-        auth: { organization: { column: "organization_id" } },
+        auth: { tenant: { column: "organization_id" } },
       }),
     );
 

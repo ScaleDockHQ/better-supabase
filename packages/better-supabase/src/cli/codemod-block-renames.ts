@@ -222,7 +222,7 @@ export const REVIEW_0_15: readonly {
   {
     pattern: /\bmembershipsExtension\s*\(/,
     message:
-      'The generated schema installs `membershipsExtension` with `auth.organization`\'s settings, and its `onMissing` default is now `skip`: keep this `.use()` only for a custom `resolve`, and pass `onMissing: "error"` to keep the 0.14 behavior',
+      'The generated schema installs `membershipsExtension` with `auth.tenant`\'s settings, and its `onMissing` default is now `skip`: keep this `.use()` only for a custom `resolve`, and pass `onMissing: "error"` to keep the 0.14 behavior',
   },
   {
     pattern:

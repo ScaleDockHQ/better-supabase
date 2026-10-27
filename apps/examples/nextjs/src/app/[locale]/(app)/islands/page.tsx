@@ -11,8 +11,6 @@ import {
   SessionIslandSkeleton,
 } from "@/features/islands/components/session-island";
 
-export const instant = true;
-
 /**
  * Ten private islands. The header is the static shell; each island streams in
  * its own `<Suspense>` boundary and checks the session itself.

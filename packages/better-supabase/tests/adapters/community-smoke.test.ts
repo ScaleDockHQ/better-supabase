@@ -32,7 +32,7 @@ import { COMMUNITY_ADAPTERS } from "./tiers.ts";
 const options = { env, auth: { jwks: signer.jwks }, prefetchJwks: false };
 
 const entries = [
-  withBetterSupabase(server, { allow: ["user", "anon"] }),
+  withBetterSupabase(server, { allow: ["user", "none"] }),
 ] as const;
 
 const member = (): Promise<Request> => requestAs({ role: "member" });

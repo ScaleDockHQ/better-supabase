@@ -109,6 +109,13 @@ export interface ClaimsConfig {
    * writes. Defaults to `memberships`.
    */
   readonly memberships?: string;
+  /**
+   * Claim holding the caller's permission keys per tenant (`{ [tenantId]:
+   * string[] }`), written by `permission_claims()`. The hook sets
+   * `<permissions>_truncated` when it left keys out. Defaults to
+   * `permissions`.
+   */
+  readonly permissions?: string;
 }
 
 /**

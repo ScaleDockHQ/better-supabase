@@ -46,7 +46,7 @@ describe("server sessions", () => {
     expect(resolutions.count()).toBe(0);
     resolutions.stop();
     expect((await server.contextFromSession(null)).auth).toEqual({
-      kind: "anon",
+      kind: "none",
       reason: "none",
     });
   });
@@ -76,7 +76,7 @@ describe("server sessions", () => {
 
     try {
       expect((await server.contextFromSession(snapshot)).auth).toEqual({
-        kind: "anon",
+        kind: "none",
         reason: "expired",
       });
     } finally {

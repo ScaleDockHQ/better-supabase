@@ -209,10 +209,10 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     const user = await createUser();
     const { bsb, server, token } = setup();
 
-    expect(await bsb.getRequestSession()).toBeNull();
-    expect((await bsb.context({ tenant: "org-1" })).auth.kind).toBe("anon");
+    expect(await bsb.getClaims()).toBeNull();
+    expect((await bsb.context({ tenant: "org-1" })).auth.kind).toBe("none");
 
-    const signed = await bsb.signIn(
+    const signed = await bsb.signInWithPassword(
       { email: user.email, password, next: "https://evil.test" },
       { fallback: "/home" },
     );
@@ -226,14 +226,14 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
       },
     });
     expect(token()).toBeDefined();
-    expect((await bsb.getRequestSession())?.userId).toBe(user.id);
-    expect(await bsb.session()).toMatchObject({ user: { id: user.id } });
+    expect((await bsb.getClaims())?.userId).toBe(user.id);
+    expect(await bsb.claims()).toMatchObject({ user: { id: user.id } });
     expect((await bsb.context({ tenant: "org-1" })).auth.kind).toBe("user");
 
     nextRequest();
     const resolve = vi.spyOn(server, "resolve");
 
-    await Promise.all([bsb.session(), bsb.context(), bsb.getRequestSession()]);
+    await Promise.all([bsb.claims(), bsb.context(), bsb.getClaims()]);
 
     expect(resolve).toHaveBeenCalledOnce();
   });
@@ -242,7 +242,10 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     const user = await createUser();
     const { bsb } = setup();
 
-    const signed = await bsb.signIn({ email: user.email, password: "wrong" });
+    const signed = await bsb.signInWithPassword({
+      email: user.email,
+      password: "wrong",
+    });
 
     expect(signed.error).toMatchObject({
       kind: "unauthorized",
@@ -271,7 +274,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
       ok: true,
       data: { redirectTo: "/welcome", mfa: false },
     });
-    expect((await bsb.getRequestSession())?.userId).toBe(user.id);
+    expect((await bsb.getClaims())?.userId).toBe(user.id);
     expect(token()).toBeDefined();
 
     const reused = await bsb.verifyOtp({
@@ -293,7 +296,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     });
 
     expect(coded.ok).toBe(true);
-    expect((await bsb.getRequestSession())?.userId).toBe(user.id);
+    expect((await bsb.getClaims())?.userId).toBe(user.id);
   });
 
   it("emails a magic link with signInWithOtp and exchanges its code", async () => {
@@ -330,7 +333,10 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
 
     nextRequest();
 
-    const exchanged = await bsb.exchangeCode({ code, next: "/projects" });
+    const exchanged = await bsb.exchangeCodeForSession({
+      code,
+      next: "/projects",
+    });
 
     expect(exchanged.error).toBeNull();
     expect(exchanged).toMatchObject({
@@ -342,8 +348,8 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
       },
     });
     expect(mocks.jar.has(verifier)).toBe(false);
-    expect((await bsb.getRequestSession())?.userId).toBe(user.id);
-    expect(token()).toBe((await bsb.getRequestSession())?.accessToken);
+    expect((await bsb.getClaims())?.userId).toBe(user.id);
+    expect(token()).toBe((await bsb.getClaims())?.accessToken);
   });
 
   it("commits the session signUp returns when confirmation is off", async () => {
@@ -374,7 +380,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
       },
     });
     expect(mocks.jar.has(verifier)).toBe(false);
-    expect((await bsb.getRequestSession())?.userId).toBe(userId);
+    expect((await bsb.getClaims())?.userId).toBe(userId);
     expect(token()).toBeDefined();
   });
 
@@ -382,8 +388,10 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     const user = await createUser();
     const { bsb } = setup();
 
-    expect((await bsb.signIn({ email: user.email, password })).ok).toBe(true);
-    const accessToken = (await bsb.getRequestSession())?.accessToken ?? "";
+    expect(
+      (await bsb.signInWithPassword({ email: user.email, password })).ok,
+    ).toBe(true);
+    const accessToken = (await bsb.getClaims())?.accessToken ?? "";
 
     const enrolled = await fetch(`${url}/auth/v1/factors`, {
       method: "POST",
@@ -411,12 +419,12 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
       ok: true,
       data: { redirectTo: "/secure", mfa: false },
     });
-    expect((await bsb.getRequestSession())?.claims["aal"]).toBe("aal2");
+    expect((await bsb.getClaims())?.claims["aal"]).toBe("aal2");
 
     mocks.jar.clear();
     nextRequest();
 
-    const again = await bsb.signIn({ email: user.email, password });
+    const again = await bsb.signInWithPassword({ email: user.email, password });
 
     expect(again.data?.mfa).toBe(true);
   });
@@ -425,11 +433,13 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     const user = await createUser();
     const { bsb, token } = setup();
 
-    expect((await bsb.signIn({ email: user.email, password })).ok).toBe(true);
-    const accessToken = (await bsb.getRequestSession())?.accessToken ?? "";
+    expect(
+      (await bsb.signInWithPassword({ email: user.email, password })).ok,
+    ).toBe(true);
+    const accessToken = (await bsb.getClaims())?.accessToken ?? "";
 
     nextRequest();
-    expect((await bsb.session()).kind).toBe("user");
+    expect((await bsb.claims()).kind).toBe("user");
 
     const signedOut = await bsb.signOut({ next: "/signed-out" });
 
@@ -439,8 +449,8 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
       error: null,
     });
     expect(token()).toBeUndefined();
-    expect(await bsb.getRequestSession()).toBeNull();
-    expect((await bsb.context({ tenant: "org-1" })).auth.kind).toBe("anon");
+    expect(await bsb.getClaims()).toBeNull();
+    expect((await bsb.context({ tenant: "org-1" })).auth.kind).toBe("none");
 
     const ended = await fetch(`${url}/auth/v1/user`, {
       headers: {

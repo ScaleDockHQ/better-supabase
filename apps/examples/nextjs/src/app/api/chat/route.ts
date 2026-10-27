@@ -15,5 +15,5 @@ export const POST = bsb.route(
           assistantContext(supabase, session.user.id, tenant),
         )
       : err(dbError("unauthorized", "Sign in to use the assistant")),
-  { requireOrganization: true },
+  { requireTenant: true },
 );

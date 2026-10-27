@@ -11,9 +11,11 @@ import {
   SimilarNotes,
   SimilarNotesSkeleton,
 } from "@/features/notes/components/similar-notes";
+import { ConnectivityFallback } from "@/features/offline/components/connectivity-fallback";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
-export const instant = true;
+// A prefetch of this list stays static; the rows render on navigation.
+export const ensureStatic = "prefetch";
 
 export default function CustomersPage() {
   const t = useExtracted("customers");
@@ -29,7 +31,13 @@ export default function CustomersPage() {
           </Suspense>
         }
       />
-      <Suspense fallback={<CustomerListSkeleton />}>
+      <Suspense
+        fallback={
+          <ConnectivityFallback>
+            <CustomerListSkeleton />
+          </ConnectivityFallback>
+        }
+      >
         <PermissionGate permission="customers.read">
           <CustomerList />
         </PermissionGate>

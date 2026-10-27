@@ -202,6 +202,11 @@ export interface ClaimsMeta {
    * to `memberships`.
    */
   readonly memberships: string;
+  /**
+   * Claim holding permission keys per tenant (`{ [tenantId]: string[] }`).
+   * Defaults to `permissions`.
+   */
+  readonly permissions: string;
 }
 
 export interface RealtimeTableMeta {

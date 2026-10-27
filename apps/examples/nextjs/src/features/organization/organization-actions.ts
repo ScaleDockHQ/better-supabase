@@ -70,8 +70,8 @@ export const createOrganization = bsb.action(
 export const updateOrganization = bsb.action(
   {
     input: v.object({ name: Name, slug: Slug }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "organization.update"),
+    requireTenant: true,
+    permission: "organization.update",
   },
   async ({ name, slug }, { tenant: organizationId, db }) => {
     const updated = await db.$blocks.organizations.update(organizationId, {
@@ -105,10 +105,7 @@ export const updateOrganization = bsb.action(
  * onboarding step and renders the pending invitations again.
  */
 export const invitationSent = bsb.action(
-  {
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "members.invite"),
-  },
+  { requireTenant: true, permission: "members.invite" },
   async (_input, { tenant: organizationId, db }) => {
     await db.onboarding.complete(gettingStarted, "invite", organizationId);
     refresh();
@@ -122,7 +119,7 @@ export const invitationSent = bsb.action(
  * in the members table after a removal.
  */
 export const loadMembers = bsb.action(
-  { requireOrganization: true },
+  { requireTenant: true },
   async (_input, { tenant: organizationId, db, supabase }) =>
     db
       .$rpc("organization_members", { organization: organizationId })
@@ -132,8 +129,8 @@ export const loadMembers = bsb.action(
 export const revokeInvitation = bsb.action(
   {
     input: v.object({ invitationId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "members.invite"),
+    requireTenant: true,
+    permission: "members.invite",
   },
   async ({ invitationId }, { tenant: organizationId, db }) => {
     const revoked =
@@ -166,13 +163,13 @@ export const revokeInvitation = bsb.action(
 export const memberChanged = bsb.action(
   {
     input: v.object({ userId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () =>
       can(await getPermissions(), "members.update_role") ||
       can(await getPermissions(), "members.remove"),
   },
-  ({ userId }) => {
-    bsb.invalidateSession(userId);
+  async ({ userId }) => {
+    await bsb.evictSession(userId);
 
     return ok(true);
   },
@@ -180,7 +177,7 @@ export const memberChanged = bsb.action(
 
 /** Leaves the active organization; the owner has to transfer ownership first. */
 export const leaveOrganization = bsb.action(
-  { requireOrganization: true },
+  { requireTenant: true },
   async (_input, { tenant: organizationId, db }) =>
     db.$blocks.organizations.leave(organizationId),
 );

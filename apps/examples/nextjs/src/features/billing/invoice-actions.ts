@@ -5,8 +5,6 @@ import { parseMoney } from "better-supabase/commerce";
 import * as v from "valibot";
 
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -21,8 +19,8 @@ export const createDraftInvoice = bsb.action(
         v.regex(/^\d+(\.\d{1,2})?$/, "Enter an amount such as 190.00"),
       ),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "invoices.write"),
+    requireTenant: true,
+    permission: "invoices.write",
   },
   async ({ title, amount }, { tenant, db, auth }) => {
     const created = await db.invoices.create(
@@ -41,7 +39,7 @@ export const createDraftInvoice = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(created.data.id);
   },
@@ -51,8 +49,8 @@ export const createDraftInvoice = bsb.action(
 export const issueInvoice = bsb.action(
   {
     input: v.object({ invoiceId: v.pipe(v.string(), v.uuid()) }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "invoices.write"),
+    requireTenant: true,
+    permission: "invoices.write",
   },
   async ({ invoiceId }, { db, auth }) => {
     const issued = await db.invoices.issue(invoiceId);
@@ -61,7 +59,7 @@ export const issueInvoice = bsb.action(
       return issued;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(issued.data.status);
   },

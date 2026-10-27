@@ -5,8 +5,6 @@ import {
   BookingPageSkeleton,
 } from "@/features/bookings/components/booking-page";
 
-export const instant = true;
-
 export default function BookPage({
   params,
   searchParams,

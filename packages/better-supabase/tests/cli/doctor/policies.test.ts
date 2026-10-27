@@ -38,7 +38,7 @@ const context = (
   extra: Partial<DoctorContext> = {},
 ): DoctorContext => ({
   config: resolveConfig(
-    { auth: { organization: { column: "organization_id" } } },
+    { auth: { tenant: { column: "organization_id" } } },
     "/project",
   ),
   snapshot: snap,

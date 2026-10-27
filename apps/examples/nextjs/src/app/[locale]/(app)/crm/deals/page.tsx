@@ -11,8 +11,6 @@ import {
   TargetsProgressSkeleton,
 } from "@/features/crm/components/targets-progress";
 
-export const instant = true;
-
 export default function DealsPage() {
   const t = useExtracted("crm");
 

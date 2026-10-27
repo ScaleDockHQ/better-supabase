@@ -5,8 +5,6 @@ import {
   JobRunsTableSkeleton,
 } from "@/features/jobs/components/job-runs-table";
 
-export const instant = true;
-
 export default function JobsSettingsPage() {
   return (
     <Suspense fallback={<JobRunsTableSkeleton />}>

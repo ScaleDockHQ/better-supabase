@@ -12,10 +12,9 @@ import { bsb } from "@/lib/supabase/server";
  * rule list, so the next page shows the change.
  */
 export const rulesChanged = bsb.action(
-  { input: v.object({}), requireOrganization: true },
-  // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refreshCaller() returns nothing to await
+  { input: v.object({}), requireTenant: true },
   async (_input, { auth }) => {
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(null);
   },

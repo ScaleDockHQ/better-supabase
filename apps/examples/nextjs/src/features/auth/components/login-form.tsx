@@ -21,7 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { isLocalizedRoute, Link } from "@/i18n/navigation";
 
-import { signIn } from "../auth-actions";
+import { signInWithPassword } from "../auth-actions";
 
 export function LoginForm() {
   const t = useExtracted("auth");
@@ -31,7 +31,7 @@ export function LoginForm() {
 
   const [error, submit, pending] = useActionState(
     async (_previous: string | null, form: FormData) => {
-      const result = await signIn({
+      const result = await signInWithPassword({
         email: String(form.get("email")),
         password: String(form.get("password")),
         next: new URLSearchParams(window.location.search).get("next"),

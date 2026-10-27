@@ -6,8 +6,6 @@ import {
   PreferencesSkeleton,
 } from "@/features/settings/components/preferences";
 
-export const instant = true;
-
 export default function PreferencesSettingsPage() {
   return (
     <>

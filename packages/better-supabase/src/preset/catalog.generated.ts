@@ -7732,6 +7732,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "CalendarOptions"
         },
         {
+          "name": "CalendarReminder"
+        },
+        {
           "name": "CalendarSnapshot"
         },
         {

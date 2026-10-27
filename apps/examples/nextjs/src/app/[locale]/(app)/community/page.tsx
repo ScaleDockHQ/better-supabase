@@ -8,8 +8,6 @@ import {
 } from "@/features/community/components/post-board";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
-export const instant = true;
-
 export default function CommunityPage() {
   const t = useExtracted("community");
 

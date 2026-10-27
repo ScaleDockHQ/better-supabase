@@ -48,7 +48,7 @@ const fixtureConfig: BetterSupabaseConfig = {
       customers: "organization:{organizationId}:customers",
     },
   },
-  auth: { organization: { column: "organization_id" } },
+  auth: { tenant: { column: "organization_id" } },
 };
 
 const here = (name: string): string =>

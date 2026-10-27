@@ -35,7 +35,7 @@ before the handler runs.
 
 `guard(options)` from `better-supabase/h3` refuses callers per route, with
 the options every adapter takes (`allow`, `aal`, `scopes`, `roles`,
-`requireOrganization`, `permission`, `authorize`, `signIn`, `mfa`). A `permission`
+`requireTenant`, `permission`, `authorize`, `signIn`, `mfa`). A `permission`
 is decided by the guard's `authorizer` (see
 [Authorizers](/docs/extending/authorizers)); without one, the route refuses
 every caller. `problemOnError()` answers errors thrown by `.orThrow()` with
@@ -63,7 +63,7 @@ import { withBetterSupabase } from "better-supabase/server";
 import { bsb } from "../utils/supabase";
 
 export default defineMiddleware(
-  toH3([withBetterSupabase(bsb, { refresh: true, allow: ["user", "anon"] })]),
+  toH3([withBetterSupabase(bsb, { refresh: true, allow: ["user", "none"] })]),
 );
 ```
 

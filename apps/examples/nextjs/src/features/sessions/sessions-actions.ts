@@ -23,7 +23,7 @@ export const endSession = bsb.action(
       return err(dbError("not_found", "Session not found"));
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(true);
   },

@@ -27,6 +27,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SubmitLabel } from "@/features/offline/components/submit-label";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /** The create form, then the new token, which is shown only this once. */
@@ -149,7 +150,7 @@ export function CreateApiKeyDialog({
                 {t("Cancel")}
               </DialogClose>
               <Button type="submit" disabled={creating}>
-                {t("Create")}
+                <SubmitLabel pending={creating}>{t("Create")}</SubmitLabel>
               </Button>
             </DialogFooter>
           </form>

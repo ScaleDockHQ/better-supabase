@@ -13,10 +13,10 @@ import type { SessionSnapshot } from "../auth/snapshot.ts";
 import type { Result } from "../core/result.ts";
 import type { ActionResult } from "../server/kit.ts";
 import type {
-  CodeExchange,
+  ExchangeCodeParams,
   EmailRedirect,
   MfaVerification,
-  OAuthStart,
+  SignInWithOAuthParams,
   ResendParams,
   ResetPasswordParams,
   SignInCredentials,
@@ -89,7 +89,7 @@ export interface AuthFlowDeps<C, P> {
 }
 
 export interface AuthFlows {
-  signIn(
+  signInWithPassword(
     credentials: SignInCredentials,
     options?: SignInOptions,
   ): Promise<ActionResult<SignedIn>>;
@@ -97,9 +97,11 @@ export interface AuthFlows {
     params: VerifyOtpParams,
     options?: SignInOptions,
   ): Promise<ActionResult<SignedIn>>;
-  authorizeUrl(params: OAuthStart): Promise<{ readonly url: string }>;
-  exchangeCode(
-    params: CodeExchange,
+  signInWithOAuth(
+    params: SignInWithOAuthParams,
+  ): Promise<{ readonly url: string }>;
+  exchangeCodeForSession(
+    params: ExchangeCodeParams,
     options?: SignInOptions,
   ): Promise<ActionResult<SignedIn>>;
   verifyMfa(
@@ -292,7 +294,10 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
     };
   };
 
-  const signIn: AuthFlows["signIn"] = async (credentials, options = {}) =>
+  const signInWithPassword: AuthFlows["signInWithPassword"] = async (
+    credentials,
+    options = {},
+  ) =>
     commit(
       await passwordGrant(
         { email: credentials.email, password: credentials.password },
@@ -303,7 +308,7 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
     );
 
   return {
-    signIn,
+    signInWithPassword,
 
     verifyOtp: async (params, options = {}) =>
       commit(
@@ -312,7 +317,7 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
         options,
       ),
 
-    async authorizeUrl(params) {
+    async signInWithOAuth(params) {
       const challenge = await startPkce();
 
       return {
@@ -369,7 +374,7 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
       );
     },
 
-    async exchangeCode(params, options = {}) {
+    async exchangeCodeForSession(params, options = {}) {
       const verifier = (await deps.jar())
         .getAll()
         .find((cookie) => cookie.name === verifierName())?.value;

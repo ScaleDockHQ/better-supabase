@@ -8,8 +8,6 @@ import {
   DefinitionListSkeleton,
 } from "@/features/workflows/builder/components/definition-list";
 
-export const instant = true;
-
 export default function WorkflowBuilderPage() {
   const t = useExtracted("workflows");
 

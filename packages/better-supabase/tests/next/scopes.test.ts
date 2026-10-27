@@ -146,7 +146,7 @@ describe("private-cache scopes", () => {
     expect(life.stale).toBeLessThanOrEqual(120);
     expect(mocks.cacheTag).toHaveBeenCalledWith(sessionTag(USER));
 
-    bsb.invalidateSession(USER);
+    await bsb.evictSession(USER);
     expect(mocks.updateTag).toHaveBeenCalledWith(`bsb:session:${USER}`);
   });
 
@@ -170,7 +170,7 @@ describe("private-cache scopes", () => {
     expect(mocks.cacheTag).not.toHaveBeenCalled();
 
     mocks.updateTag.mockReset();
-    bsb.invalidateSession(USER, { tags: [`authz:${USER}`] });
+    await bsb.evictSession(USER, { tags: [`authz:${USER}`] });
     expect(mocks.updateTag.mock.calls).toEqual([
       [sessionTag(USER)],
       [`authz:${USER}`],
@@ -187,10 +187,10 @@ describe("private-cache scopes", () => {
       expiresAt: null,
     } as never;
 
-    const ctx = await bsb.contextForSession(session, { token });
+    const ctx = await bsb.contextFromSession(session, { token });
     expect(ctx.auth).toMatchObject({ kind: "user", user: { id: USER } });
 
-    const foreign = await bsb.contextForSession(session, {
+    const foreign = await bsb.contextFromSession(session, {
       token: await signer.sign({ sub: OTHER }),
     });
 
@@ -199,15 +199,15 @@ describe("private-cache scopes", () => {
       error: { kind: "unauthorized" },
     });
 
-    const anon = await bsb.contextForSession(
-      { kind: "anon", reason: "none" },
+    const anon = await bsb.contextFromSession(
+      { kind: "none", reason: "none" },
       { token: null },
     );
 
-    expect(anon.auth.kind).toBe("anon");
+    expect(anon.auth.kind).toBe("none");
 
-    const service = await bsb.contextForSession(
-      { kind: "service", keyName: "cron" },
+    const service = await bsb.contextFromSession(
+      { kind: "secret", keyName: "cron" },
       { token: null },
     );
 
@@ -227,7 +227,7 @@ describe("private-cache scopes", () => {
       expiresAt: null,
     } as never;
 
-    const ctx = await bsb.contextForSession(session, { token });
+    const ctx = await bsb.contextFromSession(session, { token });
     expect(ctx.auth.kind).toBe("invalid");
     expect(
       ctx.auth.kind === "invalid" ? ctx.auth.error.message : undefined,
@@ -418,7 +418,7 @@ describe("sessionStale", () => {
     ({ kind: "user", expiresAt }) as never;
 
   it("stays within min and max and never outlives the token", () => {
-    expect(sessionStale({ kind: "anon", reason: "none" })).toBe(300);
+    expect(sessionStale({ kind: "none", reason: "none" })).toBe(300);
     expect(sessionStale(user(null))).toBe(300);
     expect(sessionStale(user(now / 1000 + 3600), {}, now)).toBe(300);
     expect(sessionStale(user(now / 1000 + 90), {}, now)).toBe(90);
@@ -436,8 +436,8 @@ describe("sessionStale", () => {
   });
 
   it("keeps a signed-out view that a refresh or sign-in would change out of the App Shell", () => {
-    expect(sessionStale({ kind: "anon", reason: "expired" })).toBe(0);
-    expect(sessionStale({ kind: "anon", reason: "refresh_failed" })).toBe(0);
+    expect(sessionStale({ kind: "none", reason: "expired" })).toBe(0);
+    expect(sessionStale({ kind: "none", reason: "refresh_failed" })).toBe(0);
     expect(
       sessionStale({
         kind: "invalid",
@@ -445,7 +445,7 @@ describe("sessionStale", () => {
         error: dbError("network", "JWKS unreachable"),
       }),
     ).toBe(0);
-    expect(sessionStale({ kind: "anon", reason: "signed_out" })).toBe(300);
-    expect(sessionStale({ kind: "service", keyName: "cron" })).toBe(300);
+    expect(sessionStale({ kind: "none", reason: "signed_out" })).toBe(300);
+    expect(sessionStale({ kind: "secret", keyName: "cron" })).toBe(300);
   });
 });

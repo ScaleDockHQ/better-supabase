@@ -182,11 +182,11 @@ export function subjectFor(context: {
         : { type: "user", id: auth.userId };
     }
 
-    case "service": {
+    case "secret": {
       return { type: "app" };
     }
 
-    case "anon":
+    case "none":
     case "invalid": {
       return undefined;
     }

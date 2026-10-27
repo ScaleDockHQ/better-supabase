@@ -9,8 +9,6 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { env } from "@/env";
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
@@ -52,8 +50,8 @@ const NO_ADMIN = dbError(
 export const addSsoDomain = bsb.action(
   {
     input: v.object({ domain: DOMAIN }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "sso.manage"),
+    requireTenant: true,
+    permission: "sso.manage",
   },
   async ({ domain }, { tenant, db, auth }) => {
     const added = await db.sso.addDomain(tenant, domain);
@@ -62,7 +60,7 @@ export const addSsoDomain = bsb.action(
       return added;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(added.data.id);
   },
@@ -71,8 +69,8 @@ export const addSsoDomain = bsb.action(
 export const removeSsoDomain = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "sso.manage"),
+    requireTenant: true,
+    permission: "sso.manage",
   },
   async ({ id }, { db, auth }) => {
     const removed = await db.sso.removeDomain(id);
@@ -81,7 +79,7 @@ export const removeSsoDomain = bsb.action(
       return removed;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(removed.data);
   },
@@ -90,8 +88,8 @@ export const removeSsoDomain = bsb.action(
 export const verifySsoDomain = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "sso.manage"),
+    requireTenant: true,
+    permission: "sso.manage",
   },
   async ({ id }, { auth }) => {
     const admin = ssoAdmin();
@@ -110,7 +108,7 @@ export const verifySsoDomain = bsb.action(
       return verified;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(verified.data.verifiedAt !== undefined);
   },
@@ -128,8 +126,8 @@ export const updateSsoDomain = bsb.action(
       autoJoinRole: v.optional(v.nullable(v.picklist(["member", "admin"]))),
       enforceSso: v.optional(v.boolean()),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "sso.manage"),
+    requireTenant: true,
+    permission: "sso.manage",
   },
   async ({ id, autoJoinRole, enforceSso }, { db, auth }) => {
     const settings: DomainSettingsDraft = {};
@@ -148,7 +146,7 @@ export const updateSsoDomain = bsb.action(
       return updated;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(updated.data.id);
   },
@@ -165,8 +163,8 @@ export const addSamlConnection = bsb.action(
       ),
       domains: v.pipe(v.array(DOMAIN), v.minLength(1)),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "sso.manage"),
+    requireTenant: true,
+    permission: "sso.manage",
   },
   async ({ metadataUrl, domains }, { tenant, auth }) => {
     const admin = ssoAdmin();
@@ -189,7 +187,7 @@ export const addSamlConnection = bsb.action(
       return added;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(added.data.id);
   },
@@ -198,8 +196,8 @@ export const addSamlConnection = bsb.action(
 export const removeSamlConnection = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "sso.manage"),
+    requireTenant: true,
+    permission: "sso.manage",
   },
   async ({ id }, { auth }) => {
     const admin = ssoAdmin();
@@ -220,7 +218,7 @@ export const removeSamlConnection = bsb.action(
       return removed;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(removed.data !== undefined);
   },

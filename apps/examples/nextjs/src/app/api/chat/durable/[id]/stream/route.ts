@@ -29,5 +29,5 @@ export const GET = bsb.route<{ id: string }, true>(
       },
     );
   },
-  { requireOrganization: true },
+  { requireTenant: true },
 );

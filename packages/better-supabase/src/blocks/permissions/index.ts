@@ -9,6 +9,13 @@ export {
 
 export { permissionsBlock } from "./manifest.ts";
 
+export { permissionsAuthorizer } from "./authorizer.ts";
+
+export type {
+  PermissionMap,
+  PermissionsAuthorizerOptions,
+} from "./authorizer.ts";
+
 export {
   can,
   permissionFlags,

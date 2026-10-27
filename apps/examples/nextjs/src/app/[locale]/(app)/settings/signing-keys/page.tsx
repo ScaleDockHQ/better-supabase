@@ -5,8 +5,6 @@ import {
   SigningKeysRotationSkeleton,
 } from "@/features/signing-keys/components/signing-keys-rotation";
 
-export const instant = true;
-
 export default function SigningKeysSettingsPage() {
   return (
     <Suspense fallback={<SigningKeysRotationSkeleton />}>

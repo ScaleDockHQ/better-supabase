@@ -229,7 +229,7 @@ describe.skipIf(!up)("request context on better-supabase", () => {
   it("accepts the cron secret key for cron routes and rejects the default one", async () => {
     const accepted = await call(cron, { apikey: CRON_KEY });
     expect(await accepted.json()).toEqual({
-      auth: { kind: "service", keyName: "cron" },
+      auth: { kind: "secret", keyName: "cron" },
     });
     expect((await call(cron, { apikey: stack.secretKey })).status).toBe(401);
     expect(

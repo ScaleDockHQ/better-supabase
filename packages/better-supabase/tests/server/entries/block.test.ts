@@ -44,7 +44,7 @@ describe("withBlock", () => {
 
     const fetch = pipeline(
       [
-        withBetterSupabase(server, { allow: ["anon"] }),
+        withBetterSupabase(server, { allow: ["none"] }),
         withPostgresAdmin(),
         withBlock(
           "probe",

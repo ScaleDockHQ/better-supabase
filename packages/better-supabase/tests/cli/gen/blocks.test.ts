@@ -588,7 +588,7 @@ describe("schemaExtensions", () => {
     expect(
       schemaExtensions(
         resolveConfig(
-          { auth: { organization: { column: "org_id", onMissing: "error" } } },
+          { auth: { tenant: { column: "org_id", onMissing: "error" } } },
           "/project",
         ),
       ),

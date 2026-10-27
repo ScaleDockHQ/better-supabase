@@ -7999,6 +7999,26 @@ msgctxt "notifications.94cCzv"
 msgid "{count, number} unread"
 msgstr "{count, number} ongelezen"
 
+#: src/features/offline/components/connectivity-fallback.tsx
+msgctxt "offline.38Jnwq"
+msgid "Waiting for a connection to load this section."
+msgstr "Wacht op een verbinding om dit deel te laden."
+
+#: src/features/offline/components/offline-banner.tsx
+msgctxt "offline.vS1TVs"
+msgid "You are offline"
+msgstr "Je bent offline"
+
+#: src/features/offline/components/offline-banner.tsx
+msgctxt "offline.x-xEos"
+msgid "Pending changes and pages load when you are back online."
+msgstr "Wijzigingen en pagina's die nog wachten, laden zodra je weer online bent."
+
+#: src/features/offline/components/submit-label.tsx
+msgctxt "offline.qf5KUv"
+msgid "Waiting for connection"
+msgstr "Wacht op verbinding"
+
 #: src/features/organization/components/create-organization-dialog.tsx
 msgctxt "organization.lehIHr"
 msgid "Organization created"

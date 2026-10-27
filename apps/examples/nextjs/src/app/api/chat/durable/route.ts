@@ -31,5 +31,5 @@ export const POST = bsb.route(
       durableContext(supabase, session.user.id, tenant),
     );
   },
-  { requireOrganization: true },
+  { requireTenant: true },
 );

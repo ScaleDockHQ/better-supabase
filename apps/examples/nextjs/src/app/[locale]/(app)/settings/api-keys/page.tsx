@@ -9,8 +9,6 @@ import {
   ServicePrincipalsTableSkeleton,
 } from "@/features/service-principals/components/service-principals-table";
 
-export const instant = true;
-
 export default function ApiKeysSettingsPage() {
   return (
     <>

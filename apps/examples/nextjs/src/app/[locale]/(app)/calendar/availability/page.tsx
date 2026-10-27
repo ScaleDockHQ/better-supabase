@@ -7,8 +7,6 @@ import {
   AvailabilityEditorSkeleton,
 } from "@/features/bookings/components/availability-editor";
 
-export const instant = true;
-
 export default function AvailabilityPage() {
   const t = useExtracted("bookings");
 

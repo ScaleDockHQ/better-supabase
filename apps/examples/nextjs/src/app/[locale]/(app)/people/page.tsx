@@ -7,8 +7,6 @@ import {
   EmployeeDirectorySkeleton,
 } from "@/features/people/components/employee-directory";
 
-export const instant = true;
-
 export default function PeoplePage() {
   const t = useExtracted("people");
 

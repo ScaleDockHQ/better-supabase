@@ -6,7 +6,7 @@ import type { ComputedScore } from "../scores/scores.ts";
 import type { BlockOptions, RecordRef } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { requireOrganization } from "../../core/block-tenant.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { defineRuleFields } from "../automations/fields.ts";
 import { computedScoreOf } from "../scores/scores.ts";
 import { applyTemporal, blockCall, isRecord } from "../shared.ts";
@@ -77,7 +77,7 @@ export function createLeadScoring(options: LeadScoringOptions): LeadScoring {
     options.mappers,
   );
 
-  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
   const subjectArgs = (organizationId: string, subject: RecordRef) => ({
     tenant: organizationId,

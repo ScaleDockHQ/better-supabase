@@ -6,6 +6,7 @@ export const DEFAULT_CLAIMS: ClaimsMeta = {
   scope: "tenant",
   features: "features",
   memberships: "memberships",
+  permissions: "permissions",
 };
 
 /**
@@ -27,6 +28,10 @@ export interface ClaimPaths {
   readonly memberships: string;
   /** The `scope` of tenant entries in the memberships list. */
   readonly scope: string;
+  /** `{ [tenantId]: string[] }` of permission keys. */
+  readonly permissions: string;
+  /** Set to `true` when the hook left permission keys out of the claim. */
+  readonly permissionsTruncated: string;
 }
 
 /**
@@ -41,6 +46,8 @@ export function claimPaths(claims?: Partial<ClaimsMeta>): ClaimPaths {
     features: resolved.features,
     memberships: resolved.memberships,
     scope: resolved.scope,
+    permissions: resolved.permissions,
+    permissionsTruncated: `${resolved.permissions}_truncated`,
   };
 }
 

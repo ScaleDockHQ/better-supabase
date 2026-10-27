@@ -1465,6 +1465,12 @@ importers:
       '@better-supabase/typescript-config':
         specifier: workspace:*
         version: link:../../../packages/typescript-config
+      '@next/playwright':
+        specifier: 'catalog:'
+        version: 16.4.2(@playwright/test@1.64.1)
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.64.1
       '@supabase/middleware':
         specifier: 'catalog:'
         version: 1.0.0(typescript@7.0.2)

@@ -544,7 +544,7 @@ export function createServer<
     const sqlClaims: SqlClaims | undefined =
       auth.kind === "user"
         ? auth.claims
-        : auth.kind === "anon"
+        : auth.kind === "none"
           ? { role: "anon" }
           : undefined;
 
@@ -660,7 +660,7 @@ export function createServer<
       readonly refresh?: boolean;
       readonly cookies?: boolean;
       readonly encode?: SessionEncoding;
-      readonly checkSession?: boolean;
+      readonly verifySession?: boolean;
       readonly leeway?: number;
       readonly onTiming?: (phase: ResolvePhase, ms: number) => void;
     } = {},
@@ -680,7 +680,7 @@ export function createServer<
       ...(resolveOptions.cookies === undefined
         ? {}
         : { cookies: resolveOptions.cookies }),
-      ...(resolveOptions.checkSession ? { checkSession: true } : {}),
+      ...(resolveOptions.verifySession ? { verifySession: true } : {}),
       ...(resolveOptions.leeway === undefined
         ? {}
         : { leeway: resolveOptions.leeway }),
@@ -710,14 +710,14 @@ export function createServer<
             ? auth.source === "cookie"
               ? "cookie"
               : "bearer"
-            : auth.kind === "service" || auth.kind === "apiKey"
+            : auth.kind === "secret" || auth.kind === "apiKey"
               ? "bearer"
               : "none",
         ok: auth.kind !== "invalid",
         ...(auth.kind === "user"
           ? { userId: auth.user.id, rawSource: auth.source }
           : {}),
-        ...(auth.kind === "anon" || auth.kind === "invalid"
+        ...(auth.kind === "none" || auth.kind === "invalid"
           ? { reason: auth.reason }
           : {}),
       });
@@ -745,7 +745,7 @@ export function createServer<
   const custom =
     lite !== undefined || (options.auth?.resolvers?.length ?? 0) > 0;
 
-  const { snapshot, contextFromSession, sessions, forgetSession } =
+  const { snapshot, contextFromSession, sessions, evictSession } =
     serverSessions<C, P, ServerContext<M, F, E, C, P, B>, ContextOptions>({
       resolve,
       cookieName: () =>
@@ -783,7 +783,7 @@ export function createServer<
     snapshot,
     contextFromSession,
     sessions,
-    forgetSession,
+    evictSession,
     resolve,
     supabaseFor,
     dbFor: (auth, context, dbOptions) =>
@@ -873,7 +873,7 @@ export function createServer<
         adminOptions.as === undefined
           ? serviceClient()
           : supabaseFor(
-              { kind: "service", keyName: "secret" },
+              { kind: "secret", keyName: "secret" },
               { [ACTOR_HEADER]: adminOptions.as },
             );
 

@@ -138,14 +138,14 @@ describe("defineFunction", () => {
 
   it("passes the middleware options on", async () => {
     const open = defineFunction(bsb, {
-      allow: ["anon"],
+      allow: ["none"],
       input: v.optional(v.object({})),
       handler: (_input, ctx) => ({ kind: ctx.auth.kind, url: ctx.request.url }),
     });
 
     const response = await call(open, { method: "GET", auth: false });
     expect(await response.json()).toEqual({
-      kind: "anon",
+      kind: "none",
       url: `${PROJECT_URL}/functions/v1/send-invite`,
     });
   });

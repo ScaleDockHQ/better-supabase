@@ -4,8 +4,6 @@ import { ok } from "better-supabase";
 import { FORM_FIELD_TYPES } from "better-supabase/blocks/forms";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -31,8 +29,8 @@ export const createForm = bsb.action(
         "",
       ),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "forms.manage"),
+    requireTenant: true,
+    permission: "forms.manage",
   },
   async ({ title, description }, { tenant, db, auth }) => {
     const base = { organizationId: tenant, key: keyOf(title), title };
@@ -45,7 +43,7 @@ export const createForm = bsb.action(
       return form;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: form.data.id, title: form.data.title });
   },
@@ -73,8 +71,8 @@ export const publishForm = bsb.action(
       formId: Id,
       fields: v.pipe(v.array(Field), v.minLength(1), v.maxLength(50)),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "forms.manage"),
+    requireTenant: true,
+    permission: "forms.manage",
   },
   async ({ formId, fields }, { db, auth }) => {
     const version = await db.forms.publish(formId, {
@@ -92,7 +90,7 @@ export const publishForm = bsb.action(
       return version;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ number: version.data.number });
   },
@@ -109,8 +107,8 @@ const Answer = v.union([
 export const submitForm = bsb.action(
   {
     input: v.object({ formId: Id, answers: v.record(v.string(), Answer) }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "forms.submit"),
+    requireTenant: true,
+    permission: "forms.submit",
   },
   async ({ formId, answers }, { db, auth }) => {
     const submission = await db.forms.submit(formId, answers);
@@ -119,7 +117,7 @@ export const submitForm = bsb.action(
       return submission;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: submission.data.id });
   },

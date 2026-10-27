@@ -23,7 +23,7 @@ const bsb = createNext(defineSupabase(schema));
 
 describe("next.session", () => {
   it("returns the serializable session union", () => {
-    expectTypeOf(bsb.session()).resolves.toEqualTypeOf<AuthSession>();
+    expectTypeOf(bsb.claims()).resolves.toEqualTypeOf<AuthSession>();
     expectTypeOf(useSession).returns.toEqualTypeOf<AuthSession>();
   });
 
@@ -37,7 +37,7 @@ describe("next.session", () => {
     }
 
     expectTypeOf<AuthSession["kind"]>().toEqualTypeOf<
-      "user" | "service" | "apiKey" | "anon" | "invalid"
+      "user" | "secret" | "apiKey" | "none" | "invalid"
     >();
   });
 });
@@ -57,7 +57,7 @@ describe("betterSupabase.claims(schema)", () => {
 
   it("types the claims of every session and auth state", async () => {
     const typed = createNext(betterSupabase);
-    const session = await typed.session();
+    const session = await typed.claims();
 
     if (session.kind === "user") {
       expectTypeOf(session.claims.tenant_id).toEqualTypeOf<string>();
@@ -76,7 +76,7 @@ describe("betterSupabase.claims(schema)", () => {
   });
 
   it("keeps an untyped session for untyped definitions", () => {
-    expectTypeOf(bsb.session()).resolves.toEqualTypeOf<AuthSession>();
+    expectTypeOf(bsb.claims()).resolves.toEqualTypeOf<AuthSession>();
   });
 
   it("distinguishes token, claims and actor failures", () => {
@@ -127,10 +127,10 @@ describe("betterSupabase.userMetadata(schema)", () => {
     .use(membershipsExtension());
 
   it("types the profile next to the claims, possibly undefined", async () => {
-    const session = await createNext(betterSupabase).session();
+    const session = await createNext(betterSupabase).claims();
 
     if (session.kind === "user") {
-      expectTypeOf(session.profile).toEqualTypeOf<Profile | undefined>();
+      expectTypeOf(session.userMetadata).toEqualTypeOf<Profile | undefined>();
       expectTypeOf(session.claims.tenant_id).toEqualTypeOf<string>();
     }
 
@@ -147,7 +147,7 @@ describe("betterSupabase.userMetadata(schema)", () => {
       .use(membershipsExtension())
       .claims(Claims);
 
-    expectTypeOf(createNext(later).session()).resolves.toEqualTypeOf<
+    expectTypeOf(createNext(later).claims()).resolves.toEqualTypeOf<
       AuthSession<Claims, Profile>
     >();
   });
@@ -161,10 +161,10 @@ describe("betterSupabase.userMetadata(schema)", () => {
   });
 
   it("leaves the profile unknown without a schema", async () => {
-    const session = await bsb.session();
+    const session = await bsb.claims();
 
     if (session.kind === "user") {
-      expectTypeOf(session.profile).toEqualTypeOf<unknown>();
+      expectTypeOf(session.userMetadata).toEqualTypeOf<unknown>();
     }
   });
 });
@@ -227,9 +227,9 @@ describe("resource", () => {
   });
 });
 
-describe("authorize and requireOrganization", () => {
-  it("narrows ctx.tenant to a string only with requireOrganization", () => {
-    bsb.action({ requireOrganization: true }, (_input, ctx) => {
+describe("authorize and requireTenant", () => {
+  it("narrows ctx.tenant to a string only with requireTenant", () => {
+    bsb.action({ requireTenant: true }, (_input, ctx) => {
       expectTypeOf(ctx.tenant).toEqualTypeOf<string>();
       expectTypeOf(ctx.session).toEqualTypeOf<AuthSession>();
     });
@@ -252,9 +252,9 @@ describe("authorize and requireOrganization", () => {
       (_request, ctx) => {
         expectTypeOf(ctx.tenant).toEqualTypeOf<string>();
       },
-      { requireOrganization: true },
+      { requireTenant: true },
     );
-    expectTypeOf(bsb.require({ requireOrganization: true }))
+    expectTypeOf(bsb.require({ requireTenant: true }))
       .resolves.toHaveProperty("tenant")
       .toEqualTypeOf<string>();
   });

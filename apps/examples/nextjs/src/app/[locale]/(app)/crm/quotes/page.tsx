@@ -8,8 +8,6 @@ import {
   QuoteListSkeleton,
 } from "@/features/crm/components/quote-list";
 
-export const instant = true;
-
 export default function QuotesPage() {
   const t = useExtracted("crm");
 

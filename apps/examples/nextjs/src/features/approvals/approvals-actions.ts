@@ -4,8 +4,6 @@ import { ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -22,8 +20,8 @@ export const requestApproval = bsb.action(
       action: v.picklist(APPROVAL_ACTIONS),
       reason: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500)),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "approvals.request"),
+    requireTenant: true,
+    permission: "approvals.request",
   },
   async ({ subjectId, action, reason }, { db, auth }) => {
     const requested = await db.approvals.request(
@@ -35,7 +33,7 @@ export const requestApproval = bsb.action(
       return requested;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(requested.data.id);
   },
@@ -52,8 +50,8 @@ export const decideApproval = bsb.action(
       decision: v.picklist(["approve", "reject"]),
       comment: Comment,
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "approvals.read"),
+    requireTenant: true,
+    permission: "approvals.read",
   },
   async ({ id, decision, comment }, { db, auth }) => {
     const { approvals } = db;
@@ -68,7 +66,7 @@ export const decideApproval = bsb.action(
       return decided;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(decided.data.status);
   },

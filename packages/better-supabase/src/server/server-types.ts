@@ -185,7 +185,7 @@ export interface ServerOptions {
   /**
    * The authorization library's version cache, created once at module scope. It
    * reaches every authorizer decision (`AuthorizerRuntime.versions`), and
-   * `invalidateSession` evicts the user from it.
+   * `evictSession` evicts the user from it.
    */
   readonly versions?: AuthzVersionCache;
   /**
@@ -358,7 +358,7 @@ export interface BetterServer<
     options?: {
       readonly refresh?: boolean;
       readonly cookies?: boolean;
-      readonly checkSession?: boolean;
+      readonly verifySession?: boolean;
       /**
        * With `refresh`, refresh a token expiring within this many seconds.
        * Defaults to `auth.leeway`, else 60.
@@ -500,7 +500,7 @@ export interface BetterServer<
    * Evicts the user from the session memo and `versions`. Adapters with a cache
    * layer also invalidate its tags.
    */
-  forgetSession(userId: string): Promise<void>;
+  evictSession(userId: string): Promise<void>;
 }
 
 export type ServerKeys = keyof BetterServer<AnyModels, AnyFunctions, unknown>;

@@ -104,7 +104,7 @@ export interface BetterSvelteKit<
    * ```ts
    * export const load = async (event) => {
    *   const { db, tenant } = await bsb.require(event, {
-   *     requireOrganization: true,
+   *     requireTenant: true,
    *   });
    *   return { customers: await db.customers.list().orThrow() };
    * };
@@ -250,7 +250,7 @@ export function createSvelteKit<
           return refuse(caller, event.request);
         }
 
-        // SAFETY: requireOrganization refused a missing tenant.
+        // SAFETY: requireTenant refused a missing tenant.
         return { ...locals, ...caller } as never;
       },
 
@@ -265,7 +265,7 @@ export function createSvelteKit<
             input,
             locals.tenant,
             // SAFETY: parsed is the validated input, or the raw input when the
-            // action has no schema; requireOrganization refused a missing tenant.
+            // action has no schema; requireTenant refused a missing tenant.
             (parsed, caller) =>
               fn(parsed as never, { ...locals, ...caller } as never, event),
             server.authorizer,

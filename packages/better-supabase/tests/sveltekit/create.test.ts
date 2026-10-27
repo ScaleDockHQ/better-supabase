@@ -92,7 +92,7 @@ describe("createSvelteKit", () => {
     ).rejects.toEqual(new Redirect(303, "/sign-in?next=%2Fnotes"));
     await expect(
       withEvent(await requestAs({ role: "member" }), (event) =>
-        bsb.require(event, { requireOrganization: true }),
+        bsb.require(event, { requireTenant: true }),
       ),
     ).rejects.toBeInstanceOf(HttpError);
   });

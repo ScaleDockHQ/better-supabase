@@ -43,7 +43,7 @@ describe("routeRefusal", () => {
     const member = await authAs({ role: "member" });
 
     const forbidden = await routeRefusal({ bsb: { auth: member } }, request, {
-      requireOrganization: true,
+      requireTenant: true,
     });
 
     expect(forbidden?.status).toBe(403);

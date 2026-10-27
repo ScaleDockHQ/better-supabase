@@ -10,8 +10,6 @@ import {
 import { PermissionGate } from "@/features/user/components/permission-gate";
 import { Link } from "@/i18n/navigation";
 
-export const instant = true;
-
 /** The back link is the static shell; the team streams in. */
 export default function TeamPage({
   params,

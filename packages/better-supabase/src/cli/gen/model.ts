@@ -333,7 +333,7 @@ function draftTables(ctx: ModelContext): DraftTable[] {
       }
     }
 
-    const beforeInsert = table.triggers.some(
+    const fillers = table.triggers.filter(
       (trigger) =>
         trigger.timing === "before" &&
         trigger.level === "row" &&
@@ -417,7 +417,10 @@ function draftTables(ctx: ModelContext): DraftTable[] {
         column.hasDefault ||
         insertOptional.has(column.name) ||
         (numberedColumns?.has(column.name) ?? false) ||
-        (narrowed && beforeInsert);
+        (narrowed &&
+          fillers.some(
+            (trigger) => trigger.fills?.includes(column.name) ?? true,
+          ));
 
       // A view's computed columns are neither insertable nor updatable;
       // Postgres reports both through is_updatable.

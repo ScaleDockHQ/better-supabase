@@ -98,12 +98,12 @@ const config: KnipConfig = {
         // Copied from the registry, which knip checks as entries.
         "src/hooks/use-*.ts",
       ],
-      // The browser loads the push worker by URL. `tsc` checks the type tests,
+      // The browser loads the service worker by URL. `tsc` checks the type tests,
       // which the vitest config's `include` leaves out.
       entry: [
         "better-supabase.config.ts",
         "src/image-loader.ts",
-        "public/push-sw.js",
+        "public/sw.js",
         "tests/**/*.test-d.ts",
       ],
     },

@@ -29,7 +29,7 @@
     "contentMapper": true
   },
   "auth": {
-    "organization": {
+    "tenant": {
       "column": "organization_id"
     }
   },

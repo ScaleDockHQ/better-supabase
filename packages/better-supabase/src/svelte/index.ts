@@ -696,7 +696,7 @@ export function useSession<C = unknown, P = unknown>(): Current<
 
   return {
     get current() {
-      // SAFETY: setSession receives `bsb.session()` from the same
+      // SAFETY: setSession receives `bsb.claims()` from the same
       // `betterSupabase`, whose schemas fix `C` and `P`.
       return session() as AuthSession<C, P>;
     },

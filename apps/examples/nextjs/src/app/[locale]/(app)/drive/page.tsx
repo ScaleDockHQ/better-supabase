@@ -8,8 +8,6 @@ import {
 } from "@/features/drive/components/drive-explorer";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
-export const instant = true;
-
 const ROOT = Promise.resolve(null);
 
 export default function DrivePage() {

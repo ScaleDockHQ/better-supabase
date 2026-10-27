@@ -4,8 +4,6 @@ import { dbError, err, ok } from "better-supabase";
 import * as v from "valibot";
 
 import { getMembers } from "@/features/organization/organization-queries";
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -38,8 +36,8 @@ export interface SharingTarget {
 export const loadDriveSharing = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "drive.read"),
+    requireTenant: true,
+    permission: "drive.read",
   },
   async ({ id }, { tenant, db }) => {
     const [grants, members, teams] = await Promise.all([
@@ -96,8 +94,8 @@ export const shareDriveItem = bsb.action(
       principal: Principal,
       role: v.picklist(DRIVE_ROLES),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "drive.read"),
+    requireTenant: true,
+    permission: "drive.read",
   },
   async ({ id, principal, role }, { db, auth }) => {
     const shared = await driveOf(db).share(id, principal, role);
@@ -106,7 +104,7 @@ export const shareDriveItem = bsb.action(
       return shared;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(null);
   },
@@ -116,8 +114,8 @@ export const shareDriveItem = bsb.action(
 export const unshareDriveItem = bsb.action(
   {
     input: v.object({ id: Id, principal: Principal }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "drive.read"),
+    requireTenant: true,
+    permission: "drive.read",
   },
   async ({ id, principal }, { db, auth }) => {
     const removed = await driveOf(db).unshare(id, principal);
@@ -130,7 +128,7 @@ export const unshareDriveItem = bsb.action(
       return err(dbError("not_found", "Grant not found"));
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(null);
   },

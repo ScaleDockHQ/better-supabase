@@ -39,7 +39,7 @@ export interface AuthorizeOptions<
   X = ResourceLoaderContext<C, P>,
 > {
   /** Refuse callers without an active tenant, so `ctx.tenant` is a string. */
-  readonly requireOrganization?: R;
+  readonly requireTenant?: R;
   /** Admit only users holding one of these roles at `roleClaim`. */
   readonly roles?: readonly string[];
   /**
@@ -85,7 +85,7 @@ export interface ResourceLoaderContext<C = unknown, P = unknown> {
   readonly tenant: string | undefined;
 }
 
-/** What `requireOrganization` and `authorize` add to the context. */
+/** What `requireTenant` and `authorize` add to the context. */
 export interface AuthorizedContext<C, P, R extends boolean> {
   readonly session: AuthSession<C, P>;
   /**
@@ -226,8 +226,8 @@ function memoOf(scope: object | undefined): RequestMemo | undefined {
 }
 
 /**
- * `requireOrganization`, `roles`, `permission` and `authorize`, in that order:
- * the session and tenant, or why the caller is refused.
+ * `requireTenant`, `roles`, `permission` and `authorize`, in that order: the
+ * session and tenant, or why the caller is refused.
  */
 export async function authorizeCaller<I, C, P, X = ResourceLoaderContext<C, P>>(
   auth: AuthState<C, P>,
@@ -242,7 +242,7 @@ export async function authorizeCaller<I, C, P, X = ResourceLoaderContext<C, P>>(
 > {
   const session = toSession(auth);
 
-  if (checks.requireOrganization && tenant === undefined) {
+  if (checks.requireTenant && tenant === undefined) {
     return dbError("forbidden", "Choose an organization first", {
       code: "NO_TENANT",
     });

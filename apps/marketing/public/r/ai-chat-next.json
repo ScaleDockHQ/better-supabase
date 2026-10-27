@@ -17,19 +17,19 @@
     },
     {
       "path": "items/app/api/chat/route.ts",
-      "content": "import { dbError, err } from \"better-supabase\";\n\nimport { assistant, assistantContext } from \"@/lib/assistant\";\nimport { bsb } from \"@/lib/supabase/server\";\n\n/** `POST /api/chat`: stores the member's message and streams the answer. */\nexport const POST = bsb.route(\n  (request, { session, tenant, supabase }) =>\n    session.kind === \"user\"\n      ? assistant().respond(\n          request,\n          assistantContext(supabase, session.user.id, tenant),\n        )\n      : err(dbError(\"unauthorized\", \"Sign in to use the assistant\")),\n  { requireOrganization: true },\n);\n",
+      "content": "import { dbError, err } from \"better-supabase\";\n\nimport { assistant, assistantContext } from \"@/lib/assistant\";\nimport { bsb } from \"@/lib/supabase/server\";\n\n/** `POST /api/chat`: stores the member's message and streams the answer. */\nexport const POST = bsb.route(\n  (request, { session, tenant, supabase }) =>\n    session.kind === \"user\"\n      ? assistant().respond(\n          request,\n          assistantContext(supabase, session.user.id, tenant),\n        )\n      : err(dbError(\"unauthorized\", \"Sign in to use the assistant\")),\n  { requireTenant: true },\n);\n",
       "type": "registry:file",
       "target": "~/app/api/chat/route.ts"
     },
     {
       "path": "items/app/api/chat/[id]/stream/route.ts",
-      "content": "import { dbError, err } from \"better-supabase\";\n\nimport { assistant, assistantContext } from \"@/lib/assistant\";\nimport { bsb } from \"@/lib/supabase/server\";\n\n/** `GET /api/chat/[id]/stream`: the running answer from the start, or 204. */\nexport const GET = bsb.route<{ id: string }, true>(\n  (request, { session, tenant, supabase, params }) =>\n    session.kind === \"user\"\n      ? assistant().resume(\n          params.id,\n          assistantContext(supabase, session.user.id, tenant),\n          { signal: request.signal },\n        )\n      : err(dbError(\"unauthorized\", \"Sign in to use the assistant\")),\n  { requireOrganization: true },\n);\n",
+      "content": "import { dbError, err } from \"better-supabase\";\n\nimport { assistant, assistantContext } from \"@/lib/assistant\";\nimport { bsb } from \"@/lib/supabase/server\";\n\n/** `GET /api/chat/[id]/stream`: the running answer from the start, or 204. */\nexport const GET = bsb.route<{ id: string }, true>(\n  (request, { session, tenant, supabase, params }) =>\n    session.kind === \"user\"\n      ? assistant().resume(\n          params.id,\n          assistantContext(supabase, session.user.id, tenant),\n          { signal: request.signal },\n        )\n      : err(dbError(\"unauthorized\", \"Sign in to use the assistant\")),\n  { requireTenant: true },\n);\n",
       "type": "registry:file",
       "target": "~/app/api/chat/[id]/stream/route.ts"
     },
     {
       "path": "items/app/api/chat/[id]/stop/route.ts",
-      "content": "import { dbError, err } from \"better-supabase\";\n\nimport { assistant, assistantContext } from \"@/lib/assistant\";\nimport { bsb } from \"@/lib/supabase/server\";\n\n/** `POST /api/chat/[id]/stop`: ends the running answer; it is stored as stopped. */\nexport const POST = bsb.route<{ id: string }, true>(\n  (_request, { session, tenant, supabase, params }) =>\n    session.kind === \"user\"\n      ? assistant().stop(\n          params.id,\n          assistantContext(supabase, session.user.id, tenant),\n        )\n      : err(dbError(\"unauthorized\", \"Sign in to use the assistant\")),\n  { requireOrganization: true },\n);\n",
+      "content": "import { dbError, err } from \"better-supabase\";\n\nimport { assistant, assistantContext } from \"@/lib/assistant\";\nimport { bsb } from \"@/lib/supabase/server\";\n\n/** `POST /api/chat/[id]/stop`: ends the running answer; it is stored as stopped. */\nexport const POST = bsb.route<{ id: string }, true>(\n  (_request, { session, tenant, supabase, params }) =>\n    session.kind === \"user\"\n      ? assistant().stop(\n          params.id,\n          assistantContext(supabase, session.user.id, tenant),\n        )\n      : err(dbError(\"unauthorized\", \"Sign in to use the assistant\")),\n  { requireTenant: true },\n);\n",
       "type": "registry:file",
       "target": "~/app/api/chat/[id]/stop/route.ts"
     }

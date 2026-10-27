@@ -35,7 +35,12 @@ async function retry() {
 
 /** Render inside `<Suspense>`: loads the board and keeps it live. */
 export async function OrderBoard() {
-  const permissions = await getPermissions();
+  // The read starts with the permission check; RLS guards it either way.
+  const [permissions, board, t] = await Promise.all([
+    getPermissions(),
+    getOrderBoard(),
+    getExtracted("shop"),
+  ]);
 
   if (!can(permissions, "orders.read") && !can(permissions, "orders.prepare")) {
     forbidden();
@@ -43,8 +48,6 @@ export async function OrderBoard() {
 
   const canPrepare =
     can(permissions, "orders.prepare") || can(permissions, "orders.manage");
-
-  const [board, t] = await Promise.all([getOrderBoard(), getExtracted("shop")]);
 
   if (board.kind === "no-organization") {
     return null;

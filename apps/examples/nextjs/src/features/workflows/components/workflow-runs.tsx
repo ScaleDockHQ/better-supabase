@@ -78,7 +78,11 @@ export function WorkflowRuns({ tenant }: { tenant: string | null }) {
           {runs.map((run) => (
             <TableRow key={run.id}>
               <TableCell>
-                <Link href={`/workflows/${run.id}`} className="font-medium">
+                <Link
+                  href={`/workflows/${run.id}`}
+                  prefetch
+                  className="font-medium"
+                >
                   {workflowName(run.definition)}
                 </Link>
               </TableCell>

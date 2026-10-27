@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:4722099e172efb4d9fd8f46ad9fde1cf3cd3ad13830142033d9f12784619a327
+-- @bsb-hash sha256:54a8d2f5c80adb0f1bdac5341f7b0066cbfbd524af0edde636d112362800af89
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -340,6 +340,21 @@ as $$
   select coalesce(better_supabase.platform_can(auth.uid(), is_platform.permission), false)
 $$;
 
+-- { [tenant]: permission keys } for one tenant, the active one; {} without a
+-- tenant or when the model can't answer.
+create or replace function better_supabase.permission_claims(user_id uuid, tenant uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case
+    when permission_claims.tenant is null then '{}'::jsonb
+    else coalesce(jsonb_strip_nulls(jsonb_build_object(permission_claims.tenant::text, to_jsonb(better_supabase.member_permissions(permission_claims.user_id, permission_claims.tenant)))), '{}'::jsonb)
+  end
+$$;
+
 -- The caller's permission keys in a tenant, for client checks. With keys,
 -- the ones can() grants: every model answers, including a provider and
 -- delegated tokens. Without them, the keys the model lists for the member,
@@ -399,13 +414,24 @@ revoke execute on function better_supabase.can_user(uuid, text, uuid, text) from
 grant execute on function better_supabase.can_user(uuid, text, uuid, text) to service_role, supabase_auth_admin;
 revoke execute on function better_supabase.permission_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.permission_claims(uuid) to service_role, supabase_auth_admin;
+revoke execute on function better_supabase.permission_claims(uuid, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.permission_claims(uuid, uuid) to service_role, supabase_auth_admin;
 revoke execute on function better_supabase.can_assign_as(uuid, uuid, text) from public, anon, authenticated;
 grant execute on function better_supabase.can_assign_as(uuid, uuid, text) to service_role, supabase_auth_admin;
 
 -- The permission claim: { [tenant id]: permission keys }, for the access
--- token hook when the app checks permissions from the token:
---   return jsonb_set(event, '{claims,permissions}',
---     better_supabase.permission_claims((event ->> 'user_id')::uuid));
+-- token hook when the app checks permissions from the token. Write the
+-- active tenant only, and mark the claim truncated when it outgrows the
+-- token budget, so readers ask the database instead:
+--   declare
+--     tenant text := event #>> '{claims,app_metadata,tenant_id}';
+--     keys jsonb := better_supabase.permission_claims((event ->> 'user_id')::uuid, tenant::uuid);
+--   begin
+--     if octet_length(keys::text) > 2048 then
+--       event := jsonb_set(event, '{claims,permissions_truncated}', 'true');
+--       keys := '{}'::jsonb;
+--     end if;
+--     return jsonb_set(event, '{claims,permissions}', keys);
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

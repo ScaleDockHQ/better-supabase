@@ -2,8 +2,8 @@
  * The 0.15 config regrouping: top-level keys move into `database`, `auth`,
  * `gen`, `api` and `tooling`; `integrations` becomes `adapters`; block entries
  * take `ownership`, `owner`, `names` and `callbacks`; `claims.tenant` and the
- * tenant plugin's column become `auth.organization`. The edit is textual, like
- * the rest of `config-edit.ts`, so comments and formatting survive.
+ * tenant plugin's column become `auth.tenant`. The edit is textual, like the
+ * rest of `config-edit.ts`, so comments and formatting survive.
  */
 
 import type { ConfigEdit, Property } from "./config-edit.ts";
@@ -162,7 +162,7 @@ interface Organization {
 
 /**
  * Pulls `claims.tenant` and `plugins.tenant.column` out of the root object at
- * `open`: the edits that remove them and the values for `auth.organization`.
+ * `open`: the edits that remove them and the values for `auth.tenant`.
  */
 function organizationEdits(
   source: string,
@@ -435,7 +435,7 @@ function regroup(
   ].filter((part) => part !== "");
 
   if (org.length > 0) {
-    const text = `organization: { ${org.join(", ")} },`;
+    const text = `tenant: { ${org.join(", ")} },`;
     members.set("auth", [
       multiline ? `${indent}${unit}${text}` : text,
       ...(members.get("auth") ?? []),

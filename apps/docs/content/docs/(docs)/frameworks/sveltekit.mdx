@@ -16,7 +16,7 @@ import { betterSupabase } from "$lib/supabase";
 const bsb = createServer(betterSupabase);
 
 export const handle = toSvelteKit([
-  withBetterSupabase(bsb, { refresh: true, allow: ["user", "anon"] }),
+  withBetterSupabase(bsb, { refresh: true, allow: ["user", "none"] }),
 ]);
 ```
 

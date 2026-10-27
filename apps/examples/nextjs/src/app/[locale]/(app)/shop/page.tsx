@@ -9,8 +9,6 @@ import {
 } from "@/features/shop/components/product-catalog-grid";
 import { Link } from "@/i18n/navigation";
 
-export const instant = true;
-
 export default function ShopPage() {
   const t = useExtracted("shop");
 

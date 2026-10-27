@@ -7,8 +7,6 @@ import {
   ApprovalsQueueSkeleton,
 } from "@/features/approvals/components/approvals-queue";
 
-export const instant = true;
-
 export default function ApprovalsPage() {
   const t = useExtracted("approvals");
 

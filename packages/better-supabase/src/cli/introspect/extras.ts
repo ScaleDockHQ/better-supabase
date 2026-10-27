@@ -11,6 +11,8 @@ import type {
   SnapshotExtras,
 } from "./types.ts";
 
+import { triggerFills } from "./trigger-fills.ts";
+
 /**
  * Catalog details `@supabase/postgrest-typegen` leaves out: named unique and
  * CHECK constraints, foreign key actions, ordered primary keys, indexes,
@@ -161,12 +163,15 @@ select t.tgrelid::int8 as table_id, t.tgname as name,
   case when pn.nspname || '.' || p.proname <> 'better_supabase.broadcast_topic'
     and p.prosrc ~ 'realtime\\.(broadcast_changes|send)\\s*\\(' then p.prosrc end as source,
   case when pn.nspname || '.' || p.proname <> 'better_supabase.broadcast_topic'
-    and p.prosrc ~ 'realtime\\.(broadcast_changes|send)\\s*\\(' then obj_description(p.oid, 'pg_proc') end as comment
+    and p.prosrc ~ 'realtime\\.(broadcast_changes|send)\\s*\\(' then obj_description(p.oid, 'pg_proc') end as comment,
+  case when t.tgtype & 7 = 7 then p.prosrc end as body,
+  l.lanname as language
 from pg_trigger t
 join pg_class c on c.oid = t.tgrelid
 join pg_namespace n on n.oid = c.relnamespace
 join pg_proc p on p.oid = t.tgfoid
 join pg_namespace pn on pn.oid = p.pronamespace
+join pg_language l on l.oid = p.prolang
 where not t.tgisinternal and n.nspname = any(${schemas})
 order by 1, 2`;
 
@@ -393,6 +398,9 @@ interface TriggerRow {
   args: string[] | null;
   source: string | null;
   comment: string | null;
+  /** The function body, only for row-level `before insert` triggers. */
+  body: string | null;
+  language: string;
 }
 
 interface GrantRow {
@@ -580,6 +588,7 @@ export async function readExtras(
         ...(trigger.args === null ? {} : { args: trigger.args }),
         ...(trigger.source === null ? {} : { source: trigger.source }),
         ...(trigger.comment === null ? {} : { comment: trigger.comment }),
+        ...fillsOf(trigger),
       })),
       grants: (grants.get(id) ?? []).map((grant) => ({
         role: grant.role,
@@ -632,4 +641,13 @@ export async function readExtras(
         }
       : {}),
   };
+}
+
+function fillsOf(trigger: TriggerRow): { fills?: readonly string[] } {
+  const fills =
+    trigger.body === null
+      ? undefined
+      : triggerFills(trigger.language, trigger.body);
+
+  return fills === undefined ? {} : { fills };
 }

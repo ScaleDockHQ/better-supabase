@@ -387,7 +387,7 @@ describe("testAuthResolver", () => {
         }
 
         return key === "good"
-          ? { kind: "service", keyName: "ci" }
+          ? { kind: "secret", keyName: "ci" }
           : {
               kind: "invalid",
               error: dbError("unauthorized", "Invalid API key"),
@@ -412,8 +412,8 @@ describe("testAuthResolver", () => {
         }
 
         return key === null
-          ? { kind: "anon", reason: "none" }
-          : { kind: "anon", reason: "none" };
+          ? { kind: "none", reason: "none" }
+          : { kind: "none", reason: "none" };
       },
     };
 

@@ -37,6 +37,22 @@ export const documentSecurityHeaderRules: HeaderRules = [
 ];
 
 /**
+ * A service worker at `/sw.js` controls the whole origin, is read as
+ * JavaScript, and is revalidated on every update check so a fix reaches
+ * installed apps on the next load.
+ */
+const serviceWorkerHeaderRules: HeaderRules = [
+  {
+    source: "/sw.js",
+    headers: [
+      { key: "Service-Worker-Allowed", value: "/" },
+      { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+      { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+    ],
+  },
+];
+
+/**
  * The prerender scope of this build: `BSB_BUILD_SCOPE` when it is set, else
  * `full` for a Vercel production deployment and `minimal` everywhere else. It
  * reads the shell environment Next saw before loading `.env*` files, because
@@ -116,7 +132,11 @@ export function createNextConfig(overrides: NextConfig = {}): NextConfig {
     async headers() {
       const own = headers === undefined ? [] : await headers();
 
-      return [...documentSecurityHeaderRules, ...own];
+      return [
+        ...documentSecurityHeaderRules,
+        ...serviceWorkerHeaderRules,
+        ...own,
+      ];
     },
   };
 }

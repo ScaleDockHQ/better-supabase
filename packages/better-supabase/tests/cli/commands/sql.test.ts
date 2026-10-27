@@ -49,7 +49,7 @@ describe("moduleLayout", () => {
             "public.posts.raw": { type: "unknown" },
           },
         },
-        auth: { organization: { column: "org_id" } },
+        auth: { tenant: { column: "org_id" } },
       },
       "/p",
     );

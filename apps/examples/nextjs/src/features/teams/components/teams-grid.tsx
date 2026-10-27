@@ -54,6 +54,7 @@ function NameCell({ row }: TeamCell) {
   return (
     <Link
       href={`/settings/teams/${row.original.id}`}
+      prefetch
       className="font-medium hover:underline"
     >
       {row.original.name}

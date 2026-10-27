@@ -4,13 +4,15 @@ import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { buttonVariants } from "@/components/ui/button";
+import { ConnectivityFallback } from "@/features/offline/components/connectivity-fallback";
 import {
   WorkBoard,
   WorkBoardSkeleton,
 } from "@/features/work/components/work-board";
 import { Link } from "@/i18n/navigation";
 
-export const instant = true;
+// A prefetch of this list stays static; the rows render on navigation.
+export const ensureStatic = "prefetch";
 
 export default function WorkPage({
   searchParams,
@@ -36,7 +38,13 @@ export default function WorkPage({
           </Link>
         }
       />
-      <Suspense fallback={<WorkBoardSkeleton />}>
+      <Suspense
+        fallback={
+          <ConnectivityFallback>
+            <WorkBoardSkeleton />
+          </ConnectivityFallback>
+        }
+      >
         <WorkBoard searchParams={searchParams} />
       </Suspense>
     </>

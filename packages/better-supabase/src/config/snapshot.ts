@@ -216,6 +216,12 @@ export interface CatalogTrigger {
   readonly source?: string;
   /** The function's comment, for the same functions as `source`. */
   readonly comment?: string;
+  /**
+   * Columns a row-level `before insert` trigger's PL/pgSQL function assigns on
+   * `new`. Absent when unknown (another language or a whole-row assignment) and
+   * for every other trigger.
+   */
+  readonly fills?: readonly string[];
 }
 
 export interface CatalogGrant {
