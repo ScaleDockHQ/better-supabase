@@ -251,7 +251,7 @@ describe("realtimeRelay", () => {
     expect((await deny.GET(get("org:o1:notes:u1"))).status).toBe(403);
 
     const anon = realtimeRelay(
-      relayServer({ kind: "anon", reason: "none" }, upstream),
+      relayServer({ kind: "none", reason: "none" }, upstream),
       { topics: [notifications, feed], authorize: () => true },
     );
 
@@ -537,7 +537,7 @@ describe("realtimeRelay edges", () => {
     const fake = fakeSql([]);
 
     const service = realtimeRelay(
-      relayServer({ kind: "service", keyName: "secret" }, upstream),
+      relayServer({ kind: "secret", keyName: "secret" }, upstream),
       { topics: [notifications], postgres: fake.sql },
     );
 
@@ -812,7 +812,7 @@ describe("realtimeRelay edges", () => {
 
   it("refuses anonymous sends", async () => {
     const relay = realtimeRelay(
-      relayServer({ kind: "anon", reason: "none" }, fakeUpstream()),
+      relayServer({ kind: "none", reason: "none" }, fakeUpstream()),
       { topics: [notifications], authorize: () => true },
     );
 

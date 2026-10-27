@@ -123,8 +123,8 @@ describe("react", () => {
         amr: [],
       }),
     ).toContain("<p>ada@example.com</p>");
-    expect(await render({ kind: "anon", reason: "none" })).toContain(
-      "<p>anon</p>",
+    expect(await render({ kind: "none", reason: "none" })).toContain(
+      "<p>none</p>",
     );
   });
 

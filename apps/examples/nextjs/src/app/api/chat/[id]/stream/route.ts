@@ -16,5 +16,5 @@ export const GET = bsb.route<{ id: string }, true>(
           { signal: request.signal },
         )
       : err(dbError("unauthorized", "Sign in to use the assistant")),
-  { requireOrganization: true },
+  { requireTenant: true },
 );

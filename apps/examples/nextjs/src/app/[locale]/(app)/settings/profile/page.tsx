@@ -5,8 +5,6 @@ import {
   ProfileDetailsSkeleton,
 } from "@/features/user/components/profile-details";
 
-export const instant = true;
-
 export default function ProfileSettingsPage() {
   return (
     <Suspense fallback={<ProfileDetailsSkeleton />}>

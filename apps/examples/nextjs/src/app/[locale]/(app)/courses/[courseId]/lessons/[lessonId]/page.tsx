@@ -6,8 +6,6 @@ import {
 } from "@/features/courses/components/lesson-player";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
-export const instant = true;
-
 export default function LessonPage({
   params,
 }: PageProps<"/[locale]/courses/[courseId]/lessons/[lessonId]">) {

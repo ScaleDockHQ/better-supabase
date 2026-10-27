@@ -5,8 +5,6 @@ import { NotificationActions } from "@/features/notifications/components/notific
 import { NotificationList } from "@/features/notifications/components/notification-list";
 import { UnreadSummary } from "@/features/notifications/components/unread-badge";
 
-export const instant = true;
-
 export default function NotificationsPage() {
   const t = useExtracted("notifications");
 

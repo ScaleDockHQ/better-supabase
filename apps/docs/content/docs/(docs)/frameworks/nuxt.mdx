@@ -24,7 +24,7 @@ import { betterSupabase } from "../lib/supabase";
 
 export const bsb = createServer(betterSupabase);
 export default [
-  withBetterSupabase(bsb, { refresh: true, allow: ["user", "anon"] }),
+  withBetterSupabase(bsb, { refresh: true, allow: ["user", "none"] }),
 ];
 ```
 

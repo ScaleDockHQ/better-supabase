@@ -8,8 +8,6 @@ import {
 } from "@/features/crm/components/contact-list";
 import { CreateContactDialog } from "@/features/crm/components/create-contact-dialog";
 
-export const instant = true;
-
 export default function ContactsPage() {
   const t = useExtracted("crm");
 

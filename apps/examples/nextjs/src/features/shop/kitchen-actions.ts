@@ -25,7 +25,7 @@ async function canPrepare(): Promise<boolean> {
 export const sendToKitchen = bsb.action(
   {
     input: v.object({ orderId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: canPrepare,
   },
   async ({ orderId }, { supabase, auth }) => {
@@ -35,7 +35,7 @@ export const sendToKitchen = bsb.action(
       return sent;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(sent.data);
   },
@@ -52,7 +52,7 @@ export const bumpTicket = bsb.action(
       state: v.picklist(PREPARATION_STATES),
       stationId: v.nullable(Id),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: canPrepare,
   },
   async ({ orderId, state, stationId }, { supabase, auth }) => {
@@ -66,7 +66,7 @@ export const bumpTicket = bsb.action(
       return bumped;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(bumped.data);
   },
@@ -76,7 +76,7 @@ export const bumpTicket = bsb.action(
 export const setLineState = bsb.action(
   {
     input: v.object({ lineId: Id, state: v.picklist(PREPARATION_STATES) }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: canPrepare,
   },
   async ({ lineId, state }, { supabase, auth }) => {
@@ -86,7 +86,7 @@ export const setLineState = bsb.action(
       return line;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(line.data.state);
   },

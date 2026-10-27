@@ -20,8 +20,10 @@ flag.
 - `experimental.globalNotFound` needs `app/global-not-found.tsx` with its own
   `<html>`, fonts and `metadataBase`. Next serves it only when routing
   matches nothing; a `notFound()` in a root layout renders Next's built-in
-  404 instead. In the example, `[locale]` matches every path, so unknown
-  `/api` paths answer from `app/api/[...rest]/route.ts`.
+  404 instead. An app with a dynamic root segment (the example's `[locale]`)
+  never reaches it, so the example turns the flag off and answers unknown
+  paths from `[locale]/[...rest]`, `[locale]/not-found.tsx` and
+  `app/api/[...rest]/route.ts`.
 - Outside a Vercel production build, `BSB_BUILD_SCOPE` is `minimal` and every
   `generateStaticParams` in docs and marketing returns its first 3 entries
   through `scopeStaticParams` (ADR 0109). Wrap a new one the same way, and
@@ -52,6 +54,31 @@ flag.
 - A database budget (`maxCalls`, `maxWaves`) fails on a navigation served
   entirely from the client cache, because no response carries
   `x-bsb-request-id`. Budget only navigations that reach the server.
+- Don't export `instant = true`. With `instantInsights.validationLevel`
+  at `warning` (the default), Next validates every page for an instant
+  navigation already; the export only adds noise. Export `instant = false`
+  with a reason on a segment that may block.
+- `ensureStatic` levels only tighten down the tree: a page can't set
+  `"shell"` under a layout that says `"prefetch"`. The example sets
+  `"shell"` on the `(app)` layout and `"prefetch"` on the list pages.
+- `instant()` from `@next/playwright` is a no-op under `next dev` and in a
+  build without `EXPOSE_TESTING_API=1`, so its tests pass without testing
+  anything there. `pnpm test:e2e` in the example builds with the flag and
+  runs `next start`; it needs the local stack and is not part of `verify`.
+
+## Offline and PWA
+
+- The example has one service worker, `public/sw.js`, for push and the
+  offline shell. Register it only at `/sw.js`: a second URL in the same scope
+  replaces the first worker and drops its push subscription.
+- The worker stores nothing whose `Cache-Control` says `private` or
+  `no-store`, and never replays a `POST`; `experimental.useOffline` retries
+  Server Actions. Don't add a cache rule that bypasses that check.
+- `/sw.js` gets `no-cache` and `Service-Worker-Allowed` from
+  `createNextConfig()`. The proxy matcher skips `html` and `webmanifest`, or
+  it redirects `offline.html` to the sign-in page.
+- The registrar skips `next dev`, so test offline behavior with `next build`
+  and `next start`.
 
 ## Lint needs generated Next types
 
@@ -114,10 +141,18 @@ cache fails with `Could not resolve "better-supabase/blocks/..."`.
   clients alone). Commit generated files with the change that needs them.
 - After `git mv`, stage the edited file again: the hook lints the staged
   content, not the working tree.
-- Permissions with overrides live in the database, not in the token, so a
-  proxy check costs one round trip before the first byte of every gated page.
-  The example redirects from `PermissionRedirect` instead, which runs after
-  the shell on the permissions `AppNav` already reads.
+- The token hook writes the active tenant's permission keys into the
+  `permissions` claim, so the proxy answers a gated page with the 403 page
+  before rendering, with no database read. A token over the 2048-byte budget
+  carries `permissions_truncated` and no keys; the proxy lets it through and
+  `getPermissions()` falls back to `my_permissions`. Don't gate pages from a
+  client component after render; that was `PermissionRedirect`, and it showed
+  the page before it left.
+- Auth placement: the proxy refreshes the session and answers coarse checks
+  (signed in, page permission). Server Components read the verified claims
+  and never refresh. Actions and route handlers check again with
+  `permission:` (the `permissionsAuthorizer`), because they can be called
+  without a page.
 - Start a private read together with `getPermissions()` instead of after it.
   Two reads in a row keep the response open for two round trips, and Chrome
   holds a reload of the same URL until that response ends (its HTTP cache

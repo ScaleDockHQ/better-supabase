@@ -30,7 +30,7 @@ async function listen(
   route: (req: IncomingMessage, res: ServerResponse) => Promise<void>,
 ): Promise<string> {
   const middleware = toNestMiddleware([
-    withBetterSupabase(server, { allow: ["user", "anon"] }),
+    withBetterSupabase(server, { allow: ["user", "none"] }),
   ]);
 
   const http = createServer((req, res) => {

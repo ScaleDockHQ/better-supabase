@@ -11,8 +11,6 @@ import {
   RemindersListSkeleton,
 } from "@/features/calendar/components/reminders-list";
 
-export const instant = true;
-
 export default function CalendarPage({
   searchParams,
 }: {

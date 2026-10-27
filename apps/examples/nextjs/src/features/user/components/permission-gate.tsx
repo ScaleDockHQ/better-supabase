@@ -18,7 +18,9 @@ import { can } from "../user-permissions";
 
 /**
  * Renders `children` only when the session has `permission`. UI only: the data
- * behind it is still protected by RLS and by each Server Action.
+ * behind it is still protected by RLS and by each Server Action. The keys come
+ * from the token, so the children wait on a `my_permissions` read only when the
+ * hook marked the claim truncated.
  */
 export async function PermissionGate({
   permission,

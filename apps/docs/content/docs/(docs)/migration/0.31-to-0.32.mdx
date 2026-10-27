@@ -1,0 +1,111 @@
+---
+title: From 0.31 to 0.32
+description: What to check when upgrading to better-supabase 0.32, where tenant is the public word again and the auth names follow supabase-js.
+---
+
+0.32 renames public names so they match the words Supabase and Next.js use.
+The tenant goes back to `tenant` (`auth.tenant`, `requireTenant`), session
+reads are claims (`bsb.claims()`, `bsb.getClaims()`), sign-in helpers carry
+the supabase-js method names, and the proxy check is `verifySession`. Run the
+codemod first, then work through the lines it lists:
+
+```sh
+npx better-supabase@latest codemod 0.32 --dry-run
+npx better-supabase@latest codemod 0.32
+```
+
+## Tenant
+
+`auth.organization` and `requireOrganization` (from 0.15) are `auth.tenant`
+and `requireTenant` again, and the config type `OrganizationConfig` is
+`TenantConfig`. The codemod renames the key at the top level and in the `$env`
+and `$<environment>` blocks; a config that sets both keys is listed for you to
+merge by hand. `organization` stays the word for the `organizations` block and
+the UI.
+
+```ts
+// 0.31
+export default defineConfig({ auth: { organization: { claim: "org_id" } } });
+bsb.route(handler, { requireOrganization: true });
+
+// 0.32
+export default defineConfig({ auth: { tenant: { claim: "org_id" } } });
+bsb.route(handler, { requireTenant: true });
+```
+
+## Session reads
+
+`bsb.session()` is `bsb.claims()`, the server-side counterpart of supabase-js
+`getClaims()`: it verifies the token (locally while it is valid) and never
+reads an unverified `getSession()`. It still returns an `AuthSession`.
+`bsb.getRequestSession()` is `bsb.getClaims()`, and `contextForSession` is
+`contextFromSession`, one method for both inputs: a `SessionSnapshot`, or an
+`AuthSession` with `{ token }`.
+
+| 0.31                                  | 0.32                                        |
+| ------------------------------------- | ------------------------------------------- |
+| `bsb.session()`                       | `bsb.claims()`                              |
+| `bsb.getRequestSession()`             | `bsb.getClaims()`                           |
+| `bsb.contextForSession(s, { token })` | `bsb.contextFromSession(s, { token })`      |
+| `session.profile`, `auth.profile`     | `session.userMetadata`, `auth.userMetadata` |
+| `kind: "anon"`                        | `kind: "none"`                              |
+| `kind: "service"`                     | `kind: "secret"`                            |
+| `allow: ["anon", "service"]`          | `allow: ["none", "secret"]`                 |
+
+The caller kinds name the credential: `none` is a request without a session
+and `secret` is the secret key (or a legacy `service_role` key). They change in
+`ctx.auth.kind`, `AuthSession.kind` and `allow`. The actor
+(`ctx.actor.kind`), event and realtime subscribers keep `anon` and `service`,
+and the Postgres roles keep their names. The codemod lists every `kind`,
+`allow`, `.profile` and `.session()` line for review, because those names also
+appear in code it can't tell apart.
+
+## Sign-in
+
+| 0.31                       | 0.32                                  |
+| -------------------------- | ------------------------------------- |
+| `bsb.signIn(credentials)`  | `bsb.signInWithPassword(credentials)` |
+| `bsb.authorizeUrl(params)` | `bsb.signInWithOAuth(params)`         |
+| `bsb.exchangeCode(params)` | `bsb.exchangeCodeForSession(params)`  |
+| `OAuthStart`               | `SignInWithOAuthParams`               |
+| `CodeExchange`             | `ExchangeCodeParams`                  |
+
+`signIn` was an alias of `signInWithPassword` and is gone. The codemod renames
+the OAuth methods and lists `.signIn(` calls, because the React hook and
+`oauth.signIn` in React Native keep that name.
+
+## Proxy
+
+| 0.31                                      | 0.32                                           |
+| ----------------------------------------- | ---------------------------------------------- |
+| `endedSession`, `checkSession`            | `verifySession`                                |
+| `EndedSessionOptions`                     | `VerifySessionOptions`                         |
+| `refreshSkewSeconds`                      | `leeway`                                       |
+| `expiredPrefetch: "protect" \| "render"`  | `onExpiredPrefetch: "redirect" \| "render"`    |
+| `resolution.sessionEnded`                 | `resolution.sessionVerified === false`         |
+| `sessionEndedReason: "ended" \| "banned"` | `reason: "session_not_found" \| "user_banned"` |
+| `?reason=session_ended`, `account_banned` | `?reason=session_not_found`, `user_banned`     |
+
+`verifySession` asks Auth whether the session still exists, like supabase-js
+`getUser()`, and the reasons are Auth's own error codes. The exported
+`checkSession` function is `verifySession` too. If your sign-in page reads the
+`reason` query value, update the values it compares.
+
+## Cache
+
+`bsb.invalidateSession(userId)` and `forgetSession` are `bsb.evictSession`,
+which now returns a promise: it drops the session tag, the verified-session
+memo and the authorization version cache, so await it. `bsb.cacheTag` and
+`bsb.cacheTags` are `bsb.tag` and `bsb.tags`. The `cacheTags: false` option of
+`createNext` keeps its name, because it turns tagging off.
+
+## Names that stay
+
+Some names looked like candidates and keep their meaning:
+
+- `require` (the guard), `ActionResult.ok`, `tokenHash`, `anonymous` (a
+  `signInAnonymously()` user, which is a `user`), the `bsb-*` headers and the
+  Problem Details types.
+- `ServerSessions.evict` on `bsb.sessions`.
+- `verifyOtp`, `verifyMfa`, `signOut`, `signUp` and the other helpers that
+  already had the supabase-js names.

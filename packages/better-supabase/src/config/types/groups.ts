@@ -101,29 +101,25 @@ export type SqlInput = Omit<SqlConfig, "scope"> & {
   readonly owner?: SqlConfig["scope"];
 };
 
-/** Where the active organization of a request comes from. */
-export interface OrganizationConfig {
-  /**
-   * Top-level claim holding the active organization id. Defaults to
-   * `tenant_id`.
-   */
+/** Where the active tenant of a request comes from. */
+export interface TenantConfig {
+  /** Top-level claim holding the active tenant id. Defaults to `tenant_id`. */
   readonly claim?: string;
   /**
-   * The column holding the organization id on organization tables, which the
-   * `memberships` extension scopes and fills. Defaults to `organization_id`, or
-   * `<name>_id` when `blocks.memberships.names.organization` renames it.
-   * Setting it without the `memberships` block turns the extension on for an
-   * app's own tenancy.
+   * The column holding the tenant id on tenant tables, which the `memberships`
+   * extension scopes and fills. Defaults to `organization_id`, or `<name>_id`
+   * when `blocks.memberships.names.organization` renames it. Setting it without
+   * the `memberships` block turns the extension on for an app's own tenancy.
    */
   readonly column?: string;
   /**
-   * A request without an organization on an organization table: `skip`
-   * (default) leaves it to RLS, `error` fails it with `forbidden`.
+   * A request without a tenant on a tenant table: `skip` (default) leaves it to
+   * RLS, `error` fails it with `forbidden`.
    */
   readonly onMissing?: "error" | "skip";
   /**
-   * The request header an app's resolver reads the organization from; the API
-   * spec documents it on organization tables.
+   * The request header an app's resolver reads the tenant from; the API spec
+   * documents it on tenant tables.
    */
   readonly header?: string;
 }
@@ -158,9 +154,9 @@ export interface DatabaseConfig {
   readonly vectorSearch?: Readonly<Record<string, VectorSearchConfig>>;
 }
 
-/** Who the caller is: the organization, claims and authorization. */
+/** Who the caller is: the tenant, claims and authorization. */
 export interface AuthConfig {
-  readonly organization?: OrganizationConfig;
+  readonly tenant?: TenantConfig;
   /** Claim names shared by the SQL, codegen and the runtime. */
   readonly claims?: Omit<ClaimsConfig, "tenant">;
   /**

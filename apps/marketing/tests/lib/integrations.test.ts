@@ -19,6 +19,7 @@ const UNLISTED = new Set([
   "next-auth",
   "next-cache-components",
   "next-islands",
+  "next-offline-pwa",
   // A guide for running Hono and Next.js on one server, reached from both pages.
   "hono-and-next",
 ]);

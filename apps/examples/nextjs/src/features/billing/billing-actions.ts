@@ -7,8 +7,6 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { gettingStarted } from "@/features/onboarding/checklist";
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
 import type { PlanOption } from "./billing-queries";
@@ -17,10 +15,7 @@ import { getPlans } from "./billing-queries";
 
 /** Completes the "Review your plan" onboarding step. */
 export const markPlanReviewed = bsb.action(
-  {
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "onboarding.complete"),
-  },
+  { requireTenant: true, permission: "onboarding.complete" },
   async (_input, { tenant: organizationId, db }) => {
     const completed = await db.onboarding.complete(
       gettingStarted,
@@ -40,10 +35,7 @@ export const markPlanReviewed = bsb.action(
 
 /** The plan catalog and the organization's plan, for `usePlanPicker`. */
 export const loadPlanCatalog = bsb.action(
-  {
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "billing.read"),
-  },
+  { requireTenant: true, permission: "billing.read" },
   async (_input, { tenant: organizationId, db }) => {
     const plans = await getPlans();
 
@@ -66,8 +58,8 @@ export const loadPlanCatalog = bsb.action(
 export const startCheckout = bsb.action(
   {
     input: v.object({ plan: v.string() }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "billing.manage"),
+    requireTenant: true,
+    permission: "billing.manage",
   },
   async ({ plan }): Promise<Result<{ url: string | undefined }>> => {
     const plans: readonly PlanOption[] = await getPlans();

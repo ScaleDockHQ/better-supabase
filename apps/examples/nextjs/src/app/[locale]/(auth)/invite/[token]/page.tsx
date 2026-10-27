@@ -5,8 +5,6 @@ import {
   InvitationCardSkeleton,
 } from "@/features/organization/components/invitation-card";
 
-export const instant = true;
-
 export default function InvitePage({
   params,
 }: PageProps<"/[locale]/invite/[token]">) {

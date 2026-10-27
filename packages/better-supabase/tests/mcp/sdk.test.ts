@@ -221,7 +221,7 @@ describe("createMcpAuth", () => {
 
   it("falls back to an anon context without verified auth", async () => {
     const ctx = await auth.contextOf({} as never);
-    expect(ctx.auth.kind).toBe("anon");
+    expect(ctx.auth.kind).toBe("none");
     const token = await signer.sign({ sub: USER });
 
     const fromToken = await auth.contextOf({
@@ -241,7 +241,7 @@ describe("createMcpAuth", () => {
       },
     } as never);
 
-    expect(forged.auth.kind).toBe("anon");
+    expect(forged.auth.kind).toBe("none");
   });
 });
 
@@ -279,7 +279,7 @@ describe("createMcpAuth guard options", () => {
     const open = createMcpAuth(betterSupabase, {
       env,
       auth: { jwks: signer.jwks },
-      allow: ["user", "anon"],
+      allow: ["user", "none"],
     });
 
     let seen: unknown = "unset";
@@ -301,7 +301,7 @@ describe("createMcpAuth guard options", () => {
 
     const open = createMcpAuth(betterSupabase, {
       env,
-      allow: ["anon"],
+      allow: ["none"],
       waitUntil: (promise) => waited.push(promise),
     });
 
@@ -334,7 +334,7 @@ describe("createMcpAuth guard options", () => {
 
     const info = await auth.verifier.verifyAccessToken(token);
     const ctx = await scoped.contextOf({ http: { authInfo: info } } as never);
-    expect(ctx.auth.kind).toBe("anon");
+    expect(ctx.auth.kind).toBe("none");
     const own = await auth.contextOf({ http: { authInfo: info } } as never);
     expect(own.auth.kind).toBe("user");
   });

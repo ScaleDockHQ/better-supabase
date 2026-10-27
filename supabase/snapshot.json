@@ -131708,6 +131708,40 @@
       {
         "id": 3000911,
         "schema": "better_supabase",
+        "name": "permission_claims",
+        "language": "sql",
+        "definition": "\n  select case\n    when permission_claims.tenant is null then '{}'::jsonb\n    else coalesce(jsonb_strip_nulls(jsonb_build_object(permission_claims.tenant::text, to_jsonb(better_supabase.member_permissions(permission_claims.user_id, permission_claims.tenant)))), '{}'::jsonb)\n  end\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.permission_claims(user_id uuid, tenant uuid)\n RETURNS jsonb\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  select case\n    when permission_claims.tenant is null then '{}'::jsonb\n    else coalesce(jsonb_strip_nulls(jsonb_build_object(permission_claims.tenant::text, to_jsonb(better_supabase.member_permissions(permission_claims.user_id, permission_claims.tenant)))), '{}'::jsonb)\n  end\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "tenant",
+            "type_id": 2950,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "user_id",
+            "type_id": 2950,
+            "has_default": false
+          }
+        ],
+        "argument_types": "user_id uuid, tenant uuid",
+        "identity_argument_types": "user_id uuid, tenant uuid",
+        "return_type_id": 3802,
+        "return_type": "jsonb",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "STABLE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000912,
+        "schema": "better_supabase",
         "name": "permission_matches",
         "language": "sql",
         "definition": "\n  select granted = '*' or granted = wanted\n    or (right(granted, 2) = '.*' and starts_with(wanted, left(granted, -1)))\n",
@@ -131740,7 +131774,7 @@
         }
       },
       {
-        "id": 3000912,
+        "id": 3000913,
         "schema": "better_supabase",
         "name": "person_for_inbox_contact",
         "language": "plpgsql",
@@ -131774,7 +131808,7 @@
         }
       },
       {
-        "id": 3000913,
+        "id": 3000914,
         "schema": "better_supabase",
         "name": "pin_message",
         "language": "plpgsql",
@@ -131808,7 +131842,7 @@
         }
       },
       {
-        "id": 3000914,
+        "id": 3000915,
         "schema": "better_supabase",
         "name": "pipeline_board",
         "language": "plpgsql",
@@ -131848,7 +131882,7 @@
         }
       },
       {
-        "id": 3000915,
+        "id": 3000916,
         "schema": "better_supabase",
         "name": "pipeline_health",
         "language": "sql",
@@ -131876,7 +131910,7 @@
         }
       },
       {
-        "id": 3000916,
+        "id": 3000917,
         "schema": "better_supabase",
         "name": "pipeline_stats",
         "language": "sql",
@@ -131916,7 +131950,7 @@
         }
       },
       {
-        "id": 3000917,
+        "id": 3000918,
         "schema": "better_supabase",
         "name": "place_booking",
         "language": "plpgsql",
@@ -131974,7 +132008,7 @@
         }
       },
       {
-        "id": 3000918,
+        "id": 3000919,
         "schema": "better_supabase",
         "name": "place_ledger_hold",
         "language": "plpgsql",
@@ -132026,7 +132060,7 @@
         }
       },
       {
-        "id": 3000919,
+        "id": 3000920,
         "schema": "better_supabase",
         "name": "place_legal_hold",
         "language": "plpgsql",
@@ -132066,7 +132100,7 @@
         }
       },
       {
-        "id": 3000920,
+        "id": 3000921,
         "schema": "better_supabase",
         "name": "place_order",
         "language": "plpgsql",
@@ -132112,7 +132146,7 @@
         }
       },
       {
-        "id": 3000921,
+        "id": 3000922,
         "schema": "better_supabase",
         "name": "place_purchase_order",
         "language": "plpgsql",
@@ -132140,7 +132174,7 @@
         }
       },
       {
-        "id": 3000922,
+        "id": 3000923,
         "schema": "better_supabase",
         "name": "plan_dispatch_route",
         "language": "plpgsql",
@@ -132186,7 +132220,7 @@
         }
       },
       {
-        "id": 3000923,
+        "id": 3000924,
         "schema": "better_supabase",
         "name": "platform_can",
         "language": "sql",
@@ -132220,7 +132254,7 @@
         }
       },
       {
-        "id": 3000924,
+        "id": 3000925,
         "schema": "better_supabase",
         "name": "platform_can_assign",
         "language": "sql",
@@ -132254,7 +132288,7 @@
         }
       },
       {
-        "id": 3000925,
+        "id": 3000926,
         "schema": "better_supabase",
         "name": "platform_invitations_readable",
         "language": "plpgsql",
@@ -132275,7 +132309,7 @@
         }
       },
       {
-        "id": 3000926,
+        "id": 3000927,
         "schema": "better_supabase",
         "name": "policy_acknowledgements",
         "language": "plpgsql",
@@ -132303,7 +132337,7 @@
         }
       },
       {
-        "id": 3000927,
+        "id": 3000928,
         "schema": "better_supabase",
         "name": "portal_parties",
         "language": "sql",
@@ -132343,7 +132377,7 @@
         }
       },
       {
-        "id": 3000928,
+        "id": 3000929,
         "schema": "better_supabase",
         "name": "portal_subjects",
         "language": "sql",
@@ -132389,7 +132423,7 @@
         }
       },
       {
-        "id": 3000929,
+        "id": 3000930,
         "schema": "better_supabase",
         "name": "post_due_rent",
         "language": "plpgsql",
@@ -132429,7 +132463,7 @@
         }
       },
       {
-        "id": 3000930,
+        "id": 3000931,
         "schema": "better_supabase",
         "name": "post_incident_update",
         "language": "plpgsql",
@@ -132475,7 +132509,7 @@
         }
       },
       {
-        "id": 3000931,
+        "id": 3000932,
         "schema": "better_supabase",
         "name": "post_ledger_transaction",
         "language": "plpgsql",
@@ -132551,7 +132585,7 @@
         }
       },
       {
-        "id": 3000932,
+        "id": 3000933,
         "schema": "better_supabase",
         "name": "preview_number",
         "language": "plpgsql",
@@ -132591,7 +132625,7 @@
         }
       },
       {
-        "id": 3000933,
+        "id": 3000934,
         "schema": "better_supabase",
         "name": "price_cart",
         "language": "plpgsql",
@@ -132619,7 +132653,7 @@
         }
       },
       {
-        "id": 3000934,
+        "id": 3000935,
         "schema": "better_supabase",
         "name": "product_media",
         "language": "sql",
@@ -132653,7 +132687,7 @@
         }
       },
       {
-        "id": 3000935,
+        "id": 3000936,
         "schema": "better_supabase",
         "name": "product_text",
         "language": "sql",
@@ -132687,7 +132721,7 @@
         }
       },
       {
-        "id": 3000936,
+        "id": 3000937,
         "schema": "better_supabase",
         "name": "prune_push_tokens",
         "language": "plpgsql",
@@ -132715,7 +132749,7 @@
         }
       },
       {
-        "id": 3000937,
+        "id": 3000938,
         "schema": "better_supabase",
         "name": "public_available_slots",
         "language": "plpgsql",
@@ -132761,7 +132795,7 @@
         }
       },
       {
-        "id": 3000938,
+        "id": 3000939,
         "schema": "better_supabase",
         "name": "public_booking_service",
         "language": "plpgsql",
@@ -132789,7 +132823,7 @@
         }
       },
       {
-        "id": 3000939,
+        "id": 3000940,
         "schema": "better_supabase",
         "name": "public_change_booking",
         "language": "plpgsql",
@@ -132829,7 +132863,7 @@
         }
       },
       {
-        "id": 3000940,
+        "id": 3000941,
         "schema": "better_supabase",
         "name": "public_content_entries",
         "language": "sql",
@@ -132881,7 +132915,7 @@
         }
       },
       {
-        "id": 3000941,
+        "id": 3000942,
         "schema": "better_supabase",
         "name": "public_content_entry",
         "language": "plpgsql",
@@ -132927,7 +132961,7 @@
         }
       },
       {
-        "id": 3000942,
+        "id": 3000943,
         "schema": "better_supabase",
         "name": "public_hold_booking",
         "language": "plpgsql",
@@ -132973,7 +133007,7 @@
         }
       },
       {
-        "id": 3000943,
+        "id": 3000944,
         "schema": "better_supabase",
         "name": "public_quote",
         "language": "plpgsql",
@@ -133001,7 +133035,7 @@
         }
       },
       {
-        "id": 3000944,
+        "id": 3000945,
         "schema": "better_supabase",
         "name": "public_status_page",
         "language": "plpgsql",
@@ -133035,7 +133069,7 @@
         }
       },
       {
-        "id": 3000945,
+        "id": 3000946,
         "schema": "better_supabase",
         "name": "publish_agent",
         "language": "plpgsql",
@@ -133069,7 +133103,7 @@
         }
       },
       {
-        "id": 3000946,
+        "id": 3000947,
         "schema": "better_supabase",
         "name": "publish_content_entry",
         "language": "plpgsql",
@@ -133097,7 +133131,7 @@
         }
       },
       {
-        "id": 3000947,
+        "id": 3000948,
         "schema": "better_supabase",
         "name": "publish_due_content_entries",
         "language": "plpgsql",
@@ -133118,7 +133152,7 @@
         }
       },
       {
-        "id": 3000948,
+        "id": 3000949,
         "schema": "better_supabase",
         "name": "publish_due_inbox_messages",
         "language": "plpgsql",
@@ -133146,7 +133180,7 @@
         }
       },
       {
-        "id": 3000949,
+        "id": 3000950,
         "schema": "better_supabase",
         "name": "publish_due_messages",
         "language": "plpgsql",
@@ -133174,7 +133208,7 @@
         }
       },
       {
-        "id": 3000950,
+        "id": 3000951,
         "schema": "better_supabase",
         "name": "publish_form_version",
         "language": "plpgsql",
@@ -133208,7 +133242,7 @@
         }
       },
       {
-        "id": 3000951,
+        "id": 3000952,
         "schema": "better_supabase",
         "name": "publish_policy",
         "language": "plpgsql",
@@ -133248,7 +133282,7 @@
         }
       },
       {
-        "id": 3000952,
+        "id": 3000953,
         "schema": "better_supabase",
         "name": "publish_postmortem",
         "language": "plpgsql",
@@ -133276,7 +133310,7 @@
         }
       },
       {
-        "id": 3000953,
+        "id": 3000954,
         "schema": "better_supabase",
         "name": "publish_storefront",
         "language": "plpgsql",
@@ -133310,7 +133344,7 @@
         }
       },
       {
-        "id": 3000954,
+        "id": 3000955,
         "schema": "better_supabase",
         "name": "publish_template_version",
         "language": "plpgsql",
@@ -133338,7 +133372,7 @@
         }
       },
       {
-        "id": 3000955,
+        "id": 3000956,
         "schema": "better_supabase",
         "name": "publish_webhook_event",
         "language": "plpgsql",
@@ -133396,7 +133430,7 @@
         }
       },
       {
-        "id": 3000956,
+        "id": 3000957,
         "schema": "better_supabase",
         "name": "publish_webhook_events",
         "language": "plpgsql",
@@ -133424,7 +133458,7 @@
         }
       },
       {
-        "id": 3000957,
+        "id": 3000958,
         "schema": "better_supabase",
         "name": "publish_workflow_version",
         "language": "plpgsql",
@@ -133458,7 +133492,7 @@
         }
       },
       {
-        "id": 3000958,
+        "id": 3000959,
         "schema": "better_supabase",
         "name": "pull_document_updates",
         "language": "plpgsql",
@@ -133492,7 +133526,7 @@
         }
       },
       {
-        "id": 3000959,
+        "id": 3000960,
         "schema": "better_supabase",
         "name": "purge_ai_cache",
         "language": "plpgsql",
@@ -133520,7 +133554,7 @@
         }
       },
       {
-        "id": 3000960,
+        "id": 3000961,
         "schema": "better_supabase",
         "name": "purge_ai_chats",
         "language": "plpgsql",
@@ -133548,7 +133582,7 @@
         }
       },
       {
-        "id": 3000961,
+        "id": 3000962,
         "schema": "better_supabase",
         "name": "purge_ai_files",
         "language": "plpgsql",
@@ -133582,7 +133616,7 @@
         }
       },
       {
-        "id": 3000962,
+        "id": 3000963,
         "schema": "better_supabase",
         "name": "purge_audit_log",
         "language": "plpgsql",
@@ -133628,7 +133662,7 @@
         }
       },
       {
-        "id": 3000963,
+        "id": 3000964,
         "schema": "better_supabase",
         "name": "purge_chat_state",
         "language": "plpgsql",
@@ -133656,7 +133690,7 @@
         }
       },
       {
-        "id": 3000964,
+        "id": 3000965,
         "schema": "better_supabase",
         "name": "purge_connector_sessions",
         "language": "plpgsql",
@@ -133677,7 +133711,7 @@
         }
       },
       {
-        "id": 3000965,
+        "id": 3000966,
         "schema": "better_supabase",
         "name": "purge_contact",
         "language": "plpgsql",
@@ -133705,7 +133739,7 @@
         }
       },
       {
-        "id": 3000966,
+        "id": 3000967,
         "schema": "better_supabase",
         "name": "purge_expired_trash",
         "language": "plpgsql",
@@ -133733,7 +133767,7 @@
         }
       },
       {
-        "id": 3000967,
+        "id": 3000968,
         "schema": "better_supabase",
         "name": "purge_inbound_events",
         "language": "plpgsql",
@@ -133767,7 +133801,7 @@
         }
       },
       {
-        "id": 3000968,
+        "id": 3000969,
         "schema": "better_supabase",
         "name": "purge_job_archive",
         "language": "plpgsql",
@@ -133813,7 +133847,7 @@
         }
       },
       {
-        "id": 3000969,
+        "id": 3000970,
         "schema": "better_supabase",
         "name": "purge_memory_documents",
         "language": "plpgsql",
@@ -133841,7 +133875,7 @@
         }
       },
       {
-        "id": 3000970,
+        "id": 3000971,
         "schema": "better_supabase",
         "name": "purge_notifications",
         "language": "plpgsql",
@@ -133875,7 +133909,7 @@
         }
       },
       {
-        "id": 3000971,
+        "id": 3000972,
         "schema": "better_supabase",
         "name": "purge_organization",
         "language": "plpgsql",
@@ -133903,7 +133937,7 @@
         }
       },
       {
-        "id": 3000972,
+        "id": 3000973,
         "schema": "better_supabase",
         "name": "purge_outbox",
         "language": "plpgsql",
@@ -133943,7 +133977,7 @@
         }
       },
       {
-        "id": 3000973,
+        "id": 3000974,
         "schema": "better_supabase",
         "name": "purge_rate_limits",
         "language": "sql",
@@ -133971,7 +134005,7 @@
         }
       },
       {
-        "id": 3000974,
+        "id": 3000975,
         "schema": "better_supabase",
         "name": "purge_signing_keys",
         "language": "plpgsql",
@@ -133999,7 +134033,7 @@
         }
       },
       {
-        "id": 3000975,
+        "id": 3000976,
         "schema": "better_supabase",
         "name": "purge_streams",
         "language": "plpgsql",
@@ -134033,7 +134067,7 @@
         }
       },
       {
-        "id": 3000976,
+        "id": 3000977,
         "schema": "better_supabase",
         "name": "purge_trash",
         "language": "plpgsql",
@@ -134061,7 +134095,7 @@
         }
       },
       {
-        "id": 3000977,
+        "id": 3000978,
         "schema": "better_supabase",
         "name": "purge_usage_events",
         "language": "sql",
@@ -134095,7 +134129,7 @@
         }
       },
       {
-        "id": 3000978,
+        "id": 3000979,
         "schema": "better_supabase",
         "name": "purge_usage_history",
         "language": "plpgsql",
@@ -134129,7 +134163,7 @@
         }
       },
       {
-        "id": 3000979,
+        "id": 3000980,
         "schema": "better_supabase",
         "name": "purge_webhook_deliveries",
         "language": "plpgsql",
@@ -134169,7 +134203,7 @@
         }
       },
       {
-        "id": 3000980,
+        "id": 3000981,
         "schema": "better_supabase",
         "name": "purge_workflow_runs",
         "language": "plpgsql",
@@ -134203,7 +134237,7 @@
         }
       },
       {
-        "id": 3000981,
+        "id": 3000982,
         "schema": "better_supabase",
         "name": "push_document_update",
         "language": "plpgsql",
@@ -134237,7 +134271,7 @@
         }
       },
       {
-        "id": 3000982,
+        "id": 3000983,
         "schema": "better_supabase",
         "name": "push_tickets_for",
         "language": "plpgsql",
@@ -134265,7 +134299,7 @@
         }
       },
       {
-        "id": 3000983,
+        "id": 3000984,
         "schema": "better_supabase",
         "name": "push_tokens_for",
         "language": "plpgsql",
@@ -134293,7 +134327,7 @@
         }
       },
       {
-        "id": 3000984,
+        "id": 3000985,
         "schema": "better_supabase",
         "name": "queue_knowledge_file",
         "language": "plpgsql",
@@ -134363,7 +134397,7 @@
         }
       },
       {
-        "id": 3000985,
+        "id": 3000986,
         "schema": "better_supabase",
         "name": "quote_from_deal",
         "language": "plpgsql",
@@ -134391,7 +134425,7 @@
         }
       },
       {
-        "id": 3000986,
+        "id": 3000987,
         "schema": "better_supabase",
         "name": "raise_actor_readonly",
         "language": "plpgsql",
@@ -134412,7 +134446,7 @@
         }
       },
       {
-        "id": 3000987,
+        "id": 3000988,
         "schema": "better_supabase",
         "name": "rank_between",
         "language": "plpgsql",
@@ -134446,7 +134480,7 @@
         }
       },
       {
-        "id": 3000988,
+        "id": 3000989,
         "schema": "better_supabase",
         "name": "rank_field_definition",
         "language": "plpgsql",
@@ -134480,7 +134514,7 @@
         }
       },
       {
-        "id": 3000989,
+        "id": 3000990,
         "schema": "better_supabase",
         "name": "rank_key",
         "language": "plpgsql",
@@ -134514,7 +134548,7 @@
         }
       },
       {
-        "id": 3000990,
+        "id": 3000991,
         "schema": "better_supabase",
         "name": "rank_pipeline_stage",
         "language": "plpgsql",
@@ -134548,7 +134582,7 @@
         }
       },
       {
-        "id": 3000991,
+        "id": 3000992,
         "schema": "better_supabase",
         "name": "rank_rule",
         "language": "plpgsql",
@@ -134582,7 +134616,7 @@
         }
       },
       {
-        "id": 3000992,
+        "id": 3000993,
         "schema": "better_supabase",
         "name": "rank_tag",
         "language": "plpgsql",
@@ -134616,7 +134650,7 @@
         }
       },
       {
-        "id": 3000993,
+        "id": 3000994,
         "schema": "better_supabase",
         "name": "rank_variant",
         "language": "plpgsql",
@@ -134650,7 +134684,7 @@
         }
       },
       {
-        "id": 3000994,
+        "id": 3000995,
         "schema": "better_supabase",
         "name": "rank_view",
         "language": "plpgsql",
@@ -134684,7 +134718,7 @@
         }
       },
       {
-        "id": 3000995,
+        "id": 3000996,
         "schema": "better_supabase",
         "name": "rate_agent",
         "language": "plpgsql",
@@ -134724,7 +134758,7 @@
         }
       },
       {
-        "id": 3000996,
+        "id": 3000997,
         "schema": "better_supabase",
         "name": "rate_ai_message",
         "language": "plpgsql",
@@ -134776,7 +134810,7 @@
         }
       },
       {
-        "id": 3000997,
+        "id": 3000998,
         "schema": "better_supabase",
         "name": "react",
         "language": "plpgsql",
@@ -134834,7 +134868,7 @@
         }
       },
       {
-        "id": 3000998,
+        "id": 3000999,
         "schema": "better_supabase",
         "name": "react_to_inbox_message",
         "language": "plpgsql",
@@ -134880,7 +134914,7 @@
         }
       },
       {
-        "id": 3000999,
+        "id": 3001000,
         "schema": "better_supabase",
         "name": "reaction_list",
         "language": "sql",
@@ -134920,7 +134954,7 @@
         }
       },
       {
-        "id": 3001000,
+        "id": 3001001,
         "schema": "better_supabase",
         "name": "reaction_subject_visible",
         "language": "plpgsql",
@@ -134960,7 +134994,7 @@
         }
       },
       {
-        "id": 3001001,
+        "id": 3001002,
         "schema": "better_supabase",
         "name": "reaction_summary",
         "language": "sql",
@@ -135000,7 +135034,7 @@
         }
       },
       {
-        "id": 3001002,
+        "id": 3001003,
         "schema": "better_supabase",
         "name": "reactions_subject_merge",
         "language": "plpgsql",
@@ -135040,7 +135074,7 @@
         }
       },
       {
-        "id": 3001003,
+        "id": 3001004,
         "schema": "better_supabase",
         "name": "read_field_values",
         "language": "plpgsql",
@@ -135080,7 +135114,7 @@
         }
       },
       {
-        "id": 3001004,
+        "id": 3001005,
         "schema": "better_supabase",
         "name": "rebalance_ranks",
         "language": "plpgsql",
@@ -135120,7 +135154,7 @@
         }
       },
       {
-        "id": 3001005,
+        "id": 3001006,
         "schema": "better_supabase",
         "name": "recall_ai_messages",
         "language": "plpgsql",
@@ -135172,7 +135206,7 @@
         }
       },
       {
-        "id": 3001006,
+        "id": 3001007,
         "schema": "better_supabase",
         "name": "receive_purchase_order",
         "language": "plpgsql",
@@ -135206,7 +135240,7 @@
         }
       },
       {
-        "id": 3001007,
+        "id": 3001008,
         "schema": "better_supabase",
         "name": "receive_return",
         "language": "plpgsql",
@@ -135246,7 +135280,7 @@
         }
       },
       {
-        "id": 3001008,
+        "id": 3001009,
         "schema": "better_supabase",
         "name": "receive_transfer",
         "language": "plpgsql",
@@ -135274,7 +135308,7 @@
         }
       },
       {
-        "id": 3001009,
+        "id": 3001010,
         "schema": "better_supabase",
         "name": "record_activity",
         "language": "plpgsql",
@@ -135302,7 +135336,7 @@
         }
       },
       {
-        "id": 3001010,
+        "id": 3001011,
         "schema": "better_supabase",
         "name": "record_ai_batch",
         "language": "plpgsql",
@@ -135348,7 +135382,7 @@
         }
       },
       {
-        "id": 3001011,
+        "id": 3001012,
         "schema": "better_supabase",
         "name": "record_ai_moderation_event",
         "language": "plpgsql",
@@ -135376,7 +135410,7 @@
         }
       },
       {
-        "id": 3001012,
+        "id": 3001013,
         "schema": "better_supabase",
         "name": "record_ai_run_step",
         "language": "plpgsql",
@@ -135410,7 +135444,7 @@
         }
       },
       {
-        "id": 3001013,
+        "id": 3001014,
         "schema": "better_supabase",
         "name": "record_ai_tool_approval",
         "language": "plpgsql",
@@ -135444,7 +135478,7 @@
         }
       },
       {
-        "id": 3001014,
+        "id": 3001015,
         "schema": "better_supabase",
         "name": "record_connector_grant",
         "language": "plpgsql",
@@ -135496,7 +135530,7 @@
         }
       },
       {
-        "id": 3001015,
+        "id": 3001016,
         "schema": "better_supabase",
         "name": "record_delivery",
         "language": "plpgsql",
@@ -135548,7 +135582,7 @@
         }
       },
       {
-        "id": 3001016,
+        "id": 3001017,
         "schema": "better_supabase",
         "name": "record_delivery_event",
         "language": "plpgsql",
@@ -135612,7 +135646,7 @@
         }
       },
       {
-        "id": 3001017,
+        "id": 3001018,
         "schema": "better_supabase",
         "name": "record_enrichment",
         "language": "plpgsql",
@@ -135664,7 +135698,7 @@
         }
       },
       {
-        "id": 3001018,
+        "id": 3001019,
         "schema": "better_supabase",
         "name": "record_gift",
         "language": "plpgsql",
@@ -135752,7 +135786,7 @@
         }
       },
       {
-        "id": 3001019,
+        "id": 3001020,
         "schema": "better_supabase",
         "name": "record_gift_payment",
         "language": "plpgsql",
@@ -135798,7 +135832,7 @@
         }
       },
       {
-        "id": 3001020,
+        "id": 3001021,
         "schema": "better_supabase",
         "name": "record_inbound",
         "language": "plpgsql",
@@ -135826,7 +135860,7 @@
         }
       },
       {
-        "id": 3001021,
+        "id": 3001022,
         "schema": "better_supabase",
         "name": "record_invoice_payment",
         "language": "plpgsql",
@@ -135884,7 +135918,7 @@
         }
       },
       {
-        "id": 3001022,
+        "id": 3001023,
         "schema": "better_supabase",
         "name": "record_payment",
         "language": "plpgsql",
@@ -135954,7 +135988,7 @@
         }
       },
       {
-        "id": 3001023,
+        "id": 3001024,
         "schema": "better_supabase",
         "name": "record_push_tickets",
         "language": "plpgsql",
@@ -135988,7 +136022,7 @@
         }
       },
       {
-        "id": 3001024,
+        "id": 3001025,
         "schema": "better_supabase",
         "name": "record_rent_payment",
         "language": "plpgsql",
@@ -136034,7 +136068,7 @@
         }
       },
       {
-        "id": 3001025,
+        "id": 3001026,
         "schema": "better_supabase",
         "name": "record_rule_evaluation",
         "language": "plpgsql",
@@ -136086,7 +136120,7 @@
         }
       },
       {
-        "id": 3001026,
+        "id": 3001027,
         "schema": "better_supabase",
         "name": "record_sent_mail",
         "language": "plpgsql",
@@ -136120,7 +136154,7 @@
         }
       },
       {
-        "id": 3001027,
+        "id": 3001028,
         "schema": "better_supabase",
         "name": "record_sla_event",
         "language": "plpgsql",
@@ -136160,7 +136194,7 @@
         }
       },
       {
-        "id": 3001028,
+        "id": 3001029,
         "schema": "better_supabase",
         "name": "record_summary",
         "language": "plpgsql",
@@ -136206,7 +136240,7 @@
         }
       },
       {
-        "id": 3001029,
+        "id": 3001030,
         "schema": "better_supabase",
         "name": "record_template_application",
         "language": "plpgsql",
@@ -136258,7 +136292,7 @@
         }
       },
       {
-        "id": 3001030,
+        "id": 3001031,
         "schema": "better_supabase",
         "name": "record_tracking_events",
         "language": "plpgsql",
@@ -136298,7 +136332,7 @@
         }
       },
       {
-        "id": 3001031,
+        "id": 3001032,
         "schema": "better_supabase",
         "name": "record_usage",
         "language": "plpgsql",
@@ -136362,7 +136396,7 @@
         }
       },
       {
-        "id": 3001032,
+        "id": 3001033,
         "schema": "better_supabase",
         "name": "record_usage_batch",
         "language": "plpgsql",
@@ -136426,7 +136460,7 @@
         }
       },
       {
-        "id": 3001033,
+        "id": 3001034,
         "schema": "better_supabase",
         "name": "record_view",
         "language": "plpgsql",
@@ -136478,7 +136512,7 @@
         }
       },
       {
-        "id": 3001034,
+        "id": 3001035,
         "schema": "better_supabase",
         "name": "record_work_order_part",
         "language": "plpgsql",
@@ -136542,7 +136576,7 @@
         }
       },
       {
-        "id": 3001035,
+        "id": 3001036,
         "schema": "better_supabase",
         "name": "record_workflow_node_run",
         "language": "plpgsql",
@@ -136600,7 +136634,7 @@
         }
       },
       {
-        "id": 3001036,
+        "id": 3001037,
         "schema": "better_supabase",
         "name": "record_workflow_run",
         "language": "plpgsql",
@@ -136718,7 +136752,7 @@
         }
       },
       {
-        "id": 3001037,
+        "id": 3001038,
         "schema": "better_supabase",
         "name": "redeem_for",
         "language": "plpgsql",
@@ -136752,7 +136786,7 @@
         }
       },
       {
-        "id": 3001038,
+        "id": 3001039,
         "schema": "better_supabase",
         "name": "redeem_invite_code",
         "language": "plpgsql",
@@ -136780,7 +136814,7 @@
         }
       },
       {
-        "id": 3001039,
+        "id": 3001040,
         "schema": "better_supabase",
         "name": "redeem_promotions",
         "language": "plpgsql",
@@ -136814,7 +136848,7 @@
         }
       },
       {
-        "id": 3001040,
+        "id": 3001041,
         "schema": "better_supabase",
         "name": "redeliver_webhook",
         "language": "plpgsql",
@@ -136842,7 +136876,7 @@
         }
       },
       {
-        "id": 3001041,
+        "id": 3001042,
         "schema": "better_supabase",
         "name": "reembed_knowledge",
         "language": "plpgsql",
@@ -136876,7 +136910,7 @@
         }
       },
       {
-        "id": 3001042,
+        "id": 3001043,
         "schema": "better_supabase",
         "name": "refresh_due_segments",
         "language": "plpgsql",
@@ -136910,7 +136944,7 @@
         }
       },
       {
-        "id": 3001043,
+        "id": 3001044,
         "schema": "better_supabase",
         "name": "refresh_segment",
         "language": "plpgsql",
@@ -136938,7 +136972,7 @@
         }
       },
       {
-        "id": 3001044,
+        "id": 3001045,
         "schema": "better_supabase",
         "name": "register_ai_sandbox",
         "language": "plpgsql",
@@ -136984,7 +137018,7 @@
         }
       },
       {
-        "id": 3001045,
+        "id": 3001046,
         "schema": "better_supabase",
         "name": "register_push_device",
         "language": "plpgsql",
@@ -137036,7 +137070,7 @@
         }
       },
       {
-        "id": 3001046,
+        "id": 3001047,
         "schema": "better_supabase",
         "name": "register_service_principal",
         "language": "plpgsql",
@@ -137094,7 +137128,7 @@
         }
       },
       {
-        "id": 3001047,
+        "id": 3001048,
         "schema": "better_supabase",
         "name": "register_sso_provider",
         "language": "plpgsql",
@@ -137146,7 +137180,7 @@
         }
       },
       {
-        "id": 3001048,
+        "id": 3001049,
         "schema": "better_supabase",
         "name": "reimburse_expense_report",
         "language": "plpgsql",
@@ -137186,7 +137220,7 @@
         }
       },
       {
-        "id": 3001049,
+        "id": 3001050,
         "schema": "better_supabase",
         "name": "reject_return",
         "language": "plpgsql",
@@ -137214,7 +137248,7 @@
         }
       },
       {
-        "id": 3001050,
+        "id": 3001051,
         "schema": "better_supabase",
         "name": "relation_rollup",
         "language": "plpgsql",
@@ -137278,7 +137312,7 @@
         }
       },
       {
-        "id": 3001051,
+        "id": 3001052,
         "schema": "better_supabase",
         "name": "relation_walk",
         "language": "plpgsql",
@@ -137354,7 +137388,7 @@
         }
       },
       {
-        "id": 3001052,
+        "id": 3001053,
         "schema": "better_supabase",
         "name": "relations_by_kind",
         "language": "sql",
@@ -137388,7 +137422,7 @@
         }
       },
       {
-        "id": 3001053,
+        "id": 3001054,
         "schema": "better_supabase",
         "name": "relations_of",
         "language": "sql",
@@ -137434,7 +137468,7 @@
         }
       },
       {
-        "id": 3001054,
+        "id": 3001055,
         "schema": "better_supabase",
         "name": "relations_subject_merge",
         "language": "plpgsql",
@@ -137474,7 +137508,7 @@
         }
       },
       {
-        "id": 3001055,
+        "id": 3001056,
         "schema": "better_supabase",
         "name": "release_ai_chat_stream",
         "language": "plpgsql",
@@ -137538,7 +137572,7 @@
         }
       },
       {
-        "id": 3001056,
+        "id": 3001057,
         "schema": "better_supabase",
         "name": "release_asset",
         "language": "plpgsql",
@@ -137566,7 +137600,7 @@
         }
       },
       {
-        "id": 3001057,
+        "id": 3001058,
         "schema": "better_supabase",
         "name": "release_ledger_hold",
         "language": "plpgsql",
@@ -137594,7 +137628,7 @@
         }
       },
       {
-        "id": 3001058,
+        "id": 3001059,
         "schema": "better_supabase",
         "name": "release_legal_hold",
         "language": "plpgsql",
@@ -137622,7 +137656,7 @@
         }
       },
       {
-        "id": 3001059,
+        "id": 3001060,
         "schema": "better_supabase",
         "name": "release_promotions",
         "language": "plpgsql",
@@ -137650,7 +137684,7 @@
         }
       },
       {
-        "id": 3001060,
+        "id": 3001061,
         "schema": "better_supabase",
         "name": "release_reservation",
         "language": "plpgsql",
@@ -137678,7 +137712,7 @@
         }
       },
       {
-        "id": 3001061,
+        "id": 3001062,
         "schema": "better_supabase",
         "name": "release_workflow_semaphore",
         "language": "plpgsql",
@@ -137712,7 +137746,7 @@
         }
       },
       {
-        "id": 3001062,
+        "id": 3001063,
         "schema": "better_supabase",
         "name": "remind_approvals",
         "language": "plpgsql",
@@ -137746,7 +137780,7 @@
         }
       },
       {
-        "id": 3001063,
+        "id": 3001064,
         "schema": "better_supabase",
         "name": "remove_assignment_queue",
         "language": "plpgsql",
@@ -137774,7 +137808,7 @@
         }
       },
       {
-        "id": 3001064,
+        "id": 3001065,
         "schema": "better_supabase",
         "name": "remove_calendar_attendee",
         "language": "plpgsql",
@@ -137808,7 +137842,7 @@
         }
       },
       {
-        "id": 3001065,
+        "id": 3001066,
         "schema": "better_supabase",
         "name": "remove_company_person",
         "language": "plpgsql",
@@ -137842,7 +137876,7 @@
         }
       },
       {
-        "id": 3001066,
+        "id": 3001067,
         "schema": "better_supabase",
         "name": "remove_control_evidence",
         "language": "plpgsql",
@@ -137870,7 +137904,7 @@
         }
       },
       {
-        "id": 3001067,
+        "id": 3001068,
         "schema": "better_supabase",
         "name": "remove_conversation_member",
         "language": "plpgsql",
@@ -137904,7 +137938,7 @@
         }
       },
       {
-        "id": 3001068,
+        "id": 3001069,
         "schema": "better_supabase",
         "name": "remove_expense_line",
         "language": "plpgsql",
@@ -137932,7 +137966,7 @@
         }
       },
       {
-        "id": 3001069,
+        "id": 3001070,
         "schema": "better_supabase",
         "name": "remove_from_collection",
         "language": "plpgsql",
@@ -137966,7 +138000,7 @@
         }
       },
       {
-        "id": 3001070,
+        "id": 3001071,
         "schema": "better_supabase",
         "name": "remove_member",
         "language": "plpgsql",
@@ -138000,7 +138034,7 @@
         }
       },
       {
-        "id": 3001071,
+        "id": 3001072,
         "schema": "better_supabase",
         "name": "remove_organization_domain",
         "language": "plpgsql",
@@ -138028,7 +138062,7 @@
         }
       },
       {
-        "id": 3001072,
+        "id": 3001073,
         "schema": "better_supabase",
         "name": "remove_product_media",
         "language": "plpgsql",
@@ -138056,7 +138090,7 @@
         }
       },
       {
-        "id": 3001073,
+        "id": 3001074,
         "schema": "better_supabase",
         "name": "remove_promotion_code",
         "language": "plpgsql",
@@ -138090,7 +138124,7 @@
         }
       },
       {
-        "id": 3001074,
+        "id": 3001075,
         "schema": "better_supabase",
         "name": "remove_retention_policy",
         "language": "plpgsql",
@@ -138130,7 +138164,7 @@
         }
       },
       {
-        "id": 3001075,
+        "id": 3001076,
         "schema": "better_supabase",
         "name": "remove_rule",
         "language": "plpgsql",
@@ -138158,7 +138192,7 @@
         }
       },
       {
-        "id": 3001076,
+        "id": 3001077,
         "schema": "better_supabase",
         "name": "remove_segment",
         "language": "plpgsql",
@@ -138186,7 +138220,7 @@
         }
       },
       {
-        "id": 3001077,
+        "id": 3001078,
         "schema": "better_supabase",
         "name": "remove_team_member",
         "language": "plpgsql",
@@ -138220,7 +138254,7 @@
         }
       },
       {
-        "id": 3001078,
+        "id": 3001079,
         "schema": "better_supabase",
         "name": "remove_template",
         "language": "plpgsql",
@@ -138248,7 +138282,7 @@
         }
       },
       {
-        "id": 3001079,
+        "id": 3001080,
         "schema": "better_supabase",
         "name": "remove_work_order_part",
         "language": "plpgsql",
@@ -138276,7 +138310,7 @@
         }
       },
       {
-        "id": 3001080,
+        "id": 3001081,
         "schema": "better_supabase",
         "name": "remove_workflow_alert",
         "language": "plpgsql",
@@ -138304,7 +138338,7 @@
         }
       },
       {
-        "id": 3001081,
+        "id": 3001082,
         "schema": "better_supabase",
         "name": "remove_workflow_credential",
         "language": "plpgsql",
@@ -138332,7 +138366,7 @@
         }
       },
       {
-        "id": 3001082,
+        "id": 3001083,
         "schema": "better_supabase",
         "name": "remove_workflow_definition",
         "language": "plpgsql",
@@ -138360,7 +138394,7 @@
         }
       },
       {
-        "id": 3001083,
+        "id": 3001084,
         "schema": "better_supabase",
         "name": "remove_workflow_schedule",
         "language": "plpgsql",
@@ -138388,7 +138422,7 @@
         }
       },
       {
-        "id": 3001084,
+        "id": 3001085,
         "schema": "better_supabase",
         "name": "remove_workflow_trigger",
         "language": "plpgsql",
@@ -138416,7 +138450,7 @@
         }
       },
       {
-        "id": 3001085,
+        "id": 3001086,
         "schema": "better_supabase",
         "name": "renew_connector_grant",
         "language": "sql",
@@ -138450,7 +138484,7 @@
         }
       },
       {
-        "id": 3001086,
+        "id": 3001087,
         "schema": "better_supabase",
         "name": "renew_lease",
         "language": "plpgsql",
@@ -138490,7 +138524,7 @@
         }
       },
       {
-        "id": 3001087,
+        "id": 3001088,
         "schema": "better_supabase",
         "name": "reopen_deal",
         "language": "plpgsql",
@@ -138524,7 +138558,7 @@
         }
       },
       {
-        "id": 3001088,
+        "id": 3001089,
         "schema": "better_supabase",
         "name": "reopen_timesheet",
         "language": "plpgsql",
@@ -138552,7 +138586,7 @@
         }
       },
       {
-        "id": 3001089,
+        "id": 3001090,
         "schema": "better_supabase",
         "name": "reorder_product_media",
         "language": "plpgsql",
@@ -138586,7 +138620,7 @@
         }
       },
       {
-        "id": 3001090,
+        "id": 3001091,
         "schema": "better_supabase",
         "name": "repeat_maintenance_request",
         "language": "plpgsql",
@@ -138620,7 +138654,7 @@
         }
       },
       {
-        "id": 3001091,
+        "id": 3001092,
         "schema": "better_supabase",
         "name": "repeat_work_item",
         "language": "plpgsql",
@@ -138654,7 +138688,7 @@
         }
       },
       {
-        "id": 3001092,
+        "id": 3001093,
         "schema": "better_supabase",
         "name": "replace_attachment",
         "language": "plpgsql",
@@ -138718,7 +138752,7 @@
         }
       },
       {
-        "id": 3001093,
+        "id": 3001094,
         "schema": "better_supabase",
         "name": "replace_equivalent_triggers",
         "language": "plpgsql",
@@ -138764,7 +138798,7 @@
         }
       },
       {
-        "id": 3001094,
+        "id": 3001095,
         "schema": "better_supabase",
         "name": "replay_dead_job",
         "language": "plpgsql",
@@ -138798,7 +138832,7 @@
         }
       },
       {
-        "id": 3001095,
+        "id": 3001096,
         "schema": "better_supabase",
         "name": "report_content",
         "language": "plpgsql",
@@ -138850,7 +138884,7 @@
         }
       },
       {
-        "id": 3001096,
+        "id": 3001097,
         "schema": "better_supabase",
         "name": "reports_of",
         "language": "plpgsql",
@@ -138884,7 +138918,7 @@
         }
       },
       {
-        "id": 3001097,
+        "id": 3001098,
         "schema": "better_supabase",
         "name": "request_access",
         "language": "plpgsql",
@@ -138931,7 +138965,7 @@
         }
       },
       {
-        "id": 3001098,
+        "id": 3001099,
         "schema": "better_supabase",
         "name": "request_ai_chat_stop",
         "language": "plpgsql",
@@ -138959,7 +138993,7 @@
         }
       },
       {
-        "id": 3001099,
+        "id": 3001100,
         "schema": "better_supabase",
         "name": "request_approval",
         "language": "plpgsql",
@@ -139017,7 +139051,7 @@
         }
       },
       {
-        "id": 3001100,
+        "id": 3001101,
         "schema": "better_supabase",
         "name": "request_data_export",
         "language": "plpgsql",
@@ -139051,7 +139085,7 @@
         }
       },
       {
-        "id": 3001101,
+        "id": 3001102,
         "schema": "better_supabase",
         "name": "request_header",
         "language": "plpgsql",
@@ -139079,7 +139113,7 @@
         }
       },
       {
-        "id": 3001102,
+        "id": 3001103,
         "schema": "better_supabase",
         "name": "request_headers",
         "language": "plpgsql",
@@ -139100,7 +139134,7 @@
         }
       },
       {
-        "id": 3001103,
+        "id": 3001104,
         "schema": "better_supabase",
         "name": "request_id_or_null",
         "language": "sql",
@@ -139128,7 +139162,7 @@
         }
       },
       {
-        "id": 3001104,
+        "id": 3001105,
         "schema": "better_supabase",
         "name": "request_ip",
         "language": "plpgsql",
@@ -139149,7 +139183,7 @@
         }
       },
       {
-        "id": 3001105,
+        "id": 3001106,
         "schema": "better_supabase",
         "name": "request_organization_deletion",
         "language": "plpgsql",
@@ -139183,7 +139217,7 @@
         }
       },
       {
-        "id": 3001106,
+        "id": 3001107,
         "schema": "better_supabase",
         "name": "request_return",
         "language": "plpgsql",
@@ -139223,7 +139257,7 @@
         }
       },
       {
-        "id": 3001107,
+        "id": 3001108,
         "schema": "better_supabase",
         "name": "request_workflow_cancel",
         "language": "plpgsql",
@@ -139251,7 +139285,7 @@
         }
       },
       {
-        "id": 3001108,
+        "id": 3001109,
         "schema": "better_supabase",
         "name": "request_workflow_start",
         "language": "plpgsql",
@@ -139333,7 +139367,7 @@
         }
       },
       {
-        "id": 3001109,
+        "id": 3001110,
         "schema": "better_supabase",
         "name": "reschedule_booking",
         "language": "plpgsql",
@@ -139373,7 +139407,7 @@
         }
       },
       {
-        "id": 3001110,
+        "id": 3001111,
         "schema": "better_supabase",
         "name": "reschedule_inbox_message",
         "language": "plpgsql",
@@ -139407,7 +139441,7 @@
         }
       },
       {
-        "id": 3001111,
+        "id": 3001112,
         "schema": "better_supabase",
         "name": "resend_invitation",
         "language": "plpgsql",
@@ -139441,7 +139475,7 @@
         }
       },
       {
-        "id": 3001112,
+        "id": 3001113,
         "schema": "better_supabase",
         "name": "reserve_ai_file",
         "language": "plpgsql",
@@ -139499,7 +139533,7 @@
         }
       },
       {
-        "id": 3001113,
+        "id": 3001114,
         "schema": "better_supabase",
         "name": "reserve_stock",
         "language": "plpgsql",
@@ -139557,7 +139591,7 @@
         }
       },
       {
-        "id": 3001114,
+        "id": 3001115,
         "schema": "better_supabase",
         "name": "reset_default_rule",
         "language": "plpgsql",
@@ -139585,7 +139619,7 @@
         }
       },
       {
-        "id": 3001115,
+        "id": 3001116,
         "schema": "better_supabase",
         "name": "reset_enrollment_step",
         "language": "sql",
@@ -139619,7 +139653,7 @@
         }
       },
       {
-        "id": 3001116,
+        "id": 3001117,
         "schema": "better_supabase",
         "name": "reset_onboarding_step",
         "language": "plpgsql",
@@ -139659,7 +139693,7 @@
         }
       },
       {
-        "id": 3001117,
+        "id": 3001118,
         "schema": "better_supabase",
         "name": "reset_organization_setting",
         "language": "sql",
@@ -139693,7 +139727,7 @@
         }
       },
       {
-        "id": 3001118,
+        "id": 3001119,
         "schema": "better_supabase",
         "name": "reset_platform_setting",
         "language": "sql",
@@ -139721,7 +139755,7 @@
         }
       },
       {
-        "id": 3001119,
+        "id": 3001120,
         "schema": "better_supabase",
         "name": "reset_user_setting",
         "language": "sql",
@@ -139749,7 +139783,7 @@
         }
       },
       {
-        "id": 3001120,
+        "id": 3001121,
         "schema": "better_supabase",
         "name": "resolve_ai_suggestion",
         "language": "plpgsql",
@@ -139783,7 +139817,7 @@
         }
       },
       {
-        "id": 3001121,
+        "id": 3001122,
         "schema": "better_supabase",
         "name": "resolve_message",
         "language": "plpgsql",
@@ -139817,7 +139851,7 @@
         }
       },
       {
-        "id": 3001122,
+        "id": 3001123,
         "schema": "better_supabase",
         "name": "resolve_notifications",
         "language": "plpgsql",
@@ -139869,7 +139903,7 @@
         }
       },
       {
-        "id": 3001123,
+        "id": 3001124,
         "schema": "better_supabase",
         "name": "resolve_share_link",
         "language": "plpgsql",
@@ -139897,7 +139931,7 @@
         }
       },
       {
-        "id": 3001124,
+        "id": 3001125,
         "schema": "better_supabase",
         "name": "respond_calendar_event",
         "language": "plpgsql",
@@ -139931,7 +139965,7 @@
         }
       },
       {
-        "id": 3001125,
+        "id": 3001126,
         "schema": "better_supabase",
         "name": "respond_to_quote",
         "language": "plpgsql",
@@ -139977,7 +140011,7 @@
         }
       },
       {
-        "id": 3001126,
+        "id": 3001127,
         "schema": "better_supabase",
         "name": "restore_attachment_version",
         "language": "plpgsql",
@@ -140011,7 +140045,7 @@
         }
       },
       {
-        "id": 3001127,
+        "id": 3001128,
         "schema": "better_supabase",
         "name": "restore_team",
         "language": "plpgsql",
@@ -140039,7 +140073,7 @@
         }
       },
       {
-        "id": 3001128,
+        "id": 3001129,
         "schema": "better_supabase",
         "name": "restore_trash",
         "language": "plpgsql",
@@ -140067,7 +140101,7 @@
         }
       },
       {
-        "id": 3001129,
+        "id": 3001130,
         "schema": "better_supabase",
         "name": "restore_version",
         "language": "plpgsql",
@@ -140101,7 +140135,7 @@
         }
       },
       {
-        "id": 3001130,
+        "id": 3001131,
         "schema": "better_supabase",
         "name": "resume_lifecycle",
         "language": "plpgsql",
@@ -140135,7 +140169,7 @@
         }
       },
       {
-        "id": 3001131,
+        "id": 3001132,
         "schema": "better_supabase",
         "name": "retention_cutoff",
         "language": "sql",
@@ -140169,7 +140203,7 @@
         }
       },
       {
-        "id": 3001132,
+        "id": 3001133,
         "schema": "better_supabase",
         "name": "retention_floor",
         "language": "sql",
@@ -140197,7 +140231,7 @@
         }
       },
       {
-        "id": 3001133,
+        "id": 3001134,
         "schema": "better_supabase",
         "name": "retention_for",
         "language": "plpgsql",
@@ -140231,7 +140265,7 @@
         }
       },
       {
-        "id": 3001134,
+        "id": 3001135,
         "schema": "better_supabase",
         "name": "retire_signing_key",
         "language": "plpgsql",
@@ -140259,7 +140293,7 @@
         }
       },
       {
-        "id": 3001135,
+        "id": 3001136,
         "schema": "better_supabase",
         "name": "retry_dead_jobs",
         "language": "plpgsql",
@@ -140299,7 +140333,7 @@
         }
       },
       {
-        "id": 3001136,
+        "id": 3001137,
         "schema": "better_supabase",
         "name": "reverse_ledger_transaction",
         "language": "plpgsql",
@@ -140333,7 +140367,7 @@
         }
       },
       {
-        "id": 3001137,
+        "id": 3001138,
         "schema": "better_supabase",
         "name": "revert_audit_entries",
         "language": "plpgsql",
@@ -140361,7 +140395,7 @@
         }
       },
       {
-        "id": 3001138,
+        "id": 3001139,
         "schema": "better_supabase",
         "name": "review_form_submission",
         "language": "plpgsql",
@@ -140395,7 +140429,7 @@
         }
       },
       {
-        "id": 3001139,
+        "id": 3001140,
         "schema": "better_supabase",
         "name": "revise_quote",
         "language": "plpgsql",
@@ -140423,7 +140457,7 @@
         }
       },
       {
-        "id": 3001140,
+        "id": 3001141,
         "schema": "better_supabase",
         "name": "revoke_ai_chat_share",
         "language": "plpgsql",
@@ -140451,7 +140485,7 @@
         }
       },
       {
-        "id": 3001141,
+        "id": 3001142,
         "schema": "better_supabase",
         "name": "revoke_api_key",
         "language": "plpgsql",
@@ -140479,7 +140513,7 @@
         }
       },
       {
-        "id": 3001142,
+        "id": 3001143,
         "schema": "better_supabase",
         "name": "revoke_connector_grant",
         "language": "plpgsql",
@@ -140507,7 +140541,7 @@
         }
       },
       {
-        "id": 3001143,
+        "id": 3001144,
         "schema": "better_supabase",
         "name": "revoke_course_certificate",
         "language": "plpgsql",
@@ -140535,7 +140569,7 @@
         }
       },
       {
-        "id": 3001144,
+        "id": 3001145,
         "schema": "better_supabase",
         "name": "revoke_guest",
         "language": "plpgsql",
@@ -140563,7 +140597,7 @@
         }
       },
       {
-        "id": 3001145,
+        "id": 3001146,
         "schema": "better_supabase",
         "name": "revoke_guest_access",
         "language": "plpgsql",
@@ -140591,7 +140625,7 @@
         }
       },
       {
-        "id": 3001146,
+        "id": 3001147,
         "schema": "better_supabase",
         "name": "revoke_invitation",
         "language": "plpgsql",
@@ -140619,7 +140653,7 @@
         }
       },
       {
-        "id": 3001147,
+        "id": 3001148,
         "schema": "better_supabase",
         "name": "revoke_invite_code",
         "language": "plpgsql",
@@ -140647,7 +140681,7 @@
         }
       },
       {
-        "id": 3001148,
+        "id": 3001149,
         "schema": "better_supabase",
         "name": "revoke_pass",
         "language": "plpgsql",
@@ -140675,7 +140709,7 @@
         }
       },
       {
-        "id": 3001149,
+        "id": 3001150,
         "schema": "better_supabase",
         "name": "revoke_share_link",
         "language": "plpgsql",
@@ -140703,7 +140737,7 @@
         }
       },
       {
-        "id": 3001150,
+        "id": 3001151,
         "schema": "better_supabase",
         "name": "rollback_ai_document",
         "language": "plpgsql",
@@ -140737,7 +140771,7 @@
         }
       },
       {
-        "id": 3001151,
+        "id": 3001152,
         "schema": "better_supabase",
         "name": "rotate_api_key",
         "language": "plpgsql",
@@ -140783,7 +140817,7 @@
         }
       },
       {
-        "id": 3001152,
+        "id": 3001153,
         "schema": "better_supabase",
         "name": "rotate_webhook_secret",
         "language": "plpgsql",
@@ -140823,7 +140857,7 @@
         }
       },
       {
-        "id": 3001153,
+        "id": 3001154,
         "schema": "better_supabase",
         "name": "rotate_workflow_webhook_token",
         "language": "plpgsql",
@@ -140851,7 +140885,7 @@
         }
       },
       {
-        "id": 3001154,
+        "id": 3001155,
         "schema": "better_supabase",
         "name": "round_half_even",
         "language": "sql",
@@ -140879,7 +140913,7 @@
         }
       },
       {
-        "id": 3001155,
+        "id": 3001156,
         "schema": "better_supabase",
         "name": "rule_boolean",
         "language": "sql",
@@ -140907,7 +140941,7 @@
         }
       },
       {
-        "id": 3001156,
+        "id": 3001157,
         "schema": "better_supabase",
         "name": "rule_bounds",
         "language": "plpgsql",
@@ -140953,7 +140987,7 @@
         }
       },
       {
-        "id": 3001157,
+        "id": 3001158,
         "schema": "better_supabase",
         "name": "rule_check",
         "language": "plpgsql",
@@ -140993,7 +141027,7 @@
         }
       },
       {
-        "id": 3001158,
+        "id": 3001159,
         "schema": "better_supabase",
         "name": "rule_date",
         "language": "plpgsql",
@@ -141051,7 +141085,7 @@
         }
       },
       {
-        "id": 3001159,
+        "id": 3001160,
         "schema": "better_supabase",
         "name": "rule_equal",
         "language": "plpgsql",
@@ -141091,7 +141125,7 @@
         }
       },
       {
-        "id": 3001160,
+        "id": 3001161,
         "schema": "better_supabase",
         "name": "rule_evaluate",
         "language": "plpgsql",
@@ -141143,7 +141177,7 @@
         }
       },
       {
-        "id": 3001161,
+        "id": 3001162,
         "schema": "better_supabase",
         "name": "rule_evaluations_list",
         "language": "plpgsql",
@@ -141183,7 +141217,7 @@
         }
       },
       {
-        "id": 3001162,
+        "id": 3001163,
         "schema": "better_supabase",
         "name": "rule_field_map",
         "language": "sql",
@@ -141211,7 +141245,7 @@
         }
       },
       {
-        "id": 3001163,
+        "id": 3001164,
         "schema": "better_supabase",
         "name": "rule_fields_list",
         "language": "sql",
@@ -141239,7 +141273,7 @@
         }
       },
       {
-        "id": 3001164,
+        "id": 3001165,
         "schema": "better_supabase",
         "name": "rule_get",
         "language": "plpgsql",
@@ -141267,7 +141301,7 @@
         }
       },
       {
-        "id": 3001165,
+        "id": 3001166,
         "schema": "better_supabase",
         "name": "rule_list",
         "language": "plpgsql",
@@ -141295,7 +141329,7 @@
         }
       },
       {
-        "id": 3001166,
+        "id": 3001167,
         "schema": "better_supabase",
         "name": "rule_matches",
         "language": "sql",
@@ -141347,7 +141381,7 @@
         }
       },
       {
-        "id": 3001167,
+        "id": 3001168,
         "schema": "better_supabase",
         "name": "rule_moment",
         "language": "plpgsql",
@@ -141381,7 +141415,7 @@
         }
       },
       {
-        "id": 3001168,
+        "id": 3001169,
         "schema": "better_supabase",
         "name": "rule_node",
         "language": "plpgsql",
@@ -141433,7 +141467,7 @@
         }
       },
       {
-        "id": 3001169,
+        "id": 3001170,
         "schema": "better_supabase",
         "name": "rule_numeric",
         "language": "plpgsql",
@@ -141461,7 +141495,7 @@
         }
       },
       {
-        "id": 3001170,
+        "id": 3001171,
         "schema": "better_supabase",
         "name": "rule_positive",
         "language": "plpgsql",
@@ -141525,7 +141559,7 @@
         }
       },
       {
-        "id": 3001171,
+        "id": 3001172,
         "schema": "better_supabase",
         "name": "rule_text",
         "language": "sql",
@@ -141553,7 +141587,7 @@
         }
       },
       {
-        "id": 3001172,
+        "id": 3001173,
         "schema": "better_supabase",
         "name": "rule_versions_list",
         "language": "plpgsql",
@@ -141581,7 +141615,7 @@
         }
       },
       {
-        "id": 3001173,
+        "id": 3001174,
         "schema": "better_supabase",
         "name": "rules_list",
         "language": "plpgsql",
@@ -141627,7 +141661,7 @@
         }
       },
       {
-        "id": 3001174,
+        "id": 3001175,
         "schema": "better_supabase",
         "name": "run_contract_renewals",
         "language": "plpgsql",
@@ -141655,7 +141689,7 @@
         }
       },
       {
-        "id": 3001175,
+        "id": 3001176,
         "schema": "better_supabase",
         "name": "run_due_sequences",
         "language": "plpgsql",
@@ -141683,7 +141717,7 @@
         }
       },
       {
-        "id": 3001176,
+        "id": 3001177,
         "schema": "better_supabase",
         "name": "run_rules",
         "language": "plpgsql",
@@ -141741,7 +141775,7 @@
         }
       },
       {
-        "id": 3001177,
+        "id": 3001178,
         "schema": "better_supabase",
         "name": "running_timer",
         "language": "sql",
@@ -141769,7 +141803,7 @@
         }
       },
       {
-        "id": 3001178,
+        "id": 3001179,
         "schema": "better_supabase",
         "name": "save_agent",
         "language": "plpgsql",
@@ -141809,7 +141843,7 @@
         }
       },
       {
-        "id": 3001179,
+        "id": 3001180,
         "schema": "better_supabase",
         "name": "save_ai_assistant_message",
         "language": "plpgsql",
@@ -141879,7 +141913,7 @@
         }
       },
       {
-        "id": 3001180,
+        "id": 3001181,
         "schema": "better_supabase",
         "name": "save_ai_batch_items",
         "language": "plpgsql",
@@ -141913,7 +141947,7 @@
         }
       },
       {
-        "id": 3001181,
+        "id": 3001182,
         "schema": "better_supabase",
         "name": "save_ai_harness_session",
         "language": "plpgsql",
@@ -141959,7 +141993,7 @@
         }
       },
       {
-        "id": 3001182,
+        "id": 3001183,
         "schema": "better_supabase",
         "name": "save_ai_project",
         "language": "plpgsql",
@@ -141999,7 +142033,7 @@
         }
       },
       {
-        "id": 3001183,
+        "id": 3001184,
         "schema": "better_supabase",
         "name": "save_ai_provider_key",
         "language": "plpgsql",
@@ -142057,7 +142091,7 @@
         }
       },
       {
-        "id": 3001184,
+        "id": 3001185,
         "schema": "better_supabase",
         "name": "save_ai_task",
         "language": "plpgsql",
@@ -142103,7 +142137,7 @@
         }
       },
       {
-        "id": 3001185,
+        "id": 3001186,
         "schema": "better_supabase",
         "name": "save_announcement",
         "language": "plpgsql",
@@ -142137,7 +142171,7 @@
         }
       },
       {
-        "id": 3001186,
+        "id": 3001187,
         "schema": "better_supabase",
         "name": "save_assignment_queue",
         "language": "plpgsql",
@@ -142171,7 +142205,7 @@
         }
       },
       {
-        "id": 3001187,
+        "id": 3001188,
         "schema": "better_supabase",
         "name": "save_booking_resource",
         "language": "plpgsql",
@@ -142205,7 +142239,7 @@
         }
       },
       {
-        "id": 3001188,
+        "id": 3001189,
         "schema": "better_supabase",
         "name": "save_booking_service",
         "language": "plpgsql",
@@ -142239,7 +142273,7 @@
         }
       },
       {
-        "id": 3001189,
+        "id": 3001190,
         "schema": "better_supabase",
         "name": "save_calendar_event",
         "language": "plpgsql",
@@ -142273,7 +142307,7 @@
         }
       },
       {
-        "id": 3001190,
+        "id": 3001191,
         "schema": "better_supabase",
         "name": "save_catalog_channel",
         "language": "plpgsql",
@@ -142337,7 +142371,7 @@
         }
       },
       {
-        "id": 3001191,
+        "id": 3001192,
         "schema": "better_supabase",
         "name": "save_category",
         "language": "plpgsql",
@@ -142395,7 +142429,7 @@
         }
       },
       {
-        "id": 3001192,
+        "id": 3001193,
         "schema": "better_supabase",
         "name": "save_collection",
         "language": "plpgsql",
@@ -142453,7 +142487,7 @@
         }
       },
       {
-        "id": 3001193,
+        "id": 3001194,
         "schema": "better_supabase",
         "name": "save_company",
         "language": "plpgsql",
@@ -142493,7 +142527,7 @@
         }
       },
       {
-        "id": 3001194,
+        "id": 3001195,
         "schema": "better_supabase",
         "name": "save_connector_server",
         "language": "plpgsql",
@@ -142533,7 +142567,7 @@
         }
       },
       {
-        "id": 3001195,
+        "id": 3001196,
         "schema": "better_supabase",
         "name": "save_connector_session",
         "language": "plpgsql",
@@ -142579,7 +142613,7 @@
         }
       },
       {
-        "id": 3001196,
+        "id": 3001197,
         "schema": "better_supabase",
         "name": "save_control",
         "language": "plpgsql",
@@ -142643,7 +142677,7 @@
         }
       },
       {
-        "id": 3001197,
+        "id": 3001198,
         "schema": "better_supabase",
         "name": "save_control_framework",
         "language": "plpgsql",
@@ -142695,7 +142729,7 @@
         }
       },
       {
-        "id": 3001198,
+        "id": 3001199,
         "schema": "better_supabase",
         "name": "save_course",
         "language": "plpgsql",
@@ -142729,7 +142763,7 @@
         }
       },
       {
-        "id": 3001199,
+        "id": 3001200,
         "schema": "better_supabase",
         "name": "save_course_lesson",
         "language": "plpgsql",
@@ -142763,7 +142797,7 @@
         }
       },
       {
-        "id": 3001200,
+        "id": 3001201,
         "schema": "better_supabase",
         "name": "save_course_module",
         "language": "plpgsql",
@@ -142797,7 +142831,7 @@
         }
       },
       {
-        "id": 3001201,
+        "id": 3001202,
         "schema": "better_supabase",
         "name": "save_custom_emoji",
         "language": "plpgsql",
@@ -142843,7 +142877,7 @@
         }
       },
       {
-        "id": 3001202,
+        "id": 3001203,
         "schema": "better_supabase",
         "name": "save_document_version",
         "language": "plpgsql",
@@ -142883,7 +142917,7 @@
         }
       },
       {
-        "id": 3001203,
+        "id": 3001204,
         "schema": "better_supabase",
         "name": "save_donation_fund",
         "language": "plpgsql",
@@ -142953,7 +142987,7 @@
         }
       },
       {
-        "id": 3001204,
+        "id": 3001205,
         "schema": "better_supabase",
         "name": "save_employee_private_details",
         "language": "plpgsql",
@@ -142987,7 +143021,7 @@
         }
       },
       {
-        "id": 3001205,
+        "id": 3001206,
         "schema": "better_supabase",
         "name": "save_engagement_notes",
         "language": "plpgsql",
@@ -143021,7 +143055,7 @@
         }
       },
       {
-        "id": 3001206,
+        "id": 3001207,
         "schema": "better_supabase",
         "name": "save_engagement_transcript",
         "language": "plpgsql",
@@ -143061,7 +143095,7 @@
         }
       },
       {
-        "id": 3001207,
+        "id": 3001208,
         "schema": "better_supabase",
         "name": "save_enrollment_program",
         "language": "plpgsql",
@@ -143095,7 +143129,7 @@
         }
       },
       {
-        "id": 3001208,
+        "id": 3001209,
         "schema": "better_supabase",
         "name": "save_evidence_task",
         "language": "plpgsql",
@@ -143159,7 +143193,7 @@
         }
       },
       {
-        "id": 3001209,
+        "id": 3001210,
         "schema": "better_supabase",
         "name": "save_expense_category",
         "language": "plpgsql",
@@ -143217,7 +143251,7 @@
         }
       },
       {
-        "id": 3001210,
+        "id": 3001211,
         "schema": "better_supabase",
         "name": "save_field_definition",
         "language": "plpgsql",
@@ -143275,7 +143309,7 @@
         }
       },
       {
-        "id": 3001211,
+        "id": 3001212,
         "schema": "better_supabase",
         "name": "save_flag",
         "language": "plpgsql",
@@ -143309,7 +143343,7 @@
         }
       },
       {
-        "id": 3001212,
+        "id": 3001213,
         "schema": "better_supabase",
         "name": "save_iteration",
         "language": "plpgsql",
@@ -143349,7 +143383,7 @@
         }
       },
       {
-        "id": 3001213,
+        "id": 3001214,
         "schema": "better_supabase",
         "name": "save_job",
         "language": "plpgsql",
@@ -143389,7 +143423,7 @@
         }
       },
       {
-        "id": 3001214,
+        "id": 3001215,
         "schema": "better_supabase",
         "name": "save_kitchen_station",
         "language": "plpgsql",
@@ -143429,7 +143463,7 @@
         }
       },
       {
-        "id": 3001215,
+        "id": 3001216,
         "schema": "better_supabase",
         "name": "save_location",
         "language": "plpgsql",
@@ -143487,7 +143521,7 @@
         }
       },
       {
-        "id": 3001216,
+        "id": 3001217,
         "schema": "better_supabase",
         "name": "save_maintenance_request_checklist_item",
         "language": "plpgsql",
@@ -143527,7 +143561,7 @@
         }
       },
       {
-        "id": 3001217,
+        "id": 3001218,
         "schema": "better_supabase",
         "name": "save_obligation",
         "language": "plpgsql",
@@ -143585,7 +143619,7 @@
         }
       },
       {
-        "id": 3001218,
+        "id": 3001219,
         "schema": "better_supabase",
         "name": "save_person",
         "language": "plpgsql",
@@ -143625,7 +143659,7 @@
         }
       },
       {
-        "id": 3001219,
+        "id": 3001220,
         "schema": "better_supabase",
         "name": "save_pipeline",
         "language": "plpgsql",
@@ -143689,7 +143723,7 @@
         }
       },
       {
-        "id": 3001220,
+        "id": 3001221,
         "schema": "better_supabase",
         "name": "save_pipeline_stage",
         "language": "plpgsql",
@@ -143765,7 +143799,7 @@
         }
       },
       {
-        "id": 3001221,
+        "id": 3001222,
         "schema": "better_supabase",
         "name": "save_policy",
         "language": "plpgsql",
@@ -143823,7 +143857,7 @@
         }
       },
       {
-        "id": 3001222,
+        "id": 3001223,
         "schema": "better_supabase",
         "name": "save_post_board",
         "language": "plpgsql",
@@ -143857,7 +143891,7 @@
         }
       },
       {
-        "id": 3001223,
+        "id": 3001224,
         "schema": "better_supabase",
         "name": "save_postmortem",
         "language": "plpgsql",
@@ -143891,7 +143925,7 @@
         }
       },
       {
-        "id": 3001224,
+        "id": 3001225,
         "schema": "better_supabase",
         "name": "save_price_list",
         "language": "plpgsql",
@@ -143937,7 +143971,7 @@
         }
       },
       {
-        "id": 3001225,
+        "id": 3001226,
         "schema": "better_supabase",
         "name": "save_product",
         "language": "plpgsql",
@@ -143995,7 +144029,7 @@
         }
       },
       {
-        "id": 3001226,
+        "id": 3001227,
         "schema": "better_supabase",
         "name": "save_product_option",
         "language": "plpgsql",
@@ -144041,7 +144075,7 @@
         }
       },
       {
-        "id": 3001227,
+        "id": 3001228,
         "schema": "better_supabase",
         "name": "save_project",
         "language": "plpgsql",
@@ -144081,7 +144115,7 @@
         }
       },
       {
-        "id": 3001228,
+        "id": 3001229,
         "schema": "better_supabase",
         "name": "save_promotion",
         "language": "plpgsql",
@@ -144121,7 +144155,7 @@
         }
       },
       {
-        "id": 3001229,
+        "id": 3001230,
         "schema": "better_supabase",
         "name": "save_purchase_order",
         "language": "plpgsql",
@@ -144197,7 +144231,7 @@
         }
       },
       {
-        "id": 3001230,
+        "id": 3001231,
         "schema": "better_supabase",
         "name": "save_reminder",
         "language": "plpgsql",
@@ -144243,7 +144277,7 @@
         }
       },
       {
-        "id": 3001231,
+        "id": 3001232,
         "schema": "better_supabase",
         "name": "save_rule",
         "language": "plpgsql",
@@ -144277,7 +144311,7 @@
         }
       },
       {
-        "id": 3001232,
+        "id": 3001233,
         "schema": "better_supabase",
         "name": "save_score_model",
         "language": "plpgsql",
@@ -144311,7 +144345,7 @@
         }
       },
       {
-        "id": 3001233,
+        "id": 3001234,
         "schema": "better_supabase",
         "name": "save_segment",
         "language": "plpgsql",
@@ -144345,7 +144379,7 @@
         }
       },
       {
-        "id": 3001234,
+        "id": 3001235,
         "schema": "better_supabase",
         "name": "save_sequence",
         "language": "plpgsql",
@@ -144379,7 +144413,7 @@
         }
       },
       {
-        "id": 3001235,
+        "id": 3001236,
         "schema": "better_supabase",
         "name": "save_shipping_rate",
         "language": "plpgsql",
@@ -144419,7 +144453,7 @@
         }
       },
       {
-        "id": 3001236,
+        "id": 3001237,
         "schema": "better_supabase",
         "name": "save_sla_policy",
         "language": "plpgsql",
@@ -144459,7 +144493,7 @@
         }
       },
       {
-        "id": 3001237,
+        "id": 3001238,
         "schema": "better_supabase",
         "name": "save_status_component",
         "language": "plpgsql",
@@ -144523,7 +144557,7 @@
         }
       },
       {
-        "id": 3001238,
+        "id": 3001239,
         "schema": "better_supabase",
         "name": "save_status_page",
         "language": "plpgsql",
@@ -144575,7 +144609,7 @@
         }
       },
       {
-        "id": 3001239,
+        "id": 3001240,
         "schema": "better_supabase",
         "name": "save_target",
         "language": "plpgsql",
@@ -144615,7 +144649,7 @@
         }
       },
       {
-        "id": 3001240,
+        "id": 3001241,
         "schema": "better_supabase",
         "name": "save_template",
         "language": "plpgsql",
@@ -144673,7 +144707,7 @@
         }
       },
       {
-        "id": 3001241,
+        "id": 3001242,
         "schema": "better_supabase",
         "name": "save_template_draft",
         "language": "plpgsql",
@@ -144707,7 +144741,7 @@
         }
       },
       {
-        "id": 3001242,
+        "id": 3001243,
         "schema": "better_supabase",
         "name": "save_thread_summary",
         "language": "plpgsql",
@@ -144753,7 +144787,7 @@
         }
       },
       {
-        "id": 3001243,
+        "id": 3001244,
         "schema": "better_supabase",
         "name": "save_variant",
         "language": "plpgsql",
@@ -144829,7 +144863,7 @@
         }
       },
       {
-        "id": 3001244,
+        "id": 3001245,
         "schema": "better_supabase",
         "name": "save_view",
         "language": "plpgsql",
@@ -144899,7 +144933,7 @@
         }
       },
       {
-        "id": 3001245,
+        "id": 3001246,
         "schema": "better_supabase",
         "name": "save_work_item_checklist_item",
         "language": "plpgsql",
@@ -144939,7 +144973,7 @@
         }
       },
       {
-        "id": 3001246,
+        "id": 3001247,
         "schema": "better_supabase",
         "name": "save_workflow_alert",
         "language": "plpgsql",
@@ -144991,7 +145025,7 @@
         }
       },
       {
-        "id": 3001247,
+        "id": 3001248,
         "schema": "better_supabase",
         "name": "save_workflow_credential",
         "language": "plpgsql",
@@ -145043,7 +145077,7 @@
         }
       },
       {
-        "id": 3001248,
+        "id": 3001249,
         "schema": "better_supabase",
         "name": "save_workflow_definition",
         "language": "plpgsql",
@@ -145107,7 +145141,7 @@
         }
       },
       {
-        "id": 3001249,
+        "id": 3001250,
         "schema": "better_supabase",
         "name": "save_workflow_draft",
         "language": "plpgsql",
@@ -145147,7 +145181,7 @@
         }
       },
       {
-        "id": 3001250,
+        "id": 3001251,
         "schema": "better_supabase",
         "name": "save_workflow_trigger",
         "language": "plpgsql",
@@ -145199,7 +145233,7 @@
         }
       },
       {
-        "id": 3001251,
+        "id": 3001252,
         "schema": "better_supabase",
         "name": "schedule_ai_tasks",
         "language": "plpgsql",
@@ -145227,7 +145261,7 @@
         }
       },
       {
-        "id": 3001252,
+        "id": 3001253,
         "schema": "better_supabase",
         "name": "schedule_content_entry",
         "language": "plpgsql",
@@ -145261,7 +145295,7 @@
         }
       },
       {
-        "id": 3001253,
+        "id": 3001254,
         "schema": "better_supabase",
         "name": "schedule_inbox_message",
         "language": "plpgsql",
@@ -145301,7 +145335,7 @@
         }
       },
       {
-        "id": 3001254,
+        "id": 3001255,
         "schema": "better_supabase",
         "name": "schedule_interview",
         "language": "plpgsql",
@@ -145359,7 +145393,7 @@
         }
       },
       {
-        "id": 3001255,
+        "id": 3001256,
         "schema": "better_supabase",
         "name": "schedule_job",
         "language": "plpgsql",
@@ -145423,7 +145457,7 @@
         }
       },
       {
-        "id": 3001256,
+        "id": 3001257,
         "schema": "better_supabase",
         "name": "schedule_work_order",
         "language": "plpgsql",
@@ -145469,7 +145503,7 @@
         }
       },
       {
-        "id": 3001257,
+        "id": 3001258,
         "schema": "better_supabase",
         "name": "scim_delete_group",
         "language": "plpgsql",
@@ -145503,7 +145537,7 @@
         }
       },
       {
-        "id": 3001258,
+        "id": 3001259,
         "schema": "better_supabase",
         "name": "scim_delete_user",
         "language": "plpgsql",
@@ -145537,7 +145571,7 @@
         }
       },
       {
-        "id": 3001259,
+        "id": 3001260,
         "schema": "better_supabase",
         "name": "scim_get_group",
         "language": "plpgsql",
@@ -145571,7 +145605,7 @@
         }
       },
       {
-        "id": 3001260,
+        "id": 3001261,
         "schema": "better_supabase",
         "name": "scim_get_user",
         "language": "plpgsql",
@@ -145605,7 +145639,7 @@
         }
       },
       {
-        "id": 3001261,
+        "id": 3001262,
         "schema": "better_supabase",
         "name": "scim_group_role",
         "language": "sql",
@@ -145633,7 +145667,7 @@
         }
       },
       {
-        "id": 3001262,
+        "id": 3001263,
         "schema": "better_supabase",
         "name": "scim_list_groups",
         "language": "plpgsql",
@@ -145661,7 +145695,7 @@
         }
       },
       {
-        "id": 3001263,
+        "id": 3001264,
         "schema": "better_supabase",
         "name": "scim_list_users",
         "language": "plpgsql",
@@ -145689,7 +145723,7 @@
         }
       },
       {
-        "id": 3001264,
+        "id": 3001265,
         "schema": "better_supabase",
         "name": "scim_save_group",
         "language": "plpgsql",
@@ -145735,7 +145769,7 @@
         }
       },
       {
-        "id": 3001265,
+        "id": 3001266,
         "schema": "better_supabase",
         "name": "scim_save_user",
         "language": "plpgsql",
@@ -145781,7 +145815,7 @@
         }
       },
       {
-        "id": 3001266,
+        "id": 3001267,
         "schema": "better_supabase",
         "name": "scim_sync_member",
         "language": "plpgsql",
@@ -145809,7 +145843,7 @@
         }
       },
       {
-        "id": 3001267,
+        "id": 3001268,
         "schema": "better_supabase",
         "name": "scope_permissions",
         "language": "sql",
@@ -145837,7 +145871,7 @@
         }
       },
       {
-        "id": 3001268,
+        "id": 3001269,
         "schema": "better_supabase",
         "name": "score_history",
         "language": "plpgsql",
@@ -145889,7 +145923,7 @@
         }
       },
       {
-        "id": 3001269,
+        "id": 3001270,
         "schema": "better_supabase",
         "name": "score_lead",
         "language": "plpgsql",
@@ -145929,7 +145963,7 @@
         }
       },
       {
-        "id": 3001270,
+        "id": 3001271,
         "schema": "better_supabase",
         "name": "score_leads_due",
         "language": "plpgsql",
@@ -145957,7 +145991,7 @@
         }
       },
       {
-        "id": 3001271,
+        "id": 3001272,
         "schema": "better_supabase",
         "name": "search",
         "language": "plpgsql",
@@ -146003,7 +146037,7 @@
         }
       },
       {
-        "id": 3001272,
+        "id": 3001273,
         "schema": "better_supabase",
         "name": "search_favorites",
         "language": "sql",
@@ -146037,7 +146071,7 @@
         }
       },
       {
-        "id": 3001273,
+        "id": 3001274,
         "schema": "better_supabase",
         "name": "search_normalize",
         "language": "sql",
@@ -146065,7 +146099,7 @@
         }
       },
       {
-        "id": 3001274,
+        "id": 3001275,
         "schema": "better_supabase",
         "name": "search_recents",
         "language": "sql",
@@ -146099,7 +146133,7 @@
         }
       },
       {
-        "id": 3001275,
+        "id": 3001276,
         "schema": "better_supabase",
         "name": "search_refresh",
         "language": "plpgsql",
@@ -146133,7 +146167,7 @@
         }
       },
       {
-        "id": 3001276,
+        "id": 3001277,
         "schema": "better_supabase",
         "name": "search_reindex",
         "language": "plpgsql",
@@ -146161,7 +146195,7 @@
         }
       },
       {
-        "id": 3001277,
+        "id": 3001278,
         "schema": "better_supabase",
         "name": "search_remove",
         "language": "plpgsql",
@@ -146195,7 +146229,7 @@
         }
       },
       {
-        "id": 3001278,
+        "id": 3001279,
         "schema": "better_supabase",
         "name": "search_star",
         "language": "plpgsql",
@@ -146235,7 +146269,7 @@
         }
       },
       {
-        "id": 3001279,
+        "id": 3001280,
         "schema": "better_supabase",
         "name": "search_touch",
         "language": "plpgsql",
@@ -146269,7 +146303,7 @@
         }
       },
       {
-        "id": 3001280,
+        "id": 3001281,
         "schema": "better_supabase",
         "name": "search_user_state",
         "language": "sql",
@@ -146315,7 +146349,7 @@
         }
       },
       {
-        "id": 3001281,
+        "id": 3001282,
         "schema": "better_supabase",
         "name": "segment_get",
         "language": "sql",
@@ -146343,7 +146377,7 @@
         }
       },
       {
-        "id": 3001282,
+        "id": 3001283,
         "schema": "better_supabase",
         "name": "segments_list",
         "language": "plpgsql",
@@ -146377,7 +146411,7 @@
         }
       },
       {
-        "id": 3001283,
+        "id": 3001284,
         "schema": "better_supabase",
         "name": "segments_of",
         "language": "sql",
@@ -146411,7 +146445,7 @@
         }
       },
       {
-        "id": 3001284,
+        "id": 3001285,
         "schema": "better_supabase",
         "name": "send_contract_for_signature",
         "language": "plpgsql",
@@ -146457,7 +146491,7 @@
         }
       },
       {
-        "id": 3001285,
+        "id": 3001286,
         "schema": "better_supabase",
         "name": "send_inbox_message",
         "language": "plpgsql",
@@ -146491,7 +146525,7 @@
         }
       },
       {
-        "id": 3001286,
+        "id": 3001287,
         "schema": "better_supabase",
         "name": "send_message",
         "language": "plpgsql",
@@ -146537,7 +146571,7 @@
         }
       },
       {
-        "id": 3001287,
+        "id": 3001288,
         "schema": "better_supabase",
         "name": "send_notification",
         "language": "plpgsql",
@@ -146565,7 +146599,7 @@
         }
       },
       {
-        "id": 3001288,
+        "id": 3001289,
         "schema": "better_supabase",
         "name": "send_notifications",
         "language": "plpgsql",
@@ -146593,7 +146627,7 @@
         }
       },
       {
-        "id": 3001289,
+        "id": 3001290,
         "schema": "better_supabase",
         "name": "send_order_to_kitchen",
         "language": "plpgsql",
@@ -146627,7 +146661,7 @@
         }
       },
       {
-        "id": 3001290,
+        "id": 3001291,
         "schema": "better_supabase",
         "name": "send_quote",
         "language": "plpgsql",
@@ -146655,7 +146689,7 @@
         }
       },
       {
-        "id": 3001291,
+        "id": 3001292,
         "schema": "better_supabase",
         "name": "sequence_exit",
         "language": "plpgsql",
@@ -146689,7 +146723,7 @@
         }
       },
       {
-        "id": 3001292,
+        "id": 3001293,
         "schema": "better_supabase",
         "name": "sequence_member_json",
         "language": "sql",
@@ -146717,7 +146751,7 @@
         }
       },
       {
-        "id": 3001293,
+        "id": 3001294,
         "schema": "better_supabase",
         "name": "sequence_place",
         "language": "plpgsql",
@@ -146745,7 +146779,7 @@
         }
       },
       {
-        "id": 3001294,
+        "id": 3001295,
         "schema": "better_supabase",
         "name": "sequence_resync",
         "language": "plpgsql",
@@ -146773,7 +146807,7 @@
         }
       },
       {
-        "id": 3001295,
+        "id": 3001296,
         "schema": "better_supabase",
         "name": "sequence_step_done",
         "language": "plpgsql",
@@ -146807,7 +146841,7 @@
         }
       },
       {
-        "id": 3001296,
+        "id": 3001297,
         "schema": "better_supabase",
         "name": "sequence_step_failed",
         "language": "plpgsql",
@@ -146847,7 +146881,7 @@
         }
       },
       {
-        "id": 3001297,
+        "id": 3001298,
         "schema": "better_supabase",
         "name": "sequence_step_sent",
         "language": "plpgsql",
@@ -146887,7 +146921,7 @@
         }
       },
       {
-        "id": 3001298,
+        "id": 3001299,
         "schema": "better_supabase",
         "name": "sequence_steps_check",
         "language": "plpgsql",
@@ -146921,7 +146955,7 @@
         }
       },
       {
-        "id": 3001299,
+        "id": 3001300,
         "schema": "better_supabase",
         "name": "service_principals_list",
         "language": "sql",
@@ -146949,7 +146983,7 @@
         }
       },
       {
-        "id": 3001300,
+        "id": 3001301,
         "schema": "better_supabase",
         "name": "session_active",
         "language": "plpgsql",
@@ -146970,7 +147004,7 @@
         }
       },
       {
-        "id": 3001301,
+        "id": 3001302,
         "schema": "better_supabase",
         "name": "set_agent_skills",
         "language": "plpgsql",
@@ -147004,7 +147038,7 @@
         }
       },
       {
-        "id": 3001302,
+        "id": 3001303,
         "schema": "better_supabase",
         "name": "set_ai_message_embedding",
         "language": "plpgsql",
@@ -147062,7 +147096,7 @@
         }
       },
       {
-        "id": 3001303,
+        "id": 3001304,
         "schema": "better_supabase",
         "name": "set_ai_provider_file",
         "language": "sql",
@@ -147108,7 +147142,7 @@
         }
       },
       {
-        "id": 3001304,
+        "id": 3001305,
         "schema": "better_supabase",
         "name": "set_ai_run_cost",
         "language": "plpgsql",
@@ -147148,7 +147182,7 @@
         }
       },
       {
-        "id": 3001305,
+        "id": 3001306,
         "schema": "better_supabase",
         "name": "set_ai_tool_policy",
         "language": "plpgsql",
@@ -147188,7 +147222,7 @@
         }
       },
       {
-        "id": 3001306,
+        "id": 3001307,
         "schema": "better_supabase",
         "name": "set_asset_link",
         "language": "plpgsql",
@@ -147228,7 +147262,7 @@
         }
       },
       {
-        "id": 3001307,
+        "id": 3001308,
         "schema": "better_supabase",
         "name": "set_assignment_members",
         "language": "plpgsql",
@@ -147262,7 +147296,7 @@
         }
       },
       {
-        "id": 3001308,
+        "id": 3001309,
         "schema": "better_supabase",
         "name": "set_attachment_status",
         "language": "plpgsql",
@@ -147302,7 +147336,7 @@
         }
       },
       {
-        "id": 3001309,
+        "id": 3001310,
         "schema": "better_supabase",
         "name": "set_booking_availability",
         "language": "plpgsql",
@@ -147336,7 +147370,7 @@
         }
       },
       {
-        "id": 3001310,
+        "id": 3001311,
         "schema": "better_supabase",
         "name": "set_bot_mode",
         "language": "plpgsql",
@@ -147376,7 +147410,7 @@
         }
       },
       {
-        "id": 3001311,
+        "id": 3001312,
         "schema": "better_supabase",
         "name": "set_calendar_attendee",
         "language": "plpgsql",
@@ -147428,7 +147462,7 @@
         }
       },
       {
-        "id": 3001312,
+        "id": 3001313,
         "schema": "better_supabase",
         "name": "set_calendar_working_hours",
         "language": "plpgsql",
@@ -147474,7 +147508,7 @@
         }
       },
       {
-        "id": 3001313,
+        "id": 3001314,
         "schema": "better_supabase",
         "name": "set_cart_details",
         "language": "plpgsql",
@@ -147520,7 +147554,7 @@
         }
       },
       {
-        "id": 3001314,
+        "id": 3001315,
         "schema": "better_supabase",
         "name": "set_cart_line",
         "language": "plpgsql",
@@ -147560,7 +147594,7 @@
         }
       },
       {
-        "id": 3001315,
+        "id": 3001316,
         "schema": "better_supabase",
         "name": "set_cart_shipping_rate",
         "language": "plpgsql",
@@ -147594,7 +147628,7 @@
         }
       },
       {
-        "id": 3001316,
+        "id": 3001317,
         "schema": "better_supabase",
         "name": "set_channel_listing",
         "language": "plpgsql",
@@ -147634,7 +147668,7 @@
         }
       },
       {
-        "id": 3001317,
+        "id": 3001318,
         "schema": "better_supabase",
         "name": "set_company_person",
         "language": "plpgsql",
@@ -147680,7 +147714,7 @@
         }
       },
       {
-        "id": 3001318,
+        "id": 3001319,
         "schema": "better_supabase",
         "name": "set_conversation_notify",
         "language": "plpgsql",
@@ -147714,7 +147748,7 @@
         }
       },
       {
-        "id": 3001319,
+        "id": 3001320,
         "schema": "better_supabase",
         "name": "set_conversation_status",
         "language": "plpgsql",
@@ -147754,7 +147788,7 @@
         }
       },
       {
-        "id": 3001320,
+        "id": 3001321,
         "schema": "better_supabase",
         "name": "set_deal_contacts",
         "language": "plpgsql",
@@ -147788,7 +147822,7 @@
         }
       },
       {
-        "id": 3001321,
+        "id": 3001322,
         "schema": "better_supabase",
         "name": "set_deal_lines",
         "language": "plpgsql",
@@ -147822,7 +147856,7 @@
         }
       },
       {
-        "id": 3001322,
+        "id": 3001323,
         "schema": "better_supabase",
         "name": "set_deal_lines_recount",
         "language": "plpgsql",
@@ -147850,7 +147884,7 @@
         }
       },
       {
-        "id": 3001323,
+        "id": 3001324,
         "schema": "better_supabase",
         "name": "set_deal_members",
         "language": "plpgsql",
@@ -147884,7 +147918,7 @@
         }
       },
       {
-        "id": 3001324,
+        "id": 3001325,
         "schema": "better_supabase",
         "name": "set_default_template",
         "language": "plpgsql",
@@ -147918,7 +147952,7 @@
         }
       },
       {
-        "id": 3001325,
+        "id": 3001326,
         "schema": "better_supabase",
         "name": "set_default_view",
         "language": "plpgsql",
@@ -147952,7 +147986,7 @@
         }
       },
       {
-        "id": 3001326,
+        "id": 3001327,
         "schema": "better_supabase",
         "name": "set_delivery_status",
         "language": "plpgsql",
@@ -147998,7 +148032,7 @@
         }
       },
       {
-        "id": 3001327,
+        "id": 3001328,
         "schema": "better_supabase",
         "name": "set_field_value",
         "language": "plpgsql",
@@ -148050,7 +148084,7 @@
         }
       },
       {
-        "id": 3001328,
+        "id": 3001329,
         "schema": "better_supabase",
         "name": "set_flag_override",
         "language": "plpgsql",
@@ -148108,7 +148142,7 @@
         }
       },
       {
-        "id": 3001329,
+        "id": 3001330,
         "schema": "better_supabase",
         "name": "set_inbound_event_status",
         "language": "plpgsql",
@@ -148148,7 +148182,7 @@
         }
       },
       {
-        "id": 3001330,
+        "id": 3001331,
         "schema": "better_supabase",
         "name": "set_inbox_member",
         "language": "plpgsql",
@@ -148188,7 +148222,7 @@
         }
       },
       {
-        "id": 3001331,
+        "id": 3001332,
         "schema": "better_supabase",
         "name": "set_inbox_team_member",
         "language": "plpgsql",
@@ -148228,7 +148262,7 @@
         }
       },
       {
-        "id": 3001332,
+        "id": 3001333,
         "schema": "better_supabase",
         "name": "set_incident_impacts",
         "language": "plpgsql",
@@ -148262,7 +148296,7 @@
         }
       },
       {
-        "id": 3001333,
+        "id": 3001334,
         "schema": "better_supabase",
         "name": "set_invoice_lines",
         "language": "plpgsql",
@@ -148296,7 +148330,7 @@
         }
       },
       {
-        "id": 3001334,
+        "id": 3001335,
         "schema": "better_supabase",
         "name": "set_invoice_lines_recount",
         "language": "plpgsql",
@@ -148324,7 +148358,7 @@
         }
       },
       {
-        "id": 3001335,
+        "id": 3001336,
         "schema": "better_supabase",
         "name": "set_knowledge_embeddings",
         "language": "plpgsql",
@@ -148364,7 +148398,7 @@
         }
       },
       {
-        "id": 3001336,
+        "id": 3001337,
         "schema": "better_supabase",
         "name": "set_lifecycle_flag",
         "language": "plpgsql",
@@ -148410,7 +148444,7 @@
         }
       },
       {
-        "id": 3001337,
+        "id": 3001338,
         "schema": "better_supabase",
         "name": "set_line_preparation",
         "language": "plpgsql",
@@ -148444,7 +148478,7 @@
         }
       },
       {
-        "id": 3001338,
+        "id": 3001339,
         "schema": "better_supabase",
         "name": "set_location_active",
         "language": "plpgsql",
@@ -148478,7 +148512,7 @@
         }
       },
       {
-        "id": 3001339,
+        "id": 3001340,
         "schema": "better_supabase",
         "name": "set_mail_account_status",
         "language": "plpgsql",
@@ -148518,7 +148552,7 @@
         }
       },
       {
-        "id": 3001340,
+        "id": 3001341,
         "schema": "better_supabase",
         "name": "set_maintenance_request_assignees",
         "language": "plpgsql",
@@ -148552,7 +148586,7 @@
         }
       },
       {
-        "id": 3001341,
+        "id": 3001342,
         "schema": "better_supabase",
         "name": "set_maintenance_request_recurrence",
         "language": "plpgsql",
@@ -148592,7 +148626,7 @@
         }
       },
       {
-        "id": 3001342,
+        "id": 3001343,
         "schema": "better_supabase",
         "name": "set_memory_embedding",
         "language": "sql",
@@ -148638,7 +148672,7 @@
         }
       },
       {
-        "id": 3001343,
+        "id": 3001344,
         "schema": "better_supabase",
         "name": "set_memory_embeddings",
         "language": "plpgsql",
@@ -148672,7 +148706,7 @@
         }
       },
       {
-        "id": 3001344,
+        "id": 3001345,
         "schema": "better_supabase",
         "name": "set_notification_preference",
         "language": "plpgsql",
@@ -148718,7 +148752,7 @@
         }
       },
       {
-        "id": 3001345,
+        "id": 3001346,
         "schema": "better_supabase",
         "name": "set_notification_subscription",
         "language": "plpgsql",
@@ -148776,7 +148810,7 @@
         }
       },
       {
-        "id": 3001346,
+        "id": 3001347,
         "schema": "better_supabase",
         "name": "set_object_scan",
         "language": "plpgsql",
@@ -148822,7 +148856,7 @@
         }
       },
       {
-        "id": 3001347,
+        "id": 3001348,
         "schema": "better_supabase",
         "name": "set_obligation_status",
         "language": "plpgsql",
@@ -148856,7 +148890,7 @@
         }
       },
       {
-        "id": 3001348,
+        "id": 3001349,
         "schema": "better_supabase",
         "name": "set_order_tax_transaction",
         "language": "plpgsql",
@@ -148890,7 +148924,7 @@
         }
       },
       {
-        "id": 3001349,
+        "id": 3001350,
         "schema": "better_supabase",
         "name": "set_organization_setting",
         "language": "sql",
@@ -148930,7 +148964,7 @@
         }
       },
       {
-        "id": 3001350,
+        "id": 3001351,
         "schema": "better_supabase",
         "name": "set_permission_override",
         "language": "plpgsql",
@@ -148976,7 +149010,7 @@
         }
       },
       {
-        "id": 3001351,
+        "id": 3001352,
         "schema": "better_supabase",
         "name": "set_pipeline_transitions",
         "language": "plpgsql",
@@ -149010,7 +149044,7 @@
         }
       },
       {
-        "id": 3001352,
+        "id": 3001353,
         "schema": "better_supabase",
         "name": "set_platform_setting",
         "language": "sql",
@@ -149044,7 +149078,7 @@
         }
       },
       {
-        "id": 3001353,
+        "id": 3001354,
         "schema": "better_supabase",
         "name": "set_post_state",
         "language": "plpgsql",
@@ -149078,7 +149112,7 @@
         }
       },
       {
-        "id": 3001354,
+        "id": 3001355,
         "schema": "better_supabase",
         "name": "set_price",
         "language": "plpgsql",
@@ -149142,7 +149176,7 @@
         }
       },
       {
-        "id": 3001355,
+        "id": 3001356,
         "schema": "better_supabase",
         "name": "set_product_categories",
         "language": "plpgsql",
@@ -149176,7 +149210,7 @@
         }
       },
       {
-        "id": 3001356,
+        "id": 3001357,
         "schema": "better_supabase",
         "name": "set_product_status",
         "language": "plpgsql",
@@ -149210,7 +149244,7 @@
         }
       },
       {
-        "id": 3001357,
+        "id": 3001358,
         "schema": "better_supabase",
         "name": "set_product_translation",
         "language": "plpgsql",
@@ -149256,7 +149290,7 @@
         }
       },
       {
-        "id": 3001358,
+        "id": 3001359,
         "schema": "better_supabase",
         "name": "set_promotion_active",
         "language": "plpgsql",
@@ -149290,7 +149324,7 @@
         }
       },
       {
-        "id": 3001359,
+        "id": 3001360,
         "schema": "better_supabase",
         "name": "set_quote_lines",
         "language": "plpgsql",
@@ -149324,7 +149358,7 @@
         }
       },
       {
-        "id": 3001360,
+        "id": 3001361,
         "schema": "better_supabase",
         "name": "set_quote_lines_recount",
         "language": "plpgsql",
@@ -149352,7 +149386,7 @@
         }
       },
       {
-        "id": 3001361,
+        "id": 3001362,
         "schema": "better_supabase",
         "name": "set_rate_limit",
         "language": "plpgsql",
@@ -149398,7 +149432,7 @@
         }
       },
       {
-        "id": 3001362,
+        "id": 3001363,
         "schema": "better_supabase",
         "name": "set_reorder_point",
         "language": "plpgsql",
@@ -149438,7 +149472,7 @@
         }
       },
       {
-        "id": 3001363,
+        "id": 3001364,
         "schema": "better_supabase",
         "name": "set_retention_policy",
         "language": "plpgsql",
@@ -149484,7 +149518,7 @@
         }
       },
       {
-        "id": 3001364,
+        "id": 3001365,
         "schema": "better_supabase",
         "name": "set_rule_enabled",
         "language": "plpgsql",
@@ -149518,7 +149552,7 @@
         }
       },
       {
-        "id": 3001365,
+        "id": 3001366,
         "schema": "better_supabase",
         "name": "set_service_principal_role",
         "language": "plpgsql",
@@ -149558,7 +149592,7 @@
         }
       },
       {
-        "id": 3001366,
+        "id": 3001367,
         "schema": "better_supabase",
         "name": "set_shipment_label",
         "language": "plpgsql",
@@ -149640,7 +149674,7 @@
         }
       },
       {
-        "id": 3001367,
+        "id": 3001368,
         "schema": "better_supabase",
         "name": "set_time_rate",
         "language": "plpgsql",
@@ -149704,7 +149738,7 @@
         }
       },
       {
-        "id": 3001368,
+        "id": 3001369,
         "schema": "better_supabase",
         "name": "set_typing",
         "language": "plpgsql",
@@ -149744,7 +149778,7 @@
         }
       },
       {
-        "id": 3001369,
+        "id": 3001370,
         "schema": "better_supabase",
         "name": "set_user_setting",
         "language": "sql",
@@ -149778,7 +149812,7 @@
         }
       },
       {
-        "id": 3001370,
+        "id": 3001371,
         "schema": "better_supabase",
         "name": "set_user_state",
         "language": "plpgsql",
@@ -149818,7 +149852,7 @@
         }
       },
       {
-        "id": 3001371,
+        "id": 3001372,
         "schema": "better_supabase",
         "name": "set_variant_translation",
         "language": "plpgsql",
@@ -149858,7 +149892,7 @@
         }
       },
       {
-        "id": 3001372,
+        "id": 3001373,
         "schema": "better_supabase",
         "name": "set_view_preference",
         "language": "plpgsql",
@@ -149904,7 +149938,7 @@
         }
       },
       {
-        "id": 3001373,
+        "id": 3001374,
         "schema": "better_supabase",
         "name": "set_work_item_assignees",
         "language": "plpgsql",
@@ -149938,7 +149972,7 @@
         }
       },
       {
-        "id": 3001374,
+        "id": 3001375,
         "schema": "better_supabase",
         "name": "set_work_item_recurrence",
         "language": "plpgsql",
@@ -149978,7 +150012,7 @@
         }
       },
       {
-        "id": 3001375,
+        "id": 3001376,
         "schema": "better_supabase",
         "name": "set_work_order_status",
         "language": "plpgsql",
@@ -150018,7 +150052,7 @@
         }
       },
       {
-        "id": 3001376,
+        "id": 3001377,
         "schema": "better_supabase",
         "name": "set_workflow_definition_grant",
         "language": "plpgsql",
@@ -150070,7 +150104,7 @@
         }
       },
       {
-        "id": 3001377,
+        "id": 3001378,
         "schema": "better_supabase",
         "name": "set_workflow_opt_out",
         "language": "plpgsql",
@@ -150110,7 +150144,7 @@
         }
       },
       {
-        "id": 3001378,
+        "id": 3001379,
         "schema": "better_supabase",
         "name": "share_ai_chat",
         "language": "plpgsql",
@@ -150144,7 +150178,7 @@
         }
       },
       {
-        "id": 3001379,
+        "id": 3001380,
         "schema": "better_supabase",
         "name": "ship_fulfillment",
         "language": "plpgsql",
@@ -150190,7 +150224,7 @@
         }
       },
       {
-        "id": 3001380,
+        "id": 3001381,
         "schema": "better_supabase",
         "name": "ship_transfer",
         "language": "plpgsql",
@@ -150218,7 +150252,7 @@
         }
       },
       {
-        "id": 3001381,
+        "id": 3001382,
         "schema": "better_supabase",
         "name": "shipments_subject_merge",
         "language": "plpgsql",
@@ -150258,7 +150292,7 @@
         }
       },
       {
-        "id": 3001382,
+        "id": 3001383,
         "schema": "better_supabase",
         "name": "shipping_options",
         "language": "plpgsql",
@@ -150286,7 +150320,7 @@
         }
       },
       {
-        "id": 3001383,
+        "id": 3001384,
         "schema": "better_supabase",
         "name": "sign_signature",
         "language": "plpgsql",
@@ -150332,7 +150366,7 @@
         }
       },
       {
-        "id": 3001384,
+        "id": 3001385,
         "schema": "better_supabase",
         "name": "signature_verification",
         "language": "plpgsql",
@@ -150360,7 +150394,7 @@
         }
       },
       {
-        "id": 3001385,
+        "id": 3001386,
         "schema": "better_supabase",
         "name": "signing_jwks",
         "language": "plpgsql",
@@ -150400,7 +150434,7 @@
         }
       },
       {
-        "id": 3001386,
+        "id": 3001387,
         "schema": "better_supabase",
         "name": "signing_key",
         "language": "plpgsql",
@@ -150434,7 +150468,7 @@
         }
       },
       {
-        "id": 3001387,
+        "id": 3001388,
         "schema": "better_supabase",
         "name": "sla_clocks_of",
         "language": "sql",
@@ -150468,7 +150502,7 @@
         }
       },
       {
-        "id": 3001388,
+        "id": 3001389,
         "schema": "better_supabase",
         "name": "sla_due_at",
         "language": "plpgsql",
@@ -150508,7 +150542,7 @@
         }
       },
       {
-        "id": 3001389,
+        "id": 3001390,
         "schema": "better_supabase",
         "name": "snapshot_version",
         "language": "plpgsql",
@@ -150566,7 +150600,7 @@
         }
       },
       {
-        "id": 3001390,
+        "id": 3001391,
         "schema": "better_supabase",
         "name": "split_calendar_event",
         "language": "plpgsql",
@@ -150612,7 +150646,7 @@
         }
       },
       {
-        "id": 3001391,
+        "id": 3001392,
         "schema": "better_supabase",
         "name": "sso_access_token_check",
         "language": "plpgsql",
@@ -150640,7 +150674,7 @@
         }
       },
       {
-        "id": 3001392,
+        "id": 3001393,
         "schema": "better_supabase",
         "name": "sso_domain_for",
         "language": "sql",
@@ -150668,7 +150702,7 @@
         }
       },
       {
-        "id": 3001393,
+        "id": 3001394,
         "schema": "better_supabase",
         "name": "sso_provider",
         "language": "plpgsql",
@@ -150702,7 +150736,7 @@
         }
       },
       {
-        "id": 3001394,
+        "id": 3001395,
         "schema": "better_supabase",
         "name": "start_ai_task_run",
         "language": "plpgsql",
@@ -150730,7 +150764,7 @@
         }
       },
       {
-        "id": 3001395,
+        "id": 3001396,
         "schema": "better_supabase",
         "name": "start_bulk",
         "language": "plpgsql",
@@ -150782,7 +150816,7 @@
         }
       },
       {
-        "id": 3001396,
+        "id": 3001397,
         "schema": "better_supabase",
         "name": "start_conversation",
         "language": "plpgsql",
@@ -150816,7 +150850,7 @@
         }
       },
       {
-        "id": 3001397,
+        "id": 3001398,
         "schema": "better_supabase",
         "name": "start_course_lesson",
         "language": "plpgsql",
@@ -150844,7 +150878,7 @@
         }
       },
       {
-        "id": 3001398,
+        "id": 3001399,
         "schema": "better_supabase",
         "name": "start_import",
         "language": "plpgsql",
@@ -150884,7 +150918,7 @@
         }
       },
       {
-        "id": 3001399,
+        "id": 3001400,
         "schema": "better_supabase",
         "name": "start_sla_clocks",
         "language": "plpgsql",
@@ -150930,7 +150964,7 @@
         }
       },
       {
-        "id": 3001400,
+        "id": 3001401,
         "schema": "better_supabase",
         "name": "start_test_run",
         "language": "plpgsql",
@@ -150982,7 +151016,7 @@
         }
       },
       {
-        "id": 3001401,
+        "id": 3001402,
         "schema": "better_supabase",
         "name": "start_timer",
         "language": "plpgsql",
@@ -151046,7 +151080,7 @@
         }
       },
       {
-        "id": 3001402,
+        "id": 3001403,
         "schema": "better_supabase",
         "name": "status_state",
         "language": "plpgsql",
@@ -151080,7 +151114,7 @@
         }
       },
       {
-        "id": 3001403,
+        "id": 3001404,
         "schema": "better_supabase",
         "name": "stop_timer",
         "language": "plpgsql",
@@ -151108,7 +151142,7 @@
         }
       },
       {
-        "id": 3001404,
+        "id": 3001405,
         "schema": "better_supabase",
         "name": "store_ai_file",
         "language": "plpgsql",
@@ -151178,7 +151212,7 @@
         }
       },
       {
-        "id": 3001405,
+        "id": 3001406,
         "schema": "better_supabase",
         "name": "store_inbound_event",
         "language": "plpgsql",
@@ -151236,7 +151270,7 @@
         }
       },
       {
-        "id": 3001406,
+        "id": 3001407,
         "schema": "better_supabase",
         "name": "store_mail_message",
         "language": "plpgsql",
@@ -151270,7 +151304,7 @@
         }
       },
       {
-        "id": 3001407,
+        "id": 3001408,
         "schema": "better_supabase",
         "name": "storefront_products",
         "language": "sql",
@@ -151291,7 +151325,7 @@
         }
       },
       {
-        "id": 3001408,
+        "id": 3001409,
         "schema": "better_supabase",
         "name": "storefront_tenants",
         "language": "sql",
@@ -151312,7 +151346,7 @@
         }
       },
       {
-        "id": 3001409,
+        "id": 3001410,
         "schema": "better_supabase",
         "name": "stream_append",
         "language": "plpgsql",
@@ -151352,7 +151386,7 @@
         }
       },
       {
-        "id": 3001410,
+        "id": 3001411,
         "schema": "better_supabase",
         "name": "stream_cancel",
         "language": "plpgsql",
@@ -151380,7 +151414,7 @@
         }
       },
       {
-        "id": 3001411,
+        "id": 3001412,
         "schema": "better_supabase",
         "name": "stream_close",
         "language": "plpgsql",
@@ -151408,7 +151442,7 @@
         }
       },
       {
-        "id": 3001412,
+        "id": 3001413,
         "schema": "better_supabase",
         "name": "stream_open",
         "language": "plpgsql",
@@ -151466,7 +151500,7 @@
         }
       },
       {
-        "id": 3001413,
+        "id": 3001414,
         "schema": "better_supabase",
         "name": "stream_read",
         "language": "plpgsql",
@@ -151506,7 +151540,7 @@
         }
       },
       {
-        "id": 3001414,
+        "id": 3001415,
         "schema": "better_supabase",
         "name": "stream_status",
         "language": "sql",
@@ -151534,7 +151568,7 @@
         }
       },
       {
-        "id": 3001415,
+        "id": 3001416,
         "schema": "better_supabase",
         "name": "subject_presence_allowed",
         "language": "plpgsql",
@@ -151562,7 +151596,7 @@
         }
       },
       {
-        "id": 3001416,
+        "id": 3001417,
         "schema": "better_supabase",
         "name": "subject_scores",
         "language": "plpgsql",
@@ -151602,7 +151636,7 @@
         }
       },
       {
-        "id": 3001417,
+        "id": 3001418,
         "schema": "better_supabase",
         "name": "subject_tags",
         "language": "plpgsql",
@@ -151642,7 +151676,7 @@
         }
       },
       {
-        "id": 3001418,
+        "id": 3001419,
         "schema": "better_supabase",
         "name": "subject_title",
         "language": "plpgsql",
@@ -151676,7 +151710,7 @@
         }
       },
       {
-        "id": 3001419,
+        "id": 3001420,
         "schema": "better_supabase",
         "name": "subject_titles",
         "language": "plpgsql",
@@ -151704,7 +151738,7 @@
         }
       },
       {
-        "id": 3001420,
+        "id": 3001421,
         "schema": "better_supabase",
         "name": "subject_types",
         "language": "sql",
@@ -151725,7 +151759,7 @@
         }
       },
       {
-        "id": 3001421,
+        "id": 3001422,
         "schema": "better_supabase",
         "name": "subject_url",
         "language": "plpgsql",
@@ -151759,7 +151793,7 @@
         }
       },
       {
-        "id": 3001422,
+        "id": 3001423,
         "schema": "better_supabase",
         "name": "submit_course_quiz",
         "language": "plpgsql",
@@ -151793,7 +151827,7 @@
         }
       },
       {
-        "id": 3001423,
+        "id": 3001424,
         "schema": "better_supabase",
         "name": "submit_expense_report",
         "language": "plpgsql",
@@ -151821,7 +151855,7 @@
         }
       },
       {
-        "id": 3001424,
+        "id": 3001425,
         "schema": "better_supabase",
         "name": "submit_form",
         "language": "plpgsql",
@@ -151879,7 +151913,7 @@
         }
       },
       {
-        "id": 3001425,
+        "id": 3001426,
         "schema": "better_supabase",
         "name": "submit_public_form",
         "language": "plpgsql",
@@ -151919,7 +151953,7 @@
         }
       },
       {
-        "id": 3001426,
+        "id": 3001427,
         "schema": "better_supabase",
         "name": "submit_scorecard",
         "language": "plpgsql",
@@ -151965,7 +151999,7 @@
         }
       },
       {
-        "id": 3001427,
+        "id": 3001428,
         "schema": "better_supabase",
         "name": "submit_timesheet",
         "language": "plpgsql",
@@ -152005,7 +152039,7 @@
         }
       },
       {
-        "id": 3001428,
+        "id": 3001429,
         "schema": "better_supabase",
         "name": "suggest_ai_document_edit",
         "language": "plpgsql",
@@ -152051,7 +152085,7 @@
         }
       },
       {
-        "id": 3001429,
+        "id": 3001430,
         "schema": "better_supabase",
         "name": "suggest_document_change",
         "language": "plpgsql",
@@ -152091,7 +152125,7 @@
         }
       },
       {
-        "id": 3001430,
+        "id": 3001431,
         "schema": "better_supabase",
         "name": "suppress_notification_address",
         "language": "plpgsql",
@@ -152149,7 +152183,7 @@
         }
       },
       {
-        "id": 3001431,
+        "id": 3001432,
         "schema": "better_supabase",
         "name": "switch_ai_branch",
         "language": "plpgsql",
@@ -152183,7 +152217,7 @@
         }
       },
       {
-        "id": 3001432,
+        "id": 3001433,
         "schema": "better_supabase",
         "name": "switch_organization",
         "language": "plpgsql",
@@ -152211,7 +152245,7 @@
         }
       },
       {
-        "id": 3001433,
+        "id": 3001434,
         "schema": "better_supabase",
         "name": "sync_number_sequences",
         "language": "plpgsql",
@@ -152245,7 +152279,7 @@
         }
       },
       {
-        "id": 3001434,
+        "id": 3001435,
         "schema": "better_supabase",
         "name": "sync_profile",
         "language": "plpgsql",
@@ -152273,7 +152307,7 @@
         }
       },
       {
-        "id": 3001435,
+        "id": 3001436,
         "schema": "better_supabase",
         "name": "sync_rule_fields",
         "language": "plpgsql",
@@ -152307,7 +152341,7 @@
         }
       },
       {
-        "id": 3001436,
+        "id": 3001437,
         "schema": "better_supabase",
         "name": "sync_templates",
         "language": "plpgsql",
@@ -152335,7 +152369,7 @@
         }
       },
       {
-        "id": 3001437,
+        "id": 3001438,
         "schema": "better_supabase",
         "name": "sync_workflow_steps",
         "language": "plpgsql",
@@ -152363,7 +152397,7 @@
         }
       },
       {
-        "id": 3001438,
+        "id": 3001439,
         "schema": "better_supabase",
         "name": "tag",
         "language": "plpgsql",
@@ -152409,7 +152443,7 @@
         }
       },
       {
-        "id": 3001439,
+        "id": 3001440,
         "schema": "better_supabase",
         "name": "tags_subject_merge",
         "language": "plpgsql",
@@ -152449,7 +152483,7 @@
         }
       },
       {
-        "id": 3001440,
+        "id": 3001441,
         "schema": "better_supabase",
         "name": "take_forecast_snapshot",
         "language": "plpgsql",
@@ -152507,7 +152541,7 @@
         }
       },
       {
-        "id": 3001441,
+        "id": 3001442,
         "schema": "better_supabase",
         "name": "target_progress",
         "language": "sql",
@@ -152547,7 +152581,7 @@
         }
       },
       {
-        "id": 3001442,
+        "id": 3001443,
         "schema": "better_supabase",
         "name": "team_ids_of",
         "language": "plpgsql",
@@ -152575,7 +152609,7 @@
         }
       },
       {
-        "id": 3001443,
+        "id": 3001444,
         "schema": "better_supabase",
         "name": "technician_day",
         "language": "plpgsql",
@@ -152615,7 +152649,7 @@
         }
       },
       {
-        "id": 3001444,
+        "id": 3001445,
         "schema": "better_supabase",
         "name": "template_applications_list",
         "language": "sql",
@@ -152661,7 +152695,7 @@
         }
       },
       {
-        "id": 3001445,
+        "id": 3001446,
         "schema": "better_supabase",
         "name": "template_apply_target",
         "language": "plpgsql",
@@ -152695,7 +152729,7 @@
         }
       },
       {
-        "id": 3001446,
+        "id": 3001447,
         "schema": "better_supabase",
         "name": "template_get",
         "language": "sql",
@@ -152723,7 +152757,7 @@
         }
       },
       {
-        "id": 3001447,
+        "id": 3001448,
         "schema": "better_supabase",
         "name": "template_versions_list",
         "language": "sql",
@@ -152751,7 +152785,7 @@
         }
       },
       {
-        "id": 3001448,
+        "id": 3001449,
         "schema": "better_supabase",
         "name": "template_workflow_input_errors",
         "language": "plpgsql",
@@ -152785,7 +152819,7 @@
         }
       },
       {
-        "id": 3001449,
+        "id": 3001450,
         "schema": "better_supabase",
         "name": "template_workflows_list",
         "language": "sql",
@@ -152813,7 +152847,7 @@
         }
       },
       {
-        "id": 3001450,
+        "id": 3001451,
         "schema": "better_supabase",
         "name": "templates_list",
         "language": "sql",
@@ -152853,7 +152887,7 @@
         }
       },
       {
-        "id": 3001451,
+        "id": 3001452,
         "schema": "better_supabase",
         "name": "tenant_disabled",
         "language": "sql",
@@ -152881,7 +152915,7 @@
         }
       },
       {
-        "id": 3001452,
+        "id": 3001453,
         "schema": "better_supabase",
         "name": "tenant_entitlement_value",
         "language": "sql",
@@ -152915,7 +152949,7 @@
         }
       },
       {
-        "id": 3001453,
+        "id": 3001454,
         "schema": "better_supabase",
         "name": "tenant_entitlements",
         "language": "sql",
@@ -152943,7 +152977,7 @@
         }
       },
       {
-        "id": 3001454,
+        "id": 3001455,
         "schema": "better_supabase",
         "name": "tenant_ids_with",
         "language": "sql",
@@ -152971,7 +153005,7 @@
         }
       },
       {
-        "id": 3001455,
+        "id": 3001456,
         "schema": "better_supabase",
         "name": "tenant_ids_with_entitlement",
         "language": "sql",
@@ -152999,7 +153033,7 @@
         }
       },
       {
-        "id": 3001456,
+        "id": 3001457,
         "schema": "better_supabase",
         "name": "tenant_ids_with_flag",
         "language": "sql",
@@ -153027,7 +153061,7 @@
         }
       },
       {
-        "id": 3001457,
+        "id": 3001458,
         "schema": "better_supabase",
         "name": "tenant_plans",
         "language": "sql",
@@ -153055,7 +153089,7 @@
         }
       },
       {
-        "id": 3001458,
+        "id": 3001459,
         "schema": "better_supabase",
         "name": "terminate_lease",
         "language": "plpgsql",
@@ -153101,7 +153135,7 @@
         }
       },
       {
-        "id": 3001459,
+        "id": 3001460,
         "schema": "better_supabase",
         "name": "thread_summary",
         "language": "sql",
@@ -153135,7 +153169,7 @@
         }
       },
       {
-        "id": 3001460,
+        "id": 3001461,
         "schema": "better_supabase",
         "name": "time_rate",
         "language": "plpgsql",
@@ -153187,7 +153221,7 @@
         }
       },
       {
-        "id": 3001461,
+        "id": 3001462,
         "schema": "better_supabase",
         "name": "time_week",
         "language": "sql",
@@ -153215,7 +153249,7 @@
         }
       },
       {
-        "id": 3001462,
+        "id": 3001463,
         "schema": "better_supabase",
         "name": "time_week_locked",
         "language": "sql",
@@ -153255,7 +153289,7 @@
         }
       },
       {
-        "id": 3001463,
+        "id": 3001464,
         "schema": "better_supabase",
         "name": "top_scores",
         "language": "plpgsql",
@@ -153307,7 +153341,7 @@
         }
       },
       {
-        "id": 3001464,
+        "id": 3001465,
         "schema": "better_supabase",
         "name": "touch_ai_sandbox",
         "language": "plpgsql",
@@ -153335,7 +153369,7 @@
         }
       },
       {
-        "id": 3001465,
+        "id": 3001466,
         "schema": "better_supabase",
         "name": "track_events",
         "language": "plpgsql",
@@ -153375,7 +153409,7 @@
         }
       },
       {
-        "id": 3001466,
+        "id": 3001467,
         "schema": "better_supabase",
         "name": "track_mail",
         "language": "plpgsql",
@@ -153421,7 +153455,7 @@
         }
       },
       {
-        "id": 3001467,
+        "id": 3001468,
         "schema": "better_supabase",
         "name": "track_realtime",
         "language": "plpgsql",
@@ -153461,7 +153495,7 @@
         }
       },
       {
-        "id": 3001468,
+        "id": 3001469,
         "schema": "better_supabase",
         "name": "track_updated_at",
         "language": "plpgsql",
@@ -153501,7 +153535,7 @@
         }
       },
       {
-        "id": 3001469,
+        "id": 3001470,
         "schema": "better_supabase",
         "name": "transfer_ownership",
         "language": "plpgsql",
@@ -153541,7 +153575,7 @@
         }
       },
       {
-        "id": 3001470,
+        "id": 3001471,
         "schema": "better_supabase",
         "name": "transition",
         "language": "plpgsql",
@@ -153587,7 +153621,7 @@
         }
       },
       {
-        "id": 3001471,
+        "id": 3001472,
         "schema": "better_supabase",
         "name": "transition_contract",
         "language": "plpgsql",
@@ -153627,7 +153661,7 @@
         }
       },
       {
-        "id": 3001472,
+        "id": 3001473,
         "schema": "better_supabase",
         "name": "trash",
         "language": "plpgsql",
@@ -153667,7 +153701,7 @@
         }
       },
       {
-        "id": 3001473,
+        "id": 3001474,
         "schema": "better_supabase",
         "name": "trash_cascade",
         "language": "plpgsql",
@@ -153725,7 +153759,7 @@
         }
       },
       {
-        "id": 3001474,
+        "id": 3001475,
         "schema": "better_supabase",
         "name": "trash_purge_batch",
         "language": "plpgsql",
@@ -153753,7 +153787,7 @@
         }
       },
       {
-        "id": 3001475,
+        "id": 3001476,
         "schema": "better_supabase",
         "name": "trash_restore_batch",
         "language": "plpgsql",
@@ -153781,7 +153815,7 @@
         }
       },
       {
-        "id": 3001476,
+        "id": 3001477,
         "schema": "better_supabase",
         "name": "unaudit",
         "language": "plpgsql",
@@ -153809,7 +153843,7 @@
         }
       },
       {
-        "id": 3001477,
+        "id": 3001478,
         "schema": "better_supabase",
         "name": "unaudit",
         "language": "plpgsql",
@@ -153837,7 +153871,7 @@
         }
       },
       {
-        "id": 3001478,
+        "id": 3001479,
         "schema": "better_supabase",
         "name": "unban_user",
         "language": "plpgsql",
@@ -153865,7 +153899,7 @@
         }
       },
       {
-        "id": 3001479,
+        "id": 3001480,
         "schema": "better_supabase",
         "name": "unbilled_time",
         "language": "plpgsql",
@@ -153905,7 +153939,7 @@
         }
       },
       {
-        "id": 3001480,
+        "id": 3001481,
         "schema": "better_supabase",
         "name": "unchecked_push_tickets",
         "language": "plpgsql",
@@ -153939,7 +153973,7 @@
         }
       },
       {
-        "id": 3001481,
+        "id": 3001482,
         "schema": "better_supabase",
         "name": "unenroll_from_course",
         "language": "plpgsql",
@@ -153973,7 +154007,7 @@
         }
       },
       {
-        "id": 3001482,
+        "id": 3001483,
         "schema": "better_supabase",
         "name": "unlink",
         "language": "plpgsql",
@@ -154031,7 +154065,7 @@
         }
       },
       {
-        "id": 3001483,
+        "id": 3001484,
         "schema": "better_supabase",
         "name": "unlink_inbox_contact",
         "language": "plpgsql",
@@ -154059,7 +154093,7 @@
         }
       },
       {
-        "id": 3001484,
+        "id": 3001485,
         "schema": "better_supabase",
         "name": "unlink_mail_thread",
         "language": "plpgsql",
@@ -154099,7 +154133,7 @@
         }
       },
       {
-        "id": 3001485,
+        "id": 3001486,
         "schema": "better_supabase",
         "name": "unlock_ai_harness_session",
         "language": "plpgsql",
@@ -154139,7 +154173,7 @@
         }
       },
       {
-        "id": 3001486,
+        "id": 3001487,
         "schema": "better_supabase",
         "name": "unread_counts",
         "language": "sql",
@@ -154167,7 +154201,7 @@
         }
       },
       {
-        "id": 3001487,
+        "id": 3001488,
         "schema": "better_supabase",
         "name": "unregister_push_device",
         "language": "plpgsql",
@@ -154195,7 +154229,7 @@
         }
       },
       {
-        "id": 3001488,
+        "id": 3001489,
         "schema": "better_supabase",
         "name": "unregister_sso_provider",
         "language": "plpgsql",
@@ -154229,7 +154263,7 @@
         }
       },
       {
-        "id": 3001489,
+        "id": 3001490,
         "schema": "better_supabase",
         "name": "unreported_usage",
         "language": "sql",
@@ -154269,7 +154303,7 @@
         }
       },
       {
-        "id": 3001490,
+        "id": 3001491,
         "schema": "better_supabase",
         "name": "unschedule_job",
         "language": "plpgsql",
@@ -154297,7 +154331,7 @@
         }
       },
       {
-        "id": 3001491,
+        "id": 3001492,
         "schema": "better_supabase",
         "name": "unschedule_tenant",
         "language": "sql",
@@ -154325,7 +154359,7 @@
         }
       },
       {
-        "id": 3001492,
+        "id": 3001493,
         "schema": "better_supabase",
         "name": "unschedule_work_order",
         "language": "plpgsql",
@@ -154353,7 +154387,7 @@
         }
       },
       {
-        "id": 3001493,
+        "id": 3001494,
         "schema": "better_supabase",
         "name": "unsuppress_notification_address",
         "language": "plpgsql",
@@ -154387,7 +154421,7 @@
         }
       },
       {
-        "id": 3001494,
+        "id": 3001495,
         "schema": "better_supabase",
         "name": "untag",
         "language": "plpgsql",
@@ -154433,7 +154467,7 @@
         }
       },
       {
-        "id": 3001495,
+        "id": 3001496,
         "schema": "better_supabase",
         "name": "untrack_realtime",
         "language": "plpgsql",
@@ -154461,7 +154495,7 @@
         }
       },
       {
-        "id": 3001496,
+        "id": 3001497,
         "schema": "better_supabase",
         "name": "update_ai_batch",
         "language": "plpgsql",
@@ -154495,7 +154529,7 @@
         }
       },
       {
-        "id": 3001497,
+        "id": 3001498,
         "schema": "better_supabase",
         "name": "update_ai_chat",
         "language": "plpgsql",
@@ -154529,7 +154563,7 @@
         }
       },
       {
-        "id": 3001498,
+        "id": 3001499,
         "schema": "better_supabase",
         "name": "update_ai_document",
         "language": "plpgsql",
@@ -154587,7 +154621,7 @@
         }
       },
       {
-        "id": 3001499,
+        "id": 3001500,
         "schema": "better_supabase",
         "name": "update_asset",
         "language": "plpgsql",
@@ -154621,7 +154655,7 @@
         }
       },
       {
-        "id": 3001500,
+        "id": 3001501,
         "schema": "better_supabase",
         "name": "update_asset_location",
         "language": "plpgsql",
@@ -154655,7 +154689,7 @@
         }
       },
       {
-        "id": 3001501,
+        "id": 3001502,
         "schema": "better_supabase",
         "name": "update_channel",
         "language": "plpgsql",
@@ -154689,7 +154723,7 @@
         }
       },
       {
-        "id": 3001502,
+        "id": 3001503,
         "schema": "better_supabase",
         "name": "update_content_entry",
         "language": "plpgsql",
@@ -154723,7 +154757,7 @@
         }
       },
       {
-        "id": 3001503,
+        "id": 3001504,
         "schema": "better_supabase",
         "name": "update_contract",
         "language": "plpgsql",
@@ -154757,7 +154791,7 @@
         }
       },
       {
-        "id": 3001504,
+        "id": 3001505,
         "schema": "better_supabase",
         "name": "update_deals",
         "language": "plpgsql",
@@ -154785,7 +154819,7 @@
         }
       },
       {
-        "id": 3001505,
+        "id": 3001506,
         "schema": "better_supabase",
         "name": "update_employees",
         "language": "plpgsql",
@@ -154813,7 +154847,7 @@
         }
       },
       {
-        "id": 3001506,
+        "id": 3001507,
         "schema": "better_supabase",
         "name": "update_engagement",
         "language": "plpgsql",
@@ -154853,7 +154887,7 @@
         }
       },
       {
-        "id": 3001507,
+        "id": 3001508,
         "schema": "better_supabase",
         "name": "update_expense_line",
         "language": "plpgsql",
@@ -154917,7 +154951,7 @@
         }
       },
       {
-        "id": 3001508,
+        "id": 3001509,
         "schema": "better_supabase",
         "name": "update_form",
         "language": "plpgsql",
@@ -154969,7 +155003,7 @@
         }
       },
       {
-        "id": 3001509,
+        "id": 3001510,
         "schema": "better_supabase",
         "name": "update_inbox",
         "language": "plpgsql",
@@ -155003,7 +155037,7 @@
         }
       },
       {
-        "id": 3001510,
+        "id": 3001511,
         "schema": "better_supabase",
         "name": "update_incident",
         "language": "plpgsql",
@@ -155037,7 +155071,7 @@
         }
       },
       {
-        "id": 3001511,
+        "id": 3001512,
         "schema": "better_supabase",
         "name": "update_invitation",
         "language": "plpgsql",
@@ -155083,7 +155117,7 @@
         }
       },
       {
-        "id": 3001512,
+        "id": 3001513,
         "schema": "better_supabase",
         "name": "update_mail_account",
         "language": "plpgsql",
@@ -155123,7 +155157,7 @@
         }
       },
       {
-        "id": 3001513,
+        "id": 3001514,
         "schema": "better_supabase",
         "name": "update_maintenance_requests",
         "language": "plpgsql",
@@ -155151,7 +155185,7 @@
         }
       },
       {
-        "id": 3001514,
+        "id": 3001515,
         "schema": "better_supabase",
         "name": "update_member_role",
         "language": "plpgsql",
@@ -155191,7 +155225,7 @@
         }
       },
       {
-        "id": 3001515,
+        "id": 3001516,
         "schema": "better_supabase",
         "name": "update_my_profile",
         "language": "plpgsql",
@@ -155219,7 +155253,7 @@
         }
       },
       {
-        "id": 3001516,
+        "id": 3001517,
         "schema": "better_supabase",
         "name": "update_organization",
         "language": "plpgsql",
@@ -155253,7 +155287,7 @@
         }
       },
       {
-        "id": 3001517,
+        "id": 3001518,
         "schema": "better_supabase",
         "name": "update_organization_domain",
         "language": "plpgsql",
@@ -155293,7 +155327,7 @@
         }
       },
       {
-        "id": 3001518,
+        "id": 3001519,
         "schema": "better_supabase",
         "name": "update_pledge",
         "language": "plpgsql",
@@ -155339,7 +155373,7 @@
         }
       },
       {
-        "id": 3001519,
+        "id": 3001520,
         "schema": "better_supabase",
         "name": "update_post",
         "language": "plpgsql",
@@ -155373,7 +155407,7 @@
         }
       },
       {
-        "id": 3001520,
+        "id": 3001521,
         "schema": "better_supabase",
         "name": "update_product_media",
         "language": "plpgsql",
@@ -155413,7 +155447,7 @@
         }
       },
       {
-        "id": 3001521,
+        "id": 3001522,
         "schema": "better_supabase",
         "name": "update_quote",
         "language": "plpgsql",
@@ -155447,7 +155481,7 @@
         }
       },
       {
-        "id": 3001522,
+        "id": 3001523,
         "schema": "better_supabase",
         "name": "update_tag",
         "language": "plpgsql",
@@ -155481,7 +155515,7 @@
         }
       },
       {
-        "id": 3001523,
+        "id": 3001524,
         "schema": "better_supabase",
         "name": "update_team",
         "language": "plpgsql",
@@ -155527,7 +155561,7 @@
         }
       },
       {
-        "id": 3001524,
+        "id": 3001525,
         "schema": "better_supabase",
         "name": "update_time_entry",
         "language": "plpgsql",
@@ -155561,7 +155595,7 @@
         }
       },
       {
-        "id": 3001525,
+        "id": 3001526,
         "schema": "better_supabase",
         "name": "update_work_items",
         "language": "plpgsql",
@@ -155589,7 +155623,7 @@
         }
       },
       {
-        "id": 3001526,
+        "id": 3001527,
         "schema": "better_supabase",
         "name": "update_work_order",
         "language": "plpgsql",
@@ -155653,7 +155687,7 @@
         }
       },
       {
-        "id": 3001527,
+        "id": 3001528,
         "schema": "better_supabase",
         "name": "upsert_ai_models",
         "language": "plpgsql",
@@ -155687,7 +155721,7 @@
         }
       },
       {
-        "id": 3001528,
+        "id": 3001529,
         "schema": "better_supabase",
         "name": "upsert_contact",
         "language": "plpgsql",
@@ -155721,7 +155755,7 @@
         }
       },
       {
-        "id": 3001529,
+        "id": 3001530,
         "schema": "better_supabase",
         "name": "upsert_message_template",
         "language": "plpgsql",
@@ -155755,7 +155789,7 @@
         }
       },
       {
-        "id": 3001530,
+        "id": 3001531,
         "schema": "better_supabase",
         "name": "usage_breakdown",
         "language": "plpgsql",
@@ -155789,7 +155823,7 @@
         }
       },
       {
-        "id": 3001531,
+        "id": 3001532,
         "schema": "better_supabase",
         "name": "usage_history",
         "language": "plpgsql",
@@ -155835,7 +155869,7 @@
         }
       },
       {
-        "id": 3001532,
+        "id": 3001533,
         "schema": "better_supabase",
         "name": "usage_meters",
         "language": "sql",
@@ -155856,7 +155890,7 @@
         }
       },
       {
-        "id": 3001533,
+        "id": 3001534,
         "schema": "better_supabase",
         "name": "usage_overview",
         "language": "plpgsql",
@@ -155884,7 +155918,7 @@
         }
       },
       {
-        "id": 3001534,
+        "id": 3001535,
         "schema": "better_supabase",
         "name": "usage_quota",
         "language": "sql",
@@ -155930,7 +155964,7 @@
         }
       },
       {
-        "id": 3001535,
+        "id": 3001536,
         "schema": "better_supabase",
         "name": "usage_status",
         "language": "plpgsql",
@@ -155964,7 +155998,7 @@
         }
       },
       {
-        "id": 3001536,
+        "id": 3001537,
         "schema": "better_supabase",
         "name": "usage_used",
         "language": "sql",
@@ -156004,7 +156038,7 @@
         }
       },
       {
-        "id": 3001537,
+        "id": 3001538,
         "schema": "better_supabase",
         "name": "usage_window",
         "language": "plpgsql",
@@ -156050,7 +156084,7 @@
         }
       },
       {
-        "id": 3001538,
+        "id": 3001539,
         "schema": "better_supabase",
         "name": "usage_window_start",
         "language": "plpgsql",
@@ -156090,7 +156124,7 @@
         }
       },
       {
-        "id": 3001539,
+        "id": 3001540,
         "schema": "better_supabase",
         "name": "user_disabled",
         "language": "sql",
@@ -156118,7 +156152,7 @@
         }
       },
       {
-        "id": 3001540,
+        "id": 3001541,
         "schema": "better_supabase",
         "name": "validate_workflow_graph",
         "language": "plpgsql",
@@ -156146,7 +156180,7 @@
         }
       },
       {
-        "id": 3001541,
+        "id": 3001542,
         "schema": "better_supabase",
         "name": "variant_price",
         "language": "sql",
@@ -156192,7 +156226,7 @@
         }
       },
       {
-        "id": 3001542,
+        "id": 3001543,
         "schema": "better_supabase",
         "name": "verify_api_key",
         "language": "plpgsql",
@@ -156226,7 +156260,7 @@
         }
       },
       {
-        "id": 3001543,
+        "id": 3001544,
         "schema": "better_supabase",
         "name": "verify_course_certificate",
         "language": "sql",
@@ -156254,7 +156288,7 @@
         }
       },
       {
-        "id": 3001544,
+        "id": 3001545,
         "schema": "better_supabase",
         "name": "verify_organization_domain",
         "language": "plpgsql",
@@ -156288,7 +156322,7 @@
         }
       },
       {
-        "id": 3001545,
+        "id": 3001546,
         "schema": "better_supabase",
         "name": "version_insert",
         "language": "plpgsql",
@@ -156364,7 +156398,7 @@
         }
       },
       {
-        "id": 3001546,
+        "id": 3001547,
         "schema": "better_supabase",
         "name": "void_donation_receipt",
         "language": "plpgsql",
@@ -156398,7 +156432,7 @@
         }
       },
       {
-        "id": 3001547,
+        "id": 3001548,
         "schema": "better_supabase",
         "name": "void_invoice",
         "language": "plpgsql",
@@ -156432,7 +156466,7 @@
         }
       },
       {
-        "id": 3001548,
+        "id": 3001549,
         "schema": "better_supabase",
         "name": "vote",
         "language": "plpgsql",
@@ -156484,7 +156518,7 @@
         }
       },
       {
-        "id": 3001549,
+        "id": 3001550,
         "schema": "better_supabase",
         "name": "vote_on_post",
         "language": "plpgsql",
@@ -156518,7 +156552,7 @@
         }
       },
       {
-        "id": 3001550,
+        "id": 3001551,
         "schema": "better_supabase",
         "name": "vote_summary",
         "language": "sql",
@@ -156558,7 +156592,7 @@
         }
       },
       {
-        "id": 3001551,
+        "id": 3001552,
         "schema": "better_supabase",
         "name": "vote_tally",
         "language": "sql",
@@ -156598,7 +156632,7 @@
         }
       },
       {
-        "id": 3001552,
+        "id": 3001553,
         "schema": "better_supabase",
         "name": "waitlist_admit",
         "language": "plpgsql",
@@ -156632,7 +156666,7 @@
         }
       },
       {
-        "id": 3001553,
+        "id": 3001554,
         "schema": "better_supabase",
         "name": "wake_snoozed_conversations",
         "language": "plpgsql",
@@ -156653,7 +156687,7 @@
         }
       },
       {
-        "id": 3001554,
+        "id": 3001555,
         "schema": "better_supabase",
         "name": "watch_maintenance_request",
         "language": "plpgsql",
@@ -156687,7 +156721,7 @@
         }
       },
       {
-        "id": 3001555,
+        "id": 3001556,
         "schema": "better_supabase",
         "name": "watch_work_item",
         "language": "plpgsql",
@@ -156721,7 +156755,7 @@
         }
       },
       {
-        "id": 3001556,
+        "id": 3001557,
         "schema": "better_supabase",
         "name": "webhook_secrets",
         "language": "sql",
@@ -156749,7 +156783,7 @@
         }
       },
       {
-        "id": 3001557,
+        "id": 3001558,
         "schema": "better_supabase",
         "name": "within_quota",
         "language": "plpgsql",
@@ -156789,7 +156823,7 @@
         }
       },
       {
-        "id": 3001558,
+        "id": 3001559,
         "schema": "better_supabase",
         "name": "work_item_tree",
         "language": "sql",
@@ -156817,7 +156851,7 @@
         }
       },
       {
-        "id": 3001559,
+        "id": 3001560,
         "schema": "better_supabase",
         "name": "workflow_admission_active",
         "language": "sql",
@@ -156845,7 +156879,7 @@
         }
       },
       {
-        "id": 3001560,
+        "id": 3001561,
         "schema": "better_supabase",
         "name": "workflow_alerts_list",
         "language": "sql",
@@ -156873,7 +156907,7 @@
         }
       },
       {
-        "id": 3001561,
+        "id": 3001562,
         "schema": "better_supabase",
         "name": "workflow_credential_get",
         "language": "sql",
@@ -156901,7 +156935,7 @@
         }
       },
       {
-        "id": 3001562,
+        "id": 3001563,
         "schema": "better_supabase",
         "name": "workflow_credentials_list",
         "language": "sql",
@@ -156929,7 +156963,7 @@
         }
       },
       {
-        "id": 3001563,
+        "id": 3001564,
         "schema": "better_supabase",
         "name": "workflow_definition_get",
         "language": "sql",
@@ -156957,7 +156991,7 @@
         }
       },
       {
-        "id": 3001564,
+        "id": 3001565,
         "schema": "better_supabase",
         "name": "workflow_definition_grants_list",
         "language": "sql",
@@ -156985,7 +157019,7 @@
         }
       },
       {
-        "id": 3001565,
+        "id": 3001566,
         "schema": "better_supabase",
         "name": "workflow_definitions_list",
         "language": "sql",
@@ -157019,7 +157053,7 @@
         }
       },
       {
-        "id": 3001566,
+        "id": 3001567,
         "schema": "better_supabase",
         "name": "workflow_graph_permissions",
         "language": "sql",
@@ -157047,7 +157081,7 @@
         }
       },
       {
-        "id": 3001567,
+        "id": 3001568,
         "schema": "better_supabase",
         "name": "workflow_node_runs_list",
         "language": "sql",
@@ -157075,7 +157109,7 @@
         }
       },
       {
-        "id": 3001568,
+        "id": 3001569,
         "schema": "better_supabase",
         "name": "workflow_run_get",
         "language": "sql",
@@ -157103,7 +157137,7 @@
         }
       },
       {
-        "id": 3001569,
+        "id": 3001570,
         "schema": "better_supabase",
         "name": "workflow_run_principal",
         "language": "plpgsql",
@@ -157137,7 +157171,7 @@
         }
       },
       {
-        "id": 3001570,
+        "id": 3001571,
         "schema": "better_supabase",
         "name": "workflow_runs_list",
         "language": "sql",
@@ -157207,7 +157241,7 @@
         }
       },
       {
-        "id": 3001571,
+        "id": 3001572,
         "schema": "better_supabase",
         "name": "workflow_schedules_list",
         "language": "sql",
@@ -157235,7 +157269,7 @@
         }
       },
       {
-        "id": 3001572,
+        "id": 3001573,
         "schema": "better_supabase",
         "name": "workflow_start_target",
         "language": "plpgsql",
@@ -157269,7 +157303,7 @@
         }
       },
       {
-        "id": 3001573,
+        "id": 3001574,
         "schema": "better_supabase",
         "name": "workflow_steps_list",
         "language": "sql",
@@ -157290,7 +157324,7 @@
         }
       },
       {
-        "id": 3001574,
+        "id": 3001575,
         "schema": "better_supabase",
         "name": "workflow_subject_start_target",
         "language": "plpgsql",
@@ -157336,7 +157370,7 @@
         }
       },
       {
-        "id": 3001575,
+        "id": 3001576,
         "schema": "better_supabase",
         "name": "workflow_triggers_list",
         "language": "sql",
@@ -157364,7 +157398,7 @@
         }
       },
       {
-        "id": 3001576,
+        "id": 3001577,
         "schema": "better_supabase",
         "name": "workflow_version_get",
         "language": "sql",
@@ -157392,7 +157426,7 @@
         }
       },
       {
-        "id": 3001577,
+        "id": 3001578,
         "schema": "better_supabase",
         "name": "workflow_versions_list",
         "language": "sql",
@@ -157420,7 +157454,7 @@
         }
       },
       {
-        "id": 3001578,
+        "id": 3001579,
         "schema": "better_supabase",
         "name": "workflow_webhook_target",
         "language": "sql",
@@ -157448,7 +157482,7 @@
         }
       },
       {
-        "id": 3001579,
+        "id": 3001580,
         "schema": "better_supabase",
         "name": "write_knowledge_chunks",
         "language": "plpgsql",
@@ -157488,7 +157522,7 @@
         }
       },
       {
-        "id": 3001580,
+        "id": 3001581,
         "schema": "better_supabase",
         "name": "write_off_invoice",
         "language": "plpgsql",
@@ -157516,7 +157550,7 @@
         }
       },
       {
-        "id": 3001581,
+        "id": 3001582,
         "schema": "better_supabase",
         "name": "yearly_giving_summary",
         "language": "plpgsql",
@@ -157562,7 +157596,7 @@
         }
       },
       {
-        "id": 3001582,
+        "id": 3001583,
         "schema": "public",
         "name": "app_table_set",
         "language": "plpgsql",
@@ -157608,7 +157642,7 @@
         }
       },
       {
-        "id": 3001583,
+        "id": 3001584,
         "schema": "public",
         "name": "client_notes_reveal",
         "language": "sql",
@@ -157654,7 +157688,7 @@
         }
       },
       {
-        "id": 3001584,
+        "id": 3001585,
         "schema": "public",
         "name": "customer_note_counts",
         "language": "sql",
@@ -157700,7 +157734,7 @@
         }
       },
       {
-        "id": 3001585,
+        "id": 3001586,
         "schema": "public",
         "name": "customers_by_status",
         "language": "sql",
@@ -157734,7 +157768,7 @@
         }
       },
       {
-        "id": 3001586,
+        "id": 3001587,
         "schema": "public",
         "name": "my_organizations",
         "language": "sql",
@@ -157792,7 +157826,7 @@
         }
       },
       {
-        "id": 3001587,
+        "id": 3001588,
         "schema": "public",
         "name": "my_profile",
         "language": "plpgsql",
@@ -157844,7 +157878,7 @@
         }
       },
       {
-        "id": 3001588,
+        "id": 3001589,
         "schema": "public",
         "name": "organization_invitations",
         "language": "sql",
@@ -157908,7 +157942,7 @@
         }
       },
       {
-        "id": 3001589,
+        "id": 3001590,
         "schema": "public",
         "name": "organization_members",
         "language": "sql",
@@ -157978,7 +158012,7 @@
         }
       },
       {
-        "id": 3001590,
+        "id": 3001591,
         "schema": "public",
         "name": "rs_workspace_summary",
         "language": "sql",
@@ -158006,7 +158040,7 @@
         }
       },
       {
-        "id": 3001591,
+        "id": 3001592,
         "schema": "public",
         "name": "search_notes",
         "language": "plpgsql",
@@ -158040,7 +158074,7 @@
         }
       },
       {
-        "id": 3001592,
+        "id": 3001593,
         "schema": "public",
         "name": "search_notes_scores",
         "language": "plpgsql",
@@ -158086,7 +158120,7 @@
         }
       },
       {
-        "id": 3001593,
+        "id": 3001594,
         "schema": "public",
         "name": "set_my_avatar_path",
         "language": "plpgsql",
@@ -158114,7 +158148,7 @@
         }
       },
       {
-        "id": 3001594,
+        "id": 3001595,
         "schema": "public",
         "name": "update_my_profile",
         "language": "plpgsql",
@@ -171161,7 +171195,12 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_pipeline_application"
+            "function": "better_supabase.bsb_pipeline_application",
+            "fills": [
+              "pipeline_id",
+              "stage_entered_at",
+              "stage_id"
+            ]
           },
           {
             "name": "bsb_pipeline_status_application",
@@ -171868,7 +171907,8 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.asset_location_check_parent"
+            "function": "better_supabase.asset_location_check_parent",
+            "fills": []
           }
         ],
         "grants": [
@@ -174675,7 +174715,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.calendar_attendee_auto_decline"
+            "function": "better_supabase.calendar_attendee_auto_decline",
+            "fills": [
+              "response"
+            ]
           }
         ],
         "grants": [
@@ -181769,7 +181812,14 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_deal_guard"
+            "function": "better_supabase.bsb_deal_guard",
+            "fills": [
+              "closed_at",
+              "lost_reason",
+              "push_count",
+              "slipped_from",
+              "updated_at"
+            ]
           },
           {
             "name": "bsb_field_history_deal",
@@ -181788,7 +181838,12 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_pipeline_deal"
+            "function": "better_supabase.bsb_pipeline_deal",
+            "fills": [
+              "pipeline_id",
+              "stage_entered_at",
+              "stage_id"
+            ]
           },
           {
             "name": "bsb_pipeline_status_deal",
@@ -183398,7 +183453,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.drive_node_path"
+            "function": "better_supabase.drive_node_path",
+            "fills": [
+              "path"
+            ]
           },
           {
             "name": "bsb_drive_node_purged",
@@ -183974,7 +184032,8 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_employee_manager_guard"
+            "function": "better_supabase.bsb_employee_manager_guard",
+            "fills": []
           },
           {
             "name": "bsb_employee_user_mirror",
@@ -194501,7 +194560,13 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_maintenance_request_guard"
+            "function": "better_supabase.bsb_maintenance_request_guard",
+            "fills": [
+              "close_reason",
+              "closed_at",
+              "progress",
+              "updated_at"
+            ]
           },
           {
             "name": "bsb_pipeline_maintenance_request",
@@ -194511,7 +194576,12 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_pipeline_maintenance_request"
+            "function": "better_supabase.bsb_pipeline_maintenance_request",
+            "fills": [
+              "pipeline_id",
+              "stage_entered_at",
+              "stage_id"
+            ]
           },
           {
             "name": "bsb_pipeline_status_maintenance_request",
@@ -195749,7 +195819,8 @@
               "insert"
             ],
             "level": "row",
-            "function": "better_supabase.messages_moderation_guard"
+            "function": "better_supabase.messages_moderation_guard",
+            "fills": []
           },
           {
             "name": "bsb_messaging_inbox_broadcast",
@@ -195800,7 +195871,8 @@
               "insert"
             ],
             "level": "row",
-            "function": "better_supabase.posts_reply_guard"
+            "function": "better_supabase.posts_reply_guard",
+            "fills": []
           },
           {
             "name": "bsb_search_message_index",
@@ -200350,6 +200422,17 @@
             "args": [
               "{\"ignore\": [], \"redact\": [], \"category\": \"access\", \"key_columns\": [\"organization_id\", \"role_id\", \"permission_id\"], \"tenant_column\": \"organization_id\"}"
             ]
+          },
+          {
+            "name": "permission_overrides_bump_authz_versions",
+            "timing": "after",
+            "events": [
+              "insert",
+              "update",
+              "delete"
+            ],
+            "level": "row",
+            "function": "rbac.bump_override_authz_versions"
           }
         ],
         "grants": [
@@ -206614,7 +206697,8 @@
               "insert"
             ],
             "level": "row",
-            "function": "better_supabase.reactions_check"
+            "function": "better_supabase.reactions_check",
+            "fills": []
           },
           {
             "name": "bsb_reactions_tally",
@@ -215650,7 +215734,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_time_entries_employee"
+            "function": "better_supabase.bsb_time_entries_employee",
+            "fills": [
+              "employee_id"
+            ]
           },
           {
             "name": "bsb_time_entry_guard",
@@ -215661,7 +215748,8 @@
               "delete"
             ],
             "level": "row",
-            "function": "better_supabase.time_entry_guard"
+            "function": "better_supabase.time_entry_guard",
+            "fills": []
           }
         ],
         "grants": [
@@ -218166,7 +218254,12 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_pipeline_work_item"
+            "function": "better_supabase.bsb_pipeline_work_item",
+            "fills": [
+              "pipeline_id",
+              "stage_entered_at",
+              "stage_id"
+            ]
           },
           {
             "name": "bsb_search_work_item_index",
@@ -218191,7 +218284,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_transition_work_item"
+            "function": "better_supabase.bsb_transition_work_item",
+            "fills": [
+              "state"
+            ]
           },
           {
             "name": "bsb_work_item_guard",
@@ -218201,7 +218297,13 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_work_item_guard"
+            "function": "better_supabase.bsb_work_item_guard",
+            "fills": [
+              "close_reason",
+              "closed_at",
+              "progress",
+              "updated_at"
+            ]
           }
         ],
         "grants": [
@@ -220885,7 +220987,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.client_notes_seal"
+            "function": "better_supabase.client_notes_seal",
+            "fills": [
+              "birth_date",
+              "diagnosis"
+            ]
           },
           {
             "name": "bsb_updated_at",
@@ -221864,7 +221970,8 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.guard_membership"
+            "function": "better_supabase.guard_membership",
+            "fills": []
           },
           {
             "name": "bsb_updated_at",
@@ -221877,6 +221984,17 @@
             "args": [
               "updated_at"
             ]
+          },
+          {
+            "name": "memberships_bump_authz_version",
+            "timing": "after",
+            "events": [
+              "insert",
+              "update",
+              "delete"
+            ],
+            "level": "row",
+            "function": "rbac.bump_authz_version"
           }
         ],
         "grants": [
@@ -232821,6 +232939,18 @@
       },
       {
         "schema": "better_supabase",
+        "name": "permission_claims",
+        "signature": "user_id uuid, tenant uuid",
+        "language": "sql",
+        "volatility": "stable",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
+      },
+      {
+        "schema": "better_supabase",
         "name": "person_for_inbox_contact",
         "signature": "contact uuid, \"create\" boolean",
         "language": "plpgsql",
@@ -239951,7 +240081,7 @@
               "authenticated",
               "supabase_auth_admin"
             ],
-            "source": "\ndeclare\n  claims jsonb := event -> 'claims';\n  user_role rbac.app_role;\n  authz_version bigint;\nbegin\n  select ur.role into user_role\n  from rbac.user_roles ur\n  where ur.user_id = (event ->> 'user_id')::uuid;\n\n  if user_role is not null then\n    claims := jsonb_set(claims, '{user_role}', to_jsonb(user_role));\n  end if;\n\n  -- The version `subscribeAuthzVersions` evicts on (user_authz_versions.sql).\n  select v.version into authz_version\n  from rbac.user_authz_versions v\n  where v.user_id = (event ->> 'user_id')::uuid;\n\n  claims := jsonb_set(claims, '{authz_ver}', to_jsonb(coalesce(authz_version, 0)));\n\n  -- Every organization the user belongs to, and each one's plan features\n  -- (supabase/schemas/045_access_contract.sql and the entitlements module).\n  claims := jsonb_set(claims, '{memberships}', better_supabase.membership_claims((event ->> 'user_id')::uuid));\n  claims := jsonb_set(claims, '{features}', better_supabase.feature_claims((event ->> 'user_id')::uuid));\n\n  return jsonb_set(event, '{claims}', claims);\nend;\n"
+            "source": "\ndeclare\n  claims jsonb := event -> 'claims';\n  user_role rbac.app_role;\n  authz_version bigint;\n  active_tenant text := claims -> 'app_metadata' ->> 'tenant_id';\n  permission_keys jsonb := '{}'::jsonb;\nbegin\n  select ur.role into user_role\n  from rbac.user_roles ur\n  where ur.user_id = (event ->> 'user_id')::uuid;\n\n  if user_role is not null then\n    claims := jsonb_set(claims, '{user_role}', to_jsonb(user_role));\n  end if;\n\n  -- The version `subscribeAuthzVersions` evicts on (user_authz_versions.sql).\n  select v.version into authz_version\n  from rbac.user_authz_versions v\n  where v.user_id = (event ->> 'user_id')::uuid;\n\n  claims := jsonb_set(claims, '{authz_ver}', to_jsonb(coalesce(authz_version, 0)));\n\n  -- Every organization the user belongs to, and each one's plan features\n  -- (supabase/schemas/045_access_contract.sql and the entitlements module).\n  claims := jsonb_set(claims, '{memberships}', better_supabase.membership_claims((event ->> 'user_id')::uuid));\n  claims := jsonb_set(claims, '{features}', better_supabase.feature_claims((event ->> 'user_id')::uuid));\n\n  -- The permission keys for the active organization only, which\n  -- `permissionsOf()` and `permissionsAuthorizer()` read. Past the budget the\n  -- token says so, and the app reads `my_permissions()` instead.\n  if active_tenant ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then\n    permission_keys := better_supabase.permission_claims((event ->> 'user_id')::uuid, active_tenant::uuid);\n  end if;\n\n  if permission_keys ? active_tenant then\n    permission_keys := jsonb_build_object(active_tenant, to_jsonb(rbac.compact_permission_keys(\n      array(select jsonb_array_elements_text(permission_keys -> active_tenant))\n    )));\n  end if;\n\n  if octet_length(permission_keys::text) > 2048 then\n    claims := jsonb_set(claims, '{permissions}', '{}'::jsonb);\n    claims := jsonb_set(claims, '{permissions_truncated}', 'true'::jsonb);\n  else\n    claims := jsonb_set(claims, '{permissions}', permission_keys);\n    claims := claims - 'permissions_truncated';\n  end if;\n\n  return jsonb_set(event, '{claims}', claims);\nend;\n"
           }
         ]
       }

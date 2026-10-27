@@ -7,7 +7,7 @@ import { requestAs, server } from "../fixtures/test-server.ts";
 
 describe("h3 guard and problemOnError", () => {
   const middleware = toH3([
-    withBetterSupabase(server, { allow: ["user", "anon"] }),
+    withBetterSupabase(server, { allow: ["user", "none"] }),
   ]);
 
   const admin = guard({ allow: ["user"] });

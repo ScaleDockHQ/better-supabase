@@ -3,8 +3,6 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -14,8 +12,8 @@ const Id = v.pipe(v.string(), v.uuid());
 export const restoreTrashItem = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "trash.restore"),
+    requireTenant: true,
+    permission: "trash.restore",
   },
   async ({ id }, { db, auth }) => {
     const restored = await db.trash.restore(id);
@@ -24,7 +22,7 @@ export const restoreTrashItem = bsb.action(
       return restored;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ count: restored.data.count });
   },
@@ -34,8 +32,8 @@ export const restoreTrashItem = bsb.action(
 export const purgeTrashItem = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "trash.manage"),
+    requireTenant: true,
+    permission: "trash.manage",
   },
   async ({ id }, { db, auth }) => {
     const purged = await db.trash.purge(id);
@@ -44,7 +42,7 @@ export const purgeTrashItem = bsb.action(
       return purged;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ count: purged.data });
   },

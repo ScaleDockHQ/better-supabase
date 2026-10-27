@@ -883,10 +883,7 @@ describe("module upgrades (BS309, BS310)", () => {
         context(
           snap,
           {},
-          {
-            blocks: ["memberships"],
-            auth: { organization: { claim: "org_id" } },
-          },
+          { blocks: ["memberships"], auth: { tenant: { claim: "org_id" } } },
         ),
       ),
     ).toEqual([]);

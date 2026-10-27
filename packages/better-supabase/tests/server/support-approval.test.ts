@@ -38,7 +38,7 @@ const user = (
 
 const admin = user(ADMIN);
 const second = user(SECOND);
-const anon: AuthState = { kind: "anon", reason: "none" };
+const anon: AuthState = { kind: "none", reason: "none" };
 
 /**
  * `memorySupportStore` with requests that refuse self-approval, as the SQL

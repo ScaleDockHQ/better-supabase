@@ -37,10 +37,11 @@ import { useSupabase } from "@/lib/hooks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 
 /**
- * The worker in `public/` that shows the pushes; it must be served from the
- * site root.
+ * The app's one service worker in `public/`, which shows the pushes. It must be
+ * served from the site root, and any other registration of the app's worker
+ * must use the same URL, or the two replace each other.
  */
-const WORKER_URL = "/push-sw.js";
+const WORKER_URL = "/sw.js";
 const PUSH_GUIDE = "https://bettersupabase.com/docs/blocks/push";
 
 const VAPID_PUBLIC_KEY = env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;

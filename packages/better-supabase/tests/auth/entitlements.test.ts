@@ -52,7 +52,7 @@ describe("hasEntitlement", () => {
 
   it("is false without a user or a features claim", () => {
     expect(
-      hasEntitlement({ kind: "anon", reason: "none" }, ACME, "exports"),
+      hasEntitlement({ kind: "none", reason: "none" }, ACME, "exports"),
     ).toBe(false);
     expect(hasEntitlement(session<Claims>({}), ACME, "exports")).toBe(false);
   });

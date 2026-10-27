@@ -6,8 +6,6 @@ import type { ShipmentAddress } from "better-supabase/blocks/shipments";
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -46,8 +44,8 @@ export const createWorkOrder = bsb.action(
         "normal",
       ),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "dispatch.manage"),
+    requireTenant: true,
+    permission: "dispatch.manage",
   },
   async ({ title, address, priority }, { db, auth }) => {
     const order: Writable<WorkOrderInput> = { title, priority };
@@ -62,7 +60,7 @@ export const createWorkOrder = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: created.data.id });
   },
@@ -75,8 +73,8 @@ export const advanceWorkOrder = bsb.action(
       id: v.pipe(v.string(), v.uuid()),
       to: v.picklist(["en_route", "on_site", "done"]),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "dispatch.work"),
+    requireTenant: true,
+    permission: "dispatch.work",
   },
   async ({ id, to }, { db, auth }) => {
     const moved = await db.dispatch.setStatus(id, to);
@@ -85,7 +83,7 @@ export const advanceWorkOrder = bsb.action(
       return moved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ status: moved.data.status });
   },
@@ -113,8 +111,8 @@ export const createShipment = bsb.action(
         v.maxValue(70_000),
       ),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "shipments.manage"),
+    requireTenant: true,
+    permission: "shipments.manage",
   },
   async (
     { name, line1, city, postalCode, country, weightGrams },
@@ -136,7 +134,7 @@ export const createShipment = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: created.data.id });
   },

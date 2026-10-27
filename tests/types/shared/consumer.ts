@@ -229,13 +229,13 @@ export function integrations(): unknown[] {
       aal: "aal2",
     }),
     createNext(betterSupabase)
-      .session()
+      .claims()
       .then((session) =>
         session.kind === "user" ? (session.aal satisfies Aal) : undefined,
       ),
     checkAal,
     createNext(betterSupabase)
-      .session()
+      .claims()
       .then((session) => hasEntitlement(session, "organization", "exports")),
     server
       .deleteAccount("u1", { buckets: [logos], cascades: ["customers"] })
@@ -253,7 +253,7 @@ export function integrations(): unknown[] {
       .customers.count(),
     impersonatorOf({ act: { sub: "admin" } })?.id satisfies string | undefined,
     createNext(betterSupabase)
-      .session()
+      .claims()
       .then((session) =>
         session.kind === "user" ? session.impersonator?.reason : undefined,
       ),

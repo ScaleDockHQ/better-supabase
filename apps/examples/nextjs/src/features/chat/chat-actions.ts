@@ -4,8 +4,6 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { customerAttachments } from "@/features/customers/customer-attachments";
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
 import { summaryMessaging, threadSummarizer } from "./chat-summaries";
@@ -25,7 +23,7 @@ export interface ChannelRow {
 
 /** Every channel the caller can see, joined or not. */
 export const browseChannels = bsb.action(
-  { requireOrganization: true },
+  { requireTenant: true },
   async (_input, { db }) => {
     const listed = await db.channels.list({ browse: true });
 
@@ -51,8 +49,8 @@ export const createChannel = bsb.action(
       topic: v.pipe(v.string(), v.trim(), v.maxLength(250)),
       visibility: v.picklist(["public", "private"]),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "channels.create"),
+    requireTenant: true,
+    permission: "channels.create",
   },
   async ({ name, topic, visibility }, { db }) => {
     const created = await db.channels.create({
@@ -66,7 +64,7 @@ export const createChannel = bsb.action(
 );
 
 export const joinChannel = bsb.action(
-  { input: v.object({ channelId: Id }), requireOrganization: true },
+  { input: v.object({ channelId: Id }), requireTenant: true },
   async ({ channelId }, { db }) => db.channels.join(channelId),
 );
 
@@ -88,8 +86,8 @@ export const startChatUpload = bsb.action(
         v.maxValue(MAX_FILE_BYTES),
       ),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "messages.send"),
+    requireTenant: true,
+    permission: "messages.send",
   },
   async ({ conversationId, name, mimeType, size }, { tenant, supabase }) => {
     const upload = await customerAttachments(supabase, tenant).upload(
@@ -119,8 +117,8 @@ export const startChatUpload = bsb.action(
 export const confirmChatUpload = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "messages.send"),
+    requireTenant: true,
+    permission: "messages.send",
   },
   async ({ id }, { supabase }) => {
     const confirmed = await customerAttachments(supabase).confirm(id);
@@ -143,7 +141,7 @@ export interface ThreadSummaryRow {
 export const summarizeThread = bsb.action(
   {
     input: v.object({ threadId: Id, force: v.optional(v.boolean(), false) }),
-    requireOrganization: true,
+    requireTenant: true,
   },
   async ({ threadId, force }, { tenant, supabase }) => {
     const summary = await summaryMessaging(supabase, tenant).summarize(

@@ -183,7 +183,7 @@ describe("support sessions on the server", () => {
     expect(events[0]?.data).toMatchObject({ denial: "policy" });
 
     const anon = await server.support.start(
-      { kind: "anon", reason: "none" },
+      { kind: "none", reason: "none" },
       { targetUserId: TARGET, reason: "r" },
     );
 
@@ -327,7 +327,7 @@ describe("support sessions on the server", () => {
       (await server.support.stop(admin(), started.session.id)).data?.ended,
     ).toBe(false);
     expect(
-      (await server.support.stop({ kind: "anon", reason: "none" }, "x")).error
+      (await server.support.stop({ kind: "none", reason: "none" }, "x")).error
         ?.kind,
     ).toBe("unauthorized");
   });
@@ -566,7 +566,7 @@ describe("support sessions on the server", () => {
     expect(await server.support.current(cookie, admin())).toBeUndefined();
     expect(server.support.sessionIdOf(cookie)).toBe(session.id);
     expect(server.support.clearCookie()).toContain("Max-Age=0");
-    const anon = { kind: "anon", reason: "none" } as const;
+    const anon = { kind: "none", reason: "none" } as const;
     expect((await server.support.revoke(anon, session.id)).error?.kind).toBe(
       "unauthorized",
     );

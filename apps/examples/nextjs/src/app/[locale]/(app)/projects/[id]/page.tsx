@@ -9,8 +9,6 @@ import {
 } from "@/features/projects/components/project-page";
 import { Link } from "@/i18n/navigation";
 
-export const instant = true;
-
 /** The back link is the static shell; the project streams in. */
 export default function ProjectRecordPage({
   params,

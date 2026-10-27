@@ -20,7 +20,7 @@ import { manyRoles, membershipRolesTable } from "./membership-roles.ts";
 import { roleNameOf } from "./memberships.ts";
 import { catalogAudit, membershipRoleKey } from "./permissions-catalog.ts";
 import { capFor, delegationSql } from "./permissions-delegation.ts";
-import { myPermissionsSql } from "./permissions-keys.ts";
+import { myPermissionsSql, oneTenantClaims } from "./permissions-keys.ts";
 import {
   accessModel,
   hasPlatformRoles,
@@ -1019,6 +1019,8 @@ as $$
   select coalesce(better_supabase.platform_can(auth.uid(), is_platform.permission), false)
 $$;
 
+${oneTenantClaims(ctx, layout)}
+
 ${myPermissionsSql(id)}${providerGuestFunctions(ctx.installedModules, layout)}${catalogRoleFunctions(ctx)}
 
 ${[
@@ -1044,6 +1046,7 @@ ${[
   "platform_can(uuid, text)",
   `can_user(uuid, text, ${id}, text)`,
   "permission_claims(uuid)",
+  `permission_claims(uuid, ${id})`,
   ...(model === "roles" || model === "catalog"
     ? [`can_assign_as(uuid, ${id}, text)`]
     : []),
@@ -1055,9 +1058,18 @@ ${[
   .join("\n")}
 
 -- The permission claim: { [tenant id]: permission keys }, for the access
--- token hook when the app checks permissions from the token:
---   return jsonb_set(event, '{claims,permissions}',
---     better_supabase.permission_claims((event ->> 'user_id')::uuid));`;
+-- token hook when the app checks permissions from the token. Write the
+-- active tenant only, and mark the claim truncated when it outgrows the
+-- token budget, so readers ask the database instead:
+--   declare
+--     tenant text := event #>> '{claims,app_metadata,${ctx.claims.tenant}}';
+--     keys jsonb := better_supabase.permission_claims((event ->> 'user_id')::uuid, tenant::${id});
+--   begin
+--     if octet_length(keys::text) > 2048 then
+--       event := jsonb_set(event, '{claims,${ctx.claims.permissions}_truncated}', 'true');
+--       keys := '{}'::jsonb;
+--     end if;
+--     return jsonb_set(event, '{claims,${ctx.claims.permissions}}', keys);`;
 }
 
 export const ACCESS: BlockSqlDefinition = {

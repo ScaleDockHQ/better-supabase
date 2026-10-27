@@ -106,7 +106,7 @@ describe("supportClaims", () => {
       readOnly: false,
       expiresAt: 100,
     });
-    expect(supportOf({ kind: "anon", reason: "none" })).toBeUndefined();
+    expect(supportOf({ kind: "none", reason: "none" })).toBeUndefined();
   });
 });
 

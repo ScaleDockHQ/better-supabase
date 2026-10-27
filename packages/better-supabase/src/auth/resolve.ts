@@ -62,9 +62,10 @@ export type AuthState<C = unknown, P = unknown> =
        * `undefined` without a schema or when the metadata fails it. Users can
        * write this data themselves: use it for display, never for access.
        */
-      readonly profile?: P;
+      readonly userMetadata?: P;
     }
-  | { readonly kind: "service"; readonly keyName: string }
+  /** The secret key (or a legacy `service_role` key); `keyName` names it. */
+  | { readonly kind: "secret"; readonly keyName: string }
   /**
    * An app API key (`better-supabase/blocks/api-keys`). `userId` is set for a
    * key that acts as its user, `organizationId` for one scoped to a tenant.
@@ -88,8 +89,9 @@ export type AuthState<C = unknown, P = unknown> =
        */
       readonly claims: JWTClaims;
     }
+  /** No session: no credentials, or a cookie session that did not hold. */
   | {
-      readonly kind: "anon";
+      readonly kind: "none";
       /**
        * `expired`: the cookie session needs a refresh that was not allowed here
        * (run the proxy).
@@ -147,7 +149,7 @@ export interface ResolveAuthOptions {
   readonly leeway?: number;
   /** Milliseconds before a refresh counts as a network failure. Defaults to 5000. */
   readonly refreshTimeoutMs?: number;
-  readonly checkSession?: boolean;
+  readonly verifySession?: boolean;
   /**
    * Accept `sb_secret_` keys (`apikey` header) as service callers: `true` for
    * any configured key, or the key names allowed (`['cron']`). Defaults to
@@ -227,6 +229,9 @@ export interface ResolveAuthOptions {
 
 export type ResolvePhase = "parse" | "verify" | "refresh" | "ended";
 
+/** Why Auth rejected a session `verifySession` checked. */
+export type SessionRejection = "session_not_found" | "user_banned";
+
 export interface AuthResolution<C = unknown, P = unknown> {
   readonly auth: AuthState<C, P>;
   /**
@@ -241,12 +246,13 @@ export interface AuthResolution<C = unknown, P = unknown> {
   /** Adds `cookies` and `headers` to a response. */
   apply(response: Response): Response;
   /**
-   * The session was ended server-side (revoked, deleted or banned); the cookies
-   * are cleared.
+   * `false` when `verifySession` asked Auth and the session no longer exists
+   * (revoked, deleted or signed out elsewhere) or the user is banned; the
+   * cookies are cleared. Absent when the session was not checked or is live.
    */
-  readonly sessionEnded?: boolean;
-  /** Why `sessionEnded` is set: `banned` when Auth rejected the user as banned. */
-  readonly sessionEndedReason?: "ended" | "banned";
+  readonly sessionVerified?: false;
+  /** Why `sessionVerified` is `false`, as Auth's error code names it. */
+  readonly reason?: SessionRejection;
   /** Set when a refresh failed because the Auth server was unreachable. */
   readonly outage?: AuthOutageEvent;
 }
@@ -606,7 +612,7 @@ async function checkUser(
     return checked;
   }
 
-  const { profile: _untrusted, ...user } = checked;
+  const { userMetadata: _untrusted, ...user } = checked;
 
   let outcome = schema["~standard"].validate(
     checked.user.userMetadata ?? checked.claims.user_metadata ?? {},
@@ -617,13 +623,13 @@ async function checkUser(
   }
 
   if (!outcome.issues) {
-    return { ...user, profile: outcome.value };
+    return { ...user, userMetadata: outcome.value };
   }
 
   if (!warnedMetadata.has(schema)) {
     warnedMetadata.add(schema);
     (options.logger ?? consoleLogger).warn(
-      "user_metadata does not match betterSupabase.userMetadata(schema); session.profile is undefined",
+      "user_metadata does not match betterSupabase.userMetadata(schema); session.userMetadata is undefined",
       {
         paths: outcome.issues.map(
           (issue) =>
@@ -738,7 +744,7 @@ async function verifyOnce(
   }
 
   if (data.authMode === "secret") {
-    return { kind: "service", keyName: data.keyName ?? "default" };
+    return { kind: "secret", keyName: data.keyName ?? "default" };
   }
 
   if (
@@ -758,14 +764,14 @@ async function verifyOnce(
     };
   }
 
-  return { kind: "anon", reason: "none" };
+  return { kind: "none", reason: "none" };
 }
 
 function resolution(
   auth: AuthState,
   cookies: () => readonly CookieRecord[],
   writes: readonly CookieWrite[] = [],
-  ended?: "ended" | "banned",
+  rejected?: SessionRejection,
   outage?: AuthOutageEvent,
 ): AuthResolution {
   const headers = writes.length > 0 ? AUTH_CACHE_HEADERS : {};
@@ -773,7 +779,7 @@ function resolution(
 
   return {
     auth,
-    ...(ended ? { sessionEnded: true, sessionEndedReason: ended } : {}),
+    ...(rejected ? { sessionVerified: false, reason: rejected } : {}),
     ...(outage ? { outage } : {}),
     cookies: writes,
     headers,
@@ -954,7 +960,7 @@ export async function resolveAuth(
   }
 
   if (options.cookies === false) {
-    return resolution({ kind: "anon", reason: "none" }, cookies);
+    return resolution({ kind: "none", reason: "none" }, cookies);
   }
 
   const name = options.cookie?.name ?? sessionCookieName(options.env.url);
@@ -979,7 +985,7 @@ export async function resolveAuth(
         : [];
 
     return resolution(
-      { kind: "anon", reason: stale ? "signed_out" : "none" },
+      { kind: "none", reason: stale ? "signed_out" : "none" },
       cookies,
       writes,
     );
@@ -1008,7 +1014,7 @@ export async function resolveAuth(
     );
 
     const status =
-      state.kind === "user" && options.checkSession
+      state.kind === "user" && options.verifySession
         ? await statusTimed(state.token, {
             url: options.env.url,
             publishableKey: options.env.publishableKey,
@@ -1022,7 +1028,7 @@ export async function resolveAuth(
 
     if (status === "ended" || status === "banned") {
       return resolution(
-        { kind: "anon", reason: "signed_out" },
+        { kind: "none", reason: "signed_out" },
         cookies,
         options.refresh
           ? writeSession(
@@ -1033,7 +1039,7 @@ export async function resolveAuth(
               encoding,
             )
           : [],
-        status,
+        status === "banned" ? "user_banned" : "session_not_found",
       );
     }
 
@@ -1047,10 +1053,10 @@ export async function resolveAuth(
     }
 
     if (!options.refresh) {
-      return resolution({ kind: "anon", reason: "signed_out" }, cookies);
+      return resolution({ kind: "none", reason: "signed_out" }, cookies);
     }
   } else if (!options.refresh) {
-    return resolution({ kind: "anon", reason: "expired" }, cookies);
+    return resolution({ kind: "none", reason: "expired" }, cookies);
   }
 
   const secretKey = options.env.secretKey;
@@ -1116,7 +1122,7 @@ export async function resolveAuth(
       }
 
       return resolution(
-        { kind: "anon", reason: "refresh_failed" },
+        { kind: "none", reason: "refresh_failed" },
         cookies,
         pruned,
         undefined,
@@ -1140,14 +1146,14 @@ export async function resolveAuth(
         }
       }
 
-      return resolution({ kind: "anon", reason: "expired" }, cookies, pruned);
+      return resolution({ kind: "none", reason: "expired" }, cookies, pruned);
     }
 
     return resolution(
-      { kind: "anon", reason: "signed_out" },
+      { kind: "none", reason: "signed_out" },
       cookies,
       writeSession(cookies(), name, null, options.cookie?.options, encoding),
-      outcome.code === "user_banned" ? "banned" : undefined,
+      outcome.code === "user_banned" ? "user_banned" : undefined,
     );
   }
 

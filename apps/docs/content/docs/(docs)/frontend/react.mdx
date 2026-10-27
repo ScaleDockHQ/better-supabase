@@ -195,7 +195,7 @@ provider takes the record's `id`, the `initial` view the server loaded, the
 
 `useAuth()` reads the browser client, so it is `loading` during server
 rendering. To render signed-in UI on the server, hand Client Components the
-server-verified session instead: pass a `bsb.session()` promise to
+server-verified session instead: pass a `bsb.claims()` promise to
 `SessionProvider` and read it with `useSession()`.
 
 ```tsx title="Server Component, inside <Suspense>"
@@ -221,7 +221,7 @@ export function SideNav() {
 - `useSession()` suspends, so keep it under a `<Suspense>` boundary, and
   create the promise inside that boundary.
 - The session is a plain `AuthSession` (no token), the same type
-  `bsb.session()` returns. `tenantOf(session)` reads its active tenant (the
+  `bsb.claims()` returns. `tenantOf(session)` reads its active tenant (the
   tenant claim at the top level of the token, then in `app_metadata`), on
   the server and in the browser.
 

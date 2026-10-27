@@ -31,7 +31,7 @@ export interface ServerCore<
       readonly refresh?: boolean;
       readonly cookies?: boolean;
       readonly encode?: SessionEncoding;
-      readonly checkSession?: boolean;
+      readonly verifySession?: boolean;
       readonly leeway?: number;
       readonly onTiming?: (phase: ResolvePhase, ms: number) => void;
     },

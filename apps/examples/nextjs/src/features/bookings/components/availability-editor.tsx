@@ -31,16 +31,16 @@ import { WeeklyHoursForm } from "./weekly-hours-form";
 
 // #region recipe:availability-editor
 export async function AvailabilityEditor() {
-  const permissions = await getPermissions();
+  // The read starts with the permission check; RLS guards it either way.
+  const [permissions, t, setup] = await Promise.all([
+    getPermissions(),
+    getExtracted("bookings"),
+    settle(loadBookingSetup),
+  ]);
 
   if (!can(permissions, "bookings.manage")) {
     forbidden();
   }
-
-  const [t, setup] = await Promise.all([
-    getExtracted("bookings"),
-    settle(loadBookingSetup),
-  ]);
 
   const page = setup.kind === "ok" ? setup.data.page : null;
 

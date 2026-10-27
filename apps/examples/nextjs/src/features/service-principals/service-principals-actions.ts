@@ -7,8 +7,6 @@ import {
 } from "better-supabase/blocks/service-accounts";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
@@ -38,9 +36,8 @@ export const createServicePrincipal = bsb.action(
       role: v.picklist(["member", "admin"]),
       isDefault: v.boolean(),
     }),
-    requireOrganization: true,
-    authorize: async () =>
-      can(await getPermissions(), "service_principals.manage"),
+    requireTenant: true,
+    permission: "service_principals.manage",
   },
   async ({ name, role, isDefault }, { tenant, auth }) => {
     if (auth.kind !== "user") {
@@ -56,7 +53,7 @@ export const createServicePrincipal = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(created.data.id);
   },
@@ -66,9 +63,8 @@ export const createServicePrincipal = bsb.action(
 export const disableServicePrincipal = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
-    requireOrganization: true,
-    authorize: async () =>
-      can(await getPermissions(), "service_principals.manage"),
+    requireTenant: true,
+    permission: "service_principals.manage",
   },
   async ({ id }, { auth }) => {
     if (auth.kind !== "user") {
@@ -82,7 +78,7 @@ export const disableServicePrincipal = bsb.action(
     });
 
     if (disabled.ok) {
-      refreshCaller(auth);
+      await refreshCaller(auth);
     }
 
     return disabled;

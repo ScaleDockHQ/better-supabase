@@ -398,8 +398,8 @@ export interface AuthorizeUrlParams {
   /** The OAuth provider, such as `github` or `google`. */
   readonly provider: string;
   /**
-   * The absolute URL of the callback route that calls `exchangeCode`. It must
-   * be in the project's redirect allow list.
+   * The absolute URL of the callback route that calls `exchangeCodeForSession`.
+   * It must be in the project's redirect allow list.
    */
   readonly redirectTo: string;
   /** Space-separated provider scopes. */

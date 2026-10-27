@@ -121,7 +121,7 @@ export type EdgeRouteHandler<
 ) => unknown;
 
 /**
- * A route with its own guard: `allow`, `aal`, `scopes`, `requireOrganization`,
+ * A route with its own guard: `allow`, `aal`, `scopes`, `requireTenant`,
  * `authorize`.
  */
 export interface EdgeRoute<
@@ -194,7 +194,7 @@ export interface BetterEdge<
    *       "GET /customers/:id": (req, ctx) =>
    *         ctx.db.customers.find(ctx.params.id),
    *       "POST /invites": {
-   *         requireOrganization: true,
+   *         requireTenant: true,
    *         handler: (req, ctx) => invite(req, ctx),
    *       },
    *     },

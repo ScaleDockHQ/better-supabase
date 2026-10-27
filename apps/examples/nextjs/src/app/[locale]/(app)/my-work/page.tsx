@@ -7,8 +7,6 @@ import {
   MyWorkListSkeleton,
 } from "@/features/my-work/components/my-work-list";
 
-export const instant = true;
-
 export default function MyWorkPage() {
   const t = useExtracted("myWork");
 

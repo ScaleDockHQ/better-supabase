@@ -9,8 +9,6 @@ import {
 } from "@/features/forms/components/form-list";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
-export const instant = true;
-
 export default function FormsPage() {
   const t = useExtracted("forms");
 

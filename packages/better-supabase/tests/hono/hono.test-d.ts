@@ -70,7 +70,7 @@ describe("bsb.Env and bsb.app()", () => {
 
         if (c.var.auth.kind === "user") {
           expectTypeOf(c.var.auth.claims.tenant_id).toEqualTypeOf<string>();
-          expectTypeOf(c.var.auth.profile).toEqualTypeOf<
+          expectTypeOf(c.var.auth.userMetadata).toEqualTypeOf<
             { display_name: string } | undefined
           >();
         }

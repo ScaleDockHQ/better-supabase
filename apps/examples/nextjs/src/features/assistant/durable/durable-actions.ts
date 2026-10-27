@@ -4,8 +4,6 @@ import { dbError, err, ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
 import { durable, durableContext } from "./durable-server";
@@ -22,8 +20,8 @@ export const decideApproval = bsb.action(
       approvalId: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
       approved: v.boolean(),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "ai_chat.create"),
+    requireTenant: true,
+    permission: "ai_chat.create",
   },
   async ({ chatId, approvalId, approved }, { tenant, auth, supabase }) => {
     if (auth.kind !== "user") {

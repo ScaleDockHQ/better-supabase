@@ -12,7 +12,7 @@ const customer = ["id", "name", "status", "organizationId"] as const;
 const admins = guard({
   roles: ["admin"],
   roleClaim: "user_role",
-  requireOrganization: true,
+  requireTenant: true,
 });
 
 export const app = express()

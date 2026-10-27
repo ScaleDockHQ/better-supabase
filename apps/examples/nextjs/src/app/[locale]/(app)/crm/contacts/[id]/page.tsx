@@ -9,8 +9,6 @@ import {
 } from "@/features/crm/components/contact-detail";
 import { Link } from "@/i18n/navigation";
 
-export const instant = true;
-
 /** The back link is the static shell; the contact streams in. */
 export default function ContactPage({
   params,

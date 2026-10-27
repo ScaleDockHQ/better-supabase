@@ -334,9 +334,9 @@ describe("subjectFor", () => {
     expect(
       subjectFor({ auth: { ...user, claims: { ...user.claims, iss: "" } } }),
     ).toEqual({ type: "user", id: "u1" });
-    expect(
-      subjectFor({ auth: { kind: "service", keyName: "secret" } }),
-    ).toEqual({ type: "app" });
+    expect(subjectFor({ auth: { kind: "secret", keyName: "secret" } })).toEqual(
+      { type: "app" },
+    );
 
     const apiKey = {
       kind: "apiKey",
@@ -352,7 +352,7 @@ describe("subjectFor", () => {
     });
     expect(subjectFor({ auth: apiKey })).toBeUndefined();
     expect(
-      subjectFor({ auth: { kind: "anon", reason: "none" } }),
+      subjectFor({ auth: { kind: "none", reason: "none" } }),
     ).toBeUndefined();
   });
 });

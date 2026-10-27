@@ -638,6 +638,7 @@ const FLAT = {
       scope: v.optional(v.string()),
       features: v.optional(v.string()),
       memberships: v.optional(v.string()),
+      permissions: v.optional(v.string()),
     }),
   ),
   buckets: v.optional(v.record(v.string(), bucket)),
@@ -897,7 +898,7 @@ const ENTRIES = {
   ),
   auth: v.optional(
     v.strictObject({
-      organization: v.optional(
+      tenant: v.optional(
         v.strictObject({
           claim: v.optional(v.string()),
           column: v.optional(v.string()),

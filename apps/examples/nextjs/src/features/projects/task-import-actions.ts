@@ -14,8 +14,6 @@ import {
 import * as v from "valibot";
 
 import { importRunHooks } from "@/features/imports/import-run";
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -94,11 +92,7 @@ export interface TaskImportOutcome {
  * title)` unique set). Nothing is written.
  */
 export const previewTaskImport = bsb.action(
-  {
-    input: Input,
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "imports.manage"),
-  },
+  { input: Input, requireTenant: true, permission: "imports.manage" },
   async ({ projectId, csv, mapping }, { tenant, db }) => {
     const definition = appTableImport({
       table: "tasks",
@@ -122,11 +116,7 @@ export const previewTaskImport = bsb.action(
  * it already has and gains the ones that were empty (`fill`).
  */
 export const runTaskImport = bsb.action(
-  {
-    input: Input,
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "imports.manage"),
-  },
+  { input: Input, requireTenant: true, permission: "imports.manage" },
   async ({ projectId, csv, mapping }, { tenant, db, auth }) => {
     const definition = appTableImport({
       table: "tasks",
@@ -140,7 +130,7 @@ export const runTaskImport = bsb.action(
     try {
       const result = await runImport(definition, csv, mapping, hooks);
 
-      refreshCaller(auth);
+      await refreshCaller(auth);
 
       return ok<TaskImportOutcome>({
         status: result.status,

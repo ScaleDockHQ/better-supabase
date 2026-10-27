@@ -36,6 +36,7 @@ function NameCell({ row }: RoleCell) {
   return (
     <Link
       href={`/settings/roles/${id}`}
+      prefetch
       className="font-medium hover:underline"
     >
       <RoleName roleKey={key} />

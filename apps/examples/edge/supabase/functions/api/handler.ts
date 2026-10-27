@@ -22,7 +22,7 @@ export const handler = bsb.routes(
       db.customers.get(params.id, { select: customer }),
     "POST /customers/:id/archive": {
       ...admin,
-      requireOrganization: true,
+      requireTenant: true,
       handler: (_request, { db, params }) =>
         db.customers.update(
           params.id,

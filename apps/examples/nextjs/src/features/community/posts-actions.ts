@@ -3,8 +3,6 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -16,8 +14,8 @@ export const createFeedbackBoard = bsb.action(
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "posts.manage"),
+    requireTenant: true,
+    permission: "posts.manage",
   },
   async ({ name }, { db, auth }) => {
     const board = await db.posts.saveBoard({
@@ -30,7 +28,7 @@ export const createFeedbackBoard = bsb.action(
       return board;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: board.data.id });
   },
@@ -44,8 +42,8 @@ export const createPost = bsb.action(
       title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
       body: v.pipe(v.string(), v.maxLength(10_000)),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "posts.write"),
+    requireTenant: true,
+    permission: "posts.write",
   },
   async ({ boardId, title, body }, { db, auth }) => {
     const post = await db.posts.create(boardId, { title, body });
@@ -54,7 +52,7 @@ export const createPost = bsb.action(
       return post;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: post.data.id, moderation: post.data.moderation });
   },
@@ -64,8 +62,8 @@ export const createPost = bsb.action(
 export const voteOnPost = bsb.action(
   {
     input: v.object({ postId: Id, value: v.picklist([0, 1]) }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "posts.read"),
+    requireTenant: true,
+    permission: "posts.read",
   },
   async ({ postId, value }, { db, auth }) => {
     const tally = await db.posts.vote(postId, value);
@@ -74,7 +72,7 @@ export const voteOnPost = bsb.action(
       return tally;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(tally.data);
   },

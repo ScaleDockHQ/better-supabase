@@ -13,6 +13,10 @@ import { authzVersionOf, issuedAtOf } from "./snapshot.ts";
 
 export { tenantOf } from "./tenant.ts";
 
+export { permissionsOf } from "./permissions.ts";
+
+export type { PermissionsOfOptions } from "./permissions.ts";
+
 /**
  * The verified caller as plain data: no token, no clients. Safe to return from
  * a `'use cache: private'` function and to pass to Client Components.
@@ -46,12 +50,12 @@ export type AuthSession<C = unknown, P = unknown> =
        * display. Absent without a schema or when the metadata fails it. Users
        * write this data with `auth.updateUser()`: never base access on it.
        */
-      readonly profile?: P;
+      readonly userMetadata?: P;
       /** `aal2` once the user verified a second factor in this session. */
       readonly aal: Aal;
       /**
        * Signed in with `signInAnonymously()` (the `is_anonymous` claim). Guards
-       * refuse these users unless `allow` lists `'anonymous'`; `'anon'` means
+       * refuse these users unless `allow` lists `'anonymous'`; `'none'` means
        * no session and never admits them.
        */
       readonly anonymous: boolean;
@@ -76,7 +80,7 @@ export type AuthSession<C = unknown, P = unknown> =
        */
       readonly delegation?: SessionDelegation;
     }
-  | { readonly kind: "service"; readonly keyName: string }
+  | { readonly kind: "secret"; readonly keyName: string }
   | {
       readonly kind: "apiKey";
       readonly keyId: string;
@@ -89,14 +93,14 @@ export type AuthSession<C = unknown, P = unknown> =
       /** The user who created the key. */
       readonly createdBy?: string;
     }
-  | { readonly kind: "anon"; readonly reason: AnonReason }
+  | { readonly kind: "none"; readonly reason: AnonReason }
   | {
       readonly kind: "invalid";
       readonly reason: InvalidReason;
       readonly error: DbError;
     };
 
-type AnonReason = Extract<AuthState, { kind: "anon" }>["reason"];
+type AnonReason = Extract<AuthState, { kind: "none" }>["reason"];
 
 /** Whether the token belongs to an anonymous user (`signInAnonymously()`). */
 export function isAnonymousUser(claims: Readonly<object>): boolean {
@@ -141,7 +145,9 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
         expiresAt: auth.expiresAt,
         issuedAt: issuedAtOf(auth.claims),
         authzVersion: authzVersionOf(auth.claims),
-        ...(auth.profile === undefined ? {} : { profile: auth.profile }),
+        ...(auth.userMetadata === undefined
+          ? {}
+          : { userMetadata: auth.userMetadata }),
         aal: aalOf(auth.claims),
         anonymous: isAnonymousUser(auth.claims),
         amr: amrOf(auth.claims),
@@ -151,8 +157,8 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
       };
     }
 
-    case "service": {
-      return { kind: "service", keyName: auth.keyName };
+    case "secret": {
+      return { kind: "secret", keyName: auth.keyName };
     }
 
     case "apiKey": {
@@ -170,8 +176,8 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
       };
     }
 
-    case "anon": {
-      return { kind: "anon", reason: auth.reason };
+    case "none": {
+      return { kind: "none", reason: auth.reason };
     }
 
     case "invalid": {

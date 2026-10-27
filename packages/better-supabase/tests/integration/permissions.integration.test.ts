@@ -114,7 +114,9 @@ describe.skipIf(!live)("access contract against the local database", () => {
           better_supabase.is_platform('support.start') as platform,
           better_supabase.is_platform('billing.manage') as not_platform,
           array(select better_supabase.tenant_ids_with('audit.read')) as ids,
-          better_supabase.permission_claims($2) -> $1::text as claims`,
+          better_supabase.permission_claims($2) -> $1::text as claims,
+          better_supabase.permission_claims($2, $1) as one,
+          better_supabase.permission_claims($2, null) as none`,
           [ORG, USER],
         );
 
@@ -133,6 +135,8 @@ describe.skipIf(!live)("access contract against the local database", () => {
       ids: [ORG],
     });
     expect(row["claims"]).toContain("members.*");
+    expect(row["one"]).toEqual({ [ORG]: row["claims"] });
+    expect(row["none"]).toEqual({});
   });
 
   it("narrows a delegated token to its mapped scopes and a permission cap", async () => {

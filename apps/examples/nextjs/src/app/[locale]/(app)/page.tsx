@@ -19,8 +19,6 @@ import {
   WorkspaceSummarySkeleton,
 } from "@/features/dashboard/components/workspace-summary";
 
-export const instant = true;
-
 /** Everything outside a `<Suspense>` boundary is the page's static shell. */
 export default function DashboardPage() {
   const t = useExtracted("dashboard");

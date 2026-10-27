@@ -65,7 +65,7 @@ describe("createSolidStart", () => {
       Promise.resolve(bsb.locals()),
     );
 
-    expect(locals?.bsb.auth.kind).toBe("anon");
+    expect(locals?.bsb.auth.kind).toBe("none");
   });
 
   it("throws a redirect or Problem Details for refused callers", async () => {

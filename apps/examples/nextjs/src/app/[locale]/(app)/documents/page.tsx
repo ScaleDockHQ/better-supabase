@@ -8,8 +8,6 @@ import {
 } from "@/features/documents/components/document-list";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
-export const instant = true;
-
 export default function DocumentsPage() {
   const t = useExtracted("documents");
 

@@ -481,10 +481,7 @@ describe("BS409", () => {
   it("passes when the claims match the provider", async () => {
     expect(
       await findings("BS409", {
-        auth: {
-          organization: { claim: "tenant_id" },
-          authorization: stubProvider,
-        },
+        auth: { tenant: { claim: "tenant_id" }, authorization: stubProvider },
       }),
     ).toEqual([]);
     expect(await findings("BS409", {})).toEqual([]);
@@ -512,7 +509,7 @@ describe("BS409", () => {
         severity: "warning",
         target: "claims.tenant",
         message: expect.stringContaining(
-          'writes the active tenant to "org_id", but auth.organization.claim is "tenant_id"',
+          'writes the active tenant to "org_id", but auth.tenant.claim is "tenant_id"',
         ),
       },
       {
@@ -534,7 +531,7 @@ describe("BS409", () => {
     expect(
       await findings("BS409", {
         auth: {
-          organization: { claim: "tenant_id" },
+          tenant: { claim: "tenant_id" },
           authorization: reading("claim"),
         },
         blocks: { permissions: { activeTenant: "claim" } },
@@ -543,7 +540,7 @@ describe("BS409", () => {
     expect(
       await findings("BS409", {
         auth: {
-          organization: { claim: "tenant_id" },
+          tenant: { claim: "tenant_id" },
           authorization: reading({
             profileColumn: "authz.sessions.organization_id",
           }),
@@ -558,6 +555,19 @@ describe("BS409", () => {
           "reads the active organization from the profile column authz.sessions.organization_id, but switch_organization writes it to the app_metadata claim",
         ),
       },
+    ]);
+    expect(
+      await findings("BS409", {
+        auth: {
+          tenant: { claim: "tenant_id" },
+          authorization: reading("resolver"),
+        },
+        blocks: { permissions: { activeTenant: "claim" } },
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining("the request (the tenant resolver)"),
+      }),
     ]);
   });
 
@@ -588,6 +598,32 @@ describe("BS409", () => {
         blocks: { permissions: { model: "provider" } },
       }),
     ).toEqual([]);
+    expect(
+      await findings("BS409", {
+        auth: {
+          authorization: withProvider({
+            ...provider,
+            roleSources: [
+              {
+                table: "authz.memberships",
+                role: {
+                  column: "role_id",
+                  through: { table: "authz.roles", id: "id", column: "key" },
+                },
+              },
+            ],
+          }),
+        },
+        blocks: { permissions: { model: "roles" } },
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        target: "authorization.suspension",
+        message: expect.stringContaining(
+          'sets suspension and roleSources, but blocks.permissions.model is "roles", so the SQL modules ignore them',
+        ),
+      }),
+    ]);
   });
 });
 
@@ -745,6 +781,15 @@ describe("BS411", () => {
       target: "authorization.functions.canAssignFor",
       message: expect.stringContaining("can_assign_as is not written"),
     });
+    expect(
+      await findings("BS411", config(partial, { inbox: {} }), { snapshot }),
+    ).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringMatching(
+          /The inbox module calls authorization\.functions\.idsWithFor/,
+        ),
+      }),
+    );
     expect(
       (
         await findings(

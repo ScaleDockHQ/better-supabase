@@ -150,13 +150,13 @@ function clientOnly(name: string): () => never {
   };
 }
 
-/** The `react-server` build of `useSession`: await `bsb.session()` instead. */
+/** The `react-server` build of `useSession`: await `bsb.claims()` instead. */
 export const useSession: <C = unknown, P = unknown>() => AuthSession<C, P> =
   clientOnly("useSession");
 
 /**
  * The `react-server` build of `useSupportSession`: use `supportOf(await
- * bsb.session())` instead.
+ * bsb.claims())` instead.
  */
 export const useSupportSession: () => SupportView | undefined =
   clientOnly("useSupportSession");

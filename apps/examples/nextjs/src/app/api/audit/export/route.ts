@@ -1,9 +1,6 @@
 import { dbError, err } from "better-supabase";
 import { hasEntitlement } from "better-supabase/blocks/entitlements";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-
-import { can } from "../../../../features/user/user-permissions";
 import { bsb } from "../../../../lib/supabase/server";
 
 /**
@@ -30,8 +27,5 @@ export const GET = bsb.route(
       },
     });
   },
-  {
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "audit.read"),
-  },
+  { requireTenant: true, permission: "audit.read" },
 );

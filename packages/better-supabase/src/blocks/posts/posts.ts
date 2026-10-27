@@ -10,7 +10,7 @@ import type { BlockOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { requireOrganization } from "../../core/block-tenant.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
@@ -252,7 +252,7 @@ export function createPosts<S extends StandardSchemaV1 | undefined = undefined>(
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "post fields");
-  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
   const post = (fn: string) => (value: unknown) => postOf(value, fn);
 
   const write = (input: Partial<PostInput<F>>) => {

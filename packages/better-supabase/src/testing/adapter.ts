@@ -74,7 +74,7 @@ export function testAdapter(
 
   const call = async (
     run: AdapterRun,
-    allow: NonNullable<GuardOptions["allow"]> = ["anon"],
+    allow: NonNullable<GuardOptions["allow"]> = ["none"],
     waitUntil: (promise: Promise<unknown>) => void = () => undefined,
   ): Promise<Response> =>
     options.serve(MODULE_SERVER, run, { allow, waitUntil })(
@@ -178,7 +178,7 @@ export function testAdapter(
 
             return { sent: true };
           },
-          ["anon"],
+          ["none"],
           (promise) => {
             waited.push(promise);
           },

@@ -622,7 +622,7 @@ describe("app tables over the app's own tables", () => {
 
   it("types the scope column an enriched table adds nullable and filters on it", async () => {
     const input = await model(appTable("invoices", "organization_id"), {
-      auth: { organization: { column: "organization_id" } },
+      auth: { tenant: { column: "organization_id" } },
       appTables: { invoices: {} },
     });
 
@@ -636,7 +636,7 @@ describe("app tables over the app's own tables", () => {
 
   it("filters a block-over-app table on the tenant column its subject names", async () => {
     const input = await model(appTable("client_rows", "company_id"), {
-      auth: { organization: { column: "organization_id" } },
+      auth: { tenant: { column: "organization_id" } },
       subjects: {
         client: { table: "public.client_rows", tenant: "company_id" },
       },

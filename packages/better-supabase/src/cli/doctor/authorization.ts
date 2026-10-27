@@ -606,7 +606,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "The authorization provider and the better-supabase config disagree",
     description:
-      "The provider's hook writes the active tenant to `tokenHook.tenantClaim`, and its tenant scope is `tenantScope`. Doctor warns when `auth.organization.claim` names another claim (the tenant plugin, guards and RLS would read a claim the hook never writes), notes when `auth.claims.scope` is neither `tenant` nor the provider's tenant scope, warns when the provider's `tokenHook.activeOrganizationFrom` differs from `blocks.permissions.activeTenant` (where `switch_organization` writes the active organization), notes when the provider sets `suspension` or `roleSources` but `blocks.permissions.model` is not `provider` (only that model reads them), and reports the `problems` the provider found while it was built.",
+      "The provider's hook writes the active tenant to `tokenHook.tenantClaim`, and its tenant scope is `tenantScope`. Doctor warns when `auth.tenant.claim` names another claim (the tenant plugin, guards and RLS would read a claim the hook never writes), notes when `auth.claims.scope` is neither `tenant` nor the provider's tenant scope, warns when the provider's `tokenHook.activeOrganizationFrom` differs from `blocks.permissions.activeTenant` (where `switch_organization` writes the active organization), notes when the provider sets `suspension` or `roleSources` but `blocks.permissions.model` is not `provider` (only that model reads them), and reports the `problems` the provider found while it was built.",
     check: (context) => {
       const provider = context.config.authorization;
 
@@ -630,7 +630,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
         tenantClaim !== context.config.claims.tenant
       ) {
         findings.push({
-          message: `The hook of ${label} writes the active tenant to "${tenantClaim}", but auth.organization.claim is "${context.config.claims.tenant}". Set auth.organization.claim to "${tenantClaim}", or change the provider's tenant claim.`,
+          message: `The hook of ${label} writes the active tenant to "${tenantClaim}", but auth.tenant.claim is "${context.config.claims.tenant}". Set auth.tenant.claim to "${tenantClaim}", or change the provider's tenant claim.`,
           target: "claims.tenant",
         });
       }

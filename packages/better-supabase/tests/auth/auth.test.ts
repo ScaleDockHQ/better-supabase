@@ -221,12 +221,12 @@ describe("resolveAuth", async () => {
       });
 
     expect((await resolveAuth(request(), options)).auth).toEqual({
-      kind: "anon",
+      kind: "none",
       reason: "none",
     });
     expect(
       (await resolveAuth(request(), { ...options, secret: true })).auth,
-    ).toEqual({ kind: "service", keyName: "default" });
+    ).toEqual({ kind: "secret", keyName: "default" });
   });
 
   it("restricts secret keys to the allowed names", async () => {
@@ -246,7 +246,7 @@ describe("resolveAuth", async () => {
       );
 
     expect((await call("sb_secret_cron")).auth).toEqual({
-      kind: "service",
+      kind: "secret",
       keyName: "cron",
     });
     expect((await call("sb_secret_test")).auth).toMatchObject({
@@ -276,7 +276,7 @@ describe("resolveAuth", async () => {
       options,
     );
 
-    expect(auth).toEqual({ kind: "anon", reason: "expired" });
+    expect(auth).toEqual({ kind: "none", reason: "expired" });
   });
 
   it("keeps a token inside the refresh leeway valid where refreshing is not allowed", async () => {
@@ -311,7 +311,7 @@ describe("resolveAuth", async () => {
       });
 
     expect((await request()).auth).toEqual({
-      kind: "anon",
+      kind: "none",
       reason: "refresh_failed",
     });
     await request();
@@ -334,7 +334,7 @@ describe("resolveAuth", async () => {
 
     await request();
     const again = await request();
-    expect(again.auth).toEqual({ kind: "anon", reason: "signed_out" });
+    expect(again.auth).toEqual({ kind: "none", reason: "signed_out" });
     expect(dead).toHaveBeenCalledOnce();
   });
 
@@ -412,8 +412,8 @@ describe("resolveAuth", async () => {
       },
     );
 
-    expect(rejected.auth).toEqual({ kind: "anon", reason: "signed_out" });
-    expect(rejected.sessionEnded).toBeUndefined();
+    expect(rejected.auth).toEqual({ kind: "none", reason: "signed_out" });
+    expect(rejected.sessionVerified).toBeUndefined();
     expect(rejected.cookies.every((write) => write.options.maxAge === 0)).toBe(
       true,
     );
@@ -432,8 +432,8 @@ describe("resolveAuth", async () => {
     );
 
     expect(banned).toMatchObject({
-      sessionEnded: true,
-      sessionEndedReason: "banned",
+      sessionVerified: false,
+      reason: "user_banned",
     });
 
     const offline = await resolveAuth(
@@ -459,7 +459,7 @@ describe("resolveAuth", async () => {
       },
     );
 
-    expect(lapsed.auth).toEqual({ kind: "anon", reason: "refresh_failed" });
+    expect(lapsed.auth).toEqual({ kind: "none", reason: "refresh_failed" });
     expect(lapsed.cookies).toEqual([]);
   });
 
@@ -520,14 +520,14 @@ describe("resolveAuth", async () => {
             name: "api-key",
             resolve: (request) =>
               request.headers.get("x-api-key")
-                ? { kind: "service", keyName: "partner" }
+                ? { kind: "secret", keyName: "partner" }
                 : undefined,
           },
         ],
       },
     );
 
-    expect(auth).toEqual({ kind: "service", keyName: "partner" });
+    expect(auth).toEqual({ kind: "secret", keyName: "partner" });
   });
 
   it("marks resolver failures as token failures", async () => {
@@ -684,10 +684,10 @@ describe("resolveAuth", async () => {
 
       expect(auth).toMatchObject({
         kind: "user",
-        profile: { display_name: "Ada" },
+        userMetadata: { display_name: "Ada" },
       });
       expect(toSession(auth)).toMatchObject({
-        profile: { display_name: "Ada" },
+        userMetadata: { display_name: "Ada" },
       });
     });
 
@@ -708,8 +708,8 @@ describe("resolveAuth", async () => {
         });
 
         expect(auth).toMatchObject({ kind: "user", user: { id: USER } });
-        expect(auth).not.toHaveProperty("profile");
-        expect(toSession(auth)).not.toHaveProperty("profile");
+        expect(auth).not.toHaveProperty("userMetadata");
+        expect(toSession(auth)).not.toHaveProperty("userMetadata");
       }
 
       expect(log.warn).toHaveBeenCalledExactlyOnceWith(expect.any(String), {
@@ -727,7 +727,10 @@ describe("resolveAuth", async () => {
         logger: logger(),
       });
 
-      expect(auth).toMatchObject({ kind: "user", profile: { theme: "light" } });
+      expect(auth).toMatchObject({
+        kind: "user",
+        userMetadata: { theme: "light" },
+      });
     });
 
     it("replaces a profile set by a custom resolver", async () => {
@@ -737,7 +740,11 @@ describe("resolveAuth", async () => {
       });
 
       const verified = await resolveAuth(bearer(token), options);
-      const forged = { ...verified.auth, profile: { display_name: "Eve" } };
+
+      const forged = {
+        ...verified.auth,
+        userMetadata: { display_name: "Eve" },
+      };
 
       const { auth } = await resolveAuth(new Request("https://api.test/"), {
         ...options,
@@ -745,7 +752,7 @@ describe("resolveAuth", async () => {
         resolvers: [{ name: "fixed", resolve: () => forged }],
       });
 
-      expect(auth).toMatchObject({ profile: { display_name: "Ada" } });
+      expect(auth).toMatchObject({ userMetadata: { display_name: "Ada" } });
     });
 
     it("never affects the claims or the authorization result", async () => {

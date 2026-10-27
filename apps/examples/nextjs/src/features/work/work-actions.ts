@@ -9,8 +9,6 @@ import * as v from "valibot";
 
 import type { AppDb } from "@/lib/supabase";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -71,8 +69,8 @@ export const createWorkItem = bsb.action(
       ),
       custom: v.optional(v.record(v.string(), v.string()), {}),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "work_items.write"),
+    requireTenant: true,
+    permission: "work_items.write",
   },
   async ({ title, teamId, priority, custom }, { tenant, db, auth }) => {
     const created = await db.$blocks.tasks.create(
@@ -117,7 +115,7 @@ export const createWorkItem = bsb.action(
       }
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(created.data.identifier);
   },
@@ -138,8 +136,8 @@ export const moveWorkItem = bsb.action(
       previousId: OptionalId,
       nextId: OptionalId,
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "work_items.write"),
+    requireTenant: true,
+    permission: "work_items.write",
   },
   async ({ id, stageId, stageChanged, previousId, nextId }, { db, auth }) => {
     if (stageChanged) {
@@ -157,7 +155,7 @@ export const moveWorkItem = bsb.action(
       next: nextId ?? null,
     });
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     if (!ranked.ok) {
       return stageChanged ? ok({ ordered: false }) : ranked;
@@ -171,8 +169,8 @@ export const moveWorkItem = bsb.action(
 export const setWorkItemStage = bsb.action(
   {
     input: v.object({ id: Id, stageId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "work_items.write"),
+    requireTenant: true,
+    permission: "work_items.write",
   },
   async ({ id, stageId }, { db, auth }) => {
     const moved = await applyChanges(db, [
@@ -183,7 +181,7 @@ export const setWorkItemStage = bsb.action(
       return moved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(true);
   },
@@ -193,8 +191,8 @@ export const setWorkItemStage = bsb.action(
 export const setWorkItemAssignee = bsb.action(
   {
     input: v.object({ id: Id, userId: OptionalId }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "work_items.write"),
+    requireTenant: true,
+    permission: "work_items.write",
   },
   async ({ id, userId }, { db, auth }) => {
     const assigned = await db.$blocks.tasks.assign(id, userId ? [userId] : []);
@@ -203,7 +201,7 @@ export const setWorkItemAssignee = bsb.action(
       return assigned;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(assigned.data);
   },
@@ -215,8 +213,8 @@ export const createTeam = bsb.action(
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(80)),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "teams.manage"),
+    requireTenant: true,
+    permission: "teams.manage",
   },
   async ({ name }, { tenant, db, auth }) => {
     const created = await db.teams.create(tenant, name);
@@ -225,7 +223,7 @@ export const createTeam = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(created.data.id);
   },
@@ -240,8 +238,8 @@ export const saveWorkView = bsb.action(
       state: v.nullable(WorkItemStateSchema),
       sort: WorkItemSortSchema,
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "views.read"),
+    requireTenant: true,
+    permission: "views.read",
   },
   async ({ name, q, state, sort }, { tenant, db, auth }) => {
     const query: WorkViewQuery = { sort };
@@ -265,7 +263,7 @@ export const saveWorkView = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(saved.data.id);
   },
@@ -274,8 +272,8 @@ export const saveWorkView = bsb.action(
 export const deleteWorkView = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "views.read"),
+    requireTenant: true,
+    permission: "views.read",
   },
   async ({ id }, { db, auth }) => {
     const deleted = await db.$blocks.savedViews.delete(id);
@@ -284,7 +282,7 @@ export const deleteWorkView = bsb.action(
       return deleted;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(deleted.data);
   },
@@ -307,8 +305,8 @@ export const runWorkBulkAction = bsb.action(
         ids: v.pipe(v.array(Id), v.minLength(1), v.maxLength(500)),
       }),
     ]),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "bulk.run"),
+    requireTenant: true,
+    permission: "bulk.run",
   },
   async (input, { tenant, db, auth }) => {
     const { bulk } = db;
@@ -334,7 +332,7 @@ export const runWorkBulkAction = bsb.action(
       return result;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({
       total: result.data.total,

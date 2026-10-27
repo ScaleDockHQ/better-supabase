@@ -10,7 +10,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 import type { Signer } from "../signing-keys/signing-keys.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { requireOrganization } from "../../core/block-tenant.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { JwsError, verifyCompact } from "../../core/jws.ts";
 import { AsyncResult } from "../../core/result.ts";
@@ -479,7 +479,7 @@ async function readToken(
 export function createPasses(options: PassesOptions): Passes {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
   const checkInCall = (
     passId: string,

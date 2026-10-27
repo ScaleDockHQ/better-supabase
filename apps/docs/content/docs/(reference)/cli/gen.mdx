@@ -246,10 +246,14 @@ extra round trips:
 - **Columns a CHECK makes not null.** A nullable column with
   `check (slug is not null)`, alone or as a term of a top-level `and`, is
   typed and validated as not null. It is required on insert unless it has
-  a default or the table has a row-level `before insert` trigger, which can
-  fill it before the CHECK runs. A term under `or` or `not`, and a
-  `not valid` constraint, change nothing. Prefer `not null` on the column
-  itself when you can.
+  a default or a row-level `before insert` trigger fills it before the
+  CHECK runs. `gen` reads the trigger's PL/pgSQL body: the column counts as
+  filled when the body assigns it (`new.slug := …`, `new.slug = …` or
+  `select … into new.slug`). A trigger that only validates leaves it
+  required. When `gen` can't tell (another language, or the body replaces
+  the whole row with `new := …`), the column stays optional. A term under
+  `or` or `not`, and a `not valid` constraint, change nothing. Prefer
+  `not null` on the column itself when you can.
 - **Columns the database fills on insert.** A not-null column without a
   default is required in `InsertOf` and the insert validators. When a
   trigger or another database rule fills it, list its database name in

@@ -3,8 +3,6 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -22,8 +20,8 @@ const ParentId = v.pipe(
 export const createDriveFolder = bsb.action(
   {
     input: v.object({ parentId: ParentId, name: Name }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "drive.create"),
+    requireTenant: true,
+    permission: "drive.create",
   },
   async ({ parentId, name }, { tenant, db, auth }) => {
     const folder = await driveOf(db).createFolder(tenant, {
@@ -36,7 +34,7 @@ export const createDriveFolder = bsb.action(
       return folder;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: folder.data.id, name: folder.data.name });
   },
@@ -55,8 +53,8 @@ export const startDriveUpload = bsb.action(
       mimeType: v.pipe(v.string(), v.maxLength(255)),
       size: v.pipe(v.number(), v.integer(), v.minValue(1)),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "drive.create"),
+    requireTenant: true,
+    permission: "drive.create",
   },
   async ({ parentId, name, mimeType, size }, { tenant, db }) => {
     const upload = await driveOf(db).upload(tenant, {
@@ -87,8 +85,8 @@ export const startDriveUpload = bsb.action(
 export const commitDriveUpload = bsb.action(
   {
     input: v.object({ nodeId: Id, attachmentId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "drive.create"),
+    requireTenant: true,
+    permission: "drive.create",
   },
   async ({ nodeId, attachmentId }, { db, auth }) => {
     const committed = await driveOf(db).commit(nodeId, attachmentId);
@@ -97,7 +95,7 @@ export const commitDriveUpload = bsb.action(
       return committed;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: committed.data.id, name: committed.data.name });
   },
@@ -107,8 +105,8 @@ export const commitDriveUpload = bsb.action(
 export const abandonDriveUpload = bsb.action(
   {
     input: v.object({ nodeId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "drive.create"),
+    requireTenant: true,
+    permission: "drive.create",
   },
   async ({ nodeId }, { db }) => driveOf(db).delete(nodeId),
 );
@@ -116,8 +114,8 @@ export const abandonDriveUpload = bsb.action(
 export const renameDriveItem = bsb.action(
   {
     input: v.object({ id: Id, name: Name }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "drive.create"),
+    requireTenant: true,
+    permission: "drive.create",
   },
   async ({ id, name }, { db, auth }) => {
     const renamed = await driveOf(db).rename(id, name, { conflict: "rename" });
@@ -126,7 +124,7 @@ export const renameDriveItem = bsb.action(
       return renamed;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: renamed.data.id, name: renamed.data.name });
   },
@@ -139,8 +137,8 @@ export const renameDriveItem = bsb.action(
 export const trashDriveItem = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "drive.create"),
+    requireTenant: true,
+    permission: "drive.create",
   },
   async ({ id }, { db, auth }) => {
     const trashed = await driveOf(db).trash(id);
@@ -149,7 +147,7 @@ export const trashDriveItem = bsb.action(
       return trashed;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ trashItemId: trashed.data.id, count: trashed.data.count });
   },
@@ -159,8 +157,8 @@ export const trashDriveItem = bsb.action(
 export const downloadDriveFile = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "drive.read"),
+    requireTenant: true,
+    permission: "drive.read",
   },
   async ({ id }, { db }) => {
     const download = await driveOf(db).download(id, { as: true });
@@ -177,8 +175,8 @@ export const downloadDriveFile = bsb.action(
 export const requestDriveApproval = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "drive.create"),
+    requireTenant: true,
+    permission: "drive.create",
   },
   async ({ id }, { db, auth }) => {
     const requested = await driveOf(db).requestApproval(id);
@@ -187,7 +185,7 @@ export const requestDriveApproval = bsb.action(
       return requested;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: requested.data.id, revision: requested.data.revision });
   },

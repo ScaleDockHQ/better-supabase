@@ -51,8 +51,8 @@ export const createShareLink = bsb.action(
       /** 0 creates a link without an expiry. */
       expiresInDays: v.picklist(SHARE_EXPIRY_DAYS),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "share_links.create"),
+    requireTenant: true,
+    permission: "share_links.create",
   },
   async (
     { customerId, expiresInDays },
@@ -76,7 +76,7 @@ export const createShareLink = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ token: created.data.token });
   },
@@ -105,8 +105,8 @@ export const startAttachmentUpload = bsb.action(
         v.maxValue(MAX_ATTACHMENT_BYTES),
       ),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "attachments.upload"),
+    requireTenant: true,
+    permission: "attachments.upload",
   },
   async (
     { customerId, name, mimeType, size },
@@ -135,13 +135,13 @@ export const startAttachmentUpload = bsb.action(
 export const confirmAttachment = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "attachments.upload"),
+    requireTenant: true,
+    permission: "attachments.upload",
   },
   async ({ id }, { supabase, auth }) => {
     const confirmed = await customerAttachments(supabase).confirm(id);
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return confirmed.ok ? ok(null) : confirmed;
   },
@@ -151,8 +151,8 @@ export const confirmAttachment = bsb.action(
 export const downloadAttachment = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "attachments.read"),
+    requireTenant: true,
+    permission: "attachments.read",
   },
   async ({ id }, { supabase }) =>
     customerAttachments(supabase)
@@ -172,10 +172,9 @@ export const downloadAttachment = bsb.action(
 export const restoreCustomerVersion = bsb.action(
   {
     input: v.object({ customerId: Id, versionId: Id }),
-    requireOrganization: true,
-    authorize: async () =>
-      can(await getPermissions(), "versions.restore") &&
-      can(await getPermissions(), "customers.write"),
+    requireTenant: true,
+    permission: "versions.restore",
+    authorize: async () => can(await getPermissions(), "customers.write"),
   },
   async ({ customerId, versionId }, { tenant: organizationId, db, auth }) => {
     const { versions } = db.$with({ tenant: organizationId });
@@ -207,7 +206,7 @@ export const restoreCustomerVersion = bsb.action(
       return restored;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(null);
   },
@@ -217,8 +216,8 @@ export const restoreCustomerVersion = bsb.action(
 export const compareCustomerVersions = bsb.action(
   {
     input: v.object({ fromId: Id, toId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "versions.read"),
+    requireTenant: true,
+    permission: "versions.read",
   },
   async (
     { fromId, toId },
@@ -246,8 +245,8 @@ const DEFAULT_CUSTOMER_POLICY = {
 export const startCustomerSla = bsb.action(
   {
     input: v.object({ customerId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "sla.read"),
+    requireTenant: true,
+    permission: "sla.read",
   },
   async ({ customerId }, { tenant: organizationId, db, auth }) => {
     const { sla } = db.$with({ tenant: organizationId });
@@ -255,7 +254,7 @@ export const startCustomerSla = bsb.action(
     const started = await sla.start(subject);
 
     if (!started.ok || started.data.length > 0) {
-      refreshCaller(auth);
+      await refreshCaller(auth);
 
       return started.ok ? ok(started.data.length) : started;
     }
@@ -277,7 +276,7 @@ export const startCustomerSla = bsb.action(
 
     const restarted = await sla.start(subject);
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return restarted.ok ? ok(restarted.data.length) : restarted;
   },

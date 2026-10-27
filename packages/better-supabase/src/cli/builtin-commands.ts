@@ -104,6 +104,10 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.29")),
   ],
   [
+    "codemod 0.32",
+    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.32")),
+  ],
+  [
     "completion",
     () => import("./commands/completion.ts").then((m) => m.completionCommand),
   ],

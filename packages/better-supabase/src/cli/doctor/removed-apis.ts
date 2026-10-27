@@ -38,10 +38,6 @@ const REMOVED_NAMES: readonly { pattern: RegExp; replacement: string }[] = [
       "`bsb.router(defineApi(betterSupabase, options))`, which routes every block instance and table",
   },
   {
-    pattern: /\brequireTenant\b/,
-    replacement: "`requireOrganization` (`bsb codemod 0.15` renames it)",
-  },
-  {
     pattern:
       /["']better-supabase\/(?:blocks\/[\w-]+\/(?:react|vue|svelte|solid)|chat-sdk\/react)["']/,
     replacement:

@@ -48,7 +48,7 @@ cookie), rejects anyone not in `allow` with Problem Details, and sets:
 | `c.var.bsb`  | The full server context, including `supabase` and `sql` |
 
 ```ts
-app.use("/public/*", bsb.middleware({ allow: ["user", "anon"] }));
+app.use("/public/*", bsb.middleware({ allow: ["user", "none"] }));
 app.use("/app/*", bsb.middleware({ refresh: true })); // browser routes with cookies
 ```
 

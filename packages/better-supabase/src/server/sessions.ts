@@ -13,7 +13,7 @@ interface VerifiedSession<C, P> {
   readonly snapshot: SessionSnapshot<C>;
 }
 
-const ANON = { kind: "anon", reason: "none" } as const;
+const ANON = { kind: "none", reason: "none" } as const;
 
 /**
  * The verified state behind a snapshot this process built, `anon` once it
@@ -31,7 +31,7 @@ function authFor<C, P>(session: SessionSnapshot<C>): AuthState<C, P> {
   }
 
   if (session.expiresAt !== null && session.expiresAt * 1000 <= Date.now()) {
-    return { kind: "anon", reason: "expired" };
+    return { kind: "none", reason: "expired" };
   }
 
   return source;
@@ -66,7 +66,7 @@ export function serverSessions<C, P, Ctx, Opts extends object>(
     options?: Opts,
   ) => Promise<Ctx>;
   readonly sessions: ServerSessions<C, P>;
-  readonly forgetSession: (userId: string) => Promise<void>;
+  readonly evictSession: (userId: string) => Promise<void>;
 } {
   const memo =
     options.memo === false
@@ -139,7 +139,7 @@ export function serverSessions<C, P, Ctx, Opts extends object>(
       evict,
       clear: () => memo?.clear(),
     },
-    forgetSession: async (userId) => {
+    evictSession: async (userId) => {
       evict(userId);
       await options.versions?.evict(userId);
     },

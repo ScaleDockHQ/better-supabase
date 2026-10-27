@@ -1,5 +1,7 @@
 import { CloudIcon } from "lucide-react";
 
+import { OfflineBanner } from "@/features/offline/components/offline-banner";
+
 /**
  * Public pages wider than the sign-in column, such as a status page. Anyone can
  * open them; `src/proxy.ts` lists their paths.
@@ -13,6 +15,7 @@ export default function PublicLayout({ children }: LayoutProps<"/[locale]">) {
         </span>
         Acme Cloud
       </div>
+      <OfflineBanner className="max-w-3xl" />
       <main className="w-full max-w-3xl">{children}</main>
     </div>
   );

@@ -74,7 +74,7 @@ export async function stopViewing() {
 
 `startSupport` records the session, sets an HTTP-only `bsb-support` cookie that
 holds the session id, and returns an `ActionResult`. From the next request on,
-`bsb.session()`, `bsb.context()`, actions, routes and `bsb.cached()` all run as
+`bsb.claims()`, `bsb.context()`, actions, routes and `bsb.cached()` all run as
 the target. Ending the session (or its expiry) brings the admin back to their
 own view. Outside Next.js, `bsb.support.start(auth, request)` returns the
 session and the `Set-Cookie` header to send.

@@ -9,8 +9,6 @@ import {
 } from "@/features/knowledge/components/document-list";
 import { SearchForm } from "@/features/knowledge/components/search-form";
 
-export const instant = true;
-
 export default function KnowledgePage() {
   const t = useExtracted("knowledge");
 

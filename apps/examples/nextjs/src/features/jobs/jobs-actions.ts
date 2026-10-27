@@ -6,8 +6,6 @@ import { dbError, err, ok } from "better-supabase";
 import * as v from "valibot";
 
 import { requirePostgres, sqlResult } from "@/features/developer/postgres";
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -18,10 +16,7 @@ import { JOBS_PERMISSION, jobsOn, QUEUE_NAME, TEST_QUEUE } from "./jobs-server";
  * context, so it shows up in the organization's runs.
  */
 export const enqueueTestJob = bsb.action(
-  {
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), JOBS_PERMISSION),
-  },
+  { requireTenant: true, permission: JOBS_PERMISSION },
   async (_input, { tenant, auth }): Promise<Result<number>> => {
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to queue a job"));
@@ -40,7 +35,7 @@ export const enqueueTestJob = bsb.action(
     );
 
     if (queued.ok) {
-      refreshCaller(auth);
+      await refreshCaller(auth);
     }
 
     return queued;
@@ -57,8 +52,8 @@ export const retryJobRun = bsb.action(
       queue: v.pipe(v.string(), v.regex(QUEUE_NAME)),
       id: v.pipe(v.number(), v.integer(), v.minValue(1)),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), JOBS_PERMISSION),
+    requireTenant: true,
+    permission: JOBS_PERMISSION,
   },
   async ({ queue, id }, { tenant, auth }): Promise<Result<number>> => {
     const connection = requirePostgres();
@@ -87,7 +82,7 @@ export const retryJobRun = bsb.action(
       return err(dbError("not_found", "That job is not a failed run"));
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(Number(newId));
   },

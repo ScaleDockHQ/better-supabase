@@ -40,7 +40,7 @@ describe("oRPC middleware", () => {
   const whoami = (options: Parameters<typeof bsb.middleware>[0] = {}) =>
     os
       .$context<OrpcRequestContext>()
-      .use(bsb.middleware({ allow: ["anon", "user"], ...options }))
+      .use(bsb.middleware({ allow: ["none", "user"], ...options }))
       .handler(({ context }) =>
         context.auth.kind === "user" ? context.auth.user.id : context.auth.kind,
       );
@@ -72,7 +72,7 @@ describe("oRPC middleware", () => {
       await call(whoami({ cookies: false }), undefined, {
         context: { request },
       }),
-    ).toBe("anon");
+    ).toBe("none");
   });
 
   it("still accepts bearer tokens with cookies false", async () => {

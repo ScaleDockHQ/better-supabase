@@ -2282,6 +2282,7 @@ function MemberCellView({ row }: MemberCell) {
       <div className="grid min-w-0 leading-tight">
         <Link
           href={`/settings/members/${member.userId}`}
+          prefetch
           className="truncate font-medium hover:underline"
         >
           {member.name ?? member.email}
@@ -2744,6 +2745,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SubmitLabel } from "@/features/offline/components/submit-label";
 import { invitationSent } from "@/features/organization/organization-actions";
 import { useInviteLink } from "@/features/organization/use-invite-link";
 import { useRoleLabel } from "@/features/organization/use-role-label";
@@ -2910,7 +2912,9 @@ export function InviteMemberDialog({
                 {t("Cancel")}
               </DialogClose>
               <Button type="submit" disabled={inviting}>
-                {t("Send invitation")}
+                <SubmitLabel pending={inviting}>
+                  {t("Send invitation")}
+                </SubmitLabel>
               </Button>
             </DialogFooter>
           </form>
@@ -3966,6 +3970,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SubmitLabel } from "@/features/offline/components/submit-label";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { updateProfile } from "../user-actions";
@@ -4023,7 +4028,7 @@ export function ProfileForm({
         </Field>
       </FieldGroup>
       <Button type="submit" disabled={form.pending}>
-        {t("Save")}
+        <SubmitLabel pending={form.pending}>{t("Save")}</SubmitLabel>
       </Button>
     </form>
   );
@@ -6594,7 +6599,11 @@ export function WorkflowRuns({ tenant }: { tenant: string | null }) {
           {runs.map((run) => (
             <TableRow key={run.id}>
               <TableCell>
-                <Link href={`/workflows/${run.id}`} className="font-medium">
+                <Link
+                  href={`/workflows/${run.id}`}
+                  prefetch
+                  className="font-medium"
+                >
                   {workflowName(run.definition)}
                 </Link>
               </TableCell>
@@ -7624,10 +7633,11 @@ import { useSupabase } from "@/lib/hooks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 
 /**
- * The worker in `public/` that shows the pushes; it must be served from the
- * site root.
+ * The app's one service worker in `public/`, which shows the pushes. It must be
+ * served from the site root, and any other registration of the app's worker
+ * must use the same URL, or the two replace each other.
  */
-const WORKER_URL = "/push-sw.js";
+const WORKER_URL = "/sw.js";
 const PUSH_GUIDE = "https://bettersupabase.com/docs/blocks/push";
 
 const VAPID_PUBLIC_KEY = env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -15705,17 +15715,17 @@ async function retry() {
 
 /** Render inside `<Suspense>`: the organization's products as cards. */
 export async function ProductCatalogGrid() {
-  const permissions = await getPermissions();
-
-  if (!can(permissions, "catalog.read")) {
-    forbidden();
-  }
-
-  const [products, t, locale] = await Promise.all([
+  // The read starts with the permission check; RLS guards it either way.
+  const [permissions, products, t, locale] = await Promise.all([
+    getPermissions(),
     getProducts(),
     getExtracted("shop"),
     getLocale(),
   ]);
+
+  if (!can(permissions, "catalog.read")) {
+    forbidden();
+  }
 
   if (products.kind === "no-organization") {
     return null;
@@ -15847,16 +15857,16 @@ async function retry() {
 
 /** Render inside `<Suspense>`: stock per tracked variant and active location. */
 export async function InventoryTable() {
-  const permissions = await getPermissions();
+  // The read starts with the permission check; RLS guards it either way.
+  const [permissions, stock, t] = await Promise.all([
+    getPermissions(),
+    getStockLevels(),
+    getExtracted("shop"),
+  ]);
 
   if (!can(permissions, "inventory.read")) {
     forbidden();
   }
-
-  const [stock, t] = await Promise.all([
-    getStockLevels(),
-    getExtracted("shop"),
-  ]);
 
   if (stock.kind === "no-organization") {
     return null;
@@ -17140,16 +17150,16 @@ npx shadcn add badge card empty skeleton
 
 ```tsx title="apps/examples/nextjs/src/features/bookings/components/availability-editor.tsx"
 export async function AvailabilityEditor() {
-  const permissions = await getPermissions();
+  // The read starts with the permission check; RLS guards it either way.
+  const [permissions, t, setup] = await Promise.all([
+    getPermissions(),
+    getExtracted("bookings"),
+    settle(loadBookingSetup),
+  ]);
 
   if (!can(permissions, "bookings.manage")) {
     forbidden();
   }
-
-  const [t, setup] = await Promise.all([
-    getExtracted("bookings"),
-    settle(loadBookingSetup),
-  ]);
 
   const page = setup.kind === "ok" ? setup.data.page : null;
 
@@ -17228,18 +17238,18 @@ npx shadcn add card empty skeleton
  * offset before every occurrence of the event, once per occurrence.
  */
 export async function RemindersList() {
-  const permissions = await getPermissions();
-
-  if (!can(permissions, "reminders.manage")) {
-    return null;
-  }
-
-  const [t, format, upcoming] = await Promise.all([
+  // The read starts with the permission check; RLS guards it either way.
+  const [permissions, t, format, upcoming] = await Promise.all([
+    getPermissions(),
     getExtracted("calendar"),
     getFormatter(),
     settle(loadUpcomingReminders),
     connection(),
   ]);
+
+  if (!can(permissions, "reminders.manage")) {
+    return null;
+  }
 
   if (upcoming.kind === "no-organization") {
     return null;

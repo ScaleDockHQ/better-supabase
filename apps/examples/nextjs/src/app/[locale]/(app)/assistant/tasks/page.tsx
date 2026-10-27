@@ -5,8 +5,6 @@ import { PageHeader } from "@/components/page-header";
 import { AiTaskQueueSkeleton } from "@/features/ai-tasks/components/ai-task-queue";
 import { AiTaskSection } from "@/features/ai-tasks/components/ai-task-section";
 
-export const instant = true;
-
 export default function AiTasksPage() {
   const t = useExtracted("aiTasks");
 

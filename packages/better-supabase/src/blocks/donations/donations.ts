@@ -21,7 +21,7 @@ import type { BlockOptions } from "../shared.ts";
 import { paymentProviderOf } from "../../commerce/payments.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { requireOrganization } from "../../core/block-tenant.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { isRecord } from "../../core/guards.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -564,7 +564,7 @@ export function createDonations<
     options.mappers,
   );
 
-  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
   const fields: BlockFields<F> = blockFields(options.fields, "gift fields");
 
   const gift =

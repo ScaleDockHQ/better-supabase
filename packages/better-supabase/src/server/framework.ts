@@ -22,8 +22,8 @@ import { withBetterSupabase } from "./composite.ts";
 export const EVERY_CALLER: readonly AllowedCaller[] = [
   "user",
   "anonymous",
-  "anon",
-  "service",
+  "none",
+  "secret",
   "apiKey",
 ];
 
@@ -35,7 +35,7 @@ export interface FrameworkOptions
   extends
     ServerOptions,
     RefusalRedirects,
-    Pick<SessionEntryConfig, "checkSession" | "cookieScopes" | "encode"> {
+    Pick<SessionEntryConfig, "verifySession" | "cookieScopes" | "encode"> {
   /**
    * When the middleware refreshes an expired session cookie. Defaults to
    * `'navigation'`: page loads, client navigations and form posts.
@@ -105,9 +105,9 @@ export function frameworkEntry<
     refresh: options.refresh ?? "navigation",
     allow: EVERY_CALLER,
     expose,
-    ...(options.checkSession === undefined
+    ...(options.verifySession === undefined
       ? {}
-      : { checkSession: options.checkSession }),
+      : { verifySession: options.verifySession }),
     ...(options.cookieScopes === undefined
       ? {}
       : { cookieScopes: options.cookieScopes }),

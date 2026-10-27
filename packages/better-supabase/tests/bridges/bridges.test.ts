@@ -289,7 +289,7 @@ describe("bridge behavior", () => {
       withBetterSupabase(betterSupabase, {
         env,
         auth: { jwks: signer.jwks },
-        allow: ["anon"],
+        allow: ["none"],
       }),
     ]);
 

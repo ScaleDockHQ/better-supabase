@@ -4,8 +4,6 @@ import { dbError, err, ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -26,8 +24,8 @@ export const saveField = bsb.action(
       type: FieldTypeSchema,
       sensitive: v.optional(v.boolean(), false),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "custom_fields.manage"),
+    requireTenant: true,
+    permission: "custom_fields.manage",
   },
   async ({ entity, key, label, type, sensitive }, { db, auth }) => {
     const saved = await db.customFields.saveDefinition(
@@ -42,7 +40,7 @@ export const saveField = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(saved.data.id);
   },
@@ -51,8 +49,8 @@ export const saveField = bsb.action(
 export const deleteField = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "custom_fields.manage"),
+    requireTenant: true,
+    permission: "custom_fields.manage",
   },
   async ({ id }, { db, auth }) => {
     const deleted = await db.customFields.deleteDefinition(id);
@@ -61,7 +59,7 @@ export const deleteField = bsb.action(
       return deleted;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(deleted.data);
   },
@@ -78,8 +76,8 @@ export const moveField = bsb.action(
       id: Id,
       direction: v.picklist(["up", "down"]),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "custom_fields.manage"),
+    requireTenant: true,
+    permission: "custom_fields.manage",
   },
   async ({ entity, id, direction }, { db, auth }) => {
     const { customFields } = db;
@@ -128,7 +126,7 @@ export const moveField = bsb.action(
       }
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(true);
   },

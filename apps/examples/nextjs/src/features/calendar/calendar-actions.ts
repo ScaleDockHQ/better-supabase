@@ -4,8 +4,6 @@ import { dbError, err, ok } from "better-supabase";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -20,8 +18,8 @@ export const addEventReminder = bsb.action(
       eventId: Id,
       offsetMinutes: v.picklist(REMINDER_OFFSETS),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "reminders.manage"),
+    requireTenant: true,
+    permission: "reminders.manage",
   },
   async ({ eventId, offsetMinutes }, { db, auth }) => {
     const saved = await db.reminders.upsert(
@@ -33,7 +31,7 @@ export const addEventReminder = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(null);
   },
@@ -43,8 +41,8 @@ export const addEventReminder = bsb.action(
 export const removeEventReminder = bsb.action(
   {
     input: v.object({ reminderId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "reminders.manage"),
+    requireTenant: true,
+    permission: "reminders.manage",
   },
   async ({ reminderId }, { db, auth }) => {
     const removed = await db.reminders.remove(reminderId);
@@ -57,7 +55,7 @@ export const removeEventReminder = bsb.action(
       return err(dbError("not_found", "Reminder not found"));
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(null);
   },
@@ -74,8 +72,8 @@ export const createCalendar = bsb.action(
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
       tz: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "calendar.manage"),
+    requireTenant: true,
+    permission: "calendar.manage",
   },
   async ({ name, tz }, { tenant, db, auth }) => {
     const created = await db.calendar.createCalendar(tenant, name, { tz });
@@ -84,7 +82,7 @@ export const createCalendar = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: created.data.id });
   },
@@ -112,8 +110,8 @@ export const createEvent = bsb.action(
         "End after the start",
       ),
     ),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "calendar.write"),
+    requireTenant: true,
+    permission: "calendar.write",
   },
   async (input, { db, auth }) => {
     const day = Temporal.PlainDate.from(input.date);
@@ -141,7 +139,7 @@ export const createEvent = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: saved.data.id });
   },
@@ -161,8 +159,8 @@ export const setWorkingHours = bsb.action(
       }),
       v.check((input) => input.start < input.end, "End after the start"),
     ),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "calendar.read"),
+    requireTenant: true,
+    permission: "calendar.read",
   },
   async ({ tz, start, end }, { tenant, db, auth }) => {
     const saved = await db.calendar.setWorkingHours(tenant, {
@@ -174,7 +172,7 @@ export const setWorkingHours = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ rows: saved.data });
   },

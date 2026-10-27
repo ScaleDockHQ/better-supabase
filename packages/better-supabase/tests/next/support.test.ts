@@ -124,7 +124,7 @@ describe("support sessions in Next.js", () => {
     expect(mocks.updateTag).toHaveBeenCalledWith(sessionTag(ADMIN));
 
     mocks.headers.set("cookie", `bsb-support=${id}`);
-    const view = await bsb.session();
+    const view = await bsb.claims();
     expect(view.kind === "user" && view.user.id).toBe(TARGET);
     expect(supportOf(view)).toMatchObject({ sessionId: id, adminId: ADMIN });
     const cached = await bsb.cached();

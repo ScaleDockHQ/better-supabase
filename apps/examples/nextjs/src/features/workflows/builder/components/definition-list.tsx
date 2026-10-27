@@ -31,6 +31,7 @@ export async function DefinitionList() {
         >
           <Link
             href={`/workflows/builder/${definition.id}`}
+            prefetch
             className="font-medium"
           >
             {definition.name}

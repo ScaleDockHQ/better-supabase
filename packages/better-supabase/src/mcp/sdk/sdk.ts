@@ -316,7 +316,7 @@ export function createMcpAuth<
     },
   };
 
-  const anon: AuthState<C, P> = { kind: "anon", reason: "none" };
+  const anon: AuthState<C, P> = { kind: "none", reason: "none" };
 
   const contextOf = async (
     ctx: McpContext,
@@ -366,7 +366,7 @@ export function createMcpAuth<
   ): Promise<Response> => {
     const header = request.headers.get("authorization");
 
-    if (!header && allow.includes("anon")) {
+    if (!header && allow.includes("none")) {
       return handler.fetch(request);
     }
 

@@ -10,8 +10,6 @@ import {
   SecurityCardsSkeleton,
 } from "@/features/user/components/security-cards";
 
-export const instant = true;
-
 export default function SecuritySettingsPage() {
   return (
     <>

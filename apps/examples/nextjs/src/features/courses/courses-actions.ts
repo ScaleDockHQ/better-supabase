@@ -3,8 +3,6 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -26,8 +24,8 @@ export const createSampleCourse = bsb.action(
         v.maxLength(10),
       ),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "courses.manage"),
+    requireTenant: true,
+    permission: "courses.manage",
   },
   async ({ title, lessons }, { db, auth }) => {
     const { courses } = db;
@@ -68,7 +66,7 @@ export const createSampleCourse = bsb.action(
       return published;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: course.data.id });
   },
@@ -78,8 +76,8 @@ export const createSampleCourse = bsb.action(
 export const enrollInCourse = bsb.action(
   {
     input: v.object({ courseId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "courses.read"),
+    requireTenant: true,
+    permission: "courses.read",
   },
   async ({ courseId }, { db, auth }) => {
     const learner = await db.courses.enroll(courseId);
@@ -88,7 +86,7 @@ export const enrollInCourse = bsb.action(
       return learner;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ status: learner.data.status });
   },
@@ -98,8 +96,8 @@ export const enrollInCourse = bsb.action(
 export const completeLesson = bsb.action(
   {
     input: v.object({ lessonId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "courses.read"),
+    requireTenant: true,
+    permission: "courses.read",
   },
   async ({ lessonId }, { db, auth }) => {
     const learner = await db.courses.complete(lessonId);
@@ -108,7 +106,7 @@ export const completeLesson = bsb.action(
       return learner;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ status: learner.data.status });
   },
@@ -128,8 +126,8 @@ export const submitQuiz = bsb.action(
       lessonId: Id,
       answers: v.record(v.pipe(v.string(), v.maxLength(63)), Answer),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "courses.read"),
+    requireTenant: true,
+    permission: "courses.read",
   },
   async ({ lessonId, answers }, { db, auth }) => {
     const result = await db.courses.submitQuiz(lessonId, answers);
@@ -138,7 +136,7 @@ export const submitQuiz = bsb.action(
       return result;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     const entry = result.data.progress.lessons.find(
       (lesson) => lesson.lessonId === lessonId,

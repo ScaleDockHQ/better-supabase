@@ -11,8 +11,6 @@ import { TenantWorkflowRuns } from "@/features/workflows/components/tenant-workf
 import { WorkflowActions } from "@/features/workflows/components/workflow-actions";
 import { WorkflowRunsSkeleton } from "@/features/workflows/components/workflow-runs";
 
-export const instant = true;
-
 export default function WorkflowsPage() {
   const t = useExtracted("workflows");
 

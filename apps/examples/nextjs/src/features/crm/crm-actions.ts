@@ -5,8 +5,6 @@ import { parseMoney } from "better-supabase/commerce";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -36,8 +34,8 @@ export const createContact = bsb.action(
       email: Optional,
       domain: Optional,
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "parties.write"),
+    requireTenant: true,
+    permission: "parties.write",
   },
   async ({ kind, name, email, domain }, { tenant, db, auth }) => {
     const { contacts: parties } = db.$blocks;
@@ -51,7 +49,7 @@ export const createContact = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: saved.data.id, name: saved.data.name });
   },
@@ -61,8 +59,8 @@ export const createContact = bsb.action(
 export const linkPerson = bsb.action(
   {
     input: v.object({ companyId: Id, personId: Id, role: Optional }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "parties.write"),
+    requireTenant: true,
+    permission: "parties.write",
   },
   async ({ companyId, personId, role }, { db, auth }) => {
     const linked = await db.$blocks.contacts.linkPerson(
@@ -75,7 +73,7 @@ export const linkPerson = bsb.action(
       return linked;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(true);
   },
@@ -91,8 +89,8 @@ export const logActivity = bsb.action(
       title: Name,
       body: Optional,
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "engagements.write"),
+    requireTenant: true,
+    permission: "engagements.write",
   },
   async (
     { subjectType, subjectId, type, title, body },
@@ -114,7 +112,7 @@ export const logActivity = bsb.action(
       return logged;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: logged.data.id });
   },
@@ -136,10 +134,7 @@ const DEFAULT_STAGES = [
 
 /** Creates the "Sales" deal pipeline with six stages, unless one exists. */
 export const createDefaultPipeline = bsb.action(
-  {
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "pipelines.manage"),
-  },
+  { requireTenant: true, permission: "pipelines.manage" },
   async (_input, { tenant, db, auth }) => {
     const { pipelines } = db;
     const existing = await pipelines.list(tenant, "deal");
@@ -174,7 +169,7 @@ export const createDefaultPipeline = bsb.action(
       }
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: pipeline.data.id });
   },
@@ -191,8 +186,8 @@ export const createDeal = bsb.action(
       pipelineId: Id,
       stageId: Id,
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "deals.write"),
+    requireTenant: true,
+    permission: "deals.write",
   },
   async (
     { name, amount, currency, closeOn, pipelineId, stageId },
@@ -211,7 +206,7 @@ export const createDeal = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: created.data.id, identifier: created.data.identifier });
   },
@@ -221,8 +216,8 @@ export const createDeal = bsb.action(
 export const moveDeal = bsb.action(
   {
     input: v.object({ dealId: Id, stageId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "deals.write"),
+    requireTenant: true,
+    permission: "deals.write",
   },
   async ({ dealId, stageId }, { db, auth }) => {
     const moved = await db.deals.update([
@@ -239,7 +234,7 @@ export const moveDeal = bsb.action(
       return err(dbError("raised", rejected.reason));
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(true);
   },
@@ -256,8 +251,8 @@ export const createTarget = bsb.action(
       periodStart: IsoDate,
       periodEnd: IsoDate,
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "targets.manage"),
+    requireTenant: true,
+    permission: "targets.manage",
   },
   async (
     { name, metric, goal, currency, periodStart, periodEnd },
@@ -287,7 +282,7 @@ export const createTarget = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: saved.data.id });
   },
@@ -297,8 +292,8 @@ export const createTarget = bsb.action(
 export const createQuote = bsb.action(
   {
     input: v.object({ title: Name, currency: Currency }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "quotes.write"),
+    requireTenant: true,
+    permission: "quotes.write",
   },
   async ({ title, currency }, { tenant, db, auth }) => {
     const created = await db.quotes.create(tenant, { title, currency });
@@ -307,7 +302,7 @@ export const createQuote = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: created.data.id });
   },
@@ -329,8 +324,8 @@ export const saveQuoteLines = bsb.action(
       currency: Currency,
       lines: v.pipe(v.array(QuoteLine), v.maxLength(100)),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "quotes.write"),
+    requireTenant: true,
+    permission: "quotes.write",
   },
   async ({ quoteId, currency, lines }, { db, auth }) => {
     const saved = await db.quotes.setLines(
@@ -348,7 +343,7 @@ export const saveQuoteLines = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(saved.data.total);
   },
@@ -358,8 +353,8 @@ export const saveQuoteLines = bsb.action(
 export const sendQuote = bsb.action(
   {
     input: v.object({ quoteId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "quotes.write"),
+    requireTenant: true,
+    permission: "quotes.write",
   },
   async ({ quoteId }, { db, auth }) => {
     const sent = await db.quotes.send(quoteId);
@@ -368,7 +363,7 @@ export const sendQuote = bsb.action(
       return sent;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(true);
   },
@@ -381,8 +376,8 @@ export const decideQuote = bsb.action(
       quoteId: Id,
       decision: v.picklist(["accepted", "rejected", "changes_requested"]),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "quotes.write"),
+    requireTenant: true,
+    permission: "quotes.write",
   },
   async ({ quoteId, decision }, { db, auth }) => {
     const decided = await db.quotes.decide(quoteId, decision);
@@ -391,7 +386,7 @@ export const decideQuote = bsb.action(
       return decided;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(true);
   },
@@ -401,8 +396,8 @@ export const decideQuote = bsb.action(
 export const reviseQuote = bsb.action(
   {
     input: v.object({ quoteId: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "quotes.write"),
+    requireTenant: true,
+    permission: "quotes.write",
   },
   async ({ quoteId }, { db, auth }) => {
     const revised = await db.quotes.revise(quoteId);
@@ -411,7 +406,7 @@ export const reviseQuote = bsb.action(
       return revised;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: revised.data.id });
   },

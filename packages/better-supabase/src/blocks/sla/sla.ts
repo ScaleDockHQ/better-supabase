@@ -13,7 +13,7 @@ import type { BlockOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { subjectRefOf } from "../../core/block-subjects.ts";
-import { requireOrganization } from "../../core/block-tenant.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { compact } from "../sales-shared.ts";
 import {
   applyTemporal,
@@ -189,7 +189,7 @@ export function createSla<S extends StandardSchemaV1 | undefined = undefined>(
     "sla policy fields",
   );
 
-  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
   const client: Sla<F> = {
     savePolicy: (policy) => {

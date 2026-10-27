@@ -379,7 +379,7 @@ export interface SchemaExtension {
 /**
  * The repository extensions of the installed blocks, in block order. The
  * `memberships` one also stands for an app's own tenancy, when
- * `auth.organization.column` turns it on without the block.
+ * `auth.tenant.column` turns it on without the block.
  */
 export function schemaExtensions(
   config: Pick<ResolvedConfig, "blockNames" | "extensions"> &

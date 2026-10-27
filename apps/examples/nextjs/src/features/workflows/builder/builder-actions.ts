@@ -6,8 +6,6 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 import { resumeHook } from "workflow/api";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
 import { builderFor } from "./builder-server";
@@ -54,8 +52,8 @@ export const createDefinition = bsb.action(
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "workflow.edit"),
+    requireTenant: true,
+    permission: "workflow.edit",
   },
   async ({ name }, { tenant, supabase }) => {
     const builder = builderFor(supabase);
@@ -95,8 +93,8 @@ export const createDefinition = bsb.action(
 export const saveDraft = bsb.action(
   {
     input: v.object({ definition: Id, graph: Graph }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "workflow.edit"),
+    requireTenant: true,
+    permission: "workflow.edit",
   },
   async ({ definition, graph }, { supabase }) => {
     const saved = await builderFor(supabase).versions.upsert(definition, graph);
@@ -113,8 +111,8 @@ export const saveDraft = bsb.action(
 export const publishGraph = bsb.action(
   {
     input: v.object({ definition: Id, graph: Graph }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "workflow.publish"),
+    requireTenant: true,
+    permission: "workflow.publish",
   },
   async ({ definition, graph }, { supabase }) => {
     const builder = builderFor(supabase);
@@ -142,8 +140,8 @@ export const runDefinition = bsb.action(
       definition: Id,
       text: v.optional(v.pipe(v.string(), v.maxLength(20_000))),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "workflow.run"),
+    requireTenant: true,
+    permission: "workflow.run",
   },
   async ({ definition, text }, { auth, supabase }) => {
     if (auth.kind !== "user") {
@@ -167,8 +165,8 @@ export const saveTrigger = bsb.action(
       kind: TriggerKind,
       cron: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(100))),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "workflow.admin"),
+    requireTenant: true,
+    permission: "workflow.admin",
   },
   async ({ definition, kind, cron }, { tenant, supabase }) => {
     const builder = builderFor(supabase);
@@ -198,8 +196,8 @@ export const saveTrigger = bsb.action(
 export const removeTrigger = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "workflow.admin"),
+    requireTenant: true,
+    permission: "workflow.admin",
   },
   async ({ id }, { supabase }) => {
     const removed = await builderFor(supabase).triggers.remove(id);
@@ -218,8 +216,8 @@ export const removeTrigger = bsb.action(
 export const rotateWebhookToken = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "workflow.admin"),
+    requireTenant: true,
+    permission: "workflow.admin",
   },
   async ({ id }, { supabase }) => builderFor(supabase).triggers.rotateToken(id),
 );
@@ -234,8 +232,8 @@ export const createCredential = bsb.action(
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
       secret: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(4000)),
     }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "workflow.admin"),
+    requireTenant: true,
+    permission: "workflow.admin",
   },
   async ({ name, secret }, { tenant, supabase }) => {
     const created = await builderFor(supabase).credentials.create({
@@ -262,8 +260,8 @@ export const createCredential = bsb.action(
 export const revokeCredential = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "workflow.admin"),
+    requireTenant: true,
+    permission: "workflow.admin",
   },
   async ({ id }, { supabase }) => {
     const revoked = await builderFor(supabase).credentials.revoke(id);
@@ -286,8 +284,8 @@ export const revokeCredential = bsb.action(
 export const decideNode = bsb.action(
   {
     input: v.object({ run: Id, node: Id, approved: v.boolean() }),
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), "workflow.run"),
+    requireTenant: true,
+    permission: "workflow.run",
   },
   async ({ run, node, approved }, { tenant, auth, db }) => {
     if (auth.kind !== "user") {

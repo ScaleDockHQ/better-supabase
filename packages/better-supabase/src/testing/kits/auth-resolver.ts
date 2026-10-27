@@ -80,7 +80,7 @@ export function testAuthResolver(
         for (const { request, userId } of options.valid!) {
           const state = await resolveSafely(resolver, request);
           expect(
-            state?.kind === "user" || state?.kind === "service",
+            state?.kind === "user" || state?.kind === "secret",
             `expected a user or service, got "${state?.kind}"`,
           );
 

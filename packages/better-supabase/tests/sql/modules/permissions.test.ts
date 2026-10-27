@@ -428,6 +428,9 @@ describe("access module", () => {
     expect(sql).toContain("public.is_system_user_with(permission)");
     expect(sql).toContain("public.user_can(member, tenant, permission)");
     expect(sql).toContain("public.permission_claims(user_id)");
+    expect(sql).toContain(
+      "better_supabase.permission_claims(permission_claims.user_id) -> (permission_claims.tenant::text)",
+    );
     expect(() => access({ model: "custom" })).toThrow(
       /needs blocks.permissions.functions.can, tenantIdsWith, isPlatform, canAssign/,
     );
@@ -547,6 +550,9 @@ describe("access module with the provider's permissionsFor", () => {
     const sql = provider();
     expect(sql).toMatch(
       /function better_supabase\.member_permissions[\s\S]*?select '\{\}'::text\[\]/,
+    );
+    expect(sql).toContain(
+      "better_supabase.permission_claims(permission_claims.user_id) -> (permission_claims.tenant::text)",
     );
   });
 });

@@ -2,8 +2,6 @@
 
 import { ok } from "better-supabase";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -19,10 +17,7 @@ import {
  * (Ed25519).
  */
 export const rotateSigningKey = bsb.action(
-  {
-    requireOrganization: true,
-    authorize: async () => can(await getPermissions(), SIGNING_KEYS_PERMISSION),
-  },
+  { requireTenant: true, permission: SIGNING_KEYS_PERMISSION },
   async (_input, { tenant, auth }) => {
     const rotated = await signingKeys().rotate(organizationOwner(tenant));
 
@@ -30,7 +25,7 @@ export const rotateSigningKey = bsb.action(
       return rotated;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ kid: rotated.data.kid, retired: rotated.data.retired });
   },

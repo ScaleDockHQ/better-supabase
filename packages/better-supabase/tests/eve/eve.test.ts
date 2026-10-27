@@ -159,7 +159,7 @@ describe("supabaseAuth", () => {
       } as Parameters<typeof principalOf>[0])?.attributes,
     ).toEqual({ roles: [], isAnonymous: "false" });
     expect(
-      principalOf({ kind: "anon" } as Parameters<typeof principalOf>[0]),
+      principalOf({ kind: "none" } as Parameters<typeof principalOf>[0]),
     ).toBeNull();
   });
 });

@@ -11,13 +11,13 @@ import { bsb } from "@/lib/supabase/server";
  * Signs in on the server: one Auth call, the session cookies on this response,
  * and the verified session stored for the next render.
  */
-export async function signIn(input: {
+export async function signInWithPassword(input: {
   readonly email: string;
   readonly password: string;
   readonly next: string | null;
   readonly locale: string;
 }): Promise<ActionResult<SignedIn>> {
-  return bsb.signIn(
+  return bsb.signInWithPassword(
     { email: input.email, password: input.password, next: input.next },
     {
       fallback: `/${hasLocale(routing.locales, input.locale) ? input.locale : routing.defaultLocale}`,

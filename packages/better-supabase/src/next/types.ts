@@ -103,13 +103,13 @@ export interface ProxyOptions<C = unknown, P = unknown> {
   ) => Response | undefined | Promise<Response | undefined>;
   /**
    * A prefetch never refreshes, so a session cookie whose token expired
-   * resolves to `{ kind: 'anon', reason: 'expired' }` there. `'protect'` (the
+   * resolves to `{ kind: 'none', reason: 'expired' }` there. `'redirect'` (the
    * default) passes that to `protect` like any other caller. `'render'` skips
    * `protect` for it, so the prefetch renders signed out instead of caching a
    * redirect to sign-in; `sessionStale` keeps that view out of the App Shell,
    * and the navigation itself refreshes the session.
    */
-  readonly expiredPrefetch?: "protect" | "render";
+  readonly onExpiredPrefetch?: "redirect" | "render";
   /**
    * Methods that run `protect`. Defaults to `GET` and `HEAD`, so a Server
    * Action POST is not redirected before the action runs. Set `true` to include
@@ -132,12 +132,12 @@ export interface ProxyOptions<C = unknown, P = unknown> {
    * outside the window is verified locally and never refreshed. Defaults to
    * `auth.leeway`, else 60.
    */
-  readonly refreshSkewSeconds?: number;
+  readonly leeway?: number;
   /**
    * Ask Auth whether the session still exists (one network call), on top-level
    * document loads only. `true` checks every document load.
    */
-  readonly endedSession?: true | EndedSessionOptions;
+  readonly verifySession?: true | VerifySessionOptions;
   /**
    * Called when a refresh failed because the Auth server was unreachable, timed
    * out or answered 5xx or 429. When the access token couldn't be kept
@@ -147,7 +147,7 @@ export interface ProxyOptions<C = unknown, P = unknown> {
   readonly onAuthOutage?: AuthOutageHook;
 }
 
-export interface EndedSessionOptions {
+export interface VerifySessionOptions {
   /**
    * The paths whose document loads check the session, such as `/settings`.
    * Defaults to every document load. Client navigations, prefetches and
@@ -156,8 +156,8 @@ export interface EndedSessionOptions {
   readonly paths?: readonly string[];
   readonly redirect?: string;
   /**
-   * The `reason` query value on the redirect. Defaults to `session_ended` and
-   * `account_banned`.
+   * The `reason` query value on the redirect. Defaults to `session_not_found`
+   * and `user_banned`.
    */
   readonly reasons?: { readonly ended?: string; readonly banned?: string };
 }
@@ -256,13 +256,14 @@ export interface BetterNext<
   ): Promise<ServerContext<M, F, E, C, P, B>>;
   /**
    * The verified caller as serializable data (no token, no clients), memoized
-   * per request. Wrap it in a `'use cache: private'` function with Cache
-   * Components and pass the promise to `<SessionProvider>`.
+   * per request: the server-side counterpart of supabase-js `getClaims()`,
+   * never of `getSession()`. Wrap it in a `'use cache: private'` function with
+   * Cache Components and pass the promise to `<SessionProvider>`.
    */
-  session(): Promise<AuthSession<C, P>>;
+  claims(): Promise<AuthSession<C, P>>;
   /**
-   * The verified session of the incoming request, shared by every cache scope
-   * of the render: the first scope verifies the token and the others await that
+   * The verified claims of the incoming request, shared by every cache scope of
+   * the render: the first scope verifies the token and the others await that
    * verification, so ten `'use cache: private'` islands verify once. It awaits
    * `cookies()` before reading the clock, so it is safe in a private cache and
    * outside one. `null` for anyone but a signed-in user. Pass the snapshot to
@@ -271,18 +272,23 @@ export interface BetterNext<
    * ```tsx
    * async function Island() {
    *   "use cache: private";
-   *   const session = await bsb.getRequestSession();
+   *   const session = await bsb.getClaims();
    *   const { db } = await bsb.contextFromSession(session);
    * }
    * ```
    */
-  getRequestSession(): Promise<SessionSnapshot<C> | null>;
+  getClaims(): Promise<SessionSnapshot<C> | null>;
   /**
-   * The context for a session and its token, without reading the request. The
-   * token is verified again (memoized, no network call); a token for another
-   * user than `session` gives an `invalid` context.
+   * The context of a session snapshot from `getClaims()`, or of an
+   * `AuthSession` and its token, without reading the request. The token is
+   * verified again (memoized, no network call); a token for another user than
+   * `session` gives an `invalid` context.
    */
-  contextForSession(
+  contextFromSession(
+    snapshot: SessionSnapshot<C> | null,
+    options?: ContextOptions,
+  ): Promise<ServerContext<M, F, E, C, P, B>>;
+  contextFromSession(
     session: AuthSession<C, P>,
     options: { readonly token: string | null },
   ): Promise<ServerContext<M, F, E, C, P, B>>;
@@ -309,12 +315,13 @@ export interface BetterNext<
    * Server Action it also re-renders the caller's page, so no `refresh()` is
    * needed. It reaches server caches and the caller's router only: another
    * user's browser keeps its `'use cache: private'` entries until they go stale
-   * or that user's token changes.
+   * or that user's token changes. It also evicts the user from the session memo
+   * and the authorization version cache.
    */
-  invalidateSession(
+  evictSession(
     userId: string,
     options?: { readonly tags?: readonly string[] },
-  ): void;
+  ): Promise<void>;
   /**
    * Counts on the server and returns a serializable seed for
    * `useLiveCount(seed)`, so the badge renders with a number and the client
@@ -343,7 +350,7 @@ export interface BetterNext<
    *
    * ```ts
    * export const invite = bsb.action(
-   *   { input: Invite, requireOrganization: true, roles: ["admin"] },
+   *   { input: Invite, requireTenant: true, roles: ["admin"] },
    *   async (input, { db, tenant }) =>
    *     db.invitations.create({ ...input, organizationId: tenant }),
    * );
@@ -420,7 +427,7 @@ export interface BetterNext<
    *
    * ```ts
    * const { db, tenant } = await bsb.require({
-   *   requireOrganization: true,
+   *   requireTenant: true,
    *   roles: ["admin"],
    * });
    * ```
@@ -449,7 +456,7 @@ export interface BetterNext<
    * Tags the current `"use cache"` scope with a table (and row) tag. With a
    * `tenant`, mutations in other tenants leave the entry cached.
    */
-  cacheTag(
+  tag(
     table: Extract<keyof M, string>,
     id?: string | number,
     options?: TagOptions,
@@ -459,7 +466,7 @@ export interface BetterNext<
    * set) read, plus the row of each `get`, so any mutation that changes one
    * revalidates it.
    */
-  cacheTags(
+  tags(
     target:
       | QuerySpec<Extract<keyof M, string>>
       | readonly QuerySpec<Extract<keyof M, string>>[]
@@ -489,13 +496,8 @@ export interface BetterNext<
    * session cookies, stores the verified session for the next render and
    * returns `redirectTo`: `credentials.next` when it is a same-origin path,
    * else `options.fallback` (`/`). Reads later in the same request
-   * (`getRequestSession()`, `session()`, `context()`) see the new session.
+   * (`getClaims()`, `claims()`, `context()`) see the new session.
    */
-  signIn(
-    credentials: SignInCredentials,
-    options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn>>;
-  /** The same as `signIn`. */
   signInWithPassword(
     credentials: SignInCredentials,
     options?: SignInOptions,
@@ -503,7 +505,8 @@ export interface BetterNext<
   /**
    * Verifies an email link's `token_hash` (sign-up, invite, magic link,
    * recovery, email change) or an emailed code, then commits the session like
-   * `signIn`. The new session replaces any session the request carried.
+   * `signInWithPassword`. The new session replaces any session the request
+   * carried.
    */
   verifyOtp(
     params: VerifyOtpParams,
@@ -511,18 +514,20 @@ export interface BetterNext<
   ): Promise<ActionResult<SignedIn>>;
   /**
    * The Auth server's OAuth URL for `provider`, for a `redirect()`. It writes
-   * the PKCE verifier cookie (httpOnly, `lax`, 10 minutes) that `exchangeCode`
-   * reads. `next` rides on `redirectTo` as `?next=` when it is a same-origin
-   * path.
+   * the PKCE verifier cookie (httpOnly, `lax`, 10 minutes) that
+   * `exchangeCodeForSession` reads. `next` rides on `redirectTo` as `?next=`
+   * when it is a same-origin path.
    */
-  authorizeUrl(params: OAuthStart): Promise<{ readonly url: string }>;
+  signInWithOAuth(
+    params: SignInWithOAuthParams,
+  ): Promise<{ readonly url: string }>;
   /**
    * Exchanges the callback's `?code=` and the PKCE verifier cookie for a
    * session, deletes the verifier cookie and commits the session like
-   * `signIn`.
+   * `signInWithPassword`.
    */
-  exchangeCode(
-    params: CodeExchange,
+  exchangeCodeForSession(
+    params: ExchangeCodeParams,
     options?: SignInOptions,
   ): Promise<ActionResult<SignedIn>>;
   /**
@@ -546,15 +551,16 @@ export interface BetterNext<
   ): Promise<ActionResult<SignedIn>>;
   /**
    * Emails a magic link and a code. It writes the PKCE verifier cookie like
-   * `authorizeUrl`, so the link's `?code=` goes to `exchangeCode`, and the code
-   * to `verifyOtp` with `type: "email"`. Returns `null`: nothing is signed in
-   * yet.
+   * `signInWithOAuth`, so the link's `?code=` goes to `exchangeCodeForSession`,
+   * and the code to `verifyOtp` with `type: "email"`. Returns `null`: nothing
+   * is signed in yet.
    */
   signInWithOtp(params: SignInWithOtpParams): Promise<ActionResult<null>>;
   /**
-   * Emails a password reset link with the PKCE verifier cookie. `exchangeCode`
-   * on the callback signs the user in; the app then asks for the new password.
-   * Auth answers the same whether or not an account has the email.
+   * Emails a password reset link with the PKCE verifier cookie.
+   * `exchangeCodeForSession` on the callback signs the user in; the app then
+   * asks for the new password. Auth answers the same whether or not an account
+   * has the email.
    */
   resetPasswordForEmail(
     params: ResetPasswordParams,
@@ -562,7 +568,8 @@ export interface BetterNext<
   /**
    * Signs up with an email and a password. With email confirmation on, it
    * emails the confirmation link with the PKCE verifier cookie and returns
-   * `null`. With it off, Auth returns a session, committed like `signIn`.
+   * `null`. With it off, Auth returns a session, committed like
+   * `signInWithPassword`.
    */
   signUp(
     params: SignUpParams,
@@ -589,24 +596,25 @@ export interface SignInOptions {
 
 /** `verifyOtp` input: a link's `token_hash`, or an email and its code. */
 export type VerifyOtpParams = OtpParams & {
-  /** Checked before use, like `signIn`'s. */
+  /** Checked before use, like `signInWithPassword`'s. */
   readonly next?: string | null;
 };
 
-/** `authorizeUrl` input. */
-export interface OAuthStart extends AuthorizeUrlParams {
+/** `signInWithOAuth` input. */
+export interface SignInWithOAuthParams extends AuthorizeUrlParams {
   /** Where to go after the callback; checked before use. */
   readonly next?: string | null;
 }
 
 /**
  * Where an email link lands. The verifier cookie lives 10 minutes and holds one
- * flow: a newer `authorizeUrl` or email flow in the same browser replaces it.
+ * flow: a newer `signInWithOAuth` or email flow in the same browser replaces
+ * it.
  */
 export interface EmailRedirect {
   /**
-   * The absolute URL of the callback route that calls `exchangeCode`. It must
-   * be in the project's redirect allow list.
+   * The absolute URL of the callback route that calls `exchangeCodeForSession`.
+   * It must be in the project's redirect allow list.
    */
   readonly redirectTo: string;
   /** Rides on `redirectTo` as `?next=` when it is a same-origin path. */
@@ -641,8 +649,8 @@ export interface ResendParams extends EmailRedirect {
   readonly email: string;
 }
 
-/** `exchangeCode` input: the callback's `?code=` and `?next=`. */
-export interface CodeExchange {
+/** `exchangeCodeForSession` input: the callback's `?code=` and `?next=`. */
+export interface ExchangeCodeParams {
   readonly code: string;
   readonly next?: string | null;
 }
@@ -663,8 +671,8 @@ export interface SignOutParams {
 
 /**
  * What the sign-in and sign-out helpers return: plain data, safe across the
- * action boundary. The committed session is on `getRequestSession()` and
- * `context()` for the rest of the request.
+ * action boundary. The committed session is on `getClaims()` and `context()`
+ * for the rest of the request.
  */
 export interface SignedIn {
   /** `next` when it is a same-origin path, else `fallback` (`/`). */
@@ -720,10 +728,7 @@ export interface CachedOptions<T extends string = string> extends ScopeOptions {
     readonly revalidate?: number;
     readonly expire?: number;
   };
-  /**
-   * More `cacheTag`s for the entry, e.g. `snapshotTag(sub)` or
-   * `organization:<id>`.
-   */
+  /** More tags for the entry, e.g. `snapshotTag(sub)` or `organization:<id>`. */
   readonly tags?: readonly string[];
   /**
    * Tables the entry reads, so the `updateTag` after a mutation drops it:

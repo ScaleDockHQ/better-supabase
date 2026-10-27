@@ -107,7 +107,7 @@ describe("withBetterSupabase", () => {
 
   it("lets callers through that allow admits", async () => {
     const fetch = pipeline(
-      [withBetterSupabase(server, { allow: ["anon"] })],
+      [withBetterSupabase(server, { allow: ["none"] })],
       (_req, ctx) => Promise.resolve(Response.json({ mode: ctx.authMode })),
     );
 
@@ -116,7 +116,7 @@ describe("withBetterSupabase", () => {
 
   it("answers an invalid token with 401, never as anon", async () => {
     const fetch = pipeline(
-      [withBetterSupabase(server, { allow: ["anon"] })],
+      [withBetterSupabase(server, { allow: ["none"] })],
       () => Promise.resolve(new Response("ran")),
     );
 
@@ -147,7 +147,7 @@ describe("withBetterSupabase", () => {
     const fetch = pipeline(
       [
         withBetterSupabase(server, {
-          allow: ["anon"],
+          allow: ["none"],
           waitUntil: (pending) => waited.push(pending),
         }),
       ],
@@ -230,7 +230,7 @@ describe("withBetterSupabase", () => {
     });
 
     const fetch = pipeline(
-      [withPostgres(), withBetterSupabase(server, { allow: ["anon"] })],
+      [withPostgres(), withBetterSupabase(server, { allow: ["none"] })],
       (_req, ctx) =>
         Promise.resolve(
           Response.json({
@@ -274,7 +274,7 @@ describe("server.context", () => {
     expect(ctx.auth.kind).toBe("user");
     expect(ctx.db.$context.tenant).toBe("acme");
     const anon = await server.context(request());
-    expect(anon.auth.kind).toBe("anon");
+    expect(anon.auth.kind).toBe("none");
     expect(anon.db.$context.tenant).toBeUndefined();
   });
 
@@ -290,14 +290,14 @@ describe("server.context", () => {
 
 describe("authModeOf", () => {
   it("names each caller the way withSupabase does", () => {
-    expect(authModeOf({ kind: "service", keyName: "default" })).toBe("secret");
-    expect(authModeOf({ kind: "anon", reason: "none" })).toBe("none");
+    expect(authModeOf({ kind: "secret", keyName: "default" })).toBe("secret");
+    expect(authModeOf({ kind: "none", reason: "none" })).toBe("none");
   });
 });
 
 test("seeds like a host would", async () => {
   const fetch = pipeline(
-    [withBetterSupabase(server, { allow: ["anon"] })],
+    [withBetterSupabase(server, { allow: ["none"] })],
     (_req, ctx) => Promise.resolve(Response.json({ mode: ctx.authMode })),
   );
 
@@ -382,7 +382,7 @@ describe("session cookies", () => {
     const fetch = pipeline(
       [
         withBetterSupabase(server, {
-          allow: ["anon", "user"],
+          allow: ["none", "user"],
           cookieScopes: [{ domain: "old.test" }, { path: "/app" }],
         }),
       ],

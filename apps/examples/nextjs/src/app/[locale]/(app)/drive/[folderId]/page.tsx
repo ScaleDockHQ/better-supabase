@@ -8,8 +8,6 @@ import {
 } from "@/features/drive/components/drive-explorer";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
-export const instant = true;
-
 /** The header is the static shell; the folder streams in. */
 export default function DriveFolderPage({
   params,

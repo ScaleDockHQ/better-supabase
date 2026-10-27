@@ -9,7 +9,7 @@ import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { requireOrganization } from "../../core/block-tenant.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { GUEST_ACTIONS } from "../../core/guest-actions.ts";
 import {
   applyTemporal,
@@ -216,7 +216,7 @@ function grantOf(value: unknown, fn: string): GuestGrant {
 export function createGuests(options: GuestsOptions): Guests {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
   const client: Guests = {
     invite: (input) =>

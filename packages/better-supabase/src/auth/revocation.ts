@@ -26,7 +26,7 @@ const ACTIVE = `select exists (
  * tokens of ended sessions. It costs one query, so nothing calls it by default.
  * Non-user callers pass: `guard` decides about them.
  */
-export async function checkSession(
+export async function verifySession(
   sql: SessionLookup,
   auth:
     | {

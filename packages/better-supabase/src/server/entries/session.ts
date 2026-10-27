@@ -20,7 +20,7 @@ import { refreshFor, shouldCheckSession } from "../refresh.ts";
 import { callOf } from "./core.ts";
 
 function checkFor(
-  policy: SessionEntryConfig["checkSession"],
+  policy: SessionEntryConfig["verifySession"],
   request: Request,
 ): boolean {
   if (policy === undefined || typeof policy === "boolean") {
@@ -48,7 +48,7 @@ export interface SessionEntryConfig {
    * `'navigation'` full page loads (`shouldCheckSession`). Off by default,
    * because a valid token otherwise never calls the Auth server.
    */
-  readonly checkSession?:
+  readonly verifySession?:
     | boolean
     | "navigation"
     | ((request: Request) => boolean);
@@ -191,12 +191,12 @@ export function withSession<
           : refreshFor(config.refresh, request);
 
         const cookies = call ? call.cookies : config.cookies;
-        const checkSession = !call && checkFor(config.checkSession, request);
+        const verifySession = !call && checkFor(config.verifySession, request);
 
         const session = await core.resolve(request, {
           ...(refresh === undefined ? {} : { refresh }),
           ...(cookies === undefined ? {} : { cookies }),
-          ...(checkSession ? { checkSession } : {}),
+          ...(verifySession ? { verifySession } : {}),
           ...(config.encode === undefined ? {} : { encode: config.encode }),
         });
 

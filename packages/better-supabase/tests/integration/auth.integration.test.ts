@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { CookieRecord } from "../../src/auth/session.ts";
 
 import { resolveAuth } from "../../src/auth/resolve.ts";
-import { checkSession } from "../../src/auth/revocation.ts";
+import { verifySession } from "../../src/auth/revocation.ts";
 import {
   readSession,
   sessionCookieName,
@@ -402,7 +402,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
     expect(body.actor).toMatchObject({ id: userId, kind: "user" });
   });
 
-  it("rejects the access token of a signed-out session with checkSession", async () => {
+  it("rejects the access token of a signed-out session with verifySession", async () => {
     const client = createClient(url, publishableKey, {
       auth: { persistSession: false },
     });
@@ -426,7 +426,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
     );
 
     expect(auth.auth.kind).toBe("user");
-    expect(await checkSession(postgres.admin, auth.auth)).toBeUndefined();
+    expect(await verifySession(postgres.admin, auth.auth)).toBeUndefined();
 
     await client.auth.signOut({ scope: "global" });
 
@@ -438,7 +438,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
     );
 
     expect(after.auth.kind).toBe("user");
-    expect(await checkSession(postgres.admin, after.auth)).toMatchObject({
+    expect(await verifySession(postgres.admin, after.auth)).toMatchObject({
       code: "SESSION_REVOKED",
     });
   });

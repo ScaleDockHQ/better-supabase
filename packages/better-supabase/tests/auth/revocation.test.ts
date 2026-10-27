@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { SessionLookup } from "../../src/auth/revocation.ts";
 
-import { checkSession } from "../../src/auth/revocation.ts";
+import { verifySession } from "../../src/auth/revocation.ts";
 
 const USER = "11111111-1111-4111-8111-111111111111";
 const SESSION = "22222222-2222-4222-8222-222222222222";
@@ -26,11 +26,11 @@ const user = (claims: Record<string, unknown>) => ({
   claims,
 });
 
-describe("checkSession", () => {
+describe("verifySession", () => {
   it("passes a user whose session still exists", async () => {
     const { sql, calls } = lookup(true);
     expect(
-      await checkSession(sql, user({ sub: USER, session_id: SESSION })),
+      await verifySession(sql, user({ sub: USER, session_id: SESSION })),
     ).toBeUndefined();
     expect(calls[0]?.[1]).toEqual([SESSION, USER]);
     expect(String(calls[0]?.[0])).toContain("from auth.sessions");
@@ -41,7 +41,7 @@ describe("checkSession", () => {
     ["no row", lookup(undefined)],
   ])("rejects %s with SESSION_REVOKED", async (_name, { sql }) => {
     expect(
-      await checkSession(sql, user({ sub: USER, session_id: SESSION })),
+      await verifySession(sql, user({ sub: USER, session_id: SESSION })),
     ).toMatchObject({ kind: "unauthorized", code: "SESSION_REVOKED" });
   });
 
@@ -51,7 +51,7 @@ describe("checkSession", () => {
     ["a malformed sub", { sub: "x", session_id: SESSION }],
   ])("rejects a token with %s without a query", async (_name, claims) => {
     const { sql, calls } = lookup(true);
-    expect(await checkSession(sql, user(claims))).toMatchObject({
+    expect(await verifySession(sql, user(claims))).toMatchObject({
       code: "SESSION_REVOKED",
     });
     expect(calls).toHaveLength(0);
@@ -59,8 +59,8 @@ describe("checkSession", () => {
 
   it("leaves non-user callers to guard", async () => {
     const { sql, calls } = lookup(false);
-    expect(await checkSession(sql, { kind: "service" })).toBeUndefined();
-    expect(await checkSession(sql, { kind: "anon" })).toBeUndefined();
+    expect(await verifySession(sql, { kind: "secret" })).toBeUndefined();
+    expect(await verifySession(sql, { kind: "none" })).toBeUndefined();
     expect(calls).toHaveLength(0);
   });
 });

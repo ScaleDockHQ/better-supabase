@@ -266,11 +266,11 @@ SQL hooks run inside the functions for every caller:
 `switch_organization(organization)` checks the caller is a member and the organization
 is active, then follows `blocks.permissions.activeTenant`:
 
-| Source          | `switch_organization` writes                                         | `refresh` |
-| --------------- | -------------------------------------------------------------------- | --------- |
-| `claim`         | the claim (`auth.organization.claim`) into the user's `app_metadata` | `true`    |
-| `profileColumn` | the organization id into that column of the user's profile           | `false`   |
-| `resolver`      | nothing: your resolver picks the tenant per request                  | `false`   |
+| Source          | `switch_organization` writes                                   | `refresh` |
+| --------------- | -------------------------------------------------------------- | --------- |
+| `claim`         | the claim (`auth.tenant.claim`) into the user's `app_metadata` | `true`    |
+| `profileColumn` | the organization id into that column of the user's profile     | `false`   |
+| `resolver`      | nothing: your resolver picks the tenant per request            | `false`   |
 
 When `refresh` is `true`, refresh the session so the next access token
 carries the new claim. If your access token hook builds the claim from
@@ -279,7 +279,7 @@ somewhere else, use the `profileColumn` or `resolver` source instead.
 ### In the browser
 
 `useOrganizations` lists the caller's organizations and the active one, read
-from the tenant claim (`auth.organization.claim`) of the provider's session.
+from the tenant claim (`auth.tenant.claim`) of the provider's session.
 `switchTo(id)` calls `switch_organization`, refreshes the session when the
 result asks for it, and loads the list again; it returns a `Result` and keeps a
 failure in `error`. The same hook runs in React DOM and React Native. It is a

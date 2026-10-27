@@ -7,8 +7,6 @@ import {
   TimesheetSkeleton,
 } from "@/features/people/components/timesheet";
 
-export const instant = true;
-
 export default function TimePage({
   searchParams,
 }: {

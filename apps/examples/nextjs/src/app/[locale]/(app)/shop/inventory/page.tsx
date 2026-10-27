@@ -7,8 +7,6 @@ import {
   InventoryTableSkeleton,
 } from "@/features/shop/components/inventory-table";
 
-export const instant = true;
-
 export default function InventoryPage() {
   const t = useExtracted("shop");
 

@@ -103,7 +103,9 @@ export async function MemberDetail({
                   <li key={team.id}>
                     <Badge
                       variant="outline"
-                      render={<Link href={`/settings/teams/${team.id}`} />}
+                      render={
+                        <Link href={`/settings/teams/${team.id}`} prefetch />
+                      }
                     >
                       {team.name}
                     </Badge>

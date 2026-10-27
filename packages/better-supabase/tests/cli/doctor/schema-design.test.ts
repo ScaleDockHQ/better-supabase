@@ -35,7 +35,7 @@ const context = (
   extra: Partial<DoctorContext> = {},
 ): DoctorContext => ({
   config: resolveConfig(
-    { auth: { organization: { column: "organization_id" } } },
+    { auth: { tenant: { column: "organization_id" } } },
     "/project",
   ),
   snapshot: snap,
@@ -369,7 +369,7 @@ describe("schema design rules", () => {
       context(snap, {
         config: resolveConfig(
           {
-            auth: { organization: { column: "organization_id" } },
+            auth: { tenant: { column: "organization_id" } },
             appTables: { notes: { columns } },
           },
           "/project",
@@ -426,7 +426,7 @@ describe("schema design rules", () => {
       context(snap, {
         config: resolveConfig(
           {
-            auth: { organization: { column: "organization_id" } },
+            auth: { tenant: { column: "organization_id" } },
             appTables: {
               notes: { columns: { born: { type: "date", encrypted } } },
             },
@@ -448,7 +448,7 @@ describe("schema design rules", () => {
     const encryptedPlain = context(snap, {
       config: resolveConfig(
         {
-          auth: { organization: { column: "organization_id" } },
+          auth: { tenant: { column: "organization_id" } },
           appTables: {
             notes: { columns: { plain: { type: "date", encrypted: true } } },
           },
@@ -533,7 +533,7 @@ describe("schema design rules", () => {
     const exact = context(snap, {
       config: resolveConfig(
         {
-          auth: { organization: { column: "organization_id" } },
+          auth: { tenant: { column: "organization_id" } },
           gen: { codecs: { int8: "bigint", numeric: "string" } },
         },
         "/project",

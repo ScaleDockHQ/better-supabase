@@ -26,7 +26,7 @@ export interface PlanOption {
 export async function getPlans(): Promise<readonly PlanOption[]> {
   "use cache";
   cacheLife("hours");
-  bsb.cacheTag("plans");
+  bsb.tag("plans");
 
   const plans = await bsb
     .admin()

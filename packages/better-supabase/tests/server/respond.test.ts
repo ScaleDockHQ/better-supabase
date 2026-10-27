@@ -25,7 +25,7 @@ describe("guard and anonymous users", () => {
       kind: "forbidden",
       code: "ANONYMOUS_USER",
     });
-    expect(guard(anonymous, ["user", "service"])).toMatchObject({
+    expect(guard(anonymous, ["user", "secret"])).toMatchObject({
       code: "ANONYMOUS_USER",
     });
   });
@@ -33,23 +33,23 @@ describe("guard and anonymous users", () => {
   it("admits them only when allow lists anonymous", () => {
     expect(guard(anonymous, ["user", "anonymous"])).toBeUndefined();
     expect(guard(anonymous, ["anonymous"])).toBeUndefined();
-    expect(guard(anonymous, ["user", "anon"])).toMatchObject({
+    expect(guard(anonymous, ["user", "none"])).toMatchObject({
       code: "ANONYMOUS_USER",
     });
-    expect(guard(anonymous, ["anon"])).toMatchObject({
+    expect(guard(anonymous, ["none"])).toMatchObject({
       code: "ANONYMOUS_USER",
     });
   });
 
   it("keeps anonymous apart from full users and from no session", () => {
     const full = user({});
-    const none = { kind: "anon", reason: "none" } as unknown as AuthState;
+    const none = { kind: "none", reason: "none" } as unknown as AuthState;
     expect(guard(full, ["anonymous"])).toMatchObject({ kind: "forbidden" });
     expect(guard(full, ["user", "anonymous"])).toBeUndefined();
     expect(guard(none, ["anonymous"])).toMatchObject({
       code: "MISSING_CREDENTIALS",
     });
-    expect(guard(none, ["user", "anon"])).toBeUndefined();
+    expect(guard(none, ["user", "none"])).toBeUndefined();
   });
 
   it("lets permanent users through", () => {

@@ -18,7 +18,7 @@ export interface BlockTenantOptions {
  * Reads the tenant for one call: `invalid_request` with the hint
  * `TENANT_REQUIRED` when there is none.
  */
-export function requireOrganization(
+export function requireTenant(
   source: BlockTenant | undefined,
 ): AsyncResult<string> {
   const tenant = currentTenant(source);

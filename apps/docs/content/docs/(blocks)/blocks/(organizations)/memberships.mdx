@@ -8,7 +8,7 @@ The `memberships` block owns the memberships table and the
 queries on organization tables to the request's organization and fills the
 organization column on insert. `gen` installs the extension in the generated
 schema; an app with its own tenancy turns it on by setting
-`auth.organization.column` without the block.
+`auth.tenant.column` without the block.
 
 ```ts
 const betterSupabase = defineSupabase(schema);
@@ -38,7 +38,7 @@ and cache invalidation that receive `db.$context` use the same one.
 ## Where the organization comes from
 
 `context.tenant` first, then the JWT claim. The claim defaults to
-`auth.organization.claim` (`tenant_id`), then the same key in
+`auth.tenant.claim` (`tenant_id`), then the same key in
 `app_metadata`: a top-level claim from a custom access token hook, or
 `app_metadata` set through the Auth admin API. Renaming the claim in the
 config renames it for the extension, `current_tenant_id()`, and the storage
@@ -115,7 +115,7 @@ names `rolesTable`; `doctor` (BS411) warns when none does.
 ## Missing organization
 
 A query on an organization table without an organization is left to RLS by
-default. Set `auth.organization.onMissing: "error"` (or pass
+default. Set `auth.tenant.onMissing: "error"` (or pass
 `onMissing: "error"`) to fail it with `forbidden` instead, including a query
 on another table whose includes or relation filters reach an organization
 table. Admin tooling passes `{ allTenants: true }` per call:
@@ -128,7 +128,7 @@ await adminDb.customers.count({ allTenants: true });
 
 [`defineApi`](/docs/specs) marks the organization column of every served
 table `readOnly`, described as "Set from the request's tenant.", and drops it
-from the required fields of request bodies. With `auth.organization.header`
+from the required fields of request bodies. With `auth.tenant.header`
 (or the `header` option) set, each operation on an organization table has
 that header as a parameter, "The tenant the request acts for.", required
 when `onMissing` is `error`. The extension doesn't read the header itself;

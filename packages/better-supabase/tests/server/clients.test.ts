@@ -28,8 +28,8 @@ function build(overrides: Record<string, unknown> = {}) {
 describe("createClients", () => {
   it("shares one service client for the primary URL", () => {
     const { clients, createClient } = build();
-    expect(clients.supabaseFor({ kind: "service", keyName: "secret" })).toBe(
-      clients.supabaseFor({ kind: "service", keyName: "secret" }),
+    expect(clients.supabaseFor({ kind: "secret", keyName: "secret" })).toBe(
+      clients.supabaseFor({ kind: "secret", keyName: "secret" }),
     );
     expect(createClient).toHaveBeenCalledOnce();
   });
