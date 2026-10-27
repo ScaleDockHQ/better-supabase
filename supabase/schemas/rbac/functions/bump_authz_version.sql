@@ -1,4 +1,5 @@
--- Bumps the user's authorization version when their role changes.
+-- Bumps the user's authorization version when their app role or an
+-- organization membership changes.
 create or replace function rbac.bump_authz_version()
 returns trigger
 language plpgsql
