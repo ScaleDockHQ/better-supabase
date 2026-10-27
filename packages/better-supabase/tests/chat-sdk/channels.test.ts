@@ -100,6 +100,23 @@ describe("channelAdapter", () => {
     expect(built).toEqual({ token: "xoxb" });
     expect(getToken).toHaveBeenCalledWith(ref, { subject: { type: "app" } });
   });
+
+  it("reads the token again for each call through resolve", async () => {
+    let n = 0;
+
+    const getToken = vi.fn(() =>
+      AsyncResult.ok({ token: `xoxb-${(n += 1)}`, headers: {} }),
+    );
+
+    const built = await channelAdapter({
+      credentials: { ...provider(), getToken },
+      ref,
+      create: (_token, resolve) => ({ botToken: resolve }),
+    });
+
+    expect(await built.botToken()).toBe("xoxb-2");
+    expect(await built.botToken()).toBe("xoxb-3");
+  });
 });
 
 describe("webhook", () => {

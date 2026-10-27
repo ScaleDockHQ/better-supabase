@@ -4146,6 +4146,7 @@
       "RevokeIfConfiguredOptions",
       "SetCredentialOptions",
       "StartAuthorizationOptions",
+      "StartAuthorizationResult",
       "VaultCredentialRef",
       "VaultCredentials",
       "VaultCredentialsOptions",
@@ -4157,9 +4158,13 @@
       "vercelConnectCredentials"
     ],
     "types": [
+      "VercelConnectAuthorizationDetail",
+      "VercelConnectChatModule",
       "VercelConnectCredentialsOptions",
       "VercelConnectModule",
-      "VercelConnectRef"
+      "VercelConnectorMetadata",
+      "VercelConnectRef",
+      "VercelConnectTokenResponse"
     ]
   },
   "./stripe": {

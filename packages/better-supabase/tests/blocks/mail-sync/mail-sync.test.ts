@@ -134,7 +134,12 @@ const answers = {
       sync_cursor: "c1",
       last_synced_at: AT,
     },
-    { ...accountRow, id: "a3", status: "disconnected" },
+    {
+      ...accountRow,
+      id: "a3",
+      status: "disconnected",
+      last_error: "CREDENTIAL_NOT_FOUND: no grant",
+    },
   ],
   list_mail_threads: [threadRow],
   mail_threads_of: [{ ...threadRow, subjects: null, engagement_id: null }],
@@ -234,7 +239,12 @@ describe("createMailSync", () => {
       "error",
       "disconnected",
     ]);
-    expect(accounts[1]).toMatchObject({ cursor: "c1", lastError: "boom" });
+    expect(accounts[1]).toMatchObject({
+      cursor: "c1",
+      lastError: "boom",
+      reconnect: false,
+    });
+    expect(accounts[2]?.reconnect).toBe(true);
 
     const threads = await mail.threads("org").orThrow();
 
@@ -531,6 +541,7 @@ describe("createMailSync", () => {
       credentialRef: accountRow.credential_ref,
       share: "records" as const,
       status: "active" as const,
+      reconnect: false,
       createdAt: Temporal.Instant.from(AT),
     };
 
@@ -589,7 +600,7 @@ describe("createMailSync", () => {
     expect(report).toEqual({
       accounts: 2,
       stored: 1,
-      failed: [{ accountId: "a2", message: "slow down" }],
+      failed: [{ accountId: "a2", message: "slow down", reconnect: false }],
     });
     expect(call).toHaveBeenCalledWith("better_supabase", "due_mail_accounts", {
       max_count: 5,
@@ -608,8 +619,41 @@ describe("createMailSync", () => {
     });
 
     expect((await broken.syncDue().orThrow()).failed).toEqual([
-      { accountId: "a2", message: 'createMailSync has no provider "outlook"' },
+      {
+        accountId: "a2",
+        message: 'createMailSync has no provider "outlook"',
+        reconnect: false,
+      },
     ]);
+
+    const revoked = createMailSync({
+      transport,
+      credentials: {
+        ...credentials(),
+        getToken: () =>
+          AsyncResult.err(
+            dbError("forbidden", "consent revoked", {
+              hint: "CREDENTIAL_AUTHORIZATION_REQUIRED",
+            }),
+          ),
+      },
+      providers: [provider(), limited],
+    });
+
+    expect((await revoked.syncDue().orThrow()).failed).toContainEqual({
+      accountId: "a2",
+      message: "CREDENTIAL_AUTHORIZATION_REQUIRED: consent revoked",
+      reconnect: true,
+    });
+    expect(call).toHaveBeenLastCalledWith(
+      "better_supabase",
+      "set_mail_account_status",
+      {
+        account: "a2",
+        status: "error",
+        error: "CREDENTIAL_AUTHORIZATION_REQUIRED: consent revoked",
+      },
+    );
     expect(call).toHaveBeenLastCalledWith(
       "better_supabase",
       "set_mail_account_status",

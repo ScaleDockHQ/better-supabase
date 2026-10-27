@@ -4,6 +4,7 @@ import type {
   CredentialRef,
   CredentialSubject,
   CredentialToken,
+  StartAuthorizationResult,
 } from "../credentials/provider.ts";
 
 import { isRecord } from "../core/block-helpers.ts";
@@ -12,14 +13,69 @@ import { importOptionalPeer } from "../core/optional-peer.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { optionalTemporal } from "../core/temporal.ts";
 
+/** An RFC 9396 authorization detail; `type` names its kind. */
+export interface VercelConnectAuthorizationDetail {
+  type: string;
+  [key: string]: unknown;
+}
+
+const isDetail = (value: unknown): value is VercelConnectAuthorizationDetail =>
+  isRecord(value) && typeof value["type"] === "string";
+
 interface ConnectTokenParams {
   subject: CredentialSubject;
   installationId?: string;
+  audience?: string[];
   scopes?: string[];
+  resources?: string[];
+  authorizationDetails?: VercelConnectAuthorizationDetail[];
+  validityBufferMs?: number;
 }
 
 interface ConnectOptions {
   vercelToken?: string;
+  forceRefresh?: boolean;
+  region?: string;
+}
+
+interface ConnectAuthorizationOptions {
+  vercelToken?: string;
+  callbackUrl?: string;
+  deviceCode?: boolean;
+  prompt?: string;
+  region?: string;
+}
+
+interface ConnectAuthorization {
+  url: string;
+  request?: string;
+  verifier?: string;
+  deviceCode?: string;
+  expiresAt?: number;
+}
+
+/** The token response from `@vercel/connect`, typed structurally. */
+export interface VercelConnectTokenResponse {
+  token: string;
+  tokenId?: string;
+  expiresAt: number;
+  connector?: { id: string; uid: string; type: string };
+  name?: string;
+  installationId?: string;
+  tenantId?: string;
+  externalSubject?: string;
+  metadata?: Record<string, unknown>;
+  claims?: Record<string, unknown>;
+}
+
+/** What `getConnectorMetadata` returns, typed structurally. */
+export interface VercelConnectorMetadata {
+  id: string;
+  uid: string;
+  name: string;
+  type: string;
+  service: string;
+  clientUrl?: string;
 }
 
 /** The part of `@vercel/connect` this provider calls, typed structurally. */
@@ -28,7 +84,7 @@ export interface VercelConnectModule {
     connector: string,
     params: ConnectTokenParams,
     options?: ConnectOptions,
-  ): Promise<{ token: string; expiresAt: number }>;
+  ): Promise<VercelConnectTokenResponse>;
   revokeToken(
     connector: string,
     params: { subject: CredentialSubject; installationId?: string },
@@ -37,23 +93,64 @@ export interface VercelConnectModule {
   startAuthorization(
     connector: string,
     params: ConnectTokenParams,
-    options?: { vercelToken?: string; callbackUrl?: string },
-  ): Promise<{ url: string }>;
+    options?: ConnectAuthorizationOptions,
+  ): Promise<ConnectAuthorization>;
+  deleteTokenCacheEntry?(connector: string, params: ConnectTokenParams): void;
+  getConnectorMetadata?(
+    connector: string,
+    options?: ConnectOptions,
+  ): Promise<VercelConnectorMetadata>;
+  experimental_startInstallation?(
+    connector: string,
+    params?: { scopes?: string[] },
+    options?: {
+      vercelToken?: string;
+      returnUrl?: string;
+      tenantId?: string;
+      region?: string;
+    },
+  ): Promise<ConnectAuthorization>;
 }
 
-/** A Vercel Connect connector; `connector` is its UID. */
-export interface VercelConnectRef {
+/** The part of `@vercel/connect/chat` `verifyInbound` calls. */
+export interface VercelConnectChatModule {
+  createConnectWebhookVerifier(
+    options?: Record<string, unknown>,
+  ): (request: Request, body: string) => unknown;
+}
+
+/**
+ * A Vercel Connect connector; `connector` is its UID. `audience`, `resources`,
+ * `authorizationDetails` and `validityBufferMs` pass through to the token
+ * request; `inbound: true` lets `verifyInbound` check webhooks Connect forwards
+ * for it. A type alias, so a ref passes where a `CredentialRef` is expected.
+ */
+export type VercelConnectRef = {
   readonly provider: "vercel-connect";
   readonly connector: string;
   readonly installationId?: string;
   readonly scopes?: readonly string[];
-}
+  readonly audience?: readonly string[];
+  readonly resources?: readonly string[];
+  readonly authorizationDetails?: readonly Readonly<VercelConnectAuthorizationDetail>[];
+  readonly validityBufferMs?: number;
+  readonly inbound?: boolean;
+};
 
 export interface VercelConnectCredentialsOptions {
   /** Defaults to the OIDC token `@vercel/connect` reads on Vercel. */
   readonly vercelToken?: string;
+  /** The Connect region, for a project outside the default one. */
+  readonly region?: string;
+  /**
+   * Passed to `createConnectWebhookVerifier`: the project and environment a
+   * forwarded webhook's OIDC token must name. Defaults to the deployment's.
+   */
+  readonly inbound?: Readonly<Record<string, unknown>>;
   /** Returns `@vercel/connect`; defaults to importing it on first use. */
   readonly load?: () => Promise<unknown>;
+  /** Returns `@vercel/connect/chat`; defaults to importing it on first use. */
+  readonly loadChat?: () => Promise<unknown>;
 }
 
 const isModule = (value: unknown): value is VercelConnectModule =>
@@ -62,6 +159,10 @@ const isModule = (value: unknown): value is VercelConnectModule =>
   typeof value["revokeToken"] === "function" &&
   typeof value["startAuthorization"] === "function";
 
+const isChatModule = (value: unknown): value is VercelConnectChatModule =>
+  isRecord(value) &&
+  typeof value["createConnectWebhookVerifier"] === "function";
+
 /**
  * Loads `@vercel/connect` on first use. The specifier is a variable so bundlers
  * leave the optional peer out of apps that don't use it.
@@ -69,8 +170,17 @@ const isModule = (value: unknown): value is VercelConnectModule =>
 const loadConnect = (): Promise<unknown> =>
   importOptionalPeer("@vercel/connect");
 
+/** Loads the Chat SDK helpers only when a ref takes forwarded webhooks. */
+const loadConnectChat = (): Promise<unknown> =>
+  importOptionalPeer("@vercel/connect/chat");
+
+const strings = (value: unknown): string[] | undefined =>
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : undefined;
+
 function connectRef(ref: CredentialRef): Result<VercelConnectRef> {
-  const { connector, installationId, scopes } = ref;
+  const { connector, installationId, validityBufferMs, inbound } = ref;
 
   if (ref.provider !== "vercel-connect" || typeof connector !== "string") {
     return err(
@@ -82,62 +192,133 @@ function connectRef(ref: CredentialRef): Result<VercelConnectRef> {
     );
   }
 
+  const scopes = strings(ref["scopes"]);
+  const audience = strings(ref["audience"]);
+  const resources = strings(ref["resources"]);
+  const details = ref["authorizationDetails"];
+
   return ok({
     provider: "vercel-connect",
     connector,
     ...(typeof installationId === "string" ? { installationId } : {}),
-    ...(Array.isArray(scopes)
-      ? {
-          scopes: scopes.filter(
-            (scope): scope is string => typeof scope === "string",
-          ),
-        }
+    ...(scopes === undefined ? {} : { scopes }),
+    ...(audience === undefined ? {} : { audience }),
+    ...(resources === undefined ? {} : { resources }),
+    ...(Array.isArray(details)
+      ? { authorizationDetails: details.filter(isDetail) }
       : {}),
+    ...(typeof validityBufferMs === "number" ? { validityBufferMs } : {}),
+    ...(inbound === true ? { inbound } : {}),
   });
 }
 
-/** Maps the `@vercel/connect` error classes by name, without importing them. */
-function connectError(cause: unknown): Result<never> {
-  const name = cause instanceof Error ? cause.name : "";
-  const message = cause instanceof Error ? cause.message : String(cause);
+/** The fields a `ConnectError` carries. */
+function connectCause(cause: unknown): Record<string, unknown> {
+  if (!isRecord(cause)) {
+    return {};
+  }
 
-  switch (name) {
-    case "UserAuthorizationRequiredError": {
-      return err(
-        dbError("forbidden", message, {
-          hint: "CREDENTIAL_AUTHORIZATION_REQUIRED",
-        }),
-      );
-    }
+  const kept: Record<string, unknown> = {};
 
-    case "ConnectorInstallationRequiredError": {
-      return err(
-        dbError("forbidden", message, {
-          hint: "CREDENTIAL_INSTALLATION_REQUIRED",
-        }),
-      );
-    }
-
-    case "NoValidTokenError": {
-      return err(
-        dbError("not_found", message, { hint: "CREDENTIAL_NOT_FOUND" }),
-      );
-    }
-
-    default: {
-      return err(dbError("network", message));
+  for (const key of ["code", "status", "vendor"]) {
+    if (cause[key] !== undefined) {
+      kept[key] = cause[key];
     }
   }
+
+  return kept;
+}
+
+const HINTS: Readonly<
+  Record<string, readonly ["forbidden" | "not_found", string]>
+> = {
+  user_authorization_required: [
+    "forbidden",
+    "CREDENTIAL_AUTHORIZATION_REQUIRED",
+  ],
+  connector_installation_required: [
+    "forbidden",
+    "CREDENTIAL_INSTALLATION_REQUIRED",
+  ],
+  client_installation_required: [
+    "forbidden",
+    "CREDENTIAL_INSTALLATION_REQUIRED",
+  ],
+  no_token: ["not_found", "CREDENTIAL_NOT_FOUND"],
+  connector_not_found: ["not_found", "CREDENTIAL_CONNECTOR_NOT_FOUND"],
+  client_not_linked_to_project: [
+    "forbidden",
+    "CREDENTIAL_CONNECTOR_NOT_LINKED",
+  ],
+  client_not_enabled_for_environment: [
+    "forbidden",
+    "CREDENTIAL_CONNECTOR_NOT_ENABLED",
+  ],
+};
+
+const NAMES: Readonly<Record<string, string>> = {
+  UserAuthorizationRequiredError: "user_authorization_required",
+  ConnectorInstallationRequiredError: "connector_installation_required",
+  NoValidTokenError: "no_token",
+};
+
+/**
+ * Maps a `@vercel/connect` error by its `code` (or, for an error without one,
+ * its class name), without importing the classes.
+ */
+function connectError(cause: unknown): Result<never> {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  const fields = connectCause(cause);
+  const name = cause instanceof Error ? cause.name : "";
+
+  const code =
+    typeof fields["code"] === "string" ? fields["code"] : NAMES[name];
+
+  const mapped = code === undefined ? undefined : HINTS[code];
+  const { status, vendor } = fields;
+
+  const detail = {
+    ...(code === undefined ? {} : { code }),
+    ...(status === undefined && vendor === undefined
+      ? {}
+      : { details: JSON.stringify({ status, vendor }) }),
+  };
+
+  if (mapped !== undefined) {
+    const [kind, hint] = mapped;
+
+    return err(
+      kind === "forbidden"
+        ? dbError("forbidden", message, { hint, ...detail })
+        : dbError("not_found", message, { hint, ...detail }),
+    );
+  }
+
+  if (fields["status"] === 429) {
+    return err(
+      dbError("rate_limited", message, {
+        hint: "CREDENTIAL_RATE_LIMITED",
+        ...detail,
+      }),
+    );
+  }
+
+  return err(dbError("network", message, detail));
 }
 
 /**
  * A `CredentialProvider` over Vercel Connect: OAuth tokens for a connector, for
- * the app or a user, refreshed by Vercel. Needs `@vercel/connect`.
+ * the app, a user or an exchanged token, refreshed by Vercel. Needs
+ * `@vercel/connect`.
  */
 export function vercelConnectCredentials(
   options: VercelConnectCredentialsOptions = {},
 ): CredentialProvider {
   let loaded: Promise<VercelConnectModule> | undefined;
+
+  let verifier:
+    | Promise<(request: Request, body: string) => unknown>
+    | undefined;
 
   const connect = (): Promise<VercelConnectModule> =>
     (loaded ??= (options.load ?? loadConnect)().then((value) => {
@@ -151,10 +332,28 @@ export function vercelConnectCredentials(
       return value;
     }));
 
-  const connectOptions: ConnectOptions =
-    options.vercelToken === undefined
+  const webhookVerifier = (): Promise<
+    (request: Request, body: string) => unknown
+  > =>
+    (verifier ??= (options.loadChat ?? loadConnectChat)().then((value) => {
+      if (!isChatModule(value)) {
+        verifier = undefined;
+        throw new TypeError(
+          "verifyInbound needs @vercel/connect 2.2 or later: pnpm add @vercel/connect",
+        );
+      }
+
+      return value.createConnectWebhookVerifier(
+        options.inbound === undefined ? undefined : { ...options.inbound },
+      );
+    }));
+
+  const connectOptions: ConnectOptions = {
+    ...(options.vercelToken === undefined
       ? {}
-      : { vercelToken: options.vercelToken };
+      : { vercelToken: options.vercelToken }),
+    ...(options.region === undefined ? {} : { region: options.region }),
+  };
 
   const run = <T>(
     ref: CredentialRef,
@@ -203,7 +402,33 @@ export function vercelConnectCredentials(
       subject,
       ...(installation === undefined ? {} : { installationId: installation }),
       ...(chosen === undefined ? {} : { scopes: [...chosen] }),
+      ...(parsed.audience === undefined
+        ? {}
+        : { audience: [...parsed.audience] }),
+      ...(parsed.resources === undefined
+        ? {}
+        : { resources: [...parsed.resources] }),
+      ...(parsed.authorizationDetails === undefined
+        ? {}
+        : {
+            authorizationDetails: parsed.authorizationDetails.map((detail) => ({
+              ...detail,
+            })),
+          }),
+      ...(parsed.validityBufferMs === undefined
+        ? {}
+        : { validityBufferMs: parsed.validityBufferMs }),
     };
+  };
+
+  const instant = (
+    epochMilliseconds: number | undefined,
+  ): Temporal.Instant | undefined => {
+    const temporal = optionalTemporal();
+
+    return temporal === undefined || epochMilliseconds === undefined
+      ? undefined
+      : temporal.Instant.fromEpochMilliseconds(epochMilliseconds);
   };
 
   return {
@@ -222,43 +447,70 @@ export function vercelConnectCredentials(
               getOptions.scopes,
               getOptions.installationId,
             ),
-            connectOptions,
+            getOptions.fresh === true
+              ? { ...connectOptions, forceRefresh: true }
+              : connectOptions,
           );
 
-          const temporal = optionalTemporal();
+          const expiresAt = instant(response.expiresAt);
 
           return {
             token: response.token,
-            ...(temporal === undefined
-              ? {}
-              : {
-                  expiresAt: temporal.Instant.fromEpochMilliseconds(
-                    response.expiresAt,
-                  ),
-                }),
+            ...(expiresAt === undefined ? {} : { expiresAt }),
             headers: { authorization: `Bearer ${response.token}` },
           };
         },
       );
     },
-    capabilities() {
+    capabilities(ref) {
       return {
         userSubjects: true,
+        exchangeSubjects: true,
         authorization: true,
         revoke: true,
-        inbound: false,
+        inbound: ref["inbound"] === true,
       };
     },
     startAuthorization(ref, startOptions) {
-      return run(ref, startOptions.subject, async (module, parsed) => {
-        const { url } = await module.startAuthorization(
-          parsed.connector,
-          params(parsed, startOptions.subject, startOptions.scopes, undefined),
-          { ...connectOptions, callbackUrl: startOptions.redirectUri },
-        );
+      return run(
+        ref,
+        startOptions.subject,
+        async (module, parsed): Promise<StartAuthorizationResult> => {
+          const started = await module.startAuthorization(
+            parsed.connector,
+            params(
+              parsed,
+              startOptions.subject,
+              startOptions.scopes,
+              undefined,
+            ),
+            {
+              ...connectOptions,
+              callbackUrl: startOptions.redirectUri,
+              ...(startOptions.deviceCode === true ? { deviceCode: true } : {}),
+              ...(startOptions.prompt === undefined
+                ? {}
+                : { prompt: startOptions.prompt }),
+            },
+          );
 
-        return { url };
-      });
+          const expiresAt = instant(started.expiresAt);
+
+          return {
+            url: started.url,
+            ...(started.request === undefined
+              ? {}
+              : { request: started.request }),
+            ...(started.verifier === undefined
+              ? {}
+              : { verifier: started.verifier }),
+            ...(started.deviceCode === undefined
+              ? {}
+              : { deviceCode: started.deviceCode }),
+            ...(expiresAt === undefined ? {} : { expiresAt }),
+          };
+        },
+      );
     },
     revoke(ref, revokeOptions) {
       return run(ref, revokeOptions.subject, async (module, parsed) => {
@@ -274,6 +526,35 @@ export function vercelConnectCredentials(
         );
 
         return true;
+      });
+    },
+    verifyInbound(request, ref) {
+      const parsed = connectRef(ref);
+
+      if (!parsed.ok) {
+        return AsyncResult.err(parsed.error);
+      }
+
+      if (parsed.data.inbound !== true) {
+        return AsyncResult.err(
+          dbError(
+            "invalid_input",
+            `"${parsed.data.connector}" doesn't take forwarded webhooks; set inbound: true on its ref`,
+            { hint: "CREDENTIAL_INBOUND_DISABLED" },
+          ),
+        );
+      }
+
+      return AsyncResult.from(async () => {
+        const verify = await webhookVerifier();
+
+        try {
+          const body = await request.clone().text();
+
+          return ok(Boolean(await verify(request, body)));
+        } catch {
+          return ok(false);
+        }
       });
     },
   };

@@ -23,9 +23,11 @@ Imports stay at the top of the module. The exceptions are optional
     `redis` through a variable specifier in `src/streams/redis/redis.ts`
     (an install message, or pass a client), `jsonpath-rfc9535` through a
     variable specifier in `src/overlay/load.ts` (an install message, or pass
-    an engine), `@vercel/connect` through a
-    variable specifier in `src/vercel-connect/vercel-connect.ts` (an
-    install message), `@supabase/mcp-server-supabase` through variable
+    an engine), `@vercel/connect` and
+    `@vercel/connect/chat` through variable specifiers in
+    `src/vercel-connect/vercel-connect.ts` (an install message),
+    `@vercel/connect/mcp` through `importOptionalPeer` in
+    `src/ai-sdk/mcp/mcp.ts` (an install message, or pass the module), `@supabase/mcp-server-supabase` through variable
     specifiers in `src/core/supabase-mcp.ts` (an install message),
     `@next/playwright` through `importOptionalPeer` in
     `src/testing/instant.ts` (an install message), `eve/tools` through a

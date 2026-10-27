@@ -55,24 +55,32 @@ export interface ChannelAdapterOptions<A> {
   readonly ref: CredentialRef;
   readonly subject?: CredentialSubject;
   /**
-   * Builds the platform adapter with the token, e.g. `(t) =>
-   * createSlackAdapter({ botToken: t.token })`.
+   * Builds the platform adapter. Pass `resolve` where the adapter takes a token
+   * function (`createSlackAdapter({ botToken: resolve })`), so a token Vercel
+   * Connect rotates is read per call; `token` is the one read up front.
    */
-  readonly create: (token: CredentialToken) => A | Promise<A>;
+  readonly create: (
+    token: CredentialToken,
+    resolve: () => Promise<string>,
+  ) => A | Promise<A>;
 }
 
 /**
  * A platform adapter built from the token the credential provider holds, so no
- * secret sits in env.
+ * secret sits in env. The first read fails fast when the install has no
+ * credential; `resolve` reads it again for each call the adapter makes.
  */
 export async function channelAdapter<A>(
   options: ChannelAdapterOptions<A>,
 ): Promise<A> {
-  const token = await options.credentials
-    .getToken(options.ref, { subject: options.subject ?? APP })
-    .orThrow();
+  const read = (): Promise<CredentialToken> =>
+    options.credentials
+      .getToken(options.ref, { subject: options.subject ?? APP })
+      .orThrow();
 
-  return options.create(token);
+  const token = await read();
+
+  return options.create(token, async () => (await read()).token);
 }
 
 export interface InboxWebhookOptions {

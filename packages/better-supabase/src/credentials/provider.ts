@@ -53,15 +53,30 @@ export function foreignCredentialRef(tenant: string | undefined): DbError {
   );
 }
 
-/** Whose credential to use: the app's own, or one a user connected. */
+/**
+ * Whose credential to use: the app's own, one a user connected, or a token the
+ * provider exchanges for one. `jwt-bearer` asks for a token for `sub` through
+ * an RFC 7523 assertion; `token` exchanges a token the app holds (RFC 8693).
+ * Only providers that exchange tokens accept the last two.
+ */
 export type CredentialSubject =
   | { readonly type: "app" }
-  | { readonly type: "user"; readonly id: string; readonly issuer?: string };
+  | { readonly type: "user"; readonly id: string; readonly issuer?: string }
+  | {
+      readonly type: "jwt-bearer";
+      readonly sub: string;
+      readonly iss?: string;
+      readonly aud?: string;
+      readonly additionalClaims?: Readonly<Record<string, unknown>>;
+    }
+  | { readonly type: "token"; readonly token: string };
 
 export interface GetTokenOptions {
   readonly subject: CredentialSubject;
   readonly scopes?: readonly string[];
   readonly installationId?: string;
+  /** Skip any cached token, so a grant revoked upstream fails now. */
+  readonly fresh?: boolean;
   readonly signal?: AbortSignal;
 }
 
@@ -76,6 +91,8 @@ export interface CredentialToken {
 export interface CredentialCapabilities {
   /** The ref holds one credential per user subject. */
   readonly userSubjects: boolean;
+  /** `jwt-bearer` and `token` subjects resolve; other providers refuse them. */
+  readonly exchangeSubjects?: boolean;
   /** `startAuthorization` can send the user to connect the account. */
   readonly authorization: boolean;
   readonly revoke: boolean;
@@ -88,6 +105,23 @@ export interface StartAuthorizationOptions {
   readonly redirectUri: string;
   readonly scopes?: readonly string[];
   readonly state?: string;
+  /** Ask for a device code too, for a user on another device. */
+  readonly deviceCode?: boolean;
+  /** The OAuth `prompt` (`consent`, `login`) for the authorization server. */
+  readonly prompt?: string;
+}
+
+/** Where to send the user, and what the provider needs to finish. */
+export interface StartAuthorizationResult {
+  readonly url: string;
+  /** The provider's id for the pending authorization. */
+  readonly request?: string;
+  /** A PKCE verifier or similar secret the app keeps until the callback. */
+  readonly verifier?: string;
+  /** When the authorization link stops working. */
+  readonly expiresAt?: Temporal.Instant;
+  /** The code a user enters on another device. */
+  readonly deviceCode?: string;
 }
 
 export interface CompleteAuthorizationOptions {
@@ -114,7 +148,7 @@ export interface CredentialProvider {
   startAuthorization?(
     ref: CredentialRef,
     options: StartAuthorizationOptions,
-  ): AsyncResult<{ readonly url: string }>;
+  ): AsyncResult<StartAuthorizationResult>;
   completeAuthorization?(
     ref: CredentialRef,
     options: CompleteAuthorizationOptions,
