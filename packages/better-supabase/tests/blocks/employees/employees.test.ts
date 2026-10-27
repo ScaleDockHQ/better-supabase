@@ -391,10 +391,7 @@ describe("employees block", () => {
       lastName: "Hopper",
     });
     expect(t.calls.slice(0, 3).map(([, args]) => args)).toEqual([
-      {
-        contract: "c1",
-        attrs: { endsOn: "2026-12-31", salary: null, currency: null },
-      },
+      { contract: "c1", attrs: { endsOn: "2026-12-31", salary: null } },
       { contract: "c1", attrs: { salary: "500", currency: "EUR" } },
       { contract: "c1" },
     ]);

@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:b12f62e308878e828537dd84edc8d2399984c9703e4ac17adf5655544307fc2f
+-- @bsb-hash sha256:411a6a55c203a69c10d9b9655aad3ab766aca0df41f894cfd9ace568a3c0d685
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -517,7 +517,9 @@ begin
       'actor', auth.uid(),
       'subject_type', 'work_item',
       'subject_id', v_row."id"::text,
+      'subject_label', v_row."title",
       'summary', v_row."title",
+      'action_path', null,
       'recipients', to_jsonb(v_new),
       'watchers', false,
       'key', 'work_item.assigned:' || v_row."id"::text || ':' || md5(array_to_string(v_new, ',')),

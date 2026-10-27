@@ -37,6 +37,7 @@ import {
   recurrenceTables,
   replaceDates,
   addDate,
+  eventGuards,
 } from "./calendar-features.ts";
 import { feed } from "./calendar-feed.ts";
 import { CALENDAR_NAMES } from "./calendar-names.ts";
@@ -110,6 +111,11 @@ function build(ctx: BlockSqlContext): string {
     features.access
       ? eventAccessCall(ctx, event, "write")
       : allowed(tenant, write);
+
+  const { actionCheck, readOnlyCheck } = eventGuards(ctx, allowed);
+
+  const saveChecks = `${actionCheck("create", "v_tenant")}${readOnlyCheck("v_master")}`;
+  const changeChecks = `${actionCheck("update", "v_tenant")}${readOnlyCheck("v_id")}`;
 
   const recurrence = recurrenceSql(ctx);
   const me = "(select auth.uid())";
@@ -537,6 +543,14 @@ begin
   end if;${visibilityCheck("visibility", "('public', 'private')", "CALENDAR_EVENT_INVALID")}`
       : ""
   }
+${
+  saveChecks === "" && changeChecks === ""
+    ? ""
+    : `
+  if v_id is null then${saveChecks || "\n    null;"}
+  else${changeChecks || "\n    null;"}
+  end if;`
+}
   if v_item ? 'status' and v_item ->> 'status' not in ${STATUSES} then
     ${fail("CALENDAR_EVENT_INVALID", "status must be confirmed, tentative or cancelled", "22023")}
   end if;
@@ -620,7 +634,7 @@ begin
   end if;
   if not ${writesEvent("v_id", "v_tenant")} then
     ${fail("CALENDAR_FORBIDDEN", "not allowed to change this calendar")}
-  end if;
+  end if;${actionCheck("delete", "v_tenant")}${readOnlyCheck("v_id")}
   delete from ${events} where ${e("id")} = v_id;
   ${reminderRule(ctx, "delete")}
   ${record("calendar_event.deleted", "v_id", "v_calendar", "v_tenant")}
@@ -649,7 +663,7 @@ begin
   end if;
   if not ${writesEvent("v_id", "v_tenant")} then
     ${fail("CALENDAR_FORBIDDEN", "not allowed to change this calendar")}
-  end if;
+  end if;${actionCheck("delete", "v_tenant")}${readOnlyCheck("v_id")}
   ${
     features.table
       ? `if not (cancel_calendar_occurrence.original_start = any (${recurrence.exdatesOf("v_id")})) then
@@ -698,7 +712,7 @@ begin
   end if;
   if not ${writesEvent("v_id", "v_tenant")} then
     ${fail("CALENDAR_FORBIDDEN", "not allowed to change this calendar")}
-  end if;
+  end if;${changeChecks}${actionCheck("create", "v_tenant")}
   if split_calendar_event.split_at <= v_starts or nullif(split_calendar_event.before_rrule, '') is null then
     ${fail("CALENDAR_SPLIT_INVALID", "split at a later occurrence, with the rule that ends the series before it", "22023")}
   end if;

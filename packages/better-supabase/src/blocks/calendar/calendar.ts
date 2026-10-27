@@ -148,6 +148,11 @@ export interface CalendarEventInput {
   readonly uid?: string;
 }
 
+export interface CalendarOccurrenceRef {
+  readonly seriesId: string;
+  readonly originalStart: Temporal.Instant;
+}
+
 export interface SavedCalendarEvent {
   readonly id: string;
   readonly uid: string;
@@ -214,7 +219,9 @@ export interface Calendar<F extends object = Record<never, never>> {
     changes: CalendarEventInput & Partial<F>,
   ): AsyncResult<{ readonly id: string }>;
   /** Removes one occurrence of a series (an `EXDATE`), or a single event. */
-  cancelOccurrence(occurrence: CalendarOccurrence): AsyncResult<boolean>;
+  cancelOccurrence(
+    occurrence: CalendarOccurrence | CalendarOccurrenceRef,
+  ): AsyncResult<boolean>;
   setAttendee(
     eventId: string,
     attendee: CalendarAttendeeInput,
@@ -732,6 +739,17 @@ export function createCalendar<
       );
     },
     cancelOccurrence: (occurrence) => {
+      if ("seriesId" in occurrence) {
+        return call(
+          "cancel_calendar_occurrence",
+          {
+            event_id: occurrence.seriesId,
+            original_start: occurrence.originalStart.toString(),
+          },
+          (value) => value === true,
+        );
+      }
+
       const series = occurrence.series;
 
       if (!occurrence.recurring || series === undefined) {

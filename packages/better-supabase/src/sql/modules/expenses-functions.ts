@@ -228,7 +228,7 @@ export function expensesFunctions(ctx: BlockSqlContext): string {
   select * into v_approval from ${ar} p where p.${a("id")} = v_row.${r("approval")};`;
 
   const ownerOnly = `
-  if not (v_row.${r("user")} = auth.uid() and ${ctx.can("tenant", `v_row.${r("tenant")}`, submit)}) then
+  if not (coalesce(v_row.${r("user")} = auth.uid(), false) and ${ctx.can("tenant", `v_row.${r("tenant")}`, submit)}) then
     ${forbidden("only the member who owns the report can change it")}
   end if;`;
 
@@ -238,7 +238,7 @@ export function expensesFunctions(ctx: BlockSqlContext): string {
   end if;`;
 
   const reader = `
-  if not (v_row.${r("user")} = auth.uid() or ${can(`v_row.${r("tenant")}`, read)}) then
+  if not (coalesce(v_row.${r("user")} = auth.uid(), false) or ${can(`v_row.${r("tenant")}`, read)}) then
     ${fail("EXPENSE_REPORT_NOT_FOUND", "no such expense report", "P0002")}
   end if;`;
 
@@ -644,7 +644,7 @@ declare
   v_row ${reports}%rowtype;
   v_approval ${ar}%rowtype;
 begin${loadReport("cancel_expense_report.report_id", true)}
-  if not (v_row.${r("user")} = auth.uid() or ${can(`v_row.${r("tenant")}`, manage)}) then
+  if not (coalesce(v_row.${r("user")} = auth.uid(), false) or ${can(`v_row.${r("tenant")}`, manage)}) then
     ${forbidden("not allowed to cancel this expense report")}
   end if;
   if ${status("v_row", "v_approval")} not in ('draft', 'submitted', 'rejected') then
@@ -694,7 +694,7 @@ begin
   if not (v_reader or ${ctx.can("tenant", "list_expense_reports.tenant", submit)}) then
     ${forbidden("not allowed to list expense reports")}
   end if;
-  if not v_reader and (coalesce(list_expense_reports.everyone, false) or (list_expense_reports.user_id is not null and list_expense_reports.user_id <> auth.uid())) then
+  if not v_reader and (coalesce(list_expense_reports.everyone, false) or (list_expense_reports.user_id is not null and list_expense_reports.user_id is distinct from auth.uid())) then
     ${forbidden("not allowed to read another member's expenses")}
   end if;
   return (

@@ -76,7 +76,7 @@ function functions(
 
   // The technician themselves, holding dispatch.work, or a dispatcher.
   const worker = (row: string): string =>
-    `(${allowed(`${row}.${w("tenant")}`, manage)} or (${row}.${w("technician")} = auth.uid() and ${ctx.can("tenant", `${row}.${w("tenant")}`, work)}))`;
+    `(${allowed(`${row}.${w("tenant")}`, manage)} or (coalesce(${row}.${w("technician")} = auth.uid(), false) and ${ctx.can("tenant", `${row}.${w("tenant")}`, work)}))`;
 
   const busy = list(BUSY);
 
@@ -620,7 +620,7 @@ declare
 begin
   if v_technician is null or not (
     ${allowed("technician_day.tenant", read)}
-    or (v_technician = auth.uid() and ${ctx.can("tenant", "technician_day.tenant", work)})
+    or (coalesce(v_technician = auth.uid(), false) and ${ctx.can("tenant", "technician_day.tenant", work)})
   ) then
     ${fail("DISPATCH_FORBIDDEN", "not allowed to read this technician's day")}
   end if;
@@ -668,7 +668,7 @@ declare
 begin
   if plan_dispatch_route.technician is null or not (
     ${allowed("plan_dispatch_route.tenant", manage)}
-    or (plan_dispatch_route.technician = auth.uid() and ${ctx.can("tenant", "plan_dispatch_route.tenant", work)})
+    or (coalesce(plan_dispatch_route.technician = auth.uid(), false) and ${ctx.can("tenant", "plan_dispatch_route.tenant", work)})
   ) then
     ${fail("DISPATCH_FORBIDDEN", "not allowed to plan this technician's route")}
   end if;
@@ -788,7 +788,7 @@ begin
   select * into v_row from ${parts} y where y.${q("id")} = remove_work_order_part.part_id for update;
   if not found or not (
     ${allowed(`v_row.${q("tenant")}`, manage)}
-    or (v_row.${q("recordedBy")} = auth.uid() and ${ctx.can("tenant", `v_row.${q("tenant")}`, work)})
+    or (coalesce(v_row.${q("recordedBy")} = auth.uid(), false) and ${ctx.can("tenant", `v_row.${q("tenant")}`, work)})
   ) then
     return false;
   end if;

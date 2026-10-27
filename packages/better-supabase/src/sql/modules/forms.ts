@@ -891,7 +891,7 @@ begin
   if not found then
     ${submissionNotFound}
   end if;
-  if not (${SERVICE_CALLER} or v_row.${s("respondent")} = auth.uid() or ${ctx.can("tenant", `v_row.${s("tenant")}`, review)}) then
+  if not (${SERVICE_CALLER} or coalesce(v_row.${s("respondent")} = auth.uid(), false) or ${ctx.can("tenant", `v_row.${s("tenant")}`, review)}) then
     ${submissionNotFound}
   end if;
   return ${submissionJson("v_row")};
@@ -984,7 +984,7 @@ begin
     ${submissionNotFound}
   end if;
   if not (${SERVICE_CALLER} or ${ctx.can("tenant", `v_row.${s("tenant")}`, review)}
-    or (v_row.${s("respondent")} = auth.uid() and v_row.${s("status")} = 'draft')) then
+    or (coalesce(v_row.${s("respondent")} = auth.uid(), false) and v_row.${s("status")} = 'draft')) then
     ${fail("FORM_FORBIDDEN", "not allowed to delete this submission")}
   end if;
   delete from ${submissions} x where x.${s("id")} = delete_form_submission.submission_id;

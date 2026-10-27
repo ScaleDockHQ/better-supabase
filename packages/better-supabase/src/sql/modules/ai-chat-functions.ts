@@ -255,7 +255,7 @@ declare
   v_project uuid := (v_fields ->> 'project_id')::uuid;
 begin
   select * into v_row from ${t.chats} x where x.${ch.id} = update_ai_chat.chat for update;
-  if not found or not (${SERVICE_CALLER} or v_row.${ch.owner} = (select auth.uid())) then
+  if not found or not (${SERVICE_CALLER} or coalesce(v_row.${ch.owner} = (select auth.uid()), false)) then
     ${notFound.replace("%CHAT%", "update_ai_chat.chat")}
   end if;
   if v_project is not null and not ${ownProject("v_project", `v_row.${ch.owner}`, `v_row.${ch.tenant}`)} then
@@ -305,7 +305,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (${SERVICE_CALLER} or v_row.${ch.owner} = (select auth.uid()) or ${can(`v_row.${ch.tenant}`, perm.admin)}) then
+  if not (${SERVICE_CALLER} or coalesce(v_row.${ch.owner} = (select auth.uid()), false) or ${can(`v_row.${ch.tenant}`, perm.admin)}) then
     ${notFound.replace("%CHAT%", "delete_ai_chat.chat")}
   end if;
   delete from ${t.chats} x where x.${ch.id} = delete_ai_chat.chat;

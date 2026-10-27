@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:c6fa062967ee84e3189d36768e9f88273eb11e6a5bb860ba15611568ab622b13
+-- @bsb-hash sha256:dba782cfe1841af1e36cca1cb9232e6c4cd1840d954333e84fe0ec91f39b7a2e
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -138,6 +138,7 @@ begin
   if create_share_link.max_uses is not null and create_share_link.max_uses < 1 then
     raise exception 'max_uses must be at least 1' using errcode = '22023', hint = 'SHARE_MAX_USES_INVALID';
   end if;
+
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'this subject type can''t be shared' using errcode = '22023', hint = 'SHARE_SUBJECT_UNKNOWN';
   end if;
@@ -176,7 +177,7 @@ begin
   for update;
   if not found or not (
     auth.role() = 'service_role'
-    or (v_creator is not null and v_creator = auth.uid())
+    or (v_creator is not null and coalesce(v_creator = auth.uid(), false))
     or coalesce(better_supabase.can('tenant', v_tenant, 'share_links.create'), false)
   ) then
     raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';
@@ -354,7 +355,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:5f8442d68e3bbfffb0caf24e2187fc09ff475e345b01102bf5002526cbb9d1c5
+-- @bsb-hash sha256:b8a914cf0346231c7e9dc428cd7e13df99d6efb272aa6b410137e13e94b8465e
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -491,6 +492,7 @@ begin
   if create_share_link.max_uses is not null and create_share_link.max_uses < 1 then
     raise exception 'max_uses must be at least 1' using errcode = '22023', hint = 'SHARE_MAX_USES_INVALID';
   end if;
+
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     v_subject_ok := case create_share_link.subject_type
     when 'ai-chat' then exists (select 1 from "better_supabase".ai_chats s where s.id::text = create_share_link.subject_id and s.organization_id::text = create_share_link.tenant::text and s.owner_id = auth.uid())
@@ -549,7 +551,7 @@ begin
   for update;
   if not found or not (
     auth.role() = 'service_role'
-    or (v_creator is not null and v_creator = auth.uid())
+    or (v_creator is not null and coalesce(v_creator = auth.uid(), false))
     or coalesce(better_supabase.can('tenant', v_tenant, 'share_links.create'), false)
   ) then
     raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';
@@ -815,7 +817,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:c9acd5143474950658999f7c6365e57c21fc474bd546634705b2424c2bc13a01
+-- @bsb-hash sha256:10b9a23f8861581aa8aa9740ac5bde39a60520a03b49934078a64af28f97b2ea
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -957,6 +959,7 @@ begin
   if create_share_link.max_uses is not null and create_share_link.max_uses < 1 then
     raise exception 'max_uses must be at least 1' using errcode = '22023', hint = 'SHARE_MAX_USES_INVALID';
   end if;
+
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'this subject type can''t be shared' using errcode = '22023', hint = 'SHARE_SUBJECT_UNKNOWN';
   end if;
@@ -995,7 +998,7 @@ begin
   for update;
   if not found or not (
     auth.role() = 'service_role'
-    or (v_creator is not null and v_creator = auth.uid())
+    or (v_creator is not null and coalesce(v_creator = auth.uid(), false))
     or coalesce(better_supabase.can('tenant', v_tenant, 'share_links.create'), false)
   ) then
     raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';
@@ -1173,7 +1176,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:80d6470e2daa6aa9bd51dac849832fcc355fa3e326350f881eb616be8f99e6c3
+-- @bsb-hash sha256:e5d996ae4129d302f615fb0b31e20d068d66b01397da295fb99ac9a279c08fad
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1310,6 +1313,7 @@ begin
   if create_share_link.max_uses is not null and create_share_link.max_uses < 1 then
     raise exception 'max_uses must be at least 1' using errcode = '22023', hint = 'SHARE_MAX_USES_INVALID';
   end if;
+
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'this subject type can''t be shared' using errcode = '22023', hint = 'SHARE_SUBJECT_UNKNOWN';
   end if;
@@ -1348,7 +1352,7 @@ begin
   for update;
   if not found or not (
     auth.role() = 'service_role'
-    or (v_creator is not null and v_creator = auth.uid())
+    or (v_creator is not null and coalesce(v_creator = auth.uid(), false))
     or coalesce(better_supabase.can('tenant', v_tenant, 'share_links.create'), false)
   ) then
     raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';
@@ -1608,7 +1612,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:f86e4462c59f3313ace7fdaccb8e5b528e7ca460eeef3bf6c86f260b473b0d56
+-- @bsb-hash sha256:4c0384655216de08f827d1b8e6c02a79eaaaa67ac62bfcbd748578a463571a80
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1737,6 +1741,7 @@ begin
   if create_share_link.max_uses is not null and create_share_link.max_uses < 1 then
     raise exception 'max_uses must be at least 1' using errcode = '22023', hint = 'SHARE_MAX_USES_INVALID';
   end if;
+
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'this subject type can''t be shared' using errcode = '22023', hint = 'SHARE_SUBJECT_UNKNOWN';
   end if;
@@ -1775,7 +1780,7 @@ begin
   for update;
   if not found or not (
     auth.role() = 'service_role'
-    or (v_creator is not null and v_creator = auth.uid())
+    or (v_creator is not null and coalesce(v_creator = auth.uid(), false))
     or coalesce(better_supabase.can('tenant', v_tenant, 'share_links.create'), false)
   ) then
     raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';
@@ -1953,7 +1958,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:c3f7f6e291d8d25fe5114f3178558800c7a7fec5725523cb7da7a40f1e5be61b
+-- @bsb-hash sha256:13c25568979f21b5cd4a1483c9796f209d7491cdae4eb97a90f43d6631544616
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2090,6 +2095,7 @@ begin
   if create_share_link.max_uses is not null and create_share_link.max_uses < 1 then
     raise exception 'max_uses must be at least 1' using errcode = '22023', hint = 'SHARE_MAX_USES_INVALID';
   end if;
+
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'this subject type can''t be shared' using errcode = '22023', hint = 'SHARE_SUBJECT_UNKNOWN';
   end if;
@@ -2128,7 +2134,7 @@ begin
   for update;
   if not found or not (
     auth.role() = 'service_role'
-    or (v_creator is not null and v_creator = auth.uid())
+    or (v_creator is not null and coalesce(v_creator = auth.uid(), false))
     or coalesce(better_supabase.can('tenant', v_tenant, 'share_links.create'), false)
   ) then
     raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';

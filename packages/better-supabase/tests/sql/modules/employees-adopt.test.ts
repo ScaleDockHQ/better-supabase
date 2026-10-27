@@ -132,13 +132,17 @@ const render = (modules: AnyBlocksConfig) =>
     },
   });
 
-async function run(modules: AnyBlocksConfig, check: string): Promise<void> {
+async function run(
+  modules: AnyBlocksConfig,
+  check: string,
+  setup = SETUP,
+): Promise<void> {
   const files = render(modules);
 
   await using stack = await liteStack({
     driver: "pglite",
     migrations: [
-      SETUP,
+      setup,
       ...files
         .filter((file) => file.kind !== "data")
         .map((file) => file.contents),
@@ -304,7 +308,7 @@ begin
   v_contract := better_supabase.update_employee_contract((v_contract ->> 'id')::uuid, '{"salaryPeriod": "year", "salary": null, "endsOn": "2026-12-31"}'::jsonb);
   if (select pay_basis::text from public.staff_contracts) <> 'annual'
     or (select salary from public.staff_contracts) is not null
-    or (select currency from public.staff_contracts) is not null
+    or (select currency from public.staff_contracts) <> 'EUR'
     or (select ends_on from public.staff_contracts) <> '2026-12-31' then
     raise exception 'contract update %', v_contract;
   end if;
@@ -342,4 +346,72 @@ $$;`,
       ),
     ).resolves.toBeUndefined();
   });
+
+  it(
+    "maps an enum status and fills extra column defaults on create, and keeps a required currency",
+    BOOT,
+    async () => {
+      const setup = `${SETUP}
+create type public.staff_status as enum ('onboarding', 'active', 'ended');
+alter table public.staff alter column status drop default;
+alter table public.staff alter column status type public.staff_status using status::public.staff_status;
+alter table public.staff alter column status set default 'active';
+alter table public.staff add column show_birthday boolean not null default false;
+alter table public.staff add column timezone text;
+update public.staff_contracts set currency = 'EUR' where currency is null;
+alter table public.staff_contracts alter column currency set not null;
+`;
+
+      const config = blocks("full_name");
+
+      await expect(
+        run(
+          {
+            employees: {
+              ...config["employees"],
+              values: {
+                ...config["employees"]?.values,
+                employees: {
+                  status: {
+                    preboarding: "onboarding",
+                    active: "active",
+                    offboarded: "ended",
+                    on_leave: null,
+                  },
+                },
+              },
+              options: {
+                ...config["employees"]?.options,
+                extraColumns: {
+                  show_birthday: "boolean not null default false",
+                  timezone: "text",
+                },
+              },
+            },
+          },
+          `do $$
+declare
+  v_employee jsonb;
+  v_contract jsonb;
+begin
+  ${SERVICE}
+  v_employee := better_supabase.create_employee('${TENANT}', '{"name": "Sam Lee", "status": "preboarding", "timezone": "Europe/Amsterdam"}'::jsonb);
+  if (select status::text from public.staff where id = (v_employee ->> 'id')::uuid) <> 'onboarding'
+    or (select show_birthday from public.staff where id = (v_employee ->> 'id')::uuid) <> false
+    or (select timezone from public.staff where id = (v_employee ->> 'id')::uuid) <> 'Europe/Amsterdam' then
+    raise exception 'create %', v_employee;
+  end if;
+  v_contract := better_supabase.add_employee_contract((v_employee ->> 'id')::uuid, '{"startsOn": "2026-01-01", "salary": "500000", "currency": "EUR"}'::jsonb);
+  v_contract := better_supabase.update_employee_contract((v_contract ->> 'id')::uuid, '{"salary": null}'::jsonb);
+  if (select salary from public.staff_contracts) is not null
+    or (select currency from public.staff_contracts) <> 'EUR' then
+    raise exception 'contract update %', v_contract;
+  end if;
+end;
+$$;`,
+          setup,
+        ),
+      ).resolves.toBeUndefined();
+    },
+  );
 });

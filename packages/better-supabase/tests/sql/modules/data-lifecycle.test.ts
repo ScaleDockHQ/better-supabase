@@ -21,6 +21,12 @@ const sqlOf = (
     .join("\n");
 
 describe("data-lifecycle module", () => {
+  it("leaves share link token hashes out of exports", () => {
+    expect(sqlOf(["data-lifecycle", "share-links"])).toContain(
+      `'"better_supabase"."share_links"', 'created_by', true, array['token_hash']::text[]`,
+    );
+  });
+
   it("cancels a deletion with the cancelDelete permission while the tenant is disabled", () => {
     expect(sqlOf(["organizations", "data-lifecycle"])).toContain(
       `coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)`,

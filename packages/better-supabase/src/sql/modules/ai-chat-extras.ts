@@ -465,7 +465,7 @@ declare
   v_row ${t.inputs};
 begin
   select * into v_row from ${t.inputs} x where x.${i.id} = answer_ai_pending_input.id for update;
-  if not found or not (${SERVICE_CALLER} or v_row.${i.owner} = (select auth.uid())) then
+  if not found or not (${SERVICE_CALLER} or coalesce(v_row.${i.owner} = (select auth.uid()), false)) then
     ${raise("No question %", "P0002", "AI_INPUT_NOT_FOUND", "answer_ai_pending_input.id")}
   end if;
   if v_row.${i.answeredAt} is not null then

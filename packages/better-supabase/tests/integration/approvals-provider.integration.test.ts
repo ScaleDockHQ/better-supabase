@@ -91,7 +91,8 @@ describe.skipIf(!live)("approvals with the provider's isApprover", () => {
         (await approvals.get(request.id).orThrow()).canDecide;
 
       await s.asRole(outsider);
-      expect(await canDecide()).toBe(false);
+      const hidden = await approvals.get(request.id);
+      expect(hidden.ok ? "ok" : hidden.error.hint).toBe("APPROVAL_NOT_FOUND");
       await s.service();
       await s.client.query(
         "update better_supabase.approval_requests set requested_by = $1 where id = $2",

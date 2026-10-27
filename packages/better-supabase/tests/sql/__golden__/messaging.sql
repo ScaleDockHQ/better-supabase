@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:8d93a24385948b30e0450e6bcea3059826960086aae69aff589a9f7352ea30d2
+-- @bsb-hash sha256:00b48cb5a4de7e1fb4e2240fe94c6ba45257470448d5ca6066ee008b9a4c494e
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -586,8 +586,8 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
-    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or add_conversation_members.users <@ array[auth.uid()]))
-    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and add_conversation_members.users <@ array[auth.uid()])) then
+    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(add_conversation_members.users <@ array[auth.uid()], false)))
+    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(add_conversation_members.users <@ array[auth.uid()], false))) then
     raise exception 'not allowed to add members here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   for v_user in select distinct x from unnest(add_conversation_members.users) x where x is not null loop
@@ -630,7 +630,7 @@ begin
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    or remove_conversation_member.member = auth.uid()
+    or coalesce(remove_conversation_member.member = auth.uid(), false)
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to remove this member' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
@@ -666,7 +666,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
-    or v_conv."created_by" = auth.uid()
+    or coalesce(v_conv."created_by" = auth.uid(), false)
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to archive this conversation' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
@@ -1219,7 +1219,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_msg."author_id" = auth.uid(), false) or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
     raise exception 'not allowed to delete this message' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   update "better_supabase"."messages" m set "body" = '', "document" = null, "mentions" = '{}', "mention_scope" = null,
@@ -1775,7 +1775,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:91a716a6bd6c588fade52536cdfd9b17b2bb36a6c75047604c00a4b687c73ba5
+-- @bsb-hash sha256:96181820795798ebcbf68d6a59d599b84e9ac77643fd3bdcbef2e93f83550b45
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2517,8 +2517,8 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
-    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or add_conversation_members.users <@ array[auth.uid()]))
-    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and add_conversation_members.users <@ array[auth.uid()])) then
+    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(add_conversation_members.users <@ array[auth.uid()], false)))
+    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(add_conversation_members.users <@ array[auth.uid()], false))) then
     raise exception 'not allowed to add members here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   for v_user in select distinct x from unnest(add_conversation_members.users) x where x is not null loop
@@ -2561,7 +2561,7 @@ begin
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    or remove_conversation_member.member = auth.uid()
+    or coalesce(remove_conversation_member.member = auth.uid(), false)
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to remove this member' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
@@ -2597,7 +2597,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
-    or v_conv."created_by" = auth.uid()
+    or coalesce(v_conv."created_by" = auth.uid(), false)
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to archive this conversation' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
@@ -3217,7 +3217,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_msg."author_id" = auth.uid(), false) or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
     raise exception 'not allowed to delete this message' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   update "better_supabase"."messages" m set "body" = '', "document" = null, "mentions" = '{}', "mention_scope" = null,
@@ -3821,7 +3821,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:10a63601c05b18645d184b83dfa3444c4936fb7f024b012d170246b454145185
+-- @bsb-hash sha256:90bfebc092f615af1259d68ca11db812428bfb1ff853c43479347c3b7f8212d7
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4411,8 +4411,8 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "app_private"."can_conversation"(v_conv."id", 'moderate')
-    or ("app_private"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or add_conversation_members.users <@ array[auth.uid()]))
-    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and add_conversation_members.users <@ array[auth.uid()])) then
+    or ("app_private"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(add_conversation_members.users <@ array[auth.uid()], false)))
+    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(add_conversation_members.users <@ array[auth.uid()], false))) then
     raise exception 'not allowed to add members here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   for v_user in select distinct x from unnest(add_conversation_members.users) x where x is not null loop
@@ -4455,7 +4455,7 @@ begin
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    or remove_conversation_member.member = auth.uid()
+    or coalesce(remove_conversation_member.member = auth.uid(), false)
     or "app_private"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "app_private"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to remove this member' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
@@ -4491,7 +4491,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "app_private"."can_conversation"(v_conv."id", 'moderate')
-    or v_conv."created_by" = auth.uid()
+    or coalesce(v_conv."created_by" = auth.uid(), false)
     or exists (select 1 from "app_private"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to archive this conversation' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
@@ -5044,7 +5044,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "app_private"."can_conversation"(v_msg."conversation_id", 'moderate')) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_msg."author_id" = auth.uid(), false) or "app_private"."can_conversation"(v_msg."conversation_id", 'moderate')) then
     raise exception 'not allowed to delete this message' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   update "app_private"."messages" m set "body" = '', "document" = null, "mentions" = '{}', "mention_scope" = null,
@@ -5600,7 +5600,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:acdd47bcfbae39609274390adb4041685b57b3c5a6db754b8895dc9032644d55
+-- @bsb-hash sha256:ce10dcf1455f34d77779018be819757a60f949a77978f9ac8f7755425f575993
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6185,8 +6185,8 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
-    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or add_conversation_members.users <@ array[auth.uid()]))
-    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and add_conversation_members.users <@ array[auth.uid()])) then
+    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(add_conversation_members.users <@ array[auth.uid()], false)))
+    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(add_conversation_members.users <@ array[auth.uid()], false))) then
     raise exception 'not allowed to add members here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   for v_user in select distinct x from unnest(add_conversation_members.users) x where x is not null loop
@@ -6229,7 +6229,7 @@ begin
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    or remove_conversation_member.member = auth.uid()
+    or coalesce(remove_conversation_member.member = auth.uid(), false)
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to remove this member' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
@@ -6265,7 +6265,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
-    or v_conv."created_by" = auth.uid()
+    or coalesce(v_conv."created_by" = auth.uid(), false)
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to archive this conversation' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
@@ -6818,7 +6818,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_msg."author_id" = auth.uid(), false) or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
     raise exception 'not allowed to delete this message' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   update "better_supabase"."messages" m set "body" = '', "document" = null, "mentions" = '{}', "mention_scope" = null,
@@ -7647,7 +7647,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:de15f3aa500dc9057f4db3d1639cc3907927cb282f0a29a0c166febdcb4afc81
+-- @bsb-hash sha256:ecd6e1c3e09255e539c2db0cfeee96b000f99a81a556adc2ca7ae5f659a88857
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8231,8 +8231,8 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
-    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or add_conversation_members.users <@ array[auth.uid()]))
-    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and add_conversation_members.users <@ array[auth.uid()])) then
+    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(add_conversation_members.users <@ array[auth.uid()], false)))
+    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(add_conversation_members.users <@ array[auth.uid()], false))) then
     raise exception 'not allowed to add members here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   for v_user in select distinct x from unnest(add_conversation_members.users) x where x is not null loop
@@ -8275,7 +8275,7 @@ begin
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    or remove_conversation_member.member = auth.uid()
+    or coalesce(remove_conversation_member.member = auth.uid(), false)
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to remove this member' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
@@ -8311,7 +8311,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
-    or v_conv."created_by" = auth.uid()
+    or coalesce(v_conv."created_by" = auth.uid(), false)
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to archive this conversation' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
@@ -8864,7 +8864,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_msg."author_id" = auth.uid(), false) or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
     raise exception 'not allowed to delete this message' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   update "better_supabase"."messages" m set "body" = '', "document" = null, "mentions" = '{}', "mention_scope" = null,
@@ -9420,7 +9420,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:d8c6a4af6bc54b26aa34c032a55d9498658ef381785bef4d68cfdd4c8384ad35
+-- @bsb-hash sha256:4d0c2271204e1f7fa1c1690a0ba3888eac83f1f871149da623bf1c798563b33c
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10005,8 +10005,8 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
-    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or add_conversation_members.users <@ array[auth.uid()]))
-    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and add_conversation_members.users <@ array[auth.uid()])) then
+    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(add_conversation_members.users <@ array[auth.uid()], false)))
+    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(add_conversation_members.users <@ array[auth.uid()], false))) then
     raise exception 'not allowed to add members here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   for v_user in select distinct x from unnest(add_conversation_members.users) x where x is not null loop
@@ -10049,7 +10049,7 @@ begin
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    or remove_conversation_member.member = auth.uid()
+    or coalesce(remove_conversation_member.member = auth.uid(), false)
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to remove this member' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
@@ -10085,7 +10085,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
-    or v_conv."created_by" = auth.uid()
+    or coalesce(v_conv."created_by" = auth.uid(), false)
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to archive this conversation' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
@@ -10638,7 +10638,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_msg."author_id" = auth.uid(), false) or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
     raise exception 'not allowed to delete this message' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   update "better_supabase"."messages" m set "body" = '', "document" = null, "mentions" = '{}', "mention_scope" = null,

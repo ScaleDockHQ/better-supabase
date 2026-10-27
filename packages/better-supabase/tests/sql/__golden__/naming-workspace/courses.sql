@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:3d01abccaa036569df5f01c3964362402d32ad40d1a4b3841a9d9bc46a9f66d3
+-- @bsb-hash sha256:f455bc0add5128cbdf55d21eee48899bc0bf992ce15f07a0005c5c1fadf12fd1
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -887,7 +887,7 @@ begin
   if v_user is distinct from auth.uid() and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_course."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_course."tenant_id", 'courses.enroll'), false))) then
     raise exception 'not allowed to enroll others in courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if v_user = auth.uid() and not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_course."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_course."tenant_id", 'courses.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_course."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_course."tenant_id", 'courses.enroll'), false)))) then
+  if coalesce(v_user = auth.uid(), false) and not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_course."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_course."tenant_id", 'courses.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_course."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_course."tenant_id", 'courses.enroll'), false)))) then
     raise exception 'not allowed to enroll in courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
   if v_course."status" <> 'published' then

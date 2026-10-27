@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:2022ae1414cba13871a2f47d61ee8c2ae951bf3077cc5052ec225d794f2a03ec
+-- @bsb-hash sha256:51cc418ace57c5302698be779c1d6b134e3868c4e83fa81250c485868c5028da
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -732,8 +732,8 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
-    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or add_conversation_members.users <@ array[auth.uid()]))
-    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and add_conversation_members.users <@ array[auth.uid()])) then
+    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(add_conversation_members.users <@ array[auth.uid()], false)))
+    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(add_conversation_members.users <@ array[auth.uid()], false))) then
     raise exception 'not allowed to add members here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   for v_user in select distinct x from unnest(add_conversation_members.users) x where x is not null loop
@@ -776,7 +776,7 @@ begin
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    or remove_conversation_member.member = auth.uid()
+    or coalesce(remove_conversation_member.member = auth.uid(), false)
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to remove this member' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
@@ -812,7 +812,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
-    or v_conv."created_by" = auth.uid()
+    or coalesce(v_conv."created_by" = auth.uid(), false)
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to archive this conversation' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
@@ -1428,7 +1428,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_msg."author_id" = auth.uid(), false) or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
     raise exception 'not allowed to delete this message' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   update "better_supabase"."messages" m set "body" = '', "document" = null, "mentions" = '{}', "mention_scope" = null,

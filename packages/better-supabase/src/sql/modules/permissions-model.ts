@@ -229,6 +229,7 @@ export const OPTIONAL_MODULE_PERMISSIONS: Readonly<
   "data-lifecycle": { deletePlatform: "platform" },
   tags: { create: "tenant", update: "tenant", delete: "tenant" },
   tasks: { create: "tenant", delete: "tenant" },
+  calendar: { create: "tenant", update: "tenant", delete: "tenant" },
   employees: {
     create: "tenant",
     contractsRead: "tenant",

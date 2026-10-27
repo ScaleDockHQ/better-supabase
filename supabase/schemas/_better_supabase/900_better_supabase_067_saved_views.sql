@@ -1,6 +1,6 @@
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:09ca628b50caccca3ed21a0f28986fab572dbff62a80f368cca4a4b5d04f3884
+-- @bsb-hash sha256:57313c4b8153ca02a6f3044d34aeb2c531d962f1f4b669ab53181c683124fe23
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -168,7 +168,7 @@ begin
       raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
     end if;
     if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
       raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
     end if;
@@ -275,7 +275,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -304,7 +304,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -340,7 +340,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -366,7 +366,7 @@ begin
   select * into v_row from "better_supabase"."shared_views" where "id" = duplicate_view.view_id;
   if not found or not (auth.role() = 'service_role'
     or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and v_row."team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t))
       or v_row."scope" = 'tenant'))) then
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
@@ -403,7 +403,7 @@ begin
   select * into v_row from "better_supabase"."shared_views" where "id" = set_view_preference.view_id;
   if not found or not (auth.role() = 'service_role'
     or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and v_row."team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t))
       or v_row."scope" = 'tenant'))) then
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';

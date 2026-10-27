@@ -336,7 +336,13 @@ export function keyedFields(
     s("label"),
     ctx.cast("values", "type", "v_type"),
     ...assignments.map(([, expression]) => expression),
-    ...(ctx.has("values", "rank") ? [rankValue(s("rank"))] : []),
+    ...(ctx.has("values", "rank")
+      ? [
+          integerRank
+            ? `coalesce(${rankValue(s("rank"))}, (select coalesce(max(v.${c("rank")}), 0) + 1 from ${values} v where v.${c("tenant")} = ${s("tenant")} and ${subjectMatch(ctx, "v", s("subject_type"), s("subject_id"))}))`
+            : rankValue(s("rank")),
+        ]
+      : []),
   ];
 
   const updates = [

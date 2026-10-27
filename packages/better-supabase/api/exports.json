@@ -6304,6 +6304,7 @@
       "CalendarImport",
       "CalendarInfo",
       "CalendarOccurrence",
+      "CalendarOccurrenceRef",
       "CalendarOptions",
       "CalendarSnapshot",
       "CalendarTransparency",

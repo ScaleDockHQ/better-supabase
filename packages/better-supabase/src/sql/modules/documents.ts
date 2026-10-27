@@ -710,14 +710,14 @@ begin
   if found then
     select * into v_doc from ${documents} d where d.${c("id")} = v_suggestion.${g("document")};
   end if;
-  if v_suggestion.${g("id")} is null or not (${SERVICE_CALLER} or ${canRead("v_doc")} or v_suggestion.${g("createdBy")} = auth.uid()) then
+  if v_suggestion.${g("id")} is null or not (${SERVICE_CALLER} or ${canRead("v_doc")} or coalesce(v_suggestion.${g("createdBy")} = auth.uid(), false)) then
     ${fail("DOCUMENT_SUGGESTION_NOT_FOUND", "suggestion not found", "P0002")}
   end if;
   if decide_document_suggestion.decision is null or decide_document_suggestion.decision not in ('accepted', 'rejected', 'withdrawn') then
     ${fail("DOCUMENT_SUGGESTION_INVALID", "decide with accepted, rejected or withdrawn", "22023")}
   end if;
   if decide_document_suggestion.decision = 'withdrawn' then
-    if not (${SERVICE_CALLER} or v_suggestion.${g("createdBy")} = auth.uid()) then
+    if not (${SERVICE_CALLER} or coalesce(v_suggestion.${g("createdBy")} = auth.uid(), false)) then
       ${fail("DOCUMENT_FORBIDDEN", "only the author can withdraw a suggestion")}
     end if;
   elsif not (${SERVICE_CALLER} or ${canWrite("v_doc")}) then

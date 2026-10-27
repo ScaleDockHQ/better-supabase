@@ -54,6 +54,7 @@ export const CALENDAR_NAMES: BlockSqlNames = {
     "attendeeKey",
     "calendarDetails",
     "ruleDialect",
+    "readOnly",
   ],
   tables: {
     calendars: {
@@ -141,8 +142,7 @@ export const CALENDAR_NAMES: BlockSqlNames = {
         "owner",
         "rdates",
       ],
-      typed: ["status", "visibility"],
-      mappable: ["kind", "transparency"],
+      typed: ["status", "visibility", "kind", "transparency"],
     },
     attendees: {
       name: "calendar_attendees",
@@ -172,7 +172,7 @@ export const CALENDAR_NAMES: BlockSqlNames = {
         "organizer",
         "optional",
       ],
-      mappable: ["role", "response"],
+      typed: ["role", "response"],
     },
     workingHours: WORKING_HOURS_TABLE,
     grants: {

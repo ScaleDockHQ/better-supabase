@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:8dea2fb9a0cacbfe4cf80986525e59367810e769c32dc9d5e41e9f54982c1e1a
+-- @bsb-hash sha256:f1be4a42e6666e5531afa630bf7551d6176bfa182c12f71c4a7e9e26caa97e74
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -480,7 +480,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ledger_accounts" x where x."id" = close_ledger_account.account_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false) or v_row."owner_id" = auth.uid() or (v_row."read_permission" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", v_row."read_permission"), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false) or coalesce(v_row."owner_id" = auth.uid(), false) or (v_row."read_permission" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", v_row."read_permission"), false))) then
     raise exception 'ledger account not found' using errcode = 'P0002', hint = 'LEDGER_ACCOUNT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.manage'), false)) then
@@ -833,7 +833,7 @@ as $$
       and (list_ledger_accounts.kind is null or x."kind" = list_ledger_accounts.kind)
       and (list_ledger_accounts.holder_type is null or x."holder_type" = list_ledger_accounts.holder_type)
       and (list_ledger_accounts.holder_id is null or x."holder_id" = list_ledger_accounts.holder_id)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or x."owner_id" = auth.uid() or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or coalesce(x."owner_id" = auth.uid(), false) or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
     order by x."code"
     limit least(greatest(coalesce(list_ledger_accounts.page_size, 100), 1), 1000)
   ) z
@@ -856,7 +856,7 @@ declare
   v_rows jsonb;
 begin
   select * into v_account from "better_supabase"."ledger_accounts" x where x."id" = ledger_account_entries.account_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_account."tenant_id", 'ledger.read'), false) or v_account."owner_id" = auth.uid() or (v_account."read_permission" is not null and coalesce(better_supabase.can('tenant', v_account."tenant_id", v_account."read_permission"), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_account."tenant_id", 'ledger.read'), false) or coalesce(v_account."owner_id" = auth.uid(), false) or (v_account."read_permission" is not null and coalesce(better_supabase.can('tenant', v_account."tenant_id", v_account."read_permission"), false))) then
     raise exception 'ledger account not found' using errcode = 'P0002', hint = 'LEDGER_ACCOUNT_NOT_FOUND';
   end if;
   select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb) into v_rows
@@ -894,7 +894,7 @@ begin
   select * into v_row from "better_supabase"."ledger_transactions" x where x."id" = get_ledger_transaction.transaction_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false) or exists (
     select 1 from "better_supabase"."ledger_entries" y join "better_supabase"."ledger_accounts" x on x."id" = y."account_id"
-    where y."transaction_id" = v_row."id" and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or x."owner_id" = auth.uid() or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
+    where y."transaction_id" = v_row."id" and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or coalesce(x."owner_id" = auth.uid(), false) or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
   )) then
     raise exception 'ledger transaction not found' using errcode = 'P0002', hint = 'LEDGER_TRANSACTION_NOT_FOUND';
   end if;
@@ -1058,7 +1058,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:950790f021a6cb13f753a31ba7f56b25be62d96f56fb1e5dca1ba5705e11b221
+-- @bsb-hash sha256:3fd73b58308ff75791f308e1485c966335bdc4020682fc588401660504b98e4c
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1547,7 +1547,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ledger_accounts" x where x."id" = close_ledger_account.account_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false) or v_row."owner_id" = auth.uid() or (v_row."read_permission" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", v_row."read_permission"), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false) or coalesce(v_row."owner_id" = auth.uid(), false) or (v_row."read_permission" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", v_row."read_permission"), false))) then
     raise exception 'ledger account not found' using errcode = 'P0002', hint = 'LEDGER_ACCOUNT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.manage'), false)) then
@@ -1919,7 +1919,7 @@ as $$
       and (list_ledger_accounts.kind is null or x."kind" = list_ledger_accounts.kind)
       and (list_ledger_accounts.holder_type is null or x."holder_type" = list_ledger_accounts.holder_type)
       and (list_ledger_accounts.holder_id is null or x."holder_id" = list_ledger_accounts.holder_id)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or x."owner_id" = auth.uid() or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or coalesce(x."owner_id" = auth.uid(), false) or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
     order by x."code"
     limit least(greatest(coalesce(list_ledger_accounts.page_size, 100), 1), 1000)
   ) z
@@ -1942,7 +1942,7 @@ declare
   v_rows jsonb;
 begin
   select * into v_account from "better_supabase"."ledger_accounts" x where x."id" = ledger_account_entries.account_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_account."tenant_id", 'ledger.read'), false) or v_account."owner_id" = auth.uid() or (v_account."read_permission" is not null and coalesce(better_supabase.can('tenant', v_account."tenant_id", v_account."read_permission"), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_account."tenant_id", 'ledger.read'), false) or coalesce(v_account."owner_id" = auth.uid(), false) or (v_account."read_permission" is not null and coalesce(better_supabase.can('tenant', v_account."tenant_id", v_account."read_permission"), false))) then
     raise exception 'ledger account not found' using errcode = 'P0002', hint = 'LEDGER_ACCOUNT_NOT_FOUND';
   end if;
   select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb) into v_rows
@@ -1980,7 +1980,7 @@ begin
   select * into v_row from "better_supabase"."ledger_transactions" x where x."id" = get_ledger_transaction.transaction_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false) or exists (
     select 1 from "better_supabase"."ledger_entries" y join "better_supabase"."ledger_accounts" x on x."id" = y."account_id"
-    where y."transaction_id" = v_row."id" and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or x."owner_id" = auth.uid() or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
+    where y."transaction_id" = v_row."id" and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or coalesce(x."owner_id" = auth.uid(), false) or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
   )) then
     raise exception 'ledger transaction not found' using errcode = 'P0002', hint = 'LEDGER_TRANSACTION_NOT_FOUND';
   end if;
@@ -2144,7 +2144,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:f4ed5037d07513a6631efb729500b1c89a27f17ca5b66338a3d6681d09e208e6
+-- @bsb-hash sha256:2647f3b811837c608affddd917fbff3ef4ab8edd90c225bd946f3bde30305605
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2628,7 +2628,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "app_private"."ledger_accounts" x where x."id" = close_ledger_account.account_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false) or v_row."owner_id" = auth.uid() or (v_row."read_permission" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", v_row."read_permission"), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false) or coalesce(v_row."owner_id" = auth.uid(), false) or (v_row."read_permission" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", v_row."read_permission"), false))) then
     raise exception 'ledger account not found' using errcode = 'P0002', hint = 'LEDGER_ACCOUNT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.manage'), false)) then
@@ -2981,7 +2981,7 @@ as $$
       and (list_ledger_accounts.kind is null or x."kind" = list_ledger_accounts.kind)
       and (list_ledger_accounts.holder_type is null or x."holder_type" = list_ledger_accounts.holder_type)
       and (list_ledger_accounts.holder_id is null or x."holder_id" = list_ledger_accounts.holder_id)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or x."owner_id" = auth.uid() or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or coalesce(x."owner_id" = auth.uid(), false) or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
     order by x."code"
     limit least(greatest(coalesce(list_ledger_accounts.page_size, 100), 1), 1000)
   ) z
@@ -3004,7 +3004,7 @@ declare
   v_rows jsonb;
 begin
   select * into v_account from "app_private"."ledger_accounts" x where x."id" = ledger_account_entries.account_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_account."tenant_id", 'ledger.read'), false) or v_account."owner_id" = auth.uid() or (v_account."read_permission" is not null and coalesce(better_supabase.can('tenant', v_account."tenant_id", v_account."read_permission"), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_account."tenant_id", 'ledger.read'), false) or coalesce(v_account."owner_id" = auth.uid(), false) or (v_account."read_permission" is not null and coalesce(better_supabase.can('tenant', v_account."tenant_id", v_account."read_permission"), false))) then
     raise exception 'ledger account not found' using errcode = 'P0002', hint = 'LEDGER_ACCOUNT_NOT_FOUND';
   end if;
   select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb) into v_rows
@@ -3042,7 +3042,7 @@ begin
   select * into v_row from "app_private"."ledger_transactions" x where x."id" = get_ledger_transaction.transaction_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false) or exists (
     select 1 from "app_private"."ledger_entries" y join "app_private"."ledger_accounts" x on x."id" = y."account_id"
-    where y."transaction_id" = v_row."id" and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or x."owner_id" = auth.uid() or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
+    where y."transaction_id" = v_row."id" and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or coalesce(x."owner_id" = auth.uid(), false) or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
   )) then
     raise exception 'ledger transaction not found' using errcode = 'P0002', hint = 'LEDGER_TRANSACTION_NOT_FOUND';
   end if;
@@ -3206,7 +3206,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:8b900639541fa9f254c4ec6a48dd74ec01d068a267601a3b79368a0c35aa32a8
+-- @bsb-hash sha256:809cb3c3eba14d6ee1e1e4b6b6028bb94e50fd7d05e25944c1998ad485848f8a
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3685,7 +3685,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ledger_accounts" x where x."id" = close_ledger_account.account_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false) or v_row."owner_id" = auth.uid() or (v_row."read_permission" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", v_row."read_permission"), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false) or coalesce(v_row."owner_id" = auth.uid(), false) or (v_row."read_permission" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", v_row."read_permission"), false))) then
     raise exception 'ledger account not found' using errcode = 'P0002', hint = 'LEDGER_ACCOUNT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.manage'), false)) then
@@ -4038,7 +4038,7 @@ as $$
       and (list_ledger_accounts.kind is null or x."kind" = list_ledger_accounts.kind)
       and (list_ledger_accounts.holder_type is null or x."holder_type" = list_ledger_accounts.holder_type)
       and (list_ledger_accounts.holder_id is null or x."holder_id" = list_ledger_accounts.holder_id)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or x."owner_id" = auth.uid() or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or coalesce(x."owner_id" = auth.uid(), false) or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
     order by x."code"
     limit least(greatest(coalesce(list_ledger_accounts.page_size, 100), 1), 1000)
   ) z
@@ -4061,7 +4061,7 @@ declare
   v_rows jsonb;
 begin
   select * into v_account from "better_supabase"."ledger_accounts" x where x."id" = ledger_account_entries.account_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_account."tenant_id", 'ledger.read'), false) or v_account."owner_id" = auth.uid() or (v_account."read_permission" is not null and coalesce(better_supabase.can('tenant', v_account."tenant_id", v_account."read_permission"), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_account."tenant_id", 'ledger.read'), false) or coalesce(v_account."owner_id" = auth.uid(), false) or (v_account."read_permission" is not null and coalesce(better_supabase.can('tenant', v_account."tenant_id", v_account."read_permission"), false))) then
     raise exception 'ledger account not found' using errcode = 'P0002', hint = 'LEDGER_ACCOUNT_NOT_FOUND';
   end if;
   select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb) into v_rows
@@ -4099,7 +4099,7 @@ begin
   select * into v_row from "better_supabase"."ledger_transactions" x where x."id" = get_ledger_transaction.transaction_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false) or exists (
     select 1 from "better_supabase"."ledger_entries" y join "better_supabase"."ledger_accounts" x on x."id" = y."account_id"
-    where y."transaction_id" = v_row."id" and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or x."owner_id" = auth.uid() or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
+    where y."transaction_id" = v_row."id" and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or coalesce(x."owner_id" = auth.uid(), false) or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
   )) then
     raise exception 'ledger transaction not found' using errcode = 'P0002', hint = 'LEDGER_TRANSACTION_NOT_FOUND';
   end if;
@@ -4387,7 +4387,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:dbc748dd0e17494be99bb495a2889d3ecf4fa92e5d5daf058a5f3f4e389a7e74
+-- @bsb-hash sha256:b3d172d7d02b825e3534f7a62af5d4bff9e4de722ab2efc3d80825ebbb5734f8
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4865,7 +4865,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ledger_accounts" x where x."id" = close_ledger_account.account_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false) or v_row."owner_id" = auth.uid() or (v_row."read_permission" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", v_row."read_permission"), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false) or coalesce(v_row."owner_id" = auth.uid(), false) or (v_row."read_permission" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", v_row."read_permission"), false))) then
     raise exception 'ledger account not found' using errcode = 'P0002', hint = 'LEDGER_ACCOUNT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.manage'), false)) then
@@ -5218,7 +5218,7 @@ as $$
       and (list_ledger_accounts.kind is null or x."kind"::text = list_ledger_accounts.kind)
       and (list_ledger_accounts.holder_type is null or x."holder_type" = list_ledger_accounts.holder_type)
       and (list_ledger_accounts.holder_id is null or x."holder_id" = list_ledger_accounts.holder_id)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or x."owner_id" = auth.uid() or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or coalesce(x."owner_id" = auth.uid(), false) or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
     order by x."code"
     limit least(greatest(coalesce(list_ledger_accounts.page_size, 100), 1), 1000)
   ) z
@@ -5241,7 +5241,7 @@ declare
   v_rows jsonb;
 begin
   select * into v_account from "better_supabase"."ledger_accounts" x where x."id" = ledger_account_entries.account_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_account."tenant_id", 'ledger.read'), false) or v_account."owner_id" = auth.uid() or (v_account."read_permission" is not null and coalesce(better_supabase.can('tenant', v_account."tenant_id", v_account."read_permission"), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_account."tenant_id", 'ledger.read'), false) or coalesce(v_account."owner_id" = auth.uid(), false) or (v_account."read_permission" is not null and coalesce(better_supabase.can('tenant', v_account."tenant_id", v_account."read_permission"), false))) then
     raise exception 'ledger account not found' using errcode = 'P0002', hint = 'LEDGER_ACCOUNT_NOT_FOUND';
   end if;
   select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb) into v_rows
@@ -5279,7 +5279,7 @@ begin
   select * into v_row from "better_supabase"."ledger_transactions" x where x."id" = get_ledger_transaction.transaction_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false) or exists (
     select 1 from "better_supabase"."ledger_entries" y join "better_supabase"."ledger_accounts" x on x."id" = y."account_id"
-    where y."transaction_id" = v_row."id" and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or x."owner_id" = auth.uid() or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
+    where y."transaction_id" = v_row."id" and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false) or coalesce(x."owner_id" = auth.uid(), false) or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", x."read_permission"), false)))
   )) then
     raise exception 'ledger transaction not found' using errcode = 'P0002', hint = 'LEDGER_TRANSACTION_NOT_FOUND';
   end if;
@@ -5443,7 +5443,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:66306f38ab0b4f3dd382fb1df01fbb72573dc1cbeba84699b9066dd6d8c05a30
+-- @bsb-hash sha256:a871d661f385ed6c1538e411dbe9d35207c43de43b92912eee518c2b618b67e0
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5922,7 +5922,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ledger_accounts" x where x."id" = close_ledger_account.account_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'ledger.read'), false) or v_row."owner_id" = auth.uid() or (v_row."read_permission" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", v_row."read_permission"), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'ledger.read'), false) or coalesce(v_row."owner_id" = auth.uid(), false) or (v_row."read_permission" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", v_row."read_permission"), false))) then
     raise exception 'ledger account not found' using errcode = 'P0002', hint = 'LEDGER_ACCOUNT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'ledger.manage'), false)) then
@@ -6275,7 +6275,7 @@ as $$
       and (list_ledger_accounts.kind is null or x."kind" = list_ledger_accounts.kind)
       and (list_ledger_accounts.holder_type is null or x."holder_type" = list_ledger_accounts.holder_type)
       and (list_ledger_accounts.holder_id is null or x."holder_id" = list_ledger_accounts.holder_id)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."org_id", 'ledger.read'), false) or x."owner_id" = auth.uid() or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."org_id", x."read_permission"), false)))
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."org_id", 'ledger.read'), false) or coalesce(x."owner_id" = auth.uid(), false) or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."org_id", x."read_permission"), false)))
     order by x."code"
     limit least(greatest(coalesce(list_ledger_accounts.page_size, 100), 1), 1000)
   ) z
@@ -6298,7 +6298,7 @@ declare
   v_rows jsonb;
 begin
   select * into v_account from "better_supabase"."ledger_accounts" x where x."id" = ledger_account_entries.account_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_account."org_id", 'ledger.read'), false) or v_account."owner_id" = auth.uid() or (v_account."read_permission" is not null and coalesce(better_supabase.can('tenant', v_account."org_id", v_account."read_permission"), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_account."org_id", 'ledger.read'), false) or coalesce(v_account."owner_id" = auth.uid(), false) or (v_account."read_permission" is not null and coalesce(better_supabase.can('tenant', v_account."org_id", v_account."read_permission"), false))) then
     raise exception 'ledger account not found' using errcode = 'P0002', hint = 'LEDGER_ACCOUNT_NOT_FOUND';
   end if;
   select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb) into v_rows
@@ -6336,7 +6336,7 @@ begin
   select * into v_row from "better_supabase"."ledger_transactions" x where x."id" = get_ledger_transaction.transaction_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'ledger.read'), false) or exists (
     select 1 from "better_supabase"."ledger_entries" y join "better_supabase"."ledger_accounts" x on x."id" = y."account_id"
-    where y."transaction_id" = v_row."id" and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."org_id", 'ledger.read'), false) or x."owner_id" = auth.uid() or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."org_id", x."read_permission"), false)))
+    where y."transaction_id" = v_row."id" and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."org_id", 'ledger.read'), false) or coalesce(x."owner_id" = auth.uid(), false) or (x."read_permission" is not null and coalesce(better_supabase.can('tenant', x."org_id", x."read_permission"), false)))
   )) then
     raise exception 'ledger transaction not found' using errcode = 'P0002', hint = 'LEDGER_TRANSACTION_NOT_FOUND';
   end if;

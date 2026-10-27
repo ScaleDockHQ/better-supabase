@@ -1,7 +1,7 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { fail, userGrant } from "../shared.ts";
+import { fail, insertExtraColumns, userGrant } from "../shared.ts";
 import { subjectTitle } from "../subject-check-sql.ts";
 import { hasValueEntry } from "../value-maps.ts";
 import { splitName } from "./employees-options.ts";
@@ -212,7 +212,6 @@ export function employeeFunctions(
     e("status"),
     ...(origin ? [e("originType"), e("originId")] : []),
     ...(has("createdBy") ? [e("createdBy")] : []),
-    ...n.extras.map((extra) => extra.ident),
   ];
 
   const insertValues = [
@@ -234,10 +233,13 @@ export function employeeFunctions(
         ]
       : []),
     ...(has("createdBy") ? ["auth.uid()"] : []),
-    ...n.extras.map((extra) =>
-      extraValue("create_employee.attrs", extra.ident),
-    ),
   ];
+
+  const extrasInsert = insertExtraColumns(
+    table,
+    n.extras,
+    "create_employee.attrs",
+  );
 
   const existing = origin
     ? `
@@ -323,8 +325,8 @@ begin
     if v_status = 'offboarded' then
       ${fail("EMPLOYEE_STATUS_INVALID", "create the employee, then offboard them", "22023")}
     end if;
-    insert into ${table} (${insertColumns.join(", ")})
-    values (${insertValues.join(", ")})
+    insert into ${table} (${insertColumns.join(", ")}${extrasInsert.columns})
+    values (${insertValues.join(", ")}${extrasInsert.values})
     returning * into v_row;
   exception
     when unique_violation then

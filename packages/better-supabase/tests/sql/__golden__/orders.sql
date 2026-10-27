@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@2 managed
--- @bsb-hash sha256:732d5ed5a7a5a5b59fc9c29bd0114edfde4677c3cfd2fc79c809f904942cae30
+-- @bsb-hash sha256:7703334bdcf8e86a82321b33242bd460ecc2ca7b05938c18442723753435c5ca
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -666,7 +666,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = add_to_cart.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -715,7 +715,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = set_cart_line.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -763,7 +763,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = set_cart_details.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -803,7 +803,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = set_cart_shipping_rate.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -842,7 +842,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = shipping_options.cart;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid() or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   v_totals := "better_supabase"."cart_totals"(shipping_options.cart);
@@ -879,7 +879,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = price_cart.cart;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid() or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   return "better_supabase"."cart_totals"(price_cart.cart);
@@ -1277,10 +1277,10 @@ declare
   v_order record;
 begin
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = cancel_order.order_id for update;
-  if not found or not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to cancel this order' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if v_order.status = 'cancelled' then
@@ -1340,7 +1340,7 @@ declare
   v_order record;
 begin
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = get_order.order_id;
-  if not found or not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
   return "better_supabase"."order_json"(v_order.id);
@@ -1586,7 +1586,7 @@ begin
   if not found then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to return this order' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if v_order.status not in ('paid', 'fulfilled', 'completed') then
@@ -2122,7 +2122,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@2 managed
--- @bsb-hash sha256:d0411e4723d25ba66b5cc639f7375a1b10054fcd8492a744ecf40d7253025f4a
+-- @bsb-hash sha256:f95ee192766cbbd091fc91588ff362178d3850231b523e7057d88e4c73030e53
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2794,7 +2794,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = add_to_cart.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -2843,7 +2843,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = set_cart_line.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -2891,7 +2891,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = set_cart_details.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -2931,7 +2931,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = set_cart_shipping_rate.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -2970,7 +2970,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = shipping_options.cart;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid() or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   v_totals := "better_supabase"."cart_totals"(shipping_options.cart);
@@ -3007,7 +3007,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = price_cart.cart;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid() or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   return "better_supabase"."cart_totals"(price_cart.cart);
@@ -3484,10 +3484,10 @@ declare
   v_order record;
 begin
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = cancel_order.order_id for update;
-  if not found or not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to cancel this order' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if v_order.status = 'cancelled' then
@@ -3547,7 +3547,7 @@ declare
   v_order record;
 begin
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = get_order.order_id;
-  if not found or not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
   return "better_supabase"."order_json"(v_order.id);
@@ -3793,7 +3793,7 @@ begin
   if not found then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to return this order' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if v_order.status not in ('paid', 'fulfilled', 'completed') then
@@ -4333,7 +4333,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@2 managed
--- @bsb-hash sha256:a4b2bb437d782fa38032623d8352c2cdf0ed10223f43a34dbeffa349acd28731
+-- @bsb-hash sha256:0c312ae1dc99c6626a7f4720383ab58947b977c1c8e103c639683c5a9ba726a0
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5003,7 +5003,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "app_private"."carts" x where x."id" = add_to_cart.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -5052,7 +5052,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "app_private"."carts" x where x."id" = set_cart_line.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -5100,7 +5100,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "app_private"."carts" x where x."id" = set_cart_details.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -5140,7 +5140,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "app_private"."carts" x where x."id" = set_cart_shipping_rate.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -5179,7 +5179,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "app_private"."carts" x where x."id" = shipping_options.cart;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid() or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   v_totals := "app_private"."cart_totals"(shipping_options.cart);
@@ -5216,7 +5216,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "app_private"."carts" x where x."id" = price_cart.cart;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid() or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   return "app_private"."cart_totals"(price_cart.cart);
@@ -5614,10 +5614,10 @@ declare
   v_order record;
 begin
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "app_private"."orders" x where x."id" = cancel_order.order_id for update;
-  if not found or not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to cancel this order' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if v_order.status = 'cancelled' then
@@ -5677,7 +5677,7 @@ declare
   v_order record;
 begin
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "app_private"."orders" x where x."id" = get_order.order_id;
-  if not found or not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
   return "app_private"."order_json"(v_order.id);
@@ -5923,7 +5923,7 @@ begin
   if not found then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to return this order' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if v_order.status not in ('paid', 'fulfilled', 'completed') then
@@ -6459,7 +6459,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@2 managed
--- @bsb-hash sha256:0aa3b9a4c6557f92fcaee0a23b2b526a38cb94031e28255ac507ed621e9ba3ca
+-- @bsb-hash sha256:56dd7055206febbf653b2cc2b42908462bed05992703fd72a0e39381badf5296
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7124,7 +7124,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = add_to_cart.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -7173,7 +7173,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = set_cart_line.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -7221,7 +7221,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = set_cart_details.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -7261,7 +7261,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = set_cart_shipping_rate.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -7300,7 +7300,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = shipping_options.cart;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid() or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   v_totals := "better_supabase"."cart_totals"(shipping_options.cart);
@@ -7337,7 +7337,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = price_cart.cart;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid() or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   return "better_supabase"."cart_totals"(price_cart.cart);
@@ -7735,10 +7735,10 @@ declare
   v_order record;
 begin
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = cancel_order.order_id for update;
-  if not found or not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to cancel this order' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if v_order.status = 'cancelled' then
@@ -7798,7 +7798,7 @@ declare
   v_order record;
 begin
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = get_order.order_id;
-  if not found or not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
   return "better_supabase"."order_json"(v_order.id);
@@ -8044,7 +8044,7 @@ begin
   if not found then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to return this order' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if v_order.status not in ('paid', 'fulfilled', 'completed') then
@@ -8829,7 +8829,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@2 managed
--- @bsb-hash sha256:3fb4796e6f169abe8a099745eac41755f9cfdacb077a34e8870b5d99379ad309
+-- @bsb-hash sha256:374d76edbf7d0ee5aff40062d1f54410e72faa4da9f5b42b6f49b947c1c8df2c
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9486,7 +9486,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = add_to_cart.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -9535,7 +9535,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = set_cart_line.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -9583,7 +9583,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = set_cart_details.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -9623,7 +9623,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = set_cart_shipping_rate.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -9662,7 +9662,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = shipping_options.cart;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid() or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   v_totals := "better_supabase"."cart_totals"(shipping_options.cart);
@@ -9699,7 +9699,7 @@ begin
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = price_cart.cart;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid() or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   return "better_supabase"."cart_totals"(price_cart.cart);
@@ -10097,10 +10097,10 @@ declare
   v_order record;
 begin
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = cancel_order.order_id for update;
-  if not found or not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to cancel this order' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if v_order.status = 'cancelled' then
@@ -10160,7 +10160,7 @@ declare
   v_order record;
 begin
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = get_order.order_id;
-  if not found or not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
   return "better_supabase"."order_json"(v_order.id);
@@ -10406,7 +10406,7 @@ begin
   if not found then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to return this order' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if v_order.status not in ('paid', 'fulfilled', 'completed') then
@@ -10942,7 +10942,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@2 managed
--- @bsb-hash sha256:c2f8062b406ee5facbd0a32f97b4978bbc58fee65ebc229f966fb6b32ae8cceb
+-- @bsb-hash sha256:234150d38055305609d3811cc7853fdb5c8f23f2210772f4481c0dd5dc2a3640
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11607,7 +11607,7 @@ begin
   select x."org_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = add_to_cart.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -11656,7 +11656,7 @@ begin
   select x."org_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = set_cart_line.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -11704,7 +11704,7 @@ begin
   select x."org_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = set_cart_details.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -11744,7 +11744,7 @@ begin
   select x."org_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = set_cart_shipping_rate.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -11783,7 +11783,7 @@ begin
   select x."org_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = shipping_options.cart;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid() or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   v_totals := "better_supabase"."cart_totals"(shipping_options.cart);
@@ -11820,7 +11820,7 @@ begin
   select x."org_id" as tenant, x."user_id" as owner, x."status" as status,
     x."currency" as currency, x."price_list_id" as price_list, x."shipping_address" as shipping_address
   into v_cart from "better_supabase"."carts" x where x."id" = price_cart.cart;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid() or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_cart.tenant, 'orders.read'), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   return "better_supabase"."cart_totals"(price_cart.cart);
@@ -12218,10 +12218,10 @@ declare
   v_order record;
 begin
   select x."id" as id, x."org_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = cancel_order.order_id for update;
-  if not found or not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to cancel this order' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if v_order.status = 'cancelled' then
@@ -12281,7 +12281,7 @@ declare
   v_order record;
 begin
   select x."id" as id, x."org_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = get_order.order_id;
-  if not found or not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.read'), false)) then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
   return "better_supabase"."order_json"(v_order.id);
@@ -12527,7 +12527,7 @@ begin
   if not found then
     raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or v_order.customer = auth.uid() or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(v_order.customer = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to return this order' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if v_order.status not in ('paid', 'fulfilled', 'completed') then

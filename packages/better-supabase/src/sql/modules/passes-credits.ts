@@ -135,7 +135,7 @@ declare
   v_entry uuid;
 begin
   select * into v_pass from ${passes} x where x.${p("id")} = book_with_credit.pass_id for update;
-  if not found or not (v_pass.${p("holderUser")} = auth.uid() or ${allowed(`v_pass.${p("tenant")}`, manage)}) then
+  if not found or not (coalesce(v_pass.${p("holderUser")} = auth.uid(), false) or ${allowed(`v_pass.${p("tenant")}`, manage)}) then
     ${fail("PASS_NOT_FOUND", "pass not found", "P0002")}
   end if;
   if v_pass.${p("status")} <> 'active' then
@@ -222,7 +222,7 @@ declare
   v_pass ${passes}%rowtype;
 begin
   select * into v_pass from ${passes} x where x.${p("id")} = list_pass_credits.pass_id;
-  if not found or not (v_pass.${p("holderUser")} = auth.uid() or ${allowed(`v_pass.${p("tenant")}`, read)}) then
+  if not found or not (coalesce(v_pass.${p("holderUser")} = auth.uid(), false) or ${allowed(`v_pass.${p("tenant")}`, read)}) then
     ${fail("PASS_NOT_FOUND", "pass not found", "P0002")}
   end if;
   return coalesce((

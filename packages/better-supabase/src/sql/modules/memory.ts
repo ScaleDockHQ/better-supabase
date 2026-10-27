@@ -630,7 +630,7 @@ declare
   v_row ${memories}%rowtype;
 begin
   select * into v_row from ${memories} x where x.${m.id} = memory_forget.memory_id;
-  if not found or not (${SERVICE_CALLER} or v_row.${m.owner} = auth.uid() or (v_row.${m.scope} = 'organization' and ${ctx.scope.can(`v_row.${m.tenant}`, manage)})) then
+  if not found or not (${SERVICE_CALLER} or coalesce(v_row.${m.owner} = auth.uid(), false) or (v_row.${m.scope} = 'organization' and ${ctx.scope.can(`v_row.${m.tenant}`, manage)})) then
     return false;
   end if;
   if memory_forget.superseded_by is null then

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:078871cb13229f194ae107217ad688d96e0b3c6e63015cb21f094a96ec908bae
+-- @bsb-hash sha256:dedd9928ad6caa01bd0da0aad1c3188677c5fe0714326b67b83fce3cd4ace44e
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -164,7 +164,7 @@ begin
     end if;
   end;
   insert into "better_supabase"."teams" ("tenant_id", "name", "slug", "description", "created_by", "app_note")
-  values (create_team.tenant, create_team.name, v_slug, create_team.description, auth.uid(), (jsonb_populate_record(null::"better_supabase"."teams", coalesce(create_team.fields, '{}'::jsonb)))."app_note")
+  values (create_team.tenant, create_team.name, v_slug, create_team.description, auth.uid(), (jsonb_populate_record(null::"better_supabase"."teams", jsonb_build_object('app_note', create_team.fields -> 'app_note')))."app_note")
   returning "id" into v_id;
   update "better_supabase"."teams" x set "app_note" = case when create_team.fields ? 'app_note' then r."app_note" else x."app_note" end
   from jsonb_populate_record(null::"better_supabase"."teams", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(create_team.fields) e where e.key in ('app_note'))) r

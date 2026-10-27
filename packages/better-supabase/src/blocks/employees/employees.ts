@@ -337,7 +337,7 @@ function contractPatchArgs(patch: ContractPatch): Record<string, unknown> {
   return {
     ...argsOf(rest),
     ...(salary === null
-      ? { salary: null, currency: null }
+      ? { salary: null }
       : { salary: amountText(salary), currency: salary.currency }),
   };
 }

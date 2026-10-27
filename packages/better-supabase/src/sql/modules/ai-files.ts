@@ -208,10 +208,10 @@ function build(ctx: BlockSqlContext): string {
     `(${prefix}${owner} = (select auth.uid()) or ${prefix === "" ? ctx.scope.check(tenant, manage) : ctx.scope.can(`${prefix}${tenant}`, manage)} or ${chatReadable(`${prefix}${chat}`)})`;
 
   const ownFile = (row: string): string =>
-    `(${SERVICE_CALLER} or ${row}.${f.owner} = auth.uid() or ${ctx.scope.can(`${row}.${f.tenant}`, manage)})`;
+    `(${SERVICE_CALLER} or coalesce(${row}.${f.owner} = auth.uid(), false) or ${ctx.scope.can(`${row}.${f.tenant}`, manage)})`;
 
   const ownDocument = (row: string): string =>
-    `(${SERVICE_CALLER} or ${row}.${d.owner} = auth.uid() or ${ctx.scope.can(`${row}.${d.tenant}`, manage)})`;
+    `(${SERVICE_CALLER} or coalesce(${row}.${d.owner} = auth.uid(), false) or ${ctx.scope.can(`${row}.${d.tenant}`, manage)})`;
 
   const reserveInsert: readonly Pair[] = [
     ["tenant", "reserve_ai_file.tenant"],
@@ -545,7 +545,7 @@ declare
   v_size bigint;
 begin
   select * into v_row from ${files} x where x.${f.id} = confirm_ai_file.file_id for update;
-  if not found or not (${SERVICE_CALLER} or v_row.${f.owner} = auth.uid()) then
+  if not found or not (${SERVICE_CALLER} or coalesce(v_row.${f.owner} = auth.uid(), false)) then
     ${raise("file % not found", "P0002", "AI_FILE_NOT_FOUND", "file_id")}
   end if;
   if v_row.${f.status} <> 'pending' then

@@ -303,7 +303,7 @@ begin
   if v_user is distinct from auth.uid() and not ${q.allowed(`v_course.${c("tenant")}`, q.enroll)} then
     ${q.forbidden("not allowed to enroll others in courses")}
   end if;
-  if v_user = auth.uid() and not (${q.allowed(`v_course.${c("tenant")}`, q.read)} or ${q.allowed(`v_course.${c("tenant")}`, q.enroll)}) then
+  if coalesce(v_user = auth.uid(), false) and not (${q.allowed(`v_course.${c("tenant")}`, q.read)} or ${q.allowed(`v_course.${c("tenant")}`, q.enroll)}) then
     ${q.forbidden("not allowed to enroll in courses")}
   end if;
   if v_course.${c("status")} <> 'published' then

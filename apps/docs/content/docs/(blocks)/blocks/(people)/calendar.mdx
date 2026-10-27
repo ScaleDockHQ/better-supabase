@@ -86,17 +86,17 @@ the daylight saving change, so its UTC time moves. Each occurrence has a
 stable `key` (the series id and its original start), its `start` and `end`,
 and the `event` row that applies, which is the override when there is one.
 
-| Method                                | Does                                                                                     |
-| ------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `upsert(calendarId, input)`           | Inserts an event, or updates the one with `input.id`; keys left out keep their value     |
-| `events(calendarIds, range)`          | The rows that can fall in the range: single events, series and overrides                 |
-| `occurrences(calendarIds, range)`     | The occurrences in the range, with EXDATEs removed and overrides applied                 |
-| `editOccurrence(occurrence, changes)` | Changes one occurrence: an override for a series, an update for a single event           |
-| `editFollowing(occurrence, changes)`  | Changes this occurrence and every later one, splitting the series unless it is the first |
-| `cancelOccurrence(occurrence)`        | Adds an `EXDATE` and drops the occurrence's override, or deletes a single event          |
-| `delete(eventId)`                     | Deletes an event with its overrides                                                      |
-| `setAttendee`, `removeAttendee`       | Invites or removes an attendee by email                                                  |
-| `respond(eventId, response)`          | The signed-in user answers: `accepted`, `declined`, `tentative` or `needs-action`        |
+| Method                                | Does                                                                                                                      |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `upsert(calendarId, input)`           | Inserts an event, or updates the one with `input.id`; keys left out keep their value                                      |
+| `events(calendarIds, range)`          | The rows that can fall in the range: single events, series and overrides                                                  |
+| `occurrences(calendarIds, range)`     | The occurrences in the range, with EXDATEs removed and overrides applied                                                  |
+| `editOccurrence(occurrence, changes)` | Changes one occurrence: an override for a series, an update for a single event                                            |
+| `editFollowing(occurrence, changes)`  | Changes this occurrence and every later one, splitting the series unless it is the first                                  |
+| `cancelOccurrence(occurrence)`        | Adds an `EXDATE` and drops the occurrence's override, or deletes a single event. Also takes `{ seriesId, originalStart }` |
+| `delete(eventId)`                     | Deletes an event with its overrides                                                                                       |
+| `setAttendee`, `removeAttendee`       | Invites or removes an attendee by email                                                                                   |
+| `respond(eventId, response)`          | The signed-in user answers: `accepted`, `declined`, `tentative` or `needs-action`                                         |
 
 `editFollowing` ends the old series the second before the occurrence (its
 `COUNT` becomes an `UNTIL`) and starts a new series there with the remaining
@@ -236,6 +236,24 @@ export async function GET(
 }
 ```
 
+## Event keys and read-only events
+
+Three event actions take their own key when you set one, on top of
+`calendar.write`: `permissions.create` gates new events and overrides,
+`permissions.update` gates changes to an event, and `permissions.delete` gates
+deleting an event and cancelling an occurrence. Importing goes through the same
+checks. `options.readOnly` names a column of the events table and the values
+that lock an event, such as events a sync owns. A locked event can't be
+changed, deleted, cancelled or split, and no override can be added to it,
+except by the service role (`CALENDAR_EVENT_READ_ONLY`):
+
+```ts title="better-supabase.config.ts"
+calendar: {
+  permissions: { create: "agenda.create", delete: "agenda.delete" },
+  options: { readOnly: { column: "source", values: ["google", "microsoft"] } },
+}
+```
+
 ## Per-calendar access
 
 By default every member with `calendar.read` reads every calendar of the
@@ -367,7 +385,10 @@ zone, color, details and, with `options.access`, the visibility. Setting
 recorded.
 
 An owner column of another type, such as a `uuid`, takes
-`values.calendars.ownerId: {}`, which casts the owner to its type.
+`values.calendars.ownerId: {}`, which casts the owner to its type. The event
+`kind` and `transparency` and the attendee `role` and `response` may be enum
+columns too: the block casts its labels to the column's type, and a
+`values` map renames them when your labels differ.
 
 ## Over your own tables
 
@@ -555,7 +576,8 @@ after it. See [block hooks](/docs/extending/blocks#hooks).
 
 | Hint                          | When                                                                                             |
 | ----------------------------- | ------------------------------------------------------------------------------------------------ |
-| `CALENDAR_FORBIDDEN`          | The caller lacks `calendar.write` or `calendar.manage`                                           |
+| `CALENDAR_FORBIDDEN`          | The caller lacks `calendar.write`, `calendar.manage` or the create, update or delete key         |
+| `CALENDAR_EVENT_READ_ONLY`    | The event matches `options.readOnly`                                                             |
 | `CALENDAR_NOT_FOUND`          | The calendar does not exist                                                                      |
 | `CALENDAR_EVENT_NOT_FOUND`    | The event does not exist in that calendar                                                        |
 | `CALENDAR_EVENT_INVALID`      | A missing start or end, an end before the start, a bad status, or an override without a series   |

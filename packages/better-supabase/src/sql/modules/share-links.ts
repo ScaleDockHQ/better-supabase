@@ -53,7 +53,12 @@ const NAMES: BlockSqlNames = {
     links: {
       name: "share_links",
       app: {},
-      lifecycle: { tenant: "tenant", user: "createdBy", export: true },
+      lifecycle: {
+        tenant: "tenant",
+        user: "createdBy",
+        export: true,
+        omit: ["tokenHash"],
+      },
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -183,11 +188,60 @@ function blockSubjects(
  * (`config.subjects` or `on`) check the row's tenant and the subject's read
  * permission. Any other type fails.
  */
-function subjectCheck(ctx: BlockSqlContext): string {
-  const blocks = blockSubjects(ctx);
-  const owned = new Set(blocks.map(([type]) => type));
+function allowedTypes(ctx: BlockSqlContext): readonly string[] | undefined {
+  const on = ctx.on;
 
-  const registered = subjectsOption(ctx).filter(([type]) => !owned.has(type));
+  if (on === undefined) {
+    return undefined;
+  }
+
+  return Array.isArray(on) ? on.map(String) : Object.keys(on);
+}
+
+function allowedCheck(ctx: BlockSqlContext): string {
+  const allowed = allowedTypes(ctx);
+
+  return allowed === undefined
+    ? ""
+    : `
+  if create_share_link.subject_type is null or create_share_link.subject_type <> all (array[${allowed.map(sqlString).join(", ")}]::text[]) then
+    ${fail("SHARE_SUBJECT_UNKNOWN", "this subject type can't be shared", "22023")}
+  end if;`;
+}
+
+function registeredSubjects(
+  ctx: BlockSqlContext,
+): ReturnType<typeof subjectsOption> {
+  const owned = new Set(blockSubjects(ctx).map(([type]) => type));
+  const on = ctx.on;
+
+  if (on === undefined) {
+    return subjectsOption(ctx);
+  }
+
+  const listed = Array.isArray(on)
+    ? on.filter((type) => !owned.has(String(type)))
+    : Object.fromEntries(
+        Object.entries(on).filter(([type]) => !owned.has(type)),
+      );
+
+  return Object.keys(listed).length === 0
+    ? []
+    : subjectsOption({ ...ctx, on: listed });
+}
+
+function subjectCheck(ctx: BlockSqlContext): string {
+  const allowed = allowedTypes(ctx);
+  const every = blockSubjects(ctx);
+  const owned = new Set(every.map(([type]) => type));
+
+  const blocks = every.filter(
+    ([type]) => allowed === undefined || allowed.includes(type),
+  );
+
+  const registered = registeredSubjects(ctx).filter(
+    ([type]) => !owned.has(type),
+  );
 
   const sharable = subjectActionCheck(ctx, registered, SUBJECT_ARGS, ["share"]);
 
@@ -301,7 +355,7 @@ function build(ctx: BlockSqlContext): string {
   const linkId = ctx.col("links", "id");
   const hashed = ctx.flag("tokenHash", false);
   const full = ctx.flag("fullRows", false);
-  const subjects = subjectsOption(ctx);
+  const subjects = registeredSubjects(ctx);
   const l = (column: string): string => `l.${ctx.col("links", column)}`;
 
   const shareOn = (type: string, id: string): string | undefined =>
@@ -421,6 +475,7 @@ begin
   end if;`
       : ""
   }
+${allowedCheck(ctx)}
   ${subjectCheck(ctx)}
   ${versionCheck(ctx)}
   insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "role")}, ${ctx.col("links", "expiresAt")}, ${ctx.col("links", "maxUses")}, ${ctx.col("links", "createdBy")}${pinned ? `, ${ctx.col("links", "versionId")}` : ""})
@@ -457,7 +512,7 @@ begin
   for update;
   if not found or not (
     auth.role() = 'service_role'
-    or (v_creator is not null and v_creator = auth.uid())
+    or (v_creator is not null and coalesce(v_creator = auth.uid(), false))
     or ${revokeShare === undefined ? ctx.scope.can("v_tenant", create) : `(${ctx.scope.can("v_tenant", create)} and ${revokeShare})`}
   ) then
     ${fail("SHARE_NOT_FOUND", "share link not found", "P0002")}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
+import { withBlockSubjects } from "../../../src/config/block-subjects.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
 
@@ -31,6 +32,8 @@ create type public.event_status as enum ('busy', 'maybe', 'canceled');
 create type public.event_visibility as enum ('normal', 'secret');
 create type public.repeat_freq as enum ('daily', 'weekly', 'monthly', 'yearly');
 create type public.date_kind as enum ('extra', 'skip');
+create type public.event_transparency as enum ('opaque', 'transparent');
+create type public.attendee_response as enum ('needs-action', 'accepted', 'declined', 'tentative');
 
 create table public.calendars (
   id uuid primary key default gen_random_uuid(),
@@ -59,6 +62,8 @@ create table public.events (
   recurrence_id uuid references public.events (id) on delete cascade,
   original_start timestamptz,
   visibility public.event_visibility not null default 'normal',
+  transparency public.event_transparency not null default 'opaque',
+  source text not null default 'local',
   owner_user_id uuid,
   created_by uuid,
   created_at timestamptz not null default now(),
@@ -92,7 +97,7 @@ create table public.attendees (
   user_id uuid,
   record_type text,
   record_id text,
-  response text not null default 'needs-action',
+  response public.attendee_response not null default 'needs-action',
   is_organizer boolean not null default false,
   is_optional boolean not null default false
 );
@@ -149,7 +154,6 @@ const CALENDAR: AnyBlocksConfig[string] = {
       subjectId: null,
       color: null,
       kind: null,
-      transparency: null,
       autoDecline: null,
       owner: "owner_user_id",
     },
@@ -521,6 +525,94 @@ describe("calendar over an app's tables with per-calendar access", () => {
       expect(stack.url).not.toBe("");
     },
   );
+
+  it(
+    "checks the create and delete keys, refuses changes to read-only events and shares only allowed types",
+    { timeout: 60_000 },
+    async () => {
+      const modules: AnyBlocksConfig = {
+        "share-links": { on: ["calendar_event", "calendar"] },
+        calendar: {
+          ...CALENDAR,
+          permissions: { create: "calendar.create", delete: "calendar.delete" },
+          options: {
+            ...CALENDAR.options,
+            readOnly: { column: "source", values: ["google"] },
+          },
+        },
+      };
+
+      const files = renderBlocks(["calendar", "share-links"], {
+        modules,
+        subjects: withBlockSubjects({}, ["calendar"], modules),
+        ownTables: OWN_TABLES,
+      });
+
+      const expectHint = (statement: string, hint: string): string => `
+  begin
+    ${statement};
+    raise exception 'expected ${hint}';
+  exception when others then
+    get stacked diagnostics v_hint = pg_exception_hint;
+    if v_hint is distinct from '${hint}' then raise; end if;
+  end;`;
+
+      await using stack = await liteStack({
+        driver: "pglite",
+        migrations: [
+          ROLES,
+          APP,
+          ...files
+            .filter((file) => file.kind !== "data")
+            .map((file) => file.contents),
+        ],
+        seed: [
+          ...files
+            .filter((file) => file.kind === "data")
+            .map((file) => file.contents),
+          KEYS,
+          `do $$
+declare
+  v_calendar uuid;
+  v_event uuid;
+  v_synced uuid;
+  v_hint text;
+begin
+  ${as(ALICE)}
+  v_calendar := (better_supabase.create_calendar('${TENANT}', 'Alice', 'UTC', 'user', '${ALICE}', '{"visibility": "shared"}') ->> 'id')::uuid;
+  ${expectHint(`perform better_supabase.save_calendar_event(v_calendar, '{"title": "Standup", "startsAt": "2026-03-02T09:00:00Z", "endsAt": "2026-03-02T09:15:00Z"}')`, "CALENDAR_FORBIDDEN")}
+  insert into public.test_keys values ('${ALICE}', '${TENANT}', 'calendar.create');
+  v_event := (better_supabase.save_calendar_event(v_calendar, '{"title": "Standup", "startsAt": "2026-03-02T09:00:00Z", "endsAt": "2026-03-02T09:15:00Z"}') ->> 'id')::uuid;
+  v_synced := (better_supabase.save_calendar_event(v_calendar, '{"title": "Synced", "startsAt": "2026-03-03T09:00:00Z", "endsAt": "2026-03-03T10:00:00Z"}') ->> 'id')::uuid;
+  update public.events set source = 'google' where id = v_synced;
+  perform better_supabase.save_calendar_event(v_calendar, jsonb_build_object('id', v_event, 'title', 'Daily standup'));
+  ${expectHint("perform better_supabase.delete_calendar_event(v_event)", "CALENDAR_FORBIDDEN")}
+  insert into public.test_keys values ('${ALICE}', '${TENANT}', 'calendar.delete');
+  ${expectHint(`perform better_supabase.save_calendar_event(v_calendar, jsonb_build_object('id', v_synced, 'title', 'Renamed'))`, "CALENDAR_EVENT_READ_ONLY")}
+  ${expectHint("perform better_supabase.delete_calendar_event(v_synced)", "CALENDAR_EVENT_READ_ONLY")}
+  perform better_supabase.delete_calendar_event(v_event);
+  perform better_supabase.create_share_link('${TENANT}', 'calendar', v_calendar::text, 'view');
+  ${expectHint(`perform better_supabase.create_share_link('${TENANT}', 'calendar_user', '${ALICE}', 'view')`, "SHARE_SUBJECT_UNKNOWN")}
+  perform better_supabase.create_share_link('${TENANT}', 'calendar_event', v_synced::text, 'view');
+  if (select count(*) from public.events) <> 1 or (select title from public.events) <> 'Synced' then
+    raise exception 'events %', (select jsonb_agg(e) from public.events e);
+  end if;
+end;
+$$;`,
+        ],
+      });
+
+      expect(stack.url).not.toBe("");
+    },
+  );
+
+  it("refuses a read-only rule without a column or values", () => {
+    expect(() =>
+      renderBlocks(["calendar"], {
+        modules: { calendar: { options: { readOnly: { column: "source" } } } },
+      }),
+    ).toThrow(/options.readOnly must be/u);
+  });
 
   it(
     "stores structured rules keyed by event in the app's rule dialect",

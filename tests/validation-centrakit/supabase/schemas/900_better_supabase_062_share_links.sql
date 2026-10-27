@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:fed7fe3559c8f2ba9a6bb79d7f78c73371d134cd4550dd51e0bc8927ee5d1280
+-- @bsb-hash sha256:c55e05748113c20dcbd330dbe066f5eeb1154be8eddd9cfb9b567413fd10acb9
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -101,6 +101,7 @@ begin
   if create_share_link.max_uses is not null and create_share_link.max_uses < 1 then
     raise exception 'max_uses must be at least 1' using errcode = '22023', hint = 'SHARE_MAX_USES_INVALID';
   end if;
+
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     v_subject_ok := case create_share_link.subject_type
     when 'drive_node' then exists (select 1 from "centrakit"."file_node" s where s."id"::text = create_share_link.subject_id and s."organization_id"::text = create_share_link.tenant::text)
@@ -155,7 +156,7 @@ begin
   for update;
   if not found or not (
     auth.role() = 'service_role'
-    or (v_creator is not null and v_creator = auth.uid())
+    or (v_creator is not null and coalesce(v_creator = auth.uid(), false))
     or coalesce(better_supabase.can('tenant', v_tenant, 'share_links.create'), false)
   ) then
     raise exception 'share link not found' using errcode = 'P0002', hint = 'SHARE_NOT_FOUND';

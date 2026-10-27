@@ -137,8 +137,8 @@ export function statusTimesheetFunctions(
 
   const sheetMine = (row: string): string =>
     by
-      ? `(${owner.sheetUser ? `${row}.${t("user")} = auth.uid() or ` : ""}${row}.${owner.timesheets} = ${owner.mine(`${row}.${t("tenant")}`)})`
-      : `${row}.${t("user")} = auth.uid()`;
+      ? `(${owner.sheetUser ? `coalesce(${row}.${t("user")} = auth.uid(), false) or ` : ""}${row}.${owner.timesheets} = ${owner.mine(`${row}.${t("tenant")}`)})`
+      : `coalesce(${row}.${t("user")} = auth.uid(), false)`;
 
   const ownerParam = by ? ", employee_id uuid default null" : "";
   const ownerType = by ? ", uuid" : "";
@@ -387,7 +387,7 @@ begin
   if not (v_reader or ${ctx.can("tenant", "list_timesheets.tenant", track)}) then
     ${forbidden("not allowed to list timesheets")}
   end if;
-  if not v_reader and list_timesheets.user_id is not null and list_timesheets.user_id <> auth.uid() then
+  if not v_reader and list_timesheets.user_id is not null and list_timesheets.user_id is distinct from auth.uid() then
     ${forbidden("not allowed to read another member's timesheets")}
   end if;${
     by

@@ -207,8 +207,8 @@ export function timeOwner(
 
   const ownedByMe = (row: string): string =>
     employeeMode
-      ? `(${row}.${ctx.col("entries", "user")} = auth.uid() or ${row}.${ctx.col("entries", "employee")} = ${myEmployee(`${row}.${ctx.col("entries", "tenant")}`)})`
-      : `${row}.${ctx.col("entries", "user")} = auth.uid()`;
+      ? `(coalesce(${row}.${ctx.col("entries", "user")} = auth.uid(), false) or ${row}.${ctx.col("entries", "employee")} = ${myEmployee(`${row}.${ctx.col("entries", "tenant")}`)})`
+      : `coalesce(${row}.${ctx.col("entries", "user")} = auth.uid(), false)`;
 
   const sheetUserJson = (row: string): string =>
     `'userId', ${sheetUser ? `${row}.${ctx.col("timesheets", "user")}` : "null::uuid"}${employeeMode ? `, 'employeeId', ${row}.${ctx.col("timesheets", "employee")}` : ""}`;

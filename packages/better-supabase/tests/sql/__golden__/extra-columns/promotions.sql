@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:ce904028c5c6cab063b9d40c7217917fea04d27ffe0559ececb222eb15afefbc
+-- @bsb-hash sha256:52421763b9ff79636e5320ca9781008647fa1ecf7090d8f71d8f439ab3f34ccc
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -528,7 +528,7 @@ begin
   end if;
   select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status
   into v_cart from "better_supabase"."carts" x where x."id" = apply_promotion_code.cart for update;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then
@@ -575,7 +575,7 @@ begin
   end if;
   select x."user_id" as owner, x."status" as status
   into v_cart from "better_supabase"."carts" x where x."id" = remove_promotion_code.cart;
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)) then
     raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
   end if;
   if v_cart.status <> 'open' then

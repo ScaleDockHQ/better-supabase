@@ -712,7 +712,7 @@ begin
   if not exists (select 1 from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = member) then
     ${fail("ORGANIZATION_NOT_MEMBER", "Not a member", "P0002")}
   end if;
-  if not (${SERVICE_CALLER}) and member = auth.uid() then
+  if not (${SERVICE_CALLER}) and coalesce(member = auth.uid(), false) then
     ${fail("ORGANIZATION_SELF_ROLE", "You cannot change your own role")}
   end if;
   if not better_supabase.can_assign(organization, role) then
@@ -743,7 +743,7 @@ begin
   if not exists (select 1 from ${mr} r where r.${n.tenant} = organization and r.${n.user} = member and r."role" = role) then
     return false;
   end if;
-  if not (${SERVICE_CALLER}) and member = auth.uid() then
+  if not (${SERVICE_CALLER}) and coalesce(member = auth.uid(), false) then
     ${fail("ORGANIZATION_SELF_ROLE", "You cannot change your own role")}
   end if;
   if not better_supabase.can_assign(organization, role) then
@@ -794,7 +794,7 @@ begin
   end if;
   -- Checked here whatever blocks.organizations.options.assignmentGuard
   -- says: a guard that checks only client writes never sees this function's.
-  if not (${SERVICE_CALLER}) and member = auth.uid() then
+  if not (${SERVICE_CALLER}) and coalesce(member = auth.uid(), false) then
     ${fail("ORGANIZATION_SELF_ROLE", "You cannot change your own role")}
   end if;
   if not better_supabase.can_assign(organization, previous_assignable)

@@ -3996,7 +3996,8 @@
                 "type": "boolean",
                 "default": false
               },
-              "ruleDialect": {}
+              "ruleDialect": {},
+              "readOnly": {}
             }
           }
         }
@@ -6326,6 +6327,13 @@
               "authorCanDelete": {
                 "type": "boolean",
                 "default": true
+              },
+              "notify": {
+                "type": "boolean",
+                "default": true
+              },
+              "actionPath": {
+                "type": "string"
               }
             }
           }

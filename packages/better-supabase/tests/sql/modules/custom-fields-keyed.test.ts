@@ -271,6 +271,10 @@ begin
   if v_list -> 0 ->> 'key' <> 'a' or v_list -> 1 ->> 'key' <> 'b' then
     raise exception 'order %', v_list;
   end if;
+  v_row := better_supabase.set_field_value('${TENANT}', 'product', '${PRODUCT}', 'd', 'D', 'text', '"d"');
+  if v_row ->> 'rank' <> '11' then
+    raise exception 'appended rank %', v_row;
+  end if;
   begin
     perform better_supabase.set_field_value('${TENANT}', 'product', '${PRODUCT}', 'c', 'C', 'text', '"c"', 'x');
     v_hint := 'none';

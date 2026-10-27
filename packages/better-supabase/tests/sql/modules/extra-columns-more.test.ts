@@ -21,7 +21,7 @@ describe("extra columns on more tables", () => {
     expect(sql).toContain('add column if not exists "region" text not null');
     expect(sql).toContain("owner_id text, fields jsonb default null)");
     expect(sql).toContain(
-      `(jsonb_populate_record(null::"better_supabase"."calendars", coalesce(create_calendar.fields, '{}'::jsonb)))."region"`,
+      `(jsonb_populate_record(null::"better_supabase"."calendars", jsonb_build_object('region', create_calendar.fields -> 'region')))."region"`,
     );
     expect(sql).toContain(
       "'fields', jsonb_build_object('region', k.\"region\")",
@@ -42,7 +42,7 @@ describe("extra columns on more tables", () => {
       `(save_employee_private_details.attrs -> 'fields') ? 'tax_code'`,
     );
     expect(sql).toContain(
-      `coalesce((add_employee_contract.attrs -> 'fields'), '{}'::jsonb)))."grade"`,
+      `jsonb_build_object('grade', (add_employee_contract.attrs -> 'fields') -> 'grade')))."grade"`,
     );
   });
 
@@ -51,6 +51,8 @@ describe("extra columns on more tables", () => {
       sqlOf("saved-views", {
         "saved-views": { options: { extraColumns: { area: "text not null" } } },
       }),
-    ).toContain(`coalesce(save_view.fields, '{}'::jsonb)))."area"`);
+    ).toContain(
+      `jsonb_build_object('area', save_view.fields -> 'area')))."area"`,
+    );
   });
 });

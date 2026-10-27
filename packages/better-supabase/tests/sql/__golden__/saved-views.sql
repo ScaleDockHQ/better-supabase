@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:c249c67cb4665cde9561a69cd734d50e46ec1f4bda55825bab7d71e1735616a3
+-- @bsb-hash sha256:e34e90e5d3f1332666c9767c79da583db8b71483e3b66c3ddc0fc81735a1623e
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -169,7 +169,7 @@ begin
       raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
     end if;
     if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
       raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
     end if;
@@ -276,7 +276,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -305,7 +305,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -341,7 +341,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -367,7 +367,7 @@ begin
   select * into v_row from "better_supabase"."saved_views" where "id" = duplicate_view.view_id;
   if not found or not (auth.role() = 'service_role'
     or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) then
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
@@ -404,7 +404,7 @@ begin
   select * into v_row from "better_supabase"."saved_views" where "id" = set_view_preference.view_id;
   if not found or not (auth.role() = 'service_role'
     or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) then
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
@@ -526,7 +526,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:ffb974892ea4d245079e02f7c49a34666fb322b78b20db630fe0419f55c4e780
+-- @bsb-hash sha256:1576afb03b8921cd0fd0d8dde3df3f7114115f6a0ae9a2a8b7920ec6b414bcc1
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -705,7 +705,7 @@ begin
       raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
     end if;
     if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
       raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
     end if;
@@ -812,7 +812,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -841,7 +841,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -877,7 +877,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -903,7 +903,7 @@ begin
   select * into v_row from "better_supabase"."saved_views" where "id" = duplicate_view.view_id;
   if not found or not (auth.role() = 'service_role'
     or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and v_row."team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t))
       or v_row."scope" = 'tenant'))) then
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
@@ -940,7 +940,7 @@ begin
   select * into v_row from "better_supabase"."saved_views" where "id" = set_view_preference.view_id;
   if not found or not (auth.role() = 'service_role'
     or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and v_row."team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t))
       or v_row."scope" = 'tenant'))) then
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
@@ -1062,7 +1062,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:4c40b2d952df35e421fee59d0343d7bd3598dc1b5a5b715fc380bc87eb1a0e48
+-- @bsb-hash sha256:835d3d8733fb824497faad3b3f59de4402c9d3c04cc60c23ccf479c922e557ef
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1235,7 +1235,7 @@ begin
       raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
     end if;
     if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
       raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
     end if;
@@ -1342,7 +1342,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -1371,7 +1371,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -1407,7 +1407,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -1433,7 +1433,7 @@ begin
   select * into v_row from "app_private"."saved_views" where "id" = duplicate_view.view_id;
   if not found or not (auth.role() = 'service_role'
     or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) then
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
@@ -1470,7 +1470,7 @@ begin
   select * into v_row from "app_private"."saved_views" where "id" = set_view_preference.view_id;
   if not found or not (auth.role() = 'service_role'
     or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) then
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
@@ -1592,7 +1592,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:b82502be9394eef5f9c333a015a915d05e5f1f6352a38e6739c460e593d6b863
+-- @bsb-hash sha256:776fe56ffe221cf1b7c82ab206e56b871033ea52497047d48cb89b7b0e42334f
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1760,7 +1760,7 @@ begin
       raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
     end if;
     if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
       raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
     end if;
@@ -1867,7 +1867,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -1896,7 +1896,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -1932,7 +1932,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -1958,7 +1958,7 @@ begin
   select * into v_row from "better_supabase"."saved_views" where "id" = duplicate_view.view_id;
   if not found or not (auth.role() = 'service_role'
     or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) then
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
@@ -1995,7 +1995,7 @@ begin
   select * into v_row from "better_supabase"."saved_views" where "id" = set_view_preference.view_id;
   if not found or not (auth.role() = 'service_role'
     or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) then
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
@@ -2204,7 +2204,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:1468f96e96be7786295741c56c8d15f075da628ef7426b45ec422f5b47e9cd6e
+-- @bsb-hash sha256:b01321b382037864af2e74b68470dae666bd85ec18c7e881fe659fd17fe11621
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2365,7 +2365,7 @@ begin
       raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
     end if;
     if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
       raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
     end if;
@@ -2472,7 +2472,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -2501,7 +2501,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -2537,7 +2537,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -2563,7 +2563,7 @@ begin
   select * into v_row from "better_supabase"."saved_views" where "id" = duplicate_view.view_id;
   if not found or not (auth.role() = 'service_role'
     or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) then
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
@@ -2600,7 +2600,7 @@ begin
   select * into v_row from "better_supabase"."saved_views" where "id" = set_view_preference.view_id;
   if not found or not (auth.role() = 'service_role'
     or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) then
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
@@ -2722,7 +2722,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:96f986f5b97d41142491d0b73a2936894385a90ad0b34173856839fdea8b9f74
+-- @bsb-hash sha256:a24de49b40c0a8124126d3940b7a509484c7139fb407f9bb0433d7b51db3c49c
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2890,7 +2890,7 @@ begin
       raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
     end if;
     if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."org_id", 'views.share'), false))) then
       raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
     end if;
@@ -2997,7 +2997,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."org_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -3026,7 +3026,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."org_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -3062,7 +3062,7 @@ begin
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role'
-    or (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+    or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
     or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."org_id", 'views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
@@ -3088,7 +3088,7 @@ begin
   select * into v_row from "better_supabase"."saved_views" where "id" = duplicate_view.view_id;
   if not found or not (auth.role() = 'service_role'
     or (coalesce(better_supabase.can('tenant', v_row."org_id", 'views.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) then
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
@@ -3125,7 +3125,7 @@ begin
   select * into v_row from "better_supabase"."saved_views" where "id" = set_view_preference.view_id;
   if not found or not (auth.role() = 'service_role'
     or (coalesce(better_supabase.can('tenant', v_row."org_id", 'views.read'), false) and (
-      (v_row."scope" = 'user' and v_row."owner_id" = auth.uid())
+      (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) then
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';

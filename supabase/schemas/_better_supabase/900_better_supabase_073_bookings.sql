@@ -1,6 +1,6 @@
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:81ea9e6255296d66835524d073eed03e8764160a044a2503aa59f736b7f3dc42
+-- @bsb-hash sha256:ffe2dfde00999e3f250ad8b64d1b274ea6b3a3c875de215197c479fd29e9d12c
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -750,7 +750,7 @@ begin
   if not (
     (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.manage'), false))
     or (change_booking.access_token is not null and v_booking."access_hash" = encode(extensions.digest(convert_to(change_booking.access_token, 'utf8'), 'sha256'), 'hex'))
-    or (change_booking.access_token is null and v_booking."customer_user_id" = auth.uid() and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.create'), false)))
+    or (change_booking.access_token is null and coalesce(v_booking."customer_user_id" = auth.uid(), false) and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.create'), false)))
   ) then
     raise exception 'not allowed to change this booking' using errcode = '42501', hint = 'BOOKING_FORBIDDEN';
   end if;
@@ -1313,7 +1313,7 @@ declare
   v_moved jsonb := '[]'::jsonb;
 begin
   select * into v_booking from "better_supabase"."bookings" bk where bk."id" = reschedule_booking.booking;
-  if not found or not ((auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.manage'), false)) or (v_booking."customer_user_id" = auth.uid() and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.create'), false)))) then
+  if not found or not ((auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.manage'), false)) or (coalesce(v_booking."customer_user_id" = auth.uid(), false) and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.create'), false)))) then
     raise exception 'booking not found' using errcode = 'P0002', hint = 'BOOKING_NOT_FOUND';
   end if;
   if reschedule_booking.scope is null or reschedule_booking.scope not in ('one', 'following') then
@@ -1358,7 +1358,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_booking from "better_supabase"."bookings" bk where bk."id" = cancel_booking_series.booking;
-  if not found or not ((auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.manage'), false)) or (v_booking."customer_user_id" = auth.uid() and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.create'), false)))) then
+  if not found or not ((auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.manage'), false)) or (coalesce(v_booking."customer_user_id" = auth.uid(), false) and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.create'), false)))) then
     raise exception 'booking not found' using errcode = 'P0002', hint = 'BOOKING_NOT_FOUND';
   end if;
   if cancel_booking_series.scope is null or cancel_booking_series.scope not in ('one', 'following') then

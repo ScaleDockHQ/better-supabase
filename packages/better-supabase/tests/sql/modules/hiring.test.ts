@@ -52,7 +52,7 @@ describe("hiring module", () => {
     expect(sql).toContain("'jobs.update'");
     expect(sql).toMatch(/"status", "slug"\)\n\s+values \(/u);
     expect(sql).toContain(
-      `(jsonb_populate_record(null::"better_supabase"."job_openings", coalesce(save_job.attrs -> 'fields', '{}'::jsonb)))."slug"`,
+      `(jsonb_populate_record(null::"better_supabase"."job_openings", jsonb_build_object('slug', save_job.attrs -> 'fields' -> 'slug')))."slug"`,
     );
 
     const update = body("hiring", {

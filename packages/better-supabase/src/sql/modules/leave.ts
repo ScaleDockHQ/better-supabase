@@ -598,7 +598,7 @@ begin
     ${fail("LEAVE_REQUEST_NOT_FOUND", "leave request not found", "P0002")}
   end if;
   v_manager := ${SERVICE_CALLER} or ${ctx.can("tenant", `v_row.${q("tenant")}`, manage)};
-  if not (v_manager or v_row.${q("user")} = auth.uid()) then
+  if not (v_manager or coalesce(v_row.${q("user")} = auth.uid(), false)) then
     ${forbidden("not allowed to cancel this leave request")}
   end if;
   if v_row.${q("cancelledAt")} is not null then
@@ -640,7 +640,7 @@ begin
   if not (v_reader or ${ctx.can("tenant", "list_leave_requests.tenant", request)}) then
     ${forbidden("not allowed to list leave requests")}
   end if;
-  if not v_reader and (coalesce(list_leave_requests.everyone, false) or (list_leave_requests.user_id is not null and list_leave_requests.user_id <> auth.uid())) then
+  if not v_reader and (coalesce(list_leave_requests.everyone, false) or (list_leave_requests.user_id is not null and list_leave_requests.user_id is distinct from auth.uid())) then
     ${forbidden("not allowed to read another member's leave")}
   end if;
   select coalesce(jsonb_agg(z.item order by z.starts, z.created), '[]'::jsonb) into v_rows

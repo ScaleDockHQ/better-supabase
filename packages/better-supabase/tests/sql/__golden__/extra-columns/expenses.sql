@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:bca85c642f686cc51b826d44d819aaf123125acc76434c71dfabe1bb0b9b70e5
+-- @bsb-hash sha256:4930b5d3784bed2ea1ceda12d5925f8bc05a49ce6f3e711943e8ab358e0842ac
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -352,7 +352,7 @@ begin
     raise exception 'no such expense report' using errcode = 'P0002', hint = 'EXPENSE_REPORT_NOT_FOUND';
   end if;
   select * into v_approval from "better_supabase"."approval_requests" p where p."id" = v_row."approval_id";
-  if not (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.submit'), false)) then
+  if not (coalesce(v_row."user_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.submit'), false)) then
     raise exception 'only the member who owns the report can change it' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
   if (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) not in ('draft', 'rejected') then
@@ -415,7 +415,7 @@ begin
     raise exception 'no such expense report' using errcode = 'P0002', hint = 'EXPENSE_REPORT_NOT_FOUND';
   end if;
   select * into v_approval from "better_supabase"."approval_requests" p where p."id" = v_row."approval_id";
-  if not (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.submit'), false)) then
+  if not (coalesce(v_row."user_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.submit'), false)) then
     raise exception 'only the member who owns the report can change it' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
   if (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) not in ('draft', 'rejected') then
@@ -476,7 +476,7 @@ begin
     raise exception 'no such expense report' using errcode = 'P0002', hint = 'EXPENSE_REPORT_NOT_FOUND';
   end if;
   select * into v_approval from "better_supabase"."approval_requests" p where p."id" = v_row."approval_id";
-  if not (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.submit'), false)) then
+  if not (coalesce(v_row."user_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.submit'), false)) then
     raise exception 'only the member who owns the report can change it' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
   if (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) not in ('draft', 'rejected') then
@@ -508,7 +508,7 @@ begin
     raise exception 'no such expense report' using errcode = 'P0002', hint = 'EXPENSE_REPORT_NOT_FOUND';
   end if;
   select * into v_approval from "better_supabase"."approval_requests" p where p."id" = v_row."approval_id";
-  if not (v_row."user_id" = auth.uid() or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.read'), false))) then
+  if not (coalesce(v_row."user_id" = auth.uid(), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.read'), false))) then
     raise exception 'no such expense report' using errcode = 'P0002', hint = 'EXPENSE_REPORT_NOT_FOUND';
   end if;
   return "better_supabase"."expense_report_violations"(v_row."id");
@@ -540,7 +540,7 @@ begin
     raise exception 'no such expense report' using errcode = 'P0002', hint = 'EXPENSE_REPORT_NOT_FOUND';
   end if;
   select * into v_approval from "better_supabase"."approval_requests" p where p."id" = v_row."approval_id";
-  if not (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.submit'), false)) then
+  if not (coalesce(v_row."user_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.submit'), false)) then
     raise exception 'only the member who owns the report can change it' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
   if (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) not in ('draft', 'rejected') then
@@ -675,7 +675,7 @@ begin
     raise exception 'no such expense report' using errcode = 'P0002', hint = 'EXPENSE_REPORT_NOT_FOUND';
   end if;
   select * into v_approval from "better_supabase"."approval_requests" p where p."id" = v_row."approval_id";
-  if not (v_row."user_id" = auth.uid() or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.manage'), false))) then
+  if not (coalesce(v_row."user_id" = auth.uid(), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.manage'), false))) then
     raise exception 'not allowed to cancel this expense report' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
   if (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) not in ('draft', 'submitted', 'rejected') then
@@ -711,7 +711,7 @@ begin
     raise exception 'no such expense report' using errcode = 'P0002', hint = 'EXPENSE_REPORT_NOT_FOUND';
   end if;
   select * into v_approval from "better_supabase"."approval_requests" p where p."id" = v_row."approval_id";
-  if not (v_row."user_id" = auth.uid() or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.read'), false))) then
+  if not (coalesce(v_row."user_id" = auth.uid(), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.read'), false))) then
     raise exception 'no such expense report' using errcode = 'P0002', hint = 'EXPENSE_REPORT_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'title', v_row."title", 'currency', v_row."currency", 'note', v_row."note", 'status', (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)::text, 'approvalId', v_row."approval_id", 'submittedAt', v_row."submitted_at", 'approvedAt', v_row."approved_at", 'approvalTransactionId', v_row."approval_transaction_id", 'reimbursedAt', v_row."reimbursed_at", 'reimbursementTransactionId', v_row."reimbursement_transaction_id", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"),
@@ -737,7 +737,7 @@ begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_expense_reports.tenant, 'expenses.submit'), false)) then
     raise exception 'not allowed to list expense reports' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
-  if not v_reader and (coalesce(list_expense_reports.everyone, false) or (list_expense_reports.user_id is not null and list_expense_reports.user_id <> auth.uid())) then
+  if not v_reader and (coalesce(list_expense_reports.everyone, false) or (list_expense_reports.user_id is not null and list_expense_reports.user_id is distinct from auth.uid())) then
     raise exception 'not allowed to read another member''s expenses' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
   return (

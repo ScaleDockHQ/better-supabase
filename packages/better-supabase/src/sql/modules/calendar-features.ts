@@ -1,7 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { isRecord } from "../../core/guards.ts";
-import { sqlIdent } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy, renderPolicy } from "../policy.ts";
 import { fail, lockTable, userGrant } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -769,4 +769,79 @@ create index if not exists ${sqlIdent(`${datesName}_event_idx`)} on ${dates} (${
 ${lockTable(dates, { read: true })}
 ${readPolicy(dates, datesName, calendarFeatures(ctx).access ? d("event") : d("tenant"))}
 `;
+}
+
+interface ReadOnlyRule {
+  readonly column: string;
+  readonly values: readonly string[];
+}
+
+function readOnlyRule(ctx: BlockSqlContext): ReadOnlyRule | undefined {
+  const raw = ctx.option("readOnly");
+
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  const rule: Readonly<Record<string, unknown>> =
+    typeof raw === "object" && raw !== null
+      ? Object.fromEntries(Object.entries(raw))
+      : {};
+
+  const column = rule["column"];
+
+  const given: readonly unknown[] = Array.isArray(rule["values"])
+    ? rule["values"]
+    : [];
+
+  const values = given.filter(
+    (value): value is string => typeof value === "string",
+  );
+
+  if (
+    typeof column !== "string" ||
+    column === "" ||
+    values.length === 0 ||
+    values.length !== given.length
+  ) {
+    throw new TypeError(
+      "blocks.calendar.options.readOnly must be { column, values } with a column of the events table and at least one value",
+    );
+  }
+
+  return { column, values };
+}
+
+export function eventGuards(
+  ctx: BlockSqlContext,
+  allowed: (tenant: string, key: string) => string,
+): {
+  readonly actionCheck: (
+    action: "create" | "update" | "delete",
+    tenant: string,
+  ) => string;
+  readonly readOnlyCheck: (id: string) => string;
+} {
+  const readOnly = readOnlyRule(ctx);
+  const e = (column: string): string => ctx.col("events", column);
+
+  return {
+    actionCheck: (action, tenant) => {
+      const key = ctx.config.permissions[action];
+
+      return key === undefined
+        ? ""
+        : `
+  if not ${allowed(tenant, sqlString(key))} then
+    ${fail("CALENDAR_FORBIDDEN", `not allowed to ${action} calendar events`)}
+  end if;`;
+    },
+    readOnlyCheck: (id) =>
+      readOnly === undefined
+        ? ""
+        : `
+  if auth.role() is distinct from 'service_role' and exists (select 1 from ${ctx.table("events")} x where x.${e("id")} = ${id} and x.${sqlIdent(readOnly.column)}::text = any (array[${readOnly.values.map(sqlString).join(", ")}]::text[])) then
+    ${fail("CALENDAR_EVENT_READ_ONLY", "this event is read-only", "42501")}
+  end if;`,
+  };
 }

@@ -333,7 +333,7 @@ begin
       ${fail("EVIDENCE_TASK_NOT_FOUND", "the evidence task isn't a task of this control", "P0002")}
     end if;
   end if;
-  if not (${allowed(`v_control.${k("tenant")}`, collect)}${assignee ? ` or (v_task.${t("assignee")} is not null and v_task.${t("assignee")} = auth.uid())` : ""}) then
+  if not (${allowed(`v_control.${k("tenant")}`, collect)}${assignee ? ` or (v_task.${t("assignee")} is not null and coalesce(v_task.${t("assignee")} = auth.uid(), false))` : ""}) then
     ${forbidden("not allowed to collect evidence")}
   end if;
   ${

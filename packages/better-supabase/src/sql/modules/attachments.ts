@@ -386,7 +386,7 @@ end;`;
     id,
     tenantless: tenantless.length > 0,
     json,
-    mayVersion: `(v_row.${c("uploadedBy")} = auth.uid() and ${inTenant("v_row", "upload")}) or ${canManage("v_row")} or (${SERVICE_CALLER})`,
+    mayVersion: `(coalesce(v_row.${c("uploadedBy")} = auth.uid(), false) and ${inTenant("v_row", "upload")}) or ${canManage("v_row")} or (${SERVICE_CALLER})`,
   });
 
   const policy = (name: string): string => sqlIdent(`bsb_attachments_${name}`);

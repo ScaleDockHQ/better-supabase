@@ -180,7 +180,7 @@ function build(ctx: BlockSqlContext): string {
       : "";
 
   const mayEdit = (row: string): string =>
-    `(${SERVICE_CALLER} or ${row}.${t.user} = auth.uid() or ${ctx.scope.can(`${row}.${t.tenant}`, manage)})`;
+    `(${SERVICE_CALLER} or coalesce(${row}.${t.user} = auth.uid(), false) or ${ctx.scope.can(`${row}.${t.tenant}`, manage)})`;
 
   const notFound = raise(
     "task % not found",

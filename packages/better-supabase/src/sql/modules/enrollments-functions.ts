@@ -92,7 +92,7 @@ export function enrollmentsFunctions(ctx: BlockSqlContext): string {
   ).filter(([column]) => ctx.has("enrollments", column));
 
   const self = (row: string): string =>
-    `(${row}.${e("user")} is not null and ${row}.${e("user")} = auth.uid())`;
+    `(${row}.${e("user")} is not null and coalesce(${row}.${e("user")} = auth.uid(), false))`;
 
   const programJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'key', ${row}.${p("key")}, 'name', ${row}.${p("name")}, 'description', ${field("programs", row, "description")}, 'subjectTypes', to_jsonb(${row}.${p("subjectTypes")}), 'steps', ${row}.${p("steps")}, 'enabled', ${row}.${p("enabled")}, 'version', ${row}.${p("version")}, 'createdBy', ${field("programs", row, "createdBy")}, 'createdAt', ${field("programs", row, "createdAt")}, 'updatedAt', ${field("programs", row, "updatedAt")})`;
@@ -491,7 +491,7 @@ as $$
 declare
   v_id uuid;
 begin
-  if not (${allowed("enrollment.tenant", read)} or (enrollment.subject_type = 'user' and enrollment.subject_id = auth.uid()::text)) then
+  if not (${allowed("enrollment.tenant", read)} or (enrollment.subject_type = 'user' and coalesce(enrollment.subject_id = auth.uid()::text, false))) then
     ${forbidden("not allowed to read enrollments")}
   end if;
   select x.${e("id")} into v_id from ${enrollments} x

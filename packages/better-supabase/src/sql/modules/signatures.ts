@@ -568,7 +568,7 @@ begin
   if not found then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or v_req.${r("requestedBy")} = auth.uid() or ${ctx.can("tenant", `v_req.${r("tenant")}`, manage)}) then
+  if not (${SERVICE_CALLER} or coalesce(v_req.${r("requestedBy")} = auth.uid(), false) or ${ctx.can("tenant", `v_req.${r("tenant")}`, manage)}) then
     ${forbidden("not allowed to cancel this request")}
   end if;
   if v_req.${r("status")} <> 'pending' then
@@ -598,7 +598,7 @@ begin
   if not found then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or auth.uid() = any (v_req.${r("signers")}) or ${readableRequest("v_req")}) then
+  if not (${SERVICE_CALLER} or coalesce(auth.uid() = any (v_req.${r("signers")}), false) or ${readableRequest("v_req")}) then
     ${forbidden("not allowed to read this request")}
   end if;
   select coalesce(jsonb_agg(${signatureJson("g")} order by g.${s("signedAt")}), '[]'::jsonb) into v_items

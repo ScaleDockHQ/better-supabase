@@ -28,6 +28,8 @@ export interface WorkItemNames {
   readonly create: string;
   readonly remove: string;
   readonly authorCanDelete: boolean;
+  readonly notify: boolean;
+  readonly actionPath: string;
   /** The identifier prefix without numbering, such as `TASK-`. */
   readonly prefix: string;
   /** The most assignees an item takes; 0 for no limit. */
@@ -214,8 +216,14 @@ export function workItemFunctions(
     subjectId: `v_row.${w("id")}::text`,
   });
 
-  const notify = ctx.installed("notifications")
-    ? `
+  const actionPath =
+    n.actionPath === ""
+      ? "null"
+      : `replace(replace(${sqlString(n.actionPath)}, '{id}', v_row.${w("id")}::text), '{identifier}', ${ctx.has("items", "identifier") ? `coalesce(v_row.${w("identifier")}, '')` : "''"})`;
+
+  const notify =
+    ctx.installed("notifications") && n.notify
+      ? `
   if cardinality(v_new) > 0 then
     ${ctx.notify(
       `jsonb_build_object(
@@ -224,7 +232,9 @@ export function workItemFunctions(
       'actor', auth.uid(),
       'subject_type', ${item},
       'subject_id', v_row.${w("id")}::text,
+      'subject_label', v_row.${w("title")},
       'summary', v_row.${w("title")},
+      'action_path', ${actionPath},
       'recipients', to_jsonb(v_new),
       'watchers', false,
       'key', ${sqlString(e("work_item.assigned:"))} || v_row.${w("id")}::text || ':' || md5(array_to_string(v_new, ',')),
@@ -233,7 +243,7 @@ export function workItemFunctions(
       { indent: "    " },
     )}
   end if;`
-    : "";
+      : "";
 
   const limit =
     n.maxAssignees === 0

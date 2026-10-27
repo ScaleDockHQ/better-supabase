@@ -37,7 +37,7 @@ function ownCart(
   return `select x.${c("tenant")} as tenant, x.${c("user")} as owner, ${ctx.label("carts", "status", `x.${c("status")}`)} as status,
     x.${c("currency")} as currency, x.${c("priceList")} as price_list, x.${c("shippingAddress")} as shipping_address
   into v_cart from ${ctx.table("carts")} x where x.${c("id")} = ${id}${options.lock ? " for update" : ""};
-  if not found or not (auth.role() = 'service_role' or v_cart.owner = auth.uid()${readers}) then
+  if not found or not (auth.role() = 'service_role' or coalesce(v_cart.owner = auth.uid(), false)${readers}) then
     ${fail("ORDERS_CART_NOT_FOUND", "cart not found", "P0002")}
   end if;`;
 }

@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@2 managed tasks
--- @bsb-hash sha256:d0c7489789a5891665af886d1f4c3015b93a2f199079bb5e122c509d5a319400
+-- @bsb-hash sha256:582f732ec01a4c8a7d8f8392ddde73525fbdda6170ff6c641496f892361ef803
 -- @bsb-names maintenance work_item=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -266,7 +266,7 @@ begin
       (create_maintenance_request.attrs ->> 'iterationId')::uuid, coalesce((create_maintenance_request.attrs ->> 'priority')::smallint, 0),
       (create_maintenance_request.attrs ->> 'estimate')::numeric, (create_maintenance_request.attrs ->> 'progress')::smallint,
       (create_maintenance_request.attrs ->> 'startAt')::timestamptz, (create_maintenance_request.attrs ->> 'endAt')::timestamptz, (create_maintenance_request.attrs ->> 'dueAt')::timestamptz,
-      (create_maintenance_request.attrs ->> 'pipelineId')::uuid, (create_maintenance_request.attrs ->> 'stageId')::uuid, auth.uid(), (jsonb_populate_record(null::"better_supabase"."maintenance_requests", coalesce((create_maintenance_request.attrs -> 'fields'), '{}'::jsonb)))."unit_id", (jsonb_populate_record(null::"better_supabase"."maintenance_requests", coalesce((create_maintenance_request.attrs -> 'fields'), '{}'::jsonb)))."lease_id")
+      (create_maintenance_request.attrs ->> 'pipelineId')::uuid, (create_maintenance_request.attrs ->> 'stageId')::uuid, auth.uid(), (jsonb_populate_record(null::"better_supabase"."maintenance_requests", jsonb_build_object('unit_id', (create_maintenance_request.attrs -> 'fields') -> 'unit_id')))."unit_id", (jsonb_populate_record(null::"better_supabase"."maintenance_requests", jsonb_build_object('lease_id', (create_maintenance_request.attrs -> 'fields') -> 'lease_id')))."lease_id")
     returning "id" into v_id;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range or foreign_key_violation then
     raise exception 'a work item field has an invalid value' using errcode = '22023', hint = 'WORK_ITEM_ATTRS_INVALID';
@@ -467,7 +467,9 @@ begin
       'actor', auth.uid(),
       'subject_type', 'maintenance_request',
       'subject_id', v_row."id"::text,
+      'subject_label', v_row."title",
       'summary', v_row."title",
+      'action_path', null,
       'recipients', to_jsonb(v_new),
       'watchers', false,
       'key', 'maintenance_request.assigned:' || v_row."id"::text || ':' || md5(array_to_string(v_new, ',')),

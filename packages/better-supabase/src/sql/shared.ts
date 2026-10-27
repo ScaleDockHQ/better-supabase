@@ -137,7 +137,7 @@ export const insertExtraColumns = (
   source: string,
 ): { readonly columns: string; readonly values: string } => {
   const value = (extra: ExtraColumn): string => {
-    const read = `(jsonb_populate_record(null::${table}, coalesce(${source}, '{}'::jsonb))).${extra.ident}`;
+    const read = `(jsonb_populate_record(null::${table}, jsonb_build_object(${sqlString(extra.name)}, ${source} -> ${sqlString(extra.name)}))).${extra.ident}`;
     const fallback = extraColumnDefault(extra.type);
 
     return fallback === undefined

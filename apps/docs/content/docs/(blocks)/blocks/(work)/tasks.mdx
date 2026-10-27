@@ -88,6 +88,8 @@ const rows = useTasks({ limit: 50 });
 
 `assign(id, userIds)` replaces the assignees. Each one watches the item, and the people newly assigned get a `work_item.assigned` notification. `options.maxAssignees` caps the list (`WORK_ITEM_ASSIGNEES_LIMIT`), and `1` gives the single-assignee shape of Linear and Jira.
 
+The notification carries the item's title as its subject label, and `options.actionPath` sets its action path from a template with `{id}` and `{identifier}`, such as `"/tasks/{id}"`. Set `options.notify: false` when the app sends its own assignment notifications; the assignees still watch the item.
+
 ## Lists, trees, projects and iterations
 
 `list(organizationId, { teamId, projectId, iterationId, parentId, assigneeId, states, open, search })` returns active items, newest first, 50 per page; pass the last item's id as `after` for the next page. `tree(rootId)` returns an item and everything under it with its depth; an item without its own `progress` rolls up the share of its open and completed children that are completed, for a Gantt group.
