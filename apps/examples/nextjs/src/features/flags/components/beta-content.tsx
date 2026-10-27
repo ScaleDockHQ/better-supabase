@@ -10,20 +10,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-
-import { getEnabledFlags } from "../flag-queries";
+import { betaPage } from "@/flags";
 
 /**
  * Render inside `<Suspense>`. The sidebar hides the link while the flag is off;
  * this answers 404 for a direct visit too.
  */
 export async function BetaContent() {
-  const [flags, t] = await Promise.all([
-    getEnabledFlags(),
-    getExtracted("beta"),
-  ]);
+  const [enabled, t] = await Promise.all([betaPage(), getExtracted("beta")]);
 
-  if (!flags.includes("beta-page")) {
+  if (!enabled) {
     notFound();
   }
 

@@ -1,4 +1,5 @@
 import type { Permission } from "@/features/user/user-permissions";
+import type { navFlags } from "@/flags";
 import type { AppHref } from "@/i18n/navigation";
 
 export type NavId =
@@ -65,7 +66,7 @@ export interface NavItem {
    */
   readonly requires?: Permission;
   /** Shown only while this flag is on for the organization. */
-  readonly flag?: string;
+  readonly flag?: keyof typeof navFlags;
 }
 
 export const navItems: readonly NavItem[] = [
