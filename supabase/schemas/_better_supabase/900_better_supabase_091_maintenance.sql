@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@2 managed tasks
--- @bsb-hash sha256:582f732ec01a4c8a7d8f8392ddde73525fbdda6170ff6c641496f892361ef803
+-- @bsb-hash sha256:174ec5ee16a9c859d264ef4fef704f85c3822be2d7aef4fc8d24caf992832af6
 -- @bsb-names maintenance work_item=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -437,8 +437,8 @@ declare
   v_row "better_supabase"."maintenance_requests";
   v_users uuid[] := array(select distinct x from unnest(coalesce(set_maintenance_request_assignees.users, '{}')) x where x is not null);
   v_new uuid[];
-  v_user uuid;
   v_claims text;
+  v_user uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
