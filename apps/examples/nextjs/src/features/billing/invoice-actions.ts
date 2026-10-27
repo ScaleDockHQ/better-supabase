@@ -5,8 +5,6 @@ import { parseMoney } from "better-supabase/commerce";
 import * as v from "valibot";
 
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -22,7 +20,7 @@ export const createDraftInvoice = bsb.action(
       ),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "invoices.write"),
+    permission: "invoices.write",
   },
   async ({ title, amount }, { tenant, db, auth }) => {
     const created = await db.invoices.create(
@@ -52,7 +50,7 @@ export const issueInvoice = bsb.action(
   {
     input: v.object({ invoiceId: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "invoices.write"),
+    permission: "invoices.write",
   },
   async ({ invoiceId }, { db, auth }) => {
     const issued = await db.invoices.issue(invoiceId);

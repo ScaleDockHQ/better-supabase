@@ -59,7 +59,10 @@ export interface NavItem {
   /** Without the locale prefix. */
   readonly href: AppHref;
   readonly group: "workspace" | "organization";
-  /** Hidden from the menu (and redirected by the proxy) without it. */
+  /**
+   * Hidden from the menu without it, and the proxy answers the page with a 403
+   * when the token's `permissions` claim lacks it.
+   */
   readonly requires?: Permission;
   /** Shown only while this flag is on for the organization. */
   readonly flag?: string;

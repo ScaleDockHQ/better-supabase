@@ -89,11 +89,7 @@ export interface ImportPreview {
 
 /** Validates every row against the mapping. Nothing is written. */
 export const previewCustomerImport = bsb.action(
-  {
-    input: Input,
-    requireTenant: true,
-    authorize: async () => can(await getPermissions(), "imports.manage"),
-  },
+  { input: Input, requireTenant: true, permission: "imports.manage" },
   async ({ csv, mapping }, { db }) => {
     const preview = await dryRun(
       customerImport((rows) => db.customers.create(rows)),
@@ -126,9 +122,8 @@ export const runCustomerImport = bsb.action(
   {
     input: Input,
     requireTenant: true,
-    authorize: async () =>
-      can(await getPermissions(), "imports.manage") &&
-      can(await getPermissions(), "customers.write"),
+    permission: "imports.manage",
+    authorize: async () => can(await getPermissions(), "customers.write"),
   },
   async ({ csv, mapping }, { tenant, db, auth }) => {
     const existing = await db.customers.list({

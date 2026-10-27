@@ -41,7 +41,7 @@ export const setUpBookingPage = bsb.action(
       tz: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "bookings.manage"),
+    permission: "bookings.manage",
   },
   async ({ tz }, { tenant, db, session, auth }) => {
     if (session.kind !== "user") {
@@ -117,7 +117,7 @@ export const saveWeeklyHours = bsb.action(
       ),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "bookings.manage"),
+    permission: "bookings.manage",
   },
   async ({ hours }, { tenant, db, session, auth }) => {
     const page =
@@ -146,9 +146,8 @@ export const createBookingLink = bsb.action(
   {
     input: v.object({}),
     requireTenant: true,
-    authorize: async () =>
-      can(await getPermissions(), "bookings.manage") &&
-      can(await getPermissions(), "share_links.create"),
+    permission: "bookings.manage",
+    authorize: async () => can(await getPermissions(), "share_links.create"),
   },
   async (_input, { tenant, db, session, auth }) => {
     const page =

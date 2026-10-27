@@ -47,17 +47,17 @@ async function retry() {
 
 /** Render inside `<Suspense>`: the organization's products as cards. */
 export async function ProductCatalogGrid() {
-  const permissions = await getPermissions();
-
-  if (!can(permissions, "catalog.read")) {
-    forbidden();
-  }
-
-  const [products, t, locale] = await Promise.all([
+  // The read starts with the permission check; RLS guards it either way.
+  const [permissions, products, t, locale] = await Promise.all([
+    getPermissions(),
     getProducts(),
     getExtracted("shop"),
     getLocale(),
   ]);
+
+  if (!can(permissions, "catalog.read")) {
+    forbidden();
+  }
 
   if (products.kind === "no-organization") {
     return null;

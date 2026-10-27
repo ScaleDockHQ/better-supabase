@@ -71,7 +71,7 @@ export const updateOrganization = bsb.action(
   {
     input: v.object({ name: Name, slug: Slug }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "organization.update"),
+    permission: "organization.update",
   },
   async ({ name, slug }, { tenant: organizationId, db }) => {
     const updated = await db.$blocks.organizations.update(organizationId, {
@@ -105,10 +105,7 @@ export const updateOrganization = bsb.action(
  * onboarding step and renders the pending invitations again.
  */
 export const invitationSent = bsb.action(
-  {
-    requireTenant: true,
-    authorize: async () => can(await getPermissions(), "members.invite"),
-  },
+  { requireTenant: true, permission: "members.invite" },
   async (_input, { tenant: organizationId, db }) => {
     await db.onboarding.complete(gettingStarted, "invite", organizationId);
     refresh();
@@ -133,7 +130,7 @@ export const revokeInvitation = bsb.action(
   {
     input: v.object({ invitationId: Id }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "members.invite"),
+    permission: "members.invite",
   },
   async ({ invitationId }, { tenant: organizationId, db }) => {
     const revoked =

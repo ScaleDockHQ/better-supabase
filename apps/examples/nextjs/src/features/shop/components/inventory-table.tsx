@@ -52,16 +52,16 @@ async function retry() {
 
 /** Render inside `<Suspense>`: stock per tracked variant and active location. */
 export async function InventoryTable() {
-  const permissions = await getPermissions();
+  // The read starts with the permission check; RLS guards it either way.
+  const [permissions, stock, t] = await Promise.all([
+    getPermissions(),
+    getStockLevels(),
+    getExtracted("shop"),
+  ]);
 
   if (!can(permissions, "inventory.read")) {
     forbidden();
   }
-
-  const [stock, t] = await Promise.all([
-    getStockLevels(),
-    getExtracted("shop"),
-  ]);
 
   if (stock.kind === "no-organization") {
     return null;

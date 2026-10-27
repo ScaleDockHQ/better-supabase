@@ -6,8 +6,6 @@ import type { ShipmentAddress } from "better-supabase/blocks/shipments";
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -47,7 +45,7 @@ export const createWorkOrder = bsb.action(
       ),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "dispatch.manage"),
+    permission: "dispatch.manage",
   },
   async ({ title, address, priority }, { db, auth }) => {
     const order: Writable<WorkOrderInput> = { title, priority };
@@ -76,7 +74,7 @@ export const advanceWorkOrder = bsb.action(
       to: v.picklist(["en_route", "on_site", "done"]),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "dispatch.work"),
+    permission: "dispatch.work",
   },
   async ({ id, to }, { db, auth }) => {
     const moved = await db.dispatch.setStatus(id, to);
@@ -114,7 +112,7 @@ export const createShipment = bsb.action(
       ),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "shipments.manage"),
+    permission: "shipments.manage",
   },
   async (
     { name, line1, city, postalCode, country, weightGrams },

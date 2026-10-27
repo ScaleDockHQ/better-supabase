@@ -1,5 +1,5 @@
 import "server-only";
-import { tenantOf } from "better-supabase/next";
+import { permissionsOf, tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { bsb } from "@/lib/supabase/server";
@@ -19,10 +19,13 @@ export function organizationSnapshotTag(organizationId: string): string {
 }
 
 /**
- * The caller's keys in the active organization, through the permissions block's
- * `my_permissions`: the role's catalog keys with the organization's overrides
- * applied. Cached per user for the request; `bsb.cached()` keeps the entry no
- * longer than the token. `null` without a user or an organization.
+ * The caller's keys in the active organization: the role's catalog keys with
+ * the organization's overrides applied. They come from the token's
+ * `permissions` claim, which the access token hook writes, and from the
+ * permissions block's `my_permissions` only when the token has none for the
+ * organization or marks them truncated. Cached per user for the request;
+ * `bsb.cached()` keeps the entry no longer than the token. `null` without a
+ * user or an organization.
  */
 export async function getPermissions(): Promise<PermissionSet | null> {
   "use cache: private";
@@ -37,5 +40,9 @@ export async function getPermissions(): Promise<PermissionSet | null> {
 
   cacheTag(organizationSnapshotTag(tenant));
 
-  return db.permissions.permissions().orThrow();
+  const keys = permissionsOf(session, tenant);
+
+  return keys === undefined
+    ? db.permissions.permissions().orThrow()
+    : { tenant, keys };
 }

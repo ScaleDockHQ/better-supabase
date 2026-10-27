@@ -3,8 +3,6 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -15,7 +13,7 @@ export const restoreTrashItem = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "trash.restore"),
+    permission: "trash.restore",
   },
   async ({ id }, { db, auth }) => {
     const restored = await db.trash.restore(id);
@@ -35,7 +33,7 @@ export const purgeTrashItem = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "trash.manage"),
+    permission: "trash.manage",
   },
   async ({ id }, { db, auth }) => {
     const purged = await db.trash.purge(id);

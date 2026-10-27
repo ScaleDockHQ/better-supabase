@@ -4,19 +4,13 @@ import { ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
 import { aiTasks } from "./ai-tasks-server";
 
 /** Schedules a weekday summary for the caller, so the queue has a row to show. */
 export const scheduleSampleTask = bsb.action(
-  {
-    input: v.object({}),
-    requireTenant: true,
-    authorize: async () => can(await getPermissions(), "ai.create"),
-  },
+  { input: v.object({}), requireTenant: true, permission: "ai.create" },
   async (_input, { tenant, supabase }) => {
     const created = await aiTasks(supabase).create(tenant, {
       title: "Weekday customer summary",
@@ -40,7 +34,7 @@ export const setAiTaskEnabled = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()), enabled: v.boolean() }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "ai.create"),
+    permission: "ai.create",
   },
   async ({ id, enabled }, { tenant, supabase }) => {
     const tasks = aiTasks(supabase);

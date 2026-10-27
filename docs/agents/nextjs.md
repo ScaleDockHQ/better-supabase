@@ -114,10 +114,18 @@ cache fails with `Could not resolve "better-supabase/blocks/..."`.
   clients alone). Commit generated files with the change that needs them.
 - After `git mv`, stage the edited file again: the hook lints the staged
   content, not the working tree.
-- Permissions with overrides live in the database, not in the token, so a
-  proxy check costs one round trip before the first byte of every gated page.
-  The example redirects from `PermissionRedirect` instead, which runs after
-  the shell on the permissions `AppNav` already reads.
+- The token hook writes the active tenant's permission keys into the
+  `permissions` claim, so the proxy answers a gated page with the 403 page
+  before rendering, with no database read. A token over the 2048-byte budget
+  carries `permissions_truncated` and no keys; the proxy lets it through and
+  `getPermissions()` falls back to `my_permissions`. Don't gate pages from a
+  client component after render; that was `PermissionRedirect`, and it showed
+  the page before it left.
+- Auth placement: the proxy refreshes the session and answers coarse checks
+  (signed in, page permission). Server Components read the verified claims
+  and never refresh. Actions and route handlers check again with
+  `permission:` (the `permissionsAuthorizer`), because they can be called
+  without a page.
 - Start a private read together with `getPermissions()` instead of after it.
   Two reads in a row keep the response open for two round trips, and Chrome
   holds a reload of the same URL until that response ends (its HTTP cache

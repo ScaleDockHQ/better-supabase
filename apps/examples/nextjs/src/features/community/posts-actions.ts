@@ -3,8 +3,6 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -17,7 +15,7 @@ export const createFeedbackBoard = bsb.action(
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "posts.manage"),
+    permission: "posts.manage",
   },
   async ({ name }, { db, auth }) => {
     const board = await db.posts.saveBoard({
@@ -45,7 +43,7 @@ export const createPost = bsb.action(
       body: v.pipe(v.string(), v.maxLength(10_000)),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "posts.write"),
+    permission: "posts.write",
   },
   async ({ boardId, title, body }, { db, auth }) => {
     const post = await db.posts.create(boardId, { title, body });
@@ -65,7 +63,7 @@ export const voteOnPost = bsb.action(
   {
     input: v.object({ postId: Id, value: v.picklist([0, 1]) }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "posts.read"),
+    permission: "posts.read",
   },
   async ({ postId, value }, { db, auth }) => {
     const tally = await db.posts.vote(postId, value);

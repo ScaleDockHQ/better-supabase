@@ -4,8 +4,6 @@ import { dbError, err, ok } from "better-supabase";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -21,7 +19,7 @@ export const addEventReminder = bsb.action(
       offsetMinutes: v.picklist(REMINDER_OFFSETS),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "reminders.manage"),
+    permission: "reminders.manage",
   },
   async ({ eventId, offsetMinutes }, { db, auth }) => {
     const saved = await db.reminders.upsert(
@@ -44,7 +42,7 @@ export const removeEventReminder = bsb.action(
   {
     input: v.object({ reminderId: Id }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "reminders.manage"),
+    permission: "reminders.manage",
   },
   async ({ reminderId }, { db, auth }) => {
     const removed = await db.reminders.remove(reminderId);
@@ -75,7 +73,7 @@ export const createCalendar = bsb.action(
       tz: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "calendar.manage"),
+    permission: "calendar.manage",
   },
   async ({ name, tz }, { tenant, db, auth }) => {
     const created = await db.calendar.createCalendar(tenant, name, { tz });
@@ -113,7 +111,7 @@ export const createEvent = bsb.action(
       ),
     ),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "calendar.write"),
+    permission: "calendar.write",
   },
   async (input, { db, auth }) => {
     const day = Temporal.PlainDate.from(input.date);
@@ -162,7 +160,7 @@ export const setWorkingHours = bsb.action(
       v.check((input) => input.start < input.end, "End after the start"),
     ),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "calendar.read"),
+    permission: "calendar.read",
   },
   async ({ tz, start, end }, { tenant, db, auth }) => {
     const saved = await db.calendar.setWorkingHours(tenant, {

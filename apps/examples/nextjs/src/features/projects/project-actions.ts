@@ -6,8 +6,6 @@ import { dbError, err, ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -180,7 +178,7 @@ export const setTaskField = bsb.action(
       ]),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "bulk.run"),
+    permission: "bulk.run",
   },
   async ({ ids, values }, { db, auth }) => {
     const patch =
@@ -215,7 +213,7 @@ export const saveTaskView = bsb.action(
       projectId: v.nullable(Id),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "views.read"),
+    permission: "views.read",
   },
   async ({ name, view, q, status, projectId }, { tenant, db, auth }) => {
     const query: TaskViewQuery = {};
@@ -259,7 +257,7 @@ export const deleteTaskView = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "views.read"),
+    permission: "views.read",
   },
   async ({ id }, { db, auth }) => {
     const deleted = await db.$blocks.savedViews.delete(id);
@@ -290,7 +288,7 @@ export const restoreProjectFields = bsb.action(
       ),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "versions.restore"),
+    permission: "versions.restore",
   },
   async ({ projectId, versionId, fields }, { db, auth }) => {
     const { versions } = db;

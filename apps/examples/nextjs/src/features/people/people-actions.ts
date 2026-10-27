@@ -57,7 +57,7 @@ export const createEmployee = bsb.action(
       ),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "employees.write"),
+    permission: "employees.write",
   },
   async (input, { tenant, db, auth }) => {
     const { employees } = db;
@@ -127,8 +127,7 @@ export const getPrivateDetails = bsb.action(
   {
     input: v.object({ employeeId: Id }),
     requireTenant: true,
-    authorize: async () =>
-      can(await getPermissions(), "employees.view_sensitive"),
+    permission: "employees.view_sensitive",
   },
   async ({ employeeId }, { db }) => {
     const details = await db.employees.privateDetails(employeeId);
@@ -167,7 +166,7 @@ export const logTime = bsb.action(
       v.check((input) => input.start < input.end, "End after the start"),
     ),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "time_tracking.track"),
+    permission: "time_tracking.track",
   },
   async (input, { db, auth }) => {
     const day = Temporal.PlainDate.from(input.date);
@@ -204,7 +203,7 @@ export const startTimer = bsb.action(
       project: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "time_tracking.track"),
+    permission: "time_tracking.track",
   },
   async ({ project }, { db, auth }) => {
     const started = await db.timeTracking.start({ note: project });
@@ -223,7 +222,7 @@ export const stopTimer = bsb.action(
   {
     input: v.object({}),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "time_tracking.track"),
+    permission: "time_tracking.track",
   },
   async (_input, { db, auth }) => {
     const stopped = await db.timeTracking.stop();
@@ -243,7 +242,7 @@ export const submitTimesheet = bsb.action(
   {
     input: v.object({ week: PlainDate }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "time_tracking.track"),
+    permission: "time_tracking.track",
   },
   async ({ week }, { db, auth }) => {
     const submitted = await db.timeTracking.submit(
@@ -268,7 +267,7 @@ export const createOpening = bsb.action(
       location: Optional(200),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "hiring.manage"),
+    permission: "hiring.manage",
   },
   async ({ title, location }, { tenant, db, auth }) => {
     const job: Writable<JobInput> = { title, status: "open" };
@@ -294,7 +293,7 @@ export const addCandidate = bsb.action(
   {
     input: v.object({ jobId: Id, candidateId: Id }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "hiring.write"),
+    permission: "hiring.write",
   },
   async ({ jobId, candidateId }, { db, auth }) => {
     const applied = await db.hiring.apply(
@@ -321,7 +320,7 @@ export const moveApplication = bsb.action(
   {
     input: v.object({ applicationId: Id, stageId: Id }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "hiring.write"),
+    permission: "hiring.write",
   },
   async ({ applicationId, stageId }, { db, auth }) => {
     const moved = await db.rank.move("application", applicationId, {
@@ -346,7 +345,7 @@ export const closeApplication = bsb.action(
       outcome: v.picklist(["hired", "rejected"]),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "hiring.write"),
+    permission: "hiring.write",
   },
   async ({ applicationId, outcome }, { db, auth }) => {
     const { hiring } = db;

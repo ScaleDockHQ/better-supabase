@@ -1,7 +1,8 @@
 import type { ProxyOptions } from "better-supabase/next";
 import type { NextRequest } from "next/server";
 
-import { toSession } from "better-supabase/next";
+import { permissionMatches } from "better-supabase/blocks/permissions";
+import { permissionsOf, toSession } from "better-supabase/next";
 import { precompute } from "flags/next";
 import { hasLocale } from "next-intl";
 import createMiddleware from "next-intl/middleware";
@@ -9,6 +10,7 @@ import { NextResponse } from "next/server";
 
 import { env } from "@/env";
 
+import { requiredPermission } from "./features/navigation/nav-items";
 import { pricingFlags } from "./flags";
 import { routing } from "./i18n/routing";
 import { bsb } from "./lib/supabase/server";
@@ -40,7 +42,9 @@ function splitLocale(pathname: string) {
 /**
  * Optimistic redirects from the (locally verified) token. Pages, actions and
  * RLS still check; this only saves rendering a page the user can't use. A path
- * without a locale is left to next-intl's redirect.
+ * without a locale is left to next-intl's redirect. A page whose menu entry
+ * needs a key the token's `permissions` claim lacks rewrites to the 403 page;
+ * without the claim (or with it truncated) the page decides.
  */
 const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   // A Server Action posts to the page it runs on; redirecting it drops the action.
@@ -90,6 +94,19 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
 
   if (GUEST_ONLY.has(path)) {
     return NextResponse.redirect(new URL(`/${locale}`, request.url));
+  }
+
+  const needed = requiredPermission(path);
+  const keys = permissionsOf(session);
+
+  if (
+    needed !== undefined &&
+    keys !== undefined &&
+    !keys.some((granted) => permissionMatches(granted, needed))
+  ) {
+    return NextResponse.rewrite(
+      new URL(`/${locale}/forbidden${search}`, request.url),
+    );
   }
 
   return;

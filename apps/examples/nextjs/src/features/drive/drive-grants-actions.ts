@@ -4,8 +4,6 @@ import { dbError, err, ok } from "better-supabase";
 import * as v from "valibot";
 
 import { getMembers } from "@/features/organization/organization-queries";
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -39,7 +37,7 @@ export const loadDriveSharing = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "drive.read"),
+    permission: "drive.read",
   },
   async ({ id }, { tenant, db }) => {
     const [grants, members, teams] = await Promise.all([
@@ -97,7 +95,7 @@ export const shareDriveItem = bsb.action(
       role: v.picklist(DRIVE_ROLES),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "drive.read"),
+    permission: "drive.read",
   },
   async ({ id, principal, role }, { db, auth }) => {
     const shared = await driveOf(db).share(id, principal, role);
@@ -117,7 +115,7 @@ export const unshareDriveItem = bsb.action(
   {
     input: v.object({ id: Id, principal: Principal }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "drive.read"),
+    permission: "drive.read",
   },
   async ({ id, principal }, { db, auth }) => {
     const removed = await driveOf(db).unshare(id, principal);

@@ -7,8 +7,6 @@ import * as v from "valibot";
 
 import { recordAudit } from "@/features/audit/record-audit";
 import { gettingStarted } from "@/features/onboarding/checklist";
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { appErrors } from "@/lib/app-error";
 import { logos } from "@/lib/buckets";
 import { bsb } from "@/lib/supabase/server";
@@ -28,7 +26,7 @@ export const createCustomer = bsb.action(
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "customers.write"),
+    permission: "customers.write",
   },
   async ({ name }, { tenant: organizationId, db }) => {
     const { usage, onboarding } = db;
@@ -72,7 +70,7 @@ export const setCustomerOwnerTeam = bsb.action(
   {
     input: v.object({ customerId: Id, teamId: v.nullable(Id) }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "customers.write"),
+    permission: "customers.write",
   },
   async ({ customerId, teamId }, { db }) =>
     db.customers.update(
@@ -96,7 +94,7 @@ export const uploadCustomerLogo = bsb.action(
       ),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "customers.write"),
+    permission: "customers.write",
   },
   async ({ customerId, logo }, { tenant: organizationId, db, supabase }) => {
     // A better-result value with an AppError, converted back for the action.

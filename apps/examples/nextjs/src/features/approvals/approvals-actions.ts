@@ -4,8 +4,6 @@ import { ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -23,7 +21,7 @@ export const requestApproval = bsb.action(
       reason: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500)),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "approvals.request"),
+    permission: "approvals.request",
   },
   async ({ subjectId, action, reason }, { db, auth }) => {
     const requested = await db.approvals.request(
@@ -53,7 +51,7 @@ export const decideApproval = bsb.action(
       comment: Comment,
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "approvals.read"),
+    permission: "approvals.read",
   },
   async ({ id, decision, comment }, { db, auth }) => {
     const { approvals } = db;

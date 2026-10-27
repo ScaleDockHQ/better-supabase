@@ -5,8 +5,6 @@ import { parseMoney } from "better-supabase/commerce";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -37,7 +35,7 @@ export const createContact = bsb.action(
       domain: Optional,
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "parties.write"),
+    permission: "parties.write",
   },
   async ({ kind, name, email, domain }, { tenant, db, auth }) => {
     const { contacts: parties } = db.$blocks;
@@ -62,7 +60,7 @@ export const linkPerson = bsb.action(
   {
     input: v.object({ companyId: Id, personId: Id, role: Optional }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "parties.write"),
+    permission: "parties.write",
   },
   async ({ companyId, personId, role }, { db, auth }) => {
     const linked = await db.$blocks.contacts.linkPerson(
@@ -92,7 +90,7 @@ export const logActivity = bsb.action(
       body: Optional,
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "engagements.write"),
+    permission: "engagements.write",
   },
   async (
     { subjectType, subjectId, type, title, body },
@@ -136,10 +134,7 @@ const DEFAULT_STAGES = [
 
 /** Creates the "Sales" deal pipeline with six stages, unless one exists. */
 export const createDefaultPipeline = bsb.action(
-  {
-    requireTenant: true,
-    authorize: async () => can(await getPermissions(), "pipelines.manage"),
-  },
+  { requireTenant: true, permission: "pipelines.manage" },
   async (_input, { tenant, db, auth }) => {
     const { pipelines } = db;
     const existing = await pipelines.list(tenant, "deal");
@@ -192,7 +187,7 @@ export const createDeal = bsb.action(
       stageId: Id,
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "deals.write"),
+    permission: "deals.write",
   },
   async (
     { name, amount, currency, closeOn, pipelineId, stageId },
@@ -222,7 +217,7 @@ export const moveDeal = bsb.action(
   {
     input: v.object({ dealId: Id, stageId: Id }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "deals.write"),
+    permission: "deals.write",
   },
   async ({ dealId, stageId }, { db, auth }) => {
     const moved = await db.deals.update([
@@ -257,7 +252,7 @@ export const createTarget = bsb.action(
       periodEnd: IsoDate,
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "targets.manage"),
+    permission: "targets.manage",
   },
   async (
     { name, metric, goal, currency, periodStart, periodEnd },
@@ -298,7 +293,7 @@ export const createQuote = bsb.action(
   {
     input: v.object({ title: Name, currency: Currency }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "quotes.write"),
+    permission: "quotes.write",
   },
   async ({ title, currency }, { tenant, db, auth }) => {
     const created = await db.quotes.create(tenant, { title, currency });
@@ -330,7 +325,7 @@ export const saveQuoteLines = bsb.action(
       lines: v.pipe(v.array(QuoteLine), v.maxLength(100)),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "quotes.write"),
+    permission: "quotes.write",
   },
   async ({ quoteId, currency, lines }, { db, auth }) => {
     const saved = await db.quotes.setLines(
@@ -359,7 +354,7 @@ export const sendQuote = bsb.action(
   {
     input: v.object({ quoteId: Id }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "quotes.write"),
+    permission: "quotes.write",
   },
   async ({ quoteId }, { db, auth }) => {
     const sent = await db.quotes.send(quoteId);
@@ -382,7 +377,7 @@ export const decideQuote = bsb.action(
       decision: v.picklist(["accepted", "rejected", "changes_requested"]),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "quotes.write"),
+    permission: "quotes.write",
   },
   async ({ quoteId, decision }, { db, auth }) => {
     const decided = await db.quotes.decide(quoteId, decision);
@@ -402,7 +397,7 @@ export const reviseQuote = bsb.action(
   {
     input: v.object({ quoteId: Id }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "quotes.write"),
+    permission: "quotes.write",
   },
   async ({ quoteId }, { db, auth }) => {
     const revised = await db.quotes.revise(quoteId);

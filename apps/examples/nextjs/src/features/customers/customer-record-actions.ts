@@ -52,7 +52,7 @@ export const createShareLink = bsb.action(
       expiresInDays: v.picklist(SHARE_EXPIRY_DAYS),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "share_links.create"),
+    permission: "share_links.create",
   },
   async (
     { customerId, expiresInDays },
@@ -106,7 +106,7 @@ export const startAttachmentUpload = bsb.action(
       ),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "attachments.upload"),
+    permission: "attachments.upload",
   },
   async (
     { customerId, name, mimeType, size },
@@ -136,7 +136,7 @@ export const confirmAttachment = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "attachments.upload"),
+    permission: "attachments.upload",
   },
   async ({ id }, { supabase, auth }) => {
     const confirmed = await customerAttachments(supabase).confirm(id);
@@ -152,7 +152,7 @@ export const downloadAttachment = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "attachments.read"),
+    permission: "attachments.read",
   },
   async ({ id }, { supabase }) =>
     customerAttachments(supabase)
@@ -173,9 +173,8 @@ export const restoreCustomerVersion = bsb.action(
   {
     input: v.object({ customerId: Id, versionId: Id }),
     requireTenant: true,
-    authorize: async () =>
-      can(await getPermissions(), "versions.restore") &&
-      can(await getPermissions(), "customers.write"),
+    permission: "versions.restore",
+    authorize: async () => can(await getPermissions(), "customers.write"),
   },
   async ({ customerId, versionId }, { tenant: organizationId, db, auth }) => {
     const { versions } = db.$with({ tenant: organizationId });
@@ -218,7 +217,7 @@ export const compareCustomerVersions = bsb.action(
   {
     input: v.object({ fromId: Id, toId: Id }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "versions.read"),
+    permission: "versions.read",
   },
   async (
     { fromId, toId },
@@ -247,7 +246,7 @@ export const startCustomerSla = bsb.action(
   {
     input: v.object({ customerId: Id }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "sla.read"),
+    permission: "sla.read",
   },
   async ({ customerId }, { tenant: organizationId, db, auth }) => {
     const { sla } = db.$with({ tenant: organizationId });

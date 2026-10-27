@@ -4,8 +4,6 @@ import { ok } from "better-supabase";
 import { FORM_FIELD_TYPES } from "better-supabase/blocks/forms";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -32,7 +30,7 @@ export const createForm = bsb.action(
       ),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "forms.manage"),
+    permission: "forms.manage",
   },
   async ({ title, description }, { tenant, db, auth }) => {
     const base = { organizationId: tenant, key: keyOf(title), title };
@@ -74,7 +72,7 @@ export const publishForm = bsb.action(
       fields: v.pipe(v.array(Field), v.minLength(1), v.maxLength(50)),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "forms.manage"),
+    permission: "forms.manage",
   },
   async ({ formId, fields }, { db, auth }) => {
     const version = await db.forms.publish(formId, {
@@ -110,7 +108,7 @@ export const submitForm = bsb.action(
   {
     input: v.object({ formId: Id, answers: v.record(v.string(), Answer) }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "forms.submit"),
+    permission: "forms.submit",
   },
   async ({ formId, answers }, { db, auth }) => {
     const submission = await db.forms.submit(formId, answers);

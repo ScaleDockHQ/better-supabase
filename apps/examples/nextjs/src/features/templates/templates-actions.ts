@@ -21,7 +21,7 @@ export const createTemplate = bsb.action(
   {
     input: v.object({ name: Name, ...CustomerTemplateBody.entries }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "templates.manage"),
+    permission: "templates.manage",
   },
   async ({ name, status }, { tenant, supabase, auth }) => {
     const templates = templatesOf(supabase);
@@ -59,9 +59,8 @@ export const applyTemplate = bsb.action(
   {
     input: v.object({ templateId: v.pipe(v.string(), v.uuid()), name: Name }),
     requireTenant: true,
-    authorize: async () =>
-      can(await getPermissions(), "templates.apply") &&
-      can(await getPermissions(), "customers.write"),
+    permission: "templates.apply",
+    authorize: async () => can(await getPermissions(), "customers.write"),
   },
   async ({ templateId, name }, { tenant, supabase, db, auth }) => {
     const applied = await customerTemplates(supabase, (row) =>

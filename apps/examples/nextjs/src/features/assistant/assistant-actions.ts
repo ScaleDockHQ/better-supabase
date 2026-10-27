@@ -3,8 +3,6 @@
 import { aiFileUrl } from "better-supabase/blocks/ai-files";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
 import { aiFiles } from "./assistant-server";
@@ -30,7 +28,7 @@ export const reserveAttachment = bsb.action(
       chatId: v.pipe(v.string(), v.uuid()),
     }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "ai_chat.create"),
+    permission: "ai_chat.create",
   },
   ({ filename, mediaType, size, chatId }, { tenant, supabase }) =>
     aiFiles(supabase)
@@ -48,7 +46,7 @@ export const confirmAttachment = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,
-    authorize: async () => can(await getPermissions(), "ai_chat.create"),
+    permission: "ai_chat.create",
   },
   ({ id }, { supabase }) =>
     aiFiles(supabase)

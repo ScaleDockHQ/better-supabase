@@ -9,8 +9,6 @@ import {
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
-import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
@@ -48,10 +46,7 @@ export const requestMyExport = bsb.action({}, async (_input, { db, auth }) => {
 
 /** Exports the active organization's data (`organization.export`). */
 export const requestOrganizationExport = bsb.action(
-  {
-    requireTenant: true,
-    authorize: async () => can(await getPermissions(), "organization.export"),
-  },
+  { requireTenant: true, permission: "organization.export" },
   async (_input, { tenant, db, auth }) => {
     const requested = await db.dataLifecycle.requestExport({
       organizationId: tenant,
@@ -87,10 +82,7 @@ export const downloadExport = bsb.action(
  * period (`organization.delete`).
  */
 export const requestOrganizationDeletion = bsb.action(
-  {
-    requireTenant: true,
-    authorize: async () => can(await getPermissions(), "organization.delete"),
-  },
+  { requireTenant: true, permission: "organization.delete" },
   async (_input, { tenant, db, auth }) => {
     const requested =
       await db.dataLifecycle.requestOrganizationDeletion(tenant);
