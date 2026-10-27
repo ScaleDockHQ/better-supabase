@@ -25,9 +25,11 @@ export type FlagValue =
   | FlagValue[]
   | { [key: string]: FlagValue };
 
-/** A targeting rule: every list that is set must contain the caller's value. */
-export interface FlagRule {
-  readonly variant: string;
+/**
+ * Who a rule or a segment targets: every list that is set must contain the
+ * caller's value.
+ */
+export interface FlagCondition {
   readonly tenants?: readonly string[];
   readonly users?: readonly string[];
   /** Entitlement lookup keys; one match is enough. */
@@ -38,6 +40,39 @@ export interface FlagRule {
    * match.
    */
   readonly contexts?: Readonly<Record<string, readonly string[]>>;
+}
+
+/** A targeting rule: its condition, and the variant it serves on a match. */
+export interface FlagRule extends FlagCondition {
+  readonly variant: string;
+  /**
+   * Named segments (`flag_segments`); the caller must be in one of them. A
+   * segment that doesn't exist matches no one.
+   */
+  readonly segments?: readonly string[];
+}
+
+/** One variant of a weighted split and its share of the rollout, 0 to 100. */
+export interface FlagSplit {
+  readonly variant: string;
+  readonly weight: number;
+}
+
+/** One step of a scheduled rollout: a percentage held for a duration. */
+export interface FlagRolloutStep {
+  readonly percentage: number;
+  readonly durationSeconds: number;
+}
+
+/**
+ * A rollout that grows on its own: nothing before `startAt`, then each step in
+ * turn, then `finalPercentage` (default the last step's percentage).
+ */
+export interface FlagRolloutSchedule {
+  /** An ISO 8601 instant. */
+  readonly startAt: string;
+  readonly steps: readonly FlagRolloutStep[];
+  readonly finalPercentage?: number;
 }
 
 /**
@@ -75,10 +110,25 @@ export interface FlagDefinition {
    */
   readonly archived?: boolean;
   readonly rules: readonly FlagRule[];
-  /** 0 to 100, in steps of 0.01. */
+  /**
+   * The share of targets in the rollout, 0 to 100 in steps of 0.01; a
+   * `rolloutSchedule` replaces it.
+   */
   readonly rolloutPercentage: number;
-  readonly rolloutVariant: string | undefined;
+  /**
+   * How the rollout splits between variants. Weights that add up to less than
+   * 100 leave the rest on the default variant.
+   */
+  readonly rolloutVariants: readonly FlagSplit[];
+  readonly rolloutSchedule?: FlagRolloutSchedule;
   readonly overrides: readonly FlagOverride[];
+  /**
+   * The segments the rules name, by name (`flag_definitions()` includes only
+   * those).
+   */
+  readonly segments?: Readonly<Record<string, FlagCondition>>;
+  /** When the flag was created, as an ISO 8601 string. */
+  readonly createdAt?: string;
   /** When the flag last changed, as an ISO 8601 string. */
   readonly updatedAt?: string;
   /**
@@ -125,6 +175,7 @@ export type RequestFlagContext = {
 
 export type FlagReason =
   | "DISABLED"
+  | "OVERRIDE"
   | "TARGETING_MATCH"
   | "SPLIT"
   | "DEFAULT"
@@ -190,7 +241,7 @@ const anyIn = (
 ): boolean =>
   list === undefined || values.some((value) => list.includes(value));
 
-function ruleMatches(rule: FlagRule, context: FlagContext): boolean {
+function conditionMatches(rule: FlagCondition, context: FlagContext): boolean {
   return (
     contains(rule.tenants, context.tenant) &&
     contains(rule.users, context.targetingKey) &&
@@ -207,9 +258,94 @@ function ruleMatches(rule: FlagRule, context: FlagContext): boolean {
   );
 }
 
+/**
+ * The conditions of the segments `rule` names, from `segments`; a name with no
+ * segment drops out. A rule with `segments` matches a caller in one of them.
+ */
+export function expandSegments(
+  rule: Pick<FlagRule, "segments">,
+  segments: Readonly<Record<string, FlagCondition>> = {},
+): readonly FlagCondition[] {
+  return (rule.segments ?? []).flatMap((name) => {
+    const segment = Object.hasOwn(segments, name) ? segments[name] : undefined;
+
+    return segment === undefined ? [] : [segment];
+  });
+}
+
+function ruleMatches(
+  rule: FlagRule,
+  context: FlagContext,
+  segments: FlagDefinition["segments"],
+): boolean {
+  return (
+    conditionMatches(rule, context) &&
+    (rule.segments === undefined ||
+      expandSegments(rule, segments).some((segment) =>
+        conditionMatches(segment, context),
+      ))
+  );
+}
+
+/**
+ * The rollout percentage of `schedule` at `nowMs`: 0 before `startAt`, then
+ * each step's percentage for its duration, then `finalPercentage` (default the
+ * last step's). `flag_evaluation()` computes the same number.
+ */
+export function rolloutPercentageAt(
+  schedule: FlagRolloutSchedule,
+  nowMs: number,
+): number {
+  const start = Date.parse(schedule.startAt);
+
+  if (!Number.isFinite(start) || nowMs < start) {
+    return 0;
+  }
+
+  let elapsed = (nowMs - start) / 1000;
+
+  for (const step of schedule.steps) {
+    if (elapsed < step.durationSeconds) {
+      return step.percentage;
+    }
+
+    elapsed -= step.durationSeconds;
+  }
+
+  return schedule.finalPercentage ?? schedule.steps.at(-1)?.percentage ?? 0;
+}
+
+/**
+ * The variant of `splits` that `bucket` (0 to 9999) falls in, by cumulative
+ * weight; `undefined` past the last one, which serves the default variant.
+ */
+export function chooseSplitVariant(
+  bucket: number,
+  splits: readonly FlagSplit[],
+): string | undefined {
+  let edge = 0;
+
+  for (const split of splits) {
+    edge += split.weight * 100;
+
+    if (bucket < edge) {
+      return split.variant;
+    }
+  }
+
+  return undefined;
+}
+
+/** The effective rollout percentage of `flag` at `nowMs`. */
+const percentageOf = (flag: FlagDefinition, nowMs: number): number =>
+  flag.rolloutSchedule === undefined
+    ? flag.rolloutPercentage
+    : rolloutPercentageAt(flag.rolloutSchedule, nowMs);
+
 async function chooseVariant(
   flag: FlagDefinition,
   context: FlagContext,
+  nowMs: number,
 ): Promise<{ variant: string; reason: FlagReason }> {
   if (!flag.enabled || flag.archived === true) {
     return { variant: flag.defaultVariant, reason: "DISABLED" };
@@ -236,7 +372,9 @@ async function chooseVariant(
   let reason: FlagReason = chosen === undefined ? "DEFAULT" : "TARGETING_MATCH";
 
   if (chosen === undefined) {
-    const rule = flag.rules.find((entry) => ruleMatches(entry, context));
+    const rule = flag.rules.find((entry) =>
+      ruleMatches(entry, context, flag.segments),
+    );
 
     if (rule) {
       chosen = rule.variant;
@@ -248,11 +386,16 @@ async function chooseVariant(
 
   if (
     chosen === undefined &&
-    flag.rolloutVariant !== undefined &&
+    flag.rolloutVariants.length > 0 &&
     target !== undefined &&
-    (await flagBucket(flag.key, target)) < flag.rolloutPercentage * 100
+    (await flagBucket(flag.key, target)) < percentageOf(flag, nowMs) * 100
   ) {
-    chosen = flag.rolloutVariant;
+    // A second bucket, so growing the rollout never moves a target between
+    // variants.
+    chosen = chooseSplitVariant(
+      await flagBucket(`${flag.key}/split`, target),
+      flag.rolloutVariants,
+    );
     reason = "SPLIT";
   }
 
@@ -273,12 +416,22 @@ export interface FlagEvaluation {
   readonly found: boolean;
 }
 
+export interface EvaluateFlagOptions {
+  /** The time a `rolloutSchedule` is read at, in milliseconds. Default now. */
+  readonly now?: number;
+}
+
 /** Evaluates one flag as `better_supabase.flag_evaluation()` does. */
 export async function evaluateFlag(
   flag: FlagDefinition,
   context: FlagContext = {},
+  options: EvaluateFlagOptions = {},
 ): Promise<FlagEvaluation> {
-  const { variant, reason } = await chooseVariant(flag, context);
+  const { variant, reason } = await chooseVariant(
+    flag,
+    context,
+    options.now ?? Date.now(),
+  );
 
   const found = Object.hasOwn(flag.variants, variant);
 
@@ -310,18 +463,20 @@ const flagTypeOf = (
   return { type: "boolean", invalidType: text };
 };
 
-function ruleOf(value: unknown): FlagRule | undefined {
-  if (!isRecord(value) || typeof value["variant"] !== "string") {
-    return undefined;
-  }
+const listOf = (
+  value: Readonly<Record<string, unknown>>,
+  key: string,
+): readonly string[] | undefined =>
+  Array.isArray(value[key]) ? stringsOf(value[key]) : undefined;
 
-  const list = (key: string): readonly string[] | undefined =>
-    Array.isArray(value[key]) ? stringsOf(value[key]) : undefined;
-
-  const tenants = list("tenants");
-  const users = list("users");
-  const plans = list("plans");
-  const roles = list("roles");
+/** Parses a rule's or a segment's condition. */
+export function conditionOf(
+  value: Readonly<Record<string, unknown>>,
+): FlagCondition {
+  const tenants = listOf(value, "tenants");
+  const users = listOf(value, "users");
+  const plans = listOf(value, "plans");
+  const roles = listOf(value, "roles");
   const raw = value["contexts"];
 
   const contexts = isRecord(raw)
@@ -334,7 +489,6 @@ function ruleOf(value: unknown): FlagRule | undefined {
     : undefined;
 
   return {
-    variant: value["variant"],
     ...(tenants && { tenants }),
     ...(users && { users }),
     ...(plans && { plans }),
@@ -342,6 +496,76 @@ function ruleOf(value: unknown): FlagRule | undefined {
     ...(contexts && { contexts }),
   };
 }
+
+function ruleOf(value: unknown): FlagRule | undefined {
+  if (!isRecord(value) || typeof value["variant"] !== "string") {
+    return undefined;
+  }
+
+  const segments = listOf(value, "segments");
+
+  return {
+    variant: value["variant"],
+    ...conditionOf(value),
+    ...(segments && { segments }),
+  };
+}
+
+function splitsOf(value: unknown): readonly FlagSplit[] {
+  return (Array.isArray(value) ? value : []).flatMap((entry) =>
+    isRecord(entry) && typeof entry["variant"] === "string"
+      ? [{ variant: entry["variant"], weight: Number(entry["weight"] ?? 0) }]
+      : [],
+  );
+}
+
+function scheduleOf(value: unknown): FlagRolloutSchedule | undefined {
+  if (!isRecord(value) || typeof value["startAt"] !== "string") {
+    return undefined;
+  }
+
+  const steps = (Array.isArray(value["steps"]) ? value["steps"] : []).flatMap(
+    (step) =>
+      isRecord(step)
+        ? [
+            {
+              percentage: Number(step["percentage"] ?? 0),
+              durationSeconds: Number(step["durationSeconds"] ?? 0),
+            },
+          ]
+        : [],
+  );
+
+  const final = value["finalPercentage"];
+
+  return {
+    startAt: value["startAt"],
+    steps,
+    ...(typeof final === "number" && { finalPercentage: final }),
+  };
+}
+
+function segmentsOf(
+  value: unknown,
+): Readonly<Record<string, FlagCondition>> | undefined {
+  if (!isRecord(value) || Object.keys(value).length === 0) {
+    return undefined;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([name, condition]) => [
+      name,
+      isRecord(condition) ? conditionOf(condition) : {},
+    ]),
+  );
+}
+
+const withValue = <K extends string, V>(
+  key: K,
+  value: V | undefined,
+): Partial<Record<K, V>> =>
+  // SAFETY: one entry under key, present only when value is.
+  (value === undefined ? {} : { [key]: value }) as Partial<Record<K, V>>;
 
 /** Parses the rows of `flag_definitions()`. */
 export function flagDefinitionsOf(value: unknown): readonly FlagDefinition[] {
@@ -365,10 +589,15 @@ export function flagDefinitionsOf(value: unknown): readonly FlagDefinition[] {
       return parsed ? [parsed] : [];
     }),
     rolloutPercentage: Number(row["rollout_percentage"] ?? 0),
-    rolloutVariant: optionalText(row["rollout_variant"]),
+    rolloutVariants: splitsOf(row["rollout_variants"]),
+    ...withValue("rolloutSchedule", scheduleOf(row["rollout_schedule"])),
     overrides: recordsOf(row["overrides"] ?? [], "flag_definitions").map(
       overrideOf,
     ),
+    ...withValue("segments", segmentsOf(row["segments"])),
+    ...(optionalText(row["created_at"]) !== undefined && {
+      createdAt: textOf(row["created_at"]),
+    }),
     ...(optionalText(row["updated_at"]) !== undefined && {
       updatedAt: textOf(row["updated_at"]),
     }),
@@ -418,6 +647,15 @@ export interface FlagsProviderOptions<
       Partial<Record<"PARSE_ERROR", Code>>
   >;
   readonly now?: () => number;
+  /**
+   * Runs after every evaluation, such as `reportValue` from `flags` for Web
+   * Analytics. It can't change the result; an error it throws is dropped.
+   */
+  readonly onEvaluate?: (
+    key: string,
+    value: FlagValue,
+    details: FlagResolution<FlagValue, Code>,
+  ) => void;
 }
 
 /**
@@ -537,6 +775,23 @@ export function createFlagsProvider<Code extends string = FlagErrorCode>(
     context: FlagContext,
     check: (value: FlagValue) => value is T,
   ): Promise<FlagResolution<T, Code>> {
+    const resolution = await decide(flagKey, defaultValue, context, check);
+
+    try {
+      options.onEvaluate?.(flagKey, resolution.value, resolution);
+    } catch {
+      // A reporting hook never changes the result.
+    }
+
+    return resolution;
+  }
+
+  async function decide<T extends FlagValue>(
+    flagKey: string,
+    defaultValue: T,
+    context: FlagContext,
+    check: (value: FlagValue) => value is T,
+  ): Promise<FlagResolution<T, Code>> {
     let flags: ReadonlyMap<string, FlagDefinition>;
 
     try {
@@ -570,7 +825,7 @@ export function createFlagsProvider<Code extends string = FlagErrorCode>(
       };
     }
 
-    const result = await evaluateFlag(flag, context);
+    const result = await evaluateFlag(flag, context, { now: now() });
 
     if (!check(result.value)) {
       return {

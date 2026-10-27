@@ -180,9 +180,9 @@ describe.skipIf(!live)("flags", () => {
 
       await s.service();
       await s.rows(
-        `insert into better_supabase.flags (key, rules, rollout_percentage, rollout_variant)
-         values ('new_editor', $1, 50, 'on'),
-                ('dark_mode', '[]', 0, null)`,
+        `insert into better_supabase.flags (key, rules, rollout_percentage, rollout_variants)
+         values ('new_editor', $1, 50, '[{"variant": "on", "weight": 100}]'),
+                ('dark_mode', '[]', 0, '[]')`,
         [JSON.stringify([{ variant: "on", roles: ["owner"] }])],
       );
       await s.rows(
@@ -384,6 +384,127 @@ describe.skipIf(!live)("flags", () => {
           [globex],
         ),
       ).toBe("on");
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("evaluates splits, schedules and segments as evaluateFlag() does, and restores revisions", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(["organizations", "flags"]);
+      await s.clear([
+        "better_supabase.flags",
+        "better_supabase.flag_revisions",
+        "better_supabase.flag_segments",
+      ]);
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+
+      await s.service();
+      await s.rows(
+        `insert into better_supabase.flag_segments (name, rules) values ('owners', '{"roles": ["owner"]}')`,
+      );
+      await s.rows(
+        `insert into better_supabase.flags (key, type, variants, default_variant, rules, rollout_percentage, rollout_variants, rollout_schedule) values
+           ('checkout', 'string', '{"a": "old", "b": "new", "c": "beta"}', 'a', $1, 100, '[{"variant": "b", "weight": 50}, {"variant": "c", "weight": 30}]', null),
+           ('ramp', 'boolean', '{"on": true, "off": false}', 'off', '[]', 0, '[{"variant": "on", "weight": 100}]', $2)`,
+        [
+          JSON.stringify([{ variant: "c", segments: ["owners", "missing"] }]),
+          JSON.stringify({
+            startAt: "2026-01-01T00:00:00Z",
+            steps: [{ percentage: 10, durationSeconds: 60 }],
+            finalPercentage: 100,
+          }),
+        ],
+      );
+
+      const provider = createFlagsProvider({ transport: sqlTransport(s.sql) });
+
+      for (let index = 0; index < 20; index += 1) {
+        const user = `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+
+        const sql = await s.value<Record<string, unknown>>(
+          "better_supabase.flag_evaluation('checkout', null, $1)",
+          [user],
+        );
+
+        const typed = await provider.resolveStringEvaluation("checkout", "", {
+          targetingKey: user,
+        });
+
+        expect({ user, ...typed }).toEqual({ user, ...sql });
+      }
+
+      const segmented = await s.value<Record<string, unknown>>(
+        "better_supabase.flag_evaluation('checkout', $1, $2)",
+        [organization, owner.id],
+      );
+
+      expect(segmented).toMatchObject({
+        variant: "c",
+        reason: "TARGETING_MATCH",
+      });
+      expect(
+        await provider.resolveStringEvaluation("checkout", "", {
+          targetingKey: owner.id,
+          tenant: organization,
+          role: "owner",
+        }),
+      ).toMatchObject({ value: "beta", reason: "TARGETING_MATCH" });
+      expect(
+        await s.value(
+          "(better_supabase.flag_evaluation('ramp', null, $1) ->> 'reason')",
+          [owner.id],
+        ),
+      ).toBe("SPLIT");
+      expect(
+        await s.value(
+          "better_supabase.flag_rollout_percentage(0, $1, '2026-01-01T00:00:30Z')",
+          [
+            JSON.stringify({
+              startAt: "2026-01-01T00:00:00Z",
+              steps: [{ percentage: 10, durationSeconds: 60 }],
+            }),
+          ],
+        ),
+      ).toBe("10");
+
+      const staff = await s.user("staff");
+
+      await s.asRole(staff, { platform_permissions: ["flags.manage"] });
+      const admin = createFlags({ transport: sqlTransport(s.sql) });
+
+      await admin
+        .upsert("ramp", { rolloutPercentage: 25 }, { message: "First" })
+        .orThrow();
+      await admin.upsert("ramp", { rolloutPercentage: 75 }).orThrow();
+
+      const history = await admin.history("ramp").orThrow();
+
+      expect(history.map((entry) => [entry.revision, entry.message])).toEqual([
+        [2, undefined],
+        [1, "First"],
+      ]);
+      expect(history[0]?.changedBy).toBe(staff.id);
+      expect(
+        (await admin.restore("ramp", 1).orThrow())?.rolloutPercentage,
+      ).toBe(25);
+      expect((await admin.history("ramp").orThrow())[0]?.message).toBe(
+        "Restored revision 1",
+      );
+      expect(await admin.restore("ramp", 99).orThrow()).toBeUndefined();
+      expect(
+        (await admin.segments().orThrow()).map((segment) => segment.name),
+      ).toEqual(["owners"]);
+      await admin.saveSegment({ name: "staff", users: [staff.id] }).orThrow();
+      expect(await admin.removeSegment("staff").orThrow()).toBe(true);
+      expect(
+        await s.hint(
+          'select better_supabase.save_flag(\'ramp\', \'{"rollout_variants": [{"variant": "nope", "weight": 10}]}\')',
+        ),
+      ).toMatch(/FLAGS_ROLLOUT_VARIANTS/);
     } finally {
       await s.close();
     }

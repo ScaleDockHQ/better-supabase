@@ -237,3 +237,7 @@ export type { TestCredentialProviderOptions } from "./credentials.ts";
 export { actCases } from "./act-cases.ts";
 
 export type { ActCase, ActCases } from "./act-cases.ts";
+
+export { flagOverrideCookie } from "./flags.ts";
+
+export type { FlagOverrideCookie, FlagOverrideCookieOptions } from "./flags.ts";

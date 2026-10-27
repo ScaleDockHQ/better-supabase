@@ -5,6 +5,7 @@ import type {
   FlagContext,
   FlagContextOptions,
   FlagDefinition,
+  FlagResolution,
   FlagsProvider,
   FlagsProviderOptions,
   FlagType,
@@ -19,6 +20,7 @@ import {
   flagContext,
 } from "../blocks/flags/flags.ts";
 import { errorText } from "../core/block-helpers.ts";
+import { FLAG_OVERRIDES_COOKIE } from "./cookie.ts";
 
 /** One Flags SDK entity; Vercel Flags targets it as `<name>.id`. */
 export interface FlagsSdkEntity {
@@ -54,10 +56,17 @@ export interface FlagsSdkRequest {
 }
 
 /**
- * Where a flag is managed, for Flags Explorer: a function of the key, or a URL
- * in which `{key}` is replaced by the key.
+ * Where a flag is managed, for Flags Explorer: a URL in which `{key}` is
+ * replaced by the key, an origin object such as `{ provider: "vercel",
+ * projectId }`, or a function of the key returning either.
  */
-export type FlagsSdkOrigin = string | ((key: string) => string | undefined);
+export type FlagsSdkOrigin =
+  | string
+  | FlagsSdkOriginObject
+  | ((key: string) => string | FlagsSdkOriginObject | undefined);
+
+/** A Flags SDK `Origin` object; Flags Explorer links it to its provider. */
+export type FlagsSdkOriginObject = Readonly<Record<string, unknown>>;
 
 /** A Flags SDK option: a variant's value, labelled with its name. */
 export interface FlagsSdkOption {
@@ -71,7 +80,7 @@ export interface FlagsSdkOption {
  */
 export interface FlagsSdkAdapter<V, E = FlagsSdkEntities> {
   readonly adapterId: symbol;
-  readonly origin?: (key: string) => string | undefined;
+  readonly origin?: (key: string) => string | FlagsSdkOriginObject | undefined;
   readonly identify?: (request: FlagsSdkRequest) => MaybePromise<E | undefined>;
   decide(params: {
     readonly key: string;
@@ -138,10 +147,14 @@ export interface BetterSupabaseAdapterFactory {
 function originOf(
   origin: FlagsSdkOrigin | undefined,
   key: string,
-): string | undefined {
-  return typeof origin === "function"
-    ? origin(key)
-    : origin?.replaceAll("{key}", encodeURIComponent(key));
+): string | FlagsSdkOriginObject | undefined {
+  if (typeof origin === "function") {
+    return origin(key);
+  }
+
+  return typeof origin === "string"
+    ? origin.replaceAll("{key}", encodeURIComponent(key))
+    : origin;
 }
 
 /**
@@ -581,12 +594,88 @@ export interface FlagsSdkDefinition {
   /** Stored variants labelled by name, else the declaration's options. */
   options: { value: unknown; label?: string }[];
   description?: string;
-  origin?: string | Readonly<Record<string, unknown>>;
-  /** `true` for a flag a `flag()` declaration names. */
+  origin?: string | FlagsSdkOriginObject;
+  /** `true` for a flag a `flag()` declaration names, else `false`. */
   declaredInCode?: boolean;
-  /** The declaration's `defaultValue`, served when the flag can't load. */
+  /**
+   * The declaration's `defaultValue`, served when the flag can't load; for a
+   * flag only the table has, its default variant's value.
+   */
   defaultValue?: unknown;
+  /** In milliseconds since the epoch. */
+  createdAt?: number;
+  /** In milliseconds since the epoch. */
   updatedAt?: number;
+}
+
+const millisOf = (instant: string | undefined): number | undefined => {
+  const value = instant === undefined ? Number.NaN : Date.parse(instant);
+
+  return Number.isFinite(value) ? value : undefined;
+};
+
+/**
+ * One stored flag as Flags Explorer describes it: its variants as options, its
+ * default variant's value, where it is managed and when it changed. It isn't
+ * `declaredInCode` until `getProviderData` joins a declaration.
+ */
+export function toFlagsSdkDefinition(
+  flag: FlagDefinition,
+  origin?: FlagsSdkOrigin,
+): FlagsSdkDefinition {
+  const where = originOf(origin, flag.key);
+  const createdAt = millisOf(flag.createdAt);
+  const updatedAt = millisOf(flag.updatedAt);
+
+  return {
+    options: flagOptions(flag),
+    ...(flag.description !== undefined && { description: flag.description }),
+    ...(where !== undefined && { origin: where }),
+    declaredInCode: false,
+    ...(Object.hasOwn(flag.variants, flag.defaultVariant) && {
+      defaultValue: flag.variants[flag.defaultVariant],
+    }),
+    ...(createdAt !== undefined && { createdAt }),
+    ...(updatedAt !== undefined && { updatedAt }),
+  };
+}
+
+/** The variants of `flag` whose value doesn't fit its type. */
+function misfits(flag: FlagDefinition): readonly string[] {
+  return flag.invalidType === undefined
+    ? Object.entries(flag.variants)
+        .filter(([, value]) => value !== null && !fitsType(value, flag.type))
+        .map(([name]) => name)
+    : [];
+}
+
+/** How the declared flags and the stored ones differ, by key. */
+export interface FlagDrift {
+  /** Declared in code but missing from the table: they serve `defaultValue`. */
+  readonly notStored: readonly string[];
+  /** In the table but declared nowhere: candidates to archive. */
+  readonly notDeclared: readonly string[];
+}
+
+/** Compares the declared flag keys with the stored, unarchived ones. */
+export function flagDrift(
+  declared: readonly Pick<FlagsSdkDeclaredFlag, "key">[],
+  stored: readonly Pick<FlagDefinition, "key" | "archived">[],
+): FlagDrift {
+  const declaredKeys = new Set(declared.map((flag) => flag.key));
+
+  const storedKeys = new Set(
+    stored.filter((flag) => flag.archived !== true).map((flag) => flag.key),
+  );
+
+  return {
+    notStored: [...declaredKeys]
+      .filter((key) => !storedKeys.has(key))
+      .toSorted(),
+    notDeclared: [...storedKeys]
+      .filter((key) => !declaredKeys.has(key))
+      .toSorted(),
+  };
 }
 
 /** The Flags SDK's `ProviderData`, for `.well-known/vercel/flags`. */
@@ -706,29 +795,196 @@ export async function getProviderData(
       });
     }
 
-    const origin = originOf(source.origin, flag.key);
+    const wrong = misfits(flag);
 
-    const updatedAt =
-      flag.updatedAt === undefined ? Number.NaN : Date.parse(flag.updatedAt);
-
-    definitions[flag.key] = {
-      options: flagOptions(flag),
-      ...(flag.description !== undefined && { description: flag.description }),
-      ...(origin !== undefined && { origin }),
-      ...(Number.isFinite(updatedAt) && { updatedAt }),
-    };
-  }
-
-  for (const flag of declared) {
-    if (definitions[flag.key] === undefined) {
+    if (wrong.length > 0) {
       hints.push({
-        key: "better-supabase/not-stored",
-        text: `Flag "${flag.key}" is declared in code but missing from the flags table, so it always serves its defaultValue`,
+        key: "better-supabase/variant-type",
+        text: `Flag "${flag.key}" is a ${flag.type} flag, but the variants ${wrong.map((name) => `"${name}"`).join(", ")} hold another type, so they serve the fallback`,
       });
     }
 
+    definitions[flag.key] = toFlagsSdkDefinition(flag, source.origin);
+  }
+
+  for (const key of flagDrift(declared, flags).notStored) {
+    hints.push({
+      key: "better-supabase/not-stored",
+      text: `Flag "${key}" is declared in code but missing from the flags table, so it always serves its defaultValue`,
+    });
+  }
+
+  for (const flag of declared) {
     definitions[flag.key] = withDeclaration(definitions[flag.key], flag);
   }
 
   return { definitions, hints };
+}
+
+/** The Flags SDK's `ApiData`: what `.well-known/vercel/flags` answers. */
+export interface FlagsSdkApiData extends Partial<FlagsSdkProviderData> {
+  overrideEncryptionMode?: "encrypted" | "plaintext";
+}
+
+export interface FlagsExplorerOptions {
+  /**
+   * How Flags Explorer stores overrides in the `vercel-flag-overrides` cookie.
+   * Default `encrypted`; `plaintext` lets a Worker or a test read them without
+   * `FLAGS_SECRET`.
+   */
+  readonly overrideEncryptionMode?: "encrypted" | "plaintext";
+}
+
+/** Provider data as the discovery endpoint answers it. */
+export function flagsExplorerApiData(
+  data: FlagsSdkProviderData,
+  options: FlagsExplorerOptions = {},
+): FlagsSdkApiData {
+  return {
+    ...data,
+    overrideEncryptionMode: options.overrideEncryptionMode ?? "encrypted",
+  };
+}
+
+export interface FlagsDiscoveryOptions extends FlagsExplorerOptions {
+  /**
+   * Checks the request's `Authorization` header, such as `verifyAccess` from
+   * `flags`; the endpoint answers 401 when it resolves `false`.
+   */
+  readonly verify: (authorization: string | null) => Promise<boolean>;
+  /** The `x-flags-sdk-version` header, such as `version` from `flags`. */
+  readonly version?: string;
+}
+
+/**
+ * The `.well-known/vercel/flags` endpoint on a WinterTC `Request`, for Hono,
+ * SvelteKit or a Worker: `createFlagsDiscoveryEndpoint` from `flags/next` does
+ * the same for Next.js.
+ */
+export function flagsDiscoveryHandler(
+  getData: (
+    request: Request,
+  ) => FlagsSdkProviderData | Promise<FlagsSdkProviderData>,
+  options: FlagsDiscoveryOptions,
+): (request: Request) => Promise<Response> {
+  return async (request) => {
+    if (!(await options.verify(request.headers.get("authorization")))) {
+      return Response.json(null, { status: 401 });
+    }
+
+    const data = flagsExplorerApiData(await getData(request), options);
+
+    return Response.json(data, {
+      headers: {
+        "cache-control": "no-store",
+        ...(options.version !== undefined && {
+          "x-flags-sdk-version": options.version,
+        }),
+      },
+    });
+  };
+}
+
+export interface ExplorerOverridesOptions {
+  /**
+   * Decrypts an encrypted cookie, such as `decryptOverrides` from `flags`.
+   * Without it the cookie is read as plaintext JSON (`overrideEncryptionMode:
+   * "plaintext"`).
+   */
+  readonly decrypt?: (
+    value: string,
+  ) => Promise<Readonly<Record<string, unknown>> | undefined>;
+}
+
+/**
+ * The flag values Flags Explorer overrides for this browser, from the
+ * `vercel-flag-overrides` cookie; `{}` when there is none or it doesn't
+ * decrypt. Only the server-side evaluation reads these: `flag_enabled()` in a
+ * policy never sees a browser cookie.
+ */
+export async function explorerOverrides(
+  cookies: FlagsSdkRequest["cookies"],
+  options: ExplorerOverridesOptions = {},
+): Promise<Readonly<Record<string, FlagValue>>> {
+  const value = cookies.get(FLAG_OVERRIDES_COOKIE)?.value;
+
+  if (value === undefined || value === "") {
+    return {};
+  }
+
+  try {
+    const parsed: unknown = options.decrypt
+      ? await options.decrypt(value)
+      : JSON.parse(decodeURIComponent(value));
+
+    // SAFETY: Flags Explorer writes JSON values keyed by flag key.
+    return typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+      ? (parsed as Record<string, FlagValue>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * The provider with Flags Explorer's overrides on top, for the OpenFeature path
+ * (the Flags SDK's `flag()` reads the cookie itself). An overridden flag of the
+ * asked type resolves with reason `OVERRIDE`; any other falls through. Build
+ * one per request from `explorerOverrides`.
+ */
+export function withExplorerOverrides<Code extends string>(
+  provider: FlagsProvider<Code>,
+  overrides: Readonly<Record<string, FlagValue>>,
+): FlagsProvider<Code> {
+  const overridden = <T extends FlagValue>(
+    key: string,
+    fits: (value: FlagValue) => boolean,
+  ): FlagResolution<T, Code> | undefined => {
+    if (!Object.hasOwn(overrides, key)) {
+      return undefined;
+    }
+
+    const value = overrides[key];
+
+    // SAFETY: fits checked the override against the asked type.
+    return value !== undefined && fits(value)
+      ? { value: value as T, reason: "OVERRIDE" }
+      : undefined;
+  };
+
+  return {
+    ...provider,
+    resolveBooleanEvaluation: async (key, defaultValue, context) =>
+      overridden(key, (value) => typeof value === "boolean") ??
+      provider.resolveBooleanEvaluation(key, defaultValue, context),
+    resolveStringEvaluation: async (key, defaultValue, context) =>
+      overridden(key, (value) => typeof value === "string") ??
+      provider.resolveStringEvaluation(key, defaultValue, context),
+    resolveNumberEvaluation: async (key, defaultValue, context) =>
+      overridden(key, (value) => typeof value === "number") ??
+      provider.resolveNumberEvaluation(key, defaultValue, context),
+    resolveObjectEvaluation: async <T extends FlagValue>(
+      key: string,
+      defaultValue: T,
+      context: FlagContext,
+    ) =>
+      overridden<T>(
+        key,
+        (value) => typeof value === "object" && value !== null,
+      ) ?? provider.resolveObjectEvaluation(key, defaultValue, context),
+  };
+}
+
+/**
+ * The deployment's environment as a custom context, `{ environment }`, from
+ * `VERCEL_ENV` (`production`, `preview`, `development`) or `NODE_ENV`. Pass it
+ * in `contexts` so a rule can target previews: `{ variant: "on", contexts: {
+ * environment: ["preview"] } }`.
+ */
+export function vercelEnvironmentContext(): Readonly<Record<string, string>> {
+  const environment = getEnv("VERCEL_ENV") ?? getEnv("NODE_ENV");
+
+  return environment ? { environment } : {};
 }
