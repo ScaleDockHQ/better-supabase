@@ -109,7 +109,7 @@ export const proxy = (request: NextRequest) =>
         response.headers.append("vary", "cookie");
       }
     },
-    // The e2e build reads the phases to prove a page load made no Auth call.
+    // The phases show whether a page load called Auth.
     serverTiming:
       env.NODE_ENV !== "production" || env.EXPOSE_TESTING_API === "1",
   });

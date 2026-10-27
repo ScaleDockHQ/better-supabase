@@ -77,11 +77,9 @@
         "!**/*.md",
         "!**/*.mdx",
         "!tests/**",
-        "!e2e/**",
         "!**/*.test.{ts,tsx}",
         "!**/*.test-d.ts",
-        "!vitest.config.ts",
-        "!playwright.config.ts"
+        "!vitest.config.ts"
       ]
     },
     "build": {
@@ -92,11 +90,9 @@
         "!**/*.md",
         "!**/*.mdx",
         "!tests/**",
-        "!e2e/**",
         "!**/*.test.{ts,tsx}",
         "!**/*.test-d.ts",
-        "!vitest.config.ts",
-        "!playwright.config.ts"
+        "!vitest.config.ts"
       ],
       "outputs": [
         "dist/**",

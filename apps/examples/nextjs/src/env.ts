@@ -18,7 +18,6 @@ const {
   AI_GATEWAY_API_KEY,
   WORKFLOW_POSTGRES_URL,
   PDL_API_KEY,
-  BS_FETCH_DELAY_MS,
 } = process.env;
 
 export const env = createEnv({
@@ -27,7 +26,7 @@ export const env = createEnv({
       v.picklist(["development", "test", "production"]),
       "development",
     ),
-    // `1` in the e2e build: the testing API, Server-Timing and /api/bs-sessions.
+    // `1` in a testing build: the testing API and Server-Timing.
     EXPOSE_TESTING_API: flag,
   },
   server: {
@@ -42,11 +41,6 @@ export const env = createEnv({
     WORKFLOW_POSTGRES_URL: v.optional(v.string()),
     // The People Data Labs key the enrichment provider uses.
     PDL_API_KEY: v.optional(v.string()),
-    // Testing only: every Supabase request from the server waits this long.
-    BS_FETCH_DELAY_MS: v.optional(
-      v.pipe(v.string(), v.toNumber(), v.integer(), v.minValue(0)),
-      "0",
-    ),
   },
   client: {
     NEXT_PUBLIC_SUPABASE_URL: v.pipe(v.string(), v.url()),
@@ -63,7 +57,6 @@ export const env = createEnv({
     AI_GATEWAY_API_KEY,
     WORKFLOW_POSTGRES_URL,
     PDL_API_KEY,
-    BS_FETCH_DELAY_MS,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,

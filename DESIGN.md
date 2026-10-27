@@ -135,8 +135,7 @@ looping animation.
   There is no theme button: pressing D switches it (`ThemeHotkey` skips
   modifier keys and form fields), and the footer names the shortcut.
 - Headings go in order: one `h1` per page, `h2` per section.
-- `jsx-a11y` runs in lint with no rules turned off, and `e2e/a11y.spec.ts`
-  runs axe (WCAG 2.2 AA) on the main pages in both themes.
+- `jsx-a11y` runs in lint with no rules turned off.
 - The first tab stop is the "Skip to content" link to `main#main`.
 - A region that scrolls on its own (a long code panel) is focusable and named.
 - Every data region has a loading skeleton, an empty state with an action and

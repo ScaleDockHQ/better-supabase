@@ -1,6 +1,5 @@
 import type { OxlintConfig } from "oxlint";
 
-import playwright from "eslint-plugin-playwright";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "oxlint";
 import antiSlop from "ultracite/oxlint/anti-slop";
@@ -11,7 +10,6 @@ import ultraciteNextJsPlugins from "ultracite/oxlint/next/js-plugins";
 import ultraciteReact from "ultracite/oxlint/react";
 import ultraciteShadcn from "ultracite/oxlint/shadcn";
 import vitest from "ultracite/oxlint/vitest";
-import * as v from "valibot";
 
 function plugin(specifier: string): string {
   return fileURLToPath(import.meta.resolve(specifier));
@@ -84,19 +82,6 @@ const testFiles = [
 ];
 
 const reactDoctor = selectJsPlugins(["react-doctor"]);
-
-// The plugin types its configs with ESLint's types, and ESLint isn't
-// installed (Oxlint runs the rules), so the config is parsed.
-const FlatConfig = v.object({
-  rules: v.optional(v.record(v.string(), v.unknown()), {}),
-});
-
-/** The recommended Playwright rules, all at error like every other rule. */
-const playwrightRules: NonNullable<OxlintConfig["rules"]> = Object.fromEntries(
-  Object.keys(v.parse(FlatConfig, playwright.configs["flat/recommended"]).rules)
-    .filter((name) => name.startsWith("playwright/"))
-    .map((name) => [name, "error"]),
-);
 
 /** Published packages: named exports only, so tree shaking and docs work. */
 export const library: OxlintConfig = defineConfig({
@@ -495,30 +480,6 @@ const config: OxlintConfig = defineConfig({
         // Its 3 findings compare base-62 rank keys, which are strings, and
         // `toBeLessThan` takes only numbers.
         "vitest/prefer-comparison-matcher": "off",
-      },
-    },
-    {
-      files: ["**/e2e/**/*.spec.ts"],
-      // An override only sets rules of the plugins it lists.
-      plugins: ["vitest"],
-      jsPlugins: [
-        { name: "playwright", specifier: plugin("eslint-plugin-playwright") },
-      ],
-      rules: {
-        ...playwrightRules,
-        // `test` and `expect` come from @playwright/test here, not Vitest.
-        "vitest/prefer-importing-vitest-globals": "off",
-        // `test` and `expect` come from @playwright/test here, not Vitest.
-        "playwright/expect-expect": [
-          "error",
-          { assertFunctionNames: ["expectInstant"] },
-        ],
-        // Role-driven cases skip a page the role can't see inside one test,
-        // like the Vitest suites; 2 findings each when measured.
-        "playwright/no-conditional-in-test": "off",
-        "playwright/no-conditional-expect": "off",
-        // Playwright has no `test.each`; a loop is how it parametrises.
-        "vitest/prefer-each": "off",
       },
     },
     {

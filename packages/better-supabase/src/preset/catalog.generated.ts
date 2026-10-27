@@ -17621,6 +17621,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "TeamsOptions"
         },
         {
+          "name": "TeamStatus"
+        },
+        {
           "name": "UpdateTeamOptions"
         }
       ],

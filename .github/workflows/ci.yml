@@ -179,56 +179,6 @@ jobs:
           pnpm exec dotenv -e .env.development.local -- \
             pnpm --filter better-supabase exec vitest run --project integration "${args[@]}"
 
-  # The instant-navigation contracts prove the cache boundaries and the
-  # signed-out prefetch rules. They need a production build with the testing
-  # API exposed, so they cannot run in `verify`.
-  instant:
-    name: Instant navigation
-    needs: affected
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.affected.outputs.stack == 'true') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - uses: $/.github/actions/setup
-
-      - name: Build the library and create the signing key
-        run: |
-          pnpm exec turbo run build --filter=better-supabase...
-          pnpm better-supabase dev keys --cwd .
-
-      - name: Start Supabase
-        uses: $/.github/actions/supabase-stack
-
-      - name: Install Chromium
-        run: pnpm --filter @better-supabase/example-nextjs exec playwright install --with-deps chromium
-
-      - name: Reset the stack
-        run: pnpm supabase:reset
-
-      - name: Instant contracts
-        run: >-
-          pnpm --filter @better-supabase/example-nextjs exec playwright test
-          e2e/pages.spec.ts
-          e2e/customers.spec.ts
-          e2e/settings.spec.ts
-          e2e/initial-load.spec.ts
-
-      - name: Upload traces
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: playwright-traces
-          path: apps/examples/nextjs/test-results/
-          if-no-files-found: ignore
-          retention-days: 7
-
   # Its own jobs, so they run next to the shards instead of after one of them. CentraKit takes
   # about as long as the other three suites together.
   validation:

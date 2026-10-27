@@ -28,33 +28,18 @@ flag.
   run `BSB_BUILD_SCOPE=full pnpm build` to prerender every page. The scope
   is read from the shell env, not from `.env` files.
 
-## Instant navigation tests
+## Instant navigation
 
-The Next.js example proves its navigations with `@next/playwright`'s
-`instant()` (`apps/examples/nextjs/e2e`, run with `test:e2e`).
-`instant-nav.rig.md` next to it records the build, the users and the
-contracts.
-
-- Never measure on `next dev`. The verdict comes from `next build` with
-  `EXPOSE_TESTING_API=1` and `next start`; Playwright's `webServer` builds
-  with it. A build without the testing API passes every test vacuously.
 - Build `packages/better-supabase` first in a fresh worktree, and again after
   every library change: the example imports its `dist`, so a stale `dist`
   builds the example against the old code.
-- The `latency` project runs `latency.spec.ts` against a second `next start`
-  on 3101 with `BS_FETCH_DELAY_MS=3000` (`e2e/serve.ts`). Time page loads to
-  `waitUntil: "commit"`; `load` waits for the whole stream. A shared
-  `"use cache"` read that uses `bsb.admin()` must sit behind a session read,
-  or the build prerenders it and fails without `SUPABASE_SECRET_KEY`.
-- Before trusting a GREEN, show that the spec can go RED: remove the cache
-  scope the contract depends on (replace `"use cache: private"` and
-  `bsb.cached()` in `getCustomers` with `bsb.context()`; `bsb.cached()` alone
-  outside a cache scope throws) and watch the rows disappear under the lock. No retries and no timeouts in
-  `instant()` specs.
+- A shared `"use cache"` read that uses `bsb.admin()` must sit behind a
+  session read, or the build prerenders it and fails without
+  `SUPABASE_SECRET_KEY`.
 - Routes you left stay mounted in a hidden `<Activity>`, and a streamed
-  Suspense boundary sits in a hidden `<div>` for a moment, so the same test
-  id, label or text can match twice. Use the visible-only helpers in
-  `e2e/nav.ts`, and `useId()` for form ids instead of fixed strings.
+  Suspense boundary sits in a hidden `<div>` for a moment, so the same id,
+  label or text can exist twice. Use `useId()` for form ids instead of fixed
+  strings.
 - Content that reads `params` can't be in the route's shared App Shell. A
   link to such a page needs `prefetch` to resolve its cached reads before
   the click (the customer rows in `customer-table.tsx`).
@@ -64,10 +49,6 @@ contracts.
   prop (`security-queries.ts` for the two-factor and connected agents cards).
   `supabase.auth` is off on the server client, which passes `accessToken`, so
   those reads call the Auth REST endpoints with `auth.token`.
-- `flows.spec.ts` signs users out with the default global scope, which ends
-  their other sessions. A saved `storageState` still renders pages (the
-  token verifies locally), but the Auth server refuses it, so a spec that
-  reaches Auth signs in fresh (`settings.spec.ts`).
 - A database budget (`maxCalls`, `maxWaves`) fails on a navigation served
   entirely from the client cache, because no response carries
   `x-bsb-request-id`. Budget only navigations that reach the server.
@@ -115,8 +96,8 @@ cache fails with `Could not resolve "better-supabase/blocks/..."`.
 - `typedEnv` writes `.next/dev/types/env.d.ts` only in `next dev`, and it
   declares only the keys in local env files. Once it exists, Oxlint's
   `dot-notation` flags `process.env["KEY"]` for those keys, while a clean
-  checkout flags nothing. Destructure `process.env` (`env.ts`,
-  `playwright.config.ts`) so both pass.
+  checkout flags nothing. Destructure `process.env` (`env.ts`) so both
+  pass.
 - Turbopack constant-folds `const s = "pkg"; import(s)` into a static
   import and tries to resolve the package, even inside code that never
   runs in the app (the testing entry through `instrumentation.ts`).
@@ -141,9 +122,6 @@ cache fails with `Could not resolve "better-supabase/blocks/..."`.
   Two reads in a row keep the response open for two round trips, and Chrome
   holds a reload of the same URL until that response ends (its HTTP cache
   lock), so a reload looks slow even when the server answers at once.
-- Don't source `.env.development.local` into the shell that runs
-  `pnpm test:e2e`: the Playwright config prefers `process.env` over the stack
-  status, so a stale `NEXT_PUBLIC_SUPABASE_URL` breaks every browser call.
 
 ## API and MCP in the example
 

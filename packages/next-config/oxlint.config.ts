@@ -13,7 +13,7 @@ export default defineConfig({
   ignorePatterns,
   overrides: [
     {
-      // Build-time switches for CI and the e2e suite, read while Next loads the config.
+      // Build-time switches for CI and testing builds, read while Next loads the config.
       files: ["src/next-config.ts", "src/build-scope.ts"],
       rules: { "node/no-process-env": "off" },
     },

@@ -82,14 +82,6 @@ The routes are localized under `/en` and `/nl` with `next/root-params`, and
 the translations are `.po` files read directly by next-intl. The theme
 (light, dark or system) is applied before the first paint.
 
-`pnpm --filter @better-supabase/example-nextjs test:e2e` resets the stack,
-builds the app with the testing API and runs the Playwright specs in
-`apps/examples/nextjs/e2e`. They click every menu page for each user in both
-languages under `instant()`, and walk through sign-in, the organization
-switch, the language and theme switches and an invitation. `access.spec.ts`
-creates a team and grants a permission override, and `api.spec.ts` calls the
-REST and MCP routes as each user.
-
 ## Real-world ports
 
 `tests/validation-crm` and `tests/validation-request-context` rewrite code
