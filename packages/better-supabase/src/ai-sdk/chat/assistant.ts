@@ -1,12 +1,18 @@
 import type {
   LanguageModelUsage,
   ModelMessage,
+  TextStreamPart,
+  ToolSet,
   UIMessage,
   UIMessageChunk,
   UIMessageStreamOnEndCallback,
 } from "ai";
 
-import { convertToModelMessages, JsonToSseTransformStream } from "ai";
+import {
+  convertToModelMessages,
+  JsonToSseTransformStream,
+  toUIMessageStream,
+} from "ai";
 
 import type {
   AiChat,
@@ -72,15 +78,36 @@ export interface AssistantRunArgs {
   readonly context: AssistantContext;
 }
 
-/** The part of a `streamText` or `agent.stream` result the assistant reads. */
+/** The options the deprecated `toUIMessageStream()` method gets. */
+interface LegacyUIMessageStreamOptions {
+  originalMessages: UIMessage[];
+  generateMessageId: () => string;
+  onEnd: UIMessageStreamOnEndCallback<UIMessage>;
+  onError?: (error: unknown) => string;
+}
+
+/**
+ * The part of a `streamText` or `agent.stream` result the assistant reads. A
+ * result of `streamText({ experimental_lowMemory: true })` fits too; it has no
+ * `finalStep`, so the gateway's cost and generation id stay unknown.
+ */
 export interface AssistantRunResult {
-  toUIMessageStream(options: {
-    originalMessages: UIMessage[];
-    generateMessageId: () => string;
-    onEnd: UIMessageStreamOnEndCallback<UIMessage>;
-    onError?: (error: unknown) => string;
-  }): ReadableStream<UIMessageChunk>;
+  /** The full stream; the assistant turns it into UI message chunks. */
+  readonly stream?: ReadableStream<TextStreamPart<ToolSet>>;
+  /** The usage of every step together. */
+  readonly usage?: PromiseLike<LanguageModelUsage>;
+  /** The last step, whose `providerMetadata` carries the gateway's cost. */
+  readonly finalStep?: PromiseLike<{ readonly providerMetadata?: unknown }>;
+  /**
+   * @deprecated Return a result with `stream`. Read only when `stream` is
+   * missing; removed in 0.33.
+   */
+  toUIMessageStream?(
+    options: LegacyUIMessageStreamOptions,
+  ): ReadableStream<UIMessageChunk>;
+  /** @deprecated Return `usage`; removed in 0.33. */
   readonly totalUsage?: PromiseLike<LanguageModelUsage>;
+  /** @deprecated Return `finalStep`; removed in 0.33. */
   readonly providerMetadata?: PromiseLike<unknown>;
 }
 
@@ -238,6 +265,18 @@ const settle = async <T>(
   } catch {
     return undefined;
   }
+};
+
+const uiChunksOf = (
+  result: AssistantRunResult,
+  options: LegacyUIMessageStreamOptions,
+): ReadableStream<UIMessageChunk> | undefined => {
+  if (result.stream !== undefined) {
+    return toUIMessageStream({ stream: result.stream, ...options });
+  }
+
+  // oxlint-disable-next-line typescript/no-deprecated -- read for 0.32 results that predate `stream`.
+  return result.toUIMessageStream?.(options);
 };
 
 /**
@@ -520,8 +559,13 @@ export function createAssistant(options: AssistantOptions): Assistant {
         );
 
         const usage = usageOf({
-          totalUsage: await settle(result.totalUsage),
-          providerMetadata: await settle(result.providerMetadata),
+          // oxlint-disable-next-line typescript/no-deprecated -- read for 0.32 results that predate `usage`.
+          usage: await settle(result.usage ?? result.totalUsage),
+          finalStep:
+            result.finalStep === undefined
+              ? // oxlint-disable-next-line typescript/no-deprecated -- read for 0.32 results that predate `finalStep`.
+                { providerMetadata: await settle(result.providerMetadata) }
+              : await settle(result.finalStep),
         });
 
         await release(
@@ -554,12 +598,24 @@ export function createAssistant(options: AssistantOptions): Assistant {
       return finished;
     };
 
-    const chunks = result.toUIMessageStream({
+    const streamOptions = {
       originalMessages: uiMessages,
       generateMessageId: () => assistantId,
       onEnd,
       ...(options.onError === undefined ? {} : { onError: options.onError }),
-    });
+    };
+
+    const chunks = uiChunksOf(result, streamOptions);
+
+    if (chunks === undefined) {
+      await release("failed", undefined, "The run returned no stream.");
+
+      return problemResponse(
+        dbError("unexpected", "The answer could not be started.", {
+          code: "AI_CHAT_RUN_FAILED",
+        }),
+      );
+    }
 
     const teed = teeToStore(
       options.streams,

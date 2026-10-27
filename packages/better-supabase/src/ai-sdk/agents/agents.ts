@@ -7,7 +7,7 @@ import type {
   ToolSet,
 } from "ai";
 
-import { stepCountIs, ToolLoopAgent } from "ai";
+import { isStepCount, ToolLoopAgent } from "ai";
 
 import type { SessionActor } from "../../auth/actor.ts";
 import type { Agent } from "../../blocks/agents/agents.ts";
@@ -387,7 +387,7 @@ export function createAgentRuntime(
             run,
           }),
     ...(instructions === "" ? {} : { instructions }),
-    stopWhen: options.stopWhen ?? stepCountIs(20),
+    stopWhen: options.stopWhen ?? isStepCount(20),
     runtimeContext: run,
     prepareCall: (call) => ({
       ...call,

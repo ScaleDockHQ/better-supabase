@@ -517,6 +517,56 @@ describe("connectTools", () => {
     expect(typed.fingerprint).toBe(all.fingerprint);
   });
 
+  it("passes redirect and protocol discovery only when set", async () => {
+    fakeClient();
+    const fake = fakeConnectors();
+
+    await connectTools({
+      connectors: fake.connectors,
+      server: server(),
+      userId: "u1",
+    }).orThrow();
+
+    await connectTools({
+      connectors: fake.connectors,
+      server: server(),
+      userId: "u1",
+      redirect: "follow",
+      protocolVersionDiscovery: false,
+    }).orThrow();
+
+    const [plain, tuned] = mcp.createMCPClient.mock.calls.map(
+      ([options]) => options,
+    );
+
+    expect(plain.transport).not.toHaveProperty("redirect");
+    expect(plain).not.toHaveProperty("protocolVersionDiscovery");
+    expect(tuned.transport.redirect).toBe("follow");
+    expect(tuned.protocolVersionDiscovery).toBe(false);
+  });
+
+  it("lets connectAll set the transport options per server", async () => {
+    fakeClient();
+    const fake = fakeConnectors();
+
+    await connectAll([server(), { ...server(), id: "s2", name: "Legacy" }], {
+      connectors: fake.connectors,
+      userId: "u1",
+      redirect: "follow",
+      serverOptions: (each) =>
+        each.id === "s2"
+          ? { redirect: "error", protocolVersionDiscovery: false }
+          : {},
+    });
+
+    const options = mcp.createMCPClient.mock.calls.map(([each]) => each);
+
+    expect(options[0].transport.redirect).toBe("follow");
+    expect(options[0]).not.toHaveProperty("protocolVersionDiscovery");
+    expect(options[1].transport.redirect).toBe("error");
+    expect(options[1].protocolVersionDiscovery).toBe(false);
+  });
+
   it("resumes a stored session and declines elicitation by default", async () => {
     const { elicit } = fakeClient(null);
     const fake = fakeConnectors();

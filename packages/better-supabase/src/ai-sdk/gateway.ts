@@ -39,8 +39,13 @@ export interface AiUsage {
 
 /** What `usageOf` reads: a `streamText` or `generateText` result, awaited. */
 export interface UsageSource {
-  readonly totalUsage?: Partial<LanguageModelUsage> | undefined;
+  /** The usage of every step together (AI SDK 7). */
   readonly usage?: Partial<LanguageModelUsage> | undefined;
+  /** The last step, whose `providerMetadata` carries the gateway's cost. */
+  readonly finalStep?: { readonly providerMetadata?: unknown } | undefined;
+  /** The older name of `usage`, read when `usage` is missing. */
+  readonly totalUsage?: Partial<LanguageModelUsage> | undefined;
+  /** The last step's metadata, read when `finalStep` is missing. */
   readonly providerMetadata?: unknown;
 }
 
@@ -63,14 +68,16 @@ function microUsd(value: unknown): number | undefined {
 
 /** The usage of a finished generation, with the gateway's cost when it has one. */
 export function usageOf(source: UsageSource): AiUsage {
-  const usage = source.totalUsage ?? source.usage ?? {};
+  const usage = source.usage ?? source.totalUsage ?? {};
   const input = count(usage.inputTokens);
   const output = count(usage.outputTokens);
 
+  const metadata =
+    source.finalStep?.providerMetadata ?? source.providerMetadata;
+
   const gateway =
-    isRecord(source.providerMetadata) &&
-    isRecord(source.providerMetadata["gateway"])
-      ? source.providerMetadata["gateway"]
+    isRecord(metadata) && isRecord(metadata["gateway"])
+      ? metadata["gateway"]
       : {};
 
   const generationId = gateway["generationId"];

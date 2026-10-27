@@ -54,6 +54,17 @@ export interface ConnectToolsOptions {
   /** Prefixes tool names, such as `github_`, so servers don't collide. */
   readonly prefix?: string;
   /**
+   * `follow` lets the transport follow an HTTP redirect from this server. The
+   * default, `error`, refuses one, so a moved server can't send the user's
+   * token to another origin.
+   */
+  readonly redirect?: "follow" | "error";
+  /**
+   * `false` skips the `server/discover` probe for a server that needs
+   * `initialize` as its first request. Defaults to `true`.
+   */
+  readonly protocolVersionDiscovery?: boolean;
+  /**
    * Types the tools and keeps only the ones it names, such as
    * `supabaseMcp().schemas`. The fingerprint still covers every tool the server
    * lists.
@@ -245,6 +256,9 @@ export function connectTools(
           ...(previous?.sessionId === undefined
             ? {}
             : { initialSessionId: previous.sessionId }),
+          ...(options.redirect === undefined
+            ? {}
+            : { redirect: options.redirect }),
           onSessionIdChange: (next) => {
             sessionId = next;
 
@@ -261,6 +275,9 @@ export function connectTools(
               initialInitializeResult:
                 previous.initializeResult as InitializeResult,
             }),
+        ...(options.protocolVersionDiscovery === undefined
+          ? {}
+          : { protocolVersionDiscovery: options.protocolVersionDiscovery }),
         capabilities: {
           ...(options.apps === true ? mcpAppClientCapabilities : {}),
           elicitation: {},
@@ -350,6 +367,20 @@ export function connectTools(
   });
 }
 
+export interface ConnectAllOptions extends Omit<
+  ConnectToolsOptions,
+  "server" | "prefix"
+> {
+  /**
+   * The transport options for one server, such as `{ redirect: "follow" }` for
+   * a server that moved or `{ protocolVersionDiscovery: false }` for one that
+   * needs `initialize` first. They win over the shared ones.
+   */
+  readonly serverOptions?: (
+    server: ConnectorServer,
+  ) => Pick<ConnectToolsOptions, "redirect" | "protocolVersionDiscovery">;
+}
+
 export interface ConnectAllResult {
   readonly tools: ToolSet;
   /** The servers left out, with why. */
@@ -367,13 +398,16 @@ export interface ConnectAllResult {
  */
 export async function connectAll(
   servers: readonly ConnectorServer[],
-  options: Omit<ConnectToolsOptions, "server" | "prefix">,
+  options: ConnectAllOptions,
 ): Promise<ConnectAllResult> {
+  const { serverOptions, ...shared } = options;
+
   const results = await Promise.all(
     servers.map(async (server) => ({
       server,
       result: await connectTools({
-        ...options,
+        ...shared,
+        ...serverOptions?.(server),
         server,
         prefix: `${server.name.toLowerCase().replaceAll(/[^a-z0-9]+/g, "_")}_`,
       }),

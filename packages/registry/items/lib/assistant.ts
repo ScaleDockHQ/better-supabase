@@ -4,7 +4,7 @@ import type { AssistantContext } from "better-supabase/ai-sdk/chat";
 import type { AiChat } from "better-supabase/blocks/ai-chat";
 import type { RpcClient } from "better-supabase/blocks/organizations";
 
-import { stepCountIs, streamText } from "ai";
+import { isStepCount, streamText } from "ai";
 import { createAssistant } from "better-supabase/ai-sdk/chat";
 import { generatedOptions } from "better-supabase/blocks";
 import { createAiChat } from "better-supabase/blocks/ai-chat";
@@ -72,7 +72,7 @@ export function assistant(): ReturnType<typeof createAssistant> {
         abortSignal,
         providerOptions,
         tools: requestTools.get(context) ?? {},
-        stopWhen: stepCountIs(5),
+        stopWhen: isStepCount(5),
       }),
   });
 

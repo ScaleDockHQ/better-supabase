@@ -26,6 +26,8 @@ export {
   isUIMessage,
   toUIMessage,
   toUIMessages,
+  type UIMessageSchemas,
+  validUIMessages,
 } from "./messages.ts";
 
 export {

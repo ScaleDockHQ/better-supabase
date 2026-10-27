@@ -315,8 +315,8 @@ export async function durableTurn(
       sources.push(...sourcesOf(result));
       requests = newRequests(conversation.slice(historyLength), approvals);
       usage = usageOf({
-        totalUsage: result.totalUsage,
-        providerMetadata: result.steps.at(-1)?.providerMetadata,
+        usage: result.totalUsage,
+        finalStep: result.steps.at(-1),
       });
     } catch (cause) {
       status = "failed";

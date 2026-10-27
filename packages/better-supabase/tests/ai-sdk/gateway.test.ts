@@ -69,7 +69,7 @@ describe("usageOf", () => {
   it("reads the totals and the gateway cost", () => {
     expect(
       usageOf({
-        totalUsage: {
+        usage: {
           inputTokens: 10,
           outputTokens: 5,
           totalTokens: 15,
@@ -80,8 +80,10 @@ describe("usageOf", () => {
           },
           outputTokenDetails: { textTokens: 4, reasoningTokens: 1 },
         },
-        providerMetadata: {
-          gateway: { cost: "0.0004215", generationId: "gen_1" },
+        finalStep: {
+          providerMetadata: {
+            gateway: { cost: "0.0004215", generationId: "gen_1" },
+          },
         },
       }),
     ).toEqual({
@@ -95,10 +97,21 @@ describe("usageOf", () => {
     });
   });
 
-  it("falls back to the step usage and zero", () => {
+  it("prefers usage and finalStep over the deprecated fields", () => {
     expect(
       usageOf({
-        usage: { inputTokens: 3, outputTokens: undefined },
+        usage: { inputTokens: 7, outputTokens: 1 },
+        totalUsage: { inputTokens: 1, outputTokens: 1 },
+        finalStep: { providerMetadata: { gateway: { generationId: "gen_2" } } },
+        providerMetadata: { gateway: { generationId: "gen_old" } },
+      }),
+    ).toMatchObject({ inputTokens: 7, generationId: "gen_2" });
+  });
+
+  it("falls back to the deprecated fields and zero", () => {
+    expect(
+      usageOf({
+        totalUsage: { inputTokens: 3, outputTokens: undefined },
         providerMetadata: { gateway: { cost: 0.5 } },
       }),
     ).toMatchObject({ totalTokens: 3, costMicroUsd: 500_000 });
@@ -120,8 +133,8 @@ describe("usageOf", () => {
 describe("usageEntries", () => {
   it("names the meters and skips zero", () => {
     const usage = usageOf({
-      totalUsage: { inputTokens: 4, outputTokens: 0 },
-      providerMetadata: { gateway: { cost: 0.000002 } },
+      usage: { inputTokens: 4, outputTokens: 0 },
+      finalStep: { providerMetadata: { gateway: { cost: 0.000002 } } },
     });
 
     expect(usageEntries(usage)).toEqual([
