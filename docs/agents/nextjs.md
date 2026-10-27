@@ -66,6 +66,20 @@ flag.
   anything there. `pnpm test:e2e` in the example builds with the flag and
   runs `next start`; it needs the local stack and is not part of `verify`.
 
+## Offline and PWA
+
+- The example has one service worker, `public/sw.js`, for push and the
+  offline shell. Register it only at `/sw.js`: a second URL in the same scope
+  replaces the first worker and drops its push subscription.
+- The worker stores nothing whose `Cache-Control` says `private` or
+  `no-store`, and never replays a `POST`; `experimental.useOffline` retries
+  Server Actions. Don't add a cache rule that bypasses that check.
+- `/sw.js` gets `no-cache` and `Service-Worker-Allowed` from
+  `createNextConfig()`. The proxy matcher skips `html` and `webmanifest`, or
+  it redirects `offline.html` to the sign-in page.
+- The registrar skips `next dev`, so test offline behavior with `next build`
+  and `next start`.
+
 ## Lint needs generated Next types
 
 `PageProps<Route>` and `next/root-params` come from `next typegen` (`.next/types`).

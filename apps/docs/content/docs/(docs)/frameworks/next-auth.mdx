@@ -322,3 +322,11 @@ commit's writes, so they see the new session where that cache doesn't apply
 (a route handler, or a Server Action depending on the Next.js version). A
 `tenant` resolver on `createNext` that parses another cookie from
 `request.headers` sees that rebuilt header, with each value percent-encoded.
+
+## Offline
+
+A sign-in or sign-out Server Action submitted offline stays pending under
+`experimental.useOffline`, and Next.js sends it when the network returns, so
+the cookies it writes belong to that later request. Keep auth pages out of the
+service worker cache: they read the session, so better-supabase marks them
+private. See [Offline and PWA](/docs/frameworks/next-offline-pwa).

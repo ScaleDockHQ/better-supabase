@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { buttonVariants } from "@/components/ui/button";
+import { ConnectivityFallback } from "@/features/offline/components/connectivity-fallback";
 import {
   WorkBoard,
   WorkBoardSkeleton,
@@ -37,7 +38,13 @@ export default function WorkPage({
           </Link>
         }
       />
-      <Suspense fallback={<WorkBoardSkeleton />}>
+      <Suspense
+        fallback={
+          <ConnectivityFallback>
+            <WorkBoardSkeleton />
+          </ConnectivityFallback>
+        }
+      >
         <WorkBoard searchParams={searchParams} />
       </Suspense>
     </>

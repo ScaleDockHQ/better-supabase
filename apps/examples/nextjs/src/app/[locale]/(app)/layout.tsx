@@ -14,6 +14,7 @@ import { Announcements } from "@/features/announcements/components/announcements
 import { AppHeader } from "@/features/navigation/components/app-header";
 import { AppNav } from "@/features/navigation/components/app-nav";
 import { SideNavSkeleton } from "@/features/navigation/components/side-nav";
+import { OfflineBanner } from "@/features/offline/components/offline-banner";
 import {
   OrganizationSwitcher,
   OrganizationSwitcherSkeleton,
@@ -61,6 +62,7 @@ export default function AppLayout({ children }: LayoutProps<"/[locale]">) {
       <SidebarInset>
         <AppHeader />
         <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+          <OfflineBanner />
           <Suspense fallback={null}>
             <ImpersonationBanner />
           </Suspense>

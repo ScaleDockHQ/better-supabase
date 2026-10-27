@@ -1,5 +1,7 @@
 import { CloudIcon } from "lucide-react";
 
+import { OfflineBanner } from "@/features/offline/components/offline-banner";
+
 /**
  * Synchronous: the brand and the centered column are the static shell. The
  * brand is not a link: a signed-out prefetch of `/` caches the redirect to
@@ -15,6 +17,7 @@ export default function AuthLayout({ children }: LayoutProps<"/[locale]">) {
         </span>
         Acme Cloud
       </div>
+      <OfflineBanner className="max-w-sm" />
       <div className="w-full max-w-sm">{children}</div>
     </div>
   );

@@ -2,6 +2,7 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
+import { ConnectivityFallback } from "@/features/offline/components/connectivity-fallback";
 import {
   TaskViews,
   TaskViewsSkeleton,
@@ -25,7 +26,13 @@ export default function ProjectsPage({
           "One tasks table as a grid, a board, a calendar, a timeline and a Gantt chart.",
         )}
       />
-      <Suspense fallback={<TaskViewsSkeleton />}>
+      <Suspense
+        fallback={
+          <ConnectivityFallback>
+            <TaskViewsSkeleton />
+          </ConnectivityFallback>
+        }
+      >
         <TaskViews searchParams={searchParams} />
       </Suspense>
     </>

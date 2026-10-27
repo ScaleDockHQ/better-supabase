@@ -7,6 +7,7 @@ import {
   CustomerDetail,
   CustomerDetailSkeleton,
 } from "@/features/customers/components/customer-detail";
+import { ConnectivityFallback } from "@/features/offline/components/connectivity-fallback";
 import { Link } from "@/i18n/navigation";
 
 /** The back link is the static shell; the customer streams in. */
@@ -28,7 +29,13 @@ export default function CustomerPage({
         <ArrowLeftIcon />
         {t("All customers")}
       </Link>
-      <Suspense fallback={<CustomerDetailSkeleton />}>
+      <Suspense
+        fallback={
+          <ConnectivityFallback>
+            <CustomerDetailSkeleton />
+          </ConnectivityFallback>
+        }
+      >
         <CustomerDetail params={params} />
       </Suspense>
     </>

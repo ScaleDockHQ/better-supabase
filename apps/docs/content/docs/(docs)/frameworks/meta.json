@@ -7,6 +7,7 @@
     "next-auth",
     "next-cache-components",
     "next-islands",
+    "next-offline-pwa",
     "hono",
     "hono-and-next",
     "expo",

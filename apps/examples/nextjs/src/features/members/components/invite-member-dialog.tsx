@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SubmitLabel } from "@/features/offline/components/submit-label";
 import { invitationSent } from "@/features/organization/organization-actions";
 import { useInviteLink } from "@/features/organization/use-invite-link";
 import { useRoleLabel } from "@/features/organization/use-role-label";
@@ -200,7 +201,9 @@ export function InviteMemberDialog({
                 {t("Cancel")}
               </DialogClose>
               <Button type="submit" disabled={inviting}>
-                {t("Send invitation")}
+                <SubmitLabel pending={inviting}>
+                  {t("Send invitation")}
+                </SubmitLabel>
               </Button>
             </DialogFooter>
           </form>

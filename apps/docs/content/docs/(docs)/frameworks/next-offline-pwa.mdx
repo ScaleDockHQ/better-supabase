@@ -1,0 +1,167 @@
+---
+title: Offline and PWA
+description: Install a Next.js app as a PWA, keep its static shell offline, and show pending work while the network is gone.
+---
+
+A Next.js app on better-supabase can be installed from the browser, opens its
+static shell without a network, and finishes a navigation or a Server Action
+once the connection returns. Signed-in data never lands in a cache the next
+user of the device can read. The [Next.js example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/nextjs)
+wires every piece on this page.
+
+## What runs where
+
+| Piece                     | File                 | What it does                                                                                    |
+| ------------------------- | -------------------- | ----------------------------------------------------------------------------------------------- |
+| `experimental.useOffline` | `next.config.ts`     | keeps a navigation, prefetch or Server Action that failed offline pending, and retries it       |
+| `useOffline()`            | `next/offline`       | tells a client component whether the app is offline                                             |
+| Web app manifest          | `app/manifest.ts`    | served at `/manifest.webmanifest`; Next adds the `<link rel="manifest">` itself                 |
+| `appleWebApp`, `viewport` | the root layout      | the iOS home screen title and icon, and a light and dark `theme-color`                          |
+| Service worker            | `public/sw.js`       | precaches the public shell and `offline.html`, serves `/_next/static` cache first, handles push |
+| Service worker headers    | `createNextConfig()` | serves `/sw.js` with `no-cache` and `Service-Worker-Allowed: /`, so updates reach clients       |
+
+## The manifest
+
+```ts title="app/manifest.ts"
+import type { MetadataRoute } from "next";
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: "Acme Cloud",
+    short_name: "Acme",
+    start_url: "/",
+    scope: "/",
+    display: "standalone",
+    background_color: "#ffffff",
+    theme_color: "#1447e6",
+    icons: [
+      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+      {
+        src: "/icons/icon-512.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
+      },
+    ],
+  };
+}
+```
+
+Exclude `webmanifest` and `html` from the proxy matcher with the other static
+extensions. Otherwise the proxy refreshes a session for every manifest fetch
+and redirects `offline.html` to the sign-in page.
+
+## One service worker
+
+A scope has one service worker, so Web Push and the offline cache share
+`public/sw.js`. Register it from one client component, and register the same
+URL from the push opt-in, so both calls resolve to the same registration:
+
+```tsx title="features/offline/components/service-worker-registrar.tsx"
+"use client";
+
+import { useEffect } from "react";
+
+export function ServiceWorkerRegistrar() {
+  useEffect(() => {
+    if (
+      process.env.NODE_ENV !== "production" ||
+      !("serviceWorker" in navigator)
+    ) {
+      return;
+    }
+
+    navigator.serviceWorker
+      .register("/sw.js", { scope: "/", updateViaCache: "none" })
+      .catch(() => {
+        console.warn("Service worker registration failed");
+      });
+  }, []);
+
+  return null;
+}
+```
+
+`next dev` skips the registration, because a cache of `/_next/static` would
+serve old chunks between edits.
+
+The worker stores a response only when it is a same-origin `200` whose
+`Cache-Control` has neither `private` nor `no-store`. better-supabase marks
+every response that read a session as private, so signed-in pages, `_rsc`
+payloads and `/api` answers always go to the network. An offline navigation
+falls back to the cached public shell, then to `offline.html`.
+
+Never let the worker replay a Server Action or a `POST`. Next.js retries those
+itself under `useOffline`, with the cookies of the moment it retries.
+
+## Pending state while offline
+
+Render one banner in each layout that holds a page, and let islands and
+submit buttons say what they wait for:
+
+```tsx title="features/offline/components/offline-banner.tsx"
+"use client";
+
+import { WifiOffIcon } from "lucide-react";
+import { useOffline } from "next/offline";
+
+import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert";
+
+export function OfflineBanner() {
+  const offline = useOffline();
+
+  if (!offline) {
+    return null;
+  }
+
+  return (
+    <output className="block w-full">
+      <Alert variant="warning" role="none">
+        <WifiOffIcon />
+        <AlertTitle>You are offline</AlertTitle>
+        <AlertDescription>
+          Pending changes and pages load when you are back online.
+        </AlertDescription>
+      </Alert>
+    </output>
+  );
+}
+```
+
+The `output` element makes the banner a polite status region; the Alert's
+default `role="alert"` would interrupt a screen reader for a state the user
+can't act on.
+
+An island that reads the session per request can't render offline. Wrap its
+skeleton in a fallback that adds one line of explanation:
+
+```tsx
+<Suspense
+  fallback={
+    <ConnectivityFallback>
+      <CustomerListSkeleton />
+    </ConnectivityFallback>
+  }
+>
+  <CustomerList />
+</Suspense>
+```
+
+A form keeps its button disabled while the action is pending, and swaps the
+label for "Waiting for connection" when the action is pending because the app
+is offline (`SubmitLabel` in the example).
+
+## Check it
+
+1. Run `next build` and `next start`, open the app, and sign in.
+2. In the browser's developer tools, confirm that the manifest loads and that
+   `/sw.js` is activated with scope `/`.
+3. Switch the network to offline. The banner appears, a click on a prefetched
+   link still renders its static shell, and a submitted form shows "Waiting for
+   connection".
+4. Switch back online. The pending navigation and the action finish without
+   a reload.
+
+See [Cache Components](/docs/frameworks/next-cache-components) for which parts
+of a page belong to the static shell.

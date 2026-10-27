@@ -135,6 +135,6 @@ export const config = {
   matcher: [
     // The workflow, Flags Explorer and MCP metadata routes answer without a
     // session; the proxy would redirect them to a locale or the sign-in page.
-    "/((?!_next/static|_next/image|favicon.ico|\\.well-known/workflow/|\\.well-known/vercel/|\\.well-known/oauth-protected-resource|.*\\.(?:svg|png|jpg|webp|ico|txt|js)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|\\.well-known/workflow/|\\.well-known/vercel/|\\.well-known/oauth-protected-resource|.*\\.(?:svg|png|jpg|webp|ico|txt|js|html|webmanifest)$).*)",
   ],
 };

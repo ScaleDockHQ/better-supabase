@@ -15,6 +15,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SubmitLabel } from "@/features/offline/components/submit-label";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { updateProfile } from "../user-actions";
@@ -72,7 +73,7 @@ export function ProfileForm({
         </Field>
       </FieldGroup>
       <Button type="submit" disabled={form.pending}>
-        {t("Save")}
+        <SubmitLabel pending={form.pending}>{t("Save")}</SubmitLabel>
       </Button>
     </form>
   );

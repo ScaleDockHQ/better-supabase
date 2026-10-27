@@ -21,7 +21,7 @@ export default defineConfig({
     // Copied from the better-supabase registry; packages/registry lints the
     // items and its tests keep these copies identical.
     "src/hooks/use-*.ts",
-    // Served as is. push-sw.js runs in a service worker, which the app's
+    // Served as is. sw.js runs in a service worker, which the app's
     // DOM-typed tsconfig can't type.
     "public/**",
   ],

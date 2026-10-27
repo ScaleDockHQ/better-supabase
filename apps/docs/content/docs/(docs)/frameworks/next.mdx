@@ -51,7 +51,7 @@ export default {
 | `typedRoutes`                           | `href` and `redirect()` take only routes the app has. next-intl's `Link` takes any string, so wrap it with `Route` hrefs                                                                                                        |
 | `globalNotFound`                        | a URL no route matches renders `app/global-not-found.tsx` with its own `<html>`. A dynamic root segment (`[locale]`) matches every URL, so answer unknown `/api` paths from an `app/api/[...rest]` route with `problemResponse` |
 | `typedEnv`                              | `next dev` types `process.env` from the env files; validate the keys at runtime as well                                                                                                                                         |
-| `useOffline`                            | a navigation, prefetch or Server Action that fails offline is retried when the network returns                                                                                                                                  |
+| `useOffline`                            | a navigation, prefetch or Server Action that fails offline is retried when the network returns; see [Offline and PWA](/docs/frameworks/next-offline-pwa)                                                                        |
 | `optimisticRouting`, `prefetchInlining` | on by default in Next 16.4; set so a default change shows up in your config diff                                                                                                                                                |
 
 TypeScript 7 works in `next build`: Next runs the project's own `tsc`, so

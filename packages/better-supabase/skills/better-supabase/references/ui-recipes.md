@@ -2282,6 +2282,7 @@ function MemberCellView({ row }: MemberCell) {
       <div className="grid min-w-0 leading-tight">
         <Link
           href={`/settings/members/${member.userId}`}
+          prefetch
           className="truncate font-medium hover:underline"
         >
           {member.name ?? member.email}
@@ -2744,6 +2745,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SubmitLabel } from "@/features/offline/components/submit-label";
 import { invitationSent } from "@/features/organization/organization-actions";
 import { useInviteLink } from "@/features/organization/use-invite-link";
 import { useRoleLabel } from "@/features/organization/use-role-label";
@@ -2910,7 +2912,9 @@ export function InviteMemberDialog({
                 {t("Cancel")}
               </DialogClose>
               <Button type="submit" disabled={inviting}>
-                {t("Send invitation")}
+                <SubmitLabel pending={inviting}>
+                  {t("Send invitation")}
+                </SubmitLabel>
               </Button>
             </DialogFooter>
           </form>
@@ -3966,6 +3970,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SubmitLabel } from "@/features/offline/components/submit-label";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { updateProfile } from "../user-actions";
@@ -4023,7 +4028,7 @@ export function ProfileForm({
         </Field>
       </FieldGroup>
       <Button type="submit" disabled={form.pending}>
-        {t("Save")}
+        <SubmitLabel pending={form.pending}>{t("Save")}</SubmitLabel>
       </Button>
     </form>
   );
@@ -6594,7 +6599,11 @@ export function WorkflowRuns({ tenant }: { tenant: string | null }) {
           {runs.map((run) => (
             <TableRow key={run.id}>
               <TableCell>
-                <Link href={`/workflows/${run.id}`} className="font-medium">
+                <Link
+                  href={`/workflows/${run.id}`}
+                  prefetch
+                  className="font-medium"
+                >
                   {workflowName(run.definition)}
                 </Link>
               </TableCell>
@@ -7624,10 +7633,11 @@ import { useSupabase } from "@/lib/hooks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 
 /**
- * The worker in `public/` that shows the pushes; it must be served from the
- * site root.
+ * The app's one service worker in `public/`, which shows the pushes. It must be
+ * served from the site root, and any other registration of the app's worker
+ * must use the same URL, or the two replace each other.
  */
-const WORKER_URL = "/push-sw.js";
+const WORKER_URL = "/sw.js";
 const PUSH_GUIDE = "https://bettersupabase.com/docs/blocks/push";
 
 const VAPID_PUBLIC_KEY = env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
