@@ -27,6 +27,7 @@ import { knowledge, memory } from "@/features/knowledge/knowledge-server";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
 
+import { codeSandbox, NO_CODE } from "./code-sandbox";
 import { demoModel } from "./demo-model";
 
 /** The API schema `gen` wrote for the chat, its files and its streams. */
@@ -153,8 +154,24 @@ export function assistant(): ReturnType<typeof createAssistant> {
       wake: "poll",
     }),
     defaultModel: DEFAULT_MODEL,
-    run: async ({ model, messages, abortSignal, providerOptions, context }) => {
+    run: async ({
+      chat,
+      model,
+      messages,
+      abortSignal,
+      providerOptions,
+      context,
+    }) => {
       const scope = requestScopes.get(context);
+
+      const code = demoMode()
+        ? NO_CODE
+        : await codeSandbox(
+            context.chats.sandboxes,
+            context.organizationId,
+            chat.id,
+            { userId: context.userId, signal: abortSignal },
+          );
 
       return streamText({
         model: languageModel(model),
@@ -167,7 +184,9 @@ export function assistant(): ReturnType<typeof createAssistant> {
           providerOptions,
           context.organizationId,
         ),
-        tools: scope?.tools ?? {},
+        ...code,
+        tools: { ...scope?.tools, ...code.tools },
+        toolApproval: { runCode: "user-approval" },
         stopWhen: isStepCount(5),
         telemetry: { functionId: "assistant.chat" },
         experimental_download: scope ? aiFileDownload(scope.files) : undefined,

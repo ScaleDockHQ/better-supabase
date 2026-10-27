@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@ai-sdk/react": "catalog:",
+    "@ai-sdk/sandbox-vercel": "catalog:",
     "@ai-sdk/workflow": "catalog:",
     "@base-ui/react": "catalog:",
     "@dnd-kit/core": "catalog:",
@@ -38,6 +39,7 @@
     "@tanstack/react-virtual": "catalog:",
     "@valibot/to-json-schema": "catalog:",
     "@vercel/queue": "catalog:",
+    "@vercel/sandbox": "catalog:",
     "@workflow/world": "catalog:",
     "@workflow/world-postgres": "catalog:",
     "@wrksz/themes": "catalog:",

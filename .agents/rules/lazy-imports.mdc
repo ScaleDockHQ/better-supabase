@@ -26,6 +26,9 @@ Imports stay at the top of the module. The exceptions are optional
     an engine), `@vercel/connect` and
     `@vercel/connect/chat` through variable specifiers in
     `src/vercel-connect/vercel-connect.ts` (an install message),
+    `@vercel/sandbox` and `@ai-sdk/sandbox-vercel` through
+    `importOptionalPeer` in `src/vercel-sandbox/vercel-sandbox.ts` (an
+    install message, or pass `load` and `loadSession`),
     `@vercel/connect/mcp` through `importOptionalPeer` in
     `src/ai-sdk/mcp/mcp.ts` (an install message, or pass the module), `@supabase/mcp-server-supabase` through variable
     specifiers in `src/core/supabase-mcp.ts` (an install message),

@@ -83,10 +83,10 @@ export interface TrackedSandboxOptions {
  * used (`sandboxes.touch`, at most every `every` milliseconds). The idle-stop
  * job then stops only sandboxes nobody used for their `idle_seconds`.
  */
-export function trackedSandbox(
-  session: Experimental_SandboxSession,
+export function trackedSandbox<S extends Experimental_SandboxSession>(
+  session: S,
   options: TrackedSandboxOptions,
-): Experimental_SandboxSession {
+): S {
   const every = options.every ?? 30_000;
   const now = options.now ?? Date.now;
   let last = Number.NEGATIVE_INFINITY;

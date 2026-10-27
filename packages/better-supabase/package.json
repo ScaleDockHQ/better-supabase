@@ -454,6 +454,11 @@
       "types": "./dist/vercel-connect/index.d.ts",
       "default": "./dist/vercel-connect/index.js"
     },
+    "./vercel-sandbox": {
+      "@better-supabase/source": "./src/vercel-sandbox/index.ts",
+      "types": "./dist/vercel-sandbox/index.d.ts",
+      "default": "./dist/vercel-sandbox/index.js"
+    },
     "./stripe": {
       "@better-supabase/source": "./src/stripe/index.ts",
       "types": "./dist/stripe/index.d.ts",
@@ -1401,6 +1406,10 @@
         "types": "./dist/vercel-connect/index.d.ts",
         "default": "./dist/vercel-connect/index.js"
       },
+      "./vercel-sandbox": {
+        "types": "./dist/vercel-sandbox/index.d.ts",
+        "default": "./dist/vercel-sandbox/index.js"
+      },
       "./stripe": {
         "types": "./dist/stripe/index.d.ts",
         "default": "./dist/stripe/index.js"
@@ -1920,6 +1929,7 @@
     "@ai-sdk/anthropic": "catalog:",
     "@ai-sdk/mcp": "catalog:",
     "@ai-sdk/react": "catalog:",
+    "@ai-sdk/sandbox-vercel": "catalog:",
     "@ai-sdk/workflow": "catalog:",
     "@arethetypeswrong/cli": "catalog:",
     "@better-supabase/typescript-config": "workspace:*",
@@ -1961,6 +1971,7 @@
     "@vercel/connect": "catalog:",
     "@vercel/detect-agent": "catalog:",
     "@vercel/queue": "catalog:",
+    "@vercel/sandbox": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@workflow/world": "catalog:",
     "@workflow/world-postgres": "catalog:",
@@ -2021,6 +2032,7 @@
     "@ai-sdk/anthropic": "catalog:peers",
     "@ai-sdk/mcp": "catalog:peers",
     "@ai-sdk/react": "catalog:peers",
+    "@ai-sdk/sandbox-vercel": "catalog:peers",
     "@ai-sdk/workflow": "catalog:peers",
     "@modelcontextprotocol/server": "catalog:peers",
     "@nestjs/common": "catalog:peers",
@@ -2043,6 +2055,7 @@
     "@tanstack/react-start": "catalog:peers",
     "@vercel/connect": "catalog:peers",
     "@vercel/queue": "catalog:peers",
+    "@vercel/sandbox": "catalog:peers",
     "@workflow/world": "catalog:peers",
     "@workflow/world-postgres": "catalog:peers",
     "ai": "catalog:peers",
@@ -2083,6 +2096,9 @@
       "optional": true
     },
     "@ai-sdk/react": {
+      "optional": true
+    },
+    "@ai-sdk/sandbox-vercel": {
       "optional": true
     },
     "@ai-sdk/workflow": {
@@ -2146,6 +2162,9 @@
       "optional": true
     },
     "@vercel/queue": {
+      "optional": true
+    },
+    "@vercel/sandbox": {
       "optional": true
     },
     "@workflow/world": {

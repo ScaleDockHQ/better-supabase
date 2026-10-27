@@ -18,6 +18,7 @@ const manifest: {
  */
 const INTEGRATIONS = [
   "@ai-sdk/anthropic",
+  "@ai-sdk/sandbox-vercel",
   "@openfeature/server-sdk",
   "@powersync/common",
   "@supabase-labs/middleware-openfeature",
@@ -25,6 +26,7 @@ const INTEGRATIONS = [
   "@supabase/pg-topo",
   "@vercel/connect",
   "@vercel/queue",
+  "@vercel/sandbox",
   "flags",
   "stripe",
   "yjs",

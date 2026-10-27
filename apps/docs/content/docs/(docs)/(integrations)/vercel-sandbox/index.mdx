@@ -1,0 +1,193 @@
+---
+title: Vercel Sandbox
+description: Give each chat its own Vercel sandbox, recorded in the AI chat block's sandbox registry, stopped when idle, and locked down with network presets.
+---
+
+`better-supabase/vercel-sandbox` runs the code an assistant writes in a
+[Vercel Sandbox](https://vercel.com/docs/vercel-sandbox), a Firecracker VM
+per chat. It records each sandbox in the
+[AI chat block](/docs/blocks/ai-chat#sandboxes)'s `ai_sandboxes` registry,
+hands the model an AI SDK sandbox session, and stops the sandbox from the
+block's idle-stop job. It adds no tables.
+
+```bash
+pnpm add @vercel/sandbox @ai-sdk/sandbox-vercel ai
+pnpm better-supabase add ai-chat
+```
+
+`@vercel/sandbox` (`>=3 <4`) and `@ai-sdk/sandbox-vercel` (`>=1 <2`) are
+optional peers. The entry loads them the first time a chat asks for a
+sandbox; when your bundler includes them, pass the modules as `load` and
+`loadSession`. A call without them fails with the hint
+`AI_SANDBOX_UNAVAILABLE` and the install command.
+
+## Setup
+
+On Vercel the SDK authenticates with the deployment's OIDC token. Locally,
+`vercel link` and then `vercel env pull` write `VERCEL_OIDC_TOKEN` to
+`.env.local`; the token lasts 12 hours, so pull it again when calls start
+failing with `AI_SANDBOX_FORBIDDEN`. Outside Vercel, pass an access token
+with its scope as `credentials: { token, teamId, projectId }`.
+
+Create the adapter once, over the chat block's sandboxes on a service
+transport, since it writes the registry outside the user's request:
+
+```ts title="lib/sandboxes.ts"
+import { createAiChat } from "better-supabase/blocks/ai-chat";
+import { untrusted, vercelSandboxes } from "better-supabase/vercel-sandbox";
+
+const { sandboxes } = createAiChat({ transport, service: serviceTransport });
+
+export const vercel = vercelSandboxes({ sandboxes, defaults: untrusted });
+```
+
+## A sandbox per chat
+
+`forChat(organizationId, chatId, options)` returns the chat's sandbox. It
+registers the sandbox first, so a chat from another tenant fails with
+`AI_SANDBOX_FORBIDDEN` before anything starts. Then it creates the sandbox,
+or resumes it: the sandbox is named `chat-<chatId>`, so a persistent
+sandbox stopped for idleness comes back with its files on the next
+message. Call it in [`createAssistant`](/docs/ai-sdk/chat)'s `run` and pass
+the session to the model with [`codeTool`](#running-code):
+
+```ts title="lib/assistant.ts"
+import { isStepCount, streamText } from "ai";
+import { codeTool } from "better-supabase/ai-sdk";
+import { createAssistant } from "better-supabase/ai-sdk/chat";
+
+import { vercel } from "./sandboxes";
+
+export const assistant = createAssistant({
+  streams,
+  defaultModel: "openai/gpt-5-mini",
+  run: async ({
+    chat,
+    model,
+    messages,
+    abortSignal,
+    providerOptions,
+    context,
+  }) => {
+    const { session } = await vercel
+      .forChat(context.organizationId, chat.id, {
+        userId: context.userId,
+        signal: abortSignal,
+      })
+      .orThrow();
+
+    return streamText({
+      model,
+      messages,
+      abortSignal,
+      providerOptions,
+      tools: { runCode: codeTool() },
+      toolApproval: { runCode: "user-approval" },
+      experimental_sandbox: session,
+      stopWhen: isStepCount(5),
+    });
+  },
+});
+```
+
+| `forChat` option | Sets                                                           |
+| ---------------- | -------------------------------------------------------------- |
+| `create`         | `Sandbox.create` options for this chat, merged over `defaults` |
+| `userId`         | the registry row's user                                        |
+| `idleSeconds`    | seconds without use before the idle-stop job stops it          |
+| `expiresAt`      | a `Temporal.Instant` after which the job stops it, used or not |
+| `signal`         | aborts the create or resume                                    |
+
+The result has the AI SDK `session`, the native `sandbox` and the registry
+`row`. Every call through the session marks the row used, at most every
+30 seconds (`touchEvery`), so a sandbox in use is never stopped as idle.
+SDK failures come back as `DbError`s with a fixed message, since the SDK's
+own message can quote the sandbox's output:
+
+| Failure                 | `kind`         | `hint`                   |
+| ----------------------- | -------------- | ------------------------ |
+| the request was aborted | `aborted`      | `AI_SANDBOX_ABORTED`     |
+| HTTP 401 or 403         | `forbidden`    | `AI_SANDBOX_FORBIDDEN`   |
+| HTTP 404                | `not_found`    | `AI_SANDBOX_NOT_FOUND`   |
+| HTTP 429                | `rate_limited` | `AI_SANDBOX_LIMIT`       |
+| anything else           | `network`      | `AI_SANDBOX_UNAVAILABLE` |
+
+## Stopping idle sandboxes
+
+`stop` is the stopper for the block's idle-stop job. A sandbox Vercel no
+longer knows counts as stopped, so the job doesn't retry it. When other
+providers share the registry, pick the stopper by `provider`:
+
+```ts title="jobs.ts"
+import { VERCEL_SANDBOX_PROVIDER } from "better-supabase/vercel-sandbox";
+
+import { vercel } from "./lib/sandboxes";
+
+export const handlers = {
+  ai_sandbox_idle: sandboxes.idleStopJob((sandbox) =>
+    sandbox.provider === VERCEL_SANDBOX_PROVIDER
+      ? vercel.stop(sandbox)
+      : stopOther(sandbox),
+  ),
+};
+```
+
+A harness that creates its own Vercel sandbox, from a template or a
+snapshot, registers it with `sandboxes.register` and wraps it with
+`vercel.session(sandbox, row)`, which returns the tracked session without
+creating anything.
+
+## Network presets
+
+A sandbox reaches the internet only through its firewall, the
+`networkPolicy` create option. The entry has three presets.
+
+| Preset                                            | Gives                                                                 |
+| ------------------------------------------------- | --------------------------------------------------------------------- |
+| `untrusted`                                       | no network, one vCPU, five minutes, and no snapshot kept on stop      |
+| `gatewayOnly(token)`                              | only the AI Gateway, with `token` added as the `authorization` header |
+| `brokered(credentials, ref, { domain, subject })` | only `domain`, with a credential's headers added at the firewall      |
+
+`gatewayOnly` and `brokered` add the token at the firewall, so code in the
+VM calls the API without ever holding it. `brokered` reads the token from
+any [credential provider](/docs/extending/credentials), such as
+[Vercel Connect](/docs/extending/credentials#vercel-connect), and ends the
+sandbox's session a minute (`margin`) before the token expires:
+
+```ts
+import { vercelConnectCredentials } from "better-supabase/vercel-connect";
+import { brokered } from "better-supabase/vercel-sandbox";
+
+const github = await brokered(
+  vercelConnectCredentials(),
+  { provider: "vercel-connect", connector: "github", scopes: ["repo"] },
+  { domain: "api.github.com", subject: { type: "user", id: userId } },
+).orThrow();
+
+const { session } = await vercel
+  .forChat(organizationId, chatId, { create: github })
+  .orThrow();
+```
+
+`forChat` applies a `networkPolicy` from `create` to a sandbox that already
+runs, so a resumed chat gets a fresh token. `mergeSandboxOptions(...layers)`
+combines presets left to right and keeps the shortest `timeout`.
+
+## Running code
+
+`codeTool()` from `better-supabase/ai-sdk` is the tool the model calls to run
+a snippet. It writes the snippet to `/tmp` in the call's
+`experimental_sandbox` and runs it with `python3`, `node` or `bash`, so it
+works with any AI SDK sandbox session, not only Vercel's. The
+[AI SDK page](/docs/ai-sdk/providers#running-code) lists its options.
+
+Code the model writes runs only after a person approves it when you set
+`toolApproval: { runCode: "user-approval" }` on the model call, as in the
+example above. Keep `untrusted` as the default so an approved snippet still
+can't reach the network.
+
+## Example
+
+The Next.js example's assistant runs code in a Vercel sandbox, after you
+approve each run, when `ASSISTANT_SANDBOX=vercel` and `AI_GATEWAY_API_KEY` are
+set (`apps/examples/nextjs/src/features/assistant/code-sandbox.ts`).
