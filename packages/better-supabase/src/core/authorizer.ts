@@ -504,8 +504,32 @@ export async function checkEach<Ref>(
   runtime?: AuthorizerRuntime,
   purpose: AuthorizationPurpose = {},
 ): Promise<readonly boolean[]> {
+  const outcomes = await outcomesOf(
+    authorizer,
+    permission,
+    resources,
+    context,
+    runtime,
+    purpose,
+  );
+
+  return outcomes.map((outcome) => outcome === "granted");
+}
+
+/**
+ * Like `checkEach`, but returns each decision's outcome name, or `undefined`
+ * when the authorizer gave none or failed.
+ */
+export async function outcomesOf<Ref>(
+  authorizer: Authorizer<Ref> | undefined,
+  permission: Ref,
+  resources: readonly AuthorizationResource[],
+  context: RequestContext | undefined,
+  runtime?: AuthorizerRuntime,
+  purpose: AuthorizationPurpose = {},
+): Promise<readonly (AuthorizationOutcome["outcome"] | undefined)[]> {
   if (!authorizer || resources.length === 0) {
-    return resources.map(() => false);
+    return resources.map(() => undefined);
   }
 
   const { subject, context: requestContext } = requestOf(
@@ -529,11 +553,12 @@ export async function checkEach<Ref>(
           requests.map((request) => evaluateWith(authorizer, request, runtime)),
         );
 
-    return requests.map(
-      (_, index) =>
-        isOutcome(outcomes[index]) && outcomes[index].outcome === "granted",
-    );
+    return requests.map((_, index) => {
+      const outcome = outcomes[index];
+
+      return isOutcome(outcome) ? outcome.outcome : undefined;
+    });
   } catch {
-    return resources.map(() => false);
+    return resources.map(() => undefined);
   }
 }

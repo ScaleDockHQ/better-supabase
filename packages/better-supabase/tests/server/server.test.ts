@@ -10,6 +10,7 @@ import type {
 } from "../../src/postgres/pool.ts";
 
 import { writeSession } from "../../src/auth/session.ts";
+import { requestOf } from "../../src/core/authorizer.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { TENANT_HEADER } from "../../src/server/server-types.ts";
@@ -571,6 +572,72 @@ describe("createServer contextFor", () => {
       { sub: USER, role: "authenticated" },
       { role: "anon" },
     ]);
+  });
+});
+
+describe("createServer approval", () => {
+  const USER_ID = "11111111-1111-4111-8111-111111111111";
+
+  const request = async (headers: Record<string, string> = {}) =>
+    new Request("https://app.test/", {
+      headers: {
+        authorization: `Bearer ${await signer.sign({ sub: USER_ID })}`,
+        ...headers,
+      },
+    });
+
+  it("reads the approval id from the configured header into the context, not the subject", async () => {
+    const server = createServer(defineSupabase(schema), {
+      env,
+      auth: { jwks: signer.jwks },
+      approval: { header: "X-Approval-Id" },
+    });
+
+    const plain = await server.context(await request());
+
+    const resumed = await server.context(
+      await request({ "x-approval-id": "apr_1" }),
+    );
+
+    expect(plain.approval).toBeUndefined();
+    expect(resumed.approval).toBe("apr_1");
+    expect(resumed.db.$context.approval).toBe("apr_1");
+
+    const before = requestOf(plain.db.$context);
+    const after = requestOf(resumed.db.$context);
+
+    expect(after.subject).toEqual(before.subject);
+    expect(after.context.approval).toBe("apr_1");
+    expect(before.context.approval).toBeUndefined();
+  });
+
+  it("ignores the header without the option, and an id that isn't a token", async () => {
+    const off = createServer(defineSupabase(schema), {
+      env,
+      auth: { jwks: signer.jwks },
+    });
+
+    const ignored = await off.context(
+      await request({ "x-approval-id": "apr_1" }),
+    );
+
+    expect(ignored.approval).toBeUndefined();
+
+    const on = createServer(defineSupabase(schema), {
+      env,
+      auth: { jwks: signer.jwks },
+      approval: { header: "x-approval-id" },
+    });
+
+    const invalid = await on.context(
+      await request({ "x-approval-id": "has spaces" }),
+    );
+
+    expect(invalid.approval).toBeUndefined();
+
+    const explicit = await on.context(await request(), { approval: "apr_2" });
+
+    expect(explicit.approval).toBe("apr_2");
   });
 });
 

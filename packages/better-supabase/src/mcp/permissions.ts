@@ -10,9 +10,9 @@ import type { RequestContext } from "../core/plugin.ts";
 import type { Result } from "../core/result.ts";
 
 import {
-  checkEach,
   checkPermission,
   isRequestMemo,
+  outcomesOf,
 } from "../core/authorizer.ts";
 import { dbError } from "../core/errors.ts";
 import { OPERATION_PREFIXES, operationPermission } from "../core/operations.ts";
@@ -151,7 +151,8 @@ export async function checkTool(
 
 /**
  * Which tools the caller may see, in `tools` order: one batch per permission,
- * and a tool without a permission is always shown.
+ * and a tool without a permission is always shown. A tool that needs an
+ * approval stays listed, so the client can call it and resume.
  */
 export async function permittedTools(
   authorizer: AnyAuthorizer | undefined,
@@ -193,7 +194,7 @@ export async function permittedTools(
 
   await Promise.all(
     [...groups.values()].map(async ({ permission, purpose, indexes }) => {
-      const granted = await checkEach(
+      const outcomes = await outcomesOf(
         authorizer,
         permission,
         indexes.map((index) => ({ type: "mcp_tool", id: tools[index]!.name })),
@@ -203,7 +204,8 @@ export async function permittedTools(
       );
 
       for (const [position, index] of indexes.entries()) {
-        shown[index] = granted[position] ?? false;
+        const outcome = outcomes[position];
+        shown[index] = outcome === "granted" || outcome === "approval-required";
       }
     }),
   );

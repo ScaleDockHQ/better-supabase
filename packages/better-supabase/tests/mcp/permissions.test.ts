@@ -238,10 +238,11 @@ describe("createMcp authorizer", () => {
       )
     ).json()) as { result: Record<string, unknown> };
 
-  it("lists only the tools the caller may call", async () => {
+  it("lists the tools the caller may call or may call with an approval", async () => {
     const { result } = await send("tools/list");
     expect((result["tools"] as { name: string }[]).map((t) => t.name)).toEqual([
       "export",
+      "invite",
       "open",
     ]);
   });
@@ -309,7 +310,8 @@ describe("createMcp authorizer", () => {
       result: { tools: { name: string }[] };
     };
 
-    expect(result.tools.map((tool) => tool.name)).toEqual([]);
+    // `invite` needs an approval, so both tools that map to it stay listed.
+    expect(result.tools.map((tool) => tool.name)).toEqual(["invite", "open"]);
     expect(new Set(keyed)).toEqual(new Set(["purge", "invite"]));
   });
 

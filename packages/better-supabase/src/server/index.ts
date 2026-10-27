@@ -174,6 +174,7 @@ export type { SupportView } from "../auth/support-view.ts";
 
 export type {
   AdminDb,
+  ApprovalOptions,
   BetterServer,
   ContextOptions,
   ForContextOptions,

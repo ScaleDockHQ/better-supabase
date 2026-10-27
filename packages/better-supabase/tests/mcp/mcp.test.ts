@@ -765,6 +765,97 @@ describe("createMcp versions", () => {
   });
 });
 
+describe("createMcp approval", () => {
+  it("lists a tool that needs an approval, refuses with its id and grants on resume", async () => {
+    const seen: (string | undefined)[] = [];
+
+    const mcp = createMcp(defineSupabase(schema), {
+      env,
+      auth: { jwks: signer.jwks },
+      name: "crm",
+      version: "1.0.0",
+      approval: { header: "x-approval-id" },
+      authorizer: defineAuthorizer({
+        name: "approvals",
+        key: (ref: string) => ref,
+        evaluate: (request) => {
+          seen.push(request.context.approval);
+
+          return request.context.approval === "apr_1"
+            ? { outcome: "granted" }
+            : { outcome: "approval-required", approval: { id: "apr_1" } };
+        },
+      }),
+      authorize: () => ({ allowed: false, reason: "authorize ran" }),
+      tools: [
+        defineTool({
+          name: "wire",
+          description: "Wire money",
+          permission: "payments.wire",
+          run: () => "sent",
+        }),
+      ],
+    });
+
+    const token = await signer.sign({ sub: USER });
+
+    const send = (
+      id: number,
+      method: string,
+      params?: unknown,
+      headers: Record<string, string> = {},
+    ) =>
+      mcp.fetch(
+        new Request(ENDPOINT, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${token}`,
+            "content-type": "application/json",
+            ...headers,
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
+        }),
+      );
+
+    const listed = (await (await send(1, "tools/list")).json()) as {
+      result: { tools: { name: string }[] };
+    };
+
+    expect(listed.result.tools.map((tool) => tool.name)).toEqual(["wire"]);
+
+    const refused = (await (
+      await send(2, "tools/call", { name: "wire", arguments: {} })
+    ).json()) as { result: { isError?: boolean; structuredContent?: unknown } };
+
+    expect(refused.result.isError).toBe(true);
+    expect(refused.result.structuredContent).toMatchObject({
+      code: "APPROVAL_REQUIRED",
+      approval: { id: "apr_1" },
+    });
+
+    const viaMeta = (await (
+      await send(3, "tools/call", {
+        name: "wire",
+        arguments: {},
+        _meta: { approval: "apr_1" },
+      })
+    ).json()) as { result: { isError?: boolean; structuredContent?: unknown } };
+
+    // A granted call reaches `authorize`, which still refuses.
+    expect(viaMeta.result.isError).toBe(true);
+    expect(JSON.stringify(viaMeta.result)).toContain("authorize ran");
+
+    await send(
+      4,
+      "tools/call",
+      { name: "wire", arguments: {} },
+      { "x-approval-id": "apr_1" },
+    );
+
+    expect(seen).toEqual([undefined, undefined, "apr_1", "apr_1"]);
+  });
+});
+
 describe("createMcp table tool meta", () => {
   it("passes each operation's meta to visible and authorize", async () => {
     const betterSupabase = defineSupabase(schema);

@@ -933,6 +933,12 @@ export function createMcp<
 
   const isRefusal = (value: Invocation): value is Refusal => "refusal" in value;
 
+  /** The approval id a client resumes with in `params._meta.approval`. */
+  const approvalOf = (meta: unknown): string | undefined =>
+    isObject(meta) && typeof meta["approval"] === "string"
+      ? meta["approval"]
+      : undefined;
+
   const call: BetterMcp<M, F, E, C, P, PermissionRef<A>, B>["call"] = async (
     name,
     args,
@@ -1227,7 +1233,18 @@ export function createMcp<
       case "tools/call": {
         const name = message.params?.["name"];
         const entry = typeof name === "string" ? registry.get(name) : undefined;
-        const context = toolContext();
+        const resume = approvalOf(message.params?.["_meta"]);
+
+        const context =
+          resume === undefined
+            ? toolContext()
+            : withExtra(
+                await server.context(request, {
+                  cookies: options.cookies ?? false,
+                  approval: resume,
+                }),
+                { request, signal: request.signal },
+              );
 
         if (!entry || !(await isVisible(entry, context))) {
           return rpcError(

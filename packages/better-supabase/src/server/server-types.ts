@@ -191,10 +191,23 @@ export interface ServerOptions<
    */
   readonly versions?: V;
   /**
+   * Where a client sends the approval id it resumes with after an
+   * `approval-required` refusal. Without `header` no request header is read.
+   * The id reaches `RequestContext.approval` and the authorizer's
+   * `context.approval`, never the subject.
+   */
+  readonly approval?: ApprovalOptions;
+  /**
    * The verified-session memo `snapshot()` and adapters share across cache
    * scopes: size and lifetime, or `false` to verify in every scope.
    */
   readonly sessions?: SessionMemoOptions | false;
+}
+
+/** How the server reads the approval id a client resumes with. */
+export interface ApprovalOptions {
+  /** The request header that carries the approval id, e.g. `x-approval-id`. */
+  readonly header?: string;
 }
 
 /** The verified-session memo of a server (`server.sessions`). */
@@ -288,6 +301,8 @@ export interface ServerContext<
   readonly credentials?: CredentialProvider;
   readonly requestId?: string;
   readonly correlationId?: string;
+  /** The approval id the client resumes with (`ServerOptions.approval`). */
+  readonly approval?: string;
   /** Work this context's permission checks share (`AuthorizerRuntime.memo`). */
   readonly memo?: RequestMemo;
 }
@@ -315,6 +330,11 @@ export interface ContextOptions {
   readonly support?: ActiveSupport;
   readonly requestId?: string;
   readonly correlationId?: string;
+  /**
+   * The approval id to resume with, instead of the header in
+   * `ServerOptions.approval` (an MCP client's `_meta.approval`).
+   */
+  readonly approval?: string;
 }
 
 /**
