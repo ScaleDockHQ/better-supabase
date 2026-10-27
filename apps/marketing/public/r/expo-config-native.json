@@ -4,7 +4,7 @@
   "title": "Expo config",
   "description": "app.config.ts: the URL scheme for auth deep links, secure session storage and push, on top of app.json.",
   "dependencies": [
-    "better-supabase@^0.32.0",
+    "better-supabase@^0.33.0",
     "expo-secure-store",
     "expo-notifications"
   ],
