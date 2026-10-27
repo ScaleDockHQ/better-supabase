@@ -157495,6 +157495,52 @@
       {
         "id": 3001569,
         "schema": "better_supabase",
+        "name": "workflow_claim_run_key",
+        "language": "plpgsql",
+        "definition": "\n#variable_conflict use_column\nbegin\n  return query\n    insert into workflow.workflow_run_keys as k (key) values (run_key)\n    on conflict (key) do update set claimed_at = now()\n      where k.run_id is null and k.claimed_at < now() - coalesce(stale_after, interval '5 minutes')\n    returning true, k.run_id::text;\n  if not found then\n    return query select false, k.run_id::text from workflow.workflow_run_keys k where k.key = run_key;\n  end if;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.workflow_claim_run_key(run_key text, stale_after interval DEFAULT '00:05:00'::interval)\n RETURNS TABLE(claimed boolean, run_id text)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n#variable_conflict use_column\nbegin\n  return query\n    insert into workflow.workflow_run_keys as k (key) values (run_key)\n    on conflict (key) do update set claimed_at = now()\n      where k.run_id is null and k.claimed_at < now() - coalesce(stale_after, interval '5 minutes')\n    returning true, k.run_id::text;\n  if not found then\n    return query select false, k.run_id::text from workflow.workflow_run_keys k where k.key = run_key;\n  end if;\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "table",
+            "name": "claimed",
+            "type_id": 16,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "run_id",
+            "type_id": 25,
+            "has_default": null
+          },
+          {
+            "mode": "in",
+            "name": "run_key",
+            "type_id": 25,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "stale_after",
+            "type_id": 1186,
+            "has_default": true
+          }
+        ],
+        "argument_types": "run_key text, stale_after interval DEFAULT '00:05:00'::interval",
+        "identity_argument_types": "run_key text, stale_after interval",
+        "return_type_id": 2249,
+        "return_type": "TABLE(claimed boolean, run_id text)",
+        "return_type_relation_id": null,
+        "is_set_returning_function": true,
+        "prorows": 1000,
+        "behavior": "VOLATILE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3001570,
+        "schema": "better_supabase",
         "name": "workflow_credential_get",
         "language": "sql",
         "definition": "\n  select jsonb_build_object(\n    'id', x.\"id\",\n    'tenant', x.\"tenant_id\",\n    'kind', x.\"kind\",\n    'name', x.\"name\",\n    'ref', x.\"credential_ref\",\n    'scopes', to_jsonb(x.\"scopes\"),\n    'createdBy', x.\"created_by\",\n    'createdAt', x.\"created_at\"\n  ) from \"better_supabase\".\"workflow_credentials\" x where x.\"id\" = workflow_credential_get.credential;\n",
@@ -157521,7 +157567,7 @@
         }
       },
       {
-        "id": 3001570,
+        "id": 3001571,
         "schema": "better_supabase",
         "name": "workflow_credentials_list",
         "language": "sql",
@@ -157549,7 +157595,7 @@
         }
       },
       {
-        "id": 3001571,
+        "id": 3001572,
         "schema": "better_supabase",
         "name": "workflow_definition_get",
         "language": "sql",
@@ -157577,7 +157623,7 @@
         }
       },
       {
-        "id": 3001572,
+        "id": 3001573,
         "schema": "better_supabase",
         "name": "workflow_definition_grants_list",
         "language": "sql",
@@ -157605,7 +157651,7 @@
         }
       },
       {
-        "id": 3001573,
+        "id": 3001574,
         "schema": "better_supabase",
         "name": "workflow_definitions_list",
         "language": "sql",
@@ -157639,7 +157685,7 @@
         }
       },
       {
-        "id": 3001574,
+        "id": 3001575,
         "schema": "better_supabase",
         "name": "workflow_graph_permissions",
         "language": "sql",
@@ -157667,7 +157713,7 @@
         }
       },
       {
-        "id": 3001575,
+        "id": 3001576,
         "schema": "better_supabase",
         "name": "workflow_node_runs_list",
         "language": "sql",
@@ -157695,7 +157741,157 @@
         }
       },
       {
-        "id": 3001576,
+        "id": 3001577,
+        "schema": "better_supabase",
+        "name": "workflow_open_hooks",
+        "language": "sql",
+        "definition": "\n  select h.hook_id::text, h.run_id::text, r.name::text,\n    r.attributes ->> 'bsb.tenant', r.attributes ->> 'bsb.actor',\n    h.metadata, h.created_at at time zone 'UTC'\n  from workflow.workflow_hooks h\n  join workflow.workflow_runs r on r.id = h.run_id\n  where r.status::text in ('pending', 'running')\n    and not coalesce(h.is_system, false)\n    and (workflow_open_hooks.tenant is null or r.attributes ->> 'bsb.tenant' = workflow_open_hooks.tenant)\n    and (workflow_open_hooks.workflow_name is null or r.name = workflow_open_hooks.workflow_name)\n  order by h.created_at desc\n  limit least(greatest(coalesce(workflow_open_hooks.max, 50), 1), 500);\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.workflow_open_hooks(tenant text DEFAULT NULL::text, workflow_name text DEFAULT NULL::text, max integer DEFAULT 50)\n RETURNS TABLE(hook_id text, run_id text, workflow text, tenant_id text, actor_id text, metadata jsonb, created_at timestamp with time zone)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  select h.hook_id::text, h.run_id::text, r.name::text,\n    r.attributes ->> 'bsb.tenant', r.attributes ->> 'bsb.actor',\n    h.metadata, h.created_at at time zone 'UTC'\n  from workflow.workflow_hooks h\n  join workflow.workflow_runs r on r.id = h.run_id\n  where r.status::text in ('pending', 'running')\n    and not coalesce(h.is_system, false)\n    and (workflow_open_hooks.tenant is null or r.attributes ->> 'bsb.tenant' = workflow_open_hooks.tenant)\n    and (workflow_open_hooks.workflow_name is null or r.name = workflow_open_hooks.workflow_name)\n  order by h.created_at desc\n  limit least(greatest(coalesce(workflow_open_hooks.max, 50), 1), 500);\n$function$\n",
+        "args": [
+          {
+            "mode": "table",
+            "name": "actor_id",
+            "type_id": 25,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "created_at",
+            "type_id": 1184,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "hook_id",
+            "type_id": 25,
+            "has_default": null
+          },
+          {
+            "mode": "in",
+            "name": "max",
+            "type_id": 23,
+            "has_default": true
+          },
+          {
+            "mode": "table",
+            "name": "metadata",
+            "type_id": 3802,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "run_id",
+            "type_id": 25,
+            "has_default": null
+          },
+          {
+            "mode": "in",
+            "name": "tenant",
+            "type_id": 25,
+            "has_default": true
+          },
+          {
+            "mode": "table",
+            "name": "tenant_id",
+            "type_id": 25,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "workflow",
+            "type_id": 25,
+            "has_default": null
+          },
+          {
+            "mode": "in",
+            "name": "workflow_name",
+            "type_id": 25,
+            "has_default": true
+          }
+        ],
+        "argument_types": "tenant text DEFAULT NULL::text, workflow_name text DEFAULT NULL::text, max integer DEFAULT 50",
+        "identity_argument_types": "tenant text, workflow_name text, max integer",
+        "return_type_id": 2249,
+        "return_type": "TABLE(hook_id text, run_id text, workflow text, tenant_id text, actor_id text, metadata jsonb, created_at timestamp with time zone)",
+        "return_type_relation_id": null,
+        "is_set_returning_function": true,
+        "prorows": 1000,
+        "behavior": "STABLE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3001578,
+        "schema": "better_supabase",
+        "name": "workflow_purge_runs",
+        "language": "plpgsql",
+        "definition": "\ndeclare\n  v_statuses text[] := coalesce(statuses, array['completed', 'failed', 'cancelled']);\n  v_ids text[];\n  v_count integer;\nbegin\n  if exists (select 1 from unnest(v_statuses) s where s not in ('completed', 'failed', 'cancelled')) then\n    raise exception 'workflow_purge_runs deletes only completed, failed or cancelled runs'\n      using errcode = '22023', hint = 'WORKFLOW_PURGE_STATUS';\n  end if;\n  select coalesce(array_agg(x.id), '{}') into v_ids from (\n    select r.id from workflow.workflow_runs r\n    where r.status::text = any (v_statuses)\n      and coalesce(r.completed_at, r.updated_at) < (now() at time zone 'UTC') - coalesce(older_than, interval '30 days')\n    order by coalesce(r.completed_at, r.updated_at)\n    limit least(greatest(coalesce(batch, 500), 1), 10000)\n    for update skip locked\n  ) x;\n  if cardinality(v_ids) = 0 then\n    return 0;\n  end if;\n  delete from workflow.workflow_events where run_id = any (v_ids);\n  delete from workflow.workflow_event_slots where run_id = any (v_ids);\n  delete from workflow.workflow_steps where run_id = any (v_ids);\n  delete from workflow.workflow_waits where run_id = any (v_ids);\n  delete from workflow.workflow_stream_chunks where run_id = any (v_ids);\n  delete from workflow.workflow_snapshots where run_id = any (v_ids);\n  delete from workflow.workflow_invocations where run_id = any (v_ids);\n  delete from workflow.workflow_hooks\n    where run_id = any (v_ids) and (token_retention_until is null or token_retention_until < now());\n  delete from workflow.workflow_run_keys where run_id = any (v_ids);\n  delete from workflow.workflow_runs where id = any (v_ids);\n  get diagnostics v_count = row_count;\n  return v_count;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.workflow_purge_runs(older_than interval DEFAULT '30 days'::interval, statuses text[] DEFAULT ARRAY['completed'::text, 'failed'::text, 'cancelled'::text], batch integer DEFAULT 500)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_statuses text[] := coalesce(statuses, array['completed', 'failed', 'cancelled']);\n  v_ids text[];\n  v_count integer;\nbegin\n  if exists (select 1 from unnest(v_statuses) s where s not in ('completed', 'failed', 'cancelled')) then\n    raise exception 'workflow_purge_runs deletes only completed, failed or cancelled runs'\n      using errcode = '22023', hint = 'WORKFLOW_PURGE_STATUS';\n  end if;\n  select coalesce(array_agg(x.id), '{}') into v_ids from (\n    select r.id from workflow.workflow_runs r\n    where r.status::text = any (v_statuses)\n      and coalesce(r.completed_at, r.updated_at) < (now() at time zone 'UTC') - coalesce(older_than, interval '30 days')\n    order by coalesce(r.completed_at, r.updated_at)\n    limit least(greatest(coalesce(batch, 500), 1), 10000)\n    for update skip locked\n  ) x;\n  if cardinality(v_ids) = 0 then\n    return 0;\n  end if;\n  delete from workflow.workflow_events where run_id = any (v_ids);\n  delete from workflow.workflow_event_slots where run_id = any (v_ids);\n  delete from workflow.workflow_steps where run_id = any (v_ids);\n  delete from workflow.workflow_waits where run_id = any (v_ids);\n  delete from workflow.workflow_stream_chunks where run_id = any (v_ids);\n  delete from workflow.workflow_snapshots where run_id = any (v_ids);\n  delete from workflow.workflow_invocations where run_id = any (v_ids);\n  delete from workflow.workflow_hooks\n    where run_id = any (v_ids) and (token_retention_until is null or token_retention_until < now());\n  delete from workflow.workflow_run_keys where run_id = any (v_ids);\n  delete from workflow.workflow_runs where id = any (v_ids);\n  get diagnostics v_count = row_count;\n  return v_count;\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "batch",
+            "type_id": 23,
+            "has_default": true
+          },
+          {
+            "mode": "in",
+            "name": "older_than",
+            "type_id": 1186,
+            "has_default": true
+          },
+          {
+            "mode": "in",
+            "name": "statuses",
+            "type_id": 1009,
+            "has_default": true
+          }
+        ],
+        "argument_types": "older_than interval DEFAULT '30 days'::interval, statuses text[] DEFAULT ARRAY['completed'::text, 'failed'::text, 'cancelled'::text], batch integer DEFAULT 500",
+        "identity_argument_types": "older_than interval, statuses text[], batch integer",
+        "return_type_id": 23,
+        "return_type": "integer",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "VOLATILE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3001579,
+        "schema": "better_supabase",
+        "name": "workflow_release_run_key",
+        "language": "sql",
+        "definition": "\n  delete from workflow.workflow_run_keys where key = run_key and run_id is null;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.workflow_release_run_key(run_key text)\n RETURNS void\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  delete from workflow.workflow_run_keys where key = run_key and run_id is null;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "run_key",
+            "type_id": 25,
+            "has_default": false
+          }
+        ],
+        "argument_types": "run_key text",
+        "identity_argument_types": "run_key text",
+        "return_type_id": 2278,
+        "return_type": "void",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "VOLATILE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3001580,
         "schema": "better_supabase",
         "name": "workflow_run_get",
         "language": "sql",
@@ -157723,7 +157919,7 @@
         }
       },
       {
-        "id": 3001577,
+        "id": 3001581,
         "schema": "better_supabase",
         "name": "workflow_run_principal",
         "language": "plpgsql",
@@ -157757,7 +157953,7 @@
         }
       },
       {
-        "id": 3001578,
+        "id": 3001582,
         "schema": "better_supabase",
         "name": "workflow_runs_list",
         "language": "sql",
@@ -157827,7 +158023,7 @@
         }
       },
       {
-        "id": 3001579,
+        "id": 3001583,
         "schema": "better_supabase",
         "name": "workflow_schedules_list",
         "language": "sql",
@@ -157855,7 +158051,41 @@
         }
       },
       {
-        "id": 3001580,
+        "id": 3001584,
+        "schema": "better_supabase",
+        "name": "workflow_set_run_key",
+        "language": "sql",
+        "definition": "\n  update workflow.workflow_run_keys set run_id = run, claimed_at = now() where key = run_key;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.workflow_set_run_key(run_key text, run text)\n RETURNS void\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  update workflow.workflow_run_keys set run_id = run, claimed_at = now() where key = run_key;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "run",
+            "type_id": 25,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "run_key",
+            "type_id": 25,
+            "has_default": false
+          }
+        ],
+        "argument_types": "run_key text, run text",
+        "identity_argument_types": "run_key text, run text",
+        "return_type_id": 2278,
+        "return_type": "void",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "VOLATILE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3001585,
         "schema": "better_supabase",
         "name": "workflow_start_target",
         "language": "plpgsql",
@@ -157889,7 +158119,7 @@
         }
       },
       {
-        "id": 3001581,
+        "id": 3001586,
         "schema": "better_supabase",
         "name": "workflow_steps_list",
         "language": "sql",
@@ -157910,7 +158140,7 @@
         }
       },
       {
-        "id": 3001582,
+        "id": 3001587,
         "schema": "better_supabase",
         "name": "workflow_subject_start_target",
         "language": "plpgsql",
@@ -157956,7 +158186,7 @@
         }
       },
       {
-        "id": 3001583,
+        "id": 3001588,
         "schema": "better_supabase",
         "name": "workflow_triggers_list",
         "language": "sql",
@@ -157984,7 +158214,7 @@
         }
       },
       {
-        "id": 3001584,
+        "id": 3001589,
         "schema": "better_supabase",
         "name": "workflow_version_get",
         "language": "sql",
@@ -158012,7 +158242,7 @@
         }
       },
       {
-        "id": 3001585,
+        "id": 3001590,
         "schema": "better_supabase",
         "name": "workflow_versions_list",
         "language": "sql",
@@ -158040,7 +158270,7 @@
         }
       },
       {
-        "id": 3001586,
+        "id": 3001591,
         "schema": "better_supabase",
         "name": "workflow_webhook_target",
         "language": "sql",
@@ -158068,7 +158298,7 @@
         }
       },
       {
-        "id": 3001587,
+        "id": 3001592,
         "schema": "better_supabase",
         "name": "write_knowledge_chunks",
         "language": "plpgsql",
@@ -158108,7 +158338,7 @@
         }
       },
       {
-        "id": 3001588,
+        "id": 3001593,
         "schema": "better_supabase",
         "name": "write_off_invoice",
         "language": "plpgsql",
@@ -158136,7 +158366,7 @@
         }
       },
       {
-        "id": 3001589,
+        "id": 3001594,
         "schema": "better_supabase",
         "name": "yearly_giving_summary",
         "language": "plpgsql",
@@ -158182,7 +158412,7 @@
         }
       },
       {
-        "id": 3001590,
+        "id": 3001595,
         "schema": "public",
         "name": "app_table_set",
         "language": "plpgsql",
@@ -158228,7 +158458,7 @@
         }
       },
       {
-        "id": 3001591,
+        "id": 3001596,
         "schema": "public",
         "name": "client_notes_reveal",
         "language": "sql",
@@ -158274,7 +158504,7 @@
         }
       },
       {
-        "id": 3001592,
+        "id": 3001597,
         "schema": "public",
         "name": "customer_note_counts",
         "language": "sql",
@@ -158320,7 +158550,7 @@
         }
       },
       {
-        "id": 3001593,
+        "id": 3001598,
         "schema": "public",
         "name": "customers_by_status",
         "language": "sql",
@@ -158354,7 +158584,7 @@
         }
       },
       {
-        "id": 3001594,
+        "id": 3001599,
         "schema": "public",
         "name": "my_organizations",
         "language": "sql",
@@ -158412,7 +158642,7 @@
         }
       },
       {
-        "id": 3001595,
+        "id": 3001600,
         "schema": "public",
         "name": "my_profile",
         "language": "plpgsql",
@@ -158464,7 +158694,7 @@
         }
       },
       {
-        "id": 3001596,
+        "id": 3001601,
         "schema": "public",
         "name": "organization_invitations",
         "language": "sql",
@@ -158528,7 +158758,7 @@
         }
       },
       {
-        "id": 3001597,
+        "id": 3001602,
         "schema": "public",
         "name": "organization_members",
         "language": "sql",
@@ -158598,7 +158828,7 @@
         }
       },
       {
-        "id": 3001598,
+        "id": 3001603,
         "schema": "public",
         "name": "rs_workspace_summary",
         "language": "sql",
@@ -158626,7 +158856,7 @@
         }
       },
       {
-        "id": 3001599,
+        "id": 3001604,
         "schema": "public",
         "name": "search_notes",
         "language": "plpgsql",
@@ -158660,7 +158890,7 @@
         }
       },
       {
-        "id": 3001600,
+        "id": 3001605,
         "schema": "public",
         "name": "search_notes_scores",
         "language": "plpgsql",
@@ -158706,7 +158936,7 @@
         }
       },
       {
-        "id": 3001601,
+        "id": 3001606,
         "schema": "public",
         "name": "set_my_avatar_path",
         "language": "plpgsql",
@@ -158734,7 +158964,7 @@
         }
       },
       {
-        "id": 3001602,
+        "id": 3001607,
         "schema": "public",
         "name": "update_my_profile",
         "language": "plpgsql",
@@ -240840,6 +241070,66 @@
         "execute": [
           "authenticated"
         ]
+      },
+      {
+        "schema": "better_supabase",
+        "name": "workflow_claim_run_key",
+        "signature": "run_key text, stale_after interval",
+        "language": "plpgsql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
+      },
+      {
+        "schema": "better_supabase",
+        "name": "workflow_open_hooks",
+        "signature": "tenant text, workflow_name text, max integer",
+        "language": "sql",
+        "volatility": "stable",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
+      },
+      {
+        "schema": "better_supabase",
+        "name": "workflow_purge_runs",
+        "signature": "older_than interval, statuses text[], batch integer",
+        "language": "plpgsql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
+      },
+      {
+        "schema": "better_supabase",
+        "name": "workflow_release_run_key",
+        "signature": "run_key text",
+        "language": "sql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
+      },
+      {
+        "schema": "better_supabase",
+        "name": "workflow_set_run_key",
+        "signature": "run_key text, run text",
+        "language": "sql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
       },
       {
         "schema": "better_supabase",
