@@ -50,3 +50,44 @@ set ${options.rank} = ${digit(238_328)} || ${digit(3844)} || ${digit(62)} || ${d
 from ordered o
 where t.${options.id} = o.row_id;`;
 }
+
+/** How a module writes and orders a rank column of one type. */
+export interface RankSql {
+  /** The column type, for a table the module creates. */
+  readonly type: string;
+  /** The column default. */
+  readonly fallback: string;
+  /** `value` ordered as a rank. */
+  readonly order: (value: string) => string;
+  /** The text rank after text `last` (null for the first). */
+  readonly after: (last: string) => string;
+  /** A text rank as a value of the column's type. */
+  readonly write: (value: string) => string;
+  /** The `~` pattern a rank argument matches. */
+  readonly pattern: string;
+}
+
+/**
+ * Rank keys (`text`, base-62 fractional keys) or whole-number positions
+ * (`integer`, one more than the last), for an app whose rank column is an
+ * integer. Ranks travel as text either way.
+ */
+export function rankSql(type: "text" | "integer"): RankSql {
+  return type === "integer"
+    ? {
+        type: "integer",
+        fallback: "0",
+        order: (value) => value,
+        after: (last) => `(coalesce((${last})::integer, 0) + 1)::text`,
+        write: (value) => `(${value})::integer`,
+        pattern: "'^-?[0-9]{1,9}$'",
+      }
+    : {
+        type: 'text collate "C"',
+        fallback: "'V'",
+        order: (value) => `${value} collate "C"`,
+        after: rankAfter,
+        write: (value) => value,
+        pattern: RANK_KEY_PATTERN,
+      };
+}

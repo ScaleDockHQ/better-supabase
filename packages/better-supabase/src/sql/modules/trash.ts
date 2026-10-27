@@ -91,6 +91,11 @@ interface Trashable {
   readonly unique: readonly string[];
   /** Subjects whose `column` holds this subject's id, trashed with it. */
   readonly children: readonly Child[];
+  /**
+   * The column holding a legal hold's end time. A batch with a held subject is
+   * not purged, and `purge_expired_trash` leaves it in the trash.
+   */
+  readonly held: string | undefined;
 }
 
 const isColumn = (value: unknown): value is string =>
@@ -138,6 +143,7 @@ function trashable(ctx: BlockSqlContext): readonly Trashable[] {
     "title",
     "unique",
     "children",
+    "held",
   ]).flatMap(([type, subject]): Trashable[] => {
     const extra = subject.extra;
     const deletedAt = extra["deletedAt"];
@@ -166,6 +172,14 @@ function trashable(ctx: BlockSqlContext): readonly Trashable[] {
       );
     }
 
+    const held = extra["held"];
+
+    if (held !== undefined && !isColumn(held)) {
+      throw new TypeError(
+        `${where}.${type}.held must name the timestamptz column that ends a legal hold`,
+      );
+    }
+
     return [
       {
         type,
@@ -174,6 +188,7 @@ function trashable(ctx: BlockSqlContext): readonly Trashable[] {
         title,
         unique,
         children: childrenOf(extra["children"], `${where}.${type}.children`),
+        held,
       },
     ];
   });
@@ -319,6 +334,41 @@ ${list
   end case;`;
 }
 
+/**
+ * Whether a trash item's subject is under a legal hold. `heldCase` reads the
+ * item's subject type and id from the given columns.
+ */
+function heldCase(
+  list: readonly Trashable[],
+  item: string,
+  subjectType: string,
+  subjectId: string,
+): string {
+  const entries = list.flatMap((entry) =>
+    entry.held === undefined
+      ? []
+      : [{ type: entry.type, subject: entry.subject, held: entry.held }],
+  );
+
+  if (entries.length === 0) {
+    return "false";
+  }
+
+  return `case ${item}.${subjectType}
+${entries
+  .map(
+    (entry) => `    when ${sqlString(entry.type)} then exists (
+      select 1 from ${qualifiedTable(entry.subject.table)} s
+      where ${subjectIdMatches(entry.subject, `${item}.${subjectId}`)}
+        and s.${sqlIdent(entry.held)} is not null
+        and s.${sqlIdent(entry.held)} > now()
+    )`,
+  )
+  .join("\n")}
+    else false
+  end`;
+}
+
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -342,6 +392,11 @@ function build(ctx: BlockSqlContext): string {
 
   const fn = (name: string): string => ctx.fn(name);
   const cascade = fn("trash_cascade");
+
+  const heldItem = (item: string): string =>
+    heldCase(list, item, c("subjectType"), c("subjectId"));
+
+  const anyHeld = list.some((entry) => entry.held !== undefined);
 
   const record = (event: string, id: string, item: string): string =>
     ctx.record({
@@ -547,6 +602,9 @@ declare
   v_count integer := 0;
 begin
   for v_item in select * from ${items} where ${c("batch")} = trash_purge_batch.batch order by ${c("depth")} desc loop
+    if (${heldItem("v_item")}) then
+      ${fail("TRASH_HELD", "a record in this batch is under a legal hold", "42501")}
+    end if;
     ${purgeCase(list)}
     ${record("subject.purged", `v_item.${c("id")}`, "v_item")}
     v_count := v_count + 1;
@@ -592,10 +650,19 @@ declare
   v_count integer := 0;
 begin
   for v_batch in
-    select ${c("batch")} from ${items}
-    where ${c("depth")} = 0 and ${c("purgeAfter")} <= now()
-      and not ${ctx.held("trash", c("tenant"))}
-    order by ${c("purgeAfter")}
+    select t.${c("batch")} from ${items} t
+    where t.${c("depth")} = 0 and t.${c("purgeAfter")} <= now()
+      and not ${ctx.held("trash", `t.${c("tenant")}`)}${
+        anyHeld
+          ? `
+      and not exists (
+        select 1 from ${items} b
+        where b.${c("batch")} = t.${c("batch")}
+          and ${heldItem("b")}
+      )`
+          : ""
+      }
+    order by t.${c("purgeAfter")}
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
     v_count := v_count + ${fn("trash_purge_batch")}(v_batch);
@@ -655,17 +722,23 @@ export const TRASH: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Trash",
   description:
-    "Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.",
+    "Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.",
   requires: ["memberships", "permissions"],
   integrates: ["outbox", "audit", "data-lifecycle"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "purge_expired_trash skips batches under a data-lifecycle legal hold.",
+      sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "Subjects can name a held column: a batch with a held subject stays in the trash, purge_trash raises TRASH_HELD, and purge_expired_trash skips it.",
       sql: () => "",
     },
   ],

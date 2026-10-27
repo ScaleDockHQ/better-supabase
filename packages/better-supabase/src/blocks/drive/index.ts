@@ -6,7 +6,10 @@ export {
   type DriveBatch,
   type DriveBinEntry,
   type DriveConflict,
+  type DriveConnection,
   type DriveCrumb,
+  type DriveDrive,
+  type DriveDriveGrant,
   type DriveFile,
   type DriveGrant,
   type DriveLabel,
@@ -21,6 +24,7 @@ export {
   type DriveStoredObject,
   type DriveUpload,
   driveSubject,
+  type NewDrive,
   type NewDriveFile,
   type NewDriveFolder,
 } from "./drive.ts";

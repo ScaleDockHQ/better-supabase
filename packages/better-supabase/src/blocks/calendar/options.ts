@@ -1,3 +1,4 @@
+import type { ShareLinkFeedOptions } from "../feed-options.ts";
 import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
@@ -18,9 +19,19 @@ export type CalendarReadOnly = {
   readonly values: readonly string[];
 };
 
+/**
+ * An app function `schema.name(calendar_id uuid, user_id uuid)`, or the
+ * authorization provider's per-row grants of `key` on its resource `rows` (its
+ * `rowsWithFor` template, answered for the user asked about).
+ */
+export type CalendarAccessHook =
+  | string
+  | { readonly rows: string; readonly key: string };
+
 export type CalendarAccessFunctions = {
-  readonly read?: string;
-  readonly write?: string;
+  readonly read?: CalendarAccessHook;
+  readonly write?: CalendarAccessHook;
+  readonly share?: CalendarAccessHook;
 };
 
 /** `blocks.calendar.options`. */
@@ -34,6 +45,7 @@ export type CalendarSqlOptions = {
   readonly access?: boolean;
   readonly accessFunctions?: CalendarAccessFunctions;
   readonly userFeed?: boolean;
+  readonly feed?: ShareLinkFeedOptions;
   readonly recurrence?: "inline" | "table";
   readonly rdates?: boolean;
   readonly attendeeKey?: "email" | "any";
@@ -49,6 +61,7 @@ export const calendarSqlOptions: BlockOptionsSchema<CalendarSqlOptions> =
     access: option.boolean({ default: false }),
     accessFunctions: option.unknown<CalendarAccessFunctions>(),
     userFeed: option.boolean({ default: false }),
+    feed: option.unknown<ShareLinkFeedOptions>(),
     recurrence: option.string<"inline" | "table">({ default: "inline" }),
     rdates: option.boolean({ default: false }),
     attendeeKey: option.string<"email" | "any">({ default: "email" }),

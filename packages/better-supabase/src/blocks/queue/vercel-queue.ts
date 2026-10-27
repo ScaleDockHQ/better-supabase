@@ -355,7 +355,7 @@ export function vercelQueueProvider(
           });
         };
 
-        receive(vercelTopicOf(queue), groupOf(queue), handler, {
+        void receive(vercelTopicOf(queue), groupOf(queue), handler, {
           limit: Math.min(Math.max(batch, 1), 10),
           visibilityTimeoutSeconds: Math.min(Math.max(lease, 30), 3600),
           retry: (_error, metadata) => {
@@ -372,6 +372,8 @@ export function vercelQueueProvider(
 
           options.onReceive?.(queue, result);
           finish();
+
+          return result;
         }, reject);
       });
     },

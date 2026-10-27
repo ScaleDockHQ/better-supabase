@@ -75,8 +75,9 @@ const NAMES: BlockSqlNames = {
         leaf: "leaf_id",
         versionId: "version_id",
         createdAt: "created_at",
+        lastUsedAt: "last_used_at",
       },
-      optional: ["leaf", "versionId", "useCount", "createdAt"],
+      optional: ["leaf", "versionId", "useCount", "createdAt", "lastUsedAt"],
     },
     views: {
       name: "subject_views",
@@ -134,6 +135,27 @@ export function liveShareLink(
     and ${unspentShareLink(links, alias)}`;
 }
 
+/**
+ * Counts one use of link `id` (an expression) and stamps when it was used, for
+ * the columns the links table has.
+ */
+export function touchShareLink(links: BlockSqlContext, id: string): string {
+  const sets = [
+    ...(links.has("links", "useCount")
+      ? [
+          `${links.col("links", "useCount")} = ${links.col("links", "useCount")} + 1`,
+        ]
+      : []),
+    ...(links.has("links", "lastUsedAt")
+      ? [`${links.col("links", "lastUsedAt")} = now()`]
+      : []),
+  ];
+
+  return sets.length === 0
+    ? ""
+    : `update ${links.table("links")} set ${sets.join(", ")} where ${links.col("links", "id")} = ${id};`;
+}
+
 /** Not revoked, not expired and, with `use_count`, under `max_uses`. */
 function unspentShareLink(links: BlockSqlContext, alias: string): string {
   const l = (column: string): string =>
@@ -180,6 +202,33 @@ function blockSubjects(
     ctx.contributions("share-links"),
     (each) => each.subject,
   ).map((each) => [each.subject, each.exists(SUBJECT_ARGS)] as const);
+}
+
+/**
+ * For the subject types whose block keeps one live link per record and creator
+ * (`single`), a new link revokes the caller's earlier ones.
+ */
+function singleRevoke(ctx: BlockSqlContext): string {
+  const types = uniqueContributions(
+    "share-links",
+    ctx.contributions("share-links"),
+    (each) => each.subject,
+  )
+    .filter((each) => each.single === true)
+    .map((each) => sqlString(each.subject));
+
+  if (types.length === 0) {
+    return "";
+  }
+
+  const c = (column: string): string => `x.${ctx.col("links", column)}`;
+
+  return `
+  if create_share_link.subject_type in (${types.join(", ")}) then
+    update ${ctx.table("links")} x set ${ctx.col("links", "revokedAt")} = now()
+    where ${c("tenant")} = create_share_link.tenant and ${c("subjectType")} = create_share_link.subject_type
+      and ${c("subjectId")} = create_share_link.subject_id and ${c("createdBy")} is not distinct from auth.uid() and ${c("revokedAt")} is null;
+  end if;`;
 }
 
 /**
@@ -379,7 +428,7 @@ function build(ctx: BlockSqlContext): string {
   ${ctx.col("links", "createdBy")} uuid${ctx.has("links", "leaf") ? `,` : ""}
   ${ctx.has("links", "leaf") ? `${ctx.col("links", "leaf")} text` : ""}
 );${addExtraColumns(links, extras)}
-${ctx.has("links", "versionId") ? `alter table ${links} add column if not exists ${ctx.col("links", "versionId")} uuid;\n` : ""}${full && ctx.has("links", "createdAt") ? `alter table ${links} add column if not exists ${ctx.col("links", "createdAt")} timestamptz not null default now();\n` : ""}${ctx.has("links", "useCount") ? `alter table ${links} add column if not exists ${ctx.col("links", "useCount")} integer not null default 0;\n` : ""}${lockTable(links, { read: true })}
+${ctx.has("links", "versionId") ? `alter table ${links} add column if not exists ${ctx.col("links", "versionId")} uuid;\n` : ""}${full && ctx.has("links", "createdAt") ? `alter table ${links} add column if not exists ${ctx.col("links", "createdAt")} timestamptz not null default now();\n` : ""}${ctx.has("links", "useCount") ? `alter table ${links} add column if not exists ${ctx.col("links", "useCount")} integer not null default 0;\n` : ""}${ctx.has("links", "lastUsedAt") ? `alter table ${links} add column if not exists ${ctx.col("links", "lastUsedAt")} timestamptz;\n` : ""}${lockTable(links, { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("links").name}_subject_idx`)} on ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")});
 ${
   ctx.hasTable("views")
@@ -477,7 +526,7 @@ begin
   }
 ${allowedCheck(ctx)}
   ${subjectCheck(ctx)}
-  ${versionCheck(ctx)}
+  ${versionCheck(ctx)}${singleRevoke(ctx)}
   insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "role")}, ${ctx.col("links", "expiresAt")}, ${ctx.col("links", "maxUses")}, ${ctx.col("links", "createdBy")}${pinned ? `, ${ctx.col("links", "versionId")}` : ""})
   values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, ${hashed ? `coalesce(create_share_link.token_hash, ${sha256Hex("convert_to(v_token, 'utf8')")})` : sha256Hex("convert_to(v_token, 'utf8')")}, coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid()${pinned ? ", create_share_link.version_id" : ""})
   returning ${ctx.col("links", "id")} into v_id;${writeExtraColumns(links, extras, "create_share_link.fields", `x.${linkId} = v_id`)}
@@ -552,11 +601,10 @@ begin
   if not found then
     return null;
   end if;${
-    ctx.has("links", "useCount")
-      ? `
-  update ${links} set ${ctx.col("links", "useCount")} = ${ctx.col("links", "useCount")} + 1
-  where ${ctx.col("links", "id")} = v_link.${ctx.col("links", "id")};`
-      : ""
+    touchShareLink(ctx, `v_link.${ctx.col("links", "id")}`) === ""
+      ? ""
+      : `
+  ${touchShareLink(ctx, `v_link.${ctx.col("links", "id")}`)}`
   }
   return jsonb_build_object('id', v_link.${ctx.col("links", "id")}, 'organizationId', v_link.${ctx.col("links", "tenant")}, 'subjectType', v_link.${ctx.col("links", "subjectType")}, 'subjectId', v_link.${ctx.col("links", "subjectId")}, 'role', v_link.${ctx.col("links", "role")}, 'versionId', ${pinned ? `v_link.${ctx.col("links", "versionId")}` : "null"}, 'expiresAt', v_link.${ctx.col("links", "expiresAt")}, 'maxUses', v_link.${ctx.col("links", "maxUses")});
 end;

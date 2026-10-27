@@ -4,6 +4,7 @@ import type { RefreshOptions } from "./refresh.ts";
 import type { StoredSession } from "./session.ts";
 
 import { dbError } from "../core/errors.ts";
+import { isRecord } from "../core/guards.ts";
 import { err, ok } from "../core/result.ts";
 
 const DEFAULT_TIMEOUT_MS = 5000;
@@ -267,11 +268,35 @@ export async function pkceGrant(
 /** The Auth endpoints that email the user a link to `redirect_to`. */
 export type EmailFlowPath = "otp" | "recover" | "signup" | "resend";
 
+/** A sign-up for an email that already has an account. */
+export interface ExistingAccount {
+  readonly existingAccount: true;
+}
+
+/** Whether an `emailFlow` result is `{ existingAccount: true }`. */
+export function isExistingAccount(
+  value: StoredSession | ExistingAccount,
+): value is ExistingAccount {
+  return "existingAccount" in value;
+}
+
+/**
+ * Auth answers a sign-up for a confirmed email with a stand-in user that has no
+ * identities, and sends no email.
+ */
+function isStandInUser(body: Readonly<Record<string, unknown>>): boolean {
+  const user = isRecord(body["user"]) ? body["user"] : body;
+  const identities = user["identities"];
+
+  return Array.isArray(identities) && identities.length === 0;
+}
+
 /**
  * Starts an email flow (magic link or code, password reset, sign-up, resend)
  * with a PKCE `challenge`, so the link lands on `redirectTo` with a `?code=`
  * that `pkceGrant` exchanges. Returns the session a sign-up starts when email
- * confirmation is off, else `null`.
+ * confirmation is off, `{ existingAccount: true }` for a sign-up whose email
+ * already has an account, else `null`.
  */
 export async function emailFlow(
   path: EmailFlowPath,
@@ -281,7 +306,7 @@ export async function emailFlow(
     readonly challenge: string;
   },
   options: PasswordGrantOptions,
-): Promise<Result<StoredSession | null>> {
+): Promise<Result<StoredSession | ExistingAccount | null>> {
   const what = path === "signup" ? "Sign-up" : "Email request";
 
   const sent = await authPost(
@@ -295,9 +320,13 @@ export async function emailFlow(
     what,
   );
 
-  return sent.ok && typeof sent.data["access_token"] !== "string"
-    ? ok(null)
-    : sessionFrom(sent, options, what);
+  if (!sent.ok || typeof sent.data["access_token"] === "string") {
+    return sessionFrom(sent, options, what);
+  }
+
+  return path === "signup" && isStandInUser(sent.data)
+    ? ok({ existingAccount: true })
+    : ok(null);
 }
 
 /**

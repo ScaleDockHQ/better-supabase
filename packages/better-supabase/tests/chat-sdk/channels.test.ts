@@ -322,6 +322,8 @@ describe("inboundHandler", () => {
             setTimeout(resolve, 1);
           }).then(() => {
             finished = true;
+
+            return true;
           }),
         );
 

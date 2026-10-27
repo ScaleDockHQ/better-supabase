@@ -251,6 +251,8 @@ export function createQueue<const Q extends QueueSchemas>(
               if (!extended.ok || !extended.data) {
                 controller.abort(LEASE_LOST);
               }
+
+              return extended;
             });
           }
         })

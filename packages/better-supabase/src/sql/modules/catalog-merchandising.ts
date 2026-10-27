@@ -1,11 +1,146 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { Names } from "./catalog-functions.ts";
 
-import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { fail, userGrant } from "../shared.ts";
-import { SLUG, amountOf, guard } from "./catalog-functions.ts";
+import { SLUG, amountOf, catalogRank, guard } from "./catalog-functions.ts";
+
+/**
+ * The price functions when the catalog has no prices table: a variant's price
+ * is a column on the variant, its product's price column is the fallback, and
+ * the price is in the product's currency. There are no price lists, compare-at
+ * amounts or validity windows, and a price's id is its variant's.
+ */
+function variantPriceFunctions(ctx: BlockSqlContext, names: Names): string {
+  const { fn } = names;
+  const variants = ctx.table("variants");
+  const products = ctx.table("products");
+  const v = (column: string): string => ctx.col("variants", column);
+  const p = (column: string): string => ctx.col("products", column);
+
+  if (!ctx.has("variants", "price") || !ctx.has("products", "currency")) {
+    throw new TypeError(
+      "blocks.catalog.tables.prices: null keeps prices on the variants, so columns.variants.price and columns.products.currency can't be null",
+    );
+  }
+
+  const amount = ctx.has("products", "price")
+    ? `coalesce(v.${v("price")}, p.${p("price")})`
+    : `v.${v("price")}`;
+
+  return `
+-- Sets a variant's price, in minor units of its product's currency, in the
+-- variant's price column.
+create or replace function ${fn("set_price")}(variant uuid, currency text, amount text, compare_at text, price_list uuid, valid_from timestamptz, valid_until timestamptz)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+  v_currency text;
+  v_amount bigint := ${amountOf("set_price.amount")};
+  v_previous bigint;
+begin
+  select x.${v("tenant")}, x.${v("price")}, p.${p("currency")}::text into v_tenant, v_previous, v_currency
+  from ${variants} x join ${products} p on p.${p("id")} = x.${v("product")}
+  where x.${v("id")} = set_price.variant for update of x;
+  if v_tenant is null then
+    ${fail("CATALOG_VARIANT_NOT_FOUND", "variant not found", "P0002")}
+  end if;
+  ${guard(names, "v_tenant")}
+  if upper(set_price.currency) is distinct from v_currency then
+    ${fail("CATALOG_CURRENCY_INVALID", "a variant is priced in its product's currency", "22023")}
+  end if;
+  if v_amount is null then
+    ${fail("CATALOG_AMOUNT_INVALID", "the amount must be a whole number of minor units", "22023")}
+  end if;
+  if set_price.compare_at is not null then
+    ${fail("CATALOG_COMPARE_AT_INVALID", "this catalog has no compare-at amounts", "22023")}
+  end if;
+  if set_price.price_list is not null then
+    ${fail("CATALOG_PRICE_LIST_NOT_FOUND", "this catalog has no price lists", "P0002")}
+  end if;
+  if set_price.valid_from is not null or set_price.valid_until is not null then
+    ${fail("CATALOG_VALIDITY_INVALID", "this catalog has no validity windows", "22023")}
+  end if;
+  ${ctx.hook("before_price_set", [
+    ["uuid", "set_price.variant"],
+    ["text", "set_price.currency"],
+    ["bigint", "v_amount"],
+    ["uuid", "set_price.price_list"],
+  ])}
+  update ${variants} x set ${v("price")} = v_amount, ${v("updatedAt")} = now() where x.${v("id")} = set_price.variant;
+  if v_previous is distinct from v_amount then
+    ${ctx.record({
+      type: "catalog.price_changed",
+      payload: `jsonb_build_object('organizationId', v_tenant, 'id', set_price.variant, 'variantId', set_price.variant, 'priceListId', null, 'currency', v_currency, 'amount', v_amount::text, 'previousAmount', v_previous::text)`,
+      subject: `'prices/' || set_price.variant::text`,
+      tenant: "v_tenant",
+      audit: false,
+    })}
+  end if;
+  ${ctx.hook("after_price_set", [
+    ["uuid", "set_price.variant"],
+    ["bigint", "v_previous"],
+  ])}
+  return jsonb_build_object('id', set_price.variant, 'amount', v_amount::text, 'previousAmount', v_previous::text);
+end;
+$$;
+${userGrant(`${fn("set_price")}(uuid, text, text, text, uuid, timestamptz, timestamptz)`)}
+
+-- Clears a variant's own price (price is the variant's id), so it falls
+-- back to its product's.
+create or replace function ${fn("delete_price")}(price uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+begin
+  select x.${v("tenant")} into v_tenant from ${variants} x where x.${v("id")} = delete_price.price and x.${v("price")} is not null;
+  if v_tenant is null then
+    return false;
+  end if;
+  ${guard(names, "v_tenant")}
+  update ${variants} x set ${v("price")} = null, ${v("updatedAt")} = now() where x.${v("id")} = delete_price.price;
+  return true;
+end;
+$$;
+${userGrant(`${fn("delete_price")}(uuid)`)}
+
+-- The price a variant sells at in a currency: its own price, else its
+-- product's, when the currency is the product's. Runs as the caller.
+create or replace function ${fn("variant_price")}(variant uuid, currency text, price_list uuid default null, as_of timestamptz default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'id', v.${v("id")},
+    'variantId', v.${v("id")},
+    'currency', p.${p("currency")}::text,
+    'amount', ${amount}::text,
+    'compareAt', null,
+    'priceListId', null
+  )
+  from ${variants} v join ${products} p on p.${p("id")} = v.${v("product")}
+  where v.${v("id")} = $1 and p.${p("currency")}::text = upper($2) and ${amount} is not null
+$$;
+revoke execute on function ${fn("variant_price")}(uuid, text, uuid, timestamptz) from public;
+grant execute on function ${fn("variant_price")}(uuid, text, uuid, timestamptz) to anon, authenticated, service_role;
+`;
+}
 
 export function priceFunctions(ctx: BlockSqlContext, names: Names): string {
+  if (!ctx.hasTable("prices")) {
+    return variantPriceFunctions(ctx, names);
+  }
+
   const { fn } = names;
   const variants = ctx.table("variants");
   const prices = ctx.table("prices");
@@ -260,6 +395,7 @@ export function categoryFunctions(ctx: BlockSqlContext, names: Names): string {
   }
 
   const { fn } = names;
+  const rank = catalogRank(ctx);
   const categories = ctx.table("categories");
   const k = (column: string): string => ctx.col("categories", column);
 
@@ -347,11 +483,11 @@ begin
   ${cycle("v_id", "save_category.parent")}
   begin
     if v_id is null then
-      select max(x.${k("rank")} collate "C") into v_last from ${categories} x
+      select max(${rank.order(`x.${k("rank")}`)}) into v_last from ${categories} x
       where x.${k("tenant")} = save_category.tenant and x.${k("parent")} is not distinct from save_category.parent;
-      v_rank := ${rankAfter("v_last")};
+      v_rank := ${rank.after("v_last")};
       insert into ${categories} (${k("tenant")}, ${k("parent")}, ${k("name")}, ${k("slug")}, ${k("description")}, ${k("rank")})
-      values (save_category.tenant, save_category.parent, save_category.name, v_slug, save_category.description, v_rank)
+      values (save_category.tenant, save_category.parent, save_category.name, v_slug, save_category.description, ${rank.write("v_rank")})
       returning ${k("id")} into v_id;
     else
       update ${categories} x set ${k("parent")} = save_category.parent, ${k("name")} = save_category.name, ${k("slug")} = v_slug,
@@ -381,7 +517,7 @@ as $$
 declare
   v_tenant ${ctx.idType};
 begin
-  if move_category.rank is null or move_category.rank !~ ${RANK_KEY_PATTERN} then
+  if move_category.rank is null or move_category.rank !~ ${rank.pattern} then
     ${fail("CATALOG_RANK_INVALID", "not a rank key", "22023")}
   end if;
   select x.${k("tenant")} into v_tenant from ${categories} x where x.${k("id")} = move_category.category for update;
@@ -393,7 +529,7 @@ begin
     ${fail("CATALOG_CATEGORY_NOT_FOUND", "parent category not found", "P0002")}
   end if;
   ${cycle("move_category.category", "move_category.parent")}
-  update ${categories} x set ${k("parent")} = move_category.parent, ${k("rank")} = move_category.rank, ${k("updatedAt")} = now()
+  update ${categories} x set ${k("parent")} = move_category.parent, ${k("rank")} = ${rank.write("move_category.rank")}, ${k("updatedAt")} = now()
   where x.${k("id")} = move_category.category;
   return true;
 end;
@@ -436,6 +572,7 @@ export function collectionFunctions(
   }
 
   const { fn } = names;
+  const rank = catalogRank(ctx);
   const collections = ctx.table("collections");
   const k = (column: string): string => ctx.col("collections", column);
 
@@ -474,15 +611,15 @@ begin
   if not exists (select 1 from ${products} x where x.${p("id")} = add_to_collection.product and x.${p("tenant")} = v_tenant) then
     ${fail("CATALOG_PRODUCT_NOT_FOUND", "product not found", "P0002")}
   end if;
-  if v_rank is not null and v_rank !~ ${RANK_KEY_PATTERN} then
+  if v_rank is not null and v_rank !~ ${rank.pattern} then
     ${fail("CATALOG_RANK_INVALID", "not a rank key", "22023")}
   end if;
   if v_rank is null then
-    select max(x.${e("rank")} collate "C") into v_last from ${entries} x where x.${e("collection")} = add_to_collection.collection;
-    v_rank := ${rankAfter("v_last")};
+    select max(${rank.order(`x.${e("rank")}`)}) into v_last from ${entries} x where x.${e("collection")} = add_to_collection.collection;
+    v_rank := ${rank.after("v_last")};
   end if;
   insert into ${entries} as x (${e("tenant")}, ${e("collection")}, ${e("product")}, ${e("rank")})
-  values (v_tenant, add_to_collection.collection, add_to_collection.product, v_rank)
+  values (v_tenant, add_to_collection.collection, add_to_collection.product, ${rank.write("v_rank")})
   on conflict (${e("collection")}, ${e("product")}) do update set ${e("rank")} = excluded.${e("rank")};
   return v_rank;
 end;

@@ -11,6 +11,8 @@ export {
   type LeaveRequest,
   type LeaveRequestInput,
   type LeaveRequestListOptions,
+  type LeaveFeed,
+  type LeaveFeedEntry,
   type LeaveStatus,
   type LeaveType,
   type LeaveTypeInput,

@@ -303,6 +303,8 @@ function SaveTaskViewDialog({ query }: { query: TaskQuery }) {
                 setName("");
                 setOpen(false);
               }
+
+              return result;
             });
           }}
         >

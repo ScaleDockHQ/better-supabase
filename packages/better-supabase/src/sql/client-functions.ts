@@ -83,7 +83,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   donations:
     "archive_donation_fund create_pledge due_pledge_installments get_gift issue_gift_receipt issue_yearly_receipt list_donation_funds list_donation_receipts list_gifts list_pledges open_gift record_gift record_gift_payment save_donation_fund update_pledge void_donation_receipt yearly_giving_summary",
   drive:
-    "drive_create_folder drive_delete drive_get drive_grants drive_list drive_move drive_path drive_rename drive_share drive_shared drive_unshare",
+    "drive_create_folder drive_delete drive_get drive_grants drive_hold drive_list drive_move drive_path drive_release_hold drive_rename drive_share drive_shared drive_unshare",
   employees:
     "add_employee_contract create_employee employee_contracts employee_private_details offboard_employee org_chart reports_of save_employee_private_details update_employees",
   enrichment:
@@ -119,7 +119,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   invitations:
     "accept_invitation accept_invitation_by_id decline_invitation decline_invitation_by_id invitation_preview invite_member my_invitations resend_invitation revoke_invitation update_invitation",
   invoices:
-    "create_invoice credit_invoice invoice_aging issue_invoice record_invoice_payment set_invoice_lines void_invoice write_off_invoice",
+    "add_invoice_charge create_invoice credit_invoice invoice_aging issue_invoice record_invoice_payment set_invoice_lines void_invoice write_off_invoice",
   knowledge:
     "create_knowledge_document delete_knowledge_document fail_knowledge_document get_knowledge_document knowledge_search list_knowledge_documents pending_knowledge_chunks pending_knowledge_documents reembed_knowledge set_knowledge_embeddings write_knowledge_chunks",
   "lead-scoring": "lead_fields score_lead score_leads_due",
@@ -216,7 +216,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   templates:
     "fork_template publish_template_version record_template_application remove_template save_template save_template_draft set_default_template sync_templates template_applications_list template_apply_target template_get template_versions_list templates_list",
   "time-tracking":
-    "delete_time_entry get_timesheet list_time_entries list_timesheets log_time reopen_timesheet running_timer start_timer stop_timer submit_timesheet update_time_entry",
+    "delete_time_entry get_timesheet list_time_entries list_timesheets log_time reopen_timesheet running_timer running_timers start_timer stop_timer submit_timesheet update_time_entry",
   timeline: "list_activity record_activity",
   trash: "list_trash purge_trash restore_trash trash",
   usage:

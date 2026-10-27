@@ -895,6 +895,46 @@ describe("auth flows", () => {
     expect(sessionToken()).toBeUndefined();
   });
 
+  it("tells the app when a sign-up hits an existing account, without saying so in an error", async () => {
+    const { bsb } = setup(() =>
+      Response.json({
+        id: "00000000-0000-4000-8000-000000000000",
+        email: "a@b.test",
+        identities: [],
+      }),
+    );
+
+    const signed = await bsb.signUp({
+      email: "a@b.test",
+      password: "pw",
+      redirectTo: CALLBACK,
+    });
+
+    expect(signed).toEqual({
+      ok: true,
+      data: { existingAccount: true },
+      error: null,
+    });
+    expect(mocks.jar.get(VERIFIER)?.value ?? "").toBe("");
+    expect(sessionToken()).toBeUndefined();
+
+    const fresh = setup(() =>
+      Response.json({
+        id: USER,
+        email: "a@b.test",
+        identities: [{ provider: "email" }],
+      }),
+    );
+
+    expect(
+      await fresh.bsb.signUp({
+        email: "a@b.test",
+        password: "pw",
+        redirectTo: CALLBACK,
+      }),
+    ).toEqual({ ok: true, data: null, error: null });
+  });
+
   it("commits the session a sign-up returns when confirmation is off", async () => {
     const token = await signer.sign({ sub: USER, email: "a@b.test" });
     const { bsb } = setup(() => tokens(token));

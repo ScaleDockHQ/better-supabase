@@ -349,9 +349,13 @@ export function startLiveQuery(run: LiveQueryRun): () => void {
   );
 
   if (run.resumed) {
-    live.ready.then(
-      () => void invalidateTables(queryClient, live.tables),
-      () => undefined,
+    void live.ready.then(
+      () => {
+        void invalidateTables(queryClient, live.tables);
+
+        return true;
+      },
+      () => false,
     );
   }
 

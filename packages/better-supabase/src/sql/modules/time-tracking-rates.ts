@@ -1,12 +1,13 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { addCheck } from "../shared.ts";
 
 /**
  * The rate's currency is an uppercase three-letter code (the client checks it
- * against ISO 4217) and is set exactly when the rate is. Added once, so new and
- * upgraded tables carry the same named checks.
+ * against ISO 4217) and is set when the rate is; a currency without a rate is
+ * fine, such as an organization's default. Added once, so new and upgraded
+ * tables carry the same named checks.
  */
 export function rateChecks(ctx: BlockSqlContext): string {
   const entries = ctx.table("entries");
@@ -19,10 +20,11 @@ export function rateChecks(ctx: BlockSqlContext): string {
     name: `${name}_rate_currency_check`,
     expression: `${currency} is null or ${currency} ~ '^[A-Z]{3}$'`,
   })}
+alter table ${entries} drop constraint if exists ${sqlIdent(`${name}_rate_pair_check`)};
 ${addCheck({
   table: entries,
-  name: `${name}_rate_pair_check`,
-  expression: `(${rate} is null) = (${currency} is null)`,
+  name: `${name}_rate_needs_currency_check`,
+  expression: `${rate} is null or ${currency} is not null`,
 })}`;
 }
 

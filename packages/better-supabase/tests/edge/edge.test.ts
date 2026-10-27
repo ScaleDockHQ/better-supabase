@@ -102,6 +102,8 @@ describe("createEdge", () => {
     let done = false;
     void kept[0]!.then(() => {
       done = true;
+
+      return true;
     });
     await Promise.resolve();
     expect(done).toBe(false);

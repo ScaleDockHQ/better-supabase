@@ -8,6 +8,7 @@ import {
   withExtraFields,
   writeExtraColumns,
 } from "../shared.ts";
+import { variantTracked } from "./catalog-tracking.ts";
 
 export interface InventoryNames {
   /** The block's scope checks. */
@@ -151,7 +152,7 @@ export function strict(ctx: BlockSqlContext, variant: string): string {
   const catalog = ctx.of("catalog");
   const v = columns(catalog, "variants");
 
-  return `exists (select 1 from ${catalog.table("variants")} cv where cv.${v("id")} = ${variant} and cv.${v("trackInventory")} and not cv.${v("allowBackorder")})`;
+  return `exists (select 1 from ${catalog.table("variants")} cv where cv.${v("id")} = ${variant} and ${variantTracked(catalog, "cv")} and not cv.${v("allowBackorder")})`;
 }
 
 /**

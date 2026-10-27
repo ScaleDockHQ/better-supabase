@@ -1,9 +1,10 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
+import type { RankSql } from "../rank-sql.ts";
 import type { BlockSqlScope } from "../scope.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
-import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
+import { rankSql } from "../rank-sql.ts";
 import {
   columnsObject,
   extraFieldsArg,
@@ -85,6 +86,19 @@ export interface Names {
   readonly fn: (name: string) => string;
   readonly manage: string;
   readonly read: string;
+}
+
+/** `blocks.catalog.options.rankType`: rank keys or integer positions. */
+export function catalogRank(ctx: BlockSqlContext): RankSql {
+  const type = ctx.text("rankType", "text");
+
+  if (type !== "text" && type !== "integer") {
+    throw new TypeError(
+      'blocks.catalog.options.rankType must be "text" or "integer"',
+    );
+  }
+
+  return rankSql(type);
 }
 
 export function guard(names: Names, tenant: string): string {
@@ -284,6 +298,7 @@ export function optionFunctions(ctx: BlockSqlContext, names: Names): string {
   }
 
   const { fn } = names;
+  const rank = catalogRank(ctx);
   const products = ctx.table("products");
   const options = ctx.table("options");
   const values = ctx.table("optionValues");
@@ -325,9 +340,9 @@ begin
       if exists (select 1 from ${variants} x where x.${v("product")} = save_product_option.product) then
         ${fail("CATALOG_OPTION_HAS_VARIANTS", "add options before the product has variants", "22023")}
       end if;
-      select max(x.${o("rank")} collate "C") into v_last from ${options} x where x.${o("product")} = save_product_option.product;
+      select max(${rank.order(`x.${o("rank")}`)}) into v_last from ${options} x where x.${o("product")} = save_product_option.product;
       insert into ${options} (${o("tenant")}, ${o("product")}, ${o("name")}, ${o("rank")})
-      values (v_tenant, save_product_option.product, save_product_option.name, ${rankAfter("v_last")})
+      values (v_tenant, save_product_option.product, save_product_option.name, ${rank.write(rank.after("v_last"))})
       returning ${o("id")} into v_id;
     else
       update ${options} x set ${o("name")} = save_product_option.name
@@ -346,16 +361,16 @@ begin
   end;
   v_rank := null;
   foreach v_value in array save_product_option.option_values loop
-    v_rank := ${rankAfter("v_rank")};
-    update ${values} x set ${ov("rank")} = v_rank where x.${ov("option")} = v_id and x.${ov("value")} = v_value;
+    v_rank := ${rank.after("v_rank")};
+    update ${values} x set ${ov("rank")} = ${rank.write("v_rank")} where x.${ov("option")} = v_id and x.${ov("value")} = v_value;
     if not found then
       insert into ${values} (${ov("tenant")}, ${ov("option")}, ${ov("value")}, ${ov("rank")})
-      values (v_tenant, v_id, v_value, v_rank);
+      values (v_tenant, v_id, v_value, ${rank.write("v_rank")});
     end if;
   end loop;
   return jsonb_build_object(
     'id', v_id,
-    'values', (select coalesce(jsonb_agg(jsonb_build_object('id', x.${ov("id")}, 'value', x.${ov("value")}) order by x.${ov("rank")} collate "C"), '[]'::jsonb) from ${values} x where x.${ov("option")} = v_id)
+    'values', (select coalesce(jsonb_agg(jsonb_build_object('id', x.${ov("id")}, 'value', x.${ov("value")}) order by ${rank.order(`x.${ov("rank")}`)}), '[]'::jsonb) from ${values} x where x.${ov("option")} = v_id)
   );
 end;
 $$;
@@ -394,11 +409,19 @@ function variantFunctions(
   historyCheck: (variants: string, code: string) => string,
 ): string {
   const { fn } = names;
+  const rank = catalogRank(ctx);
   const products = ctx.table("products");
   const variants = ctx.table("variants");
   const p = (column: string): string => ctx.col("products", column);
   const v = (column: string): string => ctx.col("variants", column);
   const optional = (column: string): boolean => ctx.has("variants", column);
+
+  const tracking = optional("trackInventory")
+    ? ""
+    : `
+  if save_variant.track_inventory is not null then
+    ${fail("CATALOG_TRACK_INVENTORY_UNSUPPORTED", "this catalog tracks inventory per product, not per variant", "22023")}
+  end if;`;
 
   const hasValues =
     ctx.hasTable("variantValues") &&
@@ -414,7 +437,11 @@ function variantFunctions(
     ...(optional("weight")
       ? ([["weight", "save_variant.weight_grams"]] as const)
       : []),
-    ["trackInventory", "coalesce(save_variant.track_inventory, true)"],
+    ...(optional("trackInventory")
+      ? ([
+          ["trackInventory", "coalesce(save_variant.track_inventory, true)"],
+        ] as const)
+      : []),
     ["allowBackorder", "coalesce(save_variant.allow_backorder, false)"],
   ];
 
@@ -487,7 +514,7 @@ begin
   if v_tenant is null then
     ${fail("CATALOG_PRODUCT_NOT_FOUND", "product not found", "P0002")}
   end if;
-  ${guard(names, "v_tenant")}
+  ${guard(names, "v_tenant")}${tracking}
 ${valueChecks.check}
   ${ctx.hook("before_variant_save", [
     ["uuid", "save_variant.product"],
@@ -497,10 +524,10 @@ ${valueChecks.check}
   ])}
   begin
     if v_created then
-      select max(x.${v("rank")} collate "C") into v_last from ${variants} x where x.${v("product")} = save_variant.product;
-      v_rank := ${rankAfter("v_last")};
+      select max(${rank.order(`x.${v("rank")}`)}) into v_last from ${variants} x where x.${v("product")} = save_variant.product;
+      v_rank := ${rank.after("v_last")};
       insert into ${variants} (${v("tenant")}, ${v("product")}, ${columns.map(([column]) => v(column)).join(", ")}, ${v("rank")})
-      values (v_tenant, save_variant.product, ${columns.map(([, value]) => value).join(", ")}, v_rank)
+      values (v_tenant, save_variant.product, ${columns.map(([, value]) => value).join(", ")}, ${rank.write("v_rank")})
       returning ${v("id")} into v_id;
     else
       update ${variants} x set ${columns.map(([column, value]) => `${v(column)} = ${value}`).join(", ")}, ${v("updatedAt")} = now()
@@ -550,7 +577,7 @@ as $$
 declare
   v_tenant ${ctx.idType};
 begin
-  if rank_variant.rank is null or rank_variant.rank !~ ${RANK_KEY_PATTERN} then
+  if rank_variant.rank is null or rank_variant.rank !~ ${rank.pattern} then
     ${fail("CATALOG_RANK_INVALID", "not a rank key", "22023")}
   end if;
   select x.${v("tenant")} into v_tenant from ${variants} x where x.${v("id")} = rank_variant.variant;
@@ -558,7 +585,7 @@ begin
     ${fail("CATALOG_VARIANT_NOT_FOUND", "variant not found", "P0002")}
   end if;
   ${guard(names, "v_tenant")}
-  update ${variants} x set ${v("rank")} = rank_variant.rank, ${v("updatedAt")} = now() where x.${v("id")} = rank_variant.variant;
+  update ${variants} x set ${v("rank")} = ${rank.write("rank_variant.rank")}, ${v("updatedAt")} = now() where x.${v("id")} = rank_variant.variant;
   return true;
 end;
 $$;

@@ -82,6 +82,8 @@ export function TagInput({ customerId }: { readonly customerId: string }) {
             if (result.ok) {
               setName("");
             }
+
+            return result;
           })
         }
       />

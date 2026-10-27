@@ -105,9 +105,18 @@ export function PushOptIn() {
   });
 
   const read = () => {
-    currentState().then(setState, () => {
-      setState({ kind: "error" });
-    });
+    void currentState().then(
+      (state) => {
+        setState(state);
+
+        return state;
+      },
+      () => {
+        setState({ kind: "error" });
+
+        return null;
+      },
+    );
   };
 
   const check = () => {

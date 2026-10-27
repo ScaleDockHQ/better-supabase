@@ -3,7 +3,17 @@ import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 import { blockOptions, option } from "../options.ts";
 
 /** `blocks.expenses.options`. */
-export type ExpensesSqlOptions = { readonly extraColumns?: ExtraColumns };
+export type ExpensesSqlOptions = {
+  readonly extraColumns?: ExtraColumns;
+  /**
+   * `false` runs expenses without the approvals block: a submitted report waits
+   * until `decide_expense_report` approves or rejects it.
+   */
+  readonly approvals?: boolean;
+};
 
 export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
-  blockOptions<ExpensesSqlOptions>({ extraColumns: option.extraColumns() });
+  blockOptions<ExpensesSqlOptions>({
+    extraColumns: option.extraColumns(),
+    approvals: option.boolean({ default: true }),
+  });

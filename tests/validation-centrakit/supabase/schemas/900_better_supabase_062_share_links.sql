@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:c55e05748113c20dcbd330dbe066f5eeb1154be8eddd9cfb9b567413fd10acb9
+-- @bsb-hash sha256:49413fd5c8031545250acb3b83c635d3446a4392158b867a98f208b689948cb9
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -57,6 +57,7 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- centrakit.share_links is the app's table, and it has every column this block needs.
 alter table "centrakit"."share_links" add column if not exists "use_count" integer not null default 0;
+alter table "centrakit"."share_links" add column if not exists "last_used_at" timestamptz;
 alter table "centrakit"."share_links" enable row level security;
 grant select on "centrakit"."share_links" to authenticated;
 grant all on "centrakit"."share_links" to service_role;
@@ -196,8 +197,7 @@ begin
   if not found then
     return null;
   end if;
-  update "centrakit"."share_links" set "use_count" = "use_count" + 1
-  where "id" = v_link."id";
+  update "centrakit"."share_links" set "use_count" = "use_count" + 1, "last_used_at" = now() where "id" = v_link."id";
   return jsonb_build_object('id', v_link."id", 'organizationId', v_link."tenant_id", 'subjectType', v_link."subject_type", 'subjectId', v_link."subject_id", 'role', v_link."role", 'versionId', null, 'expiresAt', v_link."expires_at", 'maxUses', v_link."max_uses");
 end;
 $$;

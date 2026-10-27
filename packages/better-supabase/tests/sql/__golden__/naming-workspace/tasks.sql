@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:5cf5fbab47b3b63218455dc8b4d73f23ee319bae98f76efd2273c0d2b40968da
+-- @bsb-hash sha256:0705657d7d43cdb55ed11c28f7dca6c39f3529e6b45405180ea711ed2c4c1e9a
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -465,9 +465,6 @@ as $$
 declare
   v_row "better_supabase"."work_items";
   v_users uuid[] := array(select distinct x from unnest(coalesce(set_work_item_assignees.users, '{}')) x where x is not null);
-  v_new uuid[];
-  v_user uuid;
-  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -476,8 +473,6 @@ begin
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
   end if;
-  v_new := array(select x from unnest(v_users) x where x is distinct from auth.uid() and not exists (
-    select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
   delete from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
   insert into "better_supabase"."work_item_assignees" ("tenant_id", "work_item_id", "user_id")
   select v_row."tenant_id", v_row."id", x from unnest(v_users) x

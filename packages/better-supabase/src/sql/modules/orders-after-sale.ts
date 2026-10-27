@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 import type { OrdersNames } from "./orders-shared.ts";
 
 import { fail, serviceGrant, userGrant } from "../shared.ts";
+import { variantTracked } from "./catalog-tracking.ts";
 import { moveStock } from "./inventory-stock.ts";
 import {
   columns,
@@ -22,7 +23,7 @@ function restock(ctx: BlockSqlContext): string {
 
   return `
     if receive_return.restock and v_line.variant is not null and coalesce(receive_return.location, v_line.location) is not null
-      and exists (select 1 from ${catalog.table("variants")} cv where cv.${v("id")} = v_line.variant and cv.${v("trackInventory")}) then
+      and exists (select 1 from ${catalog.table("variants")} cv where cv.${v("id")} = v_line.variant and ${variantTracked(catalog, "cv")}) then
       perform ${moveStock(inventory, { tenant: "v_order.tenant", variant: "v_line.variant", location: "coalesce(receive_return.location, v_line.location)", quantity: "v_line.quantity", reason: "'return'", referenceType: "'order_return'", referenceId: "receive_return.return_id::text" })};
     end if;`;
 }

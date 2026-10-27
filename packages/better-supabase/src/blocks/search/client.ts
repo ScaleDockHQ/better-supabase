@@ -165,7 +165,7 @@ export function createCommandSearchController(
             })
             .then((result) => {
               if (request !== ticket) {
-                return;
+                return result;
               }
 
               if (result.ok) {
@@ -177,6 +177,8 @@ export function createCommandSearchController(
               }
 
               show();
+
+              return result;
             });
         }, debounceMs);
       };

@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@1 managed
--- @bsb-hash sha256:59d759b172c8aeb74277ce42059e1372e9351111c210f962bb548351527dde8b
+-- @bsb-hash sha256:087087e9893bd08ee043027801e9400c6e8c18f650f9636a5f52286741886670
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -135,7 +135,7 @@ begin
   values ('drive_node', v_node."id"::text, auth.uid(), now())
   on conflict ("subject_type", "subject_id", "user_id")
   do update set "last_opened_at" = now();
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (false or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
 end;
 $$;
 revoke execute on function "better_supabase"."drive_open"(uuid) from public, anon;
@@ -150,7 +150,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(t.node order by t.marked_at desc), '[]'::jsonb) from (
-    select ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"))) || jsonb_build_object('starredAt', s."starred_at", 'openedAt', s."last_opened_at") as node,
+    select ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"), 'readOnly', (false or false), 'held', "better_supabase"."drive_node_held"((x)."id"))) || jsonb_build_object('starredAt', s."starred_at", 'openedAt', s."last_opened_at") as node,
       case when drive_marked.recent then s."last_opened_at" else s."starred_at" end as marked_at
     from "centrakit"."subject_user_state" s
     join "centrakit"."file_node" x on x."id"::text = s."subject_id"

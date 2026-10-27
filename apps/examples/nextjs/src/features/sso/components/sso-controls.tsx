@@ -165,6 +165,8 @@ function ConfirmRemove({
                 if (done) {
                   setOpen(false);
                 }
+
+                return done;
               });
             }}
           >

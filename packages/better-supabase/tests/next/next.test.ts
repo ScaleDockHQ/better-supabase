@@ -759,6 +759,8 @@ describe("createNext", () => {
     let flushed = false;
     void Promise.resolve(mocks.after.mock.calls[0]![0]()).then(() => {
       flushed = true;
+
+      return true;
     });
     await Promise.resolve();
     expect(flushed).toBe(false);

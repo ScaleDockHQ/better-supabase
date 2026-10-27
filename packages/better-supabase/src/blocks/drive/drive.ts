@@ -4,7 +4,6 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { ApprovalStatus } from "../approvals/approvals.ts";
 import type {
@@ -26,14 +25,41 @@ import {
   blockCall,
   enumOrThrow,
   isRecord,
-  optionalInstant,
-  optionalText,
   recordOf,
   recordsOf,
-  requiredInstant,
   textOf,
 } from "../shared.ts";
 import { claimsUploads, claimUpload } from "../upload-claim.ts";
+import {
+  KINDS,
+  approvalOf,
+  batchOf,
+  binEntryOf,
+  connectionOf,
+  connectionsOf,
+  driveGrantOf,
+  driveOf,
+  drivesOf,
+  grantOf,
+  linkOf,
+  nodeOf,
+  nodesOf,
+  objectsOf,
+  revisionOf,
+  withFields,
+} from "./parse.ts";
+
+const noAttachments = () =>
+  dbError(
+    "invalid_request",
+    "createDrive needs the attachments block to download files",
+    { hint: "DRIVE_ATTACHMENTS_CLIENT" },
+  );
+
+const noStorage = () =>
+  dbError("invalid_request", "createDrive needs storage for files", {
+    hint: "DRIVE_STORAGE_CLIENT",
+  });
 
 export interface DriveOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -110,6 +136,20 @@ export interface DriveNode<F extends object = Record<never, never>> {
    * it.
    */
   readonly role: string | undefined;
+  /** The drive the node is in, with `blocks.drive.options.drives`. */
+  readonly driveId: string | undefined;
+  /** `internal`, or the provider of a connected drive's mirror. */
+  readonly source: string;
+  /** The provider's id, on a mirror of a connected drive. */
+  readonly externalId: string | undefined;
+  /** The provider's metadata, on a mirror of a connected drive. */
+  readonly externalMetadata: Readonly<Record<string, unknown>> | undefined;
+  /** Set while the node is under a legal hold. */
+  readonly legalHoldUntil: Temporal.Instant | undefined;
+  /** A mirror of an external account, which only the sync may change. */
+  readonly readOnly: boolean;
+  /** The node or something under it is under a legal hold. */
+  readonly held: boolean;
   readonly starredAt: Temporal.Instant | undefined;
   readonly openedAt: Temporal.Instant | undefined;
   /** The tags on the node, with the tags block installed. */
@@ -171,8 +211,67 @@ export interface DriveGrant {
   readonly inherited: boolean;
 }
 
+/** A drive of an organization, with the caller's role on it. */
+export interface DriveDrive {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly name: string;
+  /** One of `blocks.drive.options.driveKinds`. */
+  readonly kind: string;
+  readonly ownerId: string | undefined;
+  /** The external account this drive mirrors, with drives enabled. */
+  readonly connectionId: string | undefined;
+  readonly createdBy: string | undefined;
+  readonly createdAt: Temporal.Instant;
+  readonly updatedAt: Temporal.Instant | undefined;
+  readonly role: string | undefined;
+  /** A connected drive, which only the sync may change. */
+  readonly readOnly: boolean;
+}
+
+/** A drive-level grant, inherited by every node in the drive. */
+export interface DriveDriveGrant {
+  readonly id: string;
+  readonly driveId: string;
+  readonly principal: DrivePrincipal;
+  readonly role: string;
+  readonly expiresAt: Temporal.Instant | undefined;
+}
+
+/** An external account whose drive the organization mirrors. */
+export interface DriveConnection {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly userId: string | undefined;
+  /** One of `blocks.drive.options.sources`. */
+  readonly provider: string;
+  readonly name: string;
+  readonly status: string;
+  readonly syncCursor: string | undefined;
+  readonly lastSyncedAt: Temporal.Instant | undefined;
+  readonly lastSyncError: string | undefined;
+  readonly createdAt: Temporal.Instant;
+  readonly updatedAt: Temporal.Instant | undefined;
+}
+
+/** A new drive: a shared one, or a mirror of a connection. */
+export interface NewDrive {
+  readonly name: string;
+  /** One of `blocks.drive.options.driveKinds`; default the first. */
+  readonly kind?: string;
+  /** Default the caller; needs the manage permission to name another member. */
+  readonly ownerId?: string;
+  /** The connection to mirror; its user owns the drive. */
+  readonly connectionId?: string;
+}
+
 export interface NewDriveFolder<F extends object = Record<never, never>> {
   readonly parentId?: string | null;
+  /**
+   * The drive for a top-level folder, with `blocks.drive.options.drives`; a
+   * child folder stays in its parent's drive.
+   */
+  readonly driveId?: string | null;
   readonly name: string;
   readonly conflict?: DriveConflict;
   /** Values for `extraColumns`; unset ones are copied from the parent. */
@@ -270,6 +369,8 @@ export interface Drive<F extends object = Record<never, never>> {
     organizationId: string,
     options?: DrivePage & {
       readonly parentId?: string | null;
+      /** A top-level listing of one drive, with drives enabled. */
+      readonly driveId?: string | null;
       readonly skip?: number;
     },
   ): AsyncResult<readonly DriveNode<F>[]>;
@@ -289,7 +390,12 @@ export interface Drive<F extends object = Record<never, never>> {
   move(
     id: string,
     parentId: string | null,
-    options?: { readonly rank?: string; readonly conflict?: DriveConflict },
+    options?: {
+      readonly rank?: string;
+      readonly conflict?: DriveConflict;
+      /** The drive to move into when `parentId` is `null`. */
+      readonly driveId?: string | null;
+    },
   ): AsyncResult<DriveNode<F>>;
   /** Deletes the node and everything under it for good. */
   delete(id: string): AsyncResult<boolean>;
@@ -302,6 +408,39 @@ export interface Drive<F extends object = Record<never, never>> {
   unshare(id: string, principal: DrivePrincipal): AsyncResult<boolean>;
   /** The node's grants, inherited ones included. */
   grants(id: string): AsyncResult<readonly DriveGrant[]>;
+  /** Places a legal hold on the node and everything under it. */
+  hold(id: string, until: Temporal.Instant): AsyncResult<DriveNode<F>>;
+  releaseHold(id: string): AsyncResult<DriveNode<F>>;
+  /** The drives of an organization the caller can read. */
+  drives(
+    organizationId: string,
+    options?: DrivePage & { readonly skip?: number },
+  ): AsyncResult<readonly DriveDrive[]>;
+  drive(id: string): AsyncResult<DriveDrive>;
+  createDrive(organizationId: string, drive: NewDrive): AsyncResult<DriveDrive>;
+  renameDrive(id: string, name: string): AsyncResult<DriveDrive>;
+  /** Deletes the drive and every node in it; fails under a legal hold. */
+  deleteDrive(id: string): AsyncResult<boolean>;
+  shareDrive(
+    id: string,
+    principal: DrivePrincipal,
+    role: string,
+    options?: { readonly expiresAt?: Temporal.Instant },
+  ): AsyncResult<DriveDriveGrant>;
+  unshareDrive(id: string, principal: DrivePrincipal): AsyncResult<boolean>;
+  /** The drive's grants, which every node in it inherits. */
+  driveGrants(id: string): AsyncResult<readonly DriveDriveGrant[]>;
+  /** The caller's connections to external accounts, newest names last. */
+  connections(
+    organizationId: string,
+    options?: DrivePage,
+  ): AsyncResult<readonly DriveConnection[]>;
+  connect(
+    organizationId: string,
+    provider: string,
+    name: string,
+  ): AsyncResult<DriveConnection>;
+  disconnect(id: string): AsyncResult<boolean>;
   /**
    * Creates the file (or a revision, with `conflict: "replace"`) and a signed
    * upload URL.
@@ -388,327 +527,6 @@ export interface Drive<F extends object = Record<never, never>> {
   }): AsyncResult<readonly DriveStoredObject[]>;
 }
 
-const KINDS: readonly DriveNodeKind[] = ["folder", "file"];
-
-const APPROVAL_STATUSES: readonly ApprovalStatus[] = [
-  "pending",
-  "approved",
-  "rejected",
-  "cancelled",
-  "expired",
-];
-
-const PRINCIPALS: readonly DrivePrincipalType[] = ["user", "team", "role"];
-
-function fileOf(value: unknown): DriveFile | undefined {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  return {
-    mimeType: textOf(value["mimeType"]),
-    size: Number(value["size"]),
-    status: textOf(value["status"]),
-    uploadedAt: optionalInstant(value["uploadedAt"]),
-  };
-}
-
-function nodeOf(value: unknown, fn: string): DriveNode {
-  const row = recordOf(value, fn);
-
-  return {
-    id: textOf(row["id"]),
-    organizationId: textOf(row["organizationId"]),
-    parentId: optionalText(row["parentId"]) ?? null,
-    kind: enumOrThrow(row["kind"], KINDS, "drive node kind"),
-    name: textOf(row["name"]),
-    rank: optionalText(row["rank"]),
-    createdBy: optionalText(row["createdBy"]),
-    createdAt: requiredInstant(row["createdAt"], "createdAt"),
-    updatedAt: optionalInstant(row["updatedAt"]),
-    deletedAt: optionalInstant(row["deletedAt"]),
-    attachmentId: optionalText(row["attachmentId"]),
-    file: fileOf(row["file"]),
-    fields: isRecord(row["fields"]) ? row["fields"] : {},
-    role: optionalText(row["role"]),
-    starredAt: optionalInstant(row["starredAt"]),
-    openedAt: optionalInstant(row["openedAt"]),
-    labels: Array.isArray(row["labels"])
-      ? recordsOf(row["labels"], fn).map((label) => ({
-          id: textOf(label["id"]),
-          name: textOf(label["name"]),
-          color: optionalText(label["color"]),
-        }))
-      : undefined,
-    approval: isRecord(row["approval"])
-      ? approvalStateOf(row["approval"])
-      : undefined,
-  };
-}
-
-function approvalStateOf(
-  row: Readonly<Record<string, unknown>>,
-): DriveApprovalState {
-  return {
-    id: textOf(row["id"]),
-    status: enumOrThrow(row["status"], APPROVAL_STATUSES, "approval status"),
-    createdAt: requiredInstant(row["createdAt"], "createdAt"),
-    decidedAt: optionalInstant(row["decidedAt"]),
-  };
-}
-
-function approvalOf(value: unknown, fn: string): DriveApproval {
-  const row = recordOf(value, fn);
-  const revision = row["revision"];
-
-  return {
-    ...approvalStateOf(row),
-    attachmentId: textOf(row["attachmentId"]),
-    revision:
-      revision === null || revision === undefined
-        ? undefined
-        : Number(revision),
-    current: row["current"] === true,
-    step: Number(row["step"]),
-    reason: optionalText(row["reason"]),
-    requestedBy: optionalText(row["requestedBy"]),
-  };
-}
-
-const nodesOf = (value: unknown, fn: string): DriveNode[] =>
-  recordsOf(value, fn).map((row) => nodeOf(row, fn));
-
-function grantOf(value: unknown, fn: string): DriveGrant {
-  const row = recordOf(value, fn);
-
-  return {
-    id: textOf(row["id"]),
-    nodeId: textOf(row["nodeId"]),
-    principal: {
-      type: enumOrThrow(row["principalType"], PRINCIPALS, "principal type"),
-      id: textOf(row["principalId"]),
-    },
-    role: textOf(row["role"]),
-    expiresAt: optionalInstant(row["expiresAt"]),
-    inherited: row["inherited"] === true,
-  };
-}
-
-function batchOf(value: unknown, fn: string): DriveBatch {
-  const row = recordOf(value, fn);
-
-  return {
-    id: textOf(row["id"]),
-    batchId: textOf(row["batchId"]),
-    count: Number(row["count"]),
-  };
-}
-
-function revisionOf(value: unknown): DriveRevision {
-  const row = recordOf(value, "drive_revisions");
-
-  return {
-    id: textOf(row["id"]),
-    number: Number(row["number"]),
-    label: optionalText(row["label"]),
-    source: textOf(row["source"]),
-    attachmentId: textOf(row["attachmentId"]),
-    name: textOf(row["name"]),
-    mimeType: textOf(row["mimeType"]),
-    size: Number(row["size"]),
-    current: row["current"] === true,
-    createdBy: optionalText(row["createdBy"]),
-    createdAt: requiredInstant(row["createdAt"], "createdAt"),
-  };
-}
-
-function binEntryOf(value: unknown): DriveBinEntry {
-  const row = recordOf(value, "drive_bin");
-
-  return {
-    ...batchOf(row, "drive_bin"),
-    node: nodeOf(row["node"], "drive_bin"),
-    trashedBy: optionalText(row["trashedBy"]),
-    trashedAt: requiredInstant(row["trashedAt"], "trashedAt"),
-    purgeAfter: optionalInstant(row["purgeAfter"]),
-  };
-}
-
-function linkOf(value: unknown): DriveLinkView {
-  const row = recordOf(value, "drive_link");
-  const link = recordOf(row["link"], "drive_link");
-  const object = isRecord(row["object"]) ? row["object"] : undefined;
-
-  return {
-    link: {
-      id: textOf(link["id"]),
-      role: textOf(link["role"]),
-      nodeId: textOf(link["nodeId"]),
-      expiresAt: optionalInstant(link["expiresAt"]),
-    },
-    node: nodeOf(row["node"], "drive_link"),
-    children: Array.isArray(row["children"])
-      ? nodesOf(row["children"], "drive_link")
-      : undefined,
-    object:
-      object === undefined
-        ? undefined
-        : {
-            bucket: textOf(object["bucket"]),
-            path: textOf(object["path"]),
-            mimeType: textOf(object["mimeType"]),
-            status: textOf(object["status"]),
-          },
-  };
-}
-
-function objectsOf(value: unknown): DriveStoredObject[] {
-  return recordsOf(value, "drive_prune").map((row) => ({
-    bucket: textOf(row["bucket"]),
-    path: textOf(row["path"]),
-  }));
-}
-
-const noAttachments = () =>
-  dbError(
-    "invalid_request",
-    "createDrive needs the attachments block to download files",
-    { hint: "DRIVE_ATTACHMENTS_CLIENT" },
-  );
-
-const noStorage = () =>
-  dbError("invalid_request", "createDrive needs storage for files", {
-    hint: "DRIVE_STORAGE_CLIENT",
-  });
-
-/** The methods whose result holds nodes, which `fields` parses. */
-const NODE_METHODS = [
-  "createFolder",
-  "get",
-  "list",
-  "shared",
-  "rename",
-  "move",
-  "upload",
-  "uploadRevision",
-  "commit",
-  "restoreRevision",
-  "restore",
-  "bin",
-  "open",
-  "starred",
-  "recent",
-  "link",
-  "label",
-  "labeled",
-] as const satisfies readonly (keyof Drive)[];
-
-const isNode = (value: Readonly<Record<string, unknown>>): boolean =>
-  typeof value["kind"] === "string" &&
-  typeof value["organizationId"] === "string";
-
-/**
- * `value` with the `fields` of every node in it parsed: a node, a list, or `{
- * node, children }`.
- */
-async function parseNodes(
-  fields: BlockFields<object>,
-  value: unknown,
-): Promise<Result<unknown>> {
-  if (Array.isArray(value)) {
-    const out: unknown[] = [];
-
-    for (const item of value) {
-      const parsed = await parseNodes(fields, item);
-
-      if (!parsed.ok) {
-        return parsed;
-      }
-
-      out.push(parsed.data);
-    }
-
-    return ok(out);
-  }
-
-  if (!isRecord(value)) {
-    return ok(value);
-  }
-
-  const extra = value["fields"];
-
-  if (isNode(value) && isRecord(extra)) {
-    const parsed = await fields.read({ ...extra });
-
-    return parsed.ok ? ok({ ...value, fields: parsed.data }) : parsed;
-  }
-
-  const out: Record<string, unknown> = { ...value };
-
-  for (const key of ["node", "children"]) {
-    if (value[key] === undefined) {
-      continue;
-    }
-
-    const parsed = await parseNodes(fields, value[key]);
-
-    if (!parsed.ok) {
-      return parsed;
-    }
-
-    out[key] = parsed.data;
-  }
-
-  return ok(out);
-}
-
-/**
- * The client with `fields` applied: the extra fields of a new folder or file
- * are validated first, and every node it returns is parsed.
- */
-function withFields<F extends object>(
-  client: Drive,
-  fields: BlockFields<object>,
-): Drive<F> {
-  const out: Drive = { ...client };
-
-  for (const method of NODE_METHODS) {
-    // SAFETY: every listed method returns an AsyncResult; the arguments are
-    // passed through unchanged.
-    const original = client[method] as (
-      ...args: unknown[]
-    ) => AsyncResult<unknown>;
-
-    const wrapped = (...args: unknown[]): AsyncResult<unknown> => {
-      const input = args[1];
-
-      const extra =
-        (method === "createFolder" || method === "upload") && isRecord(input)
-          ? input["fields"]
-          : undefined;
-
-      const checked = isRecord(extra)
-        ? AsyncResult.from(() => fields.write({ ...extra })).map(() => true)
-        : AsyncResult.ok(true);
-
-      return checked
-        .andThen(() => original.apply(client, args))
-        .andThen((value) => parseNodes(fields, value));
-    };
-
-    Object.defineProperty(out, method, {
-      value: wrapped,
-      enumerable: true,
-      configurable: true,
-      writable: true,
-    });
-  }
-
-  // SAFETY: `out` has every member of `client`, and the node methods return
-  // the same shapes with `fields` parsed by the schema F describes.
-  return out as Drive<F>;
-}
-
 /** The `drive` SQL module as typed calls, as the caller. */
 const CLAIM_HINTS = {
   notUploaded: "ATTACHMENT_NOT_UPLOADED",
@@ -773,6 +591,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           name: folder.name,
           conflict: folder.conflict ?? null,
           fields: folder.fields ?? null,
+          drive: folder.driveId ?? null,
         },
         (value) => nodeOf(value, "drive_create_folder"),
       ),
@@ -784,6 +603,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         parent: list.parentId ?? null,
         page_size: list.pageSize ?? null,
         skip: list.skip ?? null,
+        drive: list.driveId ?? null,
       }),
     shared: (organizationId, list = {}) =>
       page("drive_shared", {
@@ -812,6 +632,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           parent: parentId,
           rank: move.rank ?? null,
           conflict: move.conflict ?? null,
+          drive: move.driveId ?? null,
         },
         (value) => nodeOf(value, "drive_move"),
       ),
@@ -845,6 +666,88 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           grantOf(row, "drive_grants"),
         ),
       ),
+    hold: (id, until) =>
+      call("drive_hold", { node: id, until: until.toString() }, (value) =>
+        nodeOf(value, "drive_hold"),
+      ),
+    releaseHold: (id) =>
+      call("drive_release_hold", { node: id }, (value) =>
+        nodeOf(value, "drive_release_hold"),
+      ),
+    drives: (organizationId, list = {}) =>
+      call(
+        "drive_list_drives",
+        {
+          tenant: organizationId,
+          page_size: list.pageSize ?? null,
+          skip: list.skip ?? null,
+        },
+        (value) => drivesOf(value, "drive_list_drives"),
+      ),
+    drive: (id) =>
+      call("drive_get_drive", { drive: id }, (value) =>
+        driveOf(value, "drive_get_drive"),
+      ),
+    createDrive: (organizationId, drive) =>
+      call(
+        "drive_create_drive",
+        {
+          tenant: organizationId,
+          name: drive.name,
+          kind: drive.kind ?? null,
+          owner: drive.ownerId ?? null,
+          connection: drive.connectionId ?? null,
+        },
+        (value) => driveOf(value, "drive_create_drive"),
+      ),
+    renameDrive: (id, name) =>
+      call("drive_rename_drive", { drive: id, name }, (value) =>
+        driveOf(value, "drive_rename_drive"),
+      ),
+    deleteDrive: (id) =>
+      call("drive_delete_drive", { drive: id }, (value) => value === true),
+    shareDrive: (id, principal, role, share = {}) =>
+      call(
+        "drive_share_drive",
+        {
+          drive: id,
+          principal_type: principal.type,
+          principal_id: principal.id,
+          role,
+          expires_at: share.expiresAt?.toString() ?? null,
+        },
+        (value) => driveGrantOf(value, "drive_share_drive"),
+      ),
+    unshareDrive: (id, principal) =>
+      call(
+        "drive_unshare_drive",
+        {
+          drive: id,
+          principal_type: principal.type,
+          principal_id: principal.id,
+        },
+        (value) => value === true,
+      ),
+    driveGrants: (id) =>
+      call("drive_grants_for_drive", { drive: id }, (value) =>
+        recordsOf(value, "drive_grants_for_drive").map((row) =>
+          driveGrantOf(row, "drive_grants_for_drive"),
+        ),
+      ),
+    connections: (organizationId, list = {}) =>
+      call(
+        "drive_list_connections",
+        { tenant: organizationId, page_size: list.pageSize ?? null },
+        (value) => connectionsOf(value, "drive_list_connections"),
+      ),
+    connect: (organizationId, provider, name) =>
+      call(
+        "drive_connect",
+        { tenant: organizationId, provider, name },
+        (value) => connectionOf(value, "drive_connect"),
+      ),
+    disconnect: (id) =>
+      call("drive_disconnect", { connection: id }, (value) => value === true),
     upload: (organizationId, file) =>
       withUploadUrl(() =>
         call(
@@ -857,6 +760,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
             size: file.size,
             conflict: file.conflict ?? null,
             fields: file.fields ?? null,
+            drive: file.driveId ?? null,
           },
           signed("drive_create_file"),
         ),

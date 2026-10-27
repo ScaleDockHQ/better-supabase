@@ -124,7 +124,7 @@ describe("time-tracking client", () => {
           note: "x",
         },
       ],
-      ["stop_timer", { tenant: "o" }],
+      ["stop_timer", { tenant: "o", entry: null }],
       ["running_timer", { tenant: "o" }],
     ]);
   });
@@ -481,7 +481,7 @@ describe("time-tracking client", () => {
     expect(fake.calls).toEqual([]);
     session.tenant = "o2";
     await time.stop().orThrow();
-    expect(fake.calls).toEqual([["stop_timer", { tenant: "o2" }]]);
+    expect(fake.calls).toEqual([["stop_timer", { tenant: "o2", entry: null }]]);
   });
 
   it("wraps its methods with hooks", async () => {
@@ -504,5 +504,31 @@ describe("time-tracking client", () => {
 
     await time.stop().orThrow();
     expect(seen).toEqual(["before"]);
+  });
+
+  it("stops one of several timers, lists them, resumes one and keeps a currency without a rate", async () => {
+    const fake = transport({
+      start_timer: () => RUNNING,
+      stop_timer: () => ENTRY,
+      running_timers: () => [RUNNING],
+      resume_timer: () => RUNNING,
+    });
+
+    const time = createTimeTracking({ transport: fake, tenant: "o" });
+    await time.start({ currency: "EUR" }).orThrow();
+    await time.stop("e2").orThrow();
+    const running = await time.runningAll().orThrow();
+    await time.resume("e2").orThrow();
+
+    expect(running.map((entry) => entry.id)).toEqual(["e2"]);
+    expect(fake.calls[0]?.[1]).toMatchObject({
+      rate: null,
+      rate_currency: "EUR",
+    });
+    expect(fake.calls.slice(1)).toEqual([
+      ["stop_timer", { tenant: "o", entry: "e2" }],
+      ["running_timers", { tenant: "o" }],
+      ["resume_timer", { entry: "e2" }],
+    ]);
   });
 });

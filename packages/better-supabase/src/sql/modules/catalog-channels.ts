@@ -4,7 +4,7 @@ import type { Names } from "./catalog-functions.ts";
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, lockTable, pageSize, userGrant } from "../shared.ts";
-import { SLUG, guard } from "./catalog-functions.ts";
+import { SLUG, catalogRank, guard } from "./catalog-functions.ts";
 
 const LOCALE = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
 
@@ -652,7 +652,7 @@ as $$
     'title', ${title},
     'description', ${description},
     'variants', coalesce((
-      select jsonb_agg(jsonb_build_object('id', w.${v("id")}, 'sku', w.${v("sku")}, 'title', ${variantText}) order by w.${v("rank")} collate "C", w.${v("id")})
+      select jsonb_agg(jsonb_build_object('id', w.${v("id")}, 'sku', w.${v("sku")}, 'title', ${variantText}) order by ${catalogRank(ctx).order(`w.${v("rank")}`)}, w.${v("id")})
       from ${variants} w where w.${v("product")} = p.${p("id")}
     ), '[]'::jsonb)
   )

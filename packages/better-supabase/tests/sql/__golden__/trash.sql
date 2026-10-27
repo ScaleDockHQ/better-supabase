@@ -1,8 +1,8 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
--- @bsb-block trash@2 managed
--- @bsb-hash sha256:64980596a65fae558631a77e7149ee8ad5a1d4f5c3bf74ee768421a6bbada884
--- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
+-- @bsb-block trash@3 managed
+-- @bsb-hash sha256:b8a663b81261873fcabc47f946facbfb194bf5bac867b7627ab9c219f2bd9107
+-- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -264,6 +264,9 @@ declare
   v_count integer := 0;
 begin
   for v_item in select * from "better_supabase"."trash_items" where "batch_id" = trash_purge_batch.batch order by "depth" desc loop
+    if (false) then
+      raise exception 'a record in this batch is under a legal hold' using errcode = '42501', hint = 'TRASH_HELD';
+    end if;
     null;
     null;
     v_count := v_count + 1;
@@ -310,10 +313,10 @@ declare
   v_count integer := 0;
 begin
   for v_batch in
-    select "batch_id" from "better_supabase"."trash_items"
-    where "depth" = 0 and "purge_after" <= now()
+    select t."batch_id" from "better_supabase"."trash_items" t
+    where t."depth" = 0 and t."purge_after" <= now()
       and not false
-    order by "purge_after"
+    order by t."purge_after"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
     v_count := v_count + "better_supabase"."trash_purge_batch"(v_batch);
@@ -394,22 +397,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block-data trash
--- @bsb-hash sha256:0b3c864fb75c0f3482f544f913b28028834bc74bccc8ffc9c3cd76d66738fe5e
+-- @bsb-hash sha256:24d0f2ecaf819874fb898f6b205c5f6c365b78955412bee3ada0390cce9376c4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('trash', 2, 'managed')
+values ('trash', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
--- @bsb-block trash@2 managed
--- @bsb-hash sha256:92d96e25db5d81fc752bbbf9849bab4d887458bae5dafc7ad1906732f98eb0ef
--- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
+-- @bsb-block trash@3 managed
+-- @bsb-hash sha256:3da8ad02e7098000af27ebbf1fcaae59b6bba03f946b0f70da3d77d8f9b87f62
+-- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -689,6 +692,9 @@ declare
   v_count integer := 0;
 begin
   for v_item in select * from "better_supabase"."trash_items" where "batch_id" = trash_purge_batch.batch order by "depth" desc loop
+    if (false) then
+      raise exception 'a record in this batch is under a legal hold' using errcode = '42501', hint = 'TRASH_HELD';
+    end if;
     null;
     perform "better_supabase".emit_event('subject.purged', jsonb_build_object('organizationId', v_item."tenant_id", 'subjectType', v_item."subject_type", 'subjectId', v_item."subject_id", 'id', v_item."id", 'batchId', v_item."batch_id"), 'trash-items/' || v_item."id"::text, (v_item."tenant_id")::text, null, 'better-supabase/trash');
   perform better_supabase.audit_event(
@@ -744,10 +750,10 @@ declare
   v_count integer := 0;
 begin
   for v_batch in
-    select "batch_id" from "better_supabase"."trash_items"
-    where "depth" = 0 and "purge_after" <= now()
-      and not "better_supabase"."is_held"('trash', ("tenant_id")::text)
-    order by "purge_after"
+    select t."batch_id" from "better_supabase"."trash_items" t
+    where t."depth" = 0 and t."purge_after" <= now()
+      and not "better_supabase"."is_held"('trash', (t."tenant_id")::text)
+    order by t."purge_after"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
     v_count := v_count + "better_supabase"."trash_purge_batch"(v_batch);
@@ -828,22 +834,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block-data trash
--- @bsb-hash sha256:0b3c864fb75c0f3482f544f913b28028834bc74bccc8ffc9c3cd76d66738fe5e
+-- @bsb-hash sha256:24d0f2ecaf819874fb898f6b205c5f6c365b78955412bee3ada0390cce9376c4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('trash', 2, 'managed')
+values ('trash', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
--- @bsb-block trash@2 managed
--- @bsb-hash sha256:c36bf8870a50a29109d675be66486f91aa7fcb2e378b81daf0849c0c79311725
--- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
+-- @bsb-block trash@3 managed
+-- @bsb-hash sha256:f781b53cceda130857e3b88a1094fdcde8bbdcbfd99681517e5718b11c7519d1
+-- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1110,6 +1116,9 @@ declare
   v_count integer := 0;
 begin
   for v_item in select * from "app_private"."trash_items" where "batch_id" = trash_purge_batch.batch order by "depth" desc loop
+    if (false) then
+      raise exception 'a record in this batch is under a legal hold' using errcode = '42501', hint = 'TRASH_HELD';
+    end if;
     null;
     null;
     v_count := v_count + 1;
@@ -1156,10 +1165,10 @@ declare
   v_count integer := 0;
 begin
   for v_batch in
-    select "batch_id" from "app_private"."trash_items"
-    where "depth" = 0 and "purge_after" <= now()
+    select t."batch_id" from "app_private"."trash_items" t
+    where t."depth" = 0 and t."purge_after" <= now()
       and not false
-    order by "purge_after"
+    order by t."purge_after"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
     v_count := v_count + "app_private"."trash_purge_batch"(v_batch);
@@ -1240,22 +1249,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block-data trash
--- @bsb-hash sha256:0b3c864fb75c0f3482f544f913b28028834bc74bccc8ffc9c3cd76d66738fe5e
+-- @bsb-hash sha256:24d0f2ecaf819874fb898f6b205c5f6c365b78955412bee3ada0390cce9376c4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('trash', 2, 'managed')
+values ('trash', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
--- @bsb-block trash@2 managed
--- @bsb-hash sha256:0ec4927716b2b595fcbf0d64e140177126a81d4e764cf843f1515cce855e40e5
--- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
+-- @bsb-block trash@3 managed
+-- @bsb-hash sha256:11de6b2c4414cd16056967a6c80fe69db6050aa9f2dc3aa75e344617b84ad432
+-- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1517,6 +1526,9 @@ declare
   v_count integer := 0;
 begin
   for v_item in select * from "better_supabase"."trash_items" where "batch_id" = trash_purge_batch.batch order by "depth" desc loop
+    if (false) then
+      raise exception 'a record in this batch is under a legal hold' using errcode = '42501', hint = 'TRASH_HELD';
+    end if;
     null;
     null;
     v_count := v_count + 1;
@@ -1563,10 +1575,10 @@ declare
   v_count integer := 0;
 begin
   for v_batch in
-    select "batch_id" from "better_supabase"."trash_items"
-    where "depth" = 0 and "purge_after" <= now()
+    select t."batch_id" from "better_supabase"."trash_items" t
+    where t."depth" = 0 and t."purge_after" <= now()
       and not false
-    order by "purge_after"
+    order by t."purge_after"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
     v_count := v_count + "better_supabase"."trash_purge_batch"(v_batch);
@@ -1725,22 +1737,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block-data trash
--- @bsb-hash sha256:0b3c864fb75c0f3482f544f913b28028834bc74bccc8ffc9c3cd76d66738fe5e
+-- @bsb-hash sha256:24d0f2ecaf819874fb898f6b205c5f6c365b78955412bee3ada0390cce9376c4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('trash', 2, 'managed')
+values ('trash', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
--- @bsb-block trash@2 managed
--- @bsb-hash sha256:6e8e3b382c976aa8d2716d48fb3e805ea7f42ea5fd47444eefd8726c962c2713
--- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
+-- @bsb-block trash@3 managed
+-- @bsb-hash sha256:38e55e4c7ffe73188dc9bf9a82c00b0765252b33d73baecb51f4f560214fef14
+-- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1999,6 +2011,9 @@ declare
   v_count integer := 0;
 begin
   for v_item in select * from "better_supabase"."trash_items" where "batch_id" = trash_purge_batch.batch order by "depth" desc loop
+    if (false) then
+      raise exception 'a record in this batch is under a legal hold' using errcode = '42501', hint = 'TRASH_HELD';
+    end if;
     null;
     null;
     v_count := v_count + 1;
@@ -2045,10 +2060,10 @@ declare
   v_count integer := 0;
 begin
   for v_batch in
-    select "batch_id" from "better_supabase"."trash_items"
-    where "depth" = 0 and "purge_after" <= now()
+    select t."batch_id" from "better_supabase"."trash_items" t
+    where t."depth" = 0 and t."purge_after" <= now()
       and not false
-    order by "purge_after"
+    order by t."purge_after"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
     v_count := v_count + "better_supabase"."trash_purge_batch"(v_batch);
@@ -2129,22 +2144,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block-data trash
--- @bsb-hash sha256:0b3c864fb75c0f3482f544f913b28028834bc74bccc8ffc9c3cd76d66738fe5e
+-- @bsb-hash sha256:24d0f2ecaf819874fb898f6b205c5f6c365b78955412bee3ada0390cce9376c4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('trash', 2, 'managed')
+values ('trash', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
--- @bsb-block trash@2 managed
--- @bsb-hash sha256:e4c095949d4c20769637245426be0f1a5f9fadc559eeedcdc58caf3ada7aa109
--- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
+-- @bsb-block trash@3 managed
+-- @bsb-hash sha256:284a3899006707c00e95c650b40cb48e427b960d264ba3f9f0cb29c616146eb3
+-- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2406,6 +2421,9 @@ declare
   v_count integer := 0;
 begin
   for v_item in select * from "better_supabase"."trash_items" where "batch_id" = trash_purge_batch.batch order by "depth" desc loop
+    if (false) then
+      raise exception 'a record in this batch is under a legal hold' using errcode = '42501', hint = 'TRASH_HELD';
+    end if;
     null;
     null;
     v_count := v_count + 1;
@@ -2452,10 +2470,10 @@ declare
   v_count integer := 0;
 begin
   for v_batch in
-    select "batch_id" from "better_supabase"."trash_items"
-    where "depth" = 0 and "purge_after" <= now()
+    select t."batch_id" from "better_supabase"."trash_items" t
+    where t."depth" = 0 and t."purge_after" <= now()
       and not false
-    order by "purge_after"
+    order by t."purge_after"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
     v_count := v_count + "better_supabase"."trash_purge_batch"(v_batch);
@@ -2536,13 +2554,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block-data trash
--- @bsb-hash sha256:0b3c864fb75c0f3482f544f913b28028834bc74bccc8ffc9c3cd76d66738fe5e
+-- @bsb-hash sha256:24d0f2ecaf819874fb898f6b205c5f6c365b78955412bee3ada0390cce9376c4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('trash', 2, 'managed')
+values ('trash', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

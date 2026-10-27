@@ -379,8 +379,9 @@ export default defineConfig({
       },
     },
     imports: { tables: { runs: "centrakit.import_runs" } },
-    // CentraKit keeps no attachment rows, sort keys or soft deletes on its
-    // tree, so the drive adopts the tree and grants and leaves uploads to it.
+    // CentraKit keeps no attachment rows, sort keys, soft deletes, drives,
+    // mirrors or legal holds on its tree, so the drive adopts the tree and
+    // grants and leaves uploads to it.
     drive: {
       tables: {
         nodes: "centrakit.file_node",
@@ -393,6 +394,11 @@ export default defineConfig({
           path: null,
           rank: null,
           deletedAt: null,
+          drive: null,
+          source: null,
+          externalId: null,
+          externalMetadata: null,
+          legalHoldUntil: null,
         },
         grants: {
           tenant: "organization_id",

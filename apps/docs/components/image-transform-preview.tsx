@@ -36,6 +36,8 @@ function CopyButton({ text, label }: { text: string; label: string }) {
           setTimeout(() => {
             setCopied(false);
           }, 1500);
+
+          return true;
         });
       }}
     >

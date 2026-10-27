@@ -2,6 +2,7 @@ export {
   createInvoices,
   type Invoice,
   type InvoiceAging,
+  type InvoiceCharge,
   type InvoiceInput,
   type InvoicePayment,
   type Invoices,

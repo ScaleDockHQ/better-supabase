@@ -212,6 +212,8 @@ export function BulkActionBar({
                   onClick={() => {
                     void run({ action: "delete" }).then(() => {
                       setConfirming(false);
+
+                      return true;
                     });
                   }}
                 >

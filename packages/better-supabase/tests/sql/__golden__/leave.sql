@@ -832,7 +832,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:d9e33000ab3f942fdd2a59375a4fd624bec4de8dc2676858cd4a07af732bb040
+-- @bsb-hash sha256:563b898c0738ec59ed994b7459f9ef32e004451f55d84020bcf5c22d0aacab5e
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1615,6 +1615,62 @@ end;
 $$;
 revoke execute on function "better_supabase"."cancel_leave_request"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_leave_request"(uuid) to authenticated, service_role;
+
+-- The approved leave of the organization a share link points at, for an
+-- iCal feed: a year back and everything ahead. Open to anon: the token is
+-- the credential, and the link's creator must still read everyone's leave.
+create or replace function "better_supabase"."leave_feed"(token text)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_link uuid;
+  v_tenant uuid;
+  v_creator uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if leave_feed.token is null or length(leave_feed.token) < 32 then
+    return null;
+  end if;
+  select l."id", l."tenant_id", l."created_by" into v_link, v_tenant, v_creator
+  from "better_supabase"."share_links" l
+  where l."token_hash" = encode(extensions.digest(convert_to(leave_feed.token, 'utf8'), 'sha256'), 'hex')
+    and l."subject_type" = 'leave_feed'
+    and l."revoked_at" is null
+    and (l."expires_at" is null or l."expires_at" > now())
+    and (l."max_uses" is null or l."use_count" < l."max_uses") and l."subject_id" = l."tenant_id"::text
+  for update;
+  if v_tenant is null or v_creator is null or not coalesce(better_supabase.can_user(v_creator, 'tenant', v_tenant, 'leave.read'), false) then
+    return null;
+  end if;
+  update "better_supabase"."share_links" set "use_count" = "use_count" + 1, "last_used_at" = now() where "id" = v_link;
+  return jsonb_build_object(
+    'organizationId', v_tenant,
+    'requests', coalesce((
+      select jsonb_agg(x.item order by x.starts_on, x.id)
+      from (
+        select jsonb_build_object('id', r."id", 'userId', r."user_id", 'typeId', r."type_id", 'type', t."name", 'unit', t."unit",
+          'startsOn', r."starts_on", 'endsOn', r."ends_on", 'partial', r."partial", 'amount', r."amount"::text, 'approvedAt', r."approved_at", 'updatedAt', r."updated_at") as item,
+          r."starts_on" as starts_on, r."id" as id
+        from "better_supabase"."leave_requests" r
+        join "better_supabase"."leave_types" t on t."id" = r."type_id"
+        where r."tenant_id" = v_tenant and r."approved_at" is not null and r."cancelled_at" is null
+          and r."ends_on" >= current_date - 366
+        order by r."starts_on", r."id"
+        limit 5000
+      ) x
+    ), '[]'::jsonb)
+  );
+end;
+$$;
+revoke all on function "better_supabase"."leave_feed"(text) from public;
+grant execute on function "better_supabase"."leave_feed"(text) to anon, authenticated, service_role;
 
 -- Requests that overlap a date range, earliest first: the caller's, or
 -- everyone's with the read permission.

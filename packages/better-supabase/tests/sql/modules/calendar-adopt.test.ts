@@ -287,6 +287,8 @@ declare
   v_attendee uuid;
   v_saved jsonb;
   v_token text;
+  v_old_token text;
+  v_link uuid;
   v_feed jsonb;
   v_hint text;
 begin
@@ -394,12 +396,26 @@ begin
     get stacked diagnostics v_hint = pg_exception_hint;
     if v_hint <> 'CALENDAR_FORBIDDEN' then raise; end if;
   end;
-  v_token := better_supabase.create_share_link('${TENANT}', 'calendar_user', '${ALICE}', 'view') ->> 'token';
+  v_saved := better_supabase.create_share_link('${TENANT}', 'calendar_user', '${ALICE}', 'view');
+  v_link := (v_saved ->> 'id')::uuid;
+  v_token := v_saved ->> 'token';
 
   ${ANON}
   v_feed := better_supabase.calendar_user_feed(v_token);
-  if jsonb_array_length(v_feed -> 'calendars') <> 2 or v_feed::text like '%Interview%' or v_feed::text not like '%Therapy%' then
+  if jsonb_array_length(v_feed -> 'calendars') <> 2 or v_feed::text like '%Interview%' or v_feed::text not like '%Therapy%'
+    or jsonb_array_length(v_feed -> 'events' -> 0 -> 'attendees') <> 1 then
     raise exception 'user feed %', v_feed;
+  end if;
+  if (select use_count from better_supabase.share_links where id = v_link) <> 1
+    or (select last_used_at from better_supabase.share_links where id = v_link) is null then
+    raise exception 'user feed access was not recorded';
+  end if;
+
+  ${as(ALICE)}
+  v_old_token := v_token;
+  v_token := better_supabase.create_share_link('${TENANT}', 'calendar_user', '${ALICE}', 'view') ->> 'token';
+  if better_supabase.calendar_user_feed(v_old_token) is not null then
+    raise exception 'the replaced user feed remained live';
   end if;
 
   ${as(BOB)}
@@ -417,14 +433,30 @@ begin
     get stacked diagnostics v_hint = pg_exception_hint;
     if v_hint <> 'SHARE_SUBJECT_NOT_FOUND' then raise; end if;
   end;
-  v_token := better_supabase.create_share_link('${TENANT}', 'calendar', v_team::text, 'view') ->> 'token';
+  begin
+    perform better_supabase.create_share_link('${TENANT}', 'calendar', v_team::text, 'view');
+    raise exception 'a calendar writer shared a team calendar';
+  exception when others then
+    get stacked diagnostics v_hint = pg_exception_hint;
+    if v_hint <> 'SHARE_SUBJECT_NOT_FOUND' then raise; end if;
+  end;
 
   ${as(OWNER)}
-  v_token := better_supabase.create_share_link('${TENANT}', 'calendar', v_team::text, 'view') ->> 'token';
+  v_old_token := better_supabase.create_share_link('${TENANT}', 'calendar', v_team::text, 'view') ->> 'token';
+  v_saved := better_supabase.create_share_link('${TENANT}', 'calendar', v_team::text, 'view');
+  v_link := (v_saved ->> 'id')::uuid;
+  v_token := v_saved ->> 'token';
   ${ANON}
+  if better_supabase.calendar_feed(v_old_token) is not null then
+    raise exception 'the replaced calendar feed remained live';
+  end if;
   v_feed := better_supabase.calendar_feed(v_token);
   if v_feed::text like '%Interview%' then
     raise exception 'team feed leaks a private event %', v_feed;
+  end if;
+  if (select use_count from better_supabase.share_links where id = v_link) <> 1
+    or (select last_used_at from better_supabase.share_links where id = v_link) is null then
+    raise exception 'calendar feed access was not recorded';
   end if;
 
   ${as(ALICE)}

@@ -215,4 +215,255 @@ $$;`,
       ),
     ).resolves.toBeUndefined();
   });
+
+  it("keeps the app's totals, a customer and contact foreign key, a quote origin, charges and numbering by issue date", async () => {
+    const app = `
+create table public.customers (id uuid primary key, org_id uuid not null);
+create table public.customer_contacts (id uuid primary key, org_id uuid not null);
+create table public.quotes (id uuid primary key, org_id uuid not null);
+create type public.invoice_state as enum ('draft', 'sent', 'overdue', 'paid', 'canceled', 'uncollectible');
+create table public.invoices (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null,
+  kind text not null default 'invoice',
+  number bigint,
+  formatted_number text,
+  original_invoice_id uuid references public.invoices (id),
+  title text not null,
+  customer_id uuid not null references public.customers (id) on delete restrict,
+  customer_contact_id uuid references public.customer_contacts (id) on delete set null,
+  source_quote_id uuid references public.quotes (id) on delete set null,
+  currency text not null default 'EUR',
+  status public.invoice_state not null default 'draft',
+  due_days integer not null default 14,
+  issued_on date,
+  due_on date,
+  subtotal_excl_cents bigint not null default 0,
+  vat_total_cents bigint not null default 0,
+  total_incl_cents bigint not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create table public.invoice_lines (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null,
+  invoice_id uuid not null references public.invoices (id) on delete cascade,
+  title text not null,
+  quantity numeric(14, 4) not null default 1,
+  unit_price_cents bigint not null default 0,
+  vat_bps integer not null default 0,
+  position integer not null default 0
+);
+create table public.invoice_charges (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null,
+  invoice_id uuid not null references public.invoices (id) on delete cascade,
+  amount_cents bigint not null check (amount_cents > 0),
+  reason text,
+  created_at timestamptz not null default now()
+);
+-- The app's own totals: VAT per rate on the summed lines, rounded once.
+create function public.recompute_invoice_totals() returns trigger language plpgsql as $f$
+declare
+  v_invoice uuid := coalesce(new.invoice_id, old.invoice_id);
+begin
+  update public.invoices i set
+    subtotal_excl_cents = coalesce((select sum(round(l.quantity * l.unit_price_cents)) from public.invoice_lines l where l.invoice_id = v_invoice), 0),
+    vat_total_cents = coalesce((select sum(round(s.net * s.vat_bps / 10000.0)) from (
+      select l.vat_bps, sum(l.quantity * l.unit_price_cents) as net from public.invoice_lines l where l.invoice_id = v_invoice group by l.vat_bps) s), 0),
+    total_incl_cents = 0
+  where i.id = v_invoice;
+  update public.invoices i set total_incl_cents = i.subtotal_excl_cents + i.vat_total_cents where i.id = v_invoice;
+  return null;
+end;
+$f$;
+create trigger invoice_lines_totals after insert or update or delete on public.invoice_lines
+  for each row execute function public.recompute_invoice_totals();
+`;
+
+    const modules: AnyBlocksConfig = {
+      invoices: {
+        tables: {
+          invoices: "public.invoices",
+          lines: "public.invoice_lines",
+          charges: "public.invoice_charges",
+        },
+        columns: {
+          invoices: {
+            tenant: "org_id",
+            identifier: "formatted_number",
+            original: "original_invoice_id",
+            termsDays: "due_days",
+            subtotal: "subtotal_excl_cents",
+            taxTotal: "vat_total_cents",
+            total: "total_incl_cents",
+            listTotal: null,
+            discountTotal: null,
+            companyType: null,
+            companyId: "customer_id",
+            contactType: null,
+            contactId: "customer_contact_id",
+            originType: null,
+            originId: "source_quote_id",
+            voidReason: null,
+            note: null,
+            depositBps: null,
+            createdBy: null,
+          },
+          lines: {
+            tenant: "org_id",
+            parent: "invoice_id",
+            description: "title",
+            unitAmount: "unit_price_cents",
+            taxRateBps: "vat_bps",
+            productType: null,
+            productId: null,
+            discountBps: null,
+            taxCode: null,
+            createdAt: null,
+          },
+          charges: {
+            tenant: "org_id",
+            invoice: "invoice_id",
+            amount: "amount_cents",
+            description: "reason",
+            createdBy: null,
+            currency: null,
+          },
+        },
+        values: {
+          invoices: {
+            status: {
+              issued: ["sent", "overdue"],
+              partially_paid: ["sent"],
+              void: "canceled",
+            },
+          },
+        },
+        options: {
+          company: "customer",
+          contact: "customer_contact",
+          totals: "app",
+        },
+      },
+      numbering: {
+        options: {
+          entities: { invoice: { period: "year", format: "{yyyy}-{n}" } },
+        },
+      },
+    };
+
+    const files = renderBlocks(["invoices", "numbering"], {
+      modules,
+      subjects: {
+        customer: {
+          table: "public.customers",
+          idType: "uuid",
+          tenant: "org_id",
+        },
+        customer_contact: {
+          table: "public.customer_contacts",
+          idType: "uuid",
+          tenant: "org_id",
+        },
+      },
+      ownTables: {
+        "public.invoices": "app.sql",
+        "public.invoice_lines": "app.sql",
+        "public.invoice_charges": "app.sql",
+      },
+    });
+
+    const check = `insert into public.customers values ('22222222-2222-4222-8222-222222222222', '${TENANT}');
+insert into public.customer_contacts values ('33333333-3333-4333-8333-333333333333', '${TENANT}');
+insert into public.quotes values ('44444444-4444-4444-8444-444444444444', '${TENANT}');
+do $$
+declare
+  v_invoice jsonb;
+  v_id uuid;
+begin
+  ${SERVICE}
+  v_invoice := better_supabase.create_invoice('${TENANT}', jsonb_build_object(
+    'title', 'Repair', 'currency', 'EUR',
+    'company', jsonb_build_object('type', 'customer', 'id', '22222222-2222-4222-8222-222222222222'),
+    'contact', jsonb_build_object('id', '33333333-3333-4333-8333-333333333333'),
+    'origin', jsonb_build_object('type', 'quote', 'id', '44444444-4444-4444-8444-444444444444')),
+    '[{"description": "Part", "quantity": 1, "unitAmount": "1003", "taxRateBps": 2100},
+      {"description": "Part", "quantity": 1, "unitAmount": "1003", "taxRateBps": 2100}]'::jsonb);
+  v_id := (v_invoice ->> 'id')::uuid;
+  if (select customer_id from public.invoices where id = v_id) <> '22222222-2222-4222-8222-222222222222'
+    or (select customer_contact_id from public.invoices where id = v_id) <> '33333333-3333-4333-8333-333333333333'
+    or (select source_quote_id from public.invoices where id = v_id) <> '44444444-4444-4444-8444-444444444444' then
+    raise exception 'parties %', v_invoice;
+  end if;
+  if v_invoice ->> 'company_type' <> 'customer' or v_invoice ->> 'origin_type' <> 'quote' then
+    raise exception 'read back %', v_invoice;
+  end if;
+  -- The app rounds VAT once per rate: 2006 * 21% = 421.26, so 421, not 2 * 211.
+  if (select total_incl_cents from public.invoices where id = v_id) <> 2427 or (v_invoice ->> 'total')::bigint <> 2427 then
+    raise exception 'totals %', v_invoice;
+  end if;
+  v_invoice := better_supabase.issue_invoice(v_id, date '2025-12-31');
+  if v_invoice ->> 'identifier' <> '2025-1' then
+    raise exception 'numbered %', v_invoice;
+  end if;
+  v_invoice := better_supabase.add_invoice_charge(v_id, 4000, 'EUR', 'Collection costs');
+  if (v_invoice ->> 'balance')::bigint <> 6427 or (v_invoice ->> 'charged_total')::bigint <> 4000 then
+    raise exception 'charged %', v_invoice;
+  end if;
+  v_invoice := better_supabase.record_invoice_payment(v_id, 2427, 'EUR', now(), 'bank', 'tx-1');
+  if (select status::text from public.invoices where id = v_id) <> 'sent' or (v_invoice ->> 'balance')::bigint <> 4000 then
+    raise exception 'paid the total only %', v_invoice;
+  end if;
+  if (better_supabase.invoice_aging('${TENANT}', 'EUR', current_date) ->> 'outstanding')::bigint <> 4000 then
+    raise exception 'aging %', better_supabase.invoice_aging('${TENANT}', 'EUR', current_date);
+  end if;
+  v_invoice := better_supabase.record_invoice_payment(v_id, 4000, 'EUR', now(), 'bank', 'tx-2');
+  if (select status::text from public.invoices where id = v_id) <> 'paid' then
+    raise exception 'paid %', v_invoice;
+  end if;
+end;
+$$;`;
+
+    await using stack = await liteStack({
+      driver: "pglite",
+      migrations: [
+        ROLES,
+        app,
+        ...files
+          .filter((file) => file.kind !== "data")
+          .map((file) => file.contents),
+      ],
+      seed: [
+        ...files
+          .filter((file) => file.kind === "data")
+          .map((file) => file.contents),
+        check,
+      ],
+    });
+
+    expect(stack.url).not.toBe("");
+  });
+
+  it("leaves the totals trigger out when the app owns the totals", () => {
+    const sql = renderBlocks(["invoices"], {
+      modules: { invoices: { options: { totals: "app" } } },
+    })
+      .filter((file) => file.module === "invoices")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).not.toContain("create trigger bsb_invoice_lines_totals_insert");
+    expect(sql).toContain(
+      "drop trigger if exists bsb_invoice_lines_totals_insert",
+    );
+    expect(sql).not.toContain(
+      'create or replace function "better_supabase"."set_invoice_lines_recount"',
+    );
+    expect(() =>
+      renderBlocks(["invoices"], {
+        modules: { invoices: { options: { totals: "lines" } } },
+      }),
+    ).toThrow(/totals/);
+  });
 });

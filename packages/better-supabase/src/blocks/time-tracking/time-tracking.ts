@@ -94,6 +94,11 @@ export interface TimeEntryFields<F extends object = Record<never, never>> {
   readonly billable?: boolean;
   /** The hourly rate, in minor units of its currency. */
   readonly rate?: Money;
+  /**
+   * The currency to store without a rate, such as the organization's default
+   * when the app's currency column can't be empty. A rate's currency wins.
+   */
+  readonly currency?: string;
   readonly note?: string;
   /** The extra columns to set. */
   readonly fields?: Partial<F>;
@@ -198,9 +203,20 @@ export interface TimeTracking<F extends object = Record<never, never>> {
    * one that runs.
    */
   start(fields?: TimeEntryFields<F>): AsyncResult<TimeEntry<F>>;
-  stop(): AsyncResult<TimeEntry<F>>;
-  /** The caller's running timer. */
+  /**
+   * Stops the caller's timer: `entryId`'s with `options.timers: "many"`, else
+   * the newest running one.
+   */
+  stop(entryId?: string): AsyncResult<TimeEntry<F>>;
+  /** The caller's running timer, the newest when several run. */
   running(): AsyncResult<TimeEntry<F> | undefined>;
+  /** Every timer the caller has running, newest first. */
+  runningAll(): AsyncResult<readonly TimeEntry<F>[]>;
+  /**
+   * Runs a stopped entry again from now, over a table with a duration column:
+   * it keeps its start and time, and the next stop adds the new segment.
+   */
+  resume(entryId: string): AsyncResult<TimeEntry<F>>;
   /** Records a finished entry, on `input.subject` when set. */
   log(input: LogTimeInput<F>): AsyncResult<TimeEntry<F>>;
   update(entryId: string, patch: TimeEntryPatch<F>): AsyncResult<TimeEntry<F>>;
@@ -389,7 +405,7 @@ export function createTimeTracking<
                 subject_id: entry.subject?.id ?? null,
                 billable: entry.billable ?? false,
                 rate: entry.rate === undefined ? null : amountText(entry.rate),
-                rate_currency: entry.rate?.currency ?? null,
+                rate_currency: entry.rate?.currency ?? entry.currency ?? null,
                 note: entry.note ?? null,
                 fields: checked,
               },
@@ -398,12 +414,26 @@ export function createTimeTracking<
           ),
       );
     },
-    stop: () =>
+    stop: (entryId) =>
       tenant().andThen((organizationId) =>
-        call("stop_timer", { tenant: organizationId }, (value) =>
-          entryOf(value, "stop_timer"),
+        call(
+          "stop_timer",
+          { tenant: organizationId, entry: entryId ?? null },
+          (value) => entryOf(value, "stop_timer"),
         ).andThen(fields.row),
       ),
+    runningAll: () =>
+      tenant().andThen((organizationId) =>
+        call("running_timers", { tenant: organizationId }, (value) =>
+          recordsOf(value, "running_timers").map((row) =>
+            entryOf(row, "running_timers"),
+          ),
+        ).andThen(fields.rows),
+      ),
+    resume: (entryId) =>
+      call("resume_timer", { entry: entryId }, (value) =>
+        entryOf(value, "resume_timer"),
+      ).andThen(fields.row),
     running: () =>
       tenant().andThen((organizationId) =>
         call("running_timer", { tenant: organizationId }, (value) =>
@@ -435,7 +465,7 @@ export function createTimeTracking<
                 subject_id: input.subject?.id ?? null,
                 billable: input.billable ?? false,
                 rate: input.rate === undefined ? null : amountText(input.rate),
-                rate_currency: input.rate?.currency ?? null,
+                rate_currency: input.rate?.currency ?? input.currency ?? null,
                 note: input.note ?? null,
                 user_id: input.userId ?? null,
                 ...optional("employee_id", input.employeeId),

@@ -76,7 +76,15 @@ export function moduleContext(
       ...providerGuests(layout),
       ...(modules?.permissions?.model === "provider" &&
       layout.accessProvider?.functions.rowsWith !== undefined
-        ? { providerRowsWith: layout.accessProvider.functions.rowsWith }
+        ? {
+            providerRowsWith: layout.accessProvider.functions.rowsWith,
+            ...(layout.accessProvider.functions.rowsWithFor === undefined
+              ? {}
+              : {
+                  providerRowsWithFor:
+                    layout.accessProvider.functions.rowsWithFor,
+                }),
+          }
         : {}),
       integrations(module) {
         const definition = registry().modules[module];

@@ -89,6 +89,27 @@ export type LeavePartial = "full" | "morning" | "afternoon" | "hours";
 
 export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled";
 
+/** One approved request in a leave feed. */
+export interface LeaveFeedEntry {
+  readonly id: string;
+  readonly userId: string;
+  readonly typeId: string;
+  /** The leave type's name. */
+  readonly type: string;
+  readonly startsOn: Temporal.PlainDate;
+  /** Inclusive. */
+  readonly endsOn: Temporal.PlainDate;
+  readonly partial: LeavePartial;
+  readonly amount: number;
+  readonly updatedAt: Temporal.Instant;
+}
+
+/** What a leave feed share link reads. */
+export interface LeaveFeed {
+  readonly organizationId: string;
+  readonly requests: readonly LeaveFeedEntry[];
+}
+
 /** A leave request. `F` types the extra columns the `fields` schema describes. */
 export interface LeaveRequest<F extends object = Record<never, never>> {
   readonly id: string;
@@ -225,6 +246,22 @@ export interface Leave<F extends object = Record<never, never>> {
    * `leave.manage` any time.
    */
   cancel(requestId: string): AsyncResult<LeaveRequest<F>>;
+  /**
+   * Approves or rejects a pending request when leave runs without the approvals
+   * block (`options.approvals: false`). Needs `leave.approve`, and the
+   * requester can't decide their own.
+   */
+  decide(
+    requestId: string,
+    decision: { readonly approved: boolean; readonly note?: string },
+  ): AsyncResult<LeaveRequest<F>>;
+  /**
+   * The approved leave behind a `leave_feed` share link (subject id: the
+   * organization's id), a year back and everything ahead, for an iCal feed.
+   * `null` for an unknown or revoked token, or when the link's creator can no
+   * longer read everyone's leave.
+   */
+  feed(token: string): AsyncResult<LeaveFeed | null>;
   /** Earliest first. */
   list(
     organizationId: string,
@@ -454,6 +491,39 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
       call("cancel_leave_request", { request_id: requestId }, (value) =>
         requestOf(value, "cancel_leave_request"),
       ).andThen(fields.row),
+    decide: (requestId, decision) =>
+      call(
+        "decide_leave_request",
+        {
+          request_id: requestId,
+          approved: decision.approved,
+          note: decision.note ?? null,
+        },
+        (value) => requestOf(value, "decide_leave_request"),
+      ).andThen(fields.row),
+    feed: (token) =>
+      call("leave_feed", { token }, (value) => {
+        if (value === null || value === undefined) {
+          return null;
+        }
+
+        const row = recordOf(value, "leave_feed");
+
+        return {
+          organizationId: textOf(row["organizationId"]),
+          requests: recordsOf(row["requests"], "leave_feed").map((entry) => ({
+            id: textOf(entry["id"]),
+            userId: textOf(entry["userId"]),
+            typeId: textOf(entry["typeId"]),
+            type: textOf(entry["type"]),
+            startsOn: dateOf(entry["startsOn"]),
+            endsOn: dateOf(entry["endsOn"]),
+            partial: enumOrThrow(entry["partial"], PARTIALS, "leave partial"),
+            amount: decimal(entry["amount"]),
+            updatedAt: requiredInstant(entry["updatedAt"], "updatedAt"),
+          })),
+        };
+      }),
     list: (organizationId, list = {}) =>
       call(
         "list_leave_requests",

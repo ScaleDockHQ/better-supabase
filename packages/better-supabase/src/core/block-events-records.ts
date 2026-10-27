@@ -222,6 +222,7 @@ export interface InvoiceEventData extends SubjectEventData {
   readonly amount?: string;
   readonly balance?: string;
   readonly creditNoteId?: string;
+  readonly chargeId?: string;
   readonly reason?: string | null;
 }
 

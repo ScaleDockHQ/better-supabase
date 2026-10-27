@@ -1425,6 +1425,9 @@
             "type": "string",
             "description": "The soft-delete column."
           },
+          "held": {
+            "type": "string"
+          },
           "search": {
             "type": "object",
             "properties": {
@@ -3984,6 +3987,7 @@
                 "type": "boolean",
                 "default": false
               },
+              "feed": {},
               "recurrence": {
                 "type": "string",
                 "default": "inline"
@@ -4030,6 +4034,10 @@
                   "type": "string"
                 },
                 "default": ["en"]
+              },
+              "rankType": {
+                "type": "string",
+                "default": "text"
               }
             }
           }
@@ -4490,6 +4498,24 @@
                 "type": "string",
                 "default": "fail"
               },
+              "drives": {
+                "type": "boolean",
+                "default": false
+              },
+              "driveKinds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["shared"]
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["google-drive", "onedrive"]
+              },
               "extraColumns": {
                 "type": "object",
                 "additionalProperties": {
@@ -4618,6 +4644,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "approvals": {
+                "type": "boolean",
+                "default": true
               }
             }
           }
@@ -4993,6 +5023,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "totals": {
+                "type": "string",
+                "default": "block"
               }
             }
           }
@@ -5108,6 +5142,11 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "feed": {},
+              "approvals": {
+                "type": "boolean",
+                "default": true
               }
             }
           }
@@ -6418,6 +6457,14 @@
               "owner": {
                 "type": "string",
                 "default": "user"
+              },
+              "overlap": {
+                "type": "string",
+                "default": "refuse"
+              },
+              "timers": {
+                "type": "string",
+                "default": "one"
               }
             }
           }

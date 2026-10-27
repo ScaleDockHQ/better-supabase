@@ -590,4 +590,25 @@ describe("expense report fields", () => {
       error: { kind: "validation" },
     });
   });
+
+  it("decides a report without the approvals block", async () => {
+    const fake = fakeTransport({
+      decide_expense_report: { ...REPORT, status: "rejected" },
+    });
+
+    const expenses = createExpenses({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    const decided = await expenses
+      .decide("rep-1", { approved: false, note: "receipt missing" })
+      .orThrow();
+
+    expect(fake.calls[0]).toEqual([
+      "decide_expense_report",
+      { report_id: "rep-1", approved: false, note: "receipt missing" },
+    ]);
+    expect(decided.status).toBe("rejected");
+  });
 });

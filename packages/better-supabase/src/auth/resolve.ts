@@ -674,8 +674,8 @@ export function prefetchJwks(options: ResolveAuthOptions): Promise<void> {
     { token: PREFETCH_TOKEN, apikey: null },
     { auth: ["user"], env: serverEnv(options) },
   ).then(
-    () => {},
-    () => {},
+    () => void 0,
+    () => void 0,
   );
 }
 

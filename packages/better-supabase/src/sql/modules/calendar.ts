@@ -39,7 +39,7 @@ import {
   addDate,
   eventGuards,
 } from "./calendar-features.ts";
-import { feed } from "./calendar-feed.ts";
+import { calendarFeed, feed } from "./calendar-feed.ts";
 import { CALENDAR_NAMES } from "./calendar-names.ts";
 import {
   eventExtras,
@@ -969,8 +969,9 @@ const CONTRIBUTES: BlockContributes = {
         subject: "calendar",
         exists: (subject) =>
           features.access
-            ? `exists (select 1 from ${own.table("calendars")} s where ${k("id")}::text = ${subject.id} and ${k("tenant")}::text = ${subject.tenant}::text and ${accessCall(own, k("id"), "read")})`
+            ? `exists (select 1 from ${own.table("calendars")} s where ${k("id")}::text = ${subject.id} and ${k("tenant")}::text = ${subject.tenant}::text and ${accessCall(own, k("id"), "share")})`
             : shareLinkRow(own, "calendars", subject),
+        single: calendarFeed(own).single,
       },
       ...(features.userFeed
         ? [
@@ -981,6 +982,7 @@ const CONTRIBUTES: BlockContributes = {
                 readonly tenant: string;
               }) =>
                 `(${subject.id} = auth.uid()::text and ${own.scope.can(subject.tenant, read)})`,
+              single: calendarFeed(own).single,
             },
           ]
         : []),

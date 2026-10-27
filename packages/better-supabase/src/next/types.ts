@@ -6,6 +6,7 @@ import type { AuthState } from "../auth/resolve.ts";
 import type { CookieScope } from "../auth/session.ts";
 import type {
   AuthorizeUrlParams,
+  ExistingAccount,
   OtpParams,
   SignOutScope,
 } from "../auth/sign-in.ts";
@@ -569,12 +570,15 @@ export interface BetterNext<
    * Signs up with an email and a password. With email confirmation on, it
    * emails the confirmation link with the PKCE verifier cookie and returns
    * `null`. With it off, Auth returns a session, committed like
-   * `signInWithPassword`.
+   * `signInWithPassword`. When the email already has a confirmed account, Auth
+   * sends nothing and this returns `{ existingAccount: true }`, so the app can
+   * email the owner itself. Show the user the same screen either way, so the
+   * page doesn't tell who has an account.
    */
   signUp(
     params: SignUpParams,
     options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn | null>>;
+  ): Promise<ActionResult<SignedIn | ExistingAccount | null>>;
   /**
    * Emails the sign-up confirmation or the email change link again, with a new
    * PKCE verifier cookie.

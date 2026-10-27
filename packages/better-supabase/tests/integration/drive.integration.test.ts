@@ -34,12 +34,60 @@ const MODULES = [
   "drive",
 ];
 
+/**
+ * Drives create their own tables, so a drives-on install goes into a scratch
+ * schema: the seeded `better_supabase.drive_nodes` is the single-tree shape.
+ */
+const DRIVES_LAYOUT: BlockSqlLayout = {
+  subjects: {
+    drive_node: {
+      table: "drive_it.drive_nodes",
+      idType: "uuid",
+      tenant: "tenant_id",
+      title: "name",
+      deletedAt: "deleted_at",
+      held: "legal_hold_until",
+      permissions: { read: "drive.read", write: "drive.manage" },
+    },
+  },
+  modules: {
+    drive: { schema: "drive_it", options: { drives: true } },
+    "drive-files": { schema: "drive_it" },
+  },
+};
+
 interface Node {
   readonly id: string;
   readonly name: string;
   readonly kind: string;
   readonly parentId: string | null;
   readonly role?: string;
+}
+
+interface DriveRow {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: string;
+  readonly ownerId: string | null;
+  readonly connectionId: string | null;
+  readonly role?: string;
+  readonly readOnly: boolean;
+}
+
+interface DriveNodeRow extends Node {
+  readonly driveId: string | null;
+  readonly source: string | null;
+  readonly externalId: string | null;
+  readonly externalMetadata: Record<string, unknown> | null;
+  readonly held: boolean;
+  readonly readOnly: boolean;
+}
+
+interface ConnectionRow {
+  readonly id: string;
+  readonly provider: string;
+  readonly name: string;
+  readonly status: string;
 }
 
 describe.skipIf(!live)("drive", () => {
@@ -612,6 +660,579 @@ describe.skipIf(!live)("drive", () => {
 
       await s.value("better_supabase.drive_trash($1)", [specs.id]);
       expect(await search("release")).toEqual([]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("creates drives, shares them, holds subtrees and mirrors connections", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(MODULES, DRIVES_LAYOUT);
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const tenant = await s.organization(owner, { member });
+
+      await s.asRole(owner);
+
+      const team = await s.value<DriveRow>(
+        "drive_it.drive_create_drive($1, 'Team', 'shared')",
+        [tenant],
+      );
+
+      expect(team).toMatchObject({
+        name: "Team",
+        kind: "shared",
+        role: "owner",
+        readOnly: false,
+        connectionId: null,
+      });
+      expect(
+        await s.hint(
+          "select drive_it.drive_create_drive($1, 'team', 'shared')",
+          [tenant],
+        ),
+      ).toBe("DRIVE_NAME_CONFLICT");
+      expect(
+        await s.hint(
+          "select drive_it.drive_create_drive($1, 'Personal', 'personal')",
+          [tenant],
+        ),
+      ).toBe("DRIVE_KIND_INVALID");
+      expect(
+        await s.hint("select drive_it.drive_create_folder($1, null, 'Loose')", [
+          tenant,
+        ]),
+      ).toBe("DRIVE_REQUIRED");
+      expect(
+        await s.hint(
+          "select drive_it.drive_create_folder($1, null, 'Loose', null, null, '00000000-0000-0000-0000-000000000001'::uuid)",
+          [tenant],
+        ),
+      ).toBe("DRIVE_NOT_FOUND");
+
+      const docs = await s.value<DriveNodeRow>(
+        "drive_it.drive_create_folder($1, null, 'Docs', null, null, $2)",
+        [tenant, team.id],
+      );
+
+      expect(docs).toMatchObject({
+        name: "Docs",
+        driveId: team.id,
+        role: "owner",
+        held: false,
+        readOnly: false,
+      });
+
+      const specs = await s.value<DriveNodeRow>(
+        "drive_it.drive_create_folder($1, $2, 'Specs')",
+        [tenant, docs.id],
+      );
+
+      expect(specs.driveId).toBe(team.id);
+
+      const temporary = await s.value<DriveRow>(
+        "drive_it.drive_create_drive($1, 'Temporary', 'shared')",
+        [tenant],
+      );
+
+      expect(
+        await s.value<boolean>("drive_it.drive_delete_drive($1)", [
+          temporary.id,
+        ]),
+      ).toBe(true);
+
+      await s.asRole(member);
+      expect(
+        await s.value<DriveRow[]>("drive_it.drive_list_drives($1)", [tenant]),
+      ).toEqual([]);
+      expect(await s.hint("select drive_it.drive_get($1)", [docs.id])).toBe(
+        "DRIVE_NOT_FOUND",
+      );
+      expect(
+        await s.hint("select drive_it.drive_create_folder($1, $2, 'Notes')", [
+          tenant,
+          docs.id,
+        ]),
+      ).toBe("DRIVE_NOT_FOUND");
+
+      await s.asRole(owner);
+
+      const shared = await s.value<{ role: string }>(
+        "drive_it.drive_share_drive($1, 'user', $2, 'viewer')",
+        [team.id, member.id],
+      );
+
+      expect(shared.role).toBe("viewer");
+
+      await s.asRole(member);
+
+      const listed = await s.value<DriveRow[]>(
+        "drive_it.drive_list_drives($1)",
+        [tenant],
+      );
+
+      expect(listed.map((drive) => [drive.name, drive.role])).toEqual([
+        ["Team", "viewer"],
+      ]);
+      expect(
+        await s.value<DriveNodeRow>("drive_it.drive_get($1)", [specs.id]),
+      ).toMatchObject({ role: "viewer", held: false });
+      expect(
+        await s.hint("select drive_it.drive_create_folder($1, $2, 'Notes')", [
+          tenant,
+          docs.id,
+        ]),
+      ).toBe("DRIVE_FORBIDDEN");
+      expect(
+        await s.hint(
+          "select drive_it.drive_create_folder($1, null, 'Root', null, null, $2)",
+          [tenant, team.id],
+        ),
+      ).toBe("DRIVE_FORBIDDEN");
+      expect(
+        await s.hint("select drive_it.drive_rename_drive($1, 'Renamed')", [
+          team.id,
+        ]),
+      ).toBe("DRIVE_FORBIDDEN");
+      expect(
+        await s.hint("select drive_it.drive_delete_drive($1)", [team.id]),
+      ).toBe("DRIVE_FORBIDDEN");
+      expect(
+        await s.hint(
+          "select drive_it.drive_share_drive($1, 'user', $2, 'editor')",
+          [team.id, member.id],
+        ),
+      ).toBe("DRIVE_FORBIDDEN");
+
+      await s.asRole(owner);
+      expect(
+        await s.hint(
+          "select drive_it.drive_share_drive($1, 'user', $2, 'viewer')",
+          [team.id, "00000000-0000-0000-0000-000000000001"],
+        ),
+      ).toBe("DRIVE_PRINCIPAL_NOT_FOUND");
+      expect(
+        await s.hint(
+          "select drive_it.drive_share_drive($1, 'user', $2, 'admin')",
+          [team.id, member.id],
+        ),
+      ).toBe("DRIVE_ROLE_UNKNOWN");
+
+      await s.value("drive_it.drive_share_drive($1, 'user', $2, 'editor')", [
+        team.id,
+        member.id,
+      ]);
+
+      await s.asRole(member);
+
+      const notes = await s.value<DriveNodeRow>(
+        "drive_it.drive_create_folder($1, $2, 'Notes')",
+        [tenant, docs.id],
+      );
+
+      expect(notes).toMatchObject({ role: "editor", driveId: team.id });
+
+      const grants = await s.value<{ principalId: string; role: string }[]>(
+        "drive_it.drive_grants_for_drive($1)",
+        [team.id],
+      );
+
+      expect(grants).toEqual([
+        expect.objectContaining({ principalId: member.id, role: "editor" }),
+      ]);
+
+      await s.asRole(owner);
+      expect(
+        await s.value<boolean>("drive_it.drive_unshare_drive($1, 'user', $2)", [
+          team.id,
+          member.id,
+        ]),
+      ).toBe(true);
+
+      await s.asRole(member);
+      expect(
+        await s.value<DriveRow[]>("drive_it.drive_list_drives($1)", [tenant]),
+      ).toEqual([]);
+      expect(await s.hint("select drive_it.drive_get($1)", [docs.id])).toBe(
+        "DRIVE_NOT_FOUND",
+      );
+
+      await s.asRole(owner);
+      expect(
+        await s.hint(
+          "select drive_it.drive_hold($1, now() - interval '1 hour')",
+          [specs.id],
+        ),
+      ).toBe("DRIVE_HOLD_INVALID");
+
+      const held = await s.value<DriveNodeRow>(
+        "drive_it.drive_hold($1, now() + interval '1 day')",
+        [specs.id],
+      );
+
+      expect(held).toMatchObject({ held: true });
+
+      const parent = await s.value<DriveNodeRow>("drive_it.drive_get($1)", [
+        docs.id,
+      ]);
+
+      expect(parent.held).toBe(true);
+      expect(await s.hint("select drive_it.drive_trash($1)", [docs.id])).toBe(
+        "DRIVE_HELD",
+      );
+      expect(await s.hint("select drive_it.drive_delete($1)", [docs.id])).toBe(
+        "DRIVE_HELD",
+      );
+      expect(
+        await s.hint("select drive_it.drive_delete_drive($1)", [team.id]),
+      ).toBe("DRIVE_HELD");
+
+      const released = await s.value<DriveNodeRow>(
+        "drive_it.drive_release_hold($1)",
+        [specs.id],
+      );
+
+      expect(released.held).toBe(false);
+      expect(
+        (await s.value<DriveNodeRow>("drive_it.drive_get($1)", [docs.id])).held,
+      ).toBe(false);
+      expect(
+        await s.value<DriveRow>("drive_it.drive_rename_drive($1, 'Team A')", [
+          team.id,
+        ]),
+      ).toMatchObject({ name: "Team A", role: "owner" });
+
+      const connection = await s.value<ConnectionRow>(
+        "drive_it.drive_connect($1, 'google-drive', 'Work')",
+        [tenant],
+      );
+
+      expect(connection).toMatchObject({
+        provider: "google-drive",
+        name: "Work",
+        status: "active",
+      });
+      expect(
+        await s.hint(
+          "select drive_it.drive_connect($1, 'google-drive', 'work')",
+          [tenant],
+        ),
+      ).toBe("DRIVE_CONNECTION_EXISTS");
+      expect(
+        await s.hint("select drive_it.drive_connect($1, 'dropbox', 'Home')", [
+          tenant,
+        ]),
+      ).toBe("DRIVE_PROVIDER_INVALID");
+      expect(
+        await s.value<ConnectionRow[]>("drive_it.drive_list_connections($1)", [
+          tenant,
+        ]),
+      ).toEqual([expect.objectContaining({ id: connection.id, name: "Work" })]);
+
+      const mirror = await s.value<DriveRow>(
+        "drive_it.drive_create_drive($1, 'Work Drive', 'shared', null, $2)",
+        [tenant, connection.id],
+      );
+
+      expect(mirror).toMatchObject({
+        connectionId: connection.id,
+        ownerId: owner.id,
+        readOnly: true,
+        role: "owner",
+      });
+      expect(
+        await s.hint(
+          "select drive_it.drive_create_folder($1, null, 'Mirror', null, null, $2)",
+          [tenant, mirror.id],
+        ),
+      ).toBe("DRIVE_READ_ONLY");
+
+      await s.service();
+      expect(
+        await s.hint(
+          "select drive_it.drive_sync_batch($1, '[]'::jsonb, 'root')",
+          [team.id],
+        ),
+      ).toBe("DRIVE_NOT_CONNECTED");
+
+      const synced = await s.value<number>(
+        "drive_it.drive_sync_batch($1, $2::jsonb, 'root', 'run-1')",
+        [
+          mirror.id,
+          JSON.stringify([
+            { externalId: "root", name: "Root", kind: "folder" },
+            {
+              externalId: "a",
+              parentExternalId: "root",
+              name: "Archive",
+              kind: "folder",
+            },
+            {
+              externalId: "b",
+              parentExternalId: "a",
+              name: "Brief.pdf",
+              kind: "file",
+              metadata: { size: 12 },
+            },
+          ]),
+        ],
+      );
+
+      expect(synced).toBe(3);
+
+      await s.asRole(owner);
+
+      const roots = await s.value<DriveNodeRow[]>(
+        "drive_it.drive_list($1, null, 100, 0, $2)",
+        [tenant, mirror.id],
+      );
+
+      expect(
+        roots.map((node) => [node.name, node.source, node.readOnly]),
+      ).toEqual([["Root", "google-drive", true]]);
+
+      const children = await s.value<DriveNodeRow[]>(
+        "drive_it.drive_list($1, $2)",
+        [tenant, roots[0]!.id],
+      );
+
+      expect(children.map((node) => node.name)).toEqual(["Archive"]);
+      expect(
+        await s.value<DriveNodeRow[]>("drive_it.drive_list($1, $2)", [
+          tenant,
+          children[0]!.id,
+        ]),
+      ).toEqual([
+        expect.objectContaining({
+          name: "Brief.pdf",
+          externalId: "b",
+          externalMetadata: expect.objectContaining({
+            parentExternalId: "a",
+            size: 12,
+            syncRun: "run-1",
+          }),
+        }),
+      ]);
+      expect(
+        await s.hint("select drive_it.drive_rename($1, 'Renamed')", [
+          children[0]!.id,
+        ]),
+      ).toBe("DRIVE_READ_ONLY");
+      expect(
+        await s.hint(
+          "select drive_it.drive_hold($1, now() + interval '1 day')",
+          [children[0]!.id],
+        ),
+      ).toBe("DRIVE_READ_ONLY");
+      expect(
+        await s.hint("select drive_it.drive_trash($1)", [children[0]!.id]),
+      ).toBe("DRIVE_READ_ONLY");
+
+      await s.service();
+
+      const renamed = await s.value<number>(
+        "drive_it.drive_sync_batch($1, $2::jsonb, 'root', 'run-2')",
+        [
+          mirror.id,
+          JSON.stringify([
+            { externalId: "root", name: "Root", kind: "folder" },
+            {
+              externalId: "a",
+              parentExternalId: "root",
+              name: "Archive 2",
+              kind: "folder",
+            },
+          ]),
+        ],
+      );
+
+      expect(renamed).toBe(2);
+
+      const pruned = await s.value<number>(
+        "drive_it.drive_sync_batch($1, $2::jsonb, 'root', 'run-2', true)",
+        [
+          mirror.id,
+          JSON.stringify([
+            { externalId: "root", name: "Root", kind: "folder" },
+            {
+              externalId: "a",
+              parentExternalId: "root",
+              name: "Archive 2",
+              kind: "folder",
+            },
+          ]),
+        ],
+      );
+
+      expect(pruned).toBe(2);
+
+      const removed = await s.value<number>(
+        "drive_it.drive_sync_batch($1, $2::jsonb, 'root', 'run-3')",
+        [
+          mirror.id,
+          JSON.stringify([
+            { externalId: "root", name: "Root", kind: "folder" },
+            { externalId: "a", removed: true },
+          ]),
+        ],
+      );
+
+      expect(removed).toBe(1);
+
+      await s.asRole(owner);
+      expect(
+        await s.value<DriveNodeRow[]>(
+          "drive_it.drive_list($1, null, 100, 0, $2)",
+          [tenant, mirror.id],
+        ),
+      ).toEqual([expect.objectContaining({ name: "Root" })]);
+
+      await s.service();
+      await s.client.query(
+        "update drive_it.drive_nodes set legal_hold_until = now() + interval '1 day' where external_id = 'root'",
+      );
+      await s.asRole(owner);
+      expect(
+        await s.hint("select drive_it.drive_disconnect($1)", [connection.id]),
+      ).toBe("DRIVE_HELD");
+
+      await s.service();
+      await s.client.query(
+        "update drive_it.drive_nodes set legal_hold_until = null where external_id = 'root'",
+      );
+      await s.asRole(owner);
+      expect(
+        await s.value<boolean>("drive_it.drive_disconnect($1)", [
+          connection.id,
+        ]),
+      ).toBe(true);
+      expect(
+        await s.hint("select drive_it.drive_get_drive($1)", [mirror.id]),
+      ).toBe("DRIVE_NOT_FOUND");
+
+      await s.service();
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from drive_it.drive_nodes where drive_id = $1)",
+          [mirror.id],
+        ),
+      ).toBe(0);
+
+      const events = await s.rows<{ type: string }>(
+        "select distinct type from better_supabase.outbox_events where organization_id = $1 and type like 'drive.%' order by type",
+        [tenant],
+      );
+
+      expect(events.map((event) => event.type)).toEqual([
+        "drive.connection_created",
+        "drive.connection_removed",
+        "drive.created",
+        "drive.deleted",
+        "drive.node_created",
+        "drive.node_hold_placed",
+        "drive.node_hold_released",
+        "drive.node_purged",
+        "drive.renamed",
+        "drive.shared",
+        "drive.unshared",
+      ]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("keeps a trashed batch until its legal hold ends", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(MODULES, DRIVES_LAYOUT);
+      const owner = await s.user("owner");
+      const tenant = await s.organization(owner);
+
+      await s.asRole(owner);
+
+      const drive = await s.value<DriveRow>(
+        "drive_it.drive_create_drive($1, 'Archive', 'shared')",
+        [tenant],
+      );
+
+      const folder = await s.value<DriveNodeRow>(
+        "drive_it.drive_create_folder($1, null, 'Case', null, null, $2)",
+        [tenant, drive.id],
+      );
+
+      const child = await s.value<DriveNodeRow>(
+        "drive_it.drive_create_folder($1, $2, 'File')",
+        [tenant, folder.id],
+      );
+
+      const batch = await s.value<{
+        id: string;
+        batchId: string;
+        count: number;
+      }>("drive_it.drive_trash($1)", [folder.id]);
+
+      expect(batch.count).toBe(2);
+
+      await s.service();
+      await s.client.query(
+        "update drive_it.drive_nodes set legal_hold_until = now() + interval '1 day' where id = $1",
+        [child.id],
+      );
+      await s.client.query(
+        "update better_supabase.trash_items set purge_after = now() - interval '1 day' where batch_id = $1",
+        [batch.batchId],
+      );
+
+      await s.asRole(owner);
+      expect(await s.hint("select drive_it.drive_purge($1)", [batch.id])).toBe(
+        "TRASH_HELD",
+      );
+
+      await s.service();
+      expect(
+        await s.value<number>("better_supabase.purge_expired_trash()"),
+      ).toBe(0);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.trash_items where batch_id = $1)",
+          [batch.batchId],
+        ),
+      ).toBe(2);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from drive_it.drive_nodes where id in ($1, $2))",
+          [folder.id, child.id],
+        ),
+      ).toBe(2);
+
+      await s.client.query(
+        "update drive_it.drive_nodes set legal_hold_until = null where id = $1",
+        [child.id],
+      );
+
+      expect(
+        await s.value<number>("better_supabase.purge_expired_trash()"),
+      ).toBe(2);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from drive_it.drive_nodes where id in ($1, $2))",
+          [folder.id, child.id],
+        ),
+      ).toBe(0);
+
+      const events = await s.rows<{ type: string }>(
+        "select distinct type from better_supabase.outbox_events where organization_id = $1 and type like 'drive.%' order by type",
+        [tenant],
+      );
+
+      expect(events.map((event) => event.type)).toEqual([
+        "drive.created",
+        "drive.node_created",
+        "drive.node_purged",
+      ]);
     } finally {
       await s.close();
     }

@@ -55,6 +55,8 @@ export function CopyButton({
             timer.current = setTimeout(() => {
               setCopied(false);
             }, 1500);
+
+            return true;
           });
         }}
       >

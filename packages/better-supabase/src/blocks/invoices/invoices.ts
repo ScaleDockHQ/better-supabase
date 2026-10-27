@@ -64,6 +64,14 @@ export interface InvoicePayment {
   readonly reference?: string;
 }
 
+/** An amount added on top of an issued invoice, such as collection costs. */
+export interface InvoiceCharge {
+  readonly id: string;
+  readonly amount: Money;
+  readonly description?: string;
+  readonly createdAt?: Temporal.Instant;
+}
+
 /** An invoice. `F` types the extra columns the `fields` schema describes. */
 export interface Invoice<F extends object = Record<never, never>> {
   readonly id: string;
@@ -86,8 +94,11 @@ export interface Invoice<F extends object = Record<never, never>> {
   readonly overdue: boolean;
   readonly paidTotal: Money;
   readonly creditedTotal: Money;
-  /** Total minus credits minus payments. */
+  /** Total plus charges minus credits minus payments. */
   readonly balance: Money;
+  /** The sum of the charges added on top of the total. */
+  readonly chargedTotal?: Money;
+  readonly charges?: readonly InvoiceCharge[];
   readonly paidAt?: Temporal.Instant;
   readonly voidReason?: string;
   readonly note?: string;
@@ -159,6 +170,14 @@ export interface Invoices<F extends object = Record<never, never>> {
   ): AsyncResult<Invoice<F>>;
   void(invoiceId: string, reason?: string): AsyncResult<Invoice<F>>;
   writeOff(invoiceId: string): AsyncResult<Invoice<F>>;
+  /**
+   * Adds a charge on top of an issued invoice's total, in its currency. The
+   * balance rises, so a paid invoice is open again until the charge is paid.
+   */
+  charge(
+    invoiceId: string,
+    charge: { readonly amount: Money; readonly description?: string },
+  ): AsyncResult<Invoice<F>>;
   aging(
     organizationId: string,
     currency: string,
@@ -228,6 +247,8 @@ const KNOWN = new Set([
   "payments",
   "balance",
   "overdue",
+  "charges",
+  "charged_total",
 ]);
 
 function invoiceOf(value: unknown): Invoice {
@@ -263,6 +284,25 @@ function invoiceOf(value: unknown): Invoice {
     paidTotal: at("paid_total", "paidTotal"),
     creditedTotal: at("credited_total", "creditedTotal"),
     balance: at("balance", "balance"),
+    chargedTotal:
+      row["charged_total"] === undefined
+        ? undefined
+        : at("charged_total", "chargedTotal"),
+    charges:
+      row["charges"] === undefined
+        ? undefined
+        : recordsOf(row["charges"], "invoice charges").map((charge) =>
+            compact<InvoiceCharge>({
+              id: textOf(charge["id"]),
+              amount: moneyOf(
+                charge["amount"],
+                currency,
+                "invoice charge amount",
+              ),
+              description: optionalText(charge["description"]),
+              createdAt: optionalInstant(charge["createdAt"]),
+            }),
+          ),
     paidAt: optionalInstant(row["paid_at"]),
     voidReason: optionalText(row["void_reason"]),
     note: optionalText(row["note"]),
@@ -386,6 +426,13 @@ export function createInvoices<
       invoice("void_invoice", { invoice: invoiceId, reason: reason ?? null }),
     writeOff: (invoiceId) =>
       invoice("write_off_invoice", { invoice: invoiceId }),
+    charge: (invoiceId, charge) =>
+      invoice("add_invoice_charge", {
+        invoice: invoiceId,
+        amount: amountText(charge.amount),
+        currency: charge.amount.currency,
+        description: charge.description ?? null,
+      }),
     aging: (organizationId, currency, asOf) =>
       amountsError(currency, []) === undefined
         ? call(

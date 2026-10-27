@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:26531b0747d39e3eb3ffa2170b8533cc791f52fb79f754f3b022e08f5e7fa74e
+-- @bsb-hash sha256:1f47b59de57f4f6b4abc86cf9a455ced93685e0e9c1590dcd5fb00cd0910a7ae
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -63,15 +63,6 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
--- centrakit.file_node is the app's table, and it has every column this block needs.
-create index if not exists "file_node_parent_fk_idx" on "centrakit"."file_node" ("parent_id") where "parent_id" is not null;
-alter table "centrakit"."file_node" enable row level security;
-grant select on "centrakit"."file_node" to authenticated;
-grant all on "centrakit"."file_node" to service_role;
-
--- centrakit.file_node_grant is the app's table, and it has every column this block needs.
-alter table "centrakit"."file_node_grant" enable row level security;
-grant all on "centrakit"."file_node_grant" to service_role;
 
 -- The node's ancestors and itself, root first.
 create or replace function "better_supabase"."drive_ancestors"(node uuid)
@@ -107,6 +98,25 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_subtree"(uuid) from public, anon, authenticated;
 
+-- Whether the node or anything under it is under a legal hold, which purge
+-- has to respect.
+create or replace function "better_supabase"."drive_node_held"(node uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "centrakit"."file_node" h
+    where h."id" in (select s.node_id from "better_supabase"."drive_subtree"(drive_node_held.node) s)
+      and false
+  )
+$$;
+revoke execute on function "better_supabase"."drive_node_held"(uuid) from public, anon;
+grant execute on function "better_supabase"."drive_node_held"(uuid) to authenticated, service_role;
+
+
 -- The caller's role on a node: the highest of the grants on it and its
 -- ancestors that name them, one of their teams or their organization role. drive.manage is editor everywhere. Grants
 -- need drive.read in the node's organization too.
@@ -121,6 +131,7 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_tenant uuid;
+  
   v_rank integer;
 begin
   if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
@@ -133,7 +144,8 @@ begin
   if coalesce(better_supabase.can('tenant', v_tenant, 'drive.manage'), false) then
     return 'editor';
   end if;
-  select max(coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], dg."role"), 0)) into v_rank from "centrakit"."file_node_grant" dg
+  
+  select greatest(coalesce(v_rank, 0), coalesce(max(coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], dg."role"), 0)), 0)) into v_rank from "centrakit"."file_node_grant" dg
   where dg."file_node_id" = any ("better_supabase"."drive_ancestors"(drive_role.node))
     and (dg."user_id" = v_uid or (dg."team_id" is not null and exists (select 1 from "centrakit"."team_members" tm where tm."team_id"::text = dg."team_id"::text and tm."user_id" = v_uid)));
   
@@ -157,6 +169,23 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_can"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."drive_can"(uuid, text) to authenticated, service_role;
+
+-- Whether the caller may change the node: the write role, and not a read-only
+-- mirror of an external account.
+create or replace function "better_supabase"."drive_node_writable"(node uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((
+    select "better_supabase"."drive_can"(x."id", 'editor') and not (false or false)
+    from "centrakit"."file_node" x where x."id" = drive_node_writable.node
+  ), false)
+$$;
+revoke execute on function "better_supabase"."drive_node_writable"(uuid) from public, anon;
+grant execute on function "better_supabase"."drive_node_writable"(uuid) to authenticated, service_role;
 
 -- The nodes drive_can(node, 'viewer') is true for, as one set, so the read policy
 -- runs it once per statement instead of once per row: every node in an organization
@@ -193,7 +222,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', ($1)."id", 'organizationId', ($1)."organization_id", 'parentId', ($1)."parent_id", 'kind', ($1)."kind", 'name', ($1)."name", 'rank', null, 'createdBy', ($1)."created_by", 'createdAt', ($1)."created_at", 'updatedAt', ($1)."updated_at", 'deletedAt', null)
+  select jsonb_build_object('id', ($1)."id", 'organizationId', ($1)."organization_id", 'driveId', null, 'parentId', ($1)."parent_id", 'kind', ($1)."kind", 'name', ($1)."name", 'rank', null, 'source', null, 'externalId', null, 'externalMetadata', null, 'legalHoldUntil', null, 'createdBy', ($1)."created_by", 'createdAt', ($1)."created_at", 'updatedAt', ($1)."updated_at", 'deletedAt', null)
 $$;
 revoke execute on function "better_supabase"."drive_node_json"("centrakit"."file_node") from public, anon, authenticated;
 
@@ -235,19 +264,19 @@ $$;
 revoke execute on function "better_supabase"."drive_conflict"(text) from public, anon, authenticated;
 
 -- Serializes name checks in one folder.
-create or replace function "better_supabase"."drive_lock_siblings"(tenant uuid, parent uuid)
+create or replace function "better_supabase"."drive_lock_siblings"(tenant uuid, drive uuid, parent uuid)
 returns void
 language sql
 set search_path = ''
 as $$
-  select pg_advisory_xact_lock(hashtextextended('better-supabase:drive:' || coalesce(drive_lock_siblings.parent::text, drive_lock_siblings.tenant::text), 0))
+  select pg_advisory_xact_lock(hashtextextended('better-supabase:drive:' || coalesce(drive_lock_siblings.parent::text, drive_lock_siblings.tenant::text) || ':' || coalesce(drive_lock_siblings.drive::text, ''), 0))
 $$;
-revoke execute on function "better_supabase"."drive_lock_siblings"(uuid, uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."drive_lock_siblings"(uuid, uuid, uuid) from public, anon, authenticated;
 
 -- name when no other live item in the folder has it (case-insensitively);
 -- with conflict 'rename' the first free "name (2).ext"; otherwise
 -- DRIVE_NAME_CONFLICT.
-create or replace function "better_supabase"."drive_free_name"(tenant uuid, parent uuid, name text, exclude uuid, conflict text)
+create or replace function "better_supabase"."drive_free_name"(tenant uuid, drive uuid, parent uuid, name text, exclude uuid, conflict text)
 returns text
 language plpgsql
 security definer
@@ -260,7 +289,7 @@ declare
   v_try text := drive_free_name.name;
   v_n integer := 1;
 begin
-  perform "better_supabase"."drive_lock_siblings"(drive_free_name.tenant, drive_free_name.parent);
+  perform "better_supabase"."drive_lock_siblings"(drive_free_name.tenant, drive_free_name.drive, drive_free_name.parent);
   loop
     exit when not exists (
       select 1 from "centrakit"."file_node" x
@@ -280,11 +309,12 @@ begin
   return v_try;
 end;
 $$;
-revoke execute on function "better_supabase"."drive_free_name"(uuid, uuid, text, uuid, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."drive_free_name"(uuid, uuid, uuid, text, uuid, text) from public, anon, authenticated;
 
--- Whether the caller may create an item in parent: drive.create at the
--- root, the write role in a folder.
-create or replace function "better_supabase"."drive_check_parent"(tenant uuid, parent uuid)
+-- Whether the caller may create an item in parent: drive.create and the
+-- drive's write role at the root, the write role in a folder. External
+-- mirrors are read-only.
+create or replace function "better_supabase"."drive_check_parent"(tenant uuid, parent uuid, drive uuid)
 returns void
 language plpgsql
 stable
@@ -315,16 +345,20 @@ begin
   if v_parent."kind" <> 'folder' then
     raise exception 'a file can''t hold other items' using errcode = '22023', hint = 'DRIVE_PARENT_NOT_FOLDER';
   end if;
+  if (false or false) then
+    raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
+  end if;
 end;
 $$;
-revoke execute on function "better_supabase"."drive_check_parent"(uuid, uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."drive_check_parent"(uuid, uuid, uuid) from public, anon, authenticated;
 
 -- It returns the node table's row type, which differs between managed and
 -- adopted tables.
+drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb);
 drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, text, text, text, jsonb);
 -- Inserts a node after its siblings. Extra columns come from fields, or
 -- from the parent. At the root, the creator gets editor.
-create or replace function "better_supabase"."drive_insert_node"(tenant uuid, parent uuid, kind text, name text, conflict text, fields jsonb)
+create or replace function "better_supabase"."drive_insert_node"(tenant uuid, drive uuid, parent uuid, kind text, name text, conflict text, fields jsonb)
 returns "centrakit"."file_node"
 language plpgsql
 security definer
@@ -335,11 +369,12 @@ declare
   v_node "centrakit"."file_node"%rowtype;
   v_parent "centrakit"."file_node"%rowtype;
   v_fields "centrakit"."file_node"%rowtype;
+  v_drive uuid := drive_insert_node.drive;
   v_name text;
   v_last text;
 begin
-  v_name := "better_supabase"."drive_free_name"(drive_insert_node.tenant, drive_insert_node.parent, drive_insert_node.name, null, drive_insert_node.conflict);
   select * into v_parent from "centrakit"."file_node" x where x."id" = drive_insert_node.parent;
+  v_name := "better_supabase"."drive_free_name"(drive_insert_node.tenant, v_drive, drive_insert_node.parent, drive_insert_node.name, null, drive_insert_node.conflict);
   v_fields := jsonb_populate_record(null::"centrakit"."file_node", coalesce(drive_insert_node.fields, '{}'::jsonb));
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_drive_node_create"(uuid, uuid, text, text)');
@@ -379,9 +414,9 @@ begin
   return v_node;
 end;
 $$;
-revoke execute on function "better_supabase"."drive_insert_node"(uuid, uuid, text, text, text, jsonb) from public, anon, authenticated;
+revoke execute on function "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb) from public, anon, authenticated;
 
-create or replace function "better_supabase"."drive_create_folder"(tenant uuid, parent uuid, name text, conflict text default null, fields jsonb default null)
+create or replace function "better_supabase"."drive_create_folder"(tenant uuid, parent uuid, name text, conflict text default null, fields jsonb default null, drive uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -394,14 +429,14 @@ declare
   v_node "centrakit"."file_node"%rowtype;
 begin
   perform better_supabase.raise_actor_readonly() where not (centrakit.authz_actor_may_write());
-  perform "better_supabase"."drive_check_parent"(drive_create_folder.tenant, drive_create_folder.parent);
-  v_node := "better_supabase"."drive_insert_node"(drive_create_folder.tenant, drive_create_folder.parent, 'folder', v_name,
+  perform "better_supabase"."drive_check_parent"(drive_create_folder.tenant, drive_create_folder.parent, drive_create_folder.drive);
+  v_node := "better_supabase"."drive_insert_node"(drive_create_folder.tenant, drive_create_folder.drive, drive_create_folder.parent, 'folder', v_name,
     case when v_conflict = 'replace' then 'fail' else v_conflict end, drive_create_folder.fields);
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (false or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
 end;
 $$;
-revoke execute on function "better_supabase"."drive_create_folder"(uuid, uuid, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."drive_create_folder"(uuid, uuid, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."drive_create_folder"(uuid, uuid, text, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."drive_create_folder"(uuid, uuid, text, text, jsonb, uuid) to authenticated, service_role;
 create or replace function "better_supabase"."drive_get"(node uuid)
 returns jsonb
 language plpgsql
@@ -417,15 +452,15 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
     raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
   end if;
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (false or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
 end;
 $$;
 revoke execute on function "better_supabase"."drive_get"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_get"(uuid) to authenticated, service_role;
 
 -- A folder's children, folders first, then by name. Without parent, the
--- root items the caller can see.
-create or replace function "better_supabase"."drive_list"(tenant uuid, parent uuid default null, page_size integer default 100, skip integer default 0)
+-- root items of drive, or of every drive the caller can read.
+create or replace function "better_supabase"."drive_list"(tenant uuid, parent uuid default null, page_size integer default 100, skip integer default 0, drive uuid default null)
 returns jsonb
 language plpgsql
 stable
@@ -444,7 +479,7 @@ begin
     raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
   end if;
   return (
-    select coalesce(jsonb_agg(("better_supabase"."drive_node_json"(c.r) || jsonb_build_object('role', "better_supabase"."drive_role"((c.r)."id"))) order by ((c.r)."kind" = 'folder') desc, lower((c.r)."name"), (c.r)."id"), '[]'::jsonb)
+    select coalesce(jsonb_agg(("better_supabase"."drive_node_json"(c.r) || jsonb_build_object('role', "better_supabase"."drive_role"((c.r)."id"), 'readOnly', (false or false), 'held', "better_supabase"."drive_node_held"((c.r)."id"))) order by ((c.r)."kind" = 'folder') desc, lower((c.r)."name"), (c.r)."id"), '[]'::jsonb)
     from (
       select x as r from "centrakit"."file_node" x
       where x."organization_id" = drive_list.tenant and x."parent_id" is not distinct from drive_list.parent
@@ -456,8 +491,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."drive_list"(uuid, uuid, integer, integer) from public, anon;
-grant execute on function "better_supabase"."drive_list"(uuid, uuid, integer, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."drive_list"(uuid, uuid, integer, integer, uuid) from public, anon;
+grant execute on function "better_supabase"."drive_list"(uuid, uuid, integer, integer, uuid) to authenticated, service_role;
 
 -- Items shared with the caller directly, whose folder they can't open.
 create or replace function "better_supabase"."drive_shared"(tenant uuid, page_size integer default 100)
@@ -470,7 +505,7 @@ as $$
 #variable_conflict use_column
 begin
   return (
-  select coalesce(jsonb_agg(("better_supabase"."drive_node_json"(c.r) || jsonb_build_object('role', "better_supabase"."drive_role"((c.r)."id"))) order by (c.r)."name", (c.r)."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(("better_supabase"."drive_node_json"(c.r) || jsonb_build_object('role', "better_supabase"."drive_role"((c.r)."id"), 'readOnly', (false or false), 'held', "better_supabase"."drive_node_held"((c.r)."id"))) order by (c.r)."name", (c.r)."id"), '[]'::jsonb)
   from (
     select x as r from "centrakit"."file_node" x
     where x."organization_id" = drive_shared.tenant
@@ -537,10 +572,13 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'editor')) then
     raise exception 'not allowed to rename this item' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
-  if v_name = v_node."name" then
-    return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id")));
+  if (false or false) then
+    raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
   end if;
-  v_name := "better_supabase"."drive_free_name"(v_node."organization_id", v_node."parent_id", v_name, v_node."id",
+  if v_name = v_node."name" then
+    return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (false or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
+  end if;
+  v_name := "better_supabase"."drive_free_name"(v_node."organization_id", null, v_node."parent_id", v_name, v_node."id",
     case when "better_supabase"."drive_conflict"(drive_rename.conflict) = 'rename' then 'rename' else 'fail' end);
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_drive_node_rename"(uuid, text)');
@@ -573,7 +611,7 @@ begin
         using v_node."id";
     end if;
   end;
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (false or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
 end;
 $$;
 revoke execute on function "better_supabase"."drive_rename"(uuid, text, text) from public, anon;
@@ -582,7 +620,7 @@ grant execute on function "better_supabase"."drive_rename"(uuid, text, text) to 
 -- Moves a node into parent (null for the root) at rank, after the last
 -- item by default. Moving to the root needs the share role and
 -- drive.create, and keeps the mover's role as a grant.
-create or replace function "better_supabase"."drive_move"(node uuid, parent uuid, rank text default null, conflict text default null)
+create or replace function "better_supabase"."drive_move"(node uuid, parent uuid, rank text default null, conflict text default null, drive uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -592,6 +630,7 @@ as $$
 declare
   v_node "centrakit"."file_node"%rowtype;
   v_previous uuid;
+  v_target uuid;
   v_name text;
   v_role text;
   v_last text;
@@ -606,6 +645,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'editor')) then
     raise exception 'not allowed to move this item' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
+  if (false or false) then
+    raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
+  end if;
   
   v_previous := v_node."parent_id";
   if drive_move.parent is null then
@@ -613,7 +655,7 @@ begin
       raise exception 'not allowed to move this item to the top of the drive' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
     end if;
   else
-    perform "better_supabase"."drive_check_parent"(v_node."organization_id", drive_move.parent);
+    perform "better_supabase"."drive_check_parent"(v_node."organization_id", drive_move.parent, drive_move.drive);
     if v_node."id" = any ("better_supabase"."drive_ancestors"(drive_move.parent)) then
       raise exception 'a folder can''t move into itself or its own subfolder' using errcode = '22023', hint = 'DRIVE_MOVE_CYCLE';
     end if;
@@ -627,7 +669,7 @@ begin
     end if;
   end;
   if v_previous is distinct from drive_move.parent then
-    v_name := "better_supabase"."drive_free_name"(v_node."organization_id", drive_move.parent, v_node."name", v_node."id",
+    v_name := "better_supabase"."drive_free_name"(v_node."organization_id", v_target, drive_move.parent, v_node."name", v_node."id",
       case when "better_supabase"."drive_conflict"(drive_move.conflict) = 'rename' then 'rename' else 'fail' end);
     if drive_move.parent is null and auth.uid() is not null then
       v_role := "better_supabase"."drive_role"(v_node."id");
@@ -659,11 +701,11 @@ begin
         using v_node."id";
     end if;
   end;
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (false or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
 end;
 $$;
-revoke execute on function "better_supabase"."drive_move"(uuid, uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."drive_move"(uuid, uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."drive_move"(uuid, uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."drive_move"(uuid, uuid, text, text, uuid) to authenticated, service_role;
 
 -- Deletes a node and everything under it for good (the share role).
 create or replace function "better_supabase"."drive_delete"(node uuid)
@@ -686,12 +728,19 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'editor')) then
     raise exception 'not allowed to delete this item for good' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
+  if (false or false) then
+    raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
+  end if;
+  if "better_supabase"."drive_node_held"(v_node."id") then
+    raise exception 'this item is under a legal hold' using errcode = '42501', hint = 'DRIVE_HELD';
+  end if;
   delete from "centrakit"."file_node" x where x."id" in (select s.node_id from "better_supabase"."drive_subtree"(v_node."id") s);
   return true;
 end;
 $$;
 revoke execute on function "better_supabase"."drive_delete"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_delete"(uuid) to authenticated, service_role;
+
 
 -- Grants role on a node (and what is under it) to a user, a team or an
 -- organization role. Needs the share role, and no more than the caller's.
@@ -716,6 +765,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ("better_supabase"."drive_can"(v_node."id", 'editor') and coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], drive_share.role), 0) <= coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], "better_supabase"."drive_role"(v_node."id")), 0))) then
     raise exception 'not allowed to share this item with that role' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if (false or false) then
+    raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
   end if;
   if coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], drive_share.role), 0) = 0 then
     raise exception 'role must be one of viewer, commenter, editor' using errcode = '22023', hint = 'DRIVE_ROLE_UNKNOWN';
@@ -787,6 +839,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'editor')) then
     raise exception 'not allowed to change who this item is shared with' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if (false or false) then
+    raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
   end if;
   delete from "centrakit"."file_node_grant" dg where dg."file_node_id" = v_node."id"
     and case when dg."user_id" is not null then 'user' else 'team' end = v_type and coalesce(dg."user_id"::text, dg."team_id"::text) = drive_unshare.principal_id;

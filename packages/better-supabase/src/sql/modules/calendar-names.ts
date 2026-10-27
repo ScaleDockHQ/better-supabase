@@ -49,6 +49,7 @@ export const CALENDAR_NAMES: BlockSqlNames = {
     "access",
     "accessFunctions",
     "userFeed",
+    "feed",
     "recurrence",
     "rdates",
     "attendeeKey",
@@ -90,12 +91,7 @@ export const CALENDAR_NAMES: BlockSqlNames = {
     events: {
       name: "calendar_events",
       app: { unused: (ctx) => unusedCalendarColumns(ctx, "events") },
-      lifecycle: {
-        tenant: "tenant",
-        user: "createdBy",
-        purge: false,
-        export: true,
-      },
+      lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
         tenant: "tenant_id",

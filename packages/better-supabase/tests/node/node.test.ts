@@ -268,6 +268,8 @@ describe("toFastify", () => {
       void hook({ raw: req }, reply).then(() => {
         res.statusCode = reply.state.status;
         res.end();
+
+        return true;
       });
     });
 
@@ -327,6 +329,8 @@ describe("toKoa", () => {
             ? ctx.body
             : "",
         );
+
+        return true;
       });
     });
 

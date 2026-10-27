@@ -439,6 +439,8 @@ describe.skipIf(!live)("Realtime module", async () => {
         void sub.ready.then(async () => {
           await insert();
           retry = setInterval(() => void insert(), 3000);
+
+          return true;
         });
       }, 15_000).finally(() => {
         clearInterval(retry);
@@ -528,6 +530,8 @@ describe.skipIf(!live)("Realtime module", async () => {
         void sub.ready.then(async () => {
           await send();
           retry = setInterval(() => void send(), 3000);
+
+          return true;
         });
       }, 15_000).finally(() => {
         clearInterval(retry);

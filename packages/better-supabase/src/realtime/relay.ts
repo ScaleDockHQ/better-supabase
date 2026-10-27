@@ -254,6 +254,8 @@ export function relayRealtimeClient(
             ),
           );
         }
+
+        return true;
       });
     };
 

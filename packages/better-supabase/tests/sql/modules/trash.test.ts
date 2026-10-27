@@ -109,6 +109,49 @@ describe("trash module", () => {
     ).toThrow(message);
   });
 
+  it("keeps a held subject's batch in the trash and refuses its purge", () => {
+    const sql = sqlOf({
+      modules: {
+        trash: {
+          on: {
+            doc: {
+              table: "app.docs",
+              deletedAt: "deleted_at",
+              held: "legal_hold_until",
+            },
+            task: { table: "app.tasks", deletedAt: "removed_at" },
+          },
+        },
+      },
+    });
+
+    expect(sql).toContain(`and s."legal_hold_until" is not null`);
+    expect(sql).toContain(`and s."legal_hold_until" > now()`);
+    expect(sql).toContain(`when 'doc' then exists (`);
+    expect(sql).toContain(`else false`);
+    expect(sql).toContain("TRASH_HELD");
+    expect(sql).toContain("and not exists (");
+    expect(sql).toContain("case b.");
+  });
+
+  it("rejects a held column that is not a column", () => {
+    expect(() =>
+      sqlOf({
+        modules: {
+          trash: {
+            on: {
+              doc: {
+                table: "app.docs",
+                deletedAt: "deleted_at",
+                held: "legal hold; drop table docs",
+              },
+            },
+          },
+        },
+      }),
+    ).toThrow(/held/);
+  });
+
   it("rejects a bad retention", () => {
     expect(() =>
       sqlOf({ modules: { trash: { options: { retentionDays: -1 } } } }),

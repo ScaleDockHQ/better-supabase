@@ -292,6 +292,20 @@ The same email carries a 6-digit code: verify it with
 With email confirmation off, `signUp` gets a session back from Auth and
 commits it like `signInWithPassword`, so it returns `SignedIn` instead of `null`.
 
+When the email already has a confirmed account, Auth sends no email and
+answers with a stand-in user, so `signUp` returns `{ existingAccount: true }`.
+Send the owner your own "you already have an account" email from there, and
+show the same "check your email" screen as for a new account, so the page
+doesn't tell anyone which emails have an account:
+
+```ts title="src/features/auth/auth-actions.ts"
+const result = await bsb.signUp({ email, password, redirectTo });
+
+if (result.ok && result.data !== null && "existingAccount" in result.data) {
+  await sendAccountExistsEmail(email);
+}
+```
+
 For a password reset, point `redirectTo` at the callback with the reset form
 as `next`. The exchange signs the user in, the form calls
 `updateUser({ password })`, then `bsb.evictSession(userId)`.

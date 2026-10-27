@@ -134,6 +134,8 @@ beforeAll(async () => {
         statuses.push(response.status);
         res.writeHead(response.status);
         res.end(await response.text());
+
+        return response;
       });
     });
   });

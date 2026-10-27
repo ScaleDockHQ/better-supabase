@@ -183,6 +183,18 @@ describe("drive module", () => {
     expect(fails({ memberRole: "admin" })).toThrow(/memberRole/);
     expect(fails({ subjectType: "Drive Node" })).toThrow(/subjectType/);
     expect(fails({ conflict: "skip" })).toThrow(/conflict/);
+    expect(fails({ drives: true, driveKinds: [] })).toThrow(/driveKinds/);
+    expect(fails({ drives: true, driveKinds: ["shared", "shared"] })).toThrow(
+      /driveKinds/,
+    );
+    expect(fails({ drives: true, driveKinds: ["Shared"] })).toThrow(
+      /driveKinds/,
+    );
+    expect(fails({ drives: true, sources: [] })).toThrow(/sources/);
+    expect(fails({ drives: true, sources: ["internal"] })).toThrow(/sources/);
+    expect(fails({ drives: true, sources: ["Google Drive"] })).toThrow(
+      /sources/,
+    );
     expect(
       sqlOf(
         ["drive", "outbox"],
@@ -190,6 +202,28 @@ describe("drive module", () => {
         withOptions({ subjectType: "file_node" }),
       ),
     ).toContain("'subjectType', 'file_node'");
+  });
+
+  it("adds drives, drive grants and connections when drives are on", () => {
+    const core = sqlOf(["drive"], "drive", withOptions({ drives: true }));
+
+    expect(core).toContain(
+      `create table if not exists "better_supabase"."drive_drives"`,
+    );
+    expect(core).toContain(
+      `create table if not exists "better_supabase"."drive_drive_grants"`,
+    );
+    expect(core).toContain(
+      `create table if not exists "better_supabase"."drive_connections"`,
+    );
+    expect(core).toContain("drive_create_drive");
+    expect(core).toContain("drive_sync_batch");
+    expect(core).toContain("drive_hold");
+
+    const single = sqlOf(["drive"], "drive");
+    expect(single).not.toContain("drive_drives");
+    expect(single).not.toContain("drive_create_drive");
+    expect(single).toContain("drive_hold");
   });
 
   it("installs neither part in custom mode", () => {

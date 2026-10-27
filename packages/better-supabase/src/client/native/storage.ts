@@ -155,8 +155,8 @@ export function secureStorage(
     const run = (queues.get(key) ?? Promise.resolve()).then(task);
 
     const settled = run.then(
-      () => undefined,
-      () => undefined,
+      () => void 0,
+      () => void 0,
     );
 
     queues.set(key, settled);
@@ -164,6 +164,8 @@ export function secureStorage(
       if (queues.get(key) === settled) {
         queues.delete(key);
       }
+
+      return true;
     });
 
     return run;

@@ -190,6 +190,8 @@ function SettingsSection<E extends SettingEntries>({
                       if (!saved.ok) {
                         toast.error(errorMessage(saved.error));
                       }
+
+                      return saved;
                     });
                   }}
                 />

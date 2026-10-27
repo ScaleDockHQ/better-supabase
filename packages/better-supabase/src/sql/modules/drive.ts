@@ -13,32 +13,111 @@ import {
 } from "./drive-kit.ts";
 import { shareLinkRow } from "./share-links.ts";
 
-function contract(): readonly BlockSqlContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
+  const drive = ctx.of("drive");
+  const drives = drive.flag("drives", false);
+  const hold = drive.has("nodes", "legalHoldUntil");
+
   return [
     { name: "drive_role", args: ["uuid"], returns: "text" },
     { name: "drive_can", args: ["uuid", "text"], returns: "boolean" },
     {
       name: "drive_create_folder",
-      args: ["{id}", "uuid", "text", "text", "jsonb"],
+      args: ["{id}", "uuid", "text", "text", "jsonb", "uuid"],
       returns: "jsonb",
     },
     { name: "drive_get", args: ["uuid"], returns: "jsonb" },
     {
       name: "drive_list",
-      args: ["{id}", "uuid", "integer", "integer"],
+      args: ["{id}", "uuid", "integer", "integer", "uuid"],
       returns: "jsonb",
     },
+    { name: "drive_shared", args: ["{id}", "integer"], returns: "jsonb" },
+    { name: "drive_path", args: ["uuid"], returns: "jsonb" },
     {
       name: "drive_move",
-      args: ["uuid", "uuid", "text", "text"],
+      args: ["uuid", "uuid", "text", "text", "uuid"],
       returns: "jsonb",
     },
     { name: "drive_rename", args: ["uuid", "text", "text"], returns: "jsonb" },
+    { name: "drive_delete", args: ["uuid"], returns: "boolean" },
     {
       name: "drive_share",
       args: ["uuid", "text", "text", "text", "timestamptz"],
       returns: "jsonb",
     },
+    {
+      name: "drive_unshare",
+      args: ["uuid", "text", "text"],
+      returns: "boolean",
+    },
+    { name: "drive_grants", args: ["uuid"], returns: "jsonb" },
+    { name: "drive_node_held", args: ["uuid"], returns: "boolean" },
+    { name: "drive_node_writable", args: ["uuid"], returns: "boolean" },
+    ...(hold
+      ? [
+          {
+            name: "drive_hold",
+            args: ["uuid", "timestamptz"],
+            returns: "jsonb",
+          },
+          { name: "drive_release_hold", args: ["uuid"], returns: "jsonb" },
+        ]
+      : []),
+    ...(drives
+      ? [
+          { name: "drive_drive_role", args: ["uuid"], returns: "text" },
+          {
+            name: "drive_drive_can",
+            args: ["uuid", "text"],
+            returns: "boolean",
+          },
+          {
+            name: "drive_create_drive",
+            args: ["{id}", "text", "text", "uuid", "uuid"],
+            returns: "jsonb",
+          },
+          { name: "drive_get_drive", args: ["uuid"], returns: "jsonb" },
+          {
+            name: "drive_list_drives",
+            args: ["{id}", "integer", "integer"],
+            returns: "jsonb",
+          },
+          {
+            name: "drive_rename_drive",
+            args: ["uuid", "text"],
+            returns: "jsonb",
+          },
+          { name: "drive_delete_drive", args: ["uuid"], returns: "boolean" },
+          {
+            name: "drive_share_drive",
+            args: ["uuid", "text", "text", "text", "timestamptz"],
+            returns: "jsonb",
+          },
+          {
+            name: "drive_unshare_drive",
+            args: ["uuid", "text", "text"],
+            returns: "boolean",
+          },
+          { name: "drive_grants_for_drive", args: ["uuid"], returns: "jsonb" },
+          {
+            name: "drive_connect",
+            args: ["{id}", "text", "text"],
+            returns: "jsonb",
+          },
+          { name: "drive_disconnect", args: ["uuid"], returns: "boolean" },
+          {
+            name: "drive_list_connections",
+            args: ["{id}", "integer"],
+            returns: "jsonb",
+          },
+          {
+            name: "drive_sync_batch",
+            args: ["uuid", "jsonb", "text", "text", "boolean", "text"],
+            returns: "integer",
+          },
+        ]
+      : []),
   ];
 }
 
@@ -56,7 +135,7 @@ function fileContract(
   return [
     {
       name: "drive_create_file",
-      args: ["{id}", "uuid", "text", "text", "bigint", "text", "jsonb"],
+      args: ["{id}", "uuid", "text", "text", "bigint", "text", "jsonb", "uuid"],
       returns: "jsonb",
     },
     { name: "drive_commit", args: ["uuid", "uuid"], returns: "jsonb" },

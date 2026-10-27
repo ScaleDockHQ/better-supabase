@@ -25,6 +25,7 @@ import {
 } from "./catalog-channels.ts";
 import {
   SLUG,
+  catalogRank,
   optionFunctions,
   productExtras,
   productFunctions,
@@ -122,7 +123,7 @@ const NAMES: BlockSqlNames = {
     "before_price_set",
     "after_price_set",
   ],
-  options: ["storefront", "extraColumns", "locales"],
+  options: ["storefront", "extraColumns", "locales", "rankType"],
   tables: {
     products: {
       name: "products",
@@ -138,8 +139,11 @@ const NAMES: BlockSqlNames = {
         status: "status",
         createdAt: "created_at",
         updatedAt: "updated_at",
+        price: "price",
+        currency: "currency",
+        trackInventory: "track_inventory",
       },
-      optional: ["description", "kind"],
+      optional: ["description", "kind", "price", "currency", "trackInventory"],
       typed: ["status", "kind"],
     },
     options: {
@@ -185,8 +189,9 @@ const NAMES: BlockSqlNames = {
         rank: "rank",
         createdAt: "created_at",
         updatedAt: "updated_at",
+        price: "price",
       },
-      optional: ["title", "barcode", "weight"],
+      optional: ["title", "barcode", "weight", "trackInventory", "price"],
     },
     variantValues: {
       name: "product_variant_values",
@@ -216,6 +221,7 @@ const NAMES: BlockSqlNames = {
       name: "product_prices",
       app: {},
       lifecycle: tenantExport,
+      optionalTable: true,
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -387,6 +393,42 @@ function tables(ctx: BlockSqlContext, names: Names): string {
 
   const t = (name: string): string => ctx.table(name);
   const c = (table: string, column: string): string => ctx.col(table, column);
+  const rank = catalogRank(ctx);
+  // Without a prices table, a variant's price is a column on it, with its
+  // product's price as the fallback and the product's currency.
+  const onVariant = !ctx.hasTable("prices");
+
+  const productColumns = [
+    ...(onVariant && ctx.has("products", "price")
+      ? [
+          `${c("products", "price")} bigint check (${c("products", "price")} >= 0)`,
+        ]
+      : []),
+    ...(onVariant
+      ? [
+          `${c("products", "currency")} char(3) not null default 'EUR' check (${c("products", "currency")} ~ '^[A-Z]{3}$')`,
+        ]
+      : []),
+    ...(!ctx.has("variants", "trackInventory") &&
+    ctx.has("products", "trackInventory")
+      ? [`${c("products", "trackInventory")} boolean not null default true`]
+      : []),
+  ]
+    .map((column) => `\n  ${column},`)
+    .join("");
+
+  const variantColumns = [
+    ...(ctx.has("variants", "trackInventory")
+      ? [`${c("variants", "trackInventory")} boolean not null default true`]
+      : []),
+    ...(onVariant && ctx.has("variants", "price")
+      ? [
+          `${c("variants", "price")} bigint check (${c("variants", "price")} >= 0)`,
+        ]
+      : []),
+  ]
+    .map((column) => `\n  ${column},`)
+    .join("");
 
   const read = (table: string): string =>
     renderPolicy(
@@ -408,7 +450,7 @@ create table if not exists ${t("products")} (
   ${c("products", "title")} text not null check (length(${c("products", "title")}) between 1 and 500),
   ${c("products", "description")} text,
   ${c("products", "kind")} text not null default 'physical' check (${c("products", "kind")} in ('physical', 'digital', 'service')),
-  ${c("products", "status")} text not null default 'draft',
+  ${c("products", "status")} text not null default 'draft',${productColumns}
   ${c("products", "createdAt")} timestamptz not null default now(),
   ${c("products", "updatedAt")} timestamptz not null default now(),
   unique (${c("products", "tenant")}, ${c("products", "slug")})
@@ -422,7 +464,7 @@ create table if not exists ${t("options")} (
   ${c("options", "tenant")} ${ctx.idType} not null,
   ${c("options", "product")} uuid not null references ${t("products")} (${c("products", "id")}) on delete cascade,
   ${c("options", "name")} text not null check (length(${c("options", "name")}) between 1 and 80),
-  ${c("options", "rank")} text collate "C" not null default 'V',
+  ${c("options", "rank")} ${rank.type} not null default ${rank.fallback},
   unique (${c("options", "product")}, ${c("options", "name")})
 );
 ${lockTable(t("options"), { read: true })}
@@ -433,7 +475,7 @@ create table if not exists ${t("optionValues")} (
   ${c("optionValues", "tenant")} ${ctx.idType} not null,
   ${c("optionValues", "option")} uuid not null references ${t("options")} (${c("options", "id")}) on delete cascade,
   ${c("optionValues", "value")} text not null check (length(${c("optionValues", "value")}) between 1 and 80),
-  ${c("optionValues", "rank")} text collate "C" not null default 'V',
+  ${c("optionValues", "rank")} ${rank.type} not null default ${rank.fallback},
   unique (${c("optionValues", "option")}, ${c("optionValues", "value")})
 );
 ${lockTable(t("optionValues"), { read: true })}
@@ -446,10 +488,9 @@ create table if not exists ${t("variants")} (
   ${c("variants", "sku")} text not null check (length(${c("variants", "sku")}) between 1 and 100),
   ${c("variants", "title")} text,
   ${c("variants", "barcode")} text,
-  ${c("variants", "weight")} integer check (${c("variants", "weight")} >= 0),
-  ${c("variants", "trackInventory")} boolean not null default true,
+  ${c("variants", "weight")} integer check (${c("variants", "weight")} >= 0),${variantColumns}
   ${c("variants", "allowBackorder")} boolean not null default false,
-  ${c("variants", "rank")} text collate "C" not null default 'V',
+  ${c("variants", "rank")} ${rank.type} not null default ${rank.fallback},
   ${c("variants", "createdAt")} timestamptz not null default now(),
   ${c("variants", "updatedAt")} timestamptz not null default now(),
   unique (${c("variants", "tenant")}, ${c("variants", "sku")})
@@ -504,7 +545,7 @@ create table if not exists ${t("categories")} (
   ${c("categories", "name")} text not null check (length(${c("categories", "name")}) between 1 and 200),
   ${c("categories", "slug")} text not null check (${c("categories", "slug")} ~ ${SLUG}),
   ${c("categories", "description")} text,
-  ${c("categories", "rank")} text collate "C" not null default 'V',
+  ${c("categories", "rank")} ${rank.type} not null default ${rank.fallback},
   ${c("categories", "createdAt")} timestamptz not null default now(),
   ${c("categories", "updatedAt")} timestamptz not null default now(),
   unique (${c("categories", "tenant")}, ${c("categories", "slug")})
@@ -542,7 +583,7 @@ create table if not exists ${t("collectionProducts")} (
   ${c("collectionProducts", "tenant")} ${ctx.idType} not null,
   ${c("collectionProducts", "collection")} uuid not null references ${t("collections")} (${c("collections", "id")}) on delete cascade,
   ${c("collectionProducts", "product")} uuid not null references ${t("products")} (${c("products", "id")}) on delete cascade,
-  ${c("collectionProducts", "rank")} text collate "C" not null default 'V',
+  ${c("collectionProducts", "rank")} ${rank.type} not null default ${rank.fallback},
   primary key (${c("collectionProducts", "collection")}, ${c("collectionProducts", "product")})
 );
 create index if not exists ${ctx.naming.rename("collection_products_product_idx")} on ${t("collectionProducts")} (${c("collectionProducts", "product")});
@@ -592,10 +633,14 @@ function storefrontPolicies(ctx: BlockSqlContext, names: Names): string {
       "variantValues",
       `${c("variantValues", "variant")} in (select v.${c("variants", "id")} from ${t("variants")} v where v.${c("variants", "product")} in (select ${names.fn("storefront_products")}()))`,
     ],
-    [
-      "prices",
-      `${c("prices", "priceList")} is null and ${c("prices", "variant")} in (select v.${c("variants", "id")} from ${t("variants")} v where v.${c("variants", "product")} in (select ${names.fn("storefront_products")}()))`,
-    ],
+    ...(ctx.hasTable("prices")
+      ? ([
+          [
+            "prices",
+            `${c("prices", "priceList")} is null and ${c("prices", "variant")} in (select v.${c("variants", "id")} from ${t("variants")} v where v.${c("variants", "product")} in (select ${names.fn("storefront_products")}()))`,
+          ],
+        ] as const)
+      : []),
     [
       "categories",
       `${c("categories", "tenant")} in (select ${names.fn("storefront_tenants")}())`,

@@ -4,7 +4,11 @@ import type {
   ResolveAuthOptions,
 } from "../auth/resolve.ts";
 import type { CookieScope, StoredSession } from "../auth/session.ts";
-import type { EmailFlowPath, PasswordGrantOptions } from "../auth/sign-in.ts";
+import type {
+  EmailFlowPath,
+  ExistingAccount,
+  PasswordGrantOptions,
+} from "../auth/sign-in.ts";
 import type { SessionSnapshot } from "../auth/snapshot.ts";
 import type { Result } from "../core/result.ts";
 import type { ActionResult } from "../server/kit.ts";
@@ -34,6 +38,7 @@ import {
 import {
   authorizeUrlFor,
   emailFlow,
+  isExistingAccount,
   mfaGrant,
   needsMfa,
   otpGrant,
@@ -114,7 +119,7 @@ export interface AuthFlows {
   signUp(
     params: SignUpParams,
     options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn | null>>;
+  ): Promise<ActionResult<SignedIn | ExistingAccount | null>>;
   resend(params: ResendParams): Promise<ActionResult<null>>;
 }
 
@@ -179,7 +184,7 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
     path: EmailFlowPath,
     params: EmailRedirect,
     body: Record<string, unknown>,
-  ): Promise<Result<StoredSession | null>> => {
+  ): Promise<Result<StoredSession | ExistingAccount | null>> => {
     const challenge = await startPkce();
 
     const sent = await emailFlow(
@@ -353,7 +358,11 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
 
       await setVerifier("", 0);
 
-      return commit(sent, params.next, options);
+      if (isExistingAccount(sent.data)) {
+        return { ok: true, data: sent.data, error: null };
+      }
+
+      return commit(ok(sent.data), params.next, options);
     },
 
     async resend(params) {

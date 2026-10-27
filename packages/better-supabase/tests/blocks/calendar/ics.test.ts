@@ -130,6 +130,34 @@ describe("parseIcs", () => {
   });
 });
 
+describe("toIcs reminders", () => {
+  it("writes reminders as display alarms", () => {
+    const text = toIcs(
+      [
+        {
+          uid: "alarm@example.test",
+          title: "Alarm",
+          startsAt: at("2026-03-02T09:00:00Z"),
+          endsAt: at("2026-03-02T10:00:00Z"),
+          allDay: false,
+          tz: "UTC",
+          status: "confirmed",
+          exdates: [],
+          reminders: [
+            { method: "notification", offsetMinutes: 15 },
+            { method: "follow-up", offsetMinutes: -5 },
+          ],
+        },
+      ],
+      { now: at("2026-01-01T00:00:00Z") },
+    );
+
+    expect(text).toContain("TRIGGER:-PT15M\r\n");
+    expect(text).toContain("TRIGGER:PT5M\r\n");
+    expect(text.match(/BEGIN:VALARM/gu)).toHaveLength(2);
+  });
+});
+
 describe("toIcs", () => {
   const event: IcsSource = {
     uid: "standup@example.test",

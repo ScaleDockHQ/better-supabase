@@ -115,17 +115,18 @@ const AS_ALICE = `perform set_config('request.jwt.claims', '{"sub":"${ALICE}","r
 /** Lite migrates and seeds PGlite in process; booting takes a second or more. */
 const BOOT = { timeout: 60_000 };
 
-async function run(check: string): Promise<void> {
-  const files = renderBlocks(["expenses"], {
-    modules: BLOCKS,
-    ownTables: OWN_TABLES,
-  });
+async function run(
+  check: string,
+  modules: AnyBlocksConfig = BLOCKS,
+  app: string = APP,
+): Promise<void> {
+  const files = renderBlocks(["expenses"], { modules, ownTables: OWN_TABLES });
 
   await using stack = await liteStack({
     driver: "pglite",
     migrations: [
       ROLES,
-      APP,
+      app,
       ...files
         .filter((file) => file.kind !== "data")
         .map((file) => file.contents),
@@ -188,5 +189,73 @@ begin
 end;
 $$;`),
     ).rejects.toThrow(/no limit column/);
+  });
+
+  it("decides reports without the approvals block", async () => {
+    const expenses = BLOCKS["expenses"];
+
+    await expect(
+      run(
+        `do $$
+declare
+  v_category uuid;
+  v_report jsonb;
+  v_id uuid;
+begin
+  ${SERVICE}
+  v_category := (better_supabase.save_expense_category('${TENANT}', 'travel', 'Travel', 'EUR') ->> 'id')::uuid;
+  ${AS_ALICE}
+  v_id := (better_supabase.create_expense_report('${TENANT}', 'Conference', 'EUR') ->> 'id')::uuid;
+  perform better_supabase.add_expense_line(v_id, v_category, '2099-01-10', 12500, 'Train');
+  v_report := better_supabase.submit_expense_report(v_id);
+  if v_report ->> 'status' <> 'submitted' or v_report ->> 'approvalId' is not null then
+    raise exception 'submitted %', v_report;
+  end if;
+  begin
+    perform better_supabase.decide_expense_report(v_id, true, null);
+    raise exception 'decided own report';
+  exception when others then
+    if sqlerrm = 'decided own report' then
+      raise;
+    end if;
+  end;
+  ${SERVICE}
+  v_report := better_supabase.decide_expense_report(v_id, false, 'receipt missing');
+  if v_report ->> 'status' <> 'rejected' or (select decision_note from public.claims where id = v_id) <> 'receipt missing' then
+    raise exception 'rejected %', v_report;
+  end if;
+  ${AS_ALICE}
+  perform better_supabase.update_expense_line((select id from public.claim_items where claim_id = v_id), null, null, 12000, null, null);
+  v_report := better_supabase.submit_expense_report(v_id);
+  if v_report ->> 'status' <> 'submitted' or (select rejected_at from public.claims where id = v_id) is not null then
+    raise exception 'resubmitted %', v_report;
+  end if;
+  ${SERVICE}
+  v_report := better_supabase.decide_expense_report(v_id, true, null);
+  if v_report ->> 'status' <> 'approved' or (select approved_at from public.claims where id = v_id) is null then
+    raise exception 'approved %', v_report;
+  end if;
+  v_report := better_supabase.reimburse_expense_report(v_id);
+  if v_report ->> 'status' <> 'reimbursed' then
+    raise exception 'reimbursed %', v_report;
+  end if;
+end;
+$$;`,
+        {
+          expenses: {
+            ...expenses,
+            columns: {
+              ...expenses?.columns,
+              reports: { ...expenses?.columns?.["reports"], approval: null },
+            },
+            options: { approvals: false },
+          },
+        },
+        APP.replace(
+          "  approval_id uuid,",
+          "  rejected_at timestamptz,\n  decided_by uuid,\n  decision_note text,",
+        ),
+      ),
+    ).resolves.toBeUndefined();
   });
 });

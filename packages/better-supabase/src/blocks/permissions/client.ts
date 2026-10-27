@@ -41,6 +41,8 @@ export function batchPermissions<K extends string>(
       for (const waiter of batch.waiters) {
         waiter(result);
       }
+
+      return result;
     });
   };
 

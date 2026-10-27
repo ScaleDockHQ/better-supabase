@@ -21,6 +21,16 @@ export type TimeTrackingSqlOptions = {
    */
   readonly userTimeZone?: { readonly column: string; readonly key?: string };
   readonly owner?: "user" | "employee";
+  /**
+   * `"allow"` lets a member's entries overlap, such as a weekly grid that logs
+   * every row's time from the same start. Default `"refuse"`.
+   */
+  readonly overlap?: "refuse" | "allow";
+  /**
+   * `"many"` runs several timers at once: `start_timer` leaves the others
+   * running and `stop_timer` takes the entry. Needs `overlap: "allow"`.
+   */
+  readonly timers?: "one" | "many";
 };
 
 export const timeTrackingSqlOptions: BlockOptionsSchema<TimeTrackingSqlOptions> =
@@ -34,4 +44,6 @@ export const timeTrackingSqlOptions: BlockOptionsSchema<TimeTrackingSqlOptions> 
       readonly key?: string;
     }>(),
     owner: option.string<"user" | "employee">({ default: "user" }),
+    overlap: option.string<"refuse" | "allow">({ default: "refuse" }),
+    timers: option.string<"one" | "many">({ default: "one" }),
   });

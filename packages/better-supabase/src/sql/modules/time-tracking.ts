@@ -43,6 +43,7 @@ import {
   userTimeZoneOf,
   userWeekFunction,
 } from "./time-tracking-status.ts";
+import { timerFunctions, timerOptions } from "./time-tracking-timers.ts";
 
 /** Timesheets this block submits to approvals. */
 const TIMESHEET_SUBJECT = "timesheet";
@@ -111,6 +112,8 @@ const NAMES: BlockSqlNames = {
     "approvals",
     "userTimeZone",
     "owner",
+    "overlap",
+    "timers",
   ],
   tables: {
     entries: {
@@ -276,6 +279,7 @@ function build(ctx: BlockSqlContext): string {
   const policy = statusMode ? "" : timesheetPolicy(ctx);
 
   const durationMode = durationEntries(ctx);
+  const { allowOverlap, manyTimers } = timerOptions(ctx);
 
   if (
     durationMode &&
@@ -312,10 +316,11 @@ function build(ctx: BlockSqlContext): string {
       ? `${alias}.${ctx.col("entries", "runningSince")} is not null`
       : `${alias}.${ctx.col("entries", "endedAt")} is null`;
 
-  // Stops the running row `alias` at `at`.
+  // Stops the running row `alias` at `at`. A duration entry adds the running
+  // segment, so a resumed timer keeps the time it had.
   const stop = (alias: string, at: string): string =>
     durationMode
-      ? `${ctx.col("entries", "seconds")} = greatest(extract(epoch from ${at} - ${alias}.${ctx.col("entries", "startedAt")})::bigint, 0), ${ctx.col("entries", "runningSince")} = null`
+      ? `${ctx.col("entries", "seconds")} = coalesce(${alias}.${ctx.col("entries", "seconds")}, 0) + greatest(extract(epoch from ${at} - ${alias}.${ctx.col("entries", "runningSince")})::bigint, 0), ${ctx.col("entries", "runningSince")} = null`
       : `${ctx.col("entries", "endedAt")} = ${at}`;
 
   const endColumn = durationMode
@@ -439,14 +444,17 @@ function build(ctx: BlockSqlContext): string {
   const rateCheck = (
     rate: string,
     currency: string,
-  ): string => `if (${rate} is null) <> (${currency} is null) then
-    ${fail("TIME_RATE_INVALID", "name both rate and rate_currency, or neither", "22023")}
+  ): string => `if ${rate} is not null and ${currency} is null then
+    ${fail("TIME_RATE_INVALID", "a rate needs rate_currency", "22023")}
   end if;
   if ${currency} !~ '^[A-Z]{3}$' then
     ${fail("TIME_RATE_INVALID", "rate_currency must be a three-letter currency code", "22023")}
   end if;`;
 
-  const overlap = (row: string): string => `if exists (
+  const overlap = (row: string): string =>
+    allowOverlap
+      ? ""
+      : `if exists (
     select 1 from ${entries} x
     where x.${e("tenant")} = ${row}.${e("tenant")} and x.${eOwner} = ${row}.${eOwner} and x.${e("id")} <> ${row}.${e("id")}
       and tstzrange(x.${e("startedAt")}, coalesce(${ended("x")}, 'infinity'::timestamptz)) && tstzrange(${row}.${e("startedAt")}, coalesce(${ended(row)}, 'infinity'::timestamptz))
@@ -485,17 +493,26 @@ create table if not exists ${entries} (
   -- What metrics sum: the length of a finished entry, null while it runs.
   ${e("seconds")} bigint generated always as (extract(epoch from ${e("endedAt")} - ${e("startedAt")})::bigint) stored,
   check (${e("endedAt")} is null or ${e("endedAt")} > ${e("startedAt")}),
-  check ((${e("subjectType")} is null) = (${e("subjectId")} is null)),
+  check ((${e("subjectType")} is null) = (${e("subjectId")} is null))${
+    allowOverlap
+      ? ""
+      : `,
   -- A running entry reaches to infinity, so this also allows one running timer per user.
   constraint ${sqlIdent(`${ctx.tableName("entries").name}_no_overlap`)} exclude using gist (
     ${e("tenant")} with =,
     ${eOwner} with =,
     tstzrange(${e("startedAt")}, coalesce(${e("endedAt")}, 'infinity'::timestamptz)) with &&
-  )
-);${addExtraColumns(entries, extras)}
+  )`
+  }
+);${
+        allowOverlap
+          ? `
+alter table ${entries} drop constraint if exists ${sqlIdent(`${ctx.tableName("entries").name}_no_overlap`)};`
+          : ""
+      }${addExtraColumns(entries, extras)}
 alter table ${entries} add column if not exists ${e("rateCurrency")} text;
 ${rateChecks(ctx)}
-create unique index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_running_idx`)} on ${entries} (${e("tenant")}, ${eOwner}) where ${e("endedAt")} is null;
+${manyTimers ? `drop index if exists ${sqlIdent(ctx.tableName("entries").schema)}.${sqlIdent(`${ctx.tableName("entries").name}_running_idx`)};` : `create unique index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_running_idx`)} on ${entries} (${e("tenant")}, ${eOwner}) where ${e("endedAt")} is null;`}
 create index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_user_idx`)} on ${entries} (${e("tenant")}, ${eOwner}, ${e("startedAt")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_subject_idx`)} on ${entries} (${e("tenant")}, ${e("subjectType")}, ${e("subjectId")}) where ${e("subjectType")} is not null;
 ${lockTable(entries, { read: true })}
@@ -633,13 +650,17 @@ begin
   }
   ${subjectCheck("start_timer.tenant", "start_timer.subject_type", "start_timer.subject_id")}
   ${rateCheck("start_timer.rate", "start_timer.rate_currency")}
-  perform pg_advisory_xact_lock(hashtextextended('time_entry:' || start_timer.tenant::text || ':' || ${ownerVar}::text, 0));
+  perform pg_advisory_xact_lock(hashtextextended('time_entry:' || start_timer.tenant::text || ':' || ${ownerVar}::text, 0));${
+    manyTimers
+      ? ""
+      : `
   update ${entries} x set ${stop("x", "v_at")}, ${e("updatedAt")} = v_at
     where x.${e("tenant")} = start_timer.tenant and x.${eOwner} = ${ownerVar} and ${running("x")}
     returning * into v_row;
   if found then
     ${entryRecord("time_entry.recorded", "v_row", true)}
-  end if;
+  end if;`
+  }
   v_row := null;
   v_row.${e("id")} := gen_random_uuid();
   v_row.${e("tenant")} := start_timer.tenant;
@@ -662,48 +683,24 @@ end;
 $$;
 ${userGrant(`${fn("start_timer")}(${ctx.idType}, text, text, boolean, bigint, text, text${extra.type})`)}
 
-create or replace function ${fn("stop_timer")}(tenant ${ctx.idType})
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_me uuid := auth.uid();
-  v_at timestamptz := clock_timestamp();
-  v_row ${entries}%rowtype;${employeeMode ? `\n  v_owner uuid := ${myEmployee("stop_timer.tenant")};` : ""}
-begin
-  select * into v_row from ${entries} x
-    where x.${e("tenant")} = stop_timer.tenant and x.${eOwner} = ${ownerVar} and ${running("x")}
-    for update;
-  if not found then
-    ${fail("TIME_NO_TIMER", "no timer is running", "P0002")}
-  end if;
-  update ${entries} x set ${stop("x", "v_at")}, ${e("updatedAt")} = v_at
-    where x.${e("id")} = v_row.${e("id")}
-    returning * into v_row;
-  ${entryRecord("time_entry.recorded", "v_row", true)}
-  ${saved("v_row")}
-  return ${entryJson("v_row")};
-end;
-$$;
-${userGrant(`${fn("stop_timer")}(${ctx.idType})`)}
-
--- The caller's running timer, or null.
-create or replace function ${fn("running_timer")}(tenant ${ctx.idType})
-returns jsonb
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select ${entryJson("x")} from ${entries} x
-  where x.${e("tenant")} = running_timer.tenant and x.${e("user")} = auth.uid() and ${running("x")};
-$$;
-${userGrant(`${fn("running_timer")}(${ctx.idType})`)}
-
--- Records finished time. Logging for another member needs the manage permission.
+${timerFunctions(ctx, {
+  entries,
+  e,
+  fn,
+  track,
+  entryJson,
+  entryRecord,
+  running,
+  stop,
+  overlap,
+  saved,
+  myEmployee,
+  eOwner,
+  ownerVar,
+  employeeMode,
+  durationMode,
+  manyTimers,
+})}-- Records finished time. Logging for another member needs the manage permission.
 ${employeeMode ? `${dropSignatures(fn("log_time"), logTypes)}\n` : ""}${extra.drop(fn("log_time"), `${logTypes}${employeeMode ? ", uuid" : ""}`)}
 create or replace function ${fn("log_time")}(tenant ${ctx.idType}, started_at timestamptz, ended_at timestamptz, subject_type text default null, subject_id text default null, billable boolean default false, rate bigint default null, rate_currency text default null, note text default null, user_id uuid default null${employeeMode ? ", employee_id uuid default null" : ""}${extra.param})
 returns jsonb
@@ -992,7 +989,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       ],
       returns: "jsonb",
     },
-    { name: "stop_timer", args: ["{id}"], returns: "jsonb" },
+    { name: "stop_timer", args: ["{id}", "uuid"], returns: "jsonb" },
+    { name: "running_timers", args: ["{id}"], returns: "jsonb" },
+    ...(durationEntries(ctx)
+      ? [{ name: "resume_timer", args: ["uuid"], returns: "jsonb" }]
+      : []),
     {
       name: "log_time",
       args: [

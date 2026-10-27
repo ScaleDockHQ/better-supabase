@@ -444,6 +444,8 @@ export function createInboxWidgetController<T extends Identified>(
               if (stored !== null && conversationId === null) {
                 choose(stored);
               }
+
+              return stored;
             });
           }
 

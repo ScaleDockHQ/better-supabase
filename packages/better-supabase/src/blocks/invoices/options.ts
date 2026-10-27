@@ -11,6 +11,11 @@ export type InvoicesSqlOptions = {
   readonly termsDays?: number;
   readonly extraColumns?: ExtraColumns;
   readonly lineExtraColumns?: ExtraColumns;
+  /**
+   * `"app"` when the app keeps the totals columns itself, such as with VAT per
+   * rate: the block never recounts or writes them and reads what they hold.
+   */
+  readonly totals?: "block" | "app";
 };
 
 export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
@@ -22,4 +27,5 @@ export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
     termsDays: option.number({ default: 30 }),
     extraColumns: option.extraColumns(),
     lineExtraColumns: option.extraColumns(),
+    totals: option.string<"block" | "app">({ default: "block" }),
   });

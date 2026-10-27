@@ -1588,7 +1588,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "createdBy": "created_by",
               "leaf": "leaf_id",
               "versionId": "version_id",
-              "createdAt": "created_at"
+              "createdAt": "created_at",
+              "lastUsedAt": "last_used_at"
             }
           }
         },
@@ -2407,7 +2408,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "kind": "kind",
               "status": "status",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "price": "price",
+              "currency": "currency",
+              "trackInventory": "track_inventory"
             }
           },
           "variants": {
@@ -2424,7 +2428,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "allowBackorder": "allow_backorder",
               "rank": "rank",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "price": "price"
             }
           }
         },
@@ -2545,6 +2550,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "columns": {
               "id": "id",
               "tenant": "tenant_id",
+              "drive": "drive_id",
               "parent": "parent_id",
               "kind": "kind",
               "name": "name",
@@ -2552,6 +2558,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "path": "path",
               "rank": "rank",
               "deletedAt": "deleted_at",
+              "source": "source",
+              "externalId": "external_id",
+              "externalMetadata": "external_metadata",
+              "legalHoldUntil": "legal_hold_until",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -4225,6 +4235,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit",
         "employees",
+        "share-links",
         "approvals"
       ],
       "manifest": "leave",
@@ -4262,7 +4273,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "cancelledAt": "cancelled_at",
               "cancelledBy": "cancelled_by",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "rejectedAt": "rejected_at",
+              "decidedBy": "decided_by",
+              "decisionNote": "decision_note"
             }
           },
           "types": {
@@ -5033,7 +5047,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "reimbursement": "reimbursement_transaction_id",
               "cancelledAt": "cancelled_at",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "rejectedAt": "rejected_at",
+              "decidedBy": "decided_by",
+              "decisionNote": "decision_note"
             }
           },
           "lines": {
@@ -7722,6 +7739,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "CalendarOptions"
         },
         {
+          "name": "CalendarReminder"
+        },
+        {
           "name": "CalendarSnapshot"
         },
         {
@@ -9060,6 +9080,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "leave.requested",
           "leave.approved",
           "leave.cancelled",
+          "leave.rejected",
           "leave.adjusted"
         ]
       }
@@ -10384,7 +10405,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "expense_report.submitted",
           "expense_report.approved",
           "expense_report.reimbursed",
-          "expense_report.cancelled"
+          "expense_report.cancelled",
+          "expense_report.rejected"
         ]
       }
     },
@@ -13629,7 +13651,16 @@ export const PRESET_CATALOG: PresetCatalog = {
           "drive.node_moved",
           "drive.node_shared",
           "drive.node_unshared",
-          "drive.node_purged"
+          "drive.node_purged",
+          "drive.node_hold_placed",
+          "drive.node_hold_released",
+          "drive.created",
+          "drive.renamed",
+          "drive.deleted",
+          "drive.shared",
+          "drive.unshared",
+          "drive.connection_created",
+          "drive.connection_removed"
         ]
       }
     },
@@ -14732,6 +14763,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceAging"
         },
         {
+          "name": "InvoiceCharge"
+        },
+        {
           "name": "InvoiceInput",
           "fields": true
         },
@@ -14761,7 +14795,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "invoice.paid",
           "invoice.credited",
           "invoice.voided",
-          "invoice.uncollected"
+          "invoice.uncollected",
+          "invoice.charged"
         ]
       }
     },

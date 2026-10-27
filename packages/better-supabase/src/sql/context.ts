@@ -367,8 +367,9 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   readonly modules: AnyBlocksConfig;
   /** The app-wide subject registry (`config.subjects`). */
   readonly subjects: SubjectsConfig;
-  /** The provider's `rowsWith` template under the `provider` model. */
+  /** The provider's `rowsWith` and `rowsWithFor` templates under `provider`. */
   readonly providerRowsWith: string | undefined;
+  readonly providerRowsWithFor: string | undefined;
   /**
    * The names of `config.appTables`, created in `public` after every block
    * file, so a block can't put a trigger on one (ADR 0043).
@@ -609,8 +610,9 @@ export interface BlockSqlContextSource {
    * model.
    */
   readonly providerGuests?: boolean;
-  /** The provider's `functions.rowsWith` under the `provider` model. */
+  /** The provider's `functions.rowsWith` and `rowsWithFor` templates. */
   readonly providerRowsWith?: string;
+  readonly providerRowsWithFor?: string;
   /** `sql.scope`: the scope of a module whose config sets none. */
   readonly scope?: BlockScope;
   readonly tenantColumn?: string;
@@ -1236,6 +1238,7 @@ export function createModuleContext(
     claims: source.claims ?? DEFAULT_CLAIMS,
     subjects: source.subjects ?? {},
     providerRowsWith: source.providerRowsWith,
+    providerRowsWithFor: source.providerRowsWithFor,
     appTables: new Set(source.appTables),
     scope,
     resolved,
@@ -1319,11 +1322,10 @@ export function createModuleContext(
       declares(name);
       const bound = entry?.uses[name];
 
-      return createModuleContext(
-        name,
-        namesOf,
-        bound === undefined ? shared : { ...shared, instance: bound },
-      );
+      const source =
+        bound === undefined ? shared : { ...shared, instance: bound };
+
+      return createModuleContext(name, namesOf, source);
     },
     text: (name, fallback) => optionOf(name, "string", fallback),
     number: (name, fallback) => optionOf(name, "number", fallback),
@@ -1466,11 +1468,9 @@ export function createModuleContext(
     expired(kind, row) {
       const floor = lifecycle("retention_floor", sqlString(kind));
 
-      if (!floor) {
-        return `${row.at} < now() - ${row.fallback}`;
-      }
-
-      return `(${row.at} < now() - least(${row.fallback}, ${floor})
+      return floor === undefined
+        ? `${row.at} < now() - ${row.fallback}`
+        : `(${row.at} < now() - least(${row.fallback}, ${floor})
       and ${row.at} < now() - ${retention(kind, row.tenant, row.fallback)}
       and not ${held(kind, row.tenant)})`;
     },

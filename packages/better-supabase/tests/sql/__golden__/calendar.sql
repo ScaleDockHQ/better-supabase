@@ -1300,7 +1300,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:3874a44b66787f634264dd6e3143bebef20224e8867776b4721cfac9d79621d9
+-- @bsb-hash sha256:f94a9ca4b8d7528421fb1601f0d3bc2f80c661d02863d8ebf8fcc33823f85968
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2495,44 +2495,63 @@ execute function "better_supabase"."calendar_block_auto_decline"();
 
 -- The events of the calendar a share link points at, for an iCal feed. Open
 -- to anon: the token is the credential, and it is hashed before the lookup.
+-- The link's creator must still read the calendar, and each fetch counts as
+-- a use of the link.
 create or replace function "better_supabase"."calendar_feed"(token text)
 returns jsonb
 language plpgsql
-stable
+volatile
 security definer
 set search_path = ''
 as $$
 #variable_conflict use_column
 declare
+  v_link uuid;
   v_subject text;
-  v_tenant text;
+  v_tenant uuid;
   v_calendar uuid;
+  v_creator uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if calendar_feed.token is null or length(calendar_feed.token) < 32 then
     return null;
   end if;
-  select l."subject_id", l."tenant_id"::text into v_subject, v_tenant
+  select l."id", l."subject_id", l."tenant_id", l."created_by" into v_link, v_subject, v_tenant, v_creator
   from "better_supabase"."share_links" l
   where l."token_hash" = encode(extensions.digest(convert_to(calendar_feed.token, 'utf8'), 'sha256'), 'hex')
     and l."subject_type" = 'calendar'
     and l."revoked_at" is null
     and (l."expires_at" is null or l."expires_at" > now())
-    and (l."max_uses" is null or l."use_count" < l."max_uses");
+    and (l."max_uses" is null or l."use_count" < l."max_uses")
+  for update;
   if v_subject is null or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     return null;
   end if;
   v_calendar := v_subject::uuid;
+  if v_creator is null or not coalesce(better_supabase.can_user(v_creator, 'tenant', v_tenant, 'calendar.read'), false) then
+    return null;
+  end if;
+  update "better_supabase"."share_links" set "use_count" = "use_count" + 1, "last_used_at" = now() where "id" = v_link;
   return (
     select jsonb_build_object(
       'calendar', jsonb_build_object('id', k."id", 'name', k."name", 'tz', k."tz"),
       'events', coalesce((
-        select jsonb_agg(jsonb_build_object('id', e."id", 'calendarId', e."calendar_id", 'uid', e."uid", 'title', e."title", 'startsAt', e."starts_at", 'endsAt', e."ends_at", 'allDay', e."all_day", 'tz', e."tz", 'status', e."status", 'rrule', e."rrule", 'exdates', to_jsonb(e."exdates"), 'recurrenceId', e."recurrence_id", 'originalStart', e."original_start", 'description', e."description", 'location', e."location", 'color', e."color", 'subjectType', e."subject_type", 'subjectId', e."subject_id") || jsonb_build_object('updatedAt', e."updated_at", 'kind', e."kind", 'transparency', e."transparency", 'autoDecline', e."auto_decline", 'attendees', coalesce((select jsonb_agg(jsonb_build_object('email', a."email", 'name', a."name", 'userId', a."user_id", 'role', a."role", 'response', a."response") order by a."email") from "better_supabase"."calendar_attendees" a where a."event_id" = e."id"), '[]'::jsonb)) order by e."starts_at")
+      select jsonb_agg(f.item order by f.starts)
+      from (
+        select jsonb_build_object('id', e."id", 'calendarId', e."calendar_id", 'uid', e."uid", 'title', e."title", 'startsAt', e."starts_at", 'endsAt', e."ends_at", 'allDay', e."all_day", 'tz', e."tz", 'status', e."status", 'rrule', e."rrule", 'exdates', to_jsonb(e."exdates"), 'recurrenceId', e."recurrence_id", 'originalStart', e."original_start", 'description', e."description", 'location', e."location", 'color', e."color", 'subjectType', e."subject_type", 'subjectId', e."subject_id") || jsonb_build_object('updatedAt', e."updated_at", 'kind', e."kind", 'transparency', e."transparency", 'autoDecline', e."auto_decline", 'attendees', coalesce((select jsonb_agg(jsonb_build_object('email', a."email", 'name', a."name", 'userId', a."user_id", 'role', a."role", 'response', a."response") order by a."email") from "better_supabase"."calendar_attendees" a where a."event_id" = e."id"), '[]'::jsonb)) || jsonb_build_object('reminders', coalesce((select jsonb_agg(jsonb_build_object('method', r."method", 'offsetMinutes', r."offset_minutes") order by r."offset_minutes") from "better_supabase"."reminders" r where r."subject_type" = 'calendar_event' and r."subject_id" = e."id"::text and r."user_id" = v_creator), '[]'::jsonb)) as item, e."starts_at" as starts
         from "better_supabase"."calendar_events" e
-        where e."calendar_id" = v_calendar
-          and (e."rrule" is not null or e."ends_at" > now() - interval '1 year')
-      ), '[]'::jsonb)
+        join "better_supabase"."calendars" k on k."id" = e."calendar_id"
+        where k."id" = v_calendar
+          and (e."rrule" is not null or e."ends_at" > now() - interval '366 days')
+          and true
+        order by e."starts_at"
+        limit 5000
+      ) f
+    ), '[]'::jsonb)
     )
-    from "better_supabase"."calendars" k where k."id" = v_calendar and k."tenant_id"::text = v_tenant
+    from "better_supabase"."calendars" k where k."id" = v_calendar and k."tenant_id" = v_tenant
   );
 end;
 $$;

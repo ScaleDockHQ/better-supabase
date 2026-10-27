@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:b9c8721e3983195357ebb3aca908e03c8e067d4428a03415fd616d77d0a41931
+-- @bsb-hash sha256:647225c636adbce742fee6831d9c89c58c32ca485abb8cd4e025cfa0a1388f7d
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -72,6 +72,7 @@ create table if not exists "better_supabase"."share_links" (
 );
 alter table "better_supabase"."share_links" add column if not exists "version_id" uuid;
 alter table "better_supabase"."share_links" add column if not exists "use_count" integer not null default 0;
+alter table "better_supabase"."share_links" add column if not exists "last_used_at" timestamptz;
 alter table "better_supabase"."share_links" enable row level security;
 revoke all on "better_supabase"."share_links" from public, anon, authenticated;
 grant select on "better_supabase"."share_links" to authenticated;
@@ -217,8 +218,7 @@ begin
   if not found then
     return null;
   end if;
-  update "better_supabase"."share_links" set "use_count" = "use_count" + 1
-  where "id" = v_link."id";
+  update "better_supabase"."share_links" set "use_count" = "use_count" + 1, "last_used_at" = now() where "id" = v_link."id";
   return jsonb_build_object('id', v_link."id", 'organizationId', v_link."tenant_id", 'subjectType', v_link."subject_type", 'subjectId', v_link."subject_id", 'role', v_link."role", 'versionId', v_link."version_id", 'expiresAt', v_link."expires_at", 'maxUses', v_link."max_uses");
 end;
 $$;

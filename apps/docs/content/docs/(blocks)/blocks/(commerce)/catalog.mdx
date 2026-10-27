@@ -104,6 +104,19 @@ Once a product has variants, its options can't gain or lose an option
 `trackInventory` and `allowBackorder` are read by the
 [inventory](/docs/blocks/inventory) block when it is installed.
 
+When your variants have no tracking column, map `columns.variants.trackInventory`
+to `null` and keep the flag on the product (`columns.products.trackInventory`):
+inventory and orders read the product's flag, and `save_variant` refuses a
+per-variant one (`CATALOG_TRACK_INVENTORY_UNSUPPORTED`).
+
+### Integer positions
+
+Options, option values, variants, categories and collection products are
+ordered by base-62 rank keys. When your rank columns are whole-number
+positions, set `options.rankType: "integer"`: a new row goes one after the
+last, and `reorderVariant`, `moveCategory` and `addToCollection` take the
+position as text (`"3"`).
+
 ## Prices
 
 ```ts
@@ -131,6 +144,28 @@ otherwise; `asOf` resolves a price at another instant.
 
 Every change to an amount emits `catalog.price_changed` with the previous
 amount, when `outbox` is installed.
+
+### Prices on the variant
+
+When your variants hold their own price, map `tables.prices` to `null`, and
+`columns.variants.price` to the variant's price column. A variant without a
+price falls back to `columns.products.price`, and the price is in the
+product's currency (`columns.products.currency`). `setPrice` writes the
+variant's column and refuses another currency, a compare-at amount, a price
+list or a validity window; `deletePrice(variantId)` clears the variant's own
+price; `variantPrice` returns the variant's or the product's price, and a
+price's id is its variant's.
+
+```ts
+catalog: {
+  tables: { products: "public.products", variants: "public.product_variants", prices: null },
+  columns: {
+    products: { price: "default_selling_price_cents", currency: "currency", trackInventory: "track_inventory" },
+    variants: { price: "selling_price_cents", trackInventory: null, rank: "position" },
+  },
+  options: { rankType: "integer" },
+}
+```
 
 ## Categories and collections
 

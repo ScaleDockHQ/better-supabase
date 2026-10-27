@@ -38,7 +38,7 @@ const rows = useTrash({ limit: 50 });
 
 ## Configure subjects
 
-Every [`config.subjects`](/docs/blocks/sql#subject-registry) entry with a `deletedAt` column can be trashed; `title` names the column the trash list shows. Per subject, `unique` lists the columns no live row in the organization may share when the row is restored, and `children` lists the subjects trashed with it.
+Every [`config.subjects`](/docs/blocks/sql#subject-registry) entry with a `deletedAt` column can be trashed; `title` names the column the trash list shows. Per subject, `unique` lists the columns no live row in the organization may share when the row is restored, `children` lists the subjects trashed with it, and `held` names a `timestamptz` column whose future value keeps the batch from being purged.
 
 ```ts title="better-supabase.config.ts"
 subjects: {
@@ -64,6 +64,7 @@ blocks: {
 | `subjects.<type>.title`     | the registry entry | The column the trash list shows                                              |
 | `subjects.<type>.unique`    | none               | Columns checked on restore; a clash fails with `TRASH_RESTORE_CONFLICT`      |
 | `subjects.<type>.children`  | none               | `{ type, column }`: rows of `type` whose `column` holds this subject's id    |
+| `subjects.<type>.held`      | none               | A `timestamptz` column whose future value keeps the batch in the trash       |
 | `retentionDays`             | `30`               | Days before `purge_expired_trash` deletes a batch; `0` keeps it until purged |
 
 Children are trashed recursively, so a project trashes its tasks and their own children. A child that was already in the trash stays in its own batch.
@@ -141,7 +142,7 @@ Deleting a row that is already trashed returns `not_found`. `{ hard: true }` del
 
 ## Purge
 
-`purge(id)` deletes a batch's rows for good, children first. `purge_expired_trash()` purges batches past their retention; schedule it with pg_cron or the [jobs](/docs/blocks/queue) drain:
+`purge(id)` deletes a batch's rows for good, children first. A batch with a subject whose `held` column is in the future fails with `TRASH_HELD`, and `purge_expired_trash()` leaves it in the trash until the hold ends. `purge_expired_trash()` purges batches past their retention; schedule it with pg_cron or the [jobs](/docs/blocks/queue) drain:
 
 ```sql
 select cron.schedule('purge-trash', '15 3 * * *', 'select better_supabase.purge_expired_trash()');

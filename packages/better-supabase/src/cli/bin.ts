@@ -37,6 +37,8 @@ const spinner = (message: string): (() => void) => {
     if (!stopped) {
       stop = module.clackSpinner(process.stderr, message);
     }
+
+    return module;
   });
 
   return () => {

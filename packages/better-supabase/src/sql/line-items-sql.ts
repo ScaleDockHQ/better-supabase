@@ -138,6 +138,11 @@ export interface LineItems {
   readonly frozen?: string;
   /** Extra `set` assignments on the record after a recount, over `v_*` totals. */
   readonly afterTotals?: string;
+  /**
+   * `false` when the app keeps the record's totals itself: no recount and no
+   * totals trigger, and the setter returns the totals the record holds.
+   */
+  readonly totals?: boolean;
   readonly extras?: readonly ExtraColumn[];
 }
 
@@ -261,7 +266,39 @@ using (exists (select 1 from ${p} x where x.${pc("id")} = ${c("parent")}));
 `
     : "";
 
-  return `${manages}
+  const parentHas = (column: string): boolean => ctx.has(items.parent, column);
+
+  const totalsSet = (
+    [
+      ["listTotal", "v_list"],
+      ["discountTotal", "v_discount"],
+      ["subtotal", "v_list - v_discount"],
+      ["taxTotal", "v_tax"],
+      ["total", "v_list - v_discount + v_tax"],
+    ] as const
+  )
+    .filter(([column]) => parentHas(column))
+    .map(([column, value]) => `${pc(column)} = ${value}`)
+    .join(",\n    ");
+
+  const totalJson = (column: string): string =>
+    parentHas(column)
+      ? `${sqlString(column)}, x.${pc(column)}::text`
+      : column === "listTotal"
+        ? `'listTotal', x.${pc("subtotal")}::text`
+        : `'discountTotal', '0'`;
+
+  const totalsJson = [
+    ["listTotal", "discountTotal"],
+    ["subtotal", "taxTotal", "total"],
+  ]
+    .map((group) => group.map(totalJson).join(", "))
+    .join(",\n    ");
+
+  const recounted = items.totals !== false;
+
+  const triggers = recounted
+    ? `
 -- Writes a record's totals from its lines. A record without lines keeps
 -- zero totals.
 create or replace function ${recount}(parent uuid)
@@ -279,11 +316,7 @@ begin
     into v_list, v_discount, v_tax
   from ${t} l where l.${c("parent")} = ${options.setter}_recount.parent;
   update ${p} x set
-    ${pc("listTotal")} = v_list,
-    ${pc("discountTotal")} = v_discount,
-    ${pc("subtotal")} = v_list - v_discount,
-    ${pc("taxTotal")} = v_tax,
-    ${pc("total")} = v_list - v_discount + v_tax${items.afterTotals === undefined ? "" : `,\n    ${items.afterTotals}`}
+    ${totalsSet}${items.afterTotals === undefined ? "" : `,\n    ${items.afterTotals}`}
   where x.${pc("id")} = ${options.setter}_recount.parent;
 end;
 $$;
@@ -327,7 +360,18 @@ for each statement execute function better_supabase.${trigger}();
 create trigger ${trigger}_delete after delete on ${t}
 referencing old table as old_rows
 for each statement execute function better_supabase.${trigger}();
+`
+    : `
+-- The app keeps the record's totals, so the block doesn't recount them.
+drop trigger if exists ${trigger} on ${t};
+drop trigger if exists ${trigger}_insert on ${t};
+drop trigger if exists ${trigger}_update on ${t};
+drop trigger if exists ${trigger}_delete on ${t};
+drop function if exists better_supabase.${trigger}();
+drop function if exists ${recount}(uuid);
+`;
 
+  return `${manages}${triggers}
 -- Replaces a record's lines with lines: a list of { description, quantity,
 -- unitAmount (minor units as text), currency, discountBps, taxRateBps,
 -- taxCode, product: { type, id } }. A line's currency must be the record's.
@@ -377,10 +421,8 @@ begin
   for v_line in select x.value -> 'fields' as fields, x.ordinality::integer as position from jsonb_array_elements(coalesce(${options.setter}.lines, '[]')) with ordinality x where jsonb_typeof(x.value -> 'fields') = 'object' loop${writeExtraColumns(t, extras, "v_line.fields", `x.${c("parent")} = v_parent and x.${c("position")} = v_line.position`).replaceAll("\n", "\n  ")}
   end loop;`
   }
-  perform ${recount}(v_parent);
-  return (select jsonb_build_object(
-    'listTotal', x.${pc("listTotal")}::text, 'discountTotal', x.${pc("discountTotal")}::text,
-    'subtotal', x.${pc("subtotal")}::text, 'taxTotal', x.${pc("taxTotal")}::text, 'total', x.${pc("total")}::text,
+${recounted ? `  perform ${recount}(v_parent);\n` : ""}  return (select jsonb_build_object(
+    ${totalsJson},
     'currency', x.${pc("currency")})
     from ${p} x where x.${pc("id")} = v_parent);
 end;
@@ -422,13 +464,8 @@ export function catalogLineFallback(ctx: BlockSqlContext): {
 
 /** The totals columns of a record table, as `create table` lines. */
 export function totalColumnsSql(ctx: BlockSqlContext, table: string): string {
-  const c = (column: string): string => ctx.col(table, column);
-
-  return [
-    `${c("listTotal")} bigint not null default 0`,
-    `${c("discountTotal")} bigint not null default 0`,
-    `${c("subtotal")} bigint not null default 0`,
-    `${c("taxTotal")} bigint not null default 0`,
-    `${c("total")} bigint not null default 0`,
-  ].join(",\n  ");
+  return Object.keys(TOTAL_COLUMNS)
+    .filter((column) => ctx.has(table, column))
+    .map((column) => `${ctx.col(table, column)} bigint not null default 0`)
+    .join(",\n  ");
 }

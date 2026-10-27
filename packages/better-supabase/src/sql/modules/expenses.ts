@@ -14,6 +14,7 @@ import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import {
   EXPENSE_REPORT_RESERVED,
   EXPENSE_REPORT_SUBJECT,
+  expenseApprovals,
   expensesFunctions,
 } from "./expenses-functions.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
@@ -49,6 +50,10 @@ const EVENTS: BlockSqlEvents<ExpensesEvents> = {
     subject: "expense-reports",
     payload: REPORT_PAYLOAD,
   },
+  "expense_report.rejected": {
+    subject: "expense-reports",
+    payload: REPORT_PAYLOAD,
+  },
 };
 
 const NAMES: BlockSqlNames = {
@@ -78,7 +83,7 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
-  options: ["extraColumns"],
+  options: ["extraColumns", "approvals"],
   tables: {
     categories: {
       name: "expense_categories",
@@ -118,8 +123,19 @@ const NAMES: BlockSqlNames = {
         cancelledAt: "cancelled_at",
         createdAt: "created_at",
         updatedAt: "updated_at",
+        rejectedAt: "rejected_at",
+        decidedBy: "decided_by",
+        decisionNote: "decision_note",
       },
-      optional: ["note", "approvalTransaction", "reimbursement"],
+      optional: [
+        "note",
+        "approvalTransaction",
+        "reimbursement",
+        "approval",
+        "rejectedAt",
+        "decidedBy",
+        "decisionNote",
+      ],
     },
     lines: {
       name: "expense_lines",
@@ -147,7 +163,7 @@ function tables(ctx: BlockSqlContext): string {
     return "";
   }
 
-  const approvals = ctx.of("approvals");
+  const approvals = expenseApprovals(ctx) ? ctx.of("approvals") : undefined;
   const categories = ctx.table("categories");
   const reports = ctx.table("reports");
   const lines = ctx.table("lines");
@@ -210,8 +226,7 @@ create table if not exists ${reports} (
   ${r("user")} uuid not null references auth.users (id) on delete cascade,
   ${r("title")} text not null check (length(${r("title")}) between 1 and 200),
   ${r("currency")} char(3) not null check (${r("currency")} ~ '^[A-Z]{3}$'),${column("reports", "note", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}
-  ${r("approval")} uuid references ${approvals.table("requests")} (${approvals.col("requests", "id")}) on delete set null,
-  ${r("submittedAt")} timestamptz,
+${approvals === undefined ? "" : `  ${r("approval")} uuid references ${approvals.table("requests")} (${approvals.col("requests", "id")}) on delete set null,\n`}  ${r("submittedAt")} timestamptz,${approvals === undefined ? `${column("reports", "rejectedAt", (name) => `${name} timestamptz`)}${column("reports", "decidedBy", (name) => `${name} uuid`)}${column("reports", "decisionNote", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}` : ""}
   ${r("approvedAt")} timestamptz,${column("reports", "approvalTransaction", (name) => `${name} uuid`)}
   ${r("reimbursedAt")} timestamptz,${column("reports", "reimbursement", (name) => `${name} uuid`)}
   ${r("cancelledAt")} timestamptz,
@@ -220,7 +235,7 @@ create table if not exists ${reports} (
 );${addExtraColumns(reports, ctx.extraColumns("reports", EXPENSE_REPORT_RESERVED))}
 create index if not exists ${index("reports", "tenant_idx")} on ${reports} (${r("tenant")}, ${r("createdAt")} desc);
 create index if not exists ${index("reports", "user_idx")} on ${reports} (${r("user")}, ${r("tenant")});
-create index if not exists ${index("reports", "approval_idx")} on ${reports} (${r("approval")}) where ${r("approval")} is not null;${linkIndex("approval_tx_idx", "approvalTransaction")}${linkIndex("reimbursement_idx", "reimbursement")}
+${approvals === undefined ? "" : `create index if not exists ${index("reports", "approval_idx")} on ${reports} (${r("approval")}) where ${r("approval")} is not null;`}${linkIndex("approval_tx_idx", "approvalTransaction")}${linkIndex("reimbursement_idx", "reimbursement")}
 ${lockModuleTable(ctx, "reports", { read: true })}
 drop policy if exists ${index("reports", "read")} on ${reports};
 ${renderPolicy(makePolicy({ table: reports, name: index("reports", "read"), command: "select", roles: ["authenticated"], using: `${r("user")} = (select auth.uid()) or ${ctx.scope.check(r("tenant"), read)}` }), { target: reports })}
@@ -261,7 +276,9 @@ function build(ctx: BlockSqlContext): string {
     return "";
   }
 
-  for (const needed of ["approvals", "ledger"]) {
+  const approvals = expenseApprovals(ctx);
+
+  for (const needed of approvals ? ["approvals", "ledger"] : ["ledger"]) {
     if (ctx.of(needed).mode === "custom") {
       throw new TypeError(
         `blocks.expenses needs the ${needed} tables; ${needed} can't be in custom mode`,
@@ -317,6 +334,15 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "cancel_expense_report", args: ["uuid"], returns: "jsonb" },
+    ...(expenseApprovals(ctx)
+      ? []
+      : [
+          {
+            name: "decide_expense_report",
+            args: ["uuid", "boolean", "text"],
+            returns: "jsonb",
+          },
+        ]),
     { name: "get_expense_report", args: ["uuid"], returns: "jsonb" },
     {
       name: "list_expense_reports",
@@ -327,15 +353,20 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 }
 
 const CONTRIBUTES: BlockContributes = {
-  approvals: (own) => [
-    {
-      subject: EXPENSE_REPORT_SUBJECT,
-      access: "declared",
-      approve: ({ subjectId }) =>
-        `perform ${own.fn("approve_expense_report")}(${subjectId}::uuid);`,
-    },
-  ],
+  approvals: (own) =>
+    expenseApprovals(own)
+      ? [
+          {
+            subject: EXPENSE_REPORT_SUBJECT,
+            access: "declared",
+            approve: ({ subjectId }) =>
+              `perform ${own.fn("approve_expense_report")}(${subjectId}::uuid);`,
+          },
+        ]
+      : [],
 };
+
+const REQUIRES = ["memberships", "permissions", "approvals", "ledger"] as const;
 
 export const EXPENSES: BlockSqlDefinition = {
   contributes: CONTRIBUTES,
@@ -344,7 +375,11 @@ export const EXPENSES: BlockSqlDefinition = {
   title: "Expenses",
   description:
     "Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units.",
-  requires: ["memberships", "permissions", "approvals", "ledger"],
+  requires: [...REQUIRES],
+  dependencies: (layout) =>
+    layout.modules?.["expenses"]?.options?.["approvals"] === false
+      ? REQUIRES.filter((name) => name !== "approvals")
+      : [...REQUIRES],
   integrates: ["outbox", "audit", "attachments"],
   target: "schema",
   modes: ["managed", "custom"],

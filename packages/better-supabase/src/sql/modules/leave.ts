@@ -23,6 +23,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
+import { leaveFeed, leaveFeedSubject } from "./leave-feed.ts";
 import { leaveLedgerFunctions, leaveLedgerUpgrade } from "./leave-ledger.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { OPERATIONS, moduleOperations } from "./permissions-model.ts";
@@ -57,6 +58,7 @@ const EVENTS: BlockSqlEvents<LeaveEvents> = {
   "leave.requested": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
   "leave.approved": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
   "leave.cancelled": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
+  "leave.rejected": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
   "leave.adjusted": {
     subject: "leave-ledger-entries",
     payload: ADJUSTED_PAYLOAD,
@@ -70,7 +72,14 @@ const NAMES: BlockSqlNames = {
   },
   events: EVENTS,
   hooks: ["before_leave_request", "after_leave_request"],
-  options: ["policy", "workingDays", "allowNegative", "extraColumns"],
+  options: [
+    "policy",
+    "workingDays",
+    "allowNegative",
+    "extraColumns",
+    "feed",
+    "approvals",
+  ],
   tables: {
     types: {
       name: "leave_types",
@@ -114,8 +123,18 @@ const NAMES: BlockSqlNames = {
         cancelledBy: "cancelled_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
+        rejectedAt: "rejected_at",
+        decidedBy: "decided_by",
+        decisionNote: "decision_note",
       },
-      optional: ["note", "cancelledBy"],
+      optional: [
+        "note",
+        "cancelledBy",
+        "approval",
+        "rejectedAt",
+        "decidedBy",
+        "decisionNote",
+      ],
       typed: ["partial"],
     },
   },
@@ -183,14 +202,26 @@ function leavePolicy(ctx: BlockSqlContext): string {
   return policySnapshot(policy);
 }
 
+/**
+ * Whether requests keep their decision themselves instead of in the approvals
+ * block: `options.approvals: false`, or no approval column.
+ */
+function leaveStatusMode(ctx: BlockSqlContext): boolean {
+  return !ctx.flag("approvals", true) || !ctx.has("requests", "approval");
+}
+
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
 
-  const approvals = ctx.of("approvals");
+  // options.approvals: false keeps the decision on the request: the app or
+  // a member with the approve permission decides it with decide_leave_request.
+  const statusMode = leaveStatusMode(ctx);
+  const approvals = statusMode ? undefined : ctx.of("approvals");
+  const rejections = statusMode && ctx.has("requests", "rejectedAt");
 
-  if (approvals.mode === "custom") {
+  if (approvals?.mode === "custom") {
     throw new TypeError(
       "blocks.leave needs the approvals tables; approvals can't be in custom mode",
     );
@@ -200,8 +231,25 @@ function build(ctx: BlockSqlContext): string {
   const requests = ctx.table("requests");
   const ty = (column: string): string => ctx.col("types", column);
   const q = (column: string): string => ctx.col("requests", column);
-  const ar = approvals.table("requests");
-  const a = (column: string): string => approvals.col("requests", column);
+  const ar = approvals?.table("requests") ?? "";
+
+  const a = (column: string): string =>
+    approvals?.col("requests", column) ?? "";
+
+  // Joins a request alias to its approval request as `approval`.
+  const joinApproval = (alias: string, approval: string): string =>
+    approvals === undefined
+      ? ""
+      : `\n    left join ${ar} ${approval} on ${approval}.${a("id")} = ${alias}.${q("approval")}`;
+
+  const approvalVar =
+    approvals === undefined ? "" : `\n  v_approval ${ar}%rowtype;`;
+
+  const loadApproval =
+    approvals === undefined
+      ? ""
+      : `\n  select * into v_approval from ${ar} x where x.${a("id")} = v_row.${q("approval")};`;
+
   const fn = (name: string): string => ctx.fn(name);
   const permissions = moduleOperations("leave");
   const request = ctx.permission("request", permissions.request);
@@ -275,18 +323,20 @@ function build(ctx: BlockSqlContext): string {
     .join(", ");
 
   const status = (row: string, approval: string): string =>
-    `case when ${row}.${q("cancelledAt")} is not null then 'cancelled' when ${row}.${q("approvedAt")} is not null then 'approved' when ${approval}.${a("status")} in ('rejected', 'expired') then 'rejected' when ${approval}.${a("status")} = 'cancelled' then 'cancelled' else 'pending' end`;
+    approvals === undefined
+      ? `case when ${row}.${q("cancelledAt")} is not null then 'cancelled' when ${row}.${q("approvedAt")} is not null then 'approved'${rejections ? ` when ${row}.${q("rejectedAt")} is not null then 'rejected'` : ""} else 'pending' end`
+      : `case when ${row}.${q("cancelledAt")} is not null then 'cancelled' when ${row}.${q("approvedAt")} is not null then 'approved' when ${approval}.${a("status")} in ('rejected', 'expired') then 'rejected' when ${approval}.${a("status")} = 'cancelled' then 'cancelled' else 'pending' end`;
 
   const typeJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${ty("id")}, 'organizationId', ${row}.${ty("tenant")}, 'key', ${row}.${ty("key")}, 'name', ${row}.${ty("name")}, 'unit', ${row}.${ty("unit")}, 'paid', ${row}.${ty("paid")}, 'tracked', ${row}.${ty("tracked")}, 'allowance', ${or("types", row, "allowance")}::text, 'carryoverMax', ${or("types", row, "carryoverMax")}::text, 'color', ${or("types", row, "color")}, 'archivedAt', ${row}.${ty("archivedAt")}, 'createdAt', ${row}.${ty("createdAt")}, 'updatedAt', ${row}.${ty("updatedAt")})`;
 
   const requestJson = (row: string, approval: string): string =>
-    `jsonb_build_object('id', ${row}.${q("id")}, 'organizationId', ${row}.${q("tenant")}, 'userId', ${row}.${q("user")}, 'typeId', ${row}.${q("type")}, 'startsOn', ${row}.${q("startsOn")}, 'endsOn', ${row}.${q("endsOn")}, 'partial', ${row}.${q("partial")}, 'amount', ${row}.${q("amount")}::text, 'note', ${or("requests", row, "note")}, 'status', ${status(row, approval)}, 'approvalId', ${row}.${q("approval")}, 'approvedAt', ${row}.${q("approvedAt")}, 'cancelledAt', ${row}.${q("cancelledAt")}, 'createdAt', ${row}.${q("createdAt")}, 'updatedAt', ${row}.${q("updatedAt")}${extraFieldsJson(row, extras)})`;
+    `jsonb_build_object('id', ${row}.${q("id")}, 'organizationId', ${row}.${q("tenant")}, 'userId', ${row}.${q("user")}, 'typeId', ${row}.${q("type")}, 'startsOn', ${row}.${q("startsOn")}, 'endsOn', ${row}.${q("endsOn")}, 'partial', ${row}.${q("partial")}, 'amount', ${row}.${q("amount")}::text, 'note', ${or("requests", row, "note")}, 'status', ${status(row, approval)}, 'approvalId', ${or("requests", row, "approval")}, 'approvedAt', ${row}.${q("approvedAt")}, 'cancelledAt', ${row}.${q("cancelledAt")}, 'createdAt', ${row}.${q("createdAt")}, 'updatedAt', ${row}.${q("updatedAt")}${extraFieldsJson(row, extras)})`;
 
   const requestRecord = (type: string, row: string, summary: string): string =>
     ctx.record({
       type,
-      payload: `jsonb_build_object('organizationId', ${row}.${q("tenant")}, 'id', ${row}.${q("id")}, 'userId', ${row}.${q("user")}, 'typeId', ${row}.${q("type")}, 'startsOn', ${row}.${q("startsOn")}, 'endsOn', ${row}.${q("endsOn")}, 'amount', ${row}.${q("amount")}::text, 'approvalId', ${row}.${q("approval")})`,
+      payload: `jsonb_build_object('organizationId', ${row}.${q("tenant")}, 'id', ${row}.${q("id")}, 'userId', ${row}.${q("user")}, 'typeId', ${row}.${q("type")}, 'startsOn', ${row}.${q("startsOn")}, 'endsOn', ${row}.${q("endsOn")}, 'amount', ${row}.${q("amount")}::text, 'approvalId', ${or("requests", row, "approval")})`,
       subject: `'leave-requests/' || ${row}.${q("id")}::text`,
       tenant: `${row}.${q("tenant")}`,
       audit: {
@@ -301,7 +351,63 @@ function build(ctx: BlockSqlContext): string {
     `extract(year from ${row}.${q("startsOn")})::integer`;
 
   const pendingIn = (alias: string, approval: string): string =>
-    `${alias}.${q("cancelledAt")} is null and ${alias}.${q("approvedAt")} is null and ${approval}.${a("status")} = 'pending'`;
+    approvals === undefined
+      ? `${alias}.${q("cancelledAt")} is null and ${alias}.${q("approvedAt")} is null${rejections ? ` and ${alias}.${q("rejectedAt")} is null` : ""}`
+      : `${alias}.${q("cancelledAt")} is null and ${alias}.${q("approvedAt")} is null and ${approval}.${a("status")} = 'pending'`;
+
+  const approvalRow = approvals === undefined ? "" : "v_approval";
+  const approve = ctx.permission("approve", permissions.approve);
+
+  const decision = (column: string, value: string): string =>
+    ctx.has("requests", column) ? `, ${q(column)} = ${value}` : "";
+
+  const decide = `
+-- Approves or rejects a pending request without the approvals block: the
+-- service role, or a member with the approve permission who didn't ask for
+-- it. Approval books the leave like a final approval.
+create or replace function ${fn("decide_leave_request")}(request_id uuid, approved boolean, note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${requests}%rowtype;
+begin
+  select * into v_row from ${requests} x where x.${q("id")} = decide_leave_request.request_id for update;
+  if not found then
+    ${fail("LEAVE_REQUEST_NOT_FOUND", "leave request not found", "P0002")}
+  end if;
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", `v_row.${q("tenant")}`, approve)} and v_row.${q("user")} is distinct from auth.uid())) then
+    ${forbidden("not allowed to decide this leave request")}
+  end if;
+  if not (${pendingIn("v_row", "")}) then
+    ${fail("LEAVE_REQUEST_CLOSED", "this leave request was already decided or cancelled", "55000")}
+  end if;
+  if decide_leave_request.approved is null then
+    ${invalid("approved must be true or false")}
+  end if;
+  if decide_leave_request.approved then
+    perform ${fn("approve_leave_request")}(v_row.${q("id")});
+    update ${requests} x set ${q("updatedAt")} = now()${decision("decidedBy", "auth.uid()")}${decision("decisionNote", "nullif(trim(decide_leave_request.note), '')")}
+      where x.${q("id")} = v_row.${q("id")}
+      returning * into v_row;
+  else${
+    rejections
+      ? `
+    update ${requests} x set ${q("rejectedAt")} = now(), ${q("updatedAt")} = now()${decision("decidedBy", "auth.uid()")}${decision("decisionNote", "nullif(trim(decide_leave_request.note), '')")}
+      where x.${q("id")} = v_row.${q("id")}
+      returning * into v_row;
+    ${requestRecord("leave.rejected", "v_row", "rejected leave")}`
+      : `
+    ${fail("LEAVE_REJECTION_UNSUPPORTED", "this leave requests table has no rejected_at column", "22023")}`
+  }
+  end if;
+  return ${requestJson("v_row", "")};
+end;
+$$;
+${userGrant(`${fn("decide_leave_request")}(uuid, boolean, text)`)}
+`;
 
   const balanceCheck = allowNegative
     ? ""
@@ -339,8 +445,7 @@ create table if not exists ${requests} (
   ${q("partial")} text not null default 'full' check (${q("partial")} in ('full', 'morning', 'afternoon', 'hours')),
   -- Working days, or hours for an hours type, that the request books.
   ${q("amount")} numeric(8, 2) not null check (${q("amount")} > 0),${column("requests", "note", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}
-  ${q("approval")} uuid references ${ar} (${a("id")}) on delete set null,
-  ${q("approvedAt")} timestamptz,
+${approvals === undefined ? "" : `  ${q("approval")} uuid references ${ar} (${a("id")}) on delete set null,\n`}  ${q("approvedAt")} timestamptz,${statusMode ? `${column("requests", "rejectedAt", (name) => `${name} timestamptz`)}${column("requests", "decidedBy", (name) => `${name} uuid`)}${column("requests", "decisionNote", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}` : ""}
   ${q("cancelledAt")} timestamptz,${column("requests", "cancelledBy", (name) => `${name} uuid`)}
   ${q("createdAt")} timestamptz not null default now(),
   ${q("updatedAt")} timestamptz not null default now(),
@@ -349,8 +454,7 @@ create table if not exists ${requests} (
 );${addExtraColumns(requests, extras)}
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_user_idx`)} on ${requests} (${q("tenant")}, ${q("user")}, ${q("startsOn")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_dates_idx`)} on ${requests} (${q("tenant")}, ${q("startsOn")}, ${q("endsOn")});
-create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_approval_idx`)} on ${requests} (${q("approval")}) where ${q("approval")} is not null;
-create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_type_idx`)} on ${requests} (${q("tenant")}, ${q("type")});
+${approvals === undefined ? "" : `create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_approval_idx`)} on ${requests} (${q("approval")}) where ${q("approval")} is not null;\n`}create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_type_idx`)} on ${requests} (${q("tenant")}, ${q("type")});
 ${lockModuleTable(ctx, "requests", { read: true })}
 ${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("leave_requests_read"), command: "select", roles: ["authenticated"], using: `${q("user")} = (select auth.uid()) or ${ctx.scope.check(q("tenant"), read)}` }), { drop: true, target: requests })}
 
@@ -363,8 +467,7 @@ ${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("leave_requ
     type: string,
     year: string,
   ): string =>
-    `coalesce((select sum(r.${q("amount")}) from ${requests} r
-      left join ${ar} p on p.${a("id")} = r.${q("approval")}
+    `coalesce((select sum(r.${q("amount")}) from ${requests} r${joinApproval("r", "p").replace("\n    ", "\n      ")}
       where r.${q("tenant")} = ${tenant} and r.${q("user")} = ${user}
         and r.${q("type")} = ${type} and ${period("r")} = ${year}
         and ${pendingIn("r", "p")}), 0)`;
@@ -470,9 +573,7 @@ declare
   v_type ${types}%rowtype;
   v_partial text := coalesce(request_leave.partial, 'full');
   v_amount numeric;
-  v_row ${requests}%rowtype;
-  v_approval ${ar}%rowtype;
-  v_request jsonb;
+  v_row ${requests}%rowtype;${approvalVar}${approvals === undefined ? "" : "\n  v_request jsonb;"}
 begin
   if v_me is null or not ${ctx.can("tenant", "request_leave.tenant", request)} then
     ${forbidden("not allowed to request leave here")}
@@ -519,10 +620,9 @@ begin
   }
   perform pg_advisory_xact_lock(hashtextextended('leave:' || request_leave.tenant::text || ':' || v_me::text, 0));
   if exists (
-    select 1 from ${requests} r
-    left join ${ar} p on p.${a("id")} = r.${q("approval")}
+    select 1 from ${requests} r${joinApproval("r", "p")}
     where r.${q("tenant")} = request_leave.tenant and r.${q("user")} = v_me
-      and r.${q("cancelledAt")} is null and (r.${q("approvedAt")} is not null or p.${a("status")} = 'pending')
+      and r.${q("cancelledAt")} is null and (r.${q("approvedAt")} is not null or ${approvals === undefined ? `(${pendingIn("r", "p")})` : `p.${a("status")} = 'pending'`})
       and daterange(r.${q("startsOn")}, r.${q("endsOn")}, '[]') && daterange(request_leave.starts_on, request_leave.ends_on, '[]')
       and not (r.${q("partial")} = 'morning' and v_partial = 'afternoon')
       and not (r.${q("partial")} = 'afternoon' and v_partial = 'morning')
@@ -538,7 +638,10 @@ begin
   ])}
   insert into ${requests} (${q("tenant")}, ${q("user")}, ${q("type")}, ${q("startsOn")}, ${q("endsOn")}, ${q("partial")}, ${q("amount")}${also("requests", "note")})
   values (request_leave.tenant, v_me, v_type.${ty("id")}, request_leave.starts_on, request_leave.ends_on, ${ctx.cast("requests", "partial", "v_partial")}, v_amount${alsoValue("requests", "note", "nullif(trim(request_leave.note), '')")})
-  returning * into v_row;${writeExtraColumns(requests, extras, "request_leave.fields", `x.${q("id")} = v_row.${q("id")}`, "v_row")}
+  returning * into v_row;${writeExtraColumns(requests, extras, "request_leave.fields", `x.${q("id")} = v_row.${q("id")}`, "v_row")}${
+    approvals === undefined
+      ? ""
+      : `
   v_request := ${approvals.fn("open_approval")}(
     request_leave.tenant, ${sqlString(LEAVE_REQUEST_SUBJECT)}, v_row.${q("id")}::text, 'approve',
     ${sqlString(policy)}::jsonb, ${or("requests", "v_row", "note")},
@@ -546,11 +649,11 @@ begin
   );
   update ${requests} x set ${q("approval")} = (v_request ->> 'id')::uuid
     where x.${q("id")} = v_row.${q("id")}
-    returning * into v_row;
-  select * into v_approval from ${ar} x where x.${a("id")} = v_row.${q("approval")};
+    returning * into v_row;${loadApproval}`
+  }
   ${requestRecord("leave.requested", "v_row", "requested leave")}
   ${ctx.hook("after_leave_request", [["uuid", `v_row.${q("id")}`]])}
-  return ${requestJson("v_row", "v_approval")};
+  return ${requestJson("v_row", approvalRow)};
 end;
 $$;
 ${userGrant(`${fn("request_leave")}(${idType}, uuid, date, date, text, numeric, text${extra.type})`)}
@@ -589,8 +692,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row ${requests}%rowtype;
-  v_approval ${ar}%rowtype;
+  v_row ${requests}%rowtype;${approvalVar}
   v_manager boolean;
 begin
   select * into v_row from ${requests} x where x.${q("id")} = cancel_leave_request.request_id for update;
@@ -607,22 +709,25 @@ begin
   if not v_manager and v_row.${q("approvedAt")} is not null and v_row.${q("startsOn")} <= current_date then
     ${forbidden("leave that has started can only be cancelled by a manager")}
   end if;
-  update ${ar} p set ${a("status")} = 'cancelled', ${a("decidedAt")} = now()
+${
+  approvals === undefined
+    ? ""
+    : `  update ${ar} p set ${a("status")} = 'cancelled', ${a("decidedAt")} = now()
     where p.${a("id")} = v_row.${q("approval")} and p.${a("status")} = 'pending';
-  if v_row.${q("approvedAt")} is not null then
+`
+}  if v_row.${q("approvedAt")} is not null then
     perform ${fn("leave_post")}(v_row.${q("tenant")}, v_row.${q("user")}, v_row.${q("type")}, 'taken', v_row.${q("amount")}, ${period("v_row")}, v_row.${q("id")}, 'cancelled')
     from ${types} t where t.${ty("id")} = v_row.${q("type")} and t.${ty("tracked")};
   end if;
   update ${requests} x set ${q("cancelledAt")} = now()${ctx.has("requests", "cancelledBy") ? `, ${q("cancelledBy")} = auth.uid()` : ""}, ${q("updatedAt")} = now()
     where x.${q("id")} = v_row.${q("id")}
-    returning * into v_row;
-  select * into v_approval from ${ar} x where x.${a("id")} = v_row.${q("approval")};
+    returning * into v_row;${loadApproval}
   ${requestRecord("leave.cancelled", "v_row", "cancelled leave")}
-  return ${requestJson("v_row", "v_approval")};
+  return ${requestJson("v_row", approvalRow)};
 end;
 $$;
 ${userGrant(`${fn("cancel_leave_request")}(uuid)`)}
-
+${statusMode ? decide : ""}${leaveFeed(ctx)}
 -- Requests that overlap a date range, earliest first: the caller's, or
 -- everyone's with the read permission.
 create or replace function ${fn("list_leave_requests")}(tenant ${idType}, user_id uuid default null, status text default null, starts date default null, ends date default null, everyone boolean default false, page_size integer default 100)
@@ -646,8 +751,7 @@ begin
   select coalesce(jsonb_agg(z.item order by z.starts, z.created), '[]'::jsonb) into v_rows
   from (
     select ${requestJson("r", "p")} as item, r.${q("startsOn")} as starts, r.${q("createdAt")} as created
-    from ${requests} r
-    left join ${ar} p on p.${a("id")} = r.${q("approval")}
+    from ${requests} r${joinApproval("r", "p")}
     where r.${q("tenant")} = list_leave_requests.tenant
       and (case
         when coalesce(list_leave_requests.everyone, false) then true
@@ -697,19 +801,37 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "uuid", "text", "date", "date", "boolean", "integer"],
       returns: "jsonb",
     },
+    ...(leaveStatusMode(ctx)
+      ? [
+          {
+            name: "decide_leave_request",
+            args: ["uuid", "boolean", "text"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
+    ...(ctx.installed("share-links")
+      ? [{ name: "leave_feed", args: ["text"], returns: "jsonb" }]
+      : []),
   ];
 }
 
 const CONTRIBUTES: BlockContributes = {
-  approvals: (own) => [
-    {
-      subject: LEAVE_REQUEST_SUBJECT,
-      access: "declared",
-      approve: ({ subjectId }) =>
-        `perform ${own.fn("approve_leave_request")}(${subjectId}::uuid);`,
-    },
-  ],
+  "share-links": (own) => [leaveFeedSubject(own)],
+  approvals: (own) =>
+    leaveStatusMode(own)
+      ? []
+      : [
+          {
+            subject: LEAVE_REQUEST_SUBJECT,
+            access: "declared",
+            approve: ({ subjectId }) =>
+              `perform ${own.fn("approve_leave_request")}(${subjectId}::uuid);`,
+          },
+        ],
 };
+
+const REQUIRES = ["memberships", "permissions", "approvals", "ledger"] as const;
 
 export const LEAVE: BlockSqlDefinition = {
   contributes: CONTRIBUTES,
@@ -719,8 +841,12 @@ export const LEAVE: BlockSqlDefinition = {
   title: "Leave",
   description:
     "Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.",
-  requires: ["memberships", "permissions", "approvals", "ledger"],
-  integrates: ["outbox", "audit", "employees"],
+  requires: [...REQUIRES],
+  dependencies: (layout) =>
+    layout.modules?.["leave"]?.options?.["approvals"] === false
+      ? REQUIRES.filter((name) => name !== "approvals")
+      : [...REQUIRES],
+  integrates: ["outbox", "audit", "employees", "share-links"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 3,

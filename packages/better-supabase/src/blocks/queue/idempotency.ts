@@ -429,6 +429,8 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
             // Another request holds the key now; complete returns false.
             renewing = false;
           }
+
+          return extended;
         });
       });
 

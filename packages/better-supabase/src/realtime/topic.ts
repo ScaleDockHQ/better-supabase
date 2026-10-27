@@ -1080,6 +1080,8 @@ export function defineTopic<
               } else {
                 subscribeOptions.onInvalid?.(message, checked.issues);
               }
+
+              return checked;
             },
           );
         },

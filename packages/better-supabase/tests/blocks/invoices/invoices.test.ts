@@ -338,4 +338,43 @@ describe("invoices block, currencies", () => {
       lines: [{ description: "x", unitAmount: "5", currency: "USD" }],
     });
   });
+
+  it("adds a charge and reads charges and the charged total back", async () => {
+    const t = transport({
+      add_invoice_charge: () => ({
+        ...ROW,
+        balance: "4400",
+        charged_total: "4000",
+        charges: [
+          {
+            id: "ch1",
+            amount: "4000",
+            description: "Collection costs",
+            createdAt: "2026-11-20T09:00:00Z",
+          },
+        ],
+      }),
+    });
+
+    const invoice = await createInvoices({ transport: t })
+      .charge("i1", { amount: eur(4000n), description: "Collection costs" })
+      .orThrow();
+
+    expect(t.calls[0]).toEqual([
+      "add_invoice_charge",
+      {
+        invoice: "i1",
+        amount: "4000",
+        currency: "EUR",
+        description: "Collection costs",
+      },
+    ]);
+    expect(invoice.chargedTotal).toEqual(eur(4000n));
+    expect(invoice.charges?.[0]).toMatchObject({
+      id: "ch1",
+      amount: eur(4000n),
+      description: "Collection costs",
+    });
+    expect(invoice.fields).not.toHaveProperty("charges");
+  });
 });
