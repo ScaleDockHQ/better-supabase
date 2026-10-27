@@ -227,3 +227,12 @@ image optimizer doesn't answer through that rewrite: `/_next/image?url=...`
 returns 404 while the file under `public/` returns 200. Serve images from
 `public/` at the size they are shown, and check a new image with `curl -I`
 against production after the deploy.
+
+## Flags SDK in the example
+
+- `precompute` in the proxy reads the original request's cookies, so a
+  cookie the proxy sets (the `visitor-id`) only counts from the next request.
+- With Cache Components, `generateStaticParams` can't return `[]`; the
+  pricing page returns one `default` code when `FLAGS_SECRET` is unset.
+- Pass the adapter itself (`adapter: bsFlags`) and put `identify` on
+  `createBetterSupabaseAdapter`, not on each flag.

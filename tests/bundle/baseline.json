@@ -6,7 +6,7 @@
   "./create/lite": 1554057,
   "./create/oauth": 1586,
   "./create/supabase": 4647,
-  "./cli": 661765,
+  "./cli": 662238,
   "./client": 62580,
   "./client/native": 58244,
   "./react": 78629,
@@ -76,7 +76,7 @@
   "./workflow-sdk": 20184,
   "./workflow-sdk/world": 48794,
   "./eve": 29247,
-  "./flags-sdk": 26894,
+  "./flags-sdk": 29215,
   "./workflow-sdk/builder": 39341,
   "./streams": 22527,
   "./streams/redis": 10446,
@@ -206,6 +206,6 @@
   "./blocks/leases": 38773,
   "./blocks/expenses": 38396,
   "./blocks/donations": 41629,
-  "better-supabase CLI (startup)": 31874,
+  "better-supabase CLI (startup)": 31881,
   "content mapper (startup)": 119158
 }

@@ -128,6 +128,9 @@ insert into better_supabase.invitations (organization_id, email, role, token_has
 -- The beta page: off by default, on for Acme.
 insert into better_supabase.flags (key, description, default_variant) values
   ('beta-page', 'Shows the Beta page in the sidebar', 'off');
+-- The proxy reads this one for signed-out visitors: on, /signup shows the waitlist.
+insert into better_supabase.flags (key, description, default_variant) values
+  ('signup-waitlist', 'Sends sign-ups to the waitlist', 'off');
 insert into better_supabase.flag_overrides (flag_key, organization_id, variant) values
   ('beta-page', '00000000-0000-4000-8000-000000000001', 'on');
 

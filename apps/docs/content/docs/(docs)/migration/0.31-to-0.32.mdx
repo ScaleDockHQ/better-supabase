@@ -99,6 +99,23 @@ memo and the authorization version cache, so await it. `bsb.cacheTag` and
 `bsb.cacheTags` are `bsb.tag` and `bsb.tags`. The `cacheTags: false` option of
 `createNext` keeps its name, because it turns tagging off.
 
+## Flags SDK
+
+| 0.31                                            | 0.32                                                    |
+| ----------------------------------------------- | ------------------------------------------------------- |
+| `betterSupabaseAdapter(options)`                | `createBetterSupabaseAdapter(options)`                  |
+| `adapter: bsFlags()` on every flag              | `adapter: bsFlags`, or `adapter: betterSupabaseAdapter` |
+| `identify` on every flag                        | `identify` once, on `createBetterSupabaseAdapter`       |
+| `createIdentify({ claims })` over `bsb.context` | `createIdentify({ server: bsb })`                       |
+| `mergeProviderData` with the declared flags     | `getProviderData(adapter, { flags })`                   |
+
+`betterSupabaseAdapter` is now a ready adapter that reads `SUPABASE_URL` and
+`SUPABASE_SECRET_KEY` on first use, the way `@flags-sdk/vercel` reads its own
+key. `createBetterSupabaseAdapter` also takes `url` and `secretKey`, so a
+service client and `rpcTransport` are no longer needed. `createIdentify`
+takes a `visitor` for signed-out rollouts. `pnpm better-supabase codemod 0.32`
+renames the calls and flags `createIdentify({ claims: ... })` for review.
+
 ## Names that stay
 
 Some names looked like candidates and keep their meaning:

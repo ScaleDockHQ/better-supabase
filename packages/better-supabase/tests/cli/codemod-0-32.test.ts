@@ -226,6 +226,40 @@ bsb.proxy(request, { verifySession: true, leeway: 30, onExpiredPrefetch: "render
 `);
   });
 
+  it("renames betterSupabaseAdapter calls and keeps the bare default", () => {
+    const called = `import { betterSupabaseAdapter } from "better-supabase/flags-sdk";
+
+export const bsFlags = betterSupabaseAdapter({ definitions: [] });
+// betterSupabaseAdapter( in a comment stays
+`;
+
+    expect(applyCodemod(v032, called, "src/flags.ts").text)
+      .toBe(`import { createBetterSupabaseAdapter } from "better-supabase/flags-sdk";
+
+export const bsFlags = createBetterSupabaseAdapter({ definitions: [] });
+// betterSupabaseAdapter( in a comment stays
+`);
+
+    const both = `import { betterSupabaseAdapter, getProviderData } from "better-supabase/flags-sdk";
+
+const custom = betterSupabaseAdapter({ definitions: [] });
+flag({ key: "a", adapter: betterSupabaseAdapter });
+`;
+
+    expect(applyCodemod(v032, both, "src/flags.ts").text)
+      .toBe(`import { createBetterSupabaseAdapter, betterSupabaseAdapter, getProviderData } from "better-supabase/flags-sdk";
+
+const custom = createBetterSupabaseAdapter({ definitions: [] });
+flag({ key: "a", adapter: betterSupabaseAdapter });
+`);
+
+    const bare = `import { betterSupabaseAdapter } from "better-supabase/flags-sdk";
+flag({ key: "a", adapter: betterSupabaseAdapter });
+`;
+
+    expect(applyCodemod(v032, bare, "src/flags.ts").text).toBe(bare);
+  });
+
   it("lists the session reads, caller kinds and sign-in calls for review", () => {
     const source = `const session = await bsb.session();
 if (session.kind === "anon") {}

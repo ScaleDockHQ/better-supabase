@@ -212,13 +212,76 @@ function renameKeys(text: string): {
       text: KEY_RENAMES[match[0]]!,
     }));
 
-  return { text: applyEdits(text, edits), review: [] };
+  return { text: renameAdapterCalls(applyEdits(text, edits)), review: [] };
+}
+
+const FLAGS_IMPORT =
+  /import\s*\{([^}]*)\}\s*from\s*["']better-supabase\/flags-sdk["']/;
+
+/**
+ * `betterSupabaseAdapter(options)` is `createBetterSupabaseAdapter(options)`;
+ * `betterSupabaseAdapter` without a call is the adapter from the environment.
+ * The import gains the new name, and loses the old one once nothing else uses
+ * it.
+ */
+function renameAdapterCalls(text: string): string {
+  const ranges = codeRanges(text);
+
+  const inCode = (index: number) =>
+    ranges.some(([start, end]) => index >= start && index < end);
+
+  const uses = [
+    ...text.matchAll(/(?<![\w$.])betterSupabaseAdapter\b(\s*\()?/g),
+  ].filter((match) => inCode(match.index));
+
+  const calls = uses.filter((match) => match[1] !== undefined);
+
+  if (calls.length === 0) {
+    return text;
+  }
+
+  const edits: Edit[] = calls.map((match) => ({
+    start: match.index,
+    end: match.index + "betterSupabaseAdapter".length,
+    text: "createBetterSupabaseAdapter",
+  }));
+
+  const imported = FLAGS_IMPORT.exec(text);
+
+  if (imported) {
+    const listStart = imported.index + imported[0].indexOf("{") + 1;
+    const list = imported[1]!;
+    const names = list.split(",").map((name) => name.trim());
+    const bare = uses.length - calls.length - 1;
+
+    if (!names.includes("createBetterSupabaseAdapter")) {
+      const at = list.search(/\bbetterSupabaseAdapter\b/);
+
+      if (at !== -1) {
+        edits.push(
+          bare > 0
+            ? {
+                start: listStart + at,
+                end: listStart + at,
+                text: "createBetterSupabaseAdapter, ",
+              }
+            : {
+                start: listStart + at,
+                end: listStart + at + "betterSupabaseAdapter".length,
+                text: "createBetterSupabaseAdapter",
+              },
+        );
+      }
+    }
+  }
+
+  return applyEdits(text, edits);
 }
 
 export const CODEMOD_0_32: Codemod = {
   name: "0.32",
   description:
-    "Renames auth.organization to auth.tenant in better-supabase.config.* (at the top level and in the $env and $<environment> blocks), the requireOrganization route and procedure option to requireTenant, the createNext session, sign-in and cache methods to the supabase-js names (getClaims, contextFromSession, evictSession, signInWithOAuth, exchangeCodeForSession, tag, tags), the proxy and session-check option keys (verifySession, leeway, onExpiredPrefetch), checkSession to verifySession, and the matching types",
+    "Renames auth.organization to auth.tenant in better-supabase.config.* (at the top level and in the $env and $<environment> blocks), the requireOrganization route and procedure option to requireTenant, the createNext session, sign-in and cache methods to the supabase-js names (getClaims, contextFromSession, evictSession, signInWithOAuth, exchangeCodeForSession, tag, tags), the proxy and session-check option keys (verifySession, leeway, onExpiredPrefetch), checkSession to verifySession, betterSupabaseAdapter(options) to createBetterSupabaseAdapter(options), and the matching types",
   imports: {
     OrganizationConfig: "TenantConfig",
     OAuthStart: "SignInWithOAuthParams",
@@ -278,6 +341,11 @@ export const CODEMOD_0_32: Codemod = {
       pattern: /\b(?:session_ended|account_banned)\b/,
       message:
         "The `verifySession` redirect sends `reason=session_not_found` or `reason=user_banned` (Auth's error codes) instead of `session_ended` and `account_banned`",
+    },
+    {
+      pattern: /\bcreateIdentify\(\s*\{\s*claims\s*:/,
+      message:
+        "`createIdentify` takes `server` (your better-supabase server) instead of reading the claims yourself: `createIdentify({ server: bsb })`. `claims` still works",
     },
     {
       pattern: /\bevictSession\(/,
