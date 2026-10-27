@@ -237,7 +237,7 @@ export function accessProviderMode(
  * Whether the provider's hook writes the `permissions` claim (`claim`, as
  * `config.claims.permissions`) itself.
  */
-export function ownsPermissionsClaim(
+function ownsPermissionsClaim(
   provider: Pick<AuthorizationProvider, "tokenHook">,
   claim: string = DEFAULT_CLAIMS.permissions,
 ): boolean {

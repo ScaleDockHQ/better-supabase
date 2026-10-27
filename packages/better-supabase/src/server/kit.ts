@@ -161,7 +161,7 @@ function actionError(error: DbError): ActionResult<never> {
  * The purpose of a route check: `GET` and `HEAD` read, other methods write.
  * Without a method the route is read.
  */
-export function routePurpose(method?: string): AuthorizationPurpose {
+function routePurpose(method?: string): AuthorizationPurpose {
   const upper = method?.toUpperCase();
 
   return {
