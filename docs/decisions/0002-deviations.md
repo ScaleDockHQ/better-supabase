@@ -258,7 +258,7 @@ line: axe requires a scrolling region to take keyboard focus
 
 ### Ultracite presets
 
-The root `oxlint.config.ts` extends Ultracite 8.0.1 (`core`, `vitest`,
+The root `oxlint.config.ts` extends Ultracite 8.1.0 (`core`, `vitest`,
 `anti-slop`, `react`, `next`, `shadcn`) and keeps every house rule above.
 On adoption, 125 of its rules fired 97,274 times on existing code. Each one
 is off in the root config, in a group with the reason and the count, so
