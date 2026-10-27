@@ -264,14 +264,120 @@ export const GET = createFlagsDiscoveryEndpoint(() =>
 
 The route answers only requests signed with `FLAGS_SECRET`. A failed load
 still lists the declared flags, with a hint instead of an error, and a flag
-with an unknown type shows a hint too. Exclude
-`/.well-known/vercel/` from the proxy matcher. An override set in the
-toolbar applies before the adapter's `decide`.
+with an unknown type shows a hint too, as does a variant whose value doesn't
+match the flag's type. Exclude `/.well-known/vercel/` from the proxy
+matcher. An override set in the toolbar applies before the adapter's
+`decide`.
+
+`toFlagsSdkDefinition(flag, origin)` turns one stored flag into the
+definition Flags Explorer shows, and `origin` may be a URL or an object
+such as `{ provider: "better-supabase", projectId }`, or a function of the
+key. `flagDrift(declared, stored)` lists the keys your code declares that the
+table lacks (`notStored`) and the ones the table has that no code declares
+(`notDeclared`); archived flags count as neither. Run it in a test to catch
+a flag someone deleted while code still reads it.
+
+### Outside Next.js
+
+`flagsDiscoveryHandler(getData, { verify })` is the discovery route as a
+`(request: Request) => Promise<Response>`, for any framework with web
+requests. It answers 401 unless `verify` accepts the `Authorization` header,
+and otherwise sends the data with `cache-control: no-store` and, given
+`version`, the `x-flags-sdk-version` header. Pass `verifyAccess` from
+`flags`:
+
+```ts title="src/routes/flags.ts (Hono)"
+import {
+  flagsDiscoveryHandler,
+  getProviderData,
+} from "better-supabase/flags-sdk";
+import { verifyAccess } from "flags";
+
+const discovery = flagsDiscoveryHandler(() => getProviderData(bsFlags), {
+  verify: (header) => verifyAccess(header ?? "", process.env.FLAGS_SECRET),
+});
+
+app.get("/.well-known/vercel/flags", (c) => discovery(c.req.raw));
+```
+
+```ts title="src/routes/.well-known/vercel/flags/+server.ts (SvelteKit)"
+import { FLAGS_SECRET } from "$env/static/private";
+import {
+  flagsDiscoveryHandler,
+  getProviderData,
+} from "better-supabase/flags-sdk";
+import { verifyAccess } from "flags";
+
+const discovery = flagsDiscoveryHandler(() => getProviderData(bsFlags), {
+  verify: (header) => verifyAccess(header ?? "", FLAGS_SECRET),
+});
+
+export const GET = ({ request }) => discovery(request);
+```
+
+`overrideEncryptionMode` defaults to `encrypted`, which is what the toolbar
+writes when `FLAGS_SECRET` is set. Pass `plaintext` for an app that reads
+overrides without decrypting them.
+
+### Overrides on the OpenFeature path
+
+`flag()` reads the toolbar's `vercel-flag-overrides` cookie itself. Code
+that evaluates through the OpenFeature provider reads it with
+`explorerOverrides(cookies, { decrypt })` and wraps the provider for that
+request with `withExplorerOverrides`. An overridden flag of the asked type
+resolves with the reason `OVERRIDE`; any other flag evaluates as usual:
+
+```ts
+import {
+  explorerOverrides,
+  withExplorerOverrides,
+} from "better-supabase/flags-sdk";
+import { decryptOverrides } from "flags";
+
+const overrides = await explorerOverrides(await cookies(), {
+  decrypt: (value) => decryptOverrides(value),
+});
+const client = createFlagClient(withExplorerOverrides(provider, overrides));
+```
+
+`decrypt` is yours to pass, so better-supabase never loads `flags` for it.
+Without one, the cookie is read as plaintext JSON. These overrides apply to
+server code only: `flag_enabled()` in a policy never sees a browser cookie.
+
+## Testing with overrides
+
+`flagOverrideCookie(values)` from `better-supabase/testing` builds the cookie
+Flags Explorer would set, so an end-to-end test serves the variants it needs
+without the toolbar:
+
+```ts title="e2e/checkout.spec.ts"
+import { flagOverrideCookie } from "better-supabase/testing";
+import { encryptOverrides } from "flags";
+
+const cookie = await flagOverrideCookie(
+  { checkoutTheme: "compact" },
+  { encrypt: (values) => encryptOverrides(values) },
+);
+await context.addCookies([{ ...cookie, url: baseURL }]);
+```
+
+Leave out `encrypt` when the app reads plaintext overrides. For a request
+in a unit test, send `cookie.header` as the `cookie` header.
+
+## Environments
+
+`vercelEnvironmentContext()` returns `{ environment }` from `VERCEL_ENV`
+(or `NODE_ENV` outside Vercel), for a rule that turns a flag on in preview
+only. Merge it into `identify`, and target it with a rule such as
+`{ variant: "on", contexts: { environment: ["preview"] } }`.
 
 ## Reporting exposures
 
-`flag()` reports each value to Vercel Analytics. To send evaluations
-elsewhere, wrap the adapter. This one sends PostHog's
+`flag()` reports each value to Vercel Web Analytics when the page renders
+`<FlagValues>` from `flags/react`, or when you pass the values to
+`track()` from `@vercel/analytics`; custom events then carry the flags the
+visitor saw. On the OpenFeature path, `createFlagsProvider({ onEvaluate })`
+sees each evaluation. To send evaluations elsewhere, wrap the adapter. This one sends PostHog's
 `$feature_flag_called` event:
 
 ```ts
@@ -304,11 +410,12 @@ same place.
 
 These are left to the app or to other tools for now:
 
-- Reusable segments, such as a list of beta customers that many rules share.
-  A rule lists its tenants, users, plans, roles and contexts itself.
 - Self-serve previews that a tenant admin turns on. Build them as a flag
   with tenant overrides that your settings page writes.
-- Scheduled changes. Run `flags.save` from a [job](/docs/blocks/queue).
+- Scheduled changes other than a rollout. A rollout follows
+  `rolloutSchedule` (see
+  [scheduled rollouts](/docs/blocks/flags#weighted-splits-and-scheduled-rollouts));
+  for anything else, run `flags.upsert` from a [job](/docs/blocks/queue).
 - Approval before a change. A `save` hook can require one (see
   [extending blocks](/docs/extending/blocks)).
 - Experiments and metrics. Use PostHog or Statsig through their own Flags

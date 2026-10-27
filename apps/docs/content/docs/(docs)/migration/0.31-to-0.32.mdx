@@ -116,6 +116,21 @@ service client and `rpcTransport` are no longer needed. `createIdentify`
 takes a `visitor` for signed-out rollouts. `pnpm better-supabase codemod 0.32`
 renames the calls and flags `createIdentify({ claims: ... })` for review.
 
+## Flags
+
+| 0.31                                        | 0.32                                                         |
+| ------------------------------------------- | ------------------------------------------------------------ |
+| `rolloutVariant: "on"`                      | `rolloutVariants: [{ variant: "on", weight: 100 }]`          |
+| `rollout_variant` column and definition key | `rollout_variants`, a JSON array of `{ variant, weight }`    |
+| `save_flag(key, definition)`                | `save_flag(key, definition, message)`; `message` may be null |
+
+`better-supabase upgrade` writes a migration step that moves each stored
+`rollout_variant` into `rollout_variants` with weight 100 and drops the old
+column, so existing rollouts serve the same targets. Update SQL that inserts
+`rollout_variant` and code that passes `rolloutVariant`. The module adds
+`flag_revisions` and `flag_segments`; see
+[the flags block](/docs/blocks/flags#history-and-restore).
+
 ## Workflow SDK
 
 | 0.31                                            | 0.32                                                                   |
