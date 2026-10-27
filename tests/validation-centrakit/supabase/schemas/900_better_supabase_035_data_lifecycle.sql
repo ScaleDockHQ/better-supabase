@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:ded976ec7b803eefcffc00efa6ffd01f899288e91870db268b3e9a9ad9ceb771
+-- @bsb-hash sha256:8d7ba325a57e18c02638c7c91c2aa0257b6d3f66c2f420d6568e08ecec7ccd3a
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -402,7 +402,7 @@ as $$
     ('user', 'centrakit.teams', '"centrakit"."teams"', 'created_by', true, '{}'::text[], true),
     ('user', 'centrakit.team_members', '"centrakit"."team_members"', 'user_id', true, '{}'::text[], true),
     ('user', 'centrakit.status_history', '"centrakit"."status_history"', 'actor_user_id', true, '{}'::text[], true),
-    ('user', 'centrakit.share_links', '"centrakit"."share_links"', 'created_by', true, '{}'::text[], true),
+    ('user', 'centrakit.share_links', '"centrakit"."share_links"', 'created_by', true, array['token_hash']::text[], true),
     ('user', 'centrakit.reminders', '"centrakit"."reminders"', 'user_id', true, '{}'::text[], true),
     ('user', 'centrakit.import_runs', '"centrakit"."import_runs"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.conversations', '"better_supabase"."conversations"', 'created_by', true, '{}'::text[], true),
@@ -444,7 +444,7 @@ as $$
     ('organization', 'better_supabase.subject_lifecycles', '"better_supabase"."subject_lifecycles"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'centrakit.field_definitions', '"centrakit"."field_definitions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'centrakit.field_values', '"centrakit"."field_values"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'centrakit.share_links', '"centrakit"."share_links"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'centrakit.share_links', '"centrakit"."share_links"', 'tenant_id', true, array['token_hash']::text[], true),
     ('organization', 'centrakit.recurrence_rules', '"centrakit"."recurrence_rules"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'centrakit.reminders', '"centrakit"."reminders"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'centrakit.import_runs', '"centrakit"."import_runs"', 'tenant_id', true, '{}'::text[], true),
@@ -872,7 +872,7 @@ begin
   if v_row."organization_id" is null then
     return null;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."requested_by" = auth.uid() or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)) then
     raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   update "better_supabase"."organization_deletions" x set "cancelled_at" = now()
