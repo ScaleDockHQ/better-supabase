@@ -97,6 +97,7 @@ import type { TestDocumentFormatOptions } from "../../src/testing/document-forma
 
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { createOrganizations } from "../../src/blocks/organizations/index.ts";
+import { permissionsAuthorizer } from "../../src/blocks/permissions/index.ts";
 import { createProfiles } from "../../src/blocks/profiles/index.ts";
 import {
   pgmqPublicBackend,
@@ -264,6 +265,21 @@ describe("Authorizer", () => {
         ) => Promise<readonly AuthorizationOutcome[]>)
       | undefined
     >();
+  });
+
+  it("ships permissionsAuthorizer over the generated key union", () => {
+    const permissions = {
+      invoices: { read: "invoices.read", write: "invoices.write" },
+    } as const;
+
+    const authorizer = permissionsAuthorizer<
+      "invoices.read" | "invoices.write"
+    >({ permissions });
+
+    expectTypeOf(authorizer).toEqualTypeOf<
+      Authorizer<"invoices.read" | "invoices.write">
+    >();
+    expectTypeOf(authorizer.apiVersion).toEqualTypeOf<1>();
   });
 
   it("takes an optional runtime, so v1 authorizers without one still fit", () => {

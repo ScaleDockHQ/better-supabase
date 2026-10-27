@@ -44,20 +44,30 @@ export function permissionsOf<C, P>(
     return undefined;
   }
 
-  const claim = options.claim ?? DEFAULT_CLAIMS.permissions;
+  const id = tenant ?? tenantOf(session, options.tenantClaim);
 
+  return id === undefined
+    ? undefined
+    : keysFromClaims(claims, id, options.claim ?? DEFAULT_CLAIMS.permissions);
+}
+
+/** The keys `claims` grants in `tenant`, or `undefined` when it can't say. */
+export function keysFromClaims(
+  claims: Readonly<Record<string, unknown>>,
+  tenant: string,
+  claim: string,
+): readonly string[] | undefined {
   if (claims[`${claim}_truncated`] === true) {
     return undefined;
   }
 
-  const id = tenant ?? tenantOf(session, options.tenantClaim);
   const byTenant = claims[claim];
 
-  if (id === undefined || !isRecord(byTenant)) {
+  if (!isRecord(byTenant)) {
     return undefined;
   }
 
-  const keys = byTenant[id];
+  const keys = byTenant[tenant];
 
   return isKeyList(keys) ? keys : undefined;
 }
