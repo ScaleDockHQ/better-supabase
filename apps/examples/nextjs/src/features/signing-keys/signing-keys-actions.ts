@@ -30,7 +30,7 @@ export const rotateSigningKey = bsb.action(
       return rotated;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ kid: rotated.data.kid, retired: rotated.data.retired });
   },

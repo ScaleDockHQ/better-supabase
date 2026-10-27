@@ -140,7 +140,7 @@ export const runTaskImport = bsb.action(
     try {
       const result = await runImport(definition, csv, mapping, hooks);
 
-      refreshCaller(auth);
+      await refreshCaller(auth);
 
       return ok<TaskImportOutcome>({
         status: result.status,

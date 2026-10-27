@@ -6,22 +6,22 @@ description: Sign in, send and verify email links and codes, OAuth with PKCE, MF
 `createNext` signs users in and out on the server. Each helper makes the Auth
 calls it needs, then commits the result once: it verifies the new token,
 writes or clears the session cookies through the request's cookie jar, stores
-the verified session for the next render, and makes `getRequestSession()`,
-`session()`, `context()` and `cached()` return the new session for the rest of
+the verified session for the next render, and makes `getClaims()`,
+`claims()`, `context()` and `cached()` return the new session for the rest of
 the request. A render that never signs in or out still verifies its token
 once.
 
-| Helper                              | Auth call                                       |
-| ----------------------------------- | ----------------------------------------------- |
-| `signIn` (`signInWithPassword`)     | `POST /auth/v1/token?grant_type=password`       |
-| `verifyOtp`                         | `POST /auth/v1/verify`                          |
-| `authorizeUrl`, then `exchangeCode` | `/auth/v1/authorize`, then `grant_type=pkce`    |
-| `verifyMfa`                         | `POST /auth/v1/factors/:id/challenge`, `verify` |
-| `signOut`                           | `POST /auth/v1/logout`, then the cookies        |
-| `signInWithOtp`                     | `POST /auth/v1/otp`                             |
-| `resetPasswordForEmail`             | `POST /auth/v1/recover`                         |
-| `signUp`                            | `POST /auth/v1/signup`                          |
-| `resend`                            | `POST /auth/v1/resend`                          |
+| Helper                                           | Auth call                                       |
+| ------------------------------------------------ | ----------------------------------------------- |
+| `signInWithPassword`                             | `POST /auth/v1/token?grant_type=password`       |
+| `verifyOtp`                                      | `POST /auth/v1/verify`                          |
+| `signInWithOAuth`, then `exchangeCodeForSession` | `/auth/v1/authorize`, then `grant_type=pkce`    |
+| `verifyMfa`                                      | `POST /auth/v1/factors/:id/challenge`, `verify` |
+| `signOut`                                        | `POST /auth/v1/logout`, then the cookies        |
+| `signInWithOtp`                                  | `POST /auth/v1/otp`                             |
+| `resetPasswordForEmail`                          | `POST /auth/v1/recover`                         |
+| `signUp`                                         | `POST /auth/v1/signup`                          |
+| `resend`                                         | `POST /auth/v1/resend`                          |
 
 The helpers that start or end a session return an `ActionResult<SignedIn>`,
 plain data that a Server Action can return to a client form as it is:
@@ -40,7 +40,7 @@ send an email (`signInWithOtp`, `resetPasswordForEmail`, `resend`) return an
 `ActionResult<null>`, and `signUp` returns `null` until the user confirms.
 
 The committed session never leaves the server: read it with
-`bsb.getRequestSession()` or `bsb.context()` later in the same action.
+`bsb.getClaims()` or `bsb.context()` later in the same action.
 
 Errors are `unauthorized` with Auth's `error_code` as `code`
 (`invalid_credentials`, `otp_expired`, `code_verifier_missing`),
@@ -85,7 +85,7 @@ export async function signIn(
   _state: string | null,
   form: FormData,
 ): Promise<string | null> {
-  const result = await bsb.signIn({
+  const result = await bsb.signInWithPassword({
     email: String(form.get("email")),
     password: String(form.get("password")),
     next: String(form.get("next") ?? ""),
@@ -140,14 +140,14 @@ form's action.
 
 ## OAuth with PKCE
 
-`authorizeUrl` writes the PKCE verifier cookie (httpOnly, `SameSite=Lax`, 10
+`signInWithOAuth` writes the PKCE verifier cookie (httpOnly, `SameSite=Lax`, 10
 minutes) and returns the provider URL. `redirectTo` is the callback route and
 must be in the project's redirect allow list; a safe `next` rides on it as
 `?next=`.
 
 ```ts title="src/features/auth/auth-actions.ts"
 export async function signInWithGitHub(next: string | null): Promise<never> {
-  const { url } = await bsb.authorizeUrl({
+  const { url } = await bsb.signInWithOAuth({
     provider: "github",
     redirectTo: `${process.env.APP_URL}/auth/callback`,
     next,
@@ -163,7 +163,7 @@ exchange succeeds or not, so a code works once:
 ```ts title="src/app/auth/callback/route.ts"
 export async function GET(request: Request): Promise<never> {
   const params = new URL(request.url).searchParams;
-  const result = await bsb.exchangeCode({
+  const result = await bsb.exchangeCodeForSession({
     code: params.get("code") ?? "",
     next: params.get("next"),
   });
@@ -216,8 +216,8 @@ wrote it at, see
 ## Flows that send an email
 
 `signInWithOtp`, `resetPasswordForEmail`, `signUp` and `resend` start the flow
-with the same PKCE verifier cookie as `authorizeUrl`, so the link in the email
-lands on `redirectTo` with a `?code=` that `exchangeCode` turns into a
+with the same PKCE verifier cookie as `signInWithOAuth`, so the link in the email
+lands on `redirectTo` with a `?code=` that `exchangeCodeForSession` turns into a
 session. The default email templates (`{{ .ConfirmationURL }}`) work as they
 are, and the callback route from [OAuth with PKCE](#oauth-with-pkce) serves
 every flow.
@@ -248,27 +248,27 @@ The same email carries a 6-digit code: verify it with
 `signInWithOtp` creates the user unless `shouldCreateUser` is `false`, and
 `signInWithOtp` and `signUp` take `data` for the new user's `user_metadata`.
 With email confirmation off, `signUp` gets a session back from Auth and
-commits it like `signIn`, so it returns `SignedIn` instead of `null`.
+commits it like `signInWithPassword`, so it returns `SignedIn` instead of `null`.
 
 For a password reset, point `redirectTo` at the callback with the reset form
 as `next`. The exchange signs the user in, the form calls
-`updateUser({ password })`, then `bsb.invalidateSession(userId)`.
+`updateUser({ password })`, then `bsb.evictSession(userId)`.
 
 The verifier cookie holds one flow: a newer flow in the same browser replaces
 it, and it expires after 10 minutes. A link opened in another browser, or
 after that, fails with `code_verifier_missing`; ask the user to request a new
 one. A flow started with the supabase-js client stores its verifier in its own
-format, which `exchangeCode` doesn't read: start every flow whose link
-`exchangeCode` handles with these helpers.
+format, which `exchangeCodeForSession` doesn't read: start every flow whose link
+`exchangeCodeForSession` handles with these helpers.
 
 ## Reads in the same request
 
 Reads after a commit see the committed session:
 
 ```ts
-await bsb.getRequestSession(); // null
-await bsb.signIn({ email, password });
-await bsb.getRequestSession(); // the new user
+await bsb.getClaims(); // null
+await bsb.signInWithPassword({ email, password });
+await bsb.getClaims(); // the new user
 await bsb.context({ tenant }); // a context for the new user and tenant
 ```
 

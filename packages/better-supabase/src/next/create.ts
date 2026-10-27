@@ -208,7 +208,7 @@ export function createNext<
   };
 
   const forget = (userId: string): void => {
-    base.forgetSession(userId).catch((cause: unknown) => {
+    base.evictSession(userId).catch((cause: unknown) => {
       betterSupabase.events.logger.warn("Could not evict the user's session", {
         cause,
       });
@@ -233,7 +233,7 @@ export function createNext<
   );
 
   /**
-   * One token verification per render scope backs `context()`, `session()` and
+   * One token verification per render scope backs `context()`, `claims()` and
    * `cached()`.
    */
   const incomingAt = cache(
@@ -264,7 +264,7 @@ export function createNext<
   const incoming = (): ReturnType<typeof incomingAt> =>
     incomingAt(box().generation);
 
-  const getRequestSessionAt = cache(
+  const getClaimsAt = cache(
     async (_generation: number): Promise<SessionSnapshot<C> | null> => {
       const committed = box().committed;
 
@@ -274,8 +274,8 @@ export function createNext<
     },
   );
 
-  const getRequestSession = (): Promise<SessionSnapshot<C> | null> =>
-    getRequestSessionAt(box().generation);
+  const getClaims = (): Promise<SessionSnapshot<C> | null> =>
+    getClaimsAt(box().generation);
 
   const tenantClaim = claimsOf(betterSupabase.meta).tenant;
   /** The tenant `scoped` resolved for a context, when it wasn't the claim. */
@@ -355,7 +355,7 @@ export function createNext<
       ),
   );
 
-  const session = (): Promise<AuthSession<C, P>> => sessionAt(box().generation);
+  const claims = (): Promise<AuthSession<C, P>> => sessionAt(box().generation);
 
   const supportCookieName =
     options.support?.options.cookie?.name ?? SUPPORT_COOKIE;
@@ -367,7 +367,7 @@ export function createNext<
     secure: options.support?.options.cookie?.secure ?? true,
   } as const;
 
-  const contextForSession = async (
+  const contextFromView = async (
     view: AuthSession<C, P>,
     { token }: { readonly token: string | null },
   ): Promise<ServerContext<M, F, E, C, P, B>> => {
@@ -392,13 +392,52 @@ export function createNext<
       reason: "token",
       error: dbError(
         "unauthorized",
-        "The token does not belong to the session passed to contextForSession()",
+        "The token does not belong to the session passed to contextFromSession()",
       ),
     });
   };
 
+  function contextFromSession(
+    snapshot: SessionSnapshot<C> | null,
+    contextOptions?: ContextOptions,
+  ): Promise<ServerContext<M, F, E, C, P, B>>;
+  function contextFromSession(
+    view: AuthSession<C, P>,
+    tokenOptions: { readonly token: string | null },
+  ): Promise<ServerContext<M, F, E, C, P, B>>;
+  function contextFromSession(
+    session: SessionSnapshot<C> | AuthSession<C, P> | null,
+    sessionOptions?: ContextOptions | { readonly token: string | null },
+  ): Promise<ServerContext<M, F, E, C, P, B>> {
+    if (session !== null && "kind" in session) {
+      return contextFromView(
+        session,
+        sessionOptions !== undefined && "token" in sessionOptions
+          ? sessionOptions
+          : { token: null },
+      );
+    }
+
+    return base.contextFromSession(
+      session,
+      sessionOptions !== undefined && "token" in sessionOptions
+        ? {}
+        : sessionOptions,
+    );
+  }
+
+  const evictSession = async (
+    userId: string,
+    evictOptions: { readonly tags?: readonly string[] } = {},
+  ): Promise<void> => {
+    invalidateAll([sessionTag(userId), ...(evictOptions.tags ?? [])]);
+    await base.evictSession(userId);
+  };
+
   const withAccounts = withExtra(base, {
     context,
+    contextFromSession,
+    evictSession,
     deleteAccount: ((userId, deleteOptions) =>
       base.deleteAccount(userId, deleteOptions).map((result) => {
         invalidateAll([sessionTag(userId)]);
@@ -428,7 +467,7 @@ export function createNext<
     cookieScopes: options.cookieScopes,
     request: incomingRequest,
     jar: cookies,
-    current: getRequestSession,
+    current: getClaims,
     verify: (token) => base.resolve(bearerRequest(token)),
     async publish(resolution, request) {
       await base.sessions.seed(resolution.auth);
@@ -445,13 +484,12 @@ export function createNext<
   const next: BetterNext<M, F, E, C, P, PermissionRef<A>, B> = extendServer<
     BetterNext<M, F, E, C, P, PermissionRef<A>, B>
   >(withAccounts, {
-    session,
-    getRequestSession,
-    contextForSession,
+    claims,
+    getClaims,
 
     async cached(cachedOptions = {}) {
       const [view, ctx] = await Promise.all([
-        session(),
+        claims(),
         current(cachedOptions.tenant),
       ]);
 
@@ -493,11 +531,6 @@ export function createNext<
       return withExtra(ctx, { session: view });
     },
 
-    invalidateSession(userId, invalidateOptions = {}) {
-      invalidateAll([sessionTag(userId), ...(invalidateOptions.tags ?? [])]);
-      forget(userId);
-    },
-
     async liveCount(spec, db) {
       const runner = db ?? (await current()).db;
       const result = await runner.$run(spec);
@@ -518,9 +551,9 @@ export function createNext<
 
       // `before` (i18n rewrites, redirects) and auth run on the original request.
       const sessionCheck =
-        proxyOptions.endedSession === true ? {} : proxyOptions.endedSession;
+        proxyOptions.verifySession === true ? {} : proxyOptions.verifySession;
 
-      const checkSession =
+      const verifySession =
         sessionCheck !== undefined && shouldCheckSession(request, sessionCheck);
 
       const [early, resolution] = await Promise.all([
@@ -528,10 +561,10 @@ export function createNext<
         base
           .resolve(request, {
             refresh: shouldRefresh(request),
-            ...(checkSession ? { checkSession } : {}),
-            ...(proxyOptions.refreshSkewSeconds === undefined
+            ...(verifySession ? { verifySession } : {}),
+            ...(proxyOptions.leeway === undefined
               ? {}
-              : { leeway: proxyOptions.refreshSkewSeconds }),
+              : { leeway: proxyOptions.leeway }),
             ...(proxyOptions.serverTiming
               ? {
                   onTiming: (phase: ResolvePhase, ms: number) => {
@@ -554,8 +587,8 @@ export function createNext<
       }
 
       const rendersSignedOut =
-        proxyOptions.expiredPrefetch === "render" &&
-        resolution.auth.kind === "anon" &&
+        proxyOptions.onExpiredPrefetch === "render" &&
+        resolution.auth.kind === "none" &&
         resolution.auth.reason === "expired" &&
         isPrefetch(request);
 
@@ -567,15 +600,15 @@ export function createNext<
           : (protectMethods ?? ["GET", "HEAD"]).includes(request.method);
 
       const ended =
-        resolution.sessionEnded === true &&
+        resolution.sessionVerified === false &&
         sessionCheck?.redirect !== undefined &&
         request.nextUrl.pathname !== sessionCheck.redirect
           ? endedRedirect(
               request,
               sessionCheck.redirect,
-              resolution.sessionEndedReason === "banned"
-                ? (sessionCheck.reasons?.banned ?? "account_banned")
-                : (sessionCheck.reasons?.ended ?? "session_ended"),
+              resolution.reason === "user_banned"
+                ? (sessionCheck.reasons?.banned ?? "user_banned")
+                : (sessionCheck.reasons?.ended ?? "session_not_found"),
             )
           : undefined;
 
@@ -941,17 +974,15 @@ export function createNext<
     },
 
     ...flows,
-    signInWithPassword: (credentials, signInOptions) =>
-      flows.signIn(credentials, signInOptions),
 
-    cacheTag(table, id, tagOptions = {}) {
+    tag(table, id, tagOptions = {}) {
       cacheTag(
         ...tableTags(table, tagOptions),
         ...(id === undefined ? [] : [tagFor(table, id)]),
       );
     },
 
-    cacheTags(target, tagOptions = {}) {
+    tags(target, tagOptions = {}) {
       const specs = isReadSet(target)
         ? Object.values(target.specs)
         : isList(target)

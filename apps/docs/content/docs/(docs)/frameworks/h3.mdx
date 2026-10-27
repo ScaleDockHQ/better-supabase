@@ -63,7 +63,7 @@ import { withBetterSupabase } from "better-supabase/server";
 import { bsb } from "../utils/supabase";
 
 export default defineMiddleware(
-  toH3([withBetterSupabase(bsb, { refresh: true, allow: ["user", "anon"] })]),
+  toH3([withBetterSupabase(bsb, { refresh: true, allow: ["user", "none"] })]),
 );
 ```
 

@@ -102,7 +102,7 @@ export const proxy = (request: NextRequest) =>
       req.nextUrl.pathname.startsWith("/api/") ? undefined : intl(req),
     protect,
     // Prefetches never refresh; an expired token prefetches the page signed out.
-    expiredPrefetch: "render",
+    onExpiredPrefetch: "render",
     after: (response, auth) => {
       // Shared caches must never store a signed-in response.
       if (auth.kind === "user") {

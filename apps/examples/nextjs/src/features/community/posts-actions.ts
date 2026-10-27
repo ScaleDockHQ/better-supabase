@@ -30,7 +30,7 @@ export const createFeedbackBoard = bsb.action(
       return board;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: board.data.id });
   },
@@ -54,7 +54,7 @@ export const createPost = bsb.action(
       return post;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: post.data.id, moderation: post.data.moderation });
   },
@@ -74,7 +74,7 @@ export const voteOnPost = bsb.action(
       return tally;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(tally.data);
   },

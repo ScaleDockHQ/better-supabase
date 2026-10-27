@@ -295,12 +295,12 @@ describe("createServer userMetadata", () => {
     const ok = await server.context(await request({ display_name: "Ada" }));
     expect(ok.auth).toMatchObject({
       kind: "user",
-      profile: { display_name: "Ada" },
+      userMetadata: { display_name: "Ada" },
     });
 
     const bad = await server.context(await request({ display_name: 1 }));
     expect(bad.auth.kind).toBe("user");
-    expect(bad.auth).not.toHaveProperty("profile");
+    expect(bad.auth).not.toHaveProperty("userMetadata");
     expect(logger.warn).toHaveBeenCalledOnce();
   });
 });
@@ -344,8 +344,8 @@ function fakePostgres() {
   return { postgres, claims, sessions, fake };
 }
 
-const service: AuthState = { kind: "service", keyName: "default" };
-const anon: AuthState = { kind: "anon", reason: "none" };
+const service: AuthState = { kind: "secret", keyName: "default" };
+const anon: AuthState = { kind: "none", reason: "none" };
 
 const user = (token: string): AuthState => ({
   kind: "user",
@@ -1044,7 +1044,7 @@ describe("createServer events", () => {
     });
     expect(onRefresh).not.toHaveBeenCalled();
     const refreshed = await server.context(request(), { refresh: true });
-    expect(refreshed.auth).toEqual({ kind: "anon", reason: "signed_out" });
+    expect(refreshed.auth).toEqual({ kind: "none", reason: "signed_out" });
     expect(onRefresh).toHaveBeenCalledWith(
       expect.objectContaining({ ok: false, shared: false }),
     );
@@ -1061,7 +1061,7 @@ describe("createServer buckets", () => {
       auth: { jwks: signer.jwks },
     });
 
-    const db = server.dbFor({ kind: "anon", reason: "none" });
+    const db = server.dbFor({ kind: "none", reason: "none" });
 
     expect(db.$buckets.logos.bucket).toBe(logos);
     expect(db.$with({}).$buckets.logos.bucket).toBe(logos);

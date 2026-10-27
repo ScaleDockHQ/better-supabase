@@ -117,7 +117,7 @@ export const createWorkItem = bsb.action(
       }
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(created.data.identifier);
   },
@@ -157,7 +157,7 @@ export const moveWorkItem = bsb.action(
       next: nextId ?? null,
     });
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     if (!ranked.ok) {
       return stageChanged ? ok({ ordered: false }) : ranked;
@@ -183,7 +183,7 @@ export const setWorkItemStage = bsb.action(
       return moved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(true);
   },
@@ -203,7 +203,7 @@ export const setWorkItemAssignee = bsb.action(
       return assigned;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(assigned.data);
   },
@@ -225,7 +225,7 @@ export const createTeam = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(created.data.id);
   },
@@ -265,7 +265,7 @@ export const saveWorkView = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(saved.data.id);
   },
@@ -284,7 +284,7 @@ export const deleteWorkView = bsb.action(
       return deleted;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(deleted.data);
   },
@@ -334,7 +334,7 @@ export const runWorkBulkAction = bsb.action(
       return result;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({
       total: result.data.total,

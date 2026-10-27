@@ -35,7 +35,7 @@ export const sendToKitchen = bsb.action(
       return sent;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(sent.data);
   },
@@ -66,7 +66,7 @@ export const bumpTicket = bsb.action(
       return bumped;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(bumped.data);
   },
@@ -86,7 +86,7 @@ export const setLineState = bsb.action(
       return line;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(line.data.state);
   },

@@ -144,7 +144,7 @@ import { toSvelteKit } from "better-supabase/sveltekit";
 export const handle = toSvelteKit([
   withBetterSupabase(createServer(betterSupabase), {
     refresh: true,
-    allow: ["user", "anon"],
+    allow: ["user", "none"],
   }),
 ]);
 ```
@@ -189,7 +189,7 @@ import { bsb } from "./lib/server";
 const app = express();
 app.use(
   toExpress([
-    withBetterSupabase(bsb, { refresh: true, allow: ["user", "anon"] }),
+    withBetterSupabase(bsb, { refresh: true, allow: ["user", "none"] }),
   ]),
 );
 app.get("/admin/members", guard({ roles: ["admin"] }), async (req, res) => {

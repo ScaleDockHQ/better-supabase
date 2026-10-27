@@ -76,7 +76,7 @@ export const createShareLink = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ token: created.data.token });
   },
@@ -141,7 +141,7 @@ export const confirmAttachment = bsb.action(
   async ({ id }, { supabase, auth }) => {
     const confirmed = await customerAttachments(supabase).confirm(id);
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return confirmed.ok ? ok(null) : confirmed;
   },
@@ -207,7 +207,7 @@ export const restoreCustomerVersion = bsb.action(
       return restored;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(null);
   },
@@ -255,7 +255,7 @@ export const startCustomerSla = bsb.action(
     const started = await sla.start(subject);
 
     if (!started.ok || started.data.length > 0) {
-      refreshCaller(auth);
+      await refreshCaller(auth);
 
       return started.ok ? ok(started.data.length) : started;
     }
@@ -277,7 +277,7 @@ export const startCustomerSla = bsb.action(
 
     const restarted = await sla.start(subject);
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return restarted.ok ? ok(restarted.data.length) : restarted;
   },

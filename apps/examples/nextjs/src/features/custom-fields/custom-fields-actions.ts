@@ -42,7 +42,7 @@ export const saveField = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(saved.data.id);
   },
@@ -61,7 +61,7 @@ export const deleteField = bsb.action(
       return deleted;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(deleted.data);
   },
@@ -128,7 +128,7 @@ export const moveField = bsb.action(
       }
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(true);
   },

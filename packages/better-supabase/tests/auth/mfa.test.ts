@@ -20,7 +20,7 @@ describe("mfa", () => {
   });
 
   it("only holds user sessions to the level", () => {
-    expect(checkAal({ kind: "service" }, "aal2")).toBeUndefined();
+    expect(checkAal({ kind: "secret" }, "aal2")).toBeUndefined();
     expect(checkAal({ kind: "user", claims: {} }, "aal1")).toBeUndefined();
     expect(checkAal({ kind: "user", claims: {} }, "aal2")).toMatchObject({
       kind: "forbidden",

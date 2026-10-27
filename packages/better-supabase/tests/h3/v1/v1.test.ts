@@ -39,7 +39,7 @@ async function eventAs(role?: string, context: Record<string, unknown> = {}) {
 
 describe("toH3V1", () => {
   const middleware = toH3V1([
-    withBetterSupabase(server, { allow: ["user", "anon"] }),
+    withBetterSupabase(server, { allow: ["user", "none"] }),
     withServerTiming(),
   ]);
 
@@ -58,7 +58,7 @@ describe("toH3V1", () => {
   it("reads the env from the Cloudflare bindings or the env option", async () => {
     let seen: unknown;
 
-    const withEnv = toH3V1([withBetterSupabase(server, { allow: ["anon"] })], {
+    const withEnv = toH3V1([withBetterSupabase(server, { allow: ["none"] })], {
       env: (event) => {
         seen = event.context.cloudflare?.env;
 

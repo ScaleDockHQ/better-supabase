@@ -51,7 +51,7 @@ export const createContact = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: saved.data.id, name: saved.data.name });
   },
@@ -75,7 +75,7 @@ export const linkPerson = bsb.action(
       return linked;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(true);
   },
@@ -114,7 +114,7 @@ export const logActivity = bsb.action(
       return logged;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: logged.data.id });
   },
@@ -174,7 +174,7 @@ export const createDefaultPipeline = bsb.action(
       }
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: pipeline.data.id });
   },
@@ -211,7 +211,7 @@ export const createDeal = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: created.data.id, identifier: created.data.identifier });
   },
@@ -239,7 +239,7 @@ export const moveDeal = bsb.action(
       return err(dbError("raised", rejected.reason));
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(true);
   },
@@ -287,7 +287,7 @@ export const createTarget = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: saved.data.id });
   },
@@ -307,7 +307,7 @@ export const createQuote = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: created.data.id });
   },
@@ -348,7 +348,7 @@ export const saveQuoteLines = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(saved.data.total);
   },
@@ -368,7 +368,7 @@ export const sendQuote = bsb.action(
       return sent;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(true);
   },
@@ -391,7 +391,7 @@ export const decideQuote = bsb.action(
       return decided;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(true);
   },
@@ -411,7 +411,7 @@ export const reviseQuote = bsb.action(
       return revised;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: revised.data.id });
   },

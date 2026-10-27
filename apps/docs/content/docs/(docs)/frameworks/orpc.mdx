@@ -13,7 +13,7 @@ export const bsb = createOrpc(betterSupabase);
 
 const base = os.$context<OrpcRequestContext>();
 const authed = base.use(bsb.middleware());
-const open = base.use(bsb.middleware({ allow: ["user", "anon"] }));
+const open = base.use(bsb.middleware({ allow: ["user", "none"] }));
 
 export const router = {
   customers: {

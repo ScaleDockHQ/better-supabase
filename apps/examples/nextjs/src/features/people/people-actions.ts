@@ -113,7 +113,7 @@ export const createEmployee = bsb.action(
       }
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: created.data.id, name: created.data.name });
   },
@@ -191,7 +191,7 @@ export const logTime = bsb.action(
       return logged;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: logged.data.id });
   },
@@ -213,7 +213,7 @@ export const startTimer = bsb.action(
       return started;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: started.data.id });
   },
@@ -232,7 +232,7 @@ export const stopTimer = bsb.action(
       return stopped;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: stopped.data.id });
   },
@@ -254,7 +254,7 @@ export const submitTimesheet = bsb.action(
       return submitted;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ status: submitted.data.status });
   },
@@ -283,7 +283,7 @@ export const createOpening = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: saved.data.id, title: saved.data.title });
   },
@@ -307,7 +307,7 @@ export const addCandidate = bsb.action(
       return applied;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: applied.data.id });
   },
@@ -332,7 +332,7 @@ export const moveApplication = bsb.action(
       return moved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ applicationId });
   },
@@ -359,7 +359,7 @@ export const closeApplication = bsb.action(
       return closed;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ applicationId, outcome });
   },

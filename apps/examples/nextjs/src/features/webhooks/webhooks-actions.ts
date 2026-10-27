@@ -92,7 +92,7 @@ export const createWebhookEndpoint = bsb.action(
     );
 
     if (created.ok) {
-      refreshCaller(auth);
+      await refreshCaller(auth);
     }
 
     return created;
@@ -132,7 +132,7 @@ export const setWebhookEndpointEnabled = bsb.action(
       return err(dbError("not_found", "Webhook endpoint not found"));
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(enabled);
   },
@@ -167,7 +167,7 @@ export const deleteWebhookEndpoint = bsb.action(
       return err(dbError("not_found", "Webhook endpoint not found"));
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(true);
   },
@@ -184,7 +184,7 @@ export const sendTestWebhook = bsb.action(
     });
 
     if (sent.ok) {
-      refreshCaller(auth);
+      await refreshCaller(auth);
     }
 
     return sent;
@@ -198,7 +198,7 @@ export const redeliverWebhook = bsb.action(
     const queued = await db.webhooks.redeliver(id);
 
     if (queued.ok) {
-      refreshCaller(auth);
+      await refreshCaller(auth);
     }
 
     return queued;

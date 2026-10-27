@@ -71,7 +71,7 @@ export const createProduct = bsb.action(
       return activated;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(product.data.id);
   },
@@ -94,7 +94,7 @@ export const createMainLocation = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(saved.data.id);
   },
@@ -129,7 +129,7 @@ export const adjustStock = bsb.action(
       return adjusted;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(adjusted.data.onHand);
   },
@@ -162,7 +162,7 @@ export const createDraftOrder = bsb.action(
       return added;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(cart.data.id);
   },
@@ -182,7 +182,7 @@ export const placeOrder = bsb.action(
       return checkout;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(checkout.data.order.id);
   },
@@ -233,7 +233,7 @@ export const markOrderPaid = bsb.action(
       return recorded;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(recorded.data.status);
   },
@@ -256,7 +256,7 @@ export const cancelOrder = bsb.action(
       return cancelled;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(cancelled.data);
   },
@@ -276,7 +276,7 @@ export const fulfillOrder = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(created.data.id);
   },
@@ -295,7 +295,7 @@ export const shipFulfillment = bsb.action(
       return shipped;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(shipped.data);
   },
@@ -315,7 +315,7 @@ export const deliverFulfillment = bsb.action(
       return delivered;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(delivered.data);
   },
@@ -342,7 +342,7 @@ export const applyPromotionCode = bsb.action(
       return applied;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(code);
   },
@@ -361,7 +361,7 @@ export const removePromotionCode = bsb.action(
       return removed;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(removed.data);
   },

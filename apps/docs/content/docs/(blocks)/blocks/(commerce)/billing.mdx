@@ -671,9 +671,6 @@ export const billing = createBilling({
   transport: sqlTransport(postgres.admin),
   events: bsb.events, // billing.* block events
   seatPrice: env.STRIPE_SEAT_PRICE,
-  sessions: {
-    sql: postgres.admin,
-    invalidate: (id) => bsb.invalidateSession(id),
-  },
+  sessions: { sql: postgres.admin, invalidate: (id) => bsb.evictSession(id) },
 });
 ```

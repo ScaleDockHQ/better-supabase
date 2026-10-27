@@ -58,15 +58,15 @@ pipeline(
 better-supabase verifies access tokens locally, so a token stays valid until
 it expires (an hour by default), even after the user signs out everywhere or
 an admin ends the session. For actions you can't undo, also check that the
-session still exists. `checkSession` reads `auth.sessions` with one query and
+session still exists. `verifySession` reads `auth.sessions` with one query and
 returns an `unauthorized` error with code `SESSION_REVOKED` when it is gone:
 
 ```ts
-import { checkSession } from "better-supabase/server";
+import { verifySession } from "better-supabase/server";
 
 import { postgres } from "@/lib/postgres";
 
-const ended = await checkSession(postgres.admin, auth);
+const ended = await verifySession(postgres.admin, auth);
 if (ended) return err(ended);
 ```
 
@@ -159,7 +159,7 @@ export async function signOutEverywhere(userId: string) {
 `"24h"`, and defaults to 100 years) and keeps the user's sessions. While a
 session exists, Auth answers a refresh or `GET /auth/v1/user` with
 `user_banned`, so [`sessionStatus`](/docs/auth/sessions) returns `"banned"`
-and `bsb.proxy({ endedSession })` redirects with `reason=account_banned`. Once
+and `bsb.proxy({ verifySession })` redirects with `reason=user_banned`. Once
 the sessions are deleted, Auth answers `session_not_found` instead and the app
 can only report `"ended"`.
 
@@ -246,7 +246,7 @@ nothing; only the server's methods do.
    `cascades`, so [cache adapters](/docs/concepts/caching) drop the reads the database
    changed behind their back. Sinks and audit forwarders see the delete too.
 5. **Sessions.** `bsb.deleteAccount` also calls
-   `bsb.invalidateSession(userId)`, so `bsb.cached()` entries for the user
+   `bsb.evictSession(userId)`, so `bsb.cached()` entries for the user
    are gone.
 
 A delete the database refuses (an organization's only owner under the

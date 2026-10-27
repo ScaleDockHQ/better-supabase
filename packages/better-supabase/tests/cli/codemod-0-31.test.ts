@@ -70,4 +70,44 @@ const route = { requireTenant: true, note: "requireOrganization" };
 const tenant: TenantConfig = {};
 `);
   });
+
+  it("renames the session, sign-in and cache methods and the proxy options", () => {
+    const source = `import type { OAuthStart } from "better-supabase/next";
+import { bsb } from "@/lib/bsb";
+
+const snapshot = await bsb.getRequestSession();
+await bsb.invalidateSession(userId);
+const { url } = await bsb.authorizeUrl(start satisfies OAuthStart);
+await bsb.exchangeCode({ code });
+bsb.cacheTags(spec);
+bsb.cacheTag("customers");
+bsb.proxy(request, { endedSession: true, refreshSkewSeconds: 30, expiredPrefetch: "render" });
+`;
+
+    expect(applyCodemod(v031, source, "src/proxy.ts").text)
+      .toBe(`import type { SignInWithOAuthParams } from "better-supabase/next";
+import { bsb } from "@/lib/bsb";
+
+const snapshot = await bsb.getClaims();
+await bsb.evictSession(userId);
+const { url } = await bsb.signInWithOAuth(start satisfies SignInWithOAuthParams);
+await bsb.exchangeCodeForSession({ code });
+bsb.tags(spec);
+bsb.tag("customers");
+bsb.proxy(request, { verifySession: true, leeway: 30, onExpiredPrefetch: "render" });
+`);
+  });
+
+  it("lists the session reads, caller kinds and sign-in calls for review", () => {
+    const source = `const session = await bsb.session();
+if (session.kind === "anon") {}
+await bsb.signIn({ email, password });
+`;
+
+    expect(
+      applyCodemod(v031, source, "src/page.ts")
+        .review.map((entry) => entry.line)
+        .toSorted((a, b) => a - b),
+    ).toEqual([1, 2, 3]);
+  });
 });

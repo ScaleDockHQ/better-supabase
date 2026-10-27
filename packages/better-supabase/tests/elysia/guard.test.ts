@@ -7,7 +7,7 @@ import { requestAs, server } from "../fixtures/test-server.ts";
 
 describe("elysia guard and problemOnError", () => {
   const bridge = toElysia([
-    withBetterSupabase(server, { allow: ["user", "anon"] }),
+    withBetterSupabase(server, { allow: ["user", "none"] }),
   ]);
 
   const admin = guard(bridge, { allow: ["user"], signIn: "/sign-in" });

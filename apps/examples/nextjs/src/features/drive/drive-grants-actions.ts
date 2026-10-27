@@ -106,7 +106,7 @@ export const shareDriveItem = bsb.action(
       return shared;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(null);
   },
@@ -130,7 +130,7 @@ export const unshareDriveItem = bsb.action(
       return err(dbError("not_found", "Grant not found"));
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(null);
   },

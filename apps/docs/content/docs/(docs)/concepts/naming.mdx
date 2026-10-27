@@ -98,6 +98,25 @@ library.
 
 ## Renames
 
+From 0.31 the auth names follow supabase-js and Next.js.
+[`better-supabase codemod 0.31`](/docs/cli/codemod) renames them and lists the
+lines it can't rename safely; the
+[0.30 to 0.31 guide](/docs/migration/0.30-to-0.31) has the details.
+
+| Before (0.30)                                    | After (0.31)                                            |
+| ------------------------------------------------ | ------------------------------------------------------- |
+| `auth.organization`, `requireOrganization`       | `auth.tenant`, `requireTenant`                          |
+| `bsb.session()`, `bsb.getRequestSession()`       | `bsb.claims()`, `bsb.getClaims()`                       |
+| `bsb.contextForSession()`                        | `bsb.contextFromSession()`                              |
+| `session.profile`                                | `session.userMetadata`                                  |
+| caller kinds `anon`, `service`                   | `none`, `secret`                                        |
+| `bsb.signIn()`                                   | `bsb.signInWithPassword()`                              |
+| `bsb.authorizeUrl()`, `bsb.exchangeCode()`       | `bsb.signInWithOAuth()`, `bsb.exchangeCodeForSession()` |
+| `endedSession`, `checkSession`                   | `verifySession`                                         |
+| `refreshSkewSeconds`, `expiredPrefetch`          | `leeway`, `onExpiredPrefetch`                           |
+| `bsb.invalidateSession()`, `bsb.forgetSession()` | `bsb.evictSession()`                                    |
+| `bsb.cacheTag()`, `bsb.cacheTags()`              | `bsb.tag()`, `bsb.tags()`                               |
+
 From 0.15 the runtime instance is `bsb`, not `bs`, matching the CLI's short
 name; [`better-supabase codemod 0.15`](/docs/cli/codemod) renames it.
 

@@ -44,7 +44,7 @@ export interface SubscriberEvent {
 /**
  * A subscription a fan-out may deliver to. `principal` is the user who owns it,
  * or the id of the service principal an organization-owned subscription runs as
- * (`kind: "service"`).
+ * (`kind: "secret"`).
  */
 export interface Subscriber {
   readonly principal: string;

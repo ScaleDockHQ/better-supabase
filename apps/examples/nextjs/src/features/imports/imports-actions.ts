@@ -156,7 +156,7 @@ export const runCustomerImport = bsb.action(
         ),
       });
 
-      refreshCaller(auth);
+      await refreshCaller(auth);
 
       return ok<ImportOutcome>({
         id: result.id,

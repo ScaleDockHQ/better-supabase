@@ -59,7 +59,7 @@ const bearer = async (role = "member") => ({
 });
 
 const entries = [
-  withBetterSupabase(server, { allow: ["user", "anon"] }),
+  withBetterSupabase(server, { allow: ["user", "none"] }),
 ] as const;
 
 describe("toWebHeaders", () => {

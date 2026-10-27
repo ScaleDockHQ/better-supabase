@@ -169,7 +169,7 @@ of specs) reads:
 export async function getWorkspaceSummary() {
   "use cache: private";
   const { db, session } = await bsb.cached();
-  bsb.cacheTags(workspaceSummary);
+  bsb.tags(workspaceSummary);
   if (session.kind !== "user") return null;
   return db.$many(workspaceSummary, {}).orThrow();
 }

@@ -48,7 +48,7 @@ describe("withServerTiming", () => {
 describe("withDbStats", () => {
   it("adds the request's database totals after the handler", async () => {
     const fetch = pipeline(
-      [withBetterSupabase(server, { allow: ["anon"] }), withDbStats()],
+      [withBetterSupabase(server, { allow: ["none"] }), withDbStats()],
       async (_request, ctx) => Response.json(ctx.dbStats().calls),
     );
 
@@ -61,7 +61,7 @@ describe("withDbStats", () => {
   it("writes a custom header", async () => {
     const fetch = pipeline(
       [
-        withBetterSupabase(server, { allow: ["anon"] }),
+        withBetterSupabase(server, { allow: ["none"] }),
         withDbStats({ header: "x-db" }),
       ],
       async () => new Response(null, { status: 204 }),

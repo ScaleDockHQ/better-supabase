@@ -333,7 +333,7 @@ export function realtimeRelay(
         return await authorize(input);
       }
 
-      if (input.auth.kind === "service") {
+      if (input.auth.kind === "secret") {
         return true;
       }
 
@@ -366,11 +366,11 @@ export function realtimeRelay(
         return auth.claims;
       }
 
-      case "anon": {
+      case "none": {
         return { role: "anon" };
       }
 
-      case "service": {
+      case "secret": {
         return { role: "service_role" };
       }
 
@@ -413,7 +413,7 @@ export function realtimeRelay(
       };
     }
 
-    const signedIn = auth.kind !== "anon";
+    const signedIn = auth.kind !== "none";
 
     if (!signedIn && (topic.private || action === "send")) {
       return {

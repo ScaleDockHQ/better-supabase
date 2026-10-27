@@ -66,7 +66,7 @@ describe("createHono", () => {
 
   const app = new Hono<Env>()
     .onError(bsb.onError)
-    .use("/public/*", bsb.middleware({ allow: ["user", "anon"] }))
+    .use("/public/*", bsb.middleware({ allow: ["user", "none"] }))
     .use("/api/*", bsb.middleware())
     .get("/public/who", (c) => c.json({ kind: c.var.auth.kind }))
     .get(
@@ -100,7 +100,7 @@ describe("createHono", () => {
     );
 
   it("guards routes and exposes the caller on c.var", async () => {
-    expect(await (await call("/public/who")).json()).toEqual({ kind: "anon" });
+    expect(await (await call("/public/who")).json()).toEqual({ kind: "none" });
     const anonymous = await call("/api/me");
     expect(anonymous.status).toBe(401);
     expect(anonymous.headers.get("content-type")).toBe(
@@ -163,7 +163,7 @@ describe("bsb.require()", () => {
 
   const app = bsb
     .app()
-    .use("*", bsb.middleware({ allow: ["user", "anon"] }))
+    .use("*", bsb.middleware({ allow: ["user", "none"] }))
     .get("/open", (c) => c.json(c.var.session.kind))
     .get(
       "/admin",
@@ -191,7 +191,7 @@ describe("bsb.require()", () => {
     );
 
   it("guards a route after the middleware", async () => {
-    expect(await (await call("/open")).json()).toBe("anon");
+    expect(await (await call("/open")).json()).toBe("none");
     expect((await call("/admin")).status).toBe(401);
     expect((await call("/admin", "member")).status).toBe(403);
     expect(await (await call("/admin", "admin")).json()).toBe("ok");
@@ -320,7 +320,7 @@ describe("createHono buckets", () => {
     });
 
     const app = new Hono<typeof bsb.Env>()
-      .use(bsb.middleware({ allow: ["anon"] }))
+      .use(bsb.middleware({ allow: ["none"] }))
       .get(
         "/",
         bsb.handler((_c, ctx) => ok({ id: ctx.db.$buckets.logos.bucket.id })),
@@ -387,7 +387,7 @@ describe("instant sessions", () => {
   type Env = HonoEnv<Models, Functions, unknown>;
 
   const app = new Hono<Env>()
-    .use("*", bsb.middleware({ allow: ["user", "anon"] }))
+    .use("*", bsb.middleware({ allow: ["user", "none"] }))
     .get("/two", async (c) => {
       const loader = async () => {
         const ctx = await bsb.contextFromSession(c.var.snapshot);
@@ -417,7 +417,7 @@ describe("instant sessions", () => {
       await expiredRequest("https://app.test/notes", true),
     );
 
-    expect(await response.json()).toEqual({ kind: "anon" });
+    expect(await response.json()).toEqual({ kind: "none" });
     expect(refresh).not.toHaveBeenCalled();
   });
 });
@@ -440,10 +440,10 @@ describe("bsb.middleware({ cookies: false })", () => {
       .join("; ");
 
     const app = new Hono<typeof bsb.Env>()
-      .use("/web/*", bsb.middleware({ allow: ["user", "anon"] }))
+      .use("/web/*", bsb.middleware({ allow: ["user", "none"] }))
       .use(
         "/native/*",
-        bsb.middleware({ allow: ["user", "anon"], cookies: false }),
+        bsb.middleware({ allow: ["user", "none"], cookies: false }),
       )
       .get("/web/who", (c) => c.json({ kind: c.var.auth.kind }))
       .get("/native/who", (c) => c.json({ kind: c.var.auth.kind }));
@@ -453,7 +453,7 @@ describe("bsb.middleware({ cookies: false })", () => {
     ).toEqual({ kind: "user" });
     expect(
       await (await app.request("/native/who", { headers: { cookie } })).json(),
-    ).toEqual({ kind: "anon" });
+    ).toEqual({ kind: "none" });
     expect(() => bsb.middleware({ cookies: false, refresh: true })).toThrow(
       TypeError,
     );

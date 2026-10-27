@@ -66,7 +66,7 @@ export function withCron(
   server: AppServer,
   handler: AppHandler,
 ): (request: Request) => Promise<Response> {
-  return server.handler(handler, { allow: ["service"] });
+  return server.handler(handler, { allow: ["secret"] });
 }
 
 export function createAppBrowser(env: PublicEnv) {

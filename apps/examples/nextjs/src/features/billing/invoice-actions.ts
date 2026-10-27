@@ -41,7 +41,7 @@ export const createDraftInvoice = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(created.data.id);
   },
@@ -61,7 +61,7 @@ export const issueInvoice = bsb.action(
       return issued;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(issued.data.status);
   },

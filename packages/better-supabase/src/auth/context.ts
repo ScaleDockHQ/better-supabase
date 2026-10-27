@@ -10,7 +10,7 @@ export function authContext(auth: AuthState): RequestContext {
       return userContext(auth.user, auth.claims);
     }
 
-    case "service": {
+    case "secret": {
       return {
         actor: {
           id: `service:${auth.keyName}`,
@@ -35,7 +35,7 @@ export function authContext(auth: AuthState): RequestContext {
       };
     }
 
-    case "anon":
+    case "none":
     case "invalid": {
       return {
         actor: { id: "anon", kind: "anon", role: "anon" },

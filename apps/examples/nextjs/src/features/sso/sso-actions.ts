@@ -62,7 +62,7 @@ export const addSsoDomain = bsb.action(
       return added;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(added.data.id);
   },
@@ -81,7 +81,7 @@ export const removeSsoDomain = bsb.action(
       return removed;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(removed.data);
   },
@@ -110,7 +110,7 @@ export const verifySsoDomain = bsb.action(
       return verified;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(verified.data.verifiedAt !== undefined);
   },
@@ -148,7 +148,7 @@ export const updateSsoDomain = bsb.action(
       return updated;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(updated.data.id);
   },
@@ -189,7 +189,7 @@ export const addSamlConnection = bsb.action(
       return added;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(added.data.id);
   },
@@ -220,7 +220,7 @@ export const removeSamlConnection = bsb.action(
       return removed;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(removed.data !== undefined);
   },

@@ -33,7 +33,7 @@ export const addEventReminder = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(null);
   },
@@ -57,7 +57,7 @@ export const removeEventReminder = bsb.action(
       return err(dbError("not_found", "Reminder not found"));
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(null);
   },
@@ -84,7 +84,7 @@ export const createCalendar = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: created.data.id });
   },
@@ -141,7 +141,7 @@ export const createEvent = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: saved.data.id });
   },
@@ -174,7 +174,7 @@ export const setWorkingHours = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ rows: saved.data });
   },

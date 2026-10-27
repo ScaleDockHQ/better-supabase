@@ -57,7 +57,7 @@ import { bsb } from "./lib/server";
 const app = express();
 app.use(
   toExpress([
-    withBetterSupabase(bsb, { refresh: true, allow: ["user", "anon"] }),
+    withBetterSupabase(bsb, { refresh: true, allow: ["user", "none"] }),
   ]),
 );
 

@@ -15,7 +15,7 @@ vi.mock(import("next/headers.js"), () => ({
   headers: () => Promise.resolve(mocks.headers),
   cookies: () =>
     Promise.resolve(
-      // SAFETY: the proxy and getRequestSession only await the cookie jar.
+      // SAFETY: the proxy and getClaims only await the cookie jar.
       {
         set: () => undefined,
         getAll: () =>
@@ -126,12 +126,12 @@ describe("proxy fast path", () => {
 
   it("verifies locally outside the refresh skew and refreshes inside it", async () => {
     const cookie = await expiring(30, "r-skew");
-    const outside = await run(page(cookie), { refreshSkewSeconds: 10 });
+    const outside = await run(page(cookie), { leeway: 10 });
 
     expect(auth).not.toHaveBeenCalled();
     expect(outside.auth).toMatchObject({ kind: "user" });
 
-    await run(page(cookie), { refreshSkewSeconds: 60 });
+    await run(page(cookie), { leeway: 60 });
     expect(auth).toHaveBeenCalledOnce();
   });
 
@@ -161,14 +161,14 @@ describe("proxy fast path", () => {
     const cookie = await expiring(3600);
 
     await run(page(cookie, { "sec-fetch-dest": "empty", rsc: "1" }), {
-      endedSession: true,
+      verifySession: true,
     });
     await run(page(cookie, { "next-router-prefetch": "1" }), {
-      endedSession: true,
+      verifySession: true,
     });
     expect(auth).not.toHaveBeenCalled();
 
-    await run(page(cookie), { endedSession: true });
+    await run(page(cookie), { verifySession: true });
     expect(auth).toHaveBeenCalledOnce();
   });
 
@@ -221,7 +221,7 @@ describe("session memo", () => {
     expect(bsb.sessions.stats()).toMatchObject({ hits: hits + 1, misses });
   });
 
-  it("evicts a user's sessions on invalidateSession", async () => {
+  it("evicts a user's sessions on evictSession", async () => {
     const token = await signer.sign({ sub: USER });
 
     const request = new Request("https://app.test/", {
@@ -229,7 +229,7 @@ describe("session memo", () => {
     });
 
     await bsb.snapshot(request);
-    bsb.invalidateSession(USER);
+    await bsb.evictSession(USER);
     await vi.waitFor(() => {
       expect(bsb.sessions.stats().size).toBe(0);
     });
@@ -239,14 +239,14 @@ describe("session memo", () => {
     expect(bsb.sessions.stats().misses).toBe(misses + 1);
   });
 
-  it("getRequestSession verifies a request's token once across scopes", async () => {
+  it("getClaims verifies a request's token once across scopes", async () => {
     const token = await signer.sign({ sub: USER });
     mocks.headers = new Headers({ authorization: `Bearer ${token}` });
     const { misses } = bsb.sessions.stats();
 
     const [first, second] = await Promise.all([
-      bsb.getRequestSession(),
-      bsb.getRequestSession(),
+      bsb.getClaims(),
+      bsb.getClaims(),
     ]);
 
     expect(first).toMatchObject({ userId: USER });

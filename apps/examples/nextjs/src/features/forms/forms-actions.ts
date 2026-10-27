@@ -45,7 +45,7 @@ export const createForm = bsb.action(
       return form;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: form.data.id, title: form.data.title });
   },
@@ -92,7 +92,7 @@ export const publishForm = bsb.action(
       return version;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ number: version.data.number });
   },
@@ -119,7 +119,7 @@ export const submitForm = bsb.action(
       return submission;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: submission.data.id });
   },

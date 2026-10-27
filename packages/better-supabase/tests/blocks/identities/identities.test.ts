@@ -68,7 +68,7 @@ describe("identityResolver", () => {
       "user-1",
       { kind: "user" },
       { kind: "contact", contactId: 7 },
-      { kind: "service", userId: "x" },
+      { kind: "secret", userId: "x" },
     ]) {
       const resolve = identityResolver(transport(() => row).transport, {
         schema: "app_private",

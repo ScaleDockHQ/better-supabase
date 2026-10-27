@@ -24,7 +24,7 @@ export interface GuardOptions {
   /**
    * Callers allowed through. Defaults to `['user']`, which refuses anonymous
    * sign-ins. Only `'anonymous'` admits them: `['anonymous']` alone admits
-   * anonymous sign-ins and refuses other users, and `'anon'` (no session) never
+   * anonymous sign-ins and refuses other users, and `'none'` (no session) never
    * admits them.
    */
   readonly allow?: readonly AllowedCaller[];
@@ -165,7 +165,7 @@ export function guard(
     });
   }
 
-  return auth.kind === "anon"
+  return auth.kind === "none"
     ? dbError("unauthorized", "Sign in to continue", {
         code: "MISSING_CREDENTIALS",
       })

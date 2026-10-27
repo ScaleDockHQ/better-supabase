@@ -171,8 +171,8 @@ export const memberChanged = bsb.action(
       can(await getPermissions(), "members.update_role") ||
       can(await getPermissions(), "members.remove"),
   },
-  ({ userId }) => {
-    bsb.invalidateSession(userId);
+  async ({ userId }) => {
+    await bsb.evictSession(userId);
 
     return ok(true);
   },

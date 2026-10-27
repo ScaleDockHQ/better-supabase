@@ -41,7 +41,7 @@ export const setPermissionOverride = bsb.action(
     }
 
     updateTag(organizationSnapshotTag(tenant));
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(role.data.permissions);
   },

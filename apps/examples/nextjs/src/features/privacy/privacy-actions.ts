@@ -41,7 +41,7 @@ export const requestMyExport = bsb.action({}, async (_input, { db, auth }) => {
   }
 
   await runExport(requested.data.id);
-  refreshCaller(auth);
+  await refreshCaller(auth);
 
   return ok(requested.data.id);
 });
@@ -62,7 +62,7 @@ export const requestOrganizationExport = bsb.action(
     }
 
     await runExport(requested.data.id);
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(requested.data.id);
   },
@@ -99,7 +99,7 @@ export const requestOrganizationDeletion = bsb.action(
       return requested;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(requested.data.purgeAfter.toString());
   },
@@ -115,7 +115,7 @@ export const cancelOrganizationDeletion = bsb.action(
       return cancelled;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(cancelled.data !== undefined);
   },

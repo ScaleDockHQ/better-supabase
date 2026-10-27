@@ -36,7 +36,7 @@ export const createDriveFolder = bsb.action(
       return folder;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: folder.data.id, name: folder.data.name });
   },
@@ -97,7 +97,7 @@ export const commitDriveUpload = bsb.action(
       return committed;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: committed.data.id, name: committed.data.name });
   },
@@ -126,7 +126,7 @@ export const renameDriveItem = bsb.action(
       return renamed;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: renamed.data.id, name: renamed.data.name });
   },
@@ -149,7 +149,7 @@ export const trashDriveItem = bsb.action(
       return trashed;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ trashItemId: trashed.data.id, count: trashed.data.count });
   },
@@ -187,7 +187,7 @@ export const requestDriveApproval = bsb.action(
       return requested;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: requested.data.id, revision: requested.data.revision });
   },

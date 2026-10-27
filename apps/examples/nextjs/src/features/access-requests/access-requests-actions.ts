@@ -50,7 +50,7 @@ export const requestAccess = bsb.action(
       return requested;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(requested.data.id);
   },
@@ -78,7 +78,7 @@ export const decideAccessRequest = bsb.action(
       return decided;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(decided.data.id);
   },
@@ -94,7 +94,7 @@ export const cancelAccessRequest = bsb.action(
       return cancelled;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(cancelled.data.id);
   },
@@ -110,7 +110,7 @@ export const endAccess = bsb.action(
       return ended;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(ended.data.id);
   },

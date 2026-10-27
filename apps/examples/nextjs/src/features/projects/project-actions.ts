@@ -56,7 +56,7 @@ export const createProject = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(created.data.id);
   },
@@ -98,7 +98,7 @@ export const createTask = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(created.data.id);
   },
@@ -125,7 +125,7 @@ export const moveTask = bsb.action(
       group: status,
     });
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return moved;
   },
@@ -159,7 +159,7 @@ export const runTaskBulkAction = bsb.action(
       return changed;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(changed.data);
   },
@@ -192,7 +192,7 @@ export const setTaskField = bsb.action(
       ids.map((id) => db.tasks.update(id, patch)),
     );
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(results.filter((result) => result.ok).length);
   },
@@ -249,7 +249,7 @@ export const saveTaskView = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(saved.data.id);
   },
@@ -268,7 +268,7 @@ export const deleteTaskView = bsb.action(
       return deleted;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(deleted.data);
   },
@@ -315,7 +315,7 @@ export const restoreProjectFields = bsb.action(
       return restored;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(null);
   },

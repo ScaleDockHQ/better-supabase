@@ -312,12 +312,12 @@ describe("createNext", () => {
 
       const response = await bsb.proxy(page({ cookie }), {
         protect,
-        endedSession: { redirect: "/login" },
+        verifySession: { redirect: "/login" },
       });
 
       expect(response.status).toBe(307);
       expect(response.headers.get("location")).toBe(
-        "https://app.test/login?reason=session_ended",
+        "https://app.test/login?reason=session_not_found",
       );
       expect(response.headers.getSetCookie().length).toBeGreaterThan(0);
       expect(
@@ -344,16 +344,16 @@ describe("createNext", () => {
       fresh.mockResolvedValue(banned());
 
       const response = await bsb.proxy(page({ cookie }), {
-        endedSession: { redirect: "/login" },
+        verifySession: { redirect: "/login" },
       });
 
       expect(response.headers.get("location")).toBe(
-        "https://app.test/login?reason=account_banned",
+        "https://app.test/login?reason=user_banned",
       );
       fresh.mockResolvedValue(banned());
 
       const named = await bsb.proxy(page({ cookie }), {
-        endedSession: {
+        verifySession: {
           redirect: "/login",
           reasons: { banned: "suspended", ended: "expired" },
         },
@@ -365,11 +365,11 @@ describe("createNext", () => {
       fresh.mockResolvedValue(ended());
 
       const gone = await bsb.proxy(page({ cookie }), {
-        endedSession: { redirect: "/login", reasons: { banned: "suspended" } },
+        verifySession: { redirect: "/login", reasons: { banned: "suspended" } },
       });
 
       expect(gone.headers.get("location")).toBe(
-        "https://app.test/login?reason=session_ended",
+        "https://app.test/login?reason=session_not_found",
       );
     });
 
@@ -380,11 +380,11 @@ describe("createNext", () => {
 
       const response = await bsb.proxy(page({ cookie }), {
         protect,
-        endedSession: true,
+        verifySession: true,
       });
 
       expect(protect).toHaveBeenCalledWith(
-        { kind: "anon", reason: "signed_out" },
+        { kind: "none", reason: "signed_out" },
         expect.anything(),
       );
       expect(response.headers.get("x-middleware-next")).toBe("1");
@@ -394,7 +394,7 @@ describe("createNext", () => {
         new NextRequest("https://app.test/login", {
           headers: { "sec-fetch-dest": "document", cookie },
         }),
-        { endedSession: { redirect: "/login" } },
+        { verifySession: { redirect: "/login" } },
       );
 
       expect(onLogin.headers.get("location")).toBeNull();
@@ -406,7 +406,7 @@ describe("createNext", () => {
       fresh.mockResolvedValueOnce(Response.json({ id: USER }));
 
       const live = await bsb.proxy(page({ cookie }), {
-        endedSession: { redirect: "/login" },
+        verifySession: { redirect: "/login" },
       });
 
       expect(live.headers.get("x-middleware-next")).toBe("1");
@@ -415,7 +415,7 @@ describe("createNext", () => {
       fresh.mockRejectedValueOnce(new TypeError("fetch failed"));
 
       const offline = await bsb.proxy(page({ cookie }), {
-        endedSession: { redirect: "/login" },
+        verifySession: { redirect: "/login" },
       });
 
       expect(offline.headers.get("x-middleware-next")).toBe("1");
@@ -423,7 +423,7 @@ describe("createNext", () => {
       fresh.mockResolvedValueOnce(Response.json({}, { status: 500 }));
 
       const failing = await bsb.proxy(page({ cookie }), {
-        endedSession: { redirect: "/login" },
+        verifySession: { redirect: "/login" },
       });
 
       expect(failing.headers.get("x-middleware-next")).toBe("1");
@@ -440,15 +440,15 @@ describe("createNext", () => {
       });
 
       await bsb.proxy(navigation, {
-        endedSession: { redirect: "/login", paths: ["/dashboard"] },
+        verifySession: { redirect: "/login", paths: ["/dashboard"] },
       });
       await bsb.proxy(page({ cookie }), {
-        endedSession: { redirect: "/login", paths: ["/settings"] },
+        verifySession: { redirect: "/login", paths: ["/settings"] },
       });
       expect(fresh).not.toHaveBeenCalled();
 
       const listed = await bsb.proxy(page({ cookie }), {
-        endedSession: { redirect: "/login", paths: ["/dashboard"] },
+        verifySession: { redirect: "/login", paths: ["/dashboard"] },
       });
 
       expect(fresh).toHaveBeenCalledOnce();
@@ -1095,7 +1095,7 @@ describe("createNext", () => {
   });
 
   it("reads the session as serializable data without the token", async () => {
-    expect(await bsb.session()).toEqual({ kind: "anon", reason: "none" });
+    expect(await bsb.claims()).toEqual({ kind: "none", reason: "none" });
 
     const token = await signer.sign({
       sub: USER,
@@ -1104,7 +1104,7 @@ describe("createNext", () => {
     });
 
     mocks.headers = new Headers({ authorization: `Bearer ${token}` });
-    const session = await bsb.session();
+    const session = await bsb.claims();
     expect(session).toMatchObject({
       kind: "user",
       user: { id: USER, email: "ada@example.com" },
@@ -1114,7 +1114,7 @@ describe("createNext", () => {
     expect(structuredClone(session)).toEqual(session);
 
     mocks.headers = new Headers({ authorization: "Bearer not-a-jwt" });
-    expect(await bsb.session()).toMatchObject({
+    expect(await bsb.claims()).toMatchObject({
       kind: "invalid",
       error: { kind: "unauthorized" },
     });
@@ -1137,7 +1137,7 @@ describe("createNext", () => {
     });
 
     mocks.headers = new Headers({ authorization: `Bearer ${aal2}` });
-    expect(await bsb.session()).toMatchObject({
+    expect(await bsb.claims()).toMatchObject({
       aal: "aal2",
       amr: [{ method: "totp" }, { method: "password" }],
     });
@@ -1226,7 +1226,7 @@ describe("createNext", () => {
     const redirected = await bsb.proxy(prefetch(), { protect });
     expect(redirected.status).toBe(307);
     expect(protect).toHaveBeenLastCalledWith(
-      { kind: "anon", reason: "expired" },
+      { kind: "none", reason: "expired" },
       expect.anything(),
     );
 
@@ -1234,7 +1234,7 @@ describe("createNext", () => {
 
     const rendered = await bsb.proxy(prefetch(), {
       protect,
-      expiredPrefetch: "render",
+      onExpiredPrefetch: "render",
     });
 
     expect(protect).not.toHaveBeenCalled();
@@ -1243,7 +1243,7 @@ describe("createNext", () => {
 
     const signedOut = await bsb.proxy(
       page({ headers: { "next-router-prefetch": "1", rsc: "1" } }),
-      { protect, expiredPrefetch: "render" },
+      { protect, onExpiredPrefetch: "render" },
     );
 
     expect(signedOut.status).toBe(307);
@@ -1253,7 +1253,7 @@ describe("createNext", () => {
         method: "POST",
         headers: { cookie: expired },
       }),
-      { protect, expiredPrefetch: "render", protectMethods: true },
+      { protect, onExpiredPrefetch: "render", protectMethods: true },
     );
 
     expect(api.status).toBe(307);
@@ -1292,7 +1292,7 @@ describe("createNext", () => {
   it("never refreshes an expiring cookie session, and keeps it valid until exp", async () => {
     const token = await signer.sign({ sub: USER });
     mocks.headers = new Headers({ cookie: cookieFor(token, "refresh-1") });
-    expect(await bsb.session()).toMatchObject({ kind: "user" });
+    expect(await bsb.claims()).toMatchObject({ kind: "user" });
     expect(fresh).not.toHaveBeenCalled();
   });
 
@@ -1395,13 +1395,13 @@ describe("createNext", () => {
       [tagFor("customers", "c1"), { expire: 0 }],
     ]);
 
-    bsb.cacheTag("customers", "c1");
+    bsb.tag("customers", "c1");
     expect(mocks.cacheTag).toHaveBeenCalledWith(
       "bsb:customers",
       "bsb:customers:c1",
     );
 
-    bsb.cacheTags(
+    bsb.tags(
       betterSupabase.spec.customers.get("c1", { include: { notes: true } }),
     );
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(
@@ -1410,13 +1410,13 @@ describe("createNext", () => {
       "bsb:customers:c1",
     );
 
-    bsb.cacheTags([
+    bsb.tags([
       betterSupabase.spec.tags.count(),
       betterSupabase.spec.notes.count(),
     ]);
     expect(mocks.cacheTag).toHaveBeenLastCalledWith("bsb:tags", "bsb:notes");
 
-    bsb.cacheTags(
+    bsb.tags(
       defineReadSet(betterSupabase, "chrome", {}, (s) => ({
         customers: s.customers.count(),
         notes: s.notes.list({ include: { customer: true } }),
@@ -1464,12 +1464,12 @@ describe("createNext", () => {
     ]);
     expect(mocks.updateTag.mock.calls.flat()).not.toContain("bsb:customers@t2");
 
-    bsb.cacheTag("customers", undefined, { tenant: "t1" });
+    bsb.tag("customers", undefined, { tenant: "t1" });
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(
       "bsb:customers@t1",
       "bsb:customers@*",
     );
-    bsb.cacheTags(betterSupabase.spec.customers.get("c1"), { tenant: "t1" });
+    bsb.tags(betterSupabase.spec.customers.get("c1"), { tenant: "t1" });
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(
       "bsb:customers@t1",
       "bsb:customers@*",
@@ -1480,7 +1480,7 @@ describe("createNext", () => {
     );
 
     // A read across tenants carries the table tag, which t1's update above invalidated.
-    bsb.cacheTag("customers", undefined, { tenant: "*" });
+    bsb.tag("customers", undefined, { tenant: "*" });
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(
       "bsb:customers",
       "bsb:customers@*",

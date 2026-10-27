@@ -48,7 +48,7 @@ export const createTemplate = bsb.action(
       return published;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: saved.data.id, name: saved.data.name });
   },
@@ -72,7 +72,7 @@ export const applyTemplate = bsb.action(
       return applied;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ customerId: applied.data.subject.id });
   },

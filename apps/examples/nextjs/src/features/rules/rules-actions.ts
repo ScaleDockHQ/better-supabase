@@ -13,9 +13,8 @@ import { bsb } from "@/lib/supabase/server";
  */
 export const rulesChanged = bsb.action(
   { input: v.object({}), requireTenant: true },
-  // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refreshCaller() returns nothing to await
   async (_input, { auth }) => {
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(null);
   },

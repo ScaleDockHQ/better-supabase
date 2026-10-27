@@ -62,7 +62,7 @@ export const createWorkOrder = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: created.data.id });
   },
@@ -85,7 +85,7 @@ export const advanceWorkOrder = bsb.action(
       return moved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ status: moved.data.status });
   },
@@ -136,7 +136,7 @@ export const createShipment = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: created.data.id });
   },

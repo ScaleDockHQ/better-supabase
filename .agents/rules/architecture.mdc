@@ -34,7 +34,7 @@ alwaysApply: true
    (`dist/mapper/bin.js`, ADR 0097) is a Node process `tsc` starts, not an
    entry; the bundle check tracks its startup next to the CLI's.
 7. Auth never calls the Auth server when the access token is still valid,
-   unless the app turns on the proxy's `endedSession` check. Refresh happens
+   unless the app turns on the proxy's `verifySession` check. Refresh happens
    only in the proxy, never in Server Components.
 8. Every draft or versioned spec the code follows is pinned in `SPEC_PINS`
    (`src/core/spec-pins.ts`) and listed on the docs standards page.

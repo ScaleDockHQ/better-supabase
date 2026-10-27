@@ -24,7 +24,7 @@ export const restoreTrashItem = bsb.action(
       return restored;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ count: restored.data.count });
   },
@@ -44,7 +44,7 @@ export const purgeTrashItem = bsb.action(
       return purged;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ count: purged.data });
   },

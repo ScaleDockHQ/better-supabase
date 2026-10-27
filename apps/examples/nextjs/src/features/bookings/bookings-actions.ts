@@ -92,7 +92,7 @@ export const setUpBookingPage = bsb.action(
       return index;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(null);
   },
@@ -135,7 +135,7 @@ export const saveWeeklyHours = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ days: saved.data });
   },
@@ -169,7 +169,7 @@ export const createBookingLink = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ token: created.data.token });
   },
@@ -186,7 +186,7 @@ export const bookSlot = bsb.action(
       email: v.pipe(v.string(), v.trim(), v.email(), v.maxLength(320)),
       notes: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(2000))),
     }),
-    allow: ["anon", "user"],
+    allow: ["none", "user"],
   },
   async ({ token, resourceId, startsAt, name, email, notes }, { db, auth }) => {
     const booking = db.bookings.public;
@@ -220,7 +220,7 @@ export const bookSlot = bsb.action(
       return confirmed;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({
       startsAt: confirmed.data.startsAt.toString(),

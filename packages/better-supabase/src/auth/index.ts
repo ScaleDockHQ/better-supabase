@@ -21,6 +21,7 @@ export type {
   InvalidReason,
   ResolveAuthOptions,
   ResolvedState,
+  SessionRejection,
 } from "./resolve.ts";
 
 export { tenantOf, toSession } from "./view.ts";
@@ -31,7 +32,7 @@ export { aalOf, amrOf, checkAal } from "./mfa.ts";
 
 export type { Aal, AmrEntry } from "./mfa.ts";
 
-export { checkSession } from "./revocation.ts";
+export { verifySession } from "./revocation.ts";
 
 export { clearSessionCookies, sessionStatus } from "./ended.ts";
 

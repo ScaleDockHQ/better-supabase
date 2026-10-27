@@ -513,7 +513,7 @@ Every authorizer call then gets `{ versions, memo }` as its runtime
 (`AuthorizerRuntime`): `versions` is the shared cache, and `memo` is a
 `RequestMemo` for reads that several checks in one scope share. Create a
 memo with `requestMemo()` from `better-supabase/server`; nothing request-specific lives in module state.
-`bsb.invalidateSession(userId)` calls `versions.evict(userId)` next to
+`bsb.evictSession(userId)` calls `versions.evict(userId)` next to
 expiring the user's cache entries.
 
 To evict on other instances too, have the database broadcast each change on
@@ -558,7 +558,7 @@ Cloudflare Workers) freeze between requests and miss the broadcasts sent
 in the meantime. There, don't call `subscribeAuthzVersions`. Give the
 provider's cache a short maximum age instead, so each instance reads a
 user's version again once it is older than that, and keep calling
-`bsb.invalidateSession(userId)` where the change happens, which evicts the
+`bsb.evictSession(userId)` where the change happens, which evicts the
 user on that instance right away:
 
 ```ts title="src/lib/supabase/authz.ts"

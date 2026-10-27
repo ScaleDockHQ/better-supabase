@@ -71,7 +71,7 @@ describe("buckets on the server db", () => {
       server.admin().$with({}).$buckets.logos,
     ).toEqualTypeOf<Logos>();
     expectTypeOf(
-      server.dbFor({ kind: "anon", reason: "none" }).$buckets.logos,
+      server.dbFor({ kind: "none", reason: "none" }).$buckets.logos,
     ).toEqualTypeOf<Logos>();
   });
 });
@@ -84,7 +84,7 @@ describe("auth admin on the server db", () => {
       SupabaseClient["auth"]["admin"]
     >();
     expectTypeOf(
-      server.dbFor({ kind: "anon", reason: "none" }),
+      server.dbFor({ kind: "none", reason: "none" }),
     ).not.toHaveProperty("$authAdmin");
   });
 });

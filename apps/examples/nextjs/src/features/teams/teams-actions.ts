@@ -24,12 +24,12 @@ const Description = v.pipe(
  * page. `list_teams` and the functions below check `teams.manage` again in
  * SQL.
  */
-function teamsChanged(
+async function teamsChanged(
   tenant: string,
   auth: Parameters<typeof refreshCaller>[0],
-): void {
+): Promise<void> {
   updateTag(teamsTag(tenant));
-  refreshCaller(auth);
+  await refreshCaller(auth);
 }
 
 /** Creates a team; the block derives the slug from the name. */
@@ -49,7 +49,7 @@ export const createTeam = bsb.action(
       return created;
     }
 
-    teamsChanged(tenant, auth);
+    await teamsChanged(tenant, auth);
 
     return ok(created.data.id);
   },
@@ -70,7 +70,7 @@ export const updateTeam = bsb.action(
       return updated;
     }
 
-    teamsChanged(tenant, auth);
+    await teamsChanged(tenant, auth);
 
     return ok(updated.data.id);
   },
@@ -88,7 +88,7 @@ export const setTeamArchived = bsb.action(
       return changed;
     }
 
-    teamsChanged(tenant, auth);
+    await teamsChanged(tenant, auth);
 
     return ok(changed.data);
   },
@@ -104,7 +104,7 @@ export const deleteTeam = bsb.action(
       return deleted;
     }
 
-    teamsChanged(tenant, auth);
+    await teamsChanged(tenant, auth);
 
     return ok(deleted.data);
   },
@@ -125,7 +125,7 @@ export const setTeamMember = bsb.action(
       return changed;
     }
 
-    teamsChanged(tenant, auth);
+    await teamsChanged(tenant, auth);
 
     return ok(changed.data);
   },

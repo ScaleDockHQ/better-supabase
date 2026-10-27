@@ -68,7 +68,7 @@ export const createSampleCourse = bsb.action(
       return published;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: course.data.id });
   },
@@ -88,7 +88,7 @@ export const enrollInCourse = bsb.action(
       return learner;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ status: learner.data.status });
   },
@@ -108,7 +108,7 @@ export const completeLesson = bsb.action(
       return learner;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ status: learner.data.status });
   },
@@ -138,7 +138,7 @@ export const submitQuiz = bsb.action(
       return result;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     const entry = result.data.progress.lessons.find(
       (lesson) => lesson.lessonId === lessonId,

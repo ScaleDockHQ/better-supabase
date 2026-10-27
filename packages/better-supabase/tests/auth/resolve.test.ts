@@ -274,7 +274,7 @@ describe("cookie sessions", () => {
       { ...options, cookies: false },
     );
 
-    expect(auth).toEqual({ kind: "anon", reason: "none" });
+    expect(auth).toEqual({ kind: "none", reason: "none" });
   });
 
   it("treats undecodable access tokens as expired", async () => {
@@ -296,7 +296,7 @@ describe("cookie sessions", () => {
         options,
       );
 
-      expect(auth).toEqual({ kind: "anon", reason: "expired" });
+      expect(auth).toEqual({ kind: "none", reason: "expired" });
     }
   });
 
@@ -313,7 +313,7 @@ describe("cookie sessions", () => {
     });
 
     expect((await resolveAuth(cookieRequest(cookie), options)).auth).toEqual({
-      kind: "anon",
+      kind: "none",
       reason: "signed_out",
     });
 
@@ -344,7 +344,7 @@ describe("cookie sessions", () => {
   it("clears a stale cookie it can't read only where it can write", async () => {
     const stale = cookieRequest(`${NAME}=garbage; other=1`);
     const read = await resolveAuth(stale, options);
-    expect(read.auth).toEqual({ kind: "anon", reason: "signed_out" });
+    expect(read.auth).toEqual({ kind: "none", reason: "signed_out" });
     expect(read.cookies).toEqual([]);
 
     const cleared = await resolveAuth(cookieRequest(`${NAME}.0=garbage`), {
@@ -352,7 +352,7 @@ describe("cookie sessions", () => {
       refresh: true,
     });
 
-    expect(cleared.auth).toEqual({ kind: "anon", reason: "signed_out" });
+    expect(cleared.auth).toEqual({ kind: "none", reason: "signed_out" });
     expect(cleared.cookies.map((write) => write.name)).toContain(`${NAME}.0`);
     expect(cleared.cookies.every((write) => write.options.maxAge === 0)).toBe(
       true,
@@ -446,7 +446,7 @@ describe("cookie sessions", () => {
       }),
     });
 
-    expect(lost.auth).toEqual({ kind: "anon", reason: "refresh_failed" });
+    expect(lost.auth).toEqual({ kind: "none", reason: "refresh_failed" });
     expect(lost.outage).toMatchObject({ cause: "network", kept: false });
     expect(lost.outage?.durationMs).toBeGreaterThanOrEqual(0);
 
@@ -577,7 +577,7 @@ describe("claims and user_metadata schemas", () => {
       userMetadata: schema(async (value) => ({ value })),
     });
 
-    expect(parsed.auth).toMatchObject({ profile: { theme: "dark" } });
+    expect(parsed.auth).toMatchObject({ userMetadata: { theme: "dark" } });
 
     const failing = await resolveAuth(bearer(token), {
       ...options,
@@ -589,7 +589,7 @@ describe("claims and user_metadata schemas", () => {
       })),
     });
 
-    expect(failing.auth).not.toHaveProperty("profile");
+    expect(failing.auth).not.toHaveProperty("userMetadata");
     expect(warn).toHaveBeenCalledOnce();
     expect(JSON.stringify(warn.mock.calls[0])).toContain('["","0.theme"]');
   });
@@ -637,7 +637,7 @@ describe("authContext", () => {
   });
 
   it("maps service, anon and invalid callers", () => {
-    expect(authContext({ kind: "service", keyName: "cron" })).toEqual({
+    expect(authContext({ kind: "secret", keyName: "cron" })).toEqual({
       actor: { id: "service:cron", kind: "service", role: "service_role" },
       claims: { role: "service_role" },
     });
@@ -647,7 +647,7 @@ describe("authContext", () => {
       claims: { role: "anon" },
     };
 
-    expect(authContext({ kind: "anon", reason: "none" })).toEqual(anon);
+    expect(authContext({ kind: "none", reason: "none" })).toEqual(anon);
     expect(
       authContext({
         kind: "invalid",

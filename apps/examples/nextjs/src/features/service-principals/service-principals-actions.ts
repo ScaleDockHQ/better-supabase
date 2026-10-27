@@ -56,7 +56,7 @@ export const createServicePrincipal = bsb.action(
       return created;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(created.data.id);
   },
@@ -82,7 +82,7 @@ export const disableServicePrincipal = bsb.action(
     });
 
     if (disabled.ok) {
-      refreshCaller(auth);
+      await refreshCaller(auth);
     }
 
     return disabled;

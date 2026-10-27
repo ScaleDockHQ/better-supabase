@@ -40,7 +40,7 @@ export const enqueueTestJob = bsb.action(
     );
 
     if (queued.ok) {
-      refreshCaller(auth);
+      await refreshCaller(auth);
     }
 
     return queued;
@@ -87,7 +87,7 @@ export const retryJobRun = bsb.action(
       return err(dbError("not_found", "That job is not a failed run"));
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(Number(newId));
   },

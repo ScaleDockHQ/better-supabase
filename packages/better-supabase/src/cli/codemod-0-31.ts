@@ -184,11 +184,15 @@ function organizationToTenant(
 
 const KEY_RENAMES: Readonly<Record<string, string>> = {
   requireOrganization: "requireTenant",
+  checkSession: "verifySession",
+  endedSession: "verifySession",
+  refreshSkewSeconds: "leeway",
+  expiredPrefetch: "onExpiredPrefetch",
 };
 
 /**
- * Route and procedure option keys renamed in code, outside strings and
- * comments.
+ * Option keys renamed in code, outside strings and comments: the route and
+ * procedure `requireOrganization`, and the proxy and session-check options.
  */
 function renameKeys(text: string): {
   readonly text: string;
@@ -214,8 +218,73 @@ function renameKeys(text: string): {
 export const CODEMOD_0_31: Codemod = {
   name: "0.31",
   description:
-    "Renames auth.organization to auth.tenant in better-supabase.config.* (at the top level and in the $env and $<environment> blocks), the requireOrganization route and procedure option to requireTenant, and the OrganizationConfig type to TenantConfig",
-  imports: { OrganizationConfig: "TenantConfig" },
+    "Renames auth.organization to auth.tenant in better-supabase.config.* (at the top level and in the $env and $<environment> blocks), the requireOrganization route and procedure option to requireTenant, the createNext session, sign-in and cache methods to the supabase-js names (getClaims, contextFromSession, evictSession, signInWithOAuth, exchangeCodeForSession, tag, tags), the proxy and session-check option keys (verifySession, leeway, onExpiredPrefetch), checkSession to verifySession, and the matching types",
+  imports: {
+    OrganizationConfig: "TenantConfig",
+    OAuthStart: "SignInWithOAuthParams",
+    CodeExchange: "ExchangeCodeParams",
+    EndedSessionOptions: "VerifySessionOptions",
+    checkSession: "verifySession",
+  },
+  members: [
+    { from: "getRequestSession", to: "getClaims" },
+    { from: "contextForSession", to: "contextFromSession" },
+    { from: "invalidateSession", to: "evictSession" },
+    { from: "forgetSession", to: "evictSession" },
+    { from: "authorizeUrl", to: "signInWithOAuth" },
+    { from: "exchangeCode", to: "exchangeCodeForSession" },
+    { from: "cacheTags", to: "tags" },
+    { from: "cacheTag", to: "tag" },
+  ],
+  review: [
+    {
+      pattern: /\.session\(\)/,
+      message:
+        "`bsb.session()` is `bsb.claims()` now; the returned `AuthSession` is unchanged apart from `profile`, which is `userMetadata`",
+    },
+    {
+      pattern: /\.signIn\(/,
+      message:
+        "`bsb.signIn()` is gone: call `bsb.signInWithPassword()` (the same arguments). The React hook and `oauth.signIn` keep their names",
+    },
+    {
+      pattern:
+        /\bkind\s*[!=]==?\s*["'](?:anon|service)["']|case\s+["'](?:anon|service)["']|\bkind:\s*["'](?:anon|service)["']/,
+      message:
+        "The caller kinds `anon` and `service` are `none` and `secret` now (`ctx.auth.kind`, `AuthSession.kind`). An actor (`ctx.actor.kind`) and a subscriber keep `anon` and `service`",
+    },
+    {
+      pattern: /\ballow\s*:\s*\[[^\]]*["'](?:anon|service)["']/,
+      message:
+        "`allow` takes `none` (no session) and `secret` (the secret key) instead of `anon` and `service`",
+    },
+    {
+      pattern: /\b(?:session|auth)\.profile\b/,
+      message:
+        "`AuthState.profile` and `AuthSession.profile` (the parsed `user_metadata`) are `userMetadata` now",
+    },
+    {
+      pattern: /\bsessionEnded(?:Reason)?\b/,
+      message:
+        "The resolution carries `sessionVerified: false` and `reason` (`session_not_found` or `user_banned`) instead of `sessionEnded` and `sessionEndedReason` (`ended` or `banned`)",
+    },
+    {
+      pattern:
+        /onExpiredPrefetch\s*:\s*["']protect["']|expiredPrefetch\s*:\s*["']protect["']/,
+      message:
+        "`onExpiredPrefetch` takes `redirect` (the default) instead of `protect`",
+    },
+    {
+      pattern: /\b(?:session_ended|account_banned)\b/,
+      message:
+        "The `verifySession` redirect sends `reason=session_not_found` or `reason=user_banned` (Auth's error codes) instead of `session_ended` and `account_banned`",
+    },
+    {
+      pattern: /\bevictSession\(/,
+      message:
+        "`bsb.evictSession()` returns a promise now (it also evicts the session memo and version cache): await it",
+    },
+  ],
   configFile: organizationToTenant,
   source: renameKeys,
 };

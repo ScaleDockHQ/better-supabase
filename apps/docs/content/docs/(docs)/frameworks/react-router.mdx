@@ -26,7 +26,7 @@ export const supabase =
   createContext<BetterSupabaseContributions<Models, Functions, unknown>>();
 
 export const supabaseMiddleware = toReactRouter(
-  [withBetterSupabase(bsb, { refresh: true, allow: ["user", "anon"] })],
+  [withBetterSupabase(bsb, { refresh: true, allow: ["user", "none"] })],
   supabase,
 );
 ```

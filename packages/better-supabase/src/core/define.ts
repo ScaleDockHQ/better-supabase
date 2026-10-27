@@ -195,7 +195,10 @@ export class BetterSupabase<
     return this.options.claims as StandardSchemaV1<unknown, C> | undefined;
   }
 
-  /** The schema set by `userMetadata()`; its output types `session.profile`. */
+  /**
+   * The schema set by `userMetadata()`; its output types
+   * `session.userMetadata`.
+   */
   get userMetadataSchema(): StandardSchemaV1<unknown, P> | undefined {
     // SAFETY: only `userMetadata()` sets the option, and it fixes `P` to the schema output.
     return this.options.userMetadata as
@@ -228,7 +231,7 @@ export class BetterSupabase<
 
   /**
    * Returns a new instance whose sessions parse `user_metadata` with `schema`
-   * into a typed `session.profile`. Users can change their metadata with
+   * into a typed `session.userMetadata`. Users can change their metadata with
    * `auth.updateUser()`, so a failure only leaves `profile` undefined (with one
    * warning), and no authorization code reads it. It is for display only:
    * roles, memberships, the tenant and entitlements come from the verified

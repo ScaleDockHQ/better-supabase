@@ -98,7 +98,7 @@ proxy), `bsb-auth` (resolving the session), and `bsb-parse`, `bsb-verify`,
 `bsb-refresh` and `bsb-ended` for the phases that ran. A page load with a
 valid token shows no `bsb-refresh` or `bsb-ended`: it made no Auth call.
 
-A token is refreshed only when it expires within `refreshSkewSeconds`
+A token is refreshed only when it expires within `leeway`
 (`auth.leeway`, else 60). Outside that window the proxy parses the cookie
 and verifies the token locally, with no fetch. After a refresh it stores the
 new session in the [session memo](/docs/frameworks/next-islands), so the
@@ -109,7 +109,7 @@ cookies the winner set and keeps the user signed in while the old token is
 still valid, instead of signing them out.
 
 A prefetch never refreshes, so a session whose token expired reaches
-`protect` as `{ kind: "anon", reason: "expired" }`. `expiredPrefetch: "render"`
+`protect` as `{ kind: "none", reason: "expired" }`. `onExpiredPrefetch: "render"`
 skips `protect` for those prefetches, so they render signed out instead of
 caching a redirect to sign-in; the click refreshes the session
 ([details](/docs/frameworks/next-cache-components#5-optimistic-redirects-in-the-proxy)).
@@ -119,33 +119,34 @@ The default, `"protect"`, passes them to `protect` like any other request.
 
 An access token stays valid until it expires, even after its session is
 signed out elsewhere, revoked or deleted. RLS that checks the session then
-hides every row, and the app looks empty. `endedSession` asks Auth whether
+hides every row, and the app looks empty. `verifySession` asks Auth whether
 the session still exists (`GET /auth/v1/user`) on document loads and on the
 paths you list. When Auth answers 401 or 403, the proxy clears the session
-cookies and redirects to `redirect` with `?reason=session_ended`, or
-`?reason=account_banned` when Auth reports the user as banned:
+cookies and redirects to `redirect` with `?reason=session_not_found`, or
+`?reason=user_banned` when Auth reports the user as banned:
 
 ```ts
 export const proxy = (request: NextRequest) =>
   bsb.proxy(request, {
-    endedSession: { redirect: "/login", paths: ["/"] },
+    verifySession: { redirect: "/login", paths: ["/"] },
     protect,
   });
 ```
 
-| Option     | Default                           | Meaning                                                                    |
-| ---------- | --------------------------------- | -------------------------------------------------------------------------- |
-| `paths`    | none                              | Paths checked on client navigations too, such as the page after sign-in    |
-| `redirect` | none                              | Where an ended session goes; without it `protect` gets a signed-out caller |
-| `reasons`  | `session_ended`, `account_banned` | The `reason` query values for `{ ended, banned }` on the redirect          |
+| Option     | Default                            | Meaning                                                                    |
+| ---------- | ---------------------------------- | -------------------------------------------------------------------------- |
+| `paths`    | none                               | Paths checked on client navigations too, such as the page after sign-in    |
+| `redirect` | none                               | Where an ended session goes; without it `protect` gets a signed-out caller |
+| `reasons`  | `session_not_found`, `user_banned` | The `reason` query values for `{ ended, banned }` on the redirect          |
 
 Each checked request costs one Auth request, so client navigations, server
 actions and prefetches keep the local token check unless their path is in
 `paths`. A request to `redirect` itself only clears the cookies. When Auth
 cannot be reached or answers with a server error, the session is kept.
-The resolution also carries `sessionEnded` and `sessionEndedReason`
-(`"ended"` or `"banned"`) for a `protect` that renders its own page.
-`endedSession: true` checks document loads without a redirect. Use
+The resolution also carries `sessionVerified: false` and `reason`
+(`"session_not_found"` or `"user_banned"`) for a `protect` that renders its
+own page.
+`verifySession: true` checks document loads without a redirect. Use
 `shouldCheckSession(request, options)` to see whether a request is checked.
 A proxy that does not use `bsb.proxy` can run the same check with
 `sessionStatus` and `clearSessionCookies`
@@ -153,7 +154,7 @@ A proxy that does not use `bsb.proxy` can run the same check with
 
 ### Watching the session in the browser
 
-`endedSession` covers document loads. An app that keeps the session in
+`verifySession` covers document loads. An app that keeps the session in
 httpOnly cookies, with no browser Supabase client, also notices a revoked
 session, a ban or changed claims while a page stays open with
 `sessionStatusRoute` from `better-supabase/server` and `useSessionWatch` from
@@ -173,7 +174,7 @@ export const GET = sessionStatusRoute(bsb);
 import { useSessionWatch } from "better-supabase/next/client";
 
 export function SessionWatch() {
-  useSessionWatch({ redirect: "/login?reason=session_ended" });
+  useSessionWatch({ redirect: "/login?reason=session_not_found" });
 
   return null;
 }
@@ -183,7 +184,7 @@ The route answers `{ status, userId, fingerprint, expiresAt, support }` with
 `Cache-Control: no-store`: `active`, `expired` (the token expired and the
 proxy refreshes it on the next navigation), `ended`, `banned` or
 `signed_out`. It asks Auth whether the session still exists on every check
-(`checkSession: false` skips that) and refreshes nothing unless `refresh:
+(`verifySession: false` skips that) and refreshes nothing unless `refresh:
 true`. `fingerprint` is a SHA-256 of the claims that decide access (all but
 `exp`, `iat`, `nbf`, `jti` and `ignoreClaims`) and of the running support
 session, so a role or tenant change, or a support session that starts, ends
@@ -299,18 +300,18 @@ number and then stays current over Realtime. See
 ## Session
 
 ```ts
-const session = await bsb.session();
+const session = await bsb.claims();
 if (session.kind === "user") session.claims.user_role;
 ```
 
-`bsb.session()` is the same verification without the clients: an
+`bsb.claims()` is the same verification without the clients: an
 `AuthSession` of `user` (with `user`, `claims` and `expiresAt`), `service`,
 `anon` or `invalid`. It never includes the token, so it is safe to return
 from `'use cache: private'` and to pass to Client Components through
 [`SessionProvider`](/docs/frontend/react#server-session). `toSession(auth)`
 converts any `AuthState` the same way, for example inside `bsb.action()`.
 
-Use `bsb.session()` (or `jwtClaims` in a pipeline entry) as the per-request
+Use `bsb.claims()` (or `jwtClaims` in a pipeline entry) as the per-request
 check, in place of `supabase.auth.getUser()`. It verifies the token locally
 against the project's JWKS and never calls the Auth server, the check
 `@supabase/ssr` recommends with `getClaims()`. Call `getUser()` only in the
@@ -323,7 +324,7 @@ With `cacheComponents` enabled, see [Cache Components](/docs/frameworks/next-cac
 for instant navigations and role-aware menus, and the
 [island pattern](/docs/frameworks/next-islands) for pages with many private
 Suspense islands. Every scope of one request shares a single verification
-through `bsb.getRequestSession()`.
+through `bsb.getClaims()`.
 
 ## Route handlers
 
@@ -590,7 +591,7 @@ entry. Tag your cached reads to match:
 ```ts
 async function publicPlans() {
   "use cache";
-  bsb.cacheTag("plans");
+  bsb.tag("plans");
   return bsb
     .admin()
     .plans.list({ where: { public: true } })
@@ -617,7 +618,7 @@ async function customerList(tenant: string) {
   const spec = betterSupabase.spec.customers.list({
     where: { organizationId: tenant },
   });
-  bsb.cacheTags(spec, { tenant });
+  bsb.tags(spec, { tenant });
   return bsb.admin().$run(spec).orThrow();
 }
 ```
@@ -628,7 +629,7 @@ request context, such as the memberships extension's), or `bsb:customers@*` when
 has none, and the tags of the rows it changed. Reads without a `tenant` keep
 `bsb:<table>`, which every mutation of the table invalidates, and so does a
 read across tenants (`{ tenant: "*" }`), which carries `bsb:<table>` as well
-as `bsb:<table>@*`. `bsb.cacheTag`
+as `bsb:<table>@*`. `bsb.tag`
 takes the same option as its third argument, and `tagFor(table, undefined,
 { tenant })` builds the tag.
 

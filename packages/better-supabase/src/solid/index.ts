@@ -200,7 +200,7 @@ export function useSession<C = unknown, P = unknown>(): Accessor<
     );
   }
 
-  // SAFETY: the provider receives `bsb.session()` from the same
+  // SAFETY: the provider receives `bsb.claims()` from the same
   // `betterSupabase`, whose schemas fix `C` and `P`.
   return session as Accessor<AuthSession<C, P> | undefined>;
 }

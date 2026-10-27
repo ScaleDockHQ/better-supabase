@@ -40,7 +40,7 @@ export const createSampleSequence = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ id: saved.data.id });
   },
@@ -63,7 +63,7 @@ export const setSequenceStatus = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ status: saved.data.status });
   },
@@ -132,7 +132,7 @@ export const addSequenceStep = bsb.action(
       return saved;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok({ steps: saved.data.steps.length });
   },

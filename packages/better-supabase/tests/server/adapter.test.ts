@@ -100,7 +100,7 @@ describe("handle", () => {
   });
 
   it("answers Results and thrown errors as Problem Details", async () => {
-    const options = { allow: ["anon"] as const };
+    const options = { allow: ["none"] as const };
 
     const failed = await handle(
       server,
@@ -147,7 +147,7 @@ describe("handle", () => {
           throw control;
         },
         {
-          allow: ["anon"],
+          allow: ["none"],
           rethrow: (cause) => {
             if (cause === control) {
               throw control;
@@ -175,7 +175,7 @@ describe("handle", () => {
           throw control;
         },
         {
-          allow: ["anon"],
+          allow: ["none"],
           waitUntil,
           rethrow: (cause) => {
             if (cause === control) {
@@ -206,7 +206,7 @@ describe("handle", () => {
 
         return { ok: 1 };
       },
-      { allow: ["anon"], waitUntil, status: 201 },
+      { allow: ["none"], waitUntil, status: 201 },
     );
 
     expect(response.status).toBe(201);
@@ -278,7 +278,7 @@ describe("resolveToken", () => {
   it("verifies a bare token and treats a missing one as anon", async () => {
     const auth = await resolveToken(server, await signer.sign({ sub: USER }));
     expect(auth.kind === "user" && auth.user.id).toBe(USER);
-    expect((await resolveToken(server, undefined)).kind).toBe("anon");
+    expect((await resolveToken(server, undefined)).kind).toBe("none");
     expect((await resolveToken(server, "not-a-jwt")).kind).toBe("invalid");
   });
 });

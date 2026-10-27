@@ -137,14 +137,14 @@ export function createClients(input: ClientsInput): Clients {
         });
       }
 
-      case "service": {
+      case "secret": {
         // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
         return shared
           ? serviceClient()
           : createClient(url, secretKey(), { auth: STATELESS, ...global });
       }
 
-      case "anon":
+      case "none":
       case "invalid": {
         if (!shared) {
           // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
@@ -212,14 +212,14 @@ export function createClients(input: ClientsInput): Clients {
         break;
       }
 
-      case "service":
-      case "anon":
+      case "secret":
+      case "none":
       case "invalid": {
         if (Object.keys(headers).length === 0 && url === env().url) {
           return supabaseAt(url, auth, headers);
         }
 
-        key = auth.kind === "service" ? secretKey() : env().publishableKey;
+        key = auth.kind === "secret" ? secretKey() : env().publishableKey;
         bearer = key;
         break;
       }

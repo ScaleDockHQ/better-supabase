@@ -288,6 +288,20 @@ const RETIRED: readonly (readonly [RegExp, string])[] = [
   [/\bcreateBrowser\b/u, "`createBrowser` (now `createClient`)"],
   [/\brequireOrganization\b/u, "`requireOrganization` (now `requireTenant`)"],
   [/\bauth\.organization\b/u, "`auth.organization` (now `auth.tenant`)"],
+  [/\bbsb\.session\(\)/u, "`bsb.session()` (now `bsb.claims()`)"],
+  [/\bgetRequestSession\b/u, "`getRequestSession` (now `getClaims`)"],
+  [/\bcontextForSession\b/u, "`contextForSession` (now `contextFromSession`)"],
+  [
+    /\b(?:invalidateSession|forgetSession)\b/u,
+    "`invalidateSession` (now `evictSession`)",
+  ],
+  [/\bbsb\.cacheTags?\b/u, "`bsb.cacheTag` (now `bsb.tag` and `bsb.tags`)"],
+  [/\bbsb\.signIn\(/u, "`bsb.signIn()` (now `bsb.signInWithPassword()`)"],
+  [
+    /\b(?:endedSession|refreshSkewSeconds|expiredPrefetch)\b/u,
+    "`endedSession`, `refreshSkewSeconds` or `expiredPrefetch` (now `verifySession`, `leeway`, `onExpiredPrefetch`)",
+  ],
+  [/\bsessionEnded(?:Reason)?\b/u, "`sessionEnded` (now `sessionVerified`)"],
 ];
 
 /** The pages whose job is to name the retired forms. */

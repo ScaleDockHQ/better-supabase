@@ -51,7 +51,7 @@ export interface SupabaseOptions {
    */
   readonly claims?: StandardSchemaV1;
   /**
-   * Parses `user_metadata` into `session.profile`. Prefer
+   * Parses `user_metadata` into `session.userMetadata`. Prefer
    * `betterSupabase.userMetadata()`, which also types it.
    */
   readonly userMetadata?: StandardSchemaV1;

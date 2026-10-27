@@ -62,7 +62,7 @@ reads `params`; the dashboard and the settings tabs use the shared App Shell.
 
 ## 1. Read the session once, privately cached
 
-`bsb.session()` returns the verified caller as plain data: `user`, the raw
+`bsb.claims()` returns the verified caller as plain data: `user`, the raw
 JWT `claims` (including your custom access token hook claims) and
 `expiresAt`, or `anon` / `invalid`. It never contains the token or a client,
 so it can leave a `'use cache: private'` function and cross into Client
@@ -76,7 +76,7 @@ import { bsb } from "@/lib/supabase/server";
 
 export async function getSession(): Promise<AuthSession> {
   "use cache: private";
-  const session = await bsb.session();
+  const session = await bsb.claims();
   cacheLife({ stale: sessionStale(session) });
   return session;
 }
@@ -88,7 +88,7 @@ after its token expired. With fewer than `min` seconds left it returns 0.
 A signed-out view that a refresh or a sign-in would change also gets 0: an
 `anon` session whose cookie is `expired` or `refresh_failed` (prefetches
 never refresh), and an `invalid` one (for example when the JWKS was
-unreachable). Without a session cookie (`anon` with reason `none`) it
+unreachable). Without a session cookie (`none` with reason `none`) it
 returns `max`. `stale` decides where the result can be reused:
 
 | `stale`       | Effect                                                        |
@@ -238,14 +238,14 @@ and enforce it in the database with an `authorize(permission)` RLS helper.
 
 ### Who owns what
 
-| Part                                  | Owns                                                    |
-| ------------------------------------- | ------------------------------------------------------- |
-| Supabase Auth                         | Identity, sessions, signing and refreshing tokens       |
-| Your hook (SQL)                       | Which claims a token carries, read from your tables     |
-| `betterSupabase.claims(schema)`       | Validating and typing those claims on the server        |
-| `betterSupabase.userMetadata(schema)` | A typed `session.profile` for display, never for access |
-| RLS                                   | Enforcing access with the same claims (`auth.jwt()`)    |
-| Your code or an authorization library | Mapping roles to permissions                            |
+| Part                                  | Owns                                                         |
+| ------------------------------------- | ------------------------------------------------------------ |
+| Supabase Auth                         | Identity, sessions, signing and refreshing tokens            |
+| Your hook (SQL)                       | Which claims a token carries, read from your tables          |
+| `betterSupabase.claims(schema)`       | Validating and typing those claims on the server             |
+| `betterSupabase.userMetadata(schema)` | A typed `session.userMetadata` for display, never for access |
+| RLS                                   | Enforcing access with the same claims (`auth.jwt()`)         |
+| Your code or an authorization library | Mapping roles to permissions                                 |
 
 The hook, the schema and your policies read the same claims, so agree on
 one shape. For multi-tenant apps, use the one the `memberships` block module
@@ -309,14 +309,14 @@ const protect: NonNullable<ProxyOptions["protect"]> = (auth, request) => {
 };
 
 export const proxy = (request: NextRequest) =>
-  bsb.proxy(request, { protect, expiredPrefetch: "render" });
+  bsb.proxy(request, { protect, onExpiredPrefetch: "render" });
 ```
 
 Prefetches never refresh, so a session whose token expired arrives as
-`{ kind: "anon", reason: "expired" }`. Without `expiredPrefetch`, `protect`
+`{ kind: "none", reason: "expired" }`. Without `onExpiredPrefetch`, `protect`
 sees it like any other caller and the prefetch caches a redirect to
 `/login`, even though the click would refresh the session. With
-`expiredPrefetch: "render"`, `protect` is skipped for those prefetches, so
+`onExpiredPrefetch: "render"`, `protect` is skipped for those prefetches, so
 they render signed out. `sessionStale` gives that view 0, so it never joins
 the App Shell, and the navigation itself refreshes the session. Other
 requests with an expired token, and prefetches without any session, still
@@ -342,10 +342,10 @@ that function's arguments. It:
 - calls `cacheLife({ stale: sessionStale(session) })`. Pass
   `{ life: { min, max, revalidate, expire } }` to change it, and
   `life.stale` to cap it: the entry then goes stale at the smaller of the two;
-- tags the entry `bsb:session:<user id>`, so `bsb.invalidateSession(userId)`
+- tags the entry `bsb:session:<user id>`, so `bsb.evictSession(userId)`
   drops every cached view of that user, for example after an admin changes
   their role. `tags` adds more tags to the entry, and
-  `bsb.invalidateSession(userId, { tags })` drops those too. In a Server
+  `bsb.evictSession(userId, { tags })` drops those too. In a Server
   Action it also re-renders the caller's page, so no `refresh()` is needed.
   It reaches the server caches and the caller's router only: another
   user's browser keeps its private entries until they go stale or that
@@ -414,7 +414,7 @@ import { permissionsFor } from "@/lib/permissions";
 
 export async function loadSnapshot(organizationId: string) {
   "use cache: private";
-  const session = await bsb.session();
+  const session = await bsb.claims();
   const snapshot = permissionsFor(session, organizationId);
   await bsb.cached({
     tags: [
@@ -452,14 +452,14 @@ When a role or plan changes, drop the user's cached views and their snapshot
 in the Server Action or webhook that changed it:
 
 ```ts
-bsb.invalidateSession(userId, { tags: [`permissions:${userId}`] });
+bsb.evictSession(userId, { tags: [`permissions:${userId}`] });
 ```
 
 The user's token keeps the old memberships until it refreshes. Policies that
 read the membership tables instead of the token see the change
 immediately.
 
-Outside a request, `bsb.contextForSession(session, { token })` builds the same
+Outside a request, `bsb.contextFromSession(session, { token })` builds the same
 context from a session you already have. The token is verified again, and a
 token for another user gives an `invalid` context. A token that fails to
 verify (expired, or the JWKS unreachable) gives the `invalid` context with
@@ -486,7 +486,7 @@ covers the session memo that shares the verification across scopes, even
 while the first one is still in flight.
 
 Data that is the same for every user belongs in a plain `'use cache'` with
-`bsb.cacheTag()` and `bsb.admin()` (see [cache tags](/docs/frameworks/next#cache-tags)).
+`bsb.tag()` and `bsb.admin()` (see [cache tags](/docs/frameworks/next#cache-tags)).
 Don't pass a user id into a shared `'use cache'` function that uses
 `bsb.admin()`: that bypasses RLS.
 
@@ -497,7 +497,7 @@ client router cache, so the user sees their own write. Mutations elsewhere
 ## 7. Signing in and out
 
 Sign in and out on the server with the [Next.js auth](/docs/frameworks/next-auth)
-helpers: `signIn`, `verifyOtp`, `exchangeCode`, `verifyMfa` and `signOut`
+helpers: `signInWithPassword`, `verifyOtp`, `exchangeCodeForSession`, `verifyMfa` and `signOut`
 write the session cookies on the action's response, store the verified
 session for the next render and return a checked `redirectTo`, so the action
 ends with `redirect(redirectTo)` and no `router.refresh()`.
@@ -555,7 +555,7 @@ await switched("/");
 
 All of this depends on verifying tokens locally. With asymmetric JWT signing
 keys (ES256 or RS256) the JWKS is public and cached, so the proxy, every
-`bsb.session()` and every `bsb.context()` verify without a network call.
+`bsb.claims()` and every `bsb.context()` verify without a network call.
 Hosted projects use them by default. Locally, `better-supabase doctor` warns
 when `[auth] signing_keys_path` is missing; `better-supabase dev keys` creates
 one.
@@ -566,23 +566,23 @@ A page renders in up to four stages. Each database read belongs to the
 earliest stage that can hold it; a read that lands later than it has to
 turns an instant navigation into a spinner.
 
-| Stage            | Rendered                             | Holds                                    | APIs                                                       |
-| ---------------- | ------------------------------------ | ---------------------------------------- | ---------------------------------------------------------- |
-| 1. Static shell  | At build time, once for everyone     | Layout, headings, skeletons, public data | `bsb.admin()` inside `'use cache'`                         |
-| 2. App Shell     | Once per browser session, prefetched | The session and data derived from it     | `bsb.cached()`, `bsb.session()`, `bsb.liveCount(spec, db)` |
-| 3. Link prefetch | When a link enters the viewport      | The data behind that link                | `bsb.cacheTags()`, read sets through `db.$many`            |
-| 4. Navigation    | On click, not prefetched             | Per-request and uncached data            | `bsb.context()`, `bsb.route()`                             |
+| Stage            | Rendered                             | Holds                                    | APIs                                                      |
+| ---------------- | ------------------------------------ | ---------------------------------------- | --------------------------------------------------------- |
+| 1. Static shell  | At build time, once for everyone     | Layout, headings, skeletons, public data | `bsb.admin()` inside `'use cache'`                        |
+| 2. App Shell     | Once per browser session, prefetched | The session and data derived from it     | `bsb.cached()`, `bsb.claims()`, `bsb.liveCount(spec, db)` |
+| 3. Link prefetch | When a link enters the viewport      | The data behind that link                | `bsb.tags()`, read sets through `db.$many`                |
+| 4. Navigation    | On click, not prefetched             | Per-request and uncached data            | `bsb.context()`, `bsb.route()`                            |
 
 - **Stage 1** can't read the request. `bsb.admin()` bypasses RLS, so only
   use it for data every visitor may see, and tag the entry with
-  `bsb.cacheTags()` so mutations revalidate it.
+  `bsb.tags()` so mutations revalidate it.
 - **Stage 2** runs once and is reused until `sessionStale` expires or
-  `bsb.invalidateSession()` drops it. Keep it small: the menu, the
+  `bsb.evictSession()` drops it. Keep it small: the menu, the
   session, a few counts. Pass the `db` from `bsb.cached()` to
   `bsb.liveCount` here; without it, `liveCount` reads the request and
   moves to stage 4.
 - **Stage 3** is where most page data goes. One read set per page keeps it
-  to one call, and `bsb.cacheTags(readSet)` revalidates it on any mutation
+  to one call, and `bsb.tags(readSet)` revalidates it on any mutation
   of a table it reads.
 - **Stage 4** is anything that reads `searchParams`, headers or the request
   body, plus route handlers and actions. It is never prefetched, so budget

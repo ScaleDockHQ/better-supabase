@@ -854,7 +854,7 @@ To close that window sooner:
   `supabase.auth.admin.signOut(jwt, "global")` with one of their access
   tokens, or delete their rows in `auth.sessions` from a security definer
   function. The current access token still works until it expires, but
-  `bsb.proxy({ endedSession })` turns away their page loads right away (see
+  `bsb.proxy({ verifySession })` turns away their page loads right away (see
   [Ended sessions](/docs/auth/sessions#ended-sessions-in-your-own-proxy)).
 - Prefer the module's `current_tenant_id()` or `tenant_ids_with()` over the
   raw claim in your own policies, since both read the membership table.

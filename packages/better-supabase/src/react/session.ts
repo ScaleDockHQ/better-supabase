@@ -13,7 +13,7 @@ const SessionContext = createContext<Promise<AuthSession> | null>(null);
 
 export interface SessionProviderProps {
   /**
-   * An unresolved `bsb.session()` promise, created inside a `<Suspense>`
+   * An unresolved `bsb.claims()` promise, created inside a `<Suspense>`
    * boundary so the layout itself never waits for auth.
    */
   readonly sessionPromise: Promise<AuthSession>;
@@ -45,7 +45,7 @@ export function useSession<C = unknown, P = unknown>(): AuthSession<C, P> {
     );
   }
 
-  // SAFETY: the provider receives `bsb.session()` from the same `betterSupabase`, whose schemas fix `C` and `P`.
+  // SAFETY: the provider receives `bsb.claims()` from the same `betterSupabase`, whose schemas fix `C` and `P`.
   return use(promise) as AuthSession<C, P>;
 }
 

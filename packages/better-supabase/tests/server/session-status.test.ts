@@ -73,7 +73,7 @@ describe("sessionStatusRoute", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store, private");
     expect(response.headers.get("set-cookie")).toBe("applied=1");
-    expect(bs.calls).toEqual([{ checkSession: true, refresh: false }]);
+    expect(bs.calls).toEqual([{ verifySession: true, refresh: false }]);
     expect(await response.json()).toEqual({
       status: "active",
       userId: "u1",
@@ -91,8 +91,8 @@ describe("sessionStatusRoute", () => {
     const ended = await sessionStatusRoute(
       server(
         resolution(
-          { kind: "anon", reason: "signed_out" },
-          { sessionEnded: true, sessionEndedReason: "banned" },
+          { kind: "none", reason: "signed_out" },
+          { sessionVerified: false, reason: "user_banned" },
         ),
       ),
     )(get());
@@ -103,14 +103,14 @@ describe("sessionStatusRoute", () => {
     });
 
     const expired = await sessionStatusRoute(
-      server(resolution({ kind: "anon", reason: "expired" })),
-      { checkSession: false, refresh: true },
+      server(resolution({ kind: "none", reason: "expired" })),
+      { verifySession: false, refresh: true },
     )(get());
 
     expect(await expired.json()).toMatchObject({ status: "expired" });
 
     const none = await sessionStatusRoute(
-      server(resolution({ kind: "anon", reason: "none" })),
+      server(resolution({ kind: "none", reason: "none" })),
     )(get());
 
     expect(await none.json()).toMatchObject({
@@ -162,7 +162,10 @@ describe("sessionStatusRoute edges", () => {
   it("answers HEAD without a body and reads an ended session without a reason as ended", async () => {
     const head = await sessionStatusRoute(
       server(
-        resolution({ kind: "anon", reason: "none" }, { sessionEnded: true }),
+        resolution(
+          { kind: "none", reason: "none" },
+          { sessionVerified: false, reason: "session_not_found" },
+        ),
       ),
     )(new Request("https://app.test/api/session-status", { method: "HEAD" }));
 
@@ -171,7 +174,10 @@ describe("sessionStatusRoute edges", () => {
 
     const ended = await sessionStatusRoute(
       server(
-        resolution({ kind: "anon", reason: "none" }, { sessionEnded: true }),
+        resolution(
+          { kind: "none", reason: "none" },
+          { sessionVerified: false, reason: "session_not_found" },
+        ),
       ),
     )(get());
 

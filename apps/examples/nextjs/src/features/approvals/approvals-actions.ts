@@ -35,7 +35,7 @@ export const requestApproval = bsb.action(
       return requested;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(requested.data.id);
   },
@@ -68,7 +68,7 @@ export const decideApproval = bsb.action(
       return decided;
     }
 
-    refreshCaller(auth);
+    await refreshCaller(auth);
 
     return ok(decided.data.status);
   },
