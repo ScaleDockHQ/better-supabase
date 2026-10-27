@@ -5,6 +5,7 @@ export type {
   VercelNetworkPolicy,
   VercelNetworkRule,
   VercelSandboxCreateOptions,
+  VercelSandboxCredentials,
   VercelSandboxes,
   VercelSandboxesOptions,
   VercelSandboxInstance,

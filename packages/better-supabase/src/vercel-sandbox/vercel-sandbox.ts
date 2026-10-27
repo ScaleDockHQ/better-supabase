@@ -75,10 +75,12 @@ export interface VercelSandboxModule {
     getOrCreate(
       params: Record<string, unknown>,
     ): Promise<VercelSandboxInstance>;
-    get(params: {
-      name: string;
-      signal?: AbortSignal;
-    }): Promise<VercelSandboxInstance>;
+    get(
+      params: {
+        name: string;
+        signal?: AbortSignal;
+      } & Partial<VercelSandboxCredentials>,
+    ): Promise<VercelSandboxInstance>;
   };
 }
 
@@ -89,9 +91,18 @@ export interface VercelSandboxSessionModule {
   ): Experimental_SandboxSession;
 }
 
+/** A Vercel access token and its scope, for apps that don't run on Vercel. */
+export interface VercelSandboxCredentials {
+  readonly token: string;
+  readonly teamId: string;
+  readonly projectId: string;
+}
+
 export interface VercelSandboxesOptions {
   /** The ai-chat block's sandboxes, with a service transport. */
   readonly sandboxes: Pick<AiSandboxes, "register" | "touch">;
+  /** Defaults to the deployment's OIDC token (`VERCEL_OIDC_TOKEN`). */
+  readonly credentials?: VercelSandboxCredentials;
   /** Options for every sandbox, such as `untrusted`. */
   readonly defaults?: VercelSandboxCreateOptions;
   /** Prefix of the sandbox name; the chat id follows. Default `chat-`. */
@@ -420,6 +431,7 @@ export function vercelSandboxes(
           try {
             sandbox = await module.Sandbox.getOrCreate({
               ...create,
+              ...options.credentials,
               name,
               ...(chatOptions.signal === undefined
                 ? {}
@@ -460,7 +472,11 @@ export function vercelSandboxes(
       }
 
       try {
-        const native = await module.Sandbox.get({ name: sandbox.sandboxId });
+        const native = await module.Sandbox.get({
+          ...options.credentials,
+          name: sandbox.sandboxId,
+        });
+
         await native.stop();
       } catch (cause) {
         if (statusOf(cause) !== 404) {

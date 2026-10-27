@@ -119,14 +119,14 @@ function fakeSdk(
 
           return instance(String(params["name"]));
         },
-        get: async ({ name }) => {
-          calls.push(["get", name]);
+        get: async (params) => {
+          calls.push(["get", params]);
 
           if (options.getFail) {
             throw options.getFail;
           }
 
-          return instance(name);
+          return instance(params.name);
         },
       },
     },
@@ -315,7 +315,7 @@ describe("vercelSandboxes", () => {
 
     await adapter.stop(row());
     expect(sdk.calls).toEqual([
-      ["get", "chat-chat_1"],
+      ["get", { name: "chat-chat_1" }],
       ["stop", "chat-chat_1"],
     ]);
 
@@ -332,6 +332,32 @@ describe("vercelSandboxes", () => {
     });
 
     await expect(down.stop(row())).rejects.toThrow("HTTP 503");
+  });
+
+  it("passes access-token credentials to every SDK call", async () => {
+    const sdk = fakeSdk();
+
+    const credentials = {
+      token: "vtk_1",
+      teamId: "team_1",
+      projectId: "prj_1",
+    };
+
+    const adapter = vercelSandboxes({
+      sandboxes: fakeRegistry().sandboxes,
+      credentials,
+      load: async () => sdk.module,
+      loadSession: async () => sessions,
+    });
+
+    await adapter.forChat("org_1", "chat_1").orThrow();
+    await adapter.stop(row());
+
+    expect(sdk.calls[0]?.[1]).toMatchObject(credentials);
+    expect(sdk.calls[1]).toEqual([
+      "get",
+      { ...credentials, name: "chat-chat_1" },
+    ]);
   });
 });
 

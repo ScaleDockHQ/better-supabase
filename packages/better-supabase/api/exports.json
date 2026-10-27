@@ -4243,6 +4243,7 @@
       "VercelNetworkPolicy",
       "VercelNetworkRule",
       "VercelSandboxCreateOptions",
+      "VercelSandboxCredentials",
       "VercelSandboxes",
       "VercelSandboxesOptions",
       "VercelSandboxInstance",
