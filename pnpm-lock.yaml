@@ -1374,6 +1374,9 @@ importers:
       '@valibot/to-json-schema':
         specifier: 'catalog:'
         version: 1.8.0(valibot@1.5.0(typescript@7.0.2))
+      '@vercel/queue':
+        specifier: 'catalog:'
+        version: 0.8.0(@opentelemetry/api@1.9.1)
       '@workflow/world':
         specifier: 'catalog:'
         version: 5.0.4

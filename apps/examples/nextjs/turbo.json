@@ -16,6 +16,7 @@
       "passThroughEnv": [
         "AI_GATEWAY_API_KEY",
         "CRON_SECRET",
+        "JOBS_BACKEND",
         "PDL_API_KEY",
         "NEXT_RUNTIME",
         "WORKFLOW_*"
@@ -45,6 +46,7 @@
       "passThroughEnv": [
         "AI_GATEWAY_API_KEY",
         "CRON_SECRET",
+        "JOBS_BACKEND",
         "PDL_API_KEY",
         "FLAGS_SECRET",
         "NEXT_PUBLIC_SUPABASE_*",

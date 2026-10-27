@@ -1,4 +1,4 @@
-import type { PollingQueueClient } from "@vercel/queue";
+import type { PollingQueueClient, QueueClient } from "@vercel/queue";
 
 import { describe, expect, it } from "vitest";
 
@@ -7,7 +7,10 @@ import type {
   VercelQueueMetadata,
 } from "../../../src/blocks/queue/vercel-queue.ts";
 
-import { vercelQueueProvider } from "../../../src/blocks/queue/vercel-queue.ts";
+import {
+  vercelQueueProvider,
+  vercelRetentionSeconds,
+} from "../../../src/blocks/queue/vercel-queue.ts";
 import { testQueueProvider } from "../../../src/testing/index.ts";
 
 interface Stored {
@@ -86,6 +89,7 @@ function fakeClient(): VercelQueueClient {
 
 // The real client must fit the structural type.
 export const fits = (client: PollingQueueClient): VercelQueueClient => client;
+export const pushFits = (client: QueueClient): VercelQueueClient => client;
 
 describe("vercelQueueProvider", () => {
   it("passes the queue backend conformance kit", async () => {
@@ -103,6 +107,54 @@ describe("vercelQueueProvider", () => {
     await expect(backend.send("bad name", {}, 0, 1, undefined)).rejects.toThrow(
       /topic names/,
     );
+  });
+
+  it("keeps a delayed message an hour past its delay, within 7 days", async () => {
+    expect(vercelRetentionSeconds(0)).toBeUndefined();
+    expect(vercelRetentionSeconds(60)).toBe(86_400);
+    expect(vercelRetentionSeconds(2 * 86_400)).toBe(2 * 86_400 + 3600);
+    expect(vercelRetentionSeconds(7 * 86_400)).toBe(7 * 86_400);
+    expect(() => vercelRetentionSeconds(7 * 86_400 + 1)).toThrow(/7 days/);
+
+    const sent: unknown[] = [];
+
+    const backend = vercelQueueProvider({
+      ...fakeClient(),
+      send: (_topic, _payload, options) => {
+        sent.push(options);
+
+        return Promise.resolve({ messageId: "m1" });
+      },
+    });
+
+    await backend.send("q", {}, 2 * 86_400, 1, "k");
+    expect(sent).toEqual([
+      {
+        delaySeconds: 2 * 86_400,
+        retentionSeconds: 2 * 86_400 + 3600,
+        idempotencyKey: "k",
+      },
+    ]);
+  });
+
+  it("reports each receive result", async () => {
+    const results: unknown[] = [];
+
+    const backend = vercelQueueProvider(fakeClient(), {
+      settle: 1,
+      onReceive: (queue, result) => results.push([queue, result]),
+    });
+
+    expect(await backend.read("q", 30, 1)).toEqual([]);
+    expect(results).toEqual([["q", { ok: false }]]);
+  });
+
+  it("sends through a push client and refuses to poll with it", async () => {
+    const backend = vercelQueueProvider({
+      send: () => Promise.resolve({ messageId: "m1" }),
+    });
+
+    await expect(backend.read("q", 30, 1)).rejects.toThrow(/vercelQueueRoute/);
   });
 
   it("needs the SQL backend for schedules", () => {
