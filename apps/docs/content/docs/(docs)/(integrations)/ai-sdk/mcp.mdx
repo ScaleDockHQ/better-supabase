@@ -89,6 +89,24 @@ changed returns `CONNECTOR_TOOLS_CHANGED` until an admin approves it.
 Pass `apps: true` to split out MCP Apps tools into `appTools`, and `elicit`
 to answer a server's elicitation requests; without it they are declined.
 
+The transport refuses an HTTP redirect by default (`redirect: "error"`), so
+a server that moved can't send the user's token to another origin. Update
+the server's URL, or pass `redirect: "follow"` for a server you trust to
+redirect. `@ai-sdk/mcp` first probes a server with `server/discover`; pass
+`protocolVersionDiscovery: false` for an older server that needs
+`initialize` as its first request. `connectAll` takes `serverOptions(server)`
+to set either one for a single server:
+
+```ts
+await connectAll(servers, {
+  connectors,
+  userId,
+  vault,
+  serverOptions: (server) =>
+    server.name === "Legacy CRM" ? { protocolVersionDiscovery: false } : {},
+});
+```
+
 ## Supabase's MCP server
 
 Supabase's [MCP server](https://supabase.com/docs/guides/getting-started/mcp)

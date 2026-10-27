@@ -4955,7 +4955,8 @@
       "trackedSandbox",
       "usageEntries",
       "usageOf",
-      "usageQuota"
+      "usageQuota",
+      "validUIMessages"
     ],
     "types": [
       "AiUsage",
@@ -4982,6 +4983,7 @@
       "ThreadSummaryInput",
       "ThreadSummaryOutput",
       "TrackedSandboxOptions",
+      "UIMessageSchemas",
       "UsageSource"
     ]
   },
@@ -5121,6 +5123,7 @@
     ],
     "types": [
       "AuthorizeConnectorOptions",
+      "ConnectAllOptions",
       "ConnectAllResult",
       "ConnectedTools",
       "ConnectToolsOptions",

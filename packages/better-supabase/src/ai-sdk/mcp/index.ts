@@ -10,6 +10,7 @@ export {
 
 export {
   connectAll,
+  type ConnectAllOptions,
   type ConnectAllResult,
   type ConnectedTools,
   connectTools,

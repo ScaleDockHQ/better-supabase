@@ -119,6 +119,8 @@ function researchAgent(input: DurableTurnInput, args: DurableAgentArgs) {
           properties: { title: { type: "string" } },
           required: ["title"],
         }),
+        // The AI SDK's WorkflowAgent guide: "For `WorkflowAgent`, human approval is configured
+        // on the tool definition with `needsApproval`."
         // oxlint-disable-next-line typescript/no-deprecated -- WorkflowAgent reads approvals only from the tool, not from stream options.
         needsApproval: true,
         execute: async ({ title }) => {

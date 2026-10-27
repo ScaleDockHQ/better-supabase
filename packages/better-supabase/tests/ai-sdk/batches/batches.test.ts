@@ -352,4 +352,32 @@ describe("aiBatches", () => {
     expect(cancel).toHaveBeenCalledWith({ batch: REF });
     expect(updates.at(-1)?.patch).toEqual({ status: "cancelled" });
   });
+
+  it("lists the provider's batches with the static provider", async () => {
+    const { store } = fakeStore();
+    // SAFETY: the fake api never calls the provider; only its identity is checked.
+    const provider = { specificationVersion: "v4" } as never;
+    const list = vi.fn(async () => ({ batches: [], nextCursor: "next" }));
+
+    const batches = aiBatches({
+      providers: { batches: store },
+      provider,
+      api: { list },
+    });
+
+    expect(await batches.list({ limit: 5 }).orThrow()).toEqual({
+      batches: [],
+      nextCursor: "next",
+    });
+    expect(list).toHaveBeenCalledWith({ limit: 5, provider });
+
+    const picked = aiBatches({
+      providers: { batches: store },
+      provider: () => provider,
+      api: { list },
+    });
+
+    await picked.list().orThrow();
+    expect(list).toHaveBeenLastCalledWith({});
+  });
 });

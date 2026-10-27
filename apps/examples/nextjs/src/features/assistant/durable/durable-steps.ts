@@ -68,6 +68,7 @@ export async function answerQuestion(
     instructions:
       "Answer the question in at most five sentences. Say when you are unsure.",
     prompt: question,
+    telemetry: { functionId: "assistant.research.answer" },
   });
 
   return text;

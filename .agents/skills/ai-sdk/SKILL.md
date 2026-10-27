@@ -76,3 +76,13 @@ If the installed version is a major version (or more) behind the latest, tell th
 ## After Making Changes
 
 Run the project's type checker. Be minimal — only set options that differ from the defaults, checking docs or source for the defaults rather than over-specifying. Most type errors come from remembered, now-changed APIs; re-check the current docs and source when they occur.
+
+## In this repo
+
+better-supabase wraps the AI SDK in `packages/better-supabase/src/ai-sdk`. Before you write AI SDK code here:
+
+- A chat route runs on `createAssistant` (`ai-sdk/chat`). Its `run` returns `streamText(...)` or `agent.stream(...)`; the assistant reads `stream`, `usage` and `finalStep`, never `toUIMessageStream()`, `totalUsage` or `providerMetadata`.
+- Name the system prompt `instructions`, not `system`, and stop loops with `isStepCount`, not `stepCountIs`.
+- Attribute spend with `gatewayOptions` and read tokens and cost with `usageOf({ usage, finalStep })`; the gateway's `generationId` and cost come from `finalStep.providerMetadata`.
+- Meter tokens once: `registerTelemetry(meterTelemetry({ usage }))`, or `usageEntries`, never both.
+- Models are gateway strings; the docs and the example use `"openai/gpt-5-mini"`.

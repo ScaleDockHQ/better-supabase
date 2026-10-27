@@ -7,7 +7,7 @@ import type { AiFiles, AiFileStorage } from "better-supabase/blocks/ai-files";
 import type { AiKeys } from "better-supabase/blocks/ai-keys";
 import type { RpcClient } from "better-supabase/blocks/organizations";
 
-import { stepCountIs, streamText } from "ai";
+import { isStepCount, streamText } from "ai";
 import { byokOptions } from "better-supabase/ai-sdk";
 import { createAssistant } from "better-supabase/ai-sdk/chat";
 import { searchTool } from "better-supabase/ai-sdk/embeddings";
@@ -168,7 +168,8 @@ export function assistant(): ReturnType<typeof createAssistant> {
           context.organizationId,
         ),
         tools: scope?.tools ?? {},
-        stopWhen: stepCountIs(5),
+        stopWhen: isStepCount(5),
+        telemetry: { functionId: "assistant.chat" },
         experimental_download: scope ? aiFileDownload(scope.files) : undefined,
       });
     },

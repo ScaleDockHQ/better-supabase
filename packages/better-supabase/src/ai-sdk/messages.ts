@@ -5,6 +5,8 @@ import type {
   UIMessage,
 } from "ai";
 
+import { safeValidateUIMessages } from "ai";
+
 import type {
   AiMessage,
   AiMessagePart,
@@ -14,6 +16,8 @@ import type {
 } from "../blocks/ai-chat/message.ts";
 
 import { isRecord } from "../core/block-helpers.ts";
+import { dbError } from "../core/errors.ts";
+import { AsyncResult, err, ok } from "../core/result.ts";
 
 /** The `format` the chat tree stores next to an AI SDK message it keeps as is. */
 export const AI_SDK_UI_FORMAT = "ai-sdk-ui";
@@ -548,4 +552,38 @@ export function toUIMessages(messages: readonly AiMessage[]): UIMessage[] {
   }
 
   return out;
+}
+
+/** The schemas `validUIMessages` checks a history against. */
+export type UIMessageSchemas = Omit<
+  Parameters<typeof safeValidateUIMessages<UIMessage>>[0],
+  "messages"
+>;
+
+/**
+ * Converts a history like `toUIMessages`, then checks it with the AI SDK's
+ * `safeValidateUIMessages` against the tools, metadata and data part schemas
+ * the app uses now. A history saved before a tool's schema changed fails as
+ * `validation` (`AI_MESSAGES_INVALID`), so the app can start a new branch
+ * instead of sending the model a call it can't read.
+ */
+export function validUIMessages(
+  messages: readonly AiMessage[],
+  schemas: UIMessageSchemas = {},
+): AsyncResult<UIMessage[]> {
+  return AsyncResult.from(async () => {
+    const checked = await safeValidateUIMessages({
+      ...schemas,
+      messages: toUIMessages(messages),
+    });
+
+    return checked.success
+      ? ok(checked.data)
+      : err(
+          dbError("validation", checked.error.message, {
+            hint: "AI_MESSAGES_INVALID",
+            issues: [{ message: checked.error.message }],
+          }),
+        );
+  });
 }

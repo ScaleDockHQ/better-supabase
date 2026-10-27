@@ -1574,6 +1574,16 @@ msgid "Your chats show up here after the first answer."
 msgstr "Je chats verschijnen hier na het eerste antwoord."
 
 #: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.Aw3qRf"
+msgid "Reasoning"
+msgstr "Redenering"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.fhwTpA"
+msgid "Sources"
+msgstr "Bronnen"
+
+#: src/features/assistant/components/chat-view.tsx
 msgctxt "assistant._7Q2I5"
 msgid "{tool} needs your approval"
 msgstr "{tool} heeft je goedkeuring nodig"
