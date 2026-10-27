@@ -47,21 +47,22 @@ export const world = createSupabaseWorld({
 });
 ```
 
-| Variable                                                   | Option                     | Default                                                                                     |
-| ---------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------- |
-| `WORKFLOW_POSTGRES_URL`, `SUPABASE_DB_URL`, `DATABASE_URL` | `connectionString`         | the first one set                                                                           |
-| `WORKFLOW_DELIVERY`                                        | `delivery`                 | `poll`                                                                                      |
-| `WORKFLOW_FLOW_URL`                                        | `flowUrl`                  | `WORKFLOW_LOCAL_BASE_URL` or `http://localhost:$PORT`, plus `/.well-known/workflow/v1/flow` |
-| `WORKFLOW_DELIVERY_SECRET`                                 | `deliverySecret`           | the Vault secret `workflow_delivery_secret`                                                 |
-| `WORKFLOW_ENCRYPTION_KEY`                                  | `encryptionKey`            | the Vault secret `workflow_encryption_key`                                                  |
-| `WORKFLOW_DELIVERY_QUEUE`                                  | `queue`                    | `workflow_deliveries`                                                                       |
-| `WORKFLOW_POSTGRES_WORKER_CONCURRENCY`                     | `concurrency`              | 50                                                                                          |
-| `WORKFLOW_POSTGRES_POLL_INTERVAL_MS`                       | `pollInterval`             | 250                                                                                         |
-| `WORKFLOW_POSTGRES_MAX_CONNECTIONS`                        | `maxConnections`           | 10                                                                                          |
-| `WORKFLOW_POSTGRES_CONNECTION_TIMEOUT_MS`                  | `connectionTimeout`        | 30000                                                                                       |
-| `WORKFLOW_POSTGRES_IDLE_TIMEOUT_MS`                        | `idleTimeout`              | 10000                                                                                       |
-| `WORKFLOW_POSTGRES_STATEMENT_TIMEOUT_MS`                   | `statementTimeout`         | 30000                                                                                       |
-| `WORKFLOW_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS`         | `idleInTransactionTimeout` | 15000                                                                                       |
+| Variable                                                               | Option                     | Default                                                                                     |
+| ---------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------- |
+| `WORKFLOW_POSTGRES_URL`, `SUPABASE_DB_URL`, `DATABASE_URL`             | `connectionString`         | the first one set                                                                           |
+| `WORKFLOW_DELIVERY`                                                    | `delivery`                 | `poll`                                                                                      |
+| `WORKFLOW_FLOW_URL`                                                    | `flowUrl`                  | `WORKFLOW_LOCAL_BASE_URL` or `http://localhost:$PORT`, plus `/.well-known/workflow/v1/flow` |
+| `WORKFLOW_DELIVERY_SECRET`                                             | `deliverySecret`           | the Vault secret `workflow_delivery_secret`                                                 |
+| `WORKFLOW_ENCRYPTION_KEY`                                              | `encryptionKey`            | the Vault secret `workflow_encryption_key`                                                  |
+| `WORKFLOW_DELIVERY_QUEUE`                                              | `queue`                    | `workflow_deliveries`                                                                       |
+| `WORKFLOW_QUEUE_NAMESPACE`                                             | `namespace`                | none                                                                                        |
+| `WORKFLOW_POSTGRES_WORKER_CONCURRENCY`                                 | `concurrency`              | 50                                                                                          |
+| `WORKFLOW_POSTGRES_POLL_INTERVAL_MS`                                   | `pollInterval`             | 250                                                                                         |
+| `WORKFLOW_POSTGRES_MAX_POOL_SIZE`, `WORKFLOW_POSTGRES_MAX_CONNECTIONS` | `maxConnections`           | 10                                                                                          |
+| `WORKFLOW_POSTGRES_CONNECTION_TIMEOUT_MS`                              | `connectionTimeout`        | 30000                                                                                       |
+| `WORKFLOW_POSTGRES_IDLE_TIMEOUT_MS`                                    | `idleTimeout`              | 10000                                                                                       |
+| `WORKFLOW_POSTGRES_STATEMENT_TIMEOUT_MS`                               | `statementTimeout`         | 30000                                                                                       |
+| `WORKFLOW_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS`                     | `idleInTransactionTimeout` | 15000                                                                                       |
 
 The pool holds at most `maxConnections` connections. A delivery that finds
 them all busy waits up to `connectionTimeout` for one, so a burst queues
@@ -72,10 +73,18 @@ or a `logger` to see errors of idle pooled connections; without either, the
 World logs them to the console. They never throw, so a dropped connection
 can't crash the process.
 
+`WORKFLOW_POSTGRES_MAX_POOL_SIZE` is the name `@workflow/world-postgres`
+reads, and wins when both are set. The base World's job queue variables
+(`WORKFLOW_POSTGRES_JOB_PREFIX` and the graphile settings) are ignored,
+because this World runs its own queue. One message takes at most 73
+deliveries before the World gives up on it, the same budget as
+`@workflow/world-postgres` (49 attempts plus 24 retries of the final
+write).
+
 The World speaks the `@workflow/world` protocol in
-`WORKFLOW_WORLD_PROTOCOL` and stores its tables in the shape of the
-`@workflow/world-postgres` version in `WORLD_POSTGRES_VERSION`. It passes
-the `@workflow/world-testing` suite.
+`WORKFLOW_WORLD_PROTOCOL` (5.0.4 for `workflow` 5.2) and stores its tables
+in the shape of the `@workflow/world-postgres` version in
+`WORLD_POSTGRES_VERSION`. It passes the `@workflow/world-testing` suite.
 
 ## Delivery
 
@@ -100,7 +109,28 @@ select vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'work
 In poll mode, the first message a process queues starts its poller, and
 `world.start()` also queues the runs that were active when the last
 process stopped. Call it once at startup, for example from
-`instrumentation.ts`.
+`instrumentation.ts`, and only where a process stays up: on a serverless
+host every instance would start a poller, so use `pg_net` there and call
+`start()` in `next dev` only.
+
+### Routing a queue prefix
+
+`world.registerRoute(prefix, path)` posts the messages whose queue name
+starts with `prefix` to another route of the same app, and
+`world.registerHandler(prefix, handler)` runs them in the polling process
+without an HTTP call. The SDK registers its own prefixes this way; use them
+for a queue of your own that shares the World's tables:
+
+```ts title="instrumentation.ts"
+world.registerRoute("__jobs_", "/api/jobs/queue");
+world.registerHandler("__audit_", async (message) => {
+  await recordAudit(message);
+});
+```
+
+A route is a path on the flow route's origin, never an absolute URL. Poll
+delivery reads both maps; `pg_net` delivery posts every message to the flow
+route.
 
 Each delivery is signed with the secret (`x-bsb-signature`, an HMAC-SHA256
 over the time, the job and the body). The World's queue handler refuses an
@@ -318,11 +348,12 @@ calls its own step, sleep nodes call `sleep` and approval nodes wait on
 `createHook`. Pass it as `compile`, and `graphStarter` as `start`, to
 `createWorkflowEditor`.
 
-Pass `approval` to `graphStarter` (and `requestApproval` to the static
-executor's runtime): a step that files an approvals request for the node
-and returns its id. The node then waits on that id, and `wakeOnApproval`
-resumes it once an eligible approver decides. Without it the token is
-`<runKey>:<node>`, which anyone who knows the run key can guess.
+A graph with an approval node needs `approval` on `graphStarter` (and
+`requestApproval` on the static executor's runtime): a step that files an
+approvals request for the node and returns its id. The node waits on that
+id, and `wakeOnApproval` resumes it once an eligible approver decides.
+`graphStarter` refuses to start a live run of such a graph without
+`approval`, because a token derived from the run key could be guessed.
 
 ```ts title="workflows/approval.ts"
 import { createApprovals } from "better-supabase/blocks/approvals";
