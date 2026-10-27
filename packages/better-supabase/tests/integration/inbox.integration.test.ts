@@ -67,7 +67,7 @@ describe.skipIf(!live)("inbox module", () => {
         botMode: "bot",
         tenant: org,
       });
-      expect(opened.threadId).toBe(`inbox:${opened.id}`);
+      expect(opened.threadId).toBe(`inbox:${widget.id}:${opened.id}`);
       const [job] = await claim(s, "inbox_bot");
       expect(job?.message.payload).toMatchObject({
         conversation_id: opened.id,
