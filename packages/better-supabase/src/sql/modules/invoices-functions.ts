@@ -1,6 +1,7 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
+import { asColumnType } from "../column-type.ts";
 import {
   lineColumn,
   lineCopyColumns,
@@ -32,21 +33,53 @@ export interface InvoiceNames {
   /** `options.extraColumns`, which `create_invoice` writes by name. */
   readonly extras: readonly ExtraColumn[];
   readonly lineExtras: readonly ExtraColumn[];
+  /** `options.totals: "app"`: the app keeps the totals, the block reads them. */
+  readonly appTotals: boolean;
 }
 
-/** Whether the invoices table has both columns of a company or contact. */
+type Party = "company" | "contact" | "origin";
+
+/**
+ * How the invoices table holds a company, contact or origin: a type and an id
+ * column (`pair`), only an id column of one fixed type, such as a foreign key
+ * to the app's customers (`fixed`), or not at all.
+ */
 export function invoiceParty(
   ctx: BlockSqlContext,
-  party: "company" | "contact",
-): boolean {
-  return (
-    ctx.has("invoices", `${party}Type`) && ctx.has("invoices", `${party}Id`)
-  );
+  party: Party,
+): "pair" | "fixed" | undefined {
+  if (!ctx.has("invoices", `${party}Id`)) {
+    return undefined;
+  }
+
+  return ctx.has("invoices", `${party}Type`) ? "pair" : "fixed";
 }
 
-/** Whether the invoices table has both origin columns. */
-export function invoiceOrigin(ctx: BlockSqlContext): boolean {
-  return ctx.has("invoices", "originType") && ctx.has("invoices", "originId");
+/** The type a fixed party column holds: `options.company`, `contact` or a quote. */
+function fixedType(n: InvoiceNames, party: Party): string {
+  if (party === "origin") {
+    return "quote";
+  }
+
+  return party === "company" ? n.company : n.contact;
+}
+
+/**
+ * SQL for the type of a row's company, contact or origin (`alias` "" for the
+ * bare column): its type column, or the fixed type when the id is set.
+ */
+export function partyTypeSql(
+  ctx: BlockSqlContext,
+  n: InvoiceNames,
+  party: Party,
+  alias: string,
+): string {
+  const at = (logical: string): string =>
+    `${alias === "" ? "" : `${alias}.`}${ctx.col("invoices", logical)}`;
+
+  return invoiceParty(ctx, party) === "pair"
+    ? at(`${party}Type`)
+    : `(case when ${at(`${party}Id`)} is null then null else ${sqlString(fixedType(n, party))} end)`;
 }
 
 export function invoiceFunctions(
@@ -59,8 +92,22 @@ export function invoiceFunctions(
   const ledger = invoiceLedger(ctx);
   const company = invoiceParty(ctx, "company");
   const contact = invoiceParty(ctx, "contact");
-  const origin = invoiceOrigin(ctx);
+  const origin = invoiceParty(ctx, "origin");
   const has = (logical: string): boolean => ctx.has("invoices", logical);
+  const charges = ctx.hasTable("charges");
+  const ch = (column: string): string => c("charges", column);
+
+  const physical = (logical: string): string =>
+    ctx.colName("invoices", logical);
+
+  const quoted = `${sqlIdent(ctx.tableName("invoices").schema)}.${sqlIdent(ctx.tableName("invoices").name)}`;
+
+  // A party's id for an insert: text in a pair, the fixed column's own type
+  // otherwise.
+  const partyId = (party: Party, value: string): string =>
+    invoiceParty(ctx, party) === "fixed"
+      ? asColumnType(quoted, physical(`${party}Id`), value)
+      : value;
 
   // ", <column>" for an insert's column list, when the column exists.
   const also = (logical: string): string =>
@@ -107,25 +154,49 @@ export function invoiceFunctions(
   const kd = (value: string, labels: readonly string[], negate = false) =>
     ctx.is("invoices", "kind", value, labels, negate);
 
-  const balance = (alias: string): string =>
-    `(${alias}.${i("total")} - ${alias}.${i("creditedTotal")} - ${alias}.${i("paidTotal")})`;
+  const charged = (alias: string): string =>
+    charges
+      ? `coalesce((select sum(y.${ch("amount")}) from ${t("charges")} y where y.${ch("invoice")} = ${alias}.${i("id")}), 0)`
+      : "0";
 
-  const int8 = [
+  const balance = (alias: string): string =>
+    `(${alias}.${i("total")}${charges ? ` + ${charged(alias)}` : ""} - ${alias}.${i("creditedTotal")} - ${alias}.${i("paidTotal")})`;
+
+  const amounts = [
     "number",
     "paidTotal",
     "creditedTotal",
     ...Object.keys(TOTAL_COLUMNS),
-  ].map(i);
+  ].filter(has);
+
+  const int8 = amounts.map(i);
 
   const int8Text8 = Object.fromEntries(
-    ["number", "paidTotal", "creditedTotal", ...Object.keys(TOTAL_COLUMNS)].map(
-      (logical) => [logical, (value: string) => `${value}::text`],
-    ),
+    amounts.map((logical) => [logical, (value: string) => `${value}::text`]),
   );
+
+  // The keys a row reads back that the app's table has no column for.
+  const missingKeys = (alias: string): string =>
+    `${(["company", "contact", "origin"] as const)
+      .filter((party) => invoiceParty(ctx, party) === "fixed")
+      .map(
+        (party) =>
+          `, ${sqlString(`${party}_type`)}, ${partyTypeSql(ctx, n, party, alias)}`,
+      )
+      .join(
+        "",
+      )}${has("listTotal") ? "" : `, 'list_total', ${alias}.${i("subtotal")}::text`}${has("discountTotal") ? "" : ", 'discount_total', '0'"}`;
+
+  const chargesJson = (alias: string): string =>
+    charges
+      ? `,
+      'charged_total', ${charged(alias)}::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y.${ch("id")}, 'amount', y.${ch("amount")}::text, 'description', ${ctx.has("charges", "description") ? `y.${ch("description")}` : "null"}${ctx.has("charges", "createdAt") ? `, 'createdAt', y.${ch("createdAt")}` : ""})${ctx.has("charges", "createdAt") ? ` order by y.${ch("createdAt")}` : ""}) from ${t("charges")} y where y.${ch("invoice")} = ${alias}.${i("id")}), '[]'::jsonb)`
+      : "";
 
   const row = (alias: string): string =>
     `${ctx.rowJson("invoices", alias, { as: int8Text8 })} || ${int8Text(alias, int8)} || jsonb_build_object(
-      'balance', ${balance(alias)}::text,
+      'balance', ${balance(alias)}::text${missingKeys(alias)}${chargesJson(alias)},
       'overdue', ${st(`${alias}.${i("status")}`, ["issued", "partially_paid"])} and ${alias}.${i("dueOn")} < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il.${l("description")}, 'quantity', il.${l("quantity")}, 'unitAmount', il.${l("unitAmount")}::text, 'discountBps', ${lineColumn(ctx, "lines", "il", "discountBps")}, 'taxRateBps', ${lineColumn(ctx, "lines", "il", "taxRateBps")}, 'taxCode', ${lineColumn(ctx, "lines", "il", "taxCode")}${lineFieldsJson("il", n.lineExtras)}) order by il.${l("position")}) from ${t("lines")} il where il.${l("parent")} = ${alias}.${i("id")}), '[]'::jsonb),
       'payments', ${ledger.payments(alias)})`;
@@ -157,13 +228,26 @@ export function invoiceFunctions(
     type: string,
     id: string,
     tenant: string,
-  ): string =>
-    (kind === "COMPANY" ? company : contact)
-      ? `
-  if ${id} is not null and not ${subjectInTenant(ctx, type, id, tenant)} then
-    ${fail(`INVOICE_${kind}_FORBIDDEN`, `the ${kind.toLowerCase()} is unknown or not readable in this organization`, "42501")}
+  ): string => {
+    const party = kind === "COMPANY" ? "company" : "contact";
+    const mode = kind === "COMPANY" ? company : contact;
+
+    if (mode === undefined) {
+      return refuse(false, id, kind, `${party} columns`);
+    }
+
+    return `${
+      mode === "fixed"
+        ? `
+  if ${id} is not null and ${type} is distinct from ${sqlString(fixedType(n, party))} then
+    ${fail(`INVOICE_${kind}_UNSUPPORTED`, `this invoices table takes only a ${fixedType(n, party)} as the ${party}`, "22023")}
   end if;`
-      : refuse(false, id, kind, `${kind.toLowerCase()} columns`);
+        : ""
+    }
+  if ${id} is not null and not ${subjectInTenant(ctx, type, id, tenant)} then
+    ${fail(`INVOICE_${kind}_FORBIDDEN`, `the ${party} is unknown or not readable in this organization`, "42501")}
+  end if;`;
+  };
 
   const settle = (alias: string): string => `
   update ${t("invoices")} x set
@@ -201,10 +285,13 @@ export function invoiceFunctions(
               ? `case when v_quote.${q(`${kind}Id`)} is null then null else jsonb_build_object('type', v_quote.${q(`${kind}Type`)}, 'id', v_quote.${q(`${kind}Id`)}) end`
               : "null";
 
+          const originIs = (alias: string): string =>
+            `${origin === "pair" ? `${alias}.${i("originType")} = 'quote' and ` : ""}${alias}.${i("originId")}::text = v_quote.${q("id")}::text`;
+
           const body = (): string => `
   if invoice_from_quote.deposit_bps is null then
     select * into v_row from ${t("invoices")} x
-    where x.${i("originType")} = 'quote' and x.${i("originId")} = v_quote.${q("id")}::text
+    where ${originIs("x")}
       and ${deposits ? `x.${i("depositBps")} is null and ` : ""}${st(`x.${i("status")}`, ["void"], true)} and ${kd(`x.${i("kind")}`, ["invoice"])}
     limit 1;
     if v_row.${i("id")} is not null then
@@ -221,7 +308,7 @@ export function invoiceFunctions(
         'taxRateBps', case when d.${i("subtotal")} = 0 then 0 else round(d.${i("taxTotal")} * 10000.0 / d.${i("subtotal")})::integer end)), '[]'::jsonb)
       into v_lines
     from ${t("invoices")} d
-    where d.${i("originType")} = 'quote' and d.${i("originId")} = v_quote.${q("id")}::text and d.${i("depositBps")} is not null and ${st(`d.${i("status")}`, ["draft", "void"], true)};`
+    where ${originIs("d")} and d.${i("depositBps")} is not null and ${st(`d.${i("status")}`, ["draft", "void"], true)};`
         : ""
     }
   else
@@ -263,16 +350,75 @@ begin
   if invoice_from_quote.deposit_bps is not null and (invoice_from_quote.deposit_bps <= 0 or invoice_from_quote.deposit_bps >= 10000) then
     ${fail("INVOICE_DEPOSIT_INVALID", "a deposit is between 0 and 100 percent", "22023")}
   end if;${refuse(deposits, "invoice_from_quote.deposit_bps", "DEPOSIT", "deposit column")}${
-    origin
-      ? body()
-      : `
+    origin === undefined
+      ? `
   ${fail("INVOICE_ORIGIN_UNSUPPORTED", "this invoices table has no origin columns, so a quote can't be invoiced once", "22023")}`
+      : body()
   }
 end;
 $$;
 ${userGrant(`${fn("invoice_from_quote")}(uuid, integer)`)}
 `;
         })();
+
+  const chargeColumns = [
+    ch("tenant"),
+    ch("invoice"),
+    ch("amount"),
+    ...(ctx.has("charges", "currency") ? [ch("currency")] : []),
+    ...(ctx.has("charges", "description") ? [ch("description")] : []),
+    ...(ctx.has("charges", "createdBy") ? [ch("createdBy")] : []),
+  ];
+
+  const chargeValues = [
+    `v_row.${i("tenant")}`,
+    `v_row.${i("id")}`,
+    "add_invoice_charge.amount",
+    ...(ctx.has("charges", "currency") ? [`v_row.${i("currency")}`] : []),
+    ...(ctx.has("charges", "description")
+      ? ["nullif(trim(add_invoice_charge.description), '')"]
+      : []),
+    ...(ctx.has("charges", "createdBy") ? ["auth.uid()"] : []),
+  ];
+
+  const addCharge = charges
+    ? `
+-- Adds a charge on top of an issued invoice's total, such as collection
+-- costs or a late fee, in the invoice's currency. It raises the balance, so
+-- a paid invoice is open again until the charge is paid too.
+create or replace function ${fn("add_invoice_charge")}(invoice uuid, amount bigint, currency text, description text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${t("invoices")};
+  v_charge uuid;
+begin
+  select * into v_row from ${t("invoices")} x where x.${i("id")} = add_invoice_charge.invoice and ${can("x", n.write)} for update;
+  if v_row.${i("id")} is null then
+    ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
+  end if;
+  if ${kd(`v_row.${i("kind")}`, ["invoice"], true)} or ${st(`v_row.${i("status")}`, ["issued", "partially_paid", "paid"], true)} then
+    ${fail("INVOICE_NOT_CHARGEABLE", "only an issued invoice takes charges", "55000")}
+  end if;
+  if coalesce(add_invoice_charge.amount, 0) <= 0 then
+    ${fail("INVOICE_CHARGE_INVALID", "a charge has a positive amount", "22023")}
+  end if;
+  if upper(add_invoice_charge.currency) is distinct from v_row.${i("currency")} then
+    ${fail("INVOICE_CURRENCY_MISMATCH", "a charge must be in the invoice's currency", "22023")}
+  end if;
+  insert into ${t("charges")} (${chargeColumns.join(", ")})
+  values (${chargeValues.join(", ")})
+  returning ${ch("id")} into v_charge;${settle("v_row")}
+  ${record("invoice.charged", "v_row", `, 'chargeId', v_charge, 'amount', add_invoice_charge.amount::text, 'balance', ${balance("v_row")}::text`, true)}
+  return ${row("v_row")};
+end;
+$$;
+${userGrant(`${fn("add_invoice_charge")}(uuid, bigint, text, text)`)}
+`
+    : "";
 
   const kindTable = (kind: string): string =>
     `(select * from ${t("invoices")} k where ${kd(`k.${i("kind")}`, [kind])})`;
@@ -299,25 +445,34 @@ begin
   end if;
   if nullif(trim(create_invoice.attrs ->> 'title'), '') is null then
     ${fail("INVOICE_ATTRS_INVALID", "an invoice needs a title", "23502")}
-  end if;${checkParty("COMPANY", "v_company_type", "v_company_id", "create_invoice.tenant")}${checkParty("CONTACT", "v_contact_type", "v_contact_id", "create_invoice.tenant")}${refuse(has("note"), "create_invoice.attrs ->> 'note'", "NOTE", "note column")}${refuse(origin, "(create_invoice.attrs -> 'origin' ->> 'id')", "ORIGIN", "origin columns")}${refuse(has("depositBps"), "create_invoice.attrs ->> 'depositBps'", "DEPOSIT", "deposit column")}
+  end if;${checkParty("COMPANY", "v_company_type", "v_company_id", "create_invoice.tenant")}${checkParty("CONTACT", "v_contact_type", "v_contact_id", "create_invoice.tenant")}${refuse(has("note"), "create_invoice.attrs ->> 'note'", "NOTE", "note column")}${refuse(origin !== undefined, "(create_invoice.attrs -> 'origin' ->> 'id')", "ORIGIN", "origin columns")}${
+    origin === "fixed"
+      ? `
+  if create_invoice.attrs -> 'origin' ->> 'id' is not null and (create_invoice.attrs -> 'origin' ->> 'type') is distinct from 'quote' then
+    ${fail("INVOICE_ORIGIN_UNSUPPORTED", "this invoices table takes only a quote as the origin", "22023")}
+  end if;`
+      : ""
+  }${refuse(has("depositBps"), "create_invoice.attrs ->> 'depositBps'", "DEPOSIT", "deposit column")}
   begin
     insert into ${t("invoices")} (${i("tenant")}, ${i("title")}${also("companyType")}${also("companyId")}${also("contactType")}${also("contactId")}, ${i("currency")},
       ${i("termsDays")}${also("note")}${also("originType")}${also("originId")}${also("depositBps")}${also("createdBy")})
     values (${valueLines(
       "      ",
       ["create_invoice.tenant", "trim(create_invoice.attrs ->> 'title')"],
-      company
-        ? [
-            "case when v_company_id is null then null else v_company_type end",
-            "v_company_id",
-          ]
-        : [],
-      contact
-        ? [
-            "case when v_contact_id is null then null else v_contact_type end",
-            "v_contact_id",
-          ]
-        : [],
+      [
+        present(
+          "companyType",
+          "case when v_company_id is null then null else v_company_type end",
+        ),
+        company === undefined ? undefined : partyId("company", "v_company_id"),
+      ],
+      [
+        present(
+          "contactType",
+          "case when v_contact_id is null then null else v_contact_type end",
+        ),
+        contact === undefined ? undefined : partyId("contact", "v_contact_id"),
+      ],
       [
         "upper(coalesce(create_invoice.attrs ->> 'currency', 'EUR'))",
         `coalesce((create_invoice.attrs ->> 'termsDays')::integer, ${String(n.termsDays)})`,
@@ -325,7 +480,10 @@ begin
       [
         present("note", "create_invoice.attrs ->> 'note'"),
         present("originType", "create_invoice.attrs -> 'origin' ->> 'type'"),
-        present("originId", "create_invoice.attrs -> 'origin' ->> 'id'"),
+        present(
+          "originId",
+          partyId("origin", "create_invoice.attrs -> 'origin' ->> 'id'"),
+        ),
       ],
       [
         present(
@@ -342,12 +500,12 @@ begin
   if create_invoice.lines is not null then
     perform ${fn("set_invoice_lines")}(v_row.${i("id")}, create_invoice.lines);
   end if;${
-    origin
-      ? `
+    origin === undefined
+      ? ""
+      : `
   if v_row.${i("originId")} is not null then
-    ${createdFromLink(ctx, { tenant: `v_row.${i("tenant")}`, sourceType: "'invoice'", sourceId: `v_row.${i("id")}::text`, originType: `v_row.${i("originType")}`, originId: `v_row.${i("originId")}` })}
+    ${createdFromLink(ctx, { tenant: `v_row.${i("tenant")}`, sourceType: "'invoice'", sourceId: `v_row.${i("id")}::text`, originType: partyTypeSql(ctx, n, "origin", "v_row"), originId: `v_row.${i("originId")}::text` })}
   end if;`
-      : ""
   }
   ${record("invoice.created", "v_row")}
   return (select ${row("x")} from ${t("invoices")} x where x.${i("id")} = v_row.${i("id")});
@@ -361,6 +519,7 @@ ${lineItemsSql(
     parent: "invoices",
     frozen: st(`p.${i("status")}`, ["draft"], true),
     extras: n.lineExtras,
+    totals: !n.appTotals,
   },
   {
     setter: "set_invoice_lines",
@@ -383,6 +542,7 @@ declare
   v_original ${t("invoices")};
   v_seq bigint;
   v_identifier text;
+  v_issued_on date := coalesce(issue_invoice.issued_on, current_date);
 begin
   select * into v_row from ${t("invoices")} x where x.${i("id")} = issue_invoice.invoice and ${can("x", n.write)} for update;
   if v_row.${i("id")} is null then
@@ -400,13 +560,13 @@ begin
     if v_row.${i("total")} > ${balance("v_original")} then
       ${fail("INVOICE_CREDIT_TOO_LARGE", "a credit note can't exceed what is still owed", "23514")}
     end if;
-    ${assignNumberSql(ctx, "credit_note", `v_row.${i("tenant")}`, { seq: "v_seq", identifier: "v_identifier" }, { table: kindTable("credit_note"), seq: i("number"), tenant: i("tenant"), prefix: n.creditPrefix })}
+    ${assignNumberSql(ctx, "credit_note", `v_row.${i("tenant")}`, { seq: "v_seq", identifier: "v_identifier" }, { table: kindTable("credit_note"), seq: i("number"), tenant: i("tenant"), prefix: n.creditPrefix }, "v_issued_on::timestamptz")}
   else
-    ${assignNumberSql(ctx, "invoice", `v_row.${i("tenant")}`, { seq: "v_seq", identifier: "v_identifier" }, { table: kindTable("invoice"), seq: i("number"), tenant: i("tenant"), prefix: n.prefix })}
+    ${assignNumberSql(ctx, "invoice", `v_row.${i("tenant")}`, { seq: "v_seq", identifier: "v_identifier" }, { table: kindTable("invoice"), seq: i("number"), tenant: i("tenant"), prefix: n.prefix }, "v_issued_on::timestamptz")}
   end if;
   update ${t("invoices")} x set ${i("status")} = ${ctx.value("invoices", "status", "issued")}, ${i("number")} = v_seq, ${i("identifier")} = v_identifier,
-    ${i("issuedOn")} = coalesce(issue_invoice.issued_on, current_date),
-    ${i("dueOn")} = coalesce(issue_invoice.issued_on, current_date) + x.${i("termsDays")},
+    ${i("issuedOn")} = v_issued_on,
+    ${i("dueOn")} = v_issued_on + x.${i("termsDays")},
     ${i("updatedAt")} = now()
   where x.${i("id")} = v_row.${i("id")}
   returning * into v_row;
@@ -611,7 +771,7 @@ begin
 end;
 $$;
 ${userGrant(`${fn("write_off_invoice")}(uuid)`)}
-
+${addCharge}
 -- What a tenant is owed in one currency on as_of, by days past due:
 -- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.
 create or replace function ${fn("invoice_aging")}(tenant ${ctx.idType}, currency text, as_of date)

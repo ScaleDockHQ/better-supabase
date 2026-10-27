@@ -612,17 +612,18 @@ set search_path = ''
 as $$
 declare
   v_row ${t("items")};
-  v_users uuid[] := array(select distinct x from unnest(coalesce(set_work_item_assignees.users, '{}')) x where x is not null);
-  v_new uuid[];
-  v_user uuid;
-  v_claims text;
+  v_users uuid[] := array(select distinct x from unnest(coalesce(set_work_item_assignees.users, '{}')) x where x is not null);${notify === "" ? "" : "\n  v_new uuid[];\n  v_claims text;"}${watch === "" ? "" : "\n  v_user uuid;"}
 begin
   select * into v_row from ${t("items")} x where x.${w("id")} = set_work_item_assignees.work_item and ${editable("x")};
   if v_row.${w("id")} is null then
     ${fail("WORK_ITEM_NOT_FOUND", "no such work item you can edit", "P0002")}
-  end if;${limit}
+  end if;${limit}${
+    notify === ""
+      ? ""
+      : `
   v_new := array(select x from unnest(v_users) x where x is distinct from auth.uid() and not exists (
-    select 1 from ${t("assignees")} y where y.${a("item")} = v_row.${w("id")} and y.${a("user")} = x));
+    select 1 from ${t("assignees")} y where y.${a("item")} = v_row.${w("id")} and y.${a("user")} = x));`
+  }
   delete from ${t("assignees")} y where y.${a("item")} = v_row.${w("id")} and not (y.${a("user")} = any (v_users));
   insert into ${t("assignees")} (${a("tenant")}, ${a("item")}, ${a("user")})
   select v_row.${w("tenant")}, v_row.${w("id")}, x from unnest(v_users) x

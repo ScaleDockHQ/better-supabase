@@ -213,6 +213,15 @@ export interface Expenses<F extends object = Record<never, never>> {
     input?: ReimbursementInput,
   ): AsyncResult<ExpenseReport<F>>;
   cancel(reportId: string): AsyncResult<ExpenseReport<F>>;
+  /**
+   * Approves or rejects a submitted report when expenses run without the
+   * approvals block (`options.approvals: false`). Needs `expenses.approve`, and
+   * the owner can't decide their own.
+   */
+  decide(
+    reportId: string,
+    decision: { readonly approved: boolean; readonly note?: string },
+  ): AsyncResult<ExpenseReport<F>>;
   get(reportId: string): AsyncResult<ExpenseReport<F>>;
   list(
     options?: ExpenseReportListOptions,
@@ -531,6 +540,16 @@ export function createExpenses<
         "cancel_expense_report",
         { report_id: reportId },
         report("cancel_expense_report"),
+      ).andThen(fields.row),
+    decide: (reportId, decision) =>
+      call(
+        "decide_expense_report",
+        {
+          report_id: reportId,
+          approved: decision.approved,
+          note: decision.note ?? null,
+        },
+        report("decide_expense_report"),
       ).andThen(fields.row),
     get: (reportId) =>
       call(

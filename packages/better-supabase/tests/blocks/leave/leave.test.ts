@@ -260,4 +260,50 @@ describe("leave client", () => {
       ["close_leave_year", { tenant: "o", period: 2026 }],
     ]);
   });
+
+  it("decides a request and reads a leave feed", async () => {
+    const fake = transport({
+      decide_leave_request: () => ({
+        ...REQUEST,
+        status: "approved",
+        approvalId: null,
+        approvedAt: AT,
+      }),
+      leave_feed: (args) =>
+        (args as { token: string }).token === "known"
+          ? {
+              organizationId: "o",
+              requests: [
+                {
+                  id: "q1",
+                  userId: "u1",
+                  typeId: "t1",
+                  type: "Vacation",
+                  unit: "days",
+                  startsOn: "2026-10-19",
+                  endsOn: "2026-10-23",
+                  partial: "full",
+                  amount: "5.00",
+                  approvedAt: AT,
+                  updatedAt: AT,
+                },
+              ],
+            }
+          : null,
+    });
+
+    const leave = createLeave({ transport: fake });
+    const decided = await leave.decide("q1", { approved: true }).orThrow();
+    const feed = await leave.feed("known").orThrow();
+
+    expect(fake.calls[0]).toEqual([
+      "decide_leave_request",
+      { request_id: "q1", approved: true, note: null },
+    ]);
+    expect(decided.status).toBe("approved");
+    expect(decided.approvalId).toBeUndefined();
+    expect(feed?.requests[0]).toMatchObject({ type: "Vacation", amount: 5 });
+    expect(feed?.requests[0]?.startsOn.toString()).toBe("2026-10-19");
+    expect(await leave.feed("unknown").orThrow()).toBeNull();
+  });
 });

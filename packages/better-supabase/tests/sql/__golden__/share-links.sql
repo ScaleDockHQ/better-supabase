@@ -355,7 +355,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:b8a914cf0346231c7e9dc428cd7e13df99d6efb272aa6b410137e13e94b8465e
+-- @bsb-hash sha256:e070702cf97bf66357f1cdaf6c29085e0d3101869b83c0e73a6e4f4c44eb898b
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -500,6 +500,7 @@ begin
     when 'booking_service' then exists (select 1 from "better_supabase"."booking_services" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
     when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
+    when 'leave_feed' then (create_share_link.subject_id = create_share_link.tenant::text and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'leave.read'), false))
     else null
   end;
     if v_subject_ok is null then

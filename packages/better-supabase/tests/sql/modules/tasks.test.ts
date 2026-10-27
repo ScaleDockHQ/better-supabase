@@ -100,6 +100,28 @@ describe("tasks module", () => {
     ).toContain(`format_assigned_number("better_supabase"."number_format"(`);
   });
 
+  it("declares the assignee variables only for the notification and watch it renders", () => {
+    const assignees = (sql: string): string =>
+      sql.slice(
+        sql.indexOf('function "better_supabase"."set_work_item_assignees"'),
+        sql.indexOf('function "better_supabase"."archive_work_item"'),
+      );
+
+    const quiet = assignees(
+      body("tasks", { modules: { tasks: { options: { notify: false } } } }, [
+        "notifications",
+      ]),
+    );
+
+    expect(quiet).toContain("v_users uuid[]");
+    expect(quiet).not.toContain("v_new");
+    expect(quiet).not.toContain("v_claims");
+
+    const notified = assignees(body("tasks", {}, ["notifications"]));
+    expect(notified).toContain("v_new uuid[];");
+    expect(notified).toContain("v_claims text;");
+  });
+
   it("rejects a bad assignee cap and renders nothing in custom mode", () => {
     expect(() =>
       body("tasks", { modules: { tasks: { options: { maxAssignees: -1 } } } }),

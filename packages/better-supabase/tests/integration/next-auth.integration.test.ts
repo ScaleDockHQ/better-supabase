@@ -358,7 +358,11 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
       data: { name: "New" },
     });
 
-    const userId = signed.data?.user?.id ?? "";
+    const userId =
+      signed.data !== null && "user" in signed.data
+        ? (signed.data.user?.id ?? "")
+        : "";
+
     users.push(userId);
 
     expect(signed).toMatchObject({

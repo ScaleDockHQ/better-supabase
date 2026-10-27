@@ -108,6 +108,21 @@ blocks: {
 
 `policy` is an [approvals policy](/docs/blocks/approvals) without `run`, since the final approval books the leave. `extraColumns` adds your own columns to requests, typed with the client's `fields` schema.
 
+### Without the approvals block
+
+`options.approvals: false` keeps the decision on the request, so leave runs without the [approvals block](/docs/blocks/approvals) (an `approval` column mapped to `null` does the same). A request stays `pending` until `decide(requestId, { approved, note? })` approves or rejects it: the service role, or a member with `leave.approve` who didn't ask for it. Approval books the leave like a final approval; rejection sets `rejected_at` and records `leave.rejected`. The requests table takes optional `rejectedAt`, `decidedBy` and `decisionNote` columns; without `rejectedAt` a rejection fails with `LEAVE_REJECTION_UNSUPPORTED`. An app that decides elsewhere calls `decide_leave_request` from its own flow.
+
+### A feed of approved leave
+
+With [share-links](/docs/blocks/share-links), the organization's approved leave can be shared as a feed, for example to subscribe in a calendar app. A member with `leave.read` creates a link of subject type `leave_feed` whose subject id is the organization's id, and `feed(token)` (or `leave_feed(token)`, open to `anon`) returns the approved requests a year back and everything ahead. The link stops working when it is revoked or expires, and when its creator no longer holds `leave.read`. Turn the requests into iCalendar all-day events in your feed route.
+
+```ts
+const link = await shareLinks
+  .create({ type: "leave_feed", id: organizationId })
+  .orThrow();
+const feed = await leave.feed(link.token).orThrow();
+```
+
 ## Errors
 
 | Hint                      | Cause                                                                                               |
@@ -122,7 +137,7 @@ blocks: {
 
 ## Events
 
-The block records `leave.requested`, `leave.approved` and `leave.cancelled` with `organizationId`, `id`, `userId`, `typeId`, `startsOn`, `endsOn`, `amount` and `approvalId`, and `leave.adjusted` with `kind`, `amount` and `period` for grants and adjustments. See [events](/docs/extending/events).
+The block records `leave.requested`, `leave.approved`, `leave.rejected` (without the approvals block) and `leave.cancelled` with `organizationId`, `id`, `userId`, `typeId`, `startsOn`, `endsOn`, `amount` and `approvalId`, and `leave.adjusted` with `kind`, `amount` and `period` for grants and adjustments. See [events](/docs/extending/events).
 
 The block takes `hooks` around its methods; see [extending blocks](/docs/extending/blocks).
 

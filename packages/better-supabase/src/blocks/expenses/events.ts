@@ -22,7 +22,8 @@ export interface ExpenseReportEventData {
 
 /** `expense_report.submitted`: the report went to approval. */
 export interface ExpenseReportSubmittedEventData extends ExpenseReportEventData {
-  readonly approvalId: string;
+  /** Null without the approvals block (`options.approvals: false`). */
+  readonly approvalId: string | null;
 }
 
 /** `expense_report.approved` and `.reimbursed`: posted on the ledger. */
@@ -37,6 +38,7 @@ export type ExpensesEvents = {
   readonly "expense_report.approved": ExpenseReportPostedEventData;
   readonly "expense_report.reimbursed": ExpenseReportPostedEventData;
   readonly "expense_report.cancelled": ExpenseReportEventData;
+  readonly "expense_report.rejected": ExpenseReportEventData;
 };
 
 /** The `expenses` block's event types, for its manifest and `onBlockEvent`. */
@@ -46,4 +48,5 @@ export const expensesEvents: Events<ExpensesEvents> = defineEvents({
   "expense_report.approved": event<ExpenseReportPostedEventData>(),
   "expense_report.reimbursed": event<ExpenseReportPostedEventData>(),
   "expense_report.cancelled": event<ExpenseReportEventData>(),
+  "expense_report.rejected": event<ExpenseReportEventData>(),
 });

@@ -19,8 +19,8 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, schemaPreamble } from "../shared.ts";
 import {
   invoiceFunctions,
-  invoiceOrigin,
   invoiceParty,
+  partyTypeSql,
 } from "./invoices-functions.ts";
 import { invoicePaymentsUpgrade } from "./invoices-ledger.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
@@ -54,6 +54,10 @@ const EVENTS: BlockSqlEvents<InvoicesEvents> = {
     subject: "invoices",
     payload: [...INVOICE, "balance"],
   },
+  "invoice.charged": {
+    subject: "invoices",
+    payload: [...INVOICE, "chargeId", "amount", "balance"],
+  },
 };
 
 const NAMES: BlockSqlNames = {
@@ -83,6 +87,7 @@ const NAMES: BlockSqlNames = {
     "termsDays",
     "extraColumns",
     "lineExtraColumns",
+    "totals",
   ],
   tables: {
     invoices: {
@@ -131,10 +136,29 @@ const NAMES: BlockSqlNames = {
         "originId",
         "depositBps",
         "createdBy",
+        "listTotal",
+        "discountTotal",
       ],
       typed: ["status", "kind"],
     },
     lines: lineTableSpec("invoice_lines"),
+    charges: {
+      name: "invoice_charges",
+      app: {},
+      optionalTable: true,
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        invoice: "invoice_id",
+        amount: "amount",
+        currency: "currency",
+        description: "description",
+        createdBy: "created_by",
+        createdAt: "created_at",
+      },
+      optional: ["currency", "description", "createdBy", "createdAt"],
+    },
   },
 };
 
@@ -147,7 +171,47 @@ function tables(ctx: BlockSqlContext, n: InvoiceNames): string {
   const i = (column: string): string => c("invoices", column);
   const company = invoiceParty(ctx, "company");
   const contact = invoiceParty(ctx, "contact");
-  const origin = invoiceOrigin(ctx);
+  const origin = invoiceParty(ctx, "origin");
+  const ch = (column: string): string => c("charges", column);
+
+  const chargeColumns = [
+    `${ch("id")} uuid primary key default gen_random_uuid()`,
+    `${ch("tenant")} ${ctx.idType} not null`,
+    `${ch("invoice")} uuid not null references ${t("invoices")} (${i("id")}) on delete cascade`,
+    `${ch("amount")} bigint not null check (${ch("amount")} > 0)`,
+    ...(ctx.has("charges", "currency")
+      ? [`${ch("currency")} char(3) check (${ch("currency")} ~ '^[A-Z]{3}$')`]
+      : []),
+    ...(ctx.has("charges", "description")
+      ? [
+          `${ch("description")} text check (length(${ch("description")}) <= 2000)`,
+        ]
+      : []),
+    ...(ctx.has("charges", "createdBy") ? [`${ch("createdBy")} uuid`] : []),
+    ...(ctx.has("charges", "createdAt")
+      ? [`${ch("createdAt")} timestamptz not null default now()`]
+      : []),
+  ];
+
+  const charges = ctx.hasTable("charges")
+    ? `
+create table if not exists ${t("charges")} (
+  ${chargeColumns.join(",\n  ")}
+);
+create index if not exists ${ctx.naming.rename("invoice_charges_invoice_idx")} on ${t("charges")} (${ch("invoice")});
+${lockModuleTable(ctx, "charges", { read: true })}
+${renderPolicy(
+  makePolicy({
+    table: t("charges"),
+    name: ctx.naming.rename("invoice_charges_read"),
+    command: "select",
+    roles: ["authenticated"],
+    using: `exists (select 1 from ${t("invoices")} x where x.${i("id")} = ${ch("invoice")})`,
+  }),
+  { drop: true, target: t("charges") },
+)}
+`
+    : "";
 
   // A column definition, left out when the app maps the column to null.
   const column = (logical: string, definition: string): string =>
@@ -180,9 +244,9 @@ create table if not exists ${t("invoices")} (
   unique (${i("tenant")}, ${i("kind")}, ${i("number")}),
   check ((${i("kind")} = 'credit_note') = (${i("original")} is not null)),
   check (${i("status")} <> 'draft' or ${i("number")} is null),
-  check (${i("status")} in ('draft', 'void') or ${i("number")} is not null)${company ? `,\n  check ((${i("companyType")} is null) = (${i("companyId")} is null))` : ""}
+  check (${i("status")} in ('draft', 'void') or ${i("number")} is not null)${company === "pair" ? `,\n  check ((${i("companyType")} is null) = (${i("companyId")} is null))` : ""}
 );
-create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin ? index("invoices_origin_idx", ["originType", "originId"]) : ""}${index("invoices_original_idx", ["original"])}${company ? index("invoices_company_idx", ["companyType", "companyId"]) : ""}${addExtraColumns(t("invoices"), n.extras)}${appUniqueIndex(ctx, "invoices", ["tenant", "kind", "number"])}
+create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin === undefined ? "" : index("invoices_origin_idx", origin === "pair" ? ["originType", "originId"] : ["originId"])}${index("invoices_original_idx", ["original"])}${company === undefined ? "" : index("invoices_company_idx", company === "pair" ? ["companyType", "companyId"] : ["companyId"])}${addExtraColumns(t("invoices"), n.extras)}${appUniqueIndex(ctx, "invoices", ["tenant", "kind", "number"])}
 ${lockModuleTable(ctx, "invoices", { read: true })}
 ${renderPolicy(
   makePolicy({
@@ -192,18 +256,43 @@ ${renderPolicy(
     roles: ["authenticated"],
     using: guestOr(ctx.scope.check(i("tenant"), n.read), [
       ctx.scope.guest(i("tenant"), "'invoice'", `${i("id")}::text`, "read"),
-      ...(company
-        ? [ctx.scope.guestParty(i("tenant"), i("companyType"), i("companyId"))]
-        : []),
-      ...(contact
-        ? [ctx.scope.guestParty(i("tenant"), i("contactType"), i("contactId"))]
-        : []),
+      ...(company === undefined
+        ? []
+        : [
+            ctx.scope.guestParty(
+              i("tenant"),
+              partyTypeSql(ctx, n, "company", ""),
+              `${i("companyId")}::text`,
+            ),
+          ]),
+      ...(contact === undefined
+        ? []
+        : [
+            ctx.scope.guestParty(
+              i("tenant"),
+              partyTypeSql(ctx, n, "contact", ""),
+              `${i("contactId")}::text`,
+            ),
+          ]),
     ]),
   }),
   { drop: true, target: t("invoices") },
 )}
-
+${charges}
 `;
+}
+
+/** `options.totals`: who keeps an invoice's totals. */
+function invoiceTotals(ctx: BlockSqlContext): "block" | "app" {
+  const totals = ctx.text("totals", "block");
+
+  if (totals !== "block" && totals !== "app") {
+    throw new TypeError(
+      'blocks.invoices.options.totals must be "block" or "app"',
+    );
+  }
+
+  return totals;
 }
 
 function build(ctx: BlockSqlContext): string {
@@ -238,8 +327,11 @@ function build(ctx: BlockSqlContext): string {
       "payments",
       "balance",
       "overdue",
+      "charges",
+      "charged_total",
     ]),
     lineExtras: lineExtraColumns(ctx),
+    appTotals: invoiceTotals(ctx) === "app",
   };
 
   return `${schemaPreamble(ctx)}
@@ -269,6 +361,15 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "void_invoice", args: ["uuid", "text"], returns: "jsonb" },
     { name: "write_off_invoice", args: ["uuid"], returns: "jsonb" },
+    ...(ctx.hasTable("charges")
+      ? [
+          {
+            name: "add_invoice_charge",
+            args: ["uuid", "bigint", "text", "text"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
     { name: "invoice_aging", args: ["{id}", "text", "date"], returns: "jsonb" },
     ...(ctx.installed("quotes")
       ? [

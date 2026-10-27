@@ -43,18 +43,41 @@ function expensePolicy(ctx: BlockSqlContext): string {
   return policySnapshot(policy);
 }
 
+/**
+ * Whether reports go through the approvals block: not with `options.approvals:
+ * false` or without an approval column.
+ */
+export function expenseApprovals(ctx: BlockSqlContext): boolean {
+  return ctx.flag("approvals", true) && ctx.has("reports", "approval");
+}
+
 /** The expenses module's functions. */
 export function expensesFunctions(ctx: BlockSqlContext): string {
-  const approvals = ctx.of("approvals");
+  const approvals = expenseApprovals(ctx) ? ctx.of("approvals") : undefined;
   const ledger = ctx.of("ledger");
+
+  const rejections =
+    approvals === undefined && ctx.has("reports", "rejectedAt");
+
   const categories = ctx.table("categories");
   const reports = ctx.table("reports");
   const lines = ctx.table("lines");
   const k = (column: string): string => ctx.col("categories", column);
   const r = (column: string): string => ctx.col("reports", column);
   const x = (column: string): string => ctx.col("lines", column);
-  const ar = approvals.table("requests");
-  const a = (column: string): string => approvals.col("requests", column);
+  const ar = approvals?.table("requests") ?? "";
+
+  const a = (column: string): string =>
+    approvals?.col("requests", column) ?? "";
+
+  const approvalVar =
+    approvals === undefined ? "" : `\n  v_approval ${ar}%rowtype;`;
+
+  const loadApproval =
+    approvals === undefined
+      ? ""
+      : `\n  select * into v_approval from ${ar} p where p.${a("id")} = v_row.${r("approval")};`;
+
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
   const extras = ctx.extraColumns("reports", EXPENSE_REPORT_RESERVED);
@@ -63,7 +86,8 @@ export function expensesFunctions(ctx: BlockSqlContext): string {
   const read = ctx.permission("read", ops.read);
   const submit = ctx.permission("submit", ops.submit);
   const manage = ctx.permission("manage", ops.manage);
-  const policy = expensePolicy(ctx);
+  const policy = approvals === undefined ? "" : expensePolicy(ctx);
+  const approve = ctx.permission("approve", ops.approve);
 
   const attachments =
     ctx.installed("attachments") && ctx.of("attachments").mode !== "custom"
@@ -113,7 +137,54 @@ export function expensesFunctions(ctx: BlockSqlContext): string {
   const thresholds = ctx.has("categories", "receiptOver");
 
   const status = (row: string, approval: string): string =>
-    `(case when ${row}.${r("cancelledAt")} is not null then 'cancelled' when ${row}.${r("reimbursedAt")} is not null then 'reimbursed' when ${row}.${r("approvedAt")} is not null then 'approved' when ${approval}.${a("status")} = 'pending' then 'submitted' when ${approval}.${a("status")} in ('rejected', 'expired') then 'rejected' else 'draft' end)`;
+    approvals === undefined
+      ? `(case when ${row}.${r("cancelledAt")} is not null then 'cancelled' when ${row}.${r("reimbursedAt")} is not null then 'reimbursed' when ${row}.${r("approvedAt")} is not null then 'approved'${rejections ? ` when ${row}.${r("rejectedAt")} is not null then 'rejected'` : ""} when ${row}.${r("submittedAt")} is not null then 'submitted' else 'draft' end)`
+      : `(case when ${row}.${r("cancelledAt")} is not null then 'cancelled' when ${row}.${r("reimbursedAt")} is not null then 'reimbursed' when ${row}.${r("approvedAt")} is not null then 'approved' when ${approval}.${a("status")} = 'pending' then 'submitted' when ${approval}.${a("status")} in ('rejected', 'expired') then 'rejected' else 'draft' end)`;
+
+  const decide = (): string => `
+-- Approves or rejects a submitted report without the approvals block: the
+-- service role, or a member with the approve permission who doesn't own it.
+-- Approval books it like a final approval; a rejected report can change and
+-- go in again.
+create or replace function ${fn("decide_expense_report")}(report_id uuid, approved boolean, note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${reports}%rowtype;
+begin${loadReport("decide_expense_report.report_id", true)}
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", `v_row.${r("tenant")}`, approve)} and v_row.${r("user")} is distinct from auth.uid())) then
+    ${forbidden("not allowed to decide this expense report")}
+  end if;
+  if ${status("v_row", "")} <> 'submitted' then
+    ${fail("EXPENSE_REPORT_LOCKED", "only a submitted report is decided", "55000")}
+  end if;
+  if decide_expense_report.approved is null then
+    ${invalid("EXPENSE_REPORT_INVALID", "approved must be true or false")}
+  end if;
+  if decide_expense_report.approved then
+    perform ${fn("approve_expense_report")}(v_row.${r("id")});
+    update ${reports} x set ${r("updatedAt")} = now()${alsoSet("reports", "decidedBy", "auth.uid()")}${alsoSet("reports", "decisionNote", "nullif(trim(decide_expense_report.note), '')")}
+      where x.${r("id")} = v_row.${r("id")}
+      returning * into v_row;
+  else${
+    rejections
+      ? `
+    update ${reports} x set ${r("rejectedAt")} = now(), ${r("updatedAt")} = now()${alsoSet("reports", "decidedBy", "auth.uid()")}${alsoSet("reports", "decisionNote", "nullif(trim(decide_expense_report.note), '')")}
+      where x.${r("id")} = v_row.${r("id")}
+      returning * into v_row;
+    ${reportRecord("expense_report.rejected", "rejected an expense report")}`
+      : `
+    ${fail("EXPENSE_REJECTION_UNSUPPORTED", "this expense reports table has no rejected_at column", "22023")}`
+  }
+  end if;
+  return ${reportJson("v_row", "")};
+end;
+$$;
+${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text)`)}
+`;
 
   const total = (row: string): string =>
     `coalesce((select sum(y.${x("amount")}) from ${lines} y where y.${x("report")} = ${row}.${r("id")}), 0)`;
@@ -153,7 +224,7 @@ export function expensesFunctions(ctx: BlockSqlContext): string {
     `jsonb_build_object('id', ${row}.${x("id")}, 'reportId', ${row}.${x("report")}, 'categoryId', ${row}.${x("category")}, 'spentOn', ${row}.${x("spentOn")}, 'description', ${row}.${x("description")}, 'merchant', ${or("lines", row, "merchant")}, 'amount', ${row}.${x("amount")}::text, 'currency', (select rc.${r("currency")} from ${reports} rc where rc.${r("id")} = ${row}.${x("report")}), 'receipts', ${receipts(row)}, 'createdAt', ${row}.${x("createdAt")}, 'updatedAt', ${row}.${x("updatedAt")})`;
 
   const reportJson = (row: string, approval: string): string =>
-    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'userId', ${row}.${r("user")}, 'title', ${row}.${r("title")}, 'currency', ${row}.${r("currency")}, 'note', ${or("reports", row, "note")}, 'status', ${status(row, approval)}, 'total', ${total(row)}::text, 'approvalId', ${row}.${r("approval")}, 'submittedAt', ${row}.${r("submittedAt")}, 'approvedAt', ${row}.${r("approvedAt")}, 'approvalTransactionId', ${or("reports", row, "approvalTransaction")}, 'reimbursedAt', ${row}.${r("reimbursedAt")}, 'reimbursementTransactionId', ${or("reports", row, "reimbursement")}, 'cancelledAt', ${row}.${r("cancelledAt")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${row}.${r("updatedAt")}${extraFieldsJson(row, extras)},
+    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'userId', ${row}.${r("user")}, 'title', ${row}.${r("title")}, 'currency', ${row}.${r("currency")}, 'note', ${or("reports", row, "note")}, 'status', ${status(row, approval)}, 'total', ${total(row)}::text, 'approvalId', ${or("reports", row, "approval")}, 'submittedAt', ${row}.${r("submittedAt")}, 'approvedAt', ${row}.${r("approvedAt")}, 'approvalTransactionId', ${or("reports", row, "approvalTransaction")}, 'reimbursedAt', ${row}.${r("reimbursedAt")}, 'reimbursementTransactionId', ${or("reports", row, "reimbursement")}, 'cancelledAt', ${row}.${r("cancelledAt")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${row}.${r("updatedAt")}${extraFieldsJson(row, extras)},
       'lines', (select coalesce(jsonb_agg(${lineJson("l")} order by l.${x("spentOn")}, l.${x("createdAt")}), '[]'::jsonb) from ${lines} l where l.${x("report")} = ${row}.${r("id")}))`;
 
   const reportRecord = (
@@ -224,8 +295,7 @@ export function expensesFunctions(ctx: BlockSqlContext): string {
   select * into v_row from ${reports} x where x.${r("id")} = ${id}${lock ? " for update" : ""};
   if not found then
     ${fail("EXPENSE_REPORT_NOT_FOUND", "no such expense report", "P0002")}
-  end if;
-  select * into v_approval from ${ar} p where p.${a("id")} = v_row.${r("approval")};`;
+  end if;${loadApproval}`;
 
   const ownerOnly = `
   if not (coalesce(v_row.${r("user")} = auth.uid(), false) and ${ctx.can("tenant", `v_row.${r("tenant")}`, submit)}) then
@@ -385,8 +455,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row ${reports}%rowtype;
-  v_approval ${ar}%rowtype;
+  v_row ${reports}%rowtype;${approvalVar}
 begin
   if auth.uid() is null or not ${ctx.can("tenant", "create_expense_report.tenant", submit)} then
     ${forbidden("not allowed to submit expenses here")}
@@ -414,8 +483,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row ${reports}%rowtype;
-  v_approval ${ar}%rowtype;
+  v_row ${reports}%rowtype;${approvalVar}
   v_category ${categories}%rowtype;
   v_line ${lines}%rowtype;
 begin${loadReport("add_expense_line.report_id", true)}${ownerOnly}${editable}${categoryCheck("add_expense_line.category_id", `v_row.${r("tenant")}`)}
@@ -450,8 +518,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row ${reports}%rowtype;
-  v_approval ${ar}%rowtype;
+  v_row ${reports}%rowtype;${approvalVar}
   v_category ${categories}%rowtype;
   v_line ${lines}%rowtype;
 begin
@@ -488,8 +555,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row ${reports}%rowtype;
-  v_approval ${ar}%rowtype;
+  v_row ${reports}%rowtype;${approvalVar}
   v_line ${lines}%rowtype;
 begin
   select * into v_line from ${lines} l where l.${x("id")} = remove_expense_line.line_id;
@@ -512,8 +578,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row ${reports}%rowtype;
-  v_approval ${ar}%rowtype;
+  v_row ${reports}%rowtype;${approvalVar}
 begin${loadReport("check_expense_report.report_id")}${reader}
   return ${fn("expense_report_violations")}(v_row.${r("id")});
 end;
@@ -530,10 +595,8 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row ${reports}%rowtype;
-  v_approval ${ar}%rowtype;
-  v_violations jsonb;
-  v_request jsonb;
+  v_row ${reports}%rowtype;${approvalVar}
+  v_violations jsonb;${approvals === undefined ? "" : "\n  v_request jsonb;"}
 begin${loadReport("submit_expense_report.report_id", true)}${ownerOnly}${editable}
   if not exists (select 1 from ${lines} l where l.${x("report")} = v_row.${r("id")}) then
     ${invalid("EXPENSE_REPORT_EMPTY", "a report needs at least one line")}
@@ -541,7 +604,13 @@ begin${loadReport("submit_expense_report.report_id", true)}${ownerOnly}${editabl
   v_violations := ${fn("expense_report_violations")}(v_row.${r("id")});
   if jsonb_array_length(v_violations) > 0 then
     ${raise("the report breaks the spend policy: %", "22023", "EXPENSE_POLICY_VIOLATION", "v_violations::text")}
-  end if;
+  end if;${
+    approvals === undefined
+      ? `
+  update ${reports} x set ${r("submittedAt")} = now()${alsoSet("reports", "rejectedAt", "null")}${alsoSet("reports", "decidedBy", "null")}${alsoSet("reports", "decisionNote", "null")}, ${r("updatedAt")} = now()
+    where x.${r("id")} = v_row.${r("id")}
+    returning * into v_row;`
+      : `
   v_request := ${approvals.fn("open_approval")}(
     v_row.${r("tenant")}, ${sqlString(EXPENSE_REPORT_SUBJECT)}, v_row.${r("id")}::text, 'approve',
     ${sqlString(policy)}::jsonb, ${or("reports", "v_row", "note")},
@@ -549,9 +618,9 @@ begin${loadReport("submit_expense_report.report_id", true)}${ownerOnly}${editabl
   );
   update ${reports} x set ${r("approval")} = (v_request ->> 'id')::uuid, ${r("submittedAt")} = now(), ${r("updatedAt")} = now()
     where x.${r("id")} = v_row.${r("id")}
-    returning * into v_row;
-  select * into v_approval from ${ar} p where p.${a("id")} = v_row.${r("approval")};
-  ${reportRecord("expense_report.submitted", "submitted an expense report", `, 'approvalId', v_row.${r("approval")}`)}
+    returning * into v_row;${loadApproval}`
+  }
+  ${reportRecord("expense_report.submitted", "submitted an expense report", `, 'approvalId', ${or("reports", "v_row", "approval")}`)}
   return ${reportJson("v_row", "v_approval")};
 end;
 $$;
@@ -567,8 +636,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row ${reports}%rowtype;
-  v_approval ${ar}%rowtype;
+  v_row ${reports}%rowtype;${approvalVar}
   v_lines jsonb;
   v_tx uuid;
 begin
@@ -590,8 +658,7 @@ begin
     jsonb_build_object('reportId', v_row.${r("id")}, 'userId', v_row.${r("user")}));
   update ${reports} x set ${r("approvedAt")} = now()${alsoSet("reports", "approvalTransaction", "v_tx")}, ${r("updatedAt")} = now()
     where x.${r("id")} = v_row.${r("id")}
-    returning * into v_row;
-  select * into v_approval from ${ar} p where p.${a("id")} = v_row.${r("approval")};
+    returning * into v_row;${loadApproval}
   ${reportRecord("expense_report.approved", "approved an expense report", ", 'transactionId', v_tx", "billing")}
 end;
 $$;
@@ -606,8 +673,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row ${reports}%rowtype;
-  v_approval ${ar}%rowtype;
+  v_row ${reports}%rowtype;${approvalVar}
   v_tx uuid;
 begin${loadReport("reimburse_expense_report.report_id", true)}
   if not ${can(`v_row.${r("tenant")}`, manage)} then
@@ -641,8 +707,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row ${reports}%rowtype;
-  v_approval ${ar}%rowtype;
+  v_row ${reports}%rowtype;${approvalVar}
 begin${loadReport("cancel_expense_report.report_id", true)}
   if not (coalesce(v_row.${r("user")} = auth.uid(), false) or ${can(`v_row.${r("tenant")}`, manage)}) then
     ${forbidden("not allowed to cancel this expense report")}
@@ -650,18 +715,21 @@ begin${loadReport("cancel_expense_report.report_id", true)}
   if ${status("v_row", "v_approval")} not in ('draft', 'submitted', 'rejected') then
     ${fail("EXPENSE_REPORT_LOCKED", "an approved, reimbursed or cancelled report can't be cancelled", "55000")}
   end if;
-  update ${ar} p set ${a("status")} = 'cancelled', ${a("decidedAt")} = now()
+${
+  approvals === undefined
+    ? ""
+    : `  update ${ar} p set ${a("status")} = 'cancelled', ${a("decidedAt")} = now()
     where p.${a("id")} = v_row.${r("approval")} and p.${a("status")} = 'pending';
-  update ${reports} x set ${r("cancelledAt")} = now(), ${r("updatedAt")} = now()
+`
+}  update ${reports} x set ${r("cancelledAt")} = now(), ${r("updatedAt")} = now()
     where x.${r("id")} = v_row.${r("id")}
-    returning * into v_row;
-  select * into v_approval from ${ar} p where p.${a("id")} = v_row.${r("approval")};
+    returning * into v_row;${loadApproval}
   ${reportRecord("expense_report.cancelled", "cancelled an expense report")}
   return ${reportJson("v_row", "v_approval")};
 end;
 $$;
 ${userGrant(`${fn("cancel_expense_report")}(uuid)`)}
-
+${approvals === undefined ? decide() : ""}
 create or replace function ${fn("get_expense_report")}(report_id uuid)
 returns jsonb
 language plpgsql
@@ -670,8 +738,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row ${reports}%rowtype;
-  v_approval ${ar}%rowtype;
+  v_row ${reports}%rowtype;${approvalVar}
 begin${loadReport("get_expense_report.report_id")}${reader}
   return ${reportJson("v_row", "v_approval")};
 end;
@@ -701,8 +768,7 @@ begin
     select coalesce(jsonb_agg(z.item order by z.created desc, z.id), '[]'::jsonb)
     from (
       select ${reportJson("q", "p")} as item, q.${r("createdAt")} as created, q.${r("id")} as id
-      from ${reports} q
-      left join ${ar} p on p.${a("id")} = q.${r("approval")}
+      from ${reports} q${approvals === undefined ? "" : `\n      left join ${ar} p on p.${a("id")} = q.${r("approval")}`}
       where q.${r("tenant")} = list_expense_reports.tenant
         and (case
           when coalesce(list_expense_reports.everyone, false) then true

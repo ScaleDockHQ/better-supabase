@@ -45,8 +45,8 @@ and the hint `TENANT_REQUIRED`.
 The service role may make every call.
 
 `blocks["share-links"].on` lists the subject types that may be shared, both
-`config.subjects` types and the types other blocks share, such as `calendar` or
-`calendar_user`. Any other type gets `SHARE_SUBJECT_UNKNOWN`, also for the
+`config.subjects` types and the types other blocks share, such as `calendar`,
+`calendar_user` or `leave_feed`. Any other type gets `SHARE_SUBJECT_UNKNOWN`, also for the
 service role. Unset, every type can be shared.
 
 ### Sharing one record

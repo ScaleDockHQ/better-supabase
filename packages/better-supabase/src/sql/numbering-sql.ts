@@ -38,6 +38,8 @@ function sequenceFormatOf(
  * under a transaction lock, with `prefix` in front (`DEAL-4821`). When the
  * entity has a table, the number is marked as issued for the transaction, so
  * its assign trigger accepts it on the block's insert instead of refusing it.
+ * `at` is the timestamptz SQL whose period the number belongs to, such as a
+ * document's date; it defaults to `now()`.
  */
 export function assignNumberSql(
   ctx: BlockSqlContext,
@@ -50,14 +52,15 @@ export function assignNumberSql(
     readonly tenant: string;
     readonly prefix: string;
   },
+  at = "now()",
 ): string {
   const sequence = sequenceFormatOf(ctx, entity, tenant);
 
   if (sequence !== undefined) {
     const next = ctx.of("numbering").fn("next_number");
 
-    return `${target.seq} := ${next}(${tenant}, ${sqlString(entity)}, now());
-  ${target.identifier} := better_supabase.format_assigned_number(${sequence.format}, ${target.seq}, now());${
+    return `${target.seq} := ${next}(${tenant}, ${sqlString(entity)}, ${at});
+  ${target.identifier} := better_supabase.format_assigned_number(${sequence.format}, ${target.seq}, ${at});${
     sequence.assigns
       ? `
   perform set_config('better_supabase.issued_number', ${sqlString(entity)} || chr(31) || ${target.seq}::text || chr(31) || ${target.identifier}, true);`

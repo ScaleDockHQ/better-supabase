@@ -4026,6 +4026,10 @@
                   "type": "string"
                 },
                 "default": ["en"]
+              },
+              "rankType": {
+                "type": "string",
+                "default": "text"
               }
             }
           }
@@ -4614,6 +4618,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "approvals": {
+                "type": "boolean",
+                "default": true
               }
             }
           }
@@ -4989,6 +4997,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "totals": {
+                "type": "string",
+                "default": "block"
               }
             }
           }
@@ -5104,6 +5116,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "approvals": {
+                "type": "boolean",
+                "default": true
               }
             }
           }

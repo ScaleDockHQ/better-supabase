@@ -306,10 +306,10 @@ export interface BlockNameRegistry {
   };
   readonly "catalog": {
     readonly tables: {
-      readonly "products": "id" | "tenant" | "slug" | "title" | "description" | "kind" | "status" | "createdAt" | "updatedAt";
+      readonly "products": "id" | "tenant" | "slug" | "title" | "description" | "kind" | "status" | "createdAt" | "updatedAt" | "price" | "currency" | "trackInventory";
       readonly "options": "id" | "tenant" | "product" | "name" | "rank";
       readonly "optionValues": "id" | "tenant" | "option" | "value" | "rank";
-      readonly "variants": "id" | "tenant" | "product" | "sku" | "title" | "barcode" | "weight" | "trackInventory" | "allowBackorder" | "rank" | "createdAt" | "updatedAt";
+      readonly "variants": "id" | "tenant" | "product" | "sku" | "title" | "barcode" | "weight" | "trackInventory" | "allowBackorder" | "rank" | "createdAt" | "updatedAt" | "price";
       readonly "variantValues": "tenant" | "variant" | "value";
       readonly "priceLists": "id" | "tenant" | "name" | "customerGroup" | "createdAt";
       readonly "prices": "id" | "tenant" | "variant" | "priceList" | "currency" | "amount" | "compareAt" | "validFrom" | "validUntil" | "createdAt" | "updatedAt";
@@ -328,8 +328,8 @@ export interface BlockNameRegistry {
     readonly actions: "manage" | "read";
     readonly hooks: "before_product_save" | "after_product_save" | "before_variant_save" | "after_variant_save" | "before_price_set" | "after_price_set";
     readonly entities: {
-      readonly "product": "id" | "tenant_id" | "slug" | "title" | "description" | "kind" | "status" | "created_at" | "updated_at";
-      readonly "product_variant": "id" | "tenant_id" | "product_id" | "sku" | "title" | "barcode" | "weight_grams" | "track_inventory" | "allow_backorder" | "rank" | "created_at" | "updated_at";
+      readonly "product": "id" | "tenant_id" | "slug" | "title" | "description" | "kind" | "status" | "created_at" | "updated_at" | "price" | "currency" | "track_inventory";
+      readonly "product_variant": "id" | "tenant_id" | "product_id" | "sku" | "title" | "barcode" | "weight_grams" | "track_inventory" | "allow_backorder" | "rank" | "created_at" | "updated_at" | "price";
     };
     readonly primary: "product";
   };
@@ -675,14 +675,14 @@ export interface BlockNameRegistry {
   readonly "expenses": {
     readonly tables: {
       readonly "categories": "id" | "tenant" | "key" | "name" | "currency" | "limitAmount" | "receiptOver" | "archivedAt" | "createdAt" | "updatedAt";
-      readonly "reports": "id" | "tenant" | "user" | "title" | "currency" | "note" | "approval" | "submittedAt" | "approvedAt" | "approvalTransaction" | "reimbursedAt" | "reimbursement" | "cancelledAt" | "createdAt" | "updatedAt";
+      readonly "reports": "id" | "tenant" | "user" | "title" | "currency" | "note" | "approval" | "submittedAt" | "approvedAt" | "approvalTransaction" | "reimbursedAt" | "reimbursement" | "cancelledAt" | "createdAt" | "updatedAt" | "rejectedAt" | "decidedBy" | "decisionNote";
       readonly "lines": "id" | "tenant" | "report" | "category" | "spentOn" | "description" | "merchant" | "amount" | "createdAt" | "updatedAt";
     };
     readonly functions: "add_expense_line" | "approve_expense_report" | "archive_expense_category" | "cancel_expense_report" | "check_expense_report" | "create_expense_report" | "expense_report_violations" | "get_expense_report" | "list_expense_categories" | "list_expense_reports" | "reimburse_expense_report" | "remove_expense_line" | "save_expense_category" | "submit_expense_report" | "update_expense_line";
     readonly actions: "read" | "submit" | "approve" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "expense_report": "id" | "tenant_id" | "user_id" | "title" | "currency" | "note" | "approval_id" | "submitted_at" | "approved_at" | "approval_transaction_id" | "reimbursed_at" | "reimbursement_transaction_id" | "cancelled_at" | "created_at" | "updated_at";
+      readonly "expense_report": "id" | "tenant_id" | "user_id" | "title" | "currency" | "note" | "approval_id" | "submitted_at" | "approved_at" | "approval_transaction_id" | "reimbursed_at" | "reimbursement_transaction_id" | "cancelled_at" | "created_at" | "updated_at" | "rejected_at" | "decided_by" | "decision_note";
       readonly "expense_line": "id" | "tenant_id" | "report_id" | "category_id" | "spent_on" | "description" | "merchant" | "amount" | "created_at" | "updated_at";
       readonly "expense_category": "id" | "tenant_id" | "key" | "name" | "currency" | "limit_amount" | "receipt_over" | "archived_at" | "created_at" | "updated_at";
     };
@@ -922,8 +922,9 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "invoices": "id" | "tenant" | "kind" | "number" | "identifier" | "original" | "title" | "companyType" | "companyId" | "contactType" | "contactId" | "currency" | "status" | "termsDays" | "issuedOn" | "dueOn" | "paidTotal" | "creditedTotal" | "paidAt" | "voidedAt" | "voidReason" | "note" | "originType" | "originId" | "depositBps" | "createdBy" | "createdAt" | "updatedAt" | "listTotal" | "discountTotal" | "subtotal" | "taxTotal" | "total";
       readonly "lines": "id" | "tenant" | "parent" | "productType" | "productId" | "description" | "quantity" | "unitAmount" | "discountBps" | "taxRateBps" | "taxCode" | "position" | "createdAt";
+      readonly "charges": "id" | "tenant" | "invoice" | "amount" | "currency" | "description" | "createdBy" | "createdAt";
     };
-    readonly functions: "create_invoice" | "credit_invoice" | "invoice_aging" | "issue_invoice" | "record_invoice_payment" | "set_invoice_lines" | "set_invoice_lines_recount" | "void_invoice" | "write_off_invoice";
+    readonly functions: "add_invoice_charge" | "create_invoice" | "credit_invoice" | "invoice_aging" | "issue_invoice" | "record_invoice_payment" | "set_invoice_lines" | "set_invoice_lines_recount" | "void_invoice" | "write_off_invoice";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_invoice_issue" | "after_invoice_issue" | "before_invoice_payment" | "after_invoice_payment";
     readonly entities: {
@@ -978,13 +979,13 @@ export interface BlockNameRegistry {
   readonly "leave": {
     readonly tables: {
       readonly "types": "id" | "tenant" | "key" | "name" | "unit" | "paid" | "tracked" | "allowance" | "carryoverMax" | "color" | "archivedAt" | "createdAt" | "updatedAt";
-      readonly "requests": "id" | "tenant" | "user" | "type" | "startsOn" | "endsOn" | "partial" | "amount" | "note" | "approval" | "approvedAt" | "cancelledAt" | "cancelledBy" | "createdAt" | "updatedAt";
+      readonly "requests": "id" | "tenant" | "user" | "type" | "startsOn" | "endsOn" | "partial" | "amount" | "note" | "approval" | "approvedAt" | "cancelledAt" | "cancelledBy" | "createdAt" | "updatedAt" | "rejectedAt" | "decidedBy" | "decisionNote";
     };
-    readonly functions: "accrue_leave" | "adjust_leave_balance" | "approve_leave_request" | "archive_leave_type" | "cancel_leave_request" | "close_leave_year" | "leave_available" | "leave_balances" | "leave_ledger_entries" | "leave_post" | "leave_posted" | "leave_working_days" | "list_leave_requests" | "list_leave_types" | "request_leave" | "save_leave_type";
+    readonly functions: "accrue_leave" | "adjust_leave_balance" | "approve_leave_request" | "archive_leave_type" | "cancel_leave_request" | "close_leave_year" | "decide_leave_request" | "leave_available" | "leave_balances" | "leave_ledger_entries" | "leave_post" | "leave_posted" | "leave_working_days" | "list_leave_requests" | "list_leave_types" | "request_leave" | "save_leave_type";
     readonly actions: "request" | "read" | "approve" | "manage";
     readonly hooks: "before_leave_request" | "after_leave_request";
     readonly entities: {
-      readonly "request": "id" | "tenant_id" | "user_id" | "type_id" | "starts_on" | "ends_on" | "partial" | "amount" | "note" | "approval_id" | "approved_at" | "cancelled_at" | "cancelled_by" | "created_at" | "updated_at";
+      readonly "request": "id" | "tenant_id" | "user_id" | "type_id" | "starts_on" | "ends_on" | "partial" | "amount" | "note" | "approval_id" | "approved_at" | "cancelled_at" | "cancelled_by" | "created_at" | "updated_at" | "rejected_at" | "decided_by" | "decision_note";
       readonly "type": "id" | "tenant_id" | "key" | "name" | "unit" | "paid" | "tracked" | "allowance" | "carryover_max" | "color" | "archived_at" | "created_at" | "updated_at";
     };
     readonly primary: "request";

@@ -8,6 +8,11 @@ export type LeaveSqlOptions = {
   readonly workingDays?: readonly string[];
   readonly allowNegative?: boolean;
   readonly extraColumns?: ExtraColumns;
+  /**
+   * `false` runs leave without the approvals block: a request stays pending
+   * until `decide_leave_request` approves or rejects it.
+   */
+  readonly approvals?: boolean;
 };
 
 export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
@@ -18,4 +23,5 @@ export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
     }),
     allowNegative: option.boolean({ default: false }),
     extraColumns: option.extraColumns(),
+    approvals: option.boolean({ default: true }),
   });

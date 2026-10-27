@@ -157,6 +157,17 @@ key per report (`expense:<id>:approved`, `expense:<id>:reimbursed`), so it
 can't post twice. `cancel` withdraws a report that isn't approved yet and
 cancels its pending approval.
 
+### Without the approvals block
+
+`options.approvals: false` (or an `approval` column mapped to `null`) runs
+expenses without the [approvals block](/docs/blocks/approvals). A submitted
+report waits until `decide(reportId, { approved, note? })` approves or
+rejects it: the service role, or a member with `expenses.approve` who doesn't
+own it. Approval posts on the ledger like a final approval; rejection sets
+`rejected_at` and records `expense_report.rejected`, and the owner can change
+the report and submit it again. The reports table takes optional
+`rejectedAt`, `decidedBy` and `decisionNote` columns.
+
 ## Errors
 
 | Hint                         | Cause                                                                           |
@@ -178,7 +189,8 @@ cancels its pending approval.
 `expense_report.created`, `expense_report.submitted` (with the approval),
 `expense_report.approved` and `expense_report.reimbursed` (with the ledger
 transaction) and `expense_report.cancelled`. A rejection is the approvals
-block's `approval.rejected` event. The
+block's `approval.rejected` event, or `expense_report.rejected` without the
+approvals block. The
 [events page](/docs/extending/events) lists their payloads.
 
 ## Without the client

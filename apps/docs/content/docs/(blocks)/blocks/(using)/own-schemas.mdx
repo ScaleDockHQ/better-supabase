@@ -154,7 +154,7 @@ may be your own enum or domain.
   - `better_supabase.products`: `id`, `tenant_id`, `slug`, `title`, `status`, `created_at`, `updated_at`; typed: `status`, `kind`
   - `better_supabase.product_options`: `id`, `tenant_id`, `product_id`, `name`, `rank`
   - `better_supabase.product_option_values`: `id`, `tenant_id`, `option_id`, `value`, `rank`
-  - `better_supabase.product_variants`: `id`, `tenant_id`, `product_id`, `sku`, `track_inventory`, `allow_backorder`, `rank`, `created_at`, `updated_at`
+  - `better_supabase.product_variants`: `id`, `tenant_id`, `product_id`, `sku`, `allow_backorder`, `rank`, `created_at`, `updated_at`
   - `better_supabase.product_variant_values`: `tenant_id`, `variant_id`, `option_value_id`
   - `better_supabase.price_lists`: `id`, `tenant_id`, `name`, `customer_group`, `created_at`
   - `better_supabase.product_prices`: `id`, `tenant_id`, `variant_id`, `currency`, `amount`, `created_at`, `updated_at`
@@ -260,7 +260,7 @@ may be your own enum or domain.
   - `better_supabase.enrollment_steps`: `enrollment_id`, `tenant_id`, `step`, `completed_by`, `completed_at`
 - `expenses`
   - `better_supabase.expense_categories`: `id`, `tenant_id`, `key`, `name`, `currency`, `archived_at`, `created_at`, `updated_at`
-  - `better_supabase.expense_reports`: `id`, `tenant_id`, `user_id`, `title`, `currency`, `approval_id`, `submitted_at`, `approved_at`, `reimbursed_at`, `cancelled_at`, `created_at`, `updated_at`
+  - `better_supabase.expense_reports`: `id`, `tenant_id`, `user_id`, `title`, `currency`, `submitted_at`, `approved_at`, `reimbursed_at`, `cancelled_at`, `created_at`, `updated_at`
   - `better_supabase.expense_lines`: `id`, `tenant_id`, `report_id`, `category_id`, `spent_on`, `description`, `amount`, `created_at`, `updated_at`
 - `field-history`
   - `better_supabase.field_changes`: `id`, `tenant_id`, `subject_type`, `subject_id`, `field`, `old_value`, `new_value`
@@ -332,8 +332,9 @@ may be your own enum or domain.
   - `better_supabase.invitations`: `id`, `email`, `role`, `token_hash`, `expires_at`, `accepted_at`, `organization_id`
   - `better_supabase.platform_invitations`, once mapped: `id`, `email`, `role`, `token_hash`, `expires_at`, `accepted_at`
 - `invoices`
-  - `better_supabase.invoices`: `id`, `tenant_id`, `kind`, `number`, `identifier`, `original_id`, `title`, `currency`, `status`, `terms_days`, `issued_on`, `due_on`, `paid_total`, `credited_total`, `paid_at`, `voided_at`, `created_at`, `updated_at`, `list_total`, `discount_total`, `subtotal`, `tax_total`, `total`; typed: `status`, `kind`
+  - `better_supabase.invoices`: `id`, `tenant_id`, `kind`, `number`, `identifier`, `original_id`, `title`, `currency`, `status`, `terms_days`, `issued_on`, `due_on`, `paid_total`, `credited_total`, `paid_at`, `voided_at`, `created_at`, `updated_at`, `subtotal`, `tax_total`, `total`; typed: `status`, `kind`
   - `better_supabase.invoice_lines`: `id`, `tenant_id`, `parent_id`, `description`, `quantity`, `unit_amount`, `position`; typed: `product_type`
+  - `better_supabase.invoice_charges`: `id`, `tenant_id`, `invoice_id`, `amount`
 - `knowledge`
   - `better_supabase.knowledge_documents`: `id`, `organization_id`, `owner_id`, `scope`, `scope_id`, `title`, `status`, `updated_at`; typed: `scope`, `status`
   - `better_supabase.knowledge_chunks`: `document_id`, `idx`, `content`, `embedding`
@@ -344,7 +345,7 @@ may be your own enum or domain.
   - `better_supabase.lease_charges`: `id`, `tenant_id`, `lease_id`, `period_start`, `period_end`, `amount`, `currency`, `transaction_id`
 - `leave`
   - `better_supabase.leave_types`: `id`, `tenant_id`, `key`, `name`, `unit`, `paid`, `tracked`, `archived_at`, `created_at`, `updated_at`; typed: `unit`
-  - `better_supabase.leave_requests`: `id`, `tenant_id`, `user_id`, `type_id`, `starts_on`, `ends_on`, `partial`, `amount`, `approval_id`, `approved_at`, `cancelled_at`, `created_at`, `updated_at`; typed: `partial`
+  - `better_supabase.leave_requests`: `id`, `tenant_id`, `user_id`, `type_id`, `starts_on`, `ends_on`, `partial`, `amount`, `approved_at`, `cancelled_at`, `created_at`, `updated_at`; typed: `partial`
 - `ledger`
   - `better_supabase.ledger_accounts`: `id`, `tenant_id`, `kind`, `code`, `name`, `unit`, `scale`, `holder_type`, `holder_id`, `owner_id`, `allow_negative`, `read_permission`, `managed_by`, `metadata`, `closed_at`, `created_at`, `updated_at`; typed: `kind`
   - `better_supabase.ledger_transactions`: `id`, `tenant_id`, `kind`, `reference_type`, `reference_id`, `idempotency_key`, `reverses`, `metadata`, `effective_at`, `actor_id`, `created_at`

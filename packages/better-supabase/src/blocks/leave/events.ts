@@ -2,7 +2,10 @@ import type { Events } from "../../core/event-map.ts";
 
 import { defineEvents, event } from "../../core/event-map.ts";
 
-/** `leave.requested`, `leave.approved` and `leave.cancelled`: the request. */
+/**
+ * `leave.requested`, `leave.approved`, `leave.rejected` and `leave.cancelled`:
+ * the request.
+ */
 export interface LeaveRequestEventData {
   readonly organizationId: string;
   /** The leave request. */
@@ -37,6 +40,7 @@ export type LeaveEvents = {
   readonly "leave.requested": LeaveRequestEventData;
   readonly "leave.approved": LeaveRequestEventData;
   readonly "leave.cancelled": LeaveRequestEventData;
+  readonly "leave.rejected": LeaveRequestEventData;
   readonly "leave.adjusted": LeaveAdjustedEventData;
 };
 
@@ -45,5 +49,6 @@ export const leaveEvents: Events<LeaveEvents> = defineEvents({
   "leave.requested": event<LeaveRequestEventData>(),
   "leave.approved": event<LeaveRequestEventData>(),
   "leave.cancelled": event<LeaveRequestEventData>(),
+  "leave.rejected": event<LeaveRequestEventData>(),
   "leave.adjusted": event<LeaveAdjustedEventData>(),
 });

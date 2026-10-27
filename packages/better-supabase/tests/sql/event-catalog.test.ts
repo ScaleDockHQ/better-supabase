@@ -57,6 +57,8 @@ const OPTIONAL = new Set([
   "field_value.deleted",
   "team.restored",
   "timesheet.rejected",
+  "leave.rejected",
+  "expense_report.rejected",
   "object.uploaded",
   "pipeline.stage_changed",
   "calendar.updated",

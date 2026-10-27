@@ -21,6 +21,7 @@ export {
   safeRedirectPath,
   type AuthorizeUrlParams,
   type EmailOtpType,
+  type ExistingAccount,
   type SignOutScope,
 } from "../auth/sign-in.ts";
 

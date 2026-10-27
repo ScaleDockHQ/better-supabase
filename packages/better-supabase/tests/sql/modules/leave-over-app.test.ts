@@ -105,17 +105,19 @@ const AS_ALICE = `perform set_config('request.jwt.claims', '{"sub":"${ALICE}","r
 /** Lite migrates and seeds PGlite in process; booting takes a second or more. */
 const BOOT = { timeout: 60_000 };
 
-async function run(check: string): Promise<void> {
-  const files = renderBlocks(["leave"], {
-    modules: BLOCKS,
-    ownTables: OWN_TABLES,
-  });
+async function run(
+  check: string,
+  modules: AnyBlocksConfig = BLOCKS,
+  names: readonly string[] = ["leave"],
+  app: string = APP,
+): Promise<void> {
+  const files = renderBlocks(names, { modules, ownTables: OWN_TABLES });
 
   await using stack = await liteStack({
     driver: "pglite",
     migrations: [
       ROLES,
-      APP,
+      app,
       ...files
         .filter((file) => file.kind !== "data")
         .map((file) => file.contents),
@@ -184,5 +186,84 @@ begin
 end;
 $$;`),
     ).rejects.toThrow(/no note column/);
+  });
+
+  it("decides requests without the approvals block and shares approved leave as a feed", async () => {
+    const leave = BLOCKS["leave"];
+
+    await expect(
+      run(
+        `do $$
+declare
+  v_type_id uuid;
+  v_first uuid;
+  v_second uuid;
+  v_request jsonb;
+  v_link jsonb;
+  v_feed jsonb;
+begin
+  ${SERVICE}
+  v_type_id := (better_supabase.save_leave_type('${TENANT}', 'vacation', 'Vacation') ->> 'id')::uuid;
+  perform better_supabase.adjust_leave_balance('${TENANT}', '${ALICE}', v_type_id, 10, 2099);
+  ${AS_ALICE}
+  v_first := (better_supabase.request_leave('${TENANT}', v_type_id, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
+  v_second := (better_supabase.request_leave('${TENANT}', v_type_id, '2099-04-06', '2099-04-07') ->> 'id')::uuid;
+  if (better_supabase.leave_balances('${TENANT}', '${ALICE}', 2099) -> 0 ->> 'pending')::numeric <> 4 then
+    raise exception 'pending %', better_supabase.leave_balances('${TENANT}', '${ALICE}', 2099);
+  end if;
+  begin
+    perform better_supabase.decide_leave_request(v_first, true, null);
+    raise exception 'decided own request';
+  exception when others then
+    if sqlerrm = 'decided own request' then
+      raise;
+    end if;
+  end;
+  ${SERVICE}
+  v_request := better_supabase.decide_leave_request(v_first, true, 'enjoy');
+  if v_request ->> 'status' <> 'approved' or (select decision_note from public.absences where id = v_first) <> 'enjoy' then
+    raise exception 'approved %', v_request;
+  end if;
+  v_request := better_supabase.decide_leave_request(v_second, false, 'busy month');
+  if v_request ->> 'status' <> 'rejected' or (select rejected_at from public.absences where id = v_second) is null then
+    raise exception 'rejected %', v_request;
+  end if;
+  if (better_supabase.leave_balances('${TENANT}', '${ALICE}', 2099) -> 0 ->> 'available')::numeric <> 8 then
+    raise exception 'balance %', better_supabase.leave_balances('${TENANT}', '${ALICE}', 2099);
+  end if;
+  ${AS_ALICE}
+  v_link := better_supabase.create_share_link('${TENANT}', 'leave_feed', '${TENANT}', 'view');
+  v_feed := better_supabase.leave_feed(v_link ->> 'token');
+  if jsonb_array_length(v_feed -> 'requests') <> 1 or v_feed -> 'requests' -> 0 ->> 'id' <> v_first::text then
+    raise exception 'feed %', v_feed;
+  end if;
+  if better_supabase.leave_feed(repeat('0', 48)) is not null then
+    raise exception 'an unknown token read the feed';
+  end if;
+end;
+$$;`,
+        {
+          leave: {
+            ...leave,
+            columns: {
+              ...leave?.columns,
+              requests: { ...leave?.columns?.["requests"], approval: null },
+            },
+            options: { approvals: false },
+          },
+        },
+        ["leave", "share-links"],
+        `${APP.replace(
+          "  approval_id uuid,",
+          "  rejected_at timestamptz,\n  decided_by uuid,\n  decision_note text,",
+        )}
+create schema if not exists extensions;
+create or replace function extensions.gen_random_bytes(n integer) returns bytea
+language sql volatile as $$ select decode(md5(random()::text) || md5(random()::text), 'hex') $$;
+create or replace function extensions.digest(data bytea, type text) returns bytea
+language sql immutable as $$ select sha256(data) $$;
+`,
+      ),
+    ).resolves.toBeUndefined();
   });
 });

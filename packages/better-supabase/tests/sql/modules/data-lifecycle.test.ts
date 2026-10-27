@@ -27,6 +27,12 @@ describe("data-lifecycle module", () => {
     );
   });
 
+  it("purges calendar events itself, so an app's restricting calendar foreign key holds no purge back", () => {
+    expect(sqlOf(["data-lifecycle", "calendar"])).toContain(
+      `('organization', 'better_supabase.calendar_events', '"better_supabase"."calendar_events"', 'tenant_id', true, '{}'::text[], true)`,
+    );
+  });
+
   it("cancels a deletion with the cancelDelete permission while the tenant is disabled", () => {
     expect(sqlOf(["organizations", "data-lifecycle"])).toContain(
       `coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)`,

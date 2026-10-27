@@ -1,0 +1,13 @@
+---
+"better-supabase": minor
+---
+
+Invoices, catalog, leave and expenses run over more of an app's own tables, and `createNext().signUp` tells the app about an existing account.
+
+- Invoices: `options.totals: "app"` leaves the totals to the app: no totals trigger and no recount, and the block reads `subtotal`, `taxTotal` and `total` as the app keeps them (`listTotal` and `discountTotal` can map to `null`). A company, contact or origin can be one foreign key column: map its type column to `null`, and the id takes the fixed type `options.company`, `options.contact` or `quote`, cast to the column's type. A new `invoice_charges` table (`tables.charges`, which can be the app's table or `null`) holds charges on top of the total, such as collection costs; `charge(invoiceId, { amount, description })` adds one, the balance and aging include them, and `invoice.charged` is recorded. An invoice's number takes the period of its issue date, so a back-dated invoice is numbered in its own year's sequence.
+- Catalog: `options.rankType: "integer"` orders options, option values, variants, categories and collection products by whole-number positions. With `tables.prices: null`, a variant's price is `columns.variants.price`, falling back to `columns.products.price`, in `columns.products.currency`. `columns.variants.trackInventory` can be `null` with the flag on the product, which inventory and orders then read.
+- Leave: `options.approvals: false` (or no approval column) runs leave without the approvals block; `decide(requestId, { approved, note })` approves or rejects a request, and a rejection records `leave.rejected`. With share-links, a `leave_feed` link to the organization serves its approved leave through `feed(token)` while the link's creator can still read everyone's leave.
+- Expenses: `options.approvals: false` (or no approval column) runs expenses without the approvals block; `decide(reportId, { approved, note })` approves or rejects a submitted report, and a rejection records `expense_report.rejected`. `ExpenseReportSubmittedEventData.approvalId` is `string | null`.
+- Next.js: `signUp` returns `{ existingAccount: true }` (type `ExistingAccount`) when Auth answers with the stand-in user it gives for an email that already has an account, so the app can send its own email. Nothing about it reaches an error message.
+- Calendar: an organization purge deletes calendar events itself, so an app's restricting foreign key from events to calendars no longer blocks it.
+- Tasks: `set_work_item_assignees` declares its notification variables only when it notifies, which clears the plpgsql_check warnings with `options.notify: false`.

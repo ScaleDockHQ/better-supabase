@@ -10,6 +10,7 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
+import { variantTracked } from "./catalog-tracking.ts";
 import { locationsOf, moveStock } from "./inventory-stock.ts";
 import {
   amountOf,
@@ -173,7 +174,7 @@ function reserveLines(ctx: BlockSqlContext, minutes: number): string {
   return `
   for v_line in
     select x.${ol("id")} as id, x.${ol("variant")} as variant, x.${ol("quantity")} as quantity,
-      cv.${v("trackInventory")} as tracked, cv.${v("allowBackorder")} as backorder
+      ${variantTracked(catalog, "cv")} as tracked, cv.${v("allowBackorder")} as backorder
     from ${ctx.table("orderLines")} x join ${catalog.table("variants")} cv on cv.${v("id")} = x.${ol("variant")}
     where x.${ol("order")} = v_order.id
     order by x.${ol("position")}
