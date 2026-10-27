@@ -15705,17 +15705,17 @@ async function retry() {
 
 /** Render inside `<Suspense>`: the organization's products as cards. */
 export async function ProductCatalogGrid() {
-  const permissions = await getPermissions();
-
-  if (!can(permissions, "catalog.read")) {
-    forbidden();
-  }
-
-  const [products, t, locale] = await Promise.all([
+  // The read starts with the permission check; RLS guards it either way.
+  const [permissions, products, t, locale] = await Promise.all([
+    getPermissions(),
     getProducts(),
     getExtracted("shop"),
     getLocale(),
   ]);
+
+  if (!can(permissions, "catalog.read")) {
+    forbidden();
+  }
 
   if (products.kind === "no-organization") {
     return null;
@@ -15847,16 +15847,16 @@ async function retry() {
 
 /** Render inside `<Suspense>`: stock per tracked variant and active location. */
 export async function InventoryTable() {
-  const permissions = await getPermissions();
+  // The read starts with the permission check; RLS guards it either way.
+  const [permissions, stock, t] = await Promise.all([
+    getPermissions(),
+    getStockLevels(),
+    getExtracted("shop"),
+  ]);
 
   if (!can(permissions, "inventory.read")) {
     forbidden();
   }
-
-  const [stock, t] = await Promise.all([
-    getStockLevels(),
-    getExtracted("shop"),
-  ]);
 
   if (stock.kind === "no-organization") {
     return null;
@@ -17140,16 +17140,16 @@ npx shadcn add badge card empty skeleton
 
 ```tsx title="apps/examples/nextjs/src/features/bookings/components/availability-editor.tsx"
 export async function AvailabilityEditor() {
-  const permissions = await getPermissions();
+  // The read starts with the permission check; RLS guards it either way.
+  const [permissions, t, setup] = await Promise.all([
+    getPermissions(),
+    getExtracted("bookings"),
+    settle(loadBookingSetup),
+  ]);
 
   if (!can(permissions, "bookings.manage")) {
     forbidden();
   }
-
-  const [t, setup] = await Promise.all([
-    getExtracted("bookings"),
-    settle(loadBookingSetup),
-  ]);
 
   const page = setup.kind === "ok" ? setup.data.page : null;
 
@@ -17228,18 +17228,18 @@ npx shadcn add card empty skeleton
  * offset before every occurrence of the event, once per occurrence.
  */
 export async function RemindersList() {
-  const permissions = await getPermissions();
-
-  if (!can(permissions, "reminders.manage")) {
-    return null;
-  }
-
-  const [t, format, upcoming] = await Promise.all([
+  // The read starts with the permission check; RLS guards it either way.
+  const [permissions, t, format, upcoming] = await Promise.all([
+    getPermissions(),
     getExtracted("calendar"),
     getFormatter(),
     settle(loadUpcomingReminders),
     connection(),
   ]);
+
+  if (!can(permissions, "reminders.manage")) {
+    return null;
+  }
 
   if (upcoming.kind === "no-organization") {
     return null;

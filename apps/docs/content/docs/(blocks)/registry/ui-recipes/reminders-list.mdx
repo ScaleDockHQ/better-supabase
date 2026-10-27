@@ -19,18 +19,18 @@ npx shadcn add card empty skeleton
  * offset before every occurrence of the event, once per occurrence.
  */
 export async function RemindersList() {
-  const permissions = await getPermissions();
-
-  if (!can(permissions, "reminders.manage")) {
-    return null;
-  }
-
-  const [t, format, upcoming] = await Promise.all([
+  // The read starts with the permission check; RLS guards it either way.
+  const [permissions, t, format, upcoming] = await Promise.all([
+    getPermissions(),
     getExtracted("calendar"),
     getFormatter(),
     settle(loadUpcomingReminders),
     connection(),
   ]);
+
+  if (!can(permissions, "reminders.manage")) {
+    return null;
+  }
 
   if (upcoming.kind === "no-organization") {
     return null;
