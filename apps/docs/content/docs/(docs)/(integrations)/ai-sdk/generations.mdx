@@ -1,0 +1,116 @@
+---
+title: Completions and objects
+description: Routes for useCompletion and useObject with createCompletionRoute and createObjectRoute, with the quota check, gateway tags and usage metering of the assistant.
+---
+
+Not every AI feature is a chat. A summary button streams text, and a form
+that fills itself in streams an object. `createCompletionRoute` and
+`createObjectRoute` serve the AI SDK's `useCompletion` and `useObject` with
+what `createAssistant` does around the model: the quota check, the gateway
+tags for the user and tenant, and `onFinish` with the token usage and cost
+once the stream ended. They store nothing; meter the usage in `onFinish`.
+
+## Completion
+
+```ts title="app/api/completion/route.ts"
+import { streamText } from "ai";
+import { after } from "next/server";
+import { createCompletionRoute } from "better-supabase/ai-sdk/chat";
+import { usageQuota } from "better-supabase/ai-sdk";
+
+const route = createCompletionRoute({
+  model: "openai/gpt-5-mini",
+  feature: "summary",
+  quota: usageQuota(usage, "ai.input_tokens"),
+  run: ({ input, model, abortSignal, providerOptions }) =>
+    streamText({
+      model,
+      instructions: "Summarize the text in two sentences.",
+      prompt: input,
+      abortSignal,
+      providerOptions,
+    }),
+  onFinish: async ({ usage: tokens, context }) => {
+    await usage.record(context.organizationId, "ai.input_tokens", {
+      quantity: tokens.inputTokens,
+    });
+  },
+});
+
+export async function POST(request: Request) {
+  const { userId, organizationId } = await currentMember();
+  return route.respond(request, { userId, organizationId, waitUntil: after });
+}
+```
+
+```tsx title="components/summary.tsx"
+"use client";
+
+import { useAssistantCompletion } from "better-supabase/ai-sdk/react";
+
+export function Summary({ text }: { text: string }) {
+  const { completion, complete, isLoading } = useAssistantCompletion();
+
+  return (
+    <button disabled={isLoading} onClick={() => complete(text)}>
+      {completion || "Summarize"}
+    </button>
+  );
+}
+```
+
+`useAssistantCompletion` is `useCompletion` set to read the plain text
+stream the route answers, with `/api/completion` as its default `api`.
+
+## Object
+
+`run` streams the object's JSON with `Output.object`. The route checks the
+submitted value against `input`, any Standard Schema; a value that doesn't
+match answers 422.
+
+```ts title="app/api/object/route.ts"
+import { Output, streamText } from "ai";
+import * as v from "valibot";
+import { createObjectRoute } from "better-supabase/ai-sdk/chat";
+
+const route = createObjectRoute({
+  model: "openai/gpt-5-mini",
+  input: v.object({ topic: v.string() }),
+  run: ({ input, model, abortSignal, providerOptions }) =>
+    streamText({
+      model,
+      output: Output.object({ schema: ideasSchema }),
+      prompt: `Three project ideas about ${input.topic}.`,
+      abortSignal,
+      providerOptions,
+    }),
+});
+```
+
+```tsx
+"use client";
+
+import { useAssistantObject } from "better-supabase/ai-sdk/react";
+
+const { object, submit, isLoading } = useAssistantObject({
+  api: "/api/object",
+  schema: ideasSchema,
+});
+```
+
+`useAssistantObject` is `useObject` with `/api/object` as its default `api`.
+`schema` is the AI SDK's: zod, `jsonSchema` or a Standard JSON Schema.
+
+## What a request does
+
+1. Reads the body: `prompt` for a completion, the whole body for an object.
+   A missing prompt answers 400.
+2. Runs `quota`, when set. An error answers 429 with `Retry-After`.
+3. Calls `run` with the input, the model, an abort signal that fires when
+   the client goes away, and the [gateway options](/docs/ai-sdk#ai-gateway)
+   tagged with the tenant and the `feature` (`completion` or `object` by
+   default). When `run` throws, the route answers with
+   [`aiErrorToDbError`](/docs/ai-sdk/chat#errors).
+4. Streams the text. After it ended, `onFinish` gets the input, the whole
+   text, the model and the usage, through `waitUntil`; without `waitUntil`
+   it doesn't run.
