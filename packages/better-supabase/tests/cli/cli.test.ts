@@ -641,6 +641,32 @@ describe("CHECK not null", () => {
     }
   });
 
+  it("reads which columns a before insert trigger's body assigns", async () => {
+    const withFills = (fills: string[]) =>
+      customersWith((table) => ({
+        ...table,
+        triggers: [
+          {
+            name: "fill",
+            timing: "before",
+            events: ["insert"],
+            level: "row",
+            function: "public.fill",
+            fills,
+          },
+        ],
+      }));
+
+    const assigns = await withFills(["kvk"]);
+    expect(assigns("kvk").column).toMatchObject({ optional: true });
+
+    const validates = await withFills([]);
+    expect(validates("kvk").column).toMatchObject({
+      nullable: false,
+      optional: false,
+    });
+  });
+
   it("makes insertOptional columns optional on insert", async () => {
     const listed = await customersWith((table) => table, {
       gen: { tables: { customers: { insertOptional: ["kvk", "name"] } } },

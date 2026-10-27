@@ -171161,7 +171161,12 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_pipeline_application"
+            "function": "better_supabase.bsb_pipeline_application",
+            "fills": [
+              "pipeline_id",
+              "stage_entered_at",
+              "stage_id"
+            ]
           },
           {
             "name": "bsb_pipeline_status_application",
@@ -171868,7 +171873,8 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.asset_location_check_parent"
+            "function": "better_supabase.asset_location_check_parent",
+            "fills": []
           }
         ],
         "grants": [
@@ -174675,7 +174681,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.calendar_attendee_auto_decline"
+            "function": "better_supabase.calendar_attendee_auto_decline",
+            "fills": [
+              "response"
+            ]
           }
         ],
         "grants": [
@@ -181769,7 +181778,14 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_deal_guard"
+            "function": "better_supabase.bsb_deal_guard",
+            "fills": [
+              "closed_at",
+              "lost_reason",
+              "push_count",
+              "slipped_from",
+              "updated_at"
+            ]
           },
           {
             "name": "bsb_field_history_deal",
@@ -181788,7 +181804,12 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_pipeline_deal"
+            "function": "better_supabase.bsb_pipeline_deal",
+            "fills": [
+              "pipeline_id",
+              "stage_entered_at",
+              "stage_id"
+            ]
           },
           {
             "name": "bsb_pipeline_status_deal",
@@ -183398,7 +183419,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.drive_node_path"
+            "function": "better_supabase.drive_node_path",
+            "fills": [
+              "path"
+            ]
           },
           {
             "name": "bsb_drive_node_purged",
@@ -183974,7 +183998,8 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_employee_manager_guard"
+            "function": "better_supabase.bsb_employee_manager_guard",
+            "fills": []
           },
           {
             "name": "bsb_employee_user_mirror",
@@ -194501,7 +194526,13 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_maintenance_request_guard"
+            "function": "better_supabase.bsb_maintenance_request_guard",
+            "fills": [
+              "close_reason",
+              "closed_at",
+              "progress",
+              "updated_at"
+            ]
           },
           {
             "name": "bsb_pipeline_maintenance_request",
@@ -194511,7 +194542,12 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_pipeline_maintenance_request"
+            "function": "better_supabase.bsb_pipeline_maintenance_request",
+            "fills": [
+              "pipeline_id",
+              "stage_entered_at",
+              "stage_id"
+            ]
           },
           {
             "name": "bsb_pipeline_status_maintenance_request",
@@ -195749,7 +195785,8 @@
               "insert"
             ],
             "level": "row",
-            "function": "better_supabase.messages_moderation_guard"
+            "function": "better_supabase.messages_moderation_guard",
+            "fills": []
           },
           {
             "name": "bsb_messaging_inbox_broadcast",
@@ -195800,7 +195837,8 @@
               "insert"
             ],
             "level": "row",
-            "function": "better_supabase.posts_reply_guard"
+            "function": "better_supabase.posts_reply_guard",
+            "fills": []
           },
           {
             "name": "bsb_search_message_index",
@@ -206614,7 +206652,8 @@
               "insert"
             ],
             "level": "row",
-            "function": "better_supabase.reactions_check"
+            "function": "better_supabase.reactions_check",
+            "fills": []
           },
           {
             "name": "bsb_reactions_tally",
@@ -215650,7 +215689,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_time_entries_employee"
+            "function": "better_supabase.bsb_time_entries_employee",
+            "fills": [
+              "employee_id"
+            ]
           },
           {
             "name": "bsb_time_entry_guard",
@@ -215661,7 +215703,8 @@
               "delete"
             ],
             "level": "row",
-            "function": "better_supabase.time_entry_guard"
+            "function": "better_supabase.time_entry_guard",
+            "fills": []
           }
         ],
         "grants": [
@@ -218166,7 +218209,12 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_pipeline_work_item"
+            "function": "better_supabase.bsb_pipeline_work_item",
+            "fills": [
+              "pipeline_id",
+              "stage_entered_at",
+              "stage_id"
+            ]
           },
           {
             "name": "bsb_search_work_item_index",
@@ -218191,7 +218239,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_transition_work_item"
+            "function": "better_supabase.bsb_transition_work_item",
+            "fills": [
+              "state"
+            ]
           },
           {
             "name": "bsb_work_item_guard",
@@ -218201,7 +218252,13 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_work_item_guard"
+            "function": "better_supabase.bsb_work_item_guard",
+            "fills": [
+              "close_reason",
+              "closed_at",
+              "progress",
+              "updated_at"
+            ]
           }
         ],
         "grants": [
@@ -220885,7 +220942,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.client_notes_seal"
+            "function": "better_supabase.client_notes_seal",
+            "fills": [
+              "birth_date",
+              "diagnosis"
+            ]
           },
           {
             "name": "bsb_updated_at",
@@ -221864,7 +221925,8 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.guard_membership"
+            "function": "better_supabase.guard_membership",
+            "fills": []
           },
           {
             "name": "bsb_updated_at",
