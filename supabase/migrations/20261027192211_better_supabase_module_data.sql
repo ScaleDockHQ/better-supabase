@@ -331,7 +331,7 @@ on conflict (name) do update
 
 -- better-supabase module: flags
 -- @bsb-block-data flags
--- @bsb-hash sha256:dd7928d2963deeab4895d76f169e49059e0970aca9ed1646755d04f7bfa49a57
+-- @bsb-hash sha256:4036cb86aa3b85d73b2ac180acf313c89af7cdb5b89f3c1de52a83f004a060dd
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -340,7 +340,7 @@ on conflict (name) do update
 create extension if not exists "pgcrypto" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('flags', 3, 'managed')
+values ('flags', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -525,14 +525,14 @@ on conflict (name) do update
 
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:73bb4504cb97d0078e4caf3a087531a42fbc583e026fe96f6db9c5e91987056b
+-- @bsb-hash sha256:074bf56c8ea1c04a26b7e5ac10159ae775306c562aa9cd6fada431f31f21d8a4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 2, 'managed')
+values ('workflow-sdk', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -566,7 +566,7 @@ on conflict (name) do update
 
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:9d6cd11771ae051d6ce7e9799b622847b6e59ae2c0fdef18aaeeae9360b854cd
+-- @bsb-hash sha256:cc035b07edf84ff34d09e267ec1d7bb904ebf7e9d86d99b19424f09b510acf0c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -577,7 +577,7 @@ values ('inbox.conversation_to_task', 'inbox', 'inbox_conversation', 'inbox_conv
 on conflict ("key") do update set "subject_type" = excluded."subject_type", "trigger" = excluded."trigger", "name" = excluded."name", "description" = excluded."description", "actions" = excluded."actions", "enabled" = excluded."enabled", "block" = excluded."block", "updated_at" = now();
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 4, 'managed')
+values ('inbox', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 

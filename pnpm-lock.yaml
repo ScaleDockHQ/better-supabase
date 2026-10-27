@@ -729,6 +729,7 @@ overrides:
   '@better-supabase/example-expo-powersync>react-dom': 19.2.3
   shiki: 4.5.0
   supports-color: 11.0.0
+  supports-hyperlinks@3.2.0>supports-color: 7.2.0
   '@t3-oss/env-core>zod': 4.6.7
   eslint: '-'
   source-map-js: '>=1.2.2'
@@ -14715,6 +14716,10 @@ packages:
   supports-color@11.0.0:
     resolution: {integrity: sha512-/zyImLdxhdygBIaVX0xTlQhKaCDLCrm665aqHk8xqK/Pa6k61fL6gwQGQq1k31yNyz6x55PppQgF2DMyPQa5xw==}
     engines: {node: '>=22'}
+
+  supports-color@7.2.0:
+    resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==}
+    engines: {node: '>=8'}
 
   supports-hyperlinks@2.3.0:
     resolution: {integrity: sha512-RpsAZlpWcDwOPQA22aCH4J0t7L8JmAvsCxfOSEwm7cQs3LshN36QaTkwd70DnBOXDWGssw2eUoc8CaRWT0XunA==}
@@ -31455,6 +31460,10 @@ snapshots:
 
   supports-color@11.0.0: {}
 
+  supports-color@7.2.0:
+    dependencies:
+      has-flag: 4.0.0
+
   supports-hyperlinks@2.3.0:
     dependencies:
       has-flag: 4.0.0
@@ -31463,7 +31472,7 @@ snapshots:
   supports-hyperlinks@3.2.0:
     dependencies:
       has-flag: 4.0.0
-      supports-color: 11.0.0
+      supports-color: 7.2.0
 
   supports-hyperlinks@4.6.0:
     dependencies:

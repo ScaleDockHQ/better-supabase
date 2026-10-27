@@ -375,6 +375,8 @@ overrides:
   # debug's optional peer. Without one copy, workspaces that don't declare it
   # get @babel/core with chalk's supports-color 7, and next resolves twice.
   supports-color: "catalog:"
+  # marked-terminal 7 (through attw) needs the CommonJS supports-color 7 API.
+  "supports-hyperlinks@3.2.0>supports-color": "7.2.0"
   # marketing validates its env with valibot; without this its @t3-oss/env
   # optional zod peer picks shadcn's Zod 3 and forks the env-core variant.
   "@t3-oss/env-core>zod": "catalog:"
