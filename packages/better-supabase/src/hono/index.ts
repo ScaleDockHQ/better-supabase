@@ -144,13 +144,12 @@ export interface BetterHono<
   ): MiddlewareHandler<HonoEnv<M, F, E, C, P, B>>;
   /**
    * A route guard after `middleware()`: `allow`, `aal`, `scopes`,
-   * `requireOrganization` and `authorize`. A refused caller gets Problem
-   * Details.
+   * `requireTenant` and `authorize`. A refused caller gets Problem Details.
    *
    * ```ts
    * app.post(
    *   "/invites",
-   *   bsb.require({ requireOrganization: true, roles: ["admin"] }),
+   *   bsb.require({ requireTenant: true, roles: ["admin"] }),
    *   handler,
    * );
    * ```

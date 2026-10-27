@@ -49,7 +49,7 @@ export const requestMyExport = bsb.action({}, async (_input, { db, auth }) => {
 /** Exports the active organization's data (`organization.export`). */
 export const requestOrganizationExport = bsb.action(
   {
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "organization.export"),
   },
   async (_input, { tenant, db, auth }) => {
@@ -88,7 +88,7 @@ export const downloadExport = bsb.action(
  */
 export const requestOrganizationDeletion = bsb.action(
   {
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "organization.delete"),
   },
   async (_input, { tenant, db, auth }) => {
@@ -107,7 +107,7 @@ export const requestOrganizationDeletion = bsb.action(
 
 /** Cancels the pending purge and enables the organization again. */
 export const cancelOrganizationDeletion = bsb.action(
-  { requireOrganization: true },
+  { requireTenant: true },
   async (_input, { tenant, db, auth }) => {
     const cancelled = await db.dataLifecycle.cancelOrganizationDeletion(tenant);
 

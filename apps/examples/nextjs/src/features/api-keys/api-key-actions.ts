@@ -13,7 +13,7 @@ import { bsb } from "@/lib/supabase/server";
  */
 export const apiKeyCreated = bsb.action(
   {
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "api_keys.own"),
   },
   async (_input, { tenant: organizationId, db }) => {

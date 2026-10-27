@@ -99,12 +99,12 @@ function eachEntry(value: unknown, pairs: Pairs, back: boolean): unknown {
   );
 }
 
-function organizationOf(organization: unknown, out: Entries): Entries {
-  if (!isObject(organization)) {
+function tenantOf(tenant: unknown, out: Entries): Entries {
+  if (!isObject(tenant)) {
     return {};
   }
 
-  const { claim, ...rest } = organization;
+  const { claim, ...rest } = tenant;
   const patch: Entries = {};
 
   if (typeof claim === "string") {
@@ -120,7 +120,7 @@ function organizationOf(organization: unknown, out: Entries): Entries {
 
 /**
  * The grouped config in the flat shape `resolveConfig` reads: every group's
- * keys at the top level, `adapters` under its flat name, `auth.organization` as
+ * keys at the top level, `adapters` under its flat name, `auth.tenant` as
  * `claims.tenant` and `organization`, and the renamed block and app table keys
  * under their flat names.
  */
@@ -157,7 +157,7 @@ export function flattenConfig(config: BetterSupabaseConfig): FlatConfig {
     if (group === "gen" && Object.keys(own).length > 0) {
       out["gen"] = own;
     } else if (group === "auth") {
-      Object.assign(out, organizationOf(own["organization"], out));
+      Object.assign(out, tenantOf(own["tenant"], out));
     }
   }
 
@@ -186,15 +186,15 @@ const ENVIRONMENT_KEY = /^\$(?:development|production|test|ci)$/;
 
 /**
  * Moves `claims.tenant`, the flat `organization` and the 0.14 tenant plugin's
- * column to `auth.organization`.
+ * column to `auth.tenant`.
  */
-function withOrganization(out: Entries, groups: Record<string, Entries>): void {
+function withTenant(out: Entries, groups: Record<string, Entries>): void {
   const auth = groups["auth"];
   const claims = auth?.["claims"];
 
   if (auth !== undefined && isObject(claims) && "tenant" in claims) {
     const { tenant, ...rest } = claims;
-    auth["organization"] = { claim: tenant };
+    auth["tenant"] = { claim: tenant };
 
     if (Object.keys(rest).length === 0) {
       delete auth["claims"];
@@ -209,7 +209,7 @@ function withOrganization(out: Entries, groups: Record<string, Entries>): void {
     delete out["organization"];
 
     const next = { ...groups["auth"] };
-    next["organization"] = { ...objectOr(next["organization"]), ...flat };
+    next["tenant"] = { ...objectOr(next["tenant"]), ...flat };
     groups["auth"] = next;
   }
 
@@ -224,7 +224,7 @@ function withOrganization(out: Entries, groups: Record<string, Entries>): void {
 
   if (typeof column === "string") {
     const next = { ...groups["auth"] };
-    next["organization"] = { ...objectOr(next["organization"]), column };
+    next["tenant"] = { ...objectOr(next["tenant"]), column };
     groups["auth"] = next;
   }
 }
@@ -276,7 +276,7 @@ export function groupEntries(config: object): Entries {
     database["sql"] = renameKeys(database["sql"], OWNER, true);
   }
 
-  withOrganization(out, groups);
+  withTenant(out, groups);
 
   if (out["blocks"] !== undefined) {
     out["blocks"] = eachEntry(out["blocks"], RENAMED_BLOCK_KEYS, true);

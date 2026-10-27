@@ -43,7 +43,7 @@ describe("CONFIG_DEFAULTS", () => {
     expect(resolveConfig({}, "/app").extensions.tenant).toBeUndefined();
     expect(
       resolveConfig(
-        { auth: { organization: { column: "org_id", onMissing: "error" } } },
+        { auth: { tenant: { column: "org_id", onMissing: "error" } } },
         "/app",
       ).extensions.tenant,
     ).toEqual({ column: "org_id", onMissing: "error" });

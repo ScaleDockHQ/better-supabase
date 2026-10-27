@@ -51,7 +51,7 @@ export const createShareLink = bsb.action(
       /** 0 creates a link without an expiry. */
       expiresInDays: v.picklist(SHARE_EXPIRY_DAYS),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "share_links.create"),
   },
   async (
@@ -105,7 +105,7 @@ export const startAttachmentUpload = bsb.action(
         v.maxValue(MAX_ATTACHMENT_BYTES),
       ),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "attachments.upload"),
   },
   async (
@@ -135,7 +135,7 @@ export const startAttachmentUpload = bsb.action(
 export const confirmAttachment = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "attachments.upload"),
   },
   async ({ id }, { supabase, auth }) => {
@@ -151,7 +151,7 @@ export const confirmAttachment = bsb.action(
 export const downloadAttachment = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "attachments.read"),
   },
   async ({ id }, { supabase }) =>
@@ -172,7 +172,7 @@ export const downloadAttachment = bsb.action(
 export const restoreCustomerVersion = bsb.action(
   {
     input: v.object({ customerId: Id, versionId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () =>
       can(await getPermissions(), "versions.restore") &&
       can(await getPermissions(), "customers.write"),
@@ -217,7 +217,7 @@ export const restoreCustomerVersion = bsb.action(
 export const compareCustomerVersions = bsb.action(
   {
     input: v.object({ fromId: Id, toId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "versions.read"),
   },
   async (
@@ -246,7 +246,7 @@ const DEFAULT_CUSTOMER_POLICY = {
 export const startCustomerSla = bsb.action(
   {
     input: v.object({ customerId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "sla.read"),
   },
   async ({ customerId }, { tenant: organizationId, db, auth }) => {

@@ -46,7 +46,7 @@ export const createWorkOrder = bsb.action(
         "normal",
       ),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "dispatch.manage"),
   },
   async ({ title, address, priority }, { db, auth }) => {
@@ -75,7 +75,7 @@ export const advanceWorkOrder = bsb.action(
       id: v.pipe(v.string(), v.uuid()),
       to: v.picklist(["en_route", "on_site", "done"]),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "dispatch.work"),
   },
   async ({ id, to }, { db, auth }) => {
@@ -113,7 +113,7 @@ export const createShipment = bsb.action(
         v.maxValue(70_000),
       ),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "shipments.manage"),
   },
   async (

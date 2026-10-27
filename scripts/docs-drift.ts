@@ -286,10 +286,12 @@ const RETIRED: readonly (readonly [RegExp, string])[] = [
     "`supabase.server.ts` (now `lib/supabase/server.ts`)",
   ],
   [/\bcreateBrowser\b/u, "`createBrowser` (now `createClient`)"],
+  [/\brequireOrganization\b/u, "`requireOrganization` (now `requireTenant`)"],
+  [/\bauth\.organization\b/u, "`auth.organization` (now `auth.tenant`)"],
 ];
 
 /** The pages whose job is to name the retired forms. */
-const RENAMES = ["concepts/naming.mdx", "migration/"];
+const RENAMES = ["concepts/naming.mdx", "migration/", "cli/codemod.mdx"];
 
 const IGNORED = [
   "**/node_modules/**",

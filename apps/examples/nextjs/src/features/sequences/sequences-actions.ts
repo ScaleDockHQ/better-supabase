@@ -22,7 +22,7 @@ export const createSampleSequence = bsb.action(
       text: v.pipe(v.string(), v.maxLength(4000)),
       task: Text,
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "sequences.manage"),
   },
   async ({ name, subject, text, task }, { db, auth }) => {
@@ -53,7 +53,7 @@ export const setSequenceStatus = bsb.action(
       sequenceId: Id,
       status: v.picklist(["active", "paused"]),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "sequences.manage"),
   },
   async ({ sequenceId, status }, { db, auth }) => {
@@ -112,7 +112,7 @@ function stepOf(input: v.InferOutput<typeof StepInput>): SequenceStep {
 export const addSequenceStep = bsb.action(
   {
     input: v.intersect([v.object({ sequenceId: Id }), StepInput]),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "sequences.manage"),
   },
   async (input, { db, auth }) => {

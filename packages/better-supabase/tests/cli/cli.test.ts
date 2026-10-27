@@ -935,7 +935,7 @@ describe("gen", () => {
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
         gen: { casing: "camel", output: "src/db/generated.ts" },
-        auth: { organization: { column: "organization_id" } },
+        auth: { tenant: { column: "organization_id" } },
         database: {
           realtime: {
             tables: ["customers", "public.tags", "organizations"],

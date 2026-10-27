@@ -172,7 +172,7 @@ describe("resolveConfig sql defaults", () => {
 describe("flattenConfig and groupConfig", () => {
   const grouped = {
     database: { schemas: ["public"], sql: { owner: "user" } },
-    auth: { organization: { claim: "app_metadata.org_id", column: "org_id" } },
+    auth: { tenant: { claim: "app_metadata.org_id", column: "org_id" } },
     gen: {
       casing: "camel",
       tables: { audit: { serviceRole: true } },

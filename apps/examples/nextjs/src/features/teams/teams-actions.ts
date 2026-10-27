@@ -36,7 +36,7 @@ function teamsChanged(
 export const createTeam = bsb.action(
   {
     input: v.object({ name: Name, description: Description }),
-    requireOrganization: true,
+    requireTenant: true,
   },
   async ({ name, description }, { tenant, db, auth }) => {
     const created = await db.teams.create(
@@ -59,7 +59,7 @@ export const createTeam = bsb.action(
 export const updateTeam = bsb.action(
   {
     input: v.object({ id: Id, name: Name, description: Description }),
-    requireOrganization: true,
+    requireTenant: true,
   },
   async ({ id, name, description }, { tenant, db, auth }) => {
     const updated = await db.teams.update(id, name, undefined, undefined, {
@@ -78,10 +78,7 @@ export const updateTeam = bsb.action(
 
 /** Archives or restores a team. */
 export const setTeamArchived = bsb.action(
-  {
-    input: v.object({ id: Id, archived: v.boolean() }),
-    requireOrganization: true,
-  },
+  { input: v.object({ id: Id, archived: v.boolean() }), requireTenant: true },
   async ({ id, archived }, { tenant, db, auth }) => {
     const changed = archived
       ? await db.teams.archive(id)
@@ -99,7 +96,7 @@ export const setTeamArchived = bsb.action(
 
 /** Deletes a team; customers it owned keep no owner (`on delete set null`). */
 export const deleteTeam = bsb.action(
-  { input: v.object({ id: Id }), requireOrganization: true },
+  { input: v.object({ id: Id }), requireTenant: true },
   async ({ id }, { tenant, db, auth }) => {
     const deleted = await db.teams.delete(id);
 
@@ -117,7 +114,7 @@ export const deleteTeam = bsb.action(
 export const setTeamMember = bsb.action(
   {
     input: v.object({ teamId: Id, userId: Id, member: v.boolean() }),
-    requireOrganization: true,
+    requireTenant: true,
   },
   async ({ teamId, userId, member }, { tenant, db, auth }) => {
     const changed = member

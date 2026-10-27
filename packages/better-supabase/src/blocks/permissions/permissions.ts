@@ -8,7 +8,7 @@ import type {
 } from "./permissions-controller.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { requireOrganization } from "../../core/block-tenant.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   blockCall,
@@ -129,7 +129,7 @@ export function createPermissions<K extends string = string>(
     keys: readonly string[] | undefined,
     perCall: AccessCallOptions | undefined,
   ): AsyncResult<PermissionSet> =>
-    requireOrganization(perCall?.tenant ?? options.tenant).andThen((tenant) =>
+    requireTenant(perCall?.tenant ?? options.tenant).andThen((tenant) =>
       keys?.length === 0
         ? AsyncResult.ok<PermissionSet>({ tenant, keys: [] })
         : call(
@@ -147,13 +147,13 @@ export function createPermissions<K extends string = string>(
         permissionFlags(set, flags),
       ),
     roles: (perCall) =>
-      requireOrganization(perCall?.tenant ?? options.tenant).andThen((tenant) =>
+      requireTenant(perCall?.tenant ?? options.tenant).andThen((tenant) =>
         call("list_roles", { tenant }, (value) =>
           recordsOf(value, "list_roles").map(catalogRoleOf),
         ),
       ),
     setOverride: (role, permission, granted, perCall) =>
-      requireOrganization(perCall?.tenant ?? options.tenant).andThen((tenant) =>
+      requireTenant(perCall?.tenant ?? options.tenant).andThen((tenant) =>
         call(
           "set_permission_override",
           { tenant, role, permission, granted },

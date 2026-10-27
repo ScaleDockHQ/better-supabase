@@ -73,7 +73,7 @@ describe("requireCaller", () => {
       kind: "unauthorized",
     });
     expect(
-      await requireCaller(user, { requireOrganization: true }, undefined),
+      await requireCaller(user, { requireTenant: true }, undefined),
     ).toMatchObject({ kind: "forbidden", code: "NO_TENANT" });
     expect(
       await requireCaller(user, { authorize: () => false }, "acme"),

@@ -16,7 +16,7 @@ export const createFeedbackBoard = bsb.action(
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "posts.manage"),
   },
   async ({ name }, { db, auth }) => {
@@ -44,7 +44,7 @@ export const createPost = bsb.action(
       title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
       body: v.pipe(v.string(), v.maxLength(10_000)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "posts.write"),
   },
   async ({ boardId, title, body }, { db, auth }) => {
@@ -64,7 +64,7 @@ export const createPost = bsb.action(
 export const voteOnPost = bsb.action(
   {
     input: v.object({ postId: Id, value: v.picklist([0, 1]) }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "posts.read"),
   },
   async ({ postId, value }, { db, auth }) => {

@@ -52,7 +52,7 @@ const NO_ADMIN = dbError(
 export const addSsoDomain = bsb.action(
   {
     input: v.object({ domain: DOMAIN }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "sso.manage"),
   },
   async ({ domain }, { tenant, db, auth }) => {
@@ -71,7 +71,7 @@ export const addSsoDomain = bsb.action(
 export const removeSsoDomain = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "sso.manage"),
   },
   async ({ id }, { db, auth }) => {
@@ -90,7 +90,7 @@ export const removeSsoDomain = bsb.action(
 export const verifySsoDomain = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "sso.manage"),
   },
   async ({ id }, { auth }) => {
@@ -128,7 +128,7 @@ export const updateSsoDomain = bsb.action(
       autoJoinRole: v.optional(v.nullable(v.picklist(["member", "admin"]))),
       enforceSso: v.optional(v.boolean()),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "sso.manage"),
   },
   async ({ id, autoJoinRole, enforceSso }, { db, auth }) => {
@@ -165,7 +165,7 @@ export const addSamlConnection = bsb.action(
       ),
       domains: v.pipe(v.array(DOMAIN), v.minLength(1)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "sso.manage"),
   },
   async ({ metadataUrl, domains }, { tenant, auth }) => {
@@ -198,7 +198,7 @@ export const addSamlConnection = bsb.action(
 export const removeSamlConnection = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "sso.manage"),
   },
   async ({ id }, { auth }) => {

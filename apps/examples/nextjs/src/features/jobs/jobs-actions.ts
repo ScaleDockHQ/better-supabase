@@ -19,7 +19,7 @@ import { JOBS_PERMISSION, jobsOn, QUEUE_NAME, TEST_QUEUE } from "./jobs-server";
  */
 export const enqueueTestJob = bsb.action(
   {
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), JOBS_PERMISSION),
   },
   async (_input, { tenant, auth }): Promise<Result<number>> => {
@@ -57,7 +57,7 @@ export const retryJobRun = bsb.action(
       queue: v.pipe(v.string(), v.regex(QUEUE_NAME)),
       id: v.pipe(v.number(), v.integer(), v.minValue(1)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), JOBS_PERMISSION),
   },
   async ({ queue, id }, { tenant, auth }): Promise<Result<number>> => {

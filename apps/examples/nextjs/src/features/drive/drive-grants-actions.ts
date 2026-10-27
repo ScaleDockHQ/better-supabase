@@ -38,7 +38,7 @@ export interface SharingTarget {
 export const loadDriveSharing = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "drive.read"),
   },
   async ({ id }, { tenant, db }) => {
@@ -96,7 +96,7 @@ export const shareDriveItem = bsb.action(
       principal: Principal,
       role: v.picklist(DRIVE_ROLES),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "drive.read"),
   },
   async ({ id, principal, role }, { db, auth }) => {
@@ -116,7 +116,7 @@ export const shareDriveItem = bsb.action(
 export const unshareDriveItem = bsb.action(
   {
     input: v.object({ id: Id, principal: Principal }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "drive.read"),
   },
   async ({ id, principal }, { db, auth }) => {

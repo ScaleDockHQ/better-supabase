@@ -24,7 +24,7 @@ describe("configIssues", () => {
         blocks: ["updated-at"],
         database: { expose: { notes: ["select"], tags: { anon: ["select"] } } },
         tooling: { doctor: { ignore: ["BS303"], strict: true } },
-        auth: { organization: { column: "org_id" } },
+        auth: { tenant: { column: "org_id" } },
       }),
     ).toEqual([]);
   });

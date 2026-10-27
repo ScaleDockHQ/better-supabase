@@ -897,7 +897,7 @@ const ENTRIES = {
   ),
   auth: v.optional(
     v.strictObject({
-      organization: v.optional(
+      tenant: v.optional(
         v.strictObject({
           claim: v.optional(v.string()),
           column: v.optional(v.string()),

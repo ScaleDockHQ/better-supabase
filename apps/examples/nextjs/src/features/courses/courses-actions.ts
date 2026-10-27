@@ -26,7 +26,7 @@ export const createSampleCourse = bsb.action(
         v.maxLength(10),
       ),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "courses.manage"),
   },
   async ({ title, lessons }, { db, auth }) => {
@@ -78,7 +78,7 @@ export const createSampleCourse = bsb.action(
 export const enrollInCourse = bsb.action(
   {
     input: v.object({ courseId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "courses.read"),
   },
   async ({ courseId }, { db, auth }) => {
@@ -98,7 +98,7 @@ export const enrollInCourse = bsb.action(
 export const completeLesson = bsb.action(
   {
     input: v.object({ lessonId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "courses.read"),
   },
   async ({ lessonId }, { db, auth }) => {
@@ -128,7 +128,7 @@ export const submitQuiz = bsb.action(
       lessonId: Id,
       answers: v.record(v.pipe(v.string(), v.maxLength(63)), Answer),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "courses.read"),
   },
   async ({ lessonId, answers }, { db, auth }) => {

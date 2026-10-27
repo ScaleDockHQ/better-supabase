@@ -31,7 +31,7 @@ export const setPermissionOverride = bsb.action(
       permission: Key,
       granted: v.nullable(v.boolean()),
     }),
-    requireOrganization: true,
+    requireTenant: true,
   },
   async ({ roleId, permission, granted }, { tenant, db, auth }) => {
     const role = await db.permissions.setOverride(roleId, permission, granted);

@@ -91,7 +91,7 @@ export interface ImportPreview {
 export const previewCustomerImport = bsb.action(
   {
     input: Input,
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "imports.manage"),
   },
   async ({ csv, mapping }, { db }) => {
@@ -125,7 +125,7 @@ export interface ImportOutcome {
 export const runCustomerImport = bsb.action(
   {
     input: Input,
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () =>
       can(await getPermissions(), "imports.manage") &&
       can(await getPermissions(), "customers.write"),

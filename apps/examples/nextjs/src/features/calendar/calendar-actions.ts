@@ -20,7 +20,7 @@ export const addEventReminder = bsb.action(
       eventId: Id,
       offsetMinutes: v.picklist(REMINDER_OFFSETS),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "reminders.manage"),
   },
   async ({ eventId, offsetMinutes }, { db, auth }) => {
@@ -43,7 +43,7 @@ export const addEventReminder = bsb.action(
 export const removeEventReminder = bsb.action(
   {
     input: v.object({ reminderId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "reminders.manage"),
   },
   async ({ reminderId }, { db, auth }) => {
@@ -74,7 +74,7 @@ export const createCalendar = bsb.action(
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
       tz: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "calendar.manage"),
   },
   async ({ name, tz }, { tenant, db, auth }) => {
@@ -112,7 +112,7 @@ export const createEvent = bsb.action(
         "End after the start",
       ),
     ),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "calendar.write"),
   },
   async (input, { db, auth }) => {
@@ -161,7 +161,7 @@ export const setWorkingHours = bsb.action(
       }),
       v.check((input) => input.start < input.end, "End after the start"),
     ),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "calendar.read"),
   },
   async ({ tz, start, end }, { tenant, db, auth }) => {

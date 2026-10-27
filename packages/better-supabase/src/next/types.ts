@@ -343,7 +343,7 @@ export interface BetterNext<
    *
    * ```ts
    * export const invite = bsb.action(
-   *   { input: Invite, requireOrganization: true, roles: ["admin"] },
+   *   { input: Invite, requireTenant: true, roles: ["admin"] },
    *   async (input, { db, tenant }) =>
    *     db.invitations.create({ ...input, organizationId: tenant }),
    * );
@@ -420,7 +420,7 @@ export interface BetterNext<
    *
    * ```ts
    * const { db, tenant } = await bsb.require({
-   *   requireOrganization: true,
+   *   requireTenant: true,
    *   roles: ["admin"],
    * });
    * ```

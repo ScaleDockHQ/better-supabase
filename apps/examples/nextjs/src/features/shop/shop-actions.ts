@@ -40,7 +40,7 @@ export const createProduct = bsb.action(
       sku: v.pipe(Text(64), v.toUpperCase()),
       price: Decimal,
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "catalog.manage"),
   },
   async ({ title, sku, price }, { tenant, db, auth }) => {
@@ -81,7 +81,7 @@ export const createProduct = bsb.action(
 export const createMainLocation = bsb.action(
   {
     input: v.object({}),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "inventory.manage"),
   },
   async (_input, { tenant, db, auth }) => {
@@ -113,7 +113,7 @@ export const adjustStock = bsb.action(
       reason: v.picklist(ADJUST_REASONS),
       note: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(500))),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "inventory.manage"),
   },
   async ({ variantId, locationId, quantity, reason, note }, { db, auth }) => {
@@ -145,7 +145,7 @@ export const createDraftOrder = bsb.action(
       variantId: Id,
       quantity: v.pipe(Count, v.minValue(1), v.maxValue(999)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "orders.manage"),
   },
   async ({ variantId, quantity }, { tenant, supabase, auth }) => {
@@ -172,7 +172,7 @@ export const createDraftOrder = bsb.action(
 export const placeOrder = bsb.action(
   {
     input: v.object({ cartId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "orders.manage"),
   },
   async ({ cartId }, { supabase, auth }) => {
@@ -195,7 +195,7 @@ export const placeOrder = bsb.action(
 export const markOrderPaid = bsb.action(
   {
     input: v.object({ orderId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "orders.manage"),
   },
   async ({ orderId }, { supabase, auth }) => {
@@ -243,7 +243,7 @@ export const markOrderPaid = bsb.action(
 export const cancelOrder = bsb.action(
   {
     input: v.object({ orderId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "orders.manage"),
   },
   async ({ orderId }, { supabase, auth }) => {
@@ -266,7 +266,7 @@ export const cancelOrder = bsb.action(
 export const fulfillOrder = bsb.action(
   {
     input: v.object({ orderId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "orders.manage"),
   },
   async ({ orderId }, { supabase, auth }) => {
@@ -285,7 +285,7 @@ export const fulfillOrder = bsb.action(
 export const shipFulfillment = bsb.action(
   {
     input: v.object({ fulfillmentId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "orders.manage"),
   },
   async ({ fulfillmentId }, { supabase, auth }) => {
@@ -304,7 +304,7 @@ export const shipFulfillment = bsb.action(
 export const deliverFulfillment = bsb.action(
   {
     input: v.object({ fulfillmentId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "orders.manage"),
   },
   async ({ fulfillmentId }, { supabase, auth }) => {
@@ -332,7 +332,7 @@ const Code = v.pipe(
 export const applyPromotionCode = bsb.action(
   {
     input: v.object({ cartId: Id, code: Code }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "orders.manage"),
   },
   async ({ cartId, code }, { db, auth }) => {
@@ -351,7 +351,7 @@ export const applyPromotionCode = bsb.action(
 export const removePromotionCode = bsb.action(
   {
     input: v.object({ cartId: Id, code: Code }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "orders.manage"),
   },
   async ({ cartId, code }, { db, auth }) => {
@@ -382,7 +382,7 @@ export const createPromotionCode = bsb.action(
         ),
       ),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "promotions.manage"),
   },
   async ({ code, percent }, { tenant, db }) => {

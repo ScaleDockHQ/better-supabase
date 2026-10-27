@@ -78,7 +78,7 @@ export const betterSupabase = defineSupabase(schema).blocks(blockSet);
 
 ```ts title="src/features/notes/notes-actions.ts"
 export const addNote = bsb.action(
-  { input: NoteInput, requireOrganization: true },
+  { input: NoteInput, requireTenant: true },
   async ({ customerId, text }, { db }) =>
     db.comments.add({ type: "customer", id: customerId }, text),
 );

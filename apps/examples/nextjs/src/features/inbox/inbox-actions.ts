@@ -33,7 +33,7 @@ function laterInstant(later: Later): Temporal.Instant {
 export const loadConversations = bsb.action(
   {
     input: v.object({ status: ConversationStatus, assignee: AssigneeFilter }),
-    requireOrganization: true,
+    requireTenant: true,
   },
   async ({ status, assignee }, { tenant, db }) => {
     const filter: ConversationFilter = { status, limit: 50 };

@@ -621,6 +621,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },
+      {
+        name: "0.31",
+        description:
+          "Changes from 0.30 to 0.31: tenant is the public word again (auth.tenant, requireTenant), and sign-in, session, proxy and cache names follow supabase-js",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
     ],
   },
 ];

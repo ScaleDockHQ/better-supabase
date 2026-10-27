@@ -29,7 +29,7 @@ export const requestAccess = bsb.action(
       duration: v.picklist(DURATIONS),
       reason: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(500))),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () =>
       can(await getPermissions(), "access_requests.create"),
   },
@@ -63,7 +63,7 @@ export const decideAccessRequest = bsb.action(
       approvalId: ID,
       decision: v.picklist(["approve", "reject"]),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "members.update_role"),
   },
   async ({ approvalId, decision }, { db, auth }) => {
@@ -86,7 +86,7 @@ export const decideAccessRequest = bsb.action(
 
 /** Withdraws the caller's own pending request. */
 export const cancelAccessRequest = bsb.action(
-  { input: v.object({ approvalId: ID }), requireOrganization: true },
+  { input: v.object({ approvalId: ID }), requireTenant: true },
   async ({ approvalId }, { db, auth }) => {
     const cancelled = await db.approvals.cancel(approvalId);
 
@@ -102,7 +102,7 @@ export const cancelAccessRequest = bsb.action(
 
 /** Ends a granted role early: a manager, or the holder giving it up. */
 export const endAccess = bsb.action(
-  { input: v.object({ id: ID }), requireOrganization: true },
+  { input: v.object({ id: ID }), requireTenant: true },
   async ({ id }, { db, auth }) => {
     const ended = await db.accessRequests.end(id);
 

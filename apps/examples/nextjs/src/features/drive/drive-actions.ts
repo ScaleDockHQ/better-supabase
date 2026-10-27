@@ -22,7 +22,7 @@ const ParentId = v.pipe(
 export const createDriveFolder = bsb.action(
   {
     input: v.object({ parentId: ParentId, name: Name }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "drive.create"),
   },
   async ({ parentId, name }, { tenant, db, auth }) => {
@@ -55,7 +55,7 @@ export const startDriveUpload = bsb.action(
       mimeType: v.pipe(v.string(), v.maxLength(255)),
       size: v.pipe(v.number(), v.integer(), v.minValue(1)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "drive.create"),
   },
   async ({ parentId, name, mimeType, size }, { tenant, db }) => {
@@ -87,7 +87,7 @@ export const startDriveUpload = bsb.action(
 export const commitDriveUpload = bsb.action(
   {
     input: v.object({ nodeId: Id, attachmentId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "drive.create"),
   },
   async ({ nodeId, attachmentId }, { db, auth }) => {
@@ -107,7 +107,7 @@ export const commitDriveUpload = bsb.action(
 export const abandonDriveUpload = bsb.action(
   {
     input: v.object({ nodeId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "drive.create"),
   },
   async ({ nodeId }, { db }) => driveOf(db).delete(nodeId),
@@ -116,7 +116,7 @@ export const abandonDriveUpload = bsb.action(
 export const renameDriveItem = bsb.action(
   {
     input: v.object({ id: Id, name: Name }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "drive.create"),
   },
   async ({ id, name }, { db, auth }) => {
@@ -139,7 +139,7 @@ export const renameDriveItem = bsb.action(
 export const trashDriveItem = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "drive.create"),
   },
   async ({ id }, { db, auth }) => {
@@ -159,7 +159,7 @@ export const trashDriveItem = bsb.action(
 export const downloadDriveFile = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "drive.read"),
   },
   async ({ id }, { db }) => {
@@ -177,7 +177,7 @@ export const downloadDriveFile = bsb.action(
 export const requestDriveApproval = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "drive.create"),
   },
   async ({ id }, { db, auth }) => {

@@ -24,7 +24,7 @@ const handler = bsb.routes(
     "GET /notes/:id": (_request, ctx) => ok(ctx.params),
     "GET /notes/new": () => ok("static"),
     "/files/*": (_request, ctx) => ok(ctx.params["*"]),
-    "POST /invites": { requireOrganization: true, handler: () => ok("sent") },
+    "POST /invites": { requireTenant: true, handler: () => ok("sent") },
     "GET /public": { allow: ["anon", "user"], handler: () => ok("hi") },
   },
   { basePath: "/api" },

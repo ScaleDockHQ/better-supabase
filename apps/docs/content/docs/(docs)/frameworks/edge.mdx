@@ -123,7 +123,7 @@ Deno.serve(
       "POST /customers/:id/archive": {
         roles: ["admin"],
         roleClaim: "user_role",
-        requireOrganization: true,
+        requireTenant: true,
         handler: (_request, { db, params }) =>
           db.customers.update(params.id, { status: "archived" }),
       },

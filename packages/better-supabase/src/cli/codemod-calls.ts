@@ -4,10 +4,19 @@
  * are listed for review, since their quoting and variables vary more.
  */
 
+import type { ReviewHint } from "./codemod.ts";
+
 /** Rewrites the words after the bin, or returns `undefined` when nothing moved. */
 export type CliCallMigration = (
   argv: readonly string[],
 ) => readonly string[] | undefined;
+
+/** `sql add` calls, listed by the 0.9 codemod. */
+export const SQL_ADD_HINT: ReviewHint = {
+  pattern: /(?<![\w.@-])(?:better-supabase|bsb)(?:@[\w.^~-]+)?\s+sql\s+add\b/,
+  message:
+    "`sql add` still only writes the block's SQL; `add` also wires its clients and config. Use `add` unless the script needs the SQL alone",
+};
 
 /** Files whose CLI calls a codemod rewrites. */
 export const CLI_CALL_FILE: RegExp =

@@ -11,7 +11,7 @@ const authed = bsb.authed();
 const admin = bsb.authed({
   roles: ["admin"],
   roleClaim: "user_role",
-  requireOrganization: true,
+  requireTenant: true,
 });
 
 const customer = ["id", "name", "status", "organizationId"] as const;

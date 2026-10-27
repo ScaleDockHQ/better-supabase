@@ -523,14 +523,14 @@ const ref: RecordRef = { type: "customer", id };
     expect(result.text).not.toContain("generateFeatures");
   });
 
-  it("renames requireTenant to requireOrganization", () => {
+  it("renames requireTenant to requireTenant", () => {
     const source = `import { bsb } from "@/lib/supabase";
 
 export const run = bsb.action(handler, { requireTenant: true });
 `;
 
     expect(applyCodemod(v015, source).text).toContain(
-      "{ requireOrganization: true }",
+      "{ requireTenant: true }",
     );
   });
 

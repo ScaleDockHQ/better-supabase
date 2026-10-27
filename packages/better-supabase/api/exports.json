@@ -359,7 +359,7 @@
       "MigrationSafetyConfig",
       "NuqsGeneratorOptions",
       "OpenApiConfig",
-      "OrganizationConfig",
+      "TenantConfig",
       "OwnTablePolicies",
       "PowerSyncGenConfig",
       "Privilege",

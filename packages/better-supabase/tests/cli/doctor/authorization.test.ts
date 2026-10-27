@@ -481,10 +481,7 @@ describe("BS409", () => {
   it("passes when the claims match the provider", async () => {
     expect(
       await findings("BS409", {
-        auth: {
-          organization: { claim: "tenant_id" },
-          authorization: stubProvider,
-        },
+        auth: { tenant: { claim: "tenant_id" }, authorization: stubProvider },
       }),
     ).toEqual([]);
     expect(await findings("BS409", {})).toEqual([]);
@@ -512,7 +509,7 @@ describe("BS409", () => {
         severity: "warning",
         target: "claims.tenant",
         message: expect.stringContaining(
-          'writes the active tenant to "org_id", but auth.organization.claim is "tenant_id"',
+          'writes the active tenant to "org_id", but auth.tenant.claim is "tenant_id"',
         ),
       },
       {
@@ -534,7 +531,7 @@ describe("BS409", () => {
     expect(
       await findings("BS409", {
         auth: {
-          organization: { claim: "tenant_id" },
+          tenant: { claim: "tenant_id" },
           authorization: reading("claim"),
         },
         blocks: { permissions: { activeTenant: "claim" } },
@@ -543,7 +540,7 @@ describe("BS409", () => {
     expect(
       await findings("BS409", {
         auth: {
-          organization: { claim: "tenant_id" },
+          tenant: { claim: "tenant_id" },
           authorization: reading({
             profileColumn: "authz.sessions.organization_id",
           }),

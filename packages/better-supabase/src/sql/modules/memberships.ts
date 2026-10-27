@@ -648,7 +648,7 @@ export const TENANT: BlockSqlDefinition = {
     {
       kind: "claim",
       symbol: "org_id",
-      use: "the auth.organization.claim claim (tenant_id)",
+      use: "the auth.tenant.claim claim (tenant_id)",
       since: "0.2.0",
       removed: "0.2.0",
     },

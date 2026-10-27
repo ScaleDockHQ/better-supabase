@@ -22,7 +22,7 @@ export const requestApproval = bsb.action(
       action: v.picklist(APPROVAL_ACTIONS),
       reason: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "approvals.request"),
   },
   async ({ subjectId, action, reason }, { db, auth }) => {
@@ -52,7 +52,7 @@ export const decideApproval = bsb.action(
       decision: v.picklist(["approve", "reject"]),
       comment: Comment,
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "approvals.read"),
   },
   async ({ id, decision, comment }, { db, auth }) => {

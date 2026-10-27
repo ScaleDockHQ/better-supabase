@@ -267,7 +267,7 @@ in a private cache; pass the tenant in as an argument of your function.
 
 `bsb.require(options)` is `bsb.context()` for a page only some callers may
 see. It takes the same `allow`, `aal` and `scopes` as `bsb.route()`, plus
-`requireOrganization` and `authorize` (see [server actions](#server-actions)), and
+`requireTenant` and `authorize` (see [server actions](#server-actions)), and
 turns a refusal into the Next.js interrupt: `unauthorized()` renders the
 nearest `unauthorized.tsx`, `forbidden()` the nearest `forbidden.tsx`. Both
 need `experimental.authInterrupts` in `next.config.ts`; without it, a
@@ -276,7 +276,7 @@ refused caller gets `notFound()`.
 ```tsx title="src/app/settings/audit/page.tsx"
 export default async function AuditPage() {
   const { db, tenant } = await bsb.require({
-    requireOrganization: true,
+    requireTenant: true,
     roles: ["admin"],
   });
   const events = await db.auditEvents
@@ -499,7 +499,7 @@ scopes the action's context to a tenant from the validated input.
 [`useActionForm` and `useAction`](/docs/frontend/react#server-actions) call
 it from a Client Component.
 
-`requireOrganization` and `authorize` run after `allow`, `aal` and `scopes`, so
+`requireTenant` and `authorize` run after `allow`, `aal` and `scopes`, so
 the permission check sits next to the action instead of at the top of its
 body:
 
@@ -507,7 +507,7 @@ body:
 export const inviteMember = bsb.action(
   {
     input: Invite,
-    requireOrganization: true,
+    requireTenant: true,
     authorize: (session, input) => canAssign(session, input.role),
   },
   (input, { db, tenant }) =>
@@ -518,7 +518,7 @@ export const inviteMember = bsb.action(
 `canAssign` stands for your own check, for example one your authorization
 provider exports.
 
-- `requireOrganization: true` refuses a caller without an active tenant with a
+- `requireTenant: true` refuses a caller without an active tenant with a
   `forbidden` error (`code: "NO_TENANT"`) and types `ctx.tenant` as a
   `string`. The tenant is the action's `tenant`, then the server's `tenant`
   resolver, then the tenant claim.
@@ -537,7 +537,7 @@ provider exports.
   `forbidden` (`code: "NOT_AUTHORIZED"`).
 - `ctx.session` is the caller's `AuthSession`, so the body doesn't call
   `toSession(ctx.auth)` again.
-- `bsb.route(handler, { requireOrganization, authorize })` takes the same options
+- `bsb.route(handler, { requireTenant, authorize })` takes the same options
   and answers a refusal with a 403 Problem Details response.
 
 Route handlers and actions pass event sink sends they started to `after()`
@@ -568,7 +568,7 @@ import { permissions } from "@/lib/supabase/blocks.generated";
 
 export const createTask = bsb.blockAction(({ db }) => db.tasks, "create", {
   input: v.object({ title: v.pipe(v.string(), v.minLength(1)) }),
-  requireOrganization: true,
+  requireTenant: true,
   permission: permissions["tasks"].write,
   args: (input, { tenant }) => [tenant, input],
 });

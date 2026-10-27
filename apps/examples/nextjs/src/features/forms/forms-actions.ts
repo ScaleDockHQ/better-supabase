@@ -31,7 +31,7 @@ export const createForm = bsb.action(
         "",
       ),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "forms.manage"),
   },
   async ({ title, description }, { tenant, db, auth }) => {
@@ -73,7 +73,7 @@ export const publishForm = bsb.action(
       formId: Id,
       fields: v.pipe(v.array(Field), v.minLength(1), v.maxLength(50)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "forms.manage"),
   },
   async ({ formId, fields }, { db, auth }) => {
@@ -109,7 +109,7 @@ const Answer = v.union([
 export const submitForm = bsb.action(
   {
     input: v.object({ formId: Id, answers: v.record(v.string(), Answer) }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "forms.submit"),
   },
   async ({ formId, answers }, { db, auth }) => {

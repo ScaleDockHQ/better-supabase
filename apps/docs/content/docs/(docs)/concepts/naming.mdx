@@ -24,7 +24,8 @@ records the decision.
 | record type   | a kind of row other blocks attach to (`RecordRef`, config `subjects`)                  | subject, `SubjectRef`              |
 | names         | the nouns an instance uses (`blocks.<name>.names`)                                     | entities                           |
 | tables        | the app's own tables (SQL in `supabase/schemas`)                                       | `tables`                           |
-| organization  | the account that owns data, in every name you see                                      | tenant (stays in internal code)    |
+| tenant        | the account that owns data, in every library name (`auth.tenant`, `requireTenant`)     | organization (0.15 to 0.30)        |
+| organization  | what the examples and the `organizations` block call a tenant in the UI and its tables | nothing                            |
 | preset        | a named selection of blocks                                                            | nothing                            |
 | design        | the JSON document Create writes, the one format for presets                            | preset codes                       |
 | registry item | an installable file: a page, widget, route or recipe                                   | screens, glue                      |
@@ -36,7 +37,7 @@ records the decision.
 | engine        | what runs the hooks: TanStack Query, the controllers, PowerSync, TanStack DB, SQLite   | separate client data layers        |
 | client        | the one better-supabase client, named `bsb`; instances and tables are properties on it | `bs`, transport                    |
 | callbacks     | the `before_*` and `after_*` functions of a block (`blocks.<name>.callbacks`)          | block hooks                        |
-| owner         | who owns a row: `organization`, `user` or `none` (`blocks.<name>.ownership`)           | scope, mode                        |
+| owner         | who owns a row: `tenant`, `user` or `none` (`blocks.<name>.scope`)                     | mode                               |
 | event         | an outbox CloudEvent; in-process `on` handlers are listeners                           | nothing                            |
 | automation    | a trigger and actions an organization can edit                                         | rules, flows                       |
 | workflow      | code that runs durably                                                                 | nothing                            |

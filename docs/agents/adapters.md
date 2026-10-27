@@ -7,7 +7,7 @@ the clients (`client`, `client/native`) and the local-first entries
 ## Shared guards
 
 - Every server adapter takes the same guard options, `BlockRequireOptions`
-  (`roles`, `roleClaim`, `requireOrganization`, `authorize`), and every
+  (`roles`, `roleClaim`, `requireTenant`, `authorize`), and every
   `bsb.action` takes `BlockActionOptions` (the same guards plus `input`).
   Add a guard there, not in one adapter, so `bsb.require`, `bsb.authed`,
   `bsb.routes`, `bsb.action` and the Next.js helpers stay in step.

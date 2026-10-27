@@ -199,7 +199,7 @@ export function createReactRouter<
             throw refusalResponse(caller, args.request, options, expose);
           }
 
-          // SAFETY: requireOrganization refused a missing tenant.
+          // SAFETY: requireTenant refused a missing tenant.
           const ctx = { ...scope, ...caller } as never;
           const settled = await settle(() => fn(args, ctx));
 
@@ -226,7 +226,7 @@ export function createReactRouter<
             await actionInput(args.request),
             scope.tenant,
             // SAFETY: parsed is the validated input, or the raw input when the
-            // action has no schema; requireOrganization refused a missing tenant.
+            // action has no schema; requireTenant refused a missing tenant.
             (parsed, caller) =>
               fn(parsed as never, { ...scope, ...caller } as never, args),
             server.authorizer,

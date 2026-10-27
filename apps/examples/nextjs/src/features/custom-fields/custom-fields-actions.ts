@@ -26,7 +26,7 @@ export const saveField = bsb.action(
       type: FieldTypeSchema,
       sensitive: v.optional(v.boolean(), false),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "custom_fields.manage"),
   },
   async ({ entity, key, label, type, sensitive }, { db, auth }) => {
@@ -51,7 +51,7 @@ export const saveField = bsb.action(
 export const deleteField = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "custom_fields.manage"),
   },
   async ({ id }, { db, auth }) => {
@@ -78,7 +78,7 @@ export const moveField = bsb.action(
       id: Id,
       direction: v.picklist(["up", "down"]),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "custom_fields.manage"),
   },
   async ({ entity, id, direction }, { db, auth }) => {

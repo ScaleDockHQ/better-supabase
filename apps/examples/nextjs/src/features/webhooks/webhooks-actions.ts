@@ -38,7 +38,7 @@ const CreateEndpoint = v.object({
   ),
 });
 
-const manage = { requireOrganization: true, authorize: canManage } as const;
+const manage = { requireTenant: true, authorize: canManage } as const;
 
 async function canManage(): Promise<boolean> {
   return can(await getPermissions(), "webhooks.manage");

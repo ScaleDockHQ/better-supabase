@@ -288,8 +288,8 @@ export function createNext<
     scopedTenants.get(ctx) ?? tenantOf(view, tenantClaim);
 
   /**
-   * `requireOrganization`, `roles`, `permission` and `authorize`, for the
-   * context's tenant.
+   * `requireTenant`, `roles`, `permission` and `authorize`, for the context's
+   * tenant.
    */
   const authorizeCaller = <I, X>(
     ctx: ServerContext<M, F, E, C, P, B>,
@@ -684,7 +684,7 @@ export function createNext<
                 return err(caller);
               }
 
-              // SAFETY: requireOrganization refused a missing tenant.
+              // SAFETY: requireTenant refused a missing tenant.
               return handler(
                 request,
                 withExtra(ctx, { ...caller, params }) as never,
@@ -847,7 +847,7 @@ export function createNext<
 
         try {
           // SAFETY: parsed is the validated input, or the raw input when the
-          // action has no schema; requireOrganization refused a missing tenant.
+          // action has no schema; requireTenant refused a missing tenant.
           settled = await settle(() =>
             fn(parsed as never, withExtra(scope, caller) as never),
           );
@@ -881,7 +881,7 @@ export function createNext<
         interrupt(caller);
       }
 
-      // SAFETY: requireOrganization refused a missing tenant.
+      // SAFETY: requireTenant refused a missing tenant.
       return withExtra(ctx, caller) as never;
     },
 

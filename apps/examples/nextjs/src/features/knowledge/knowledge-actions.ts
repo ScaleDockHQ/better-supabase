@@ -21,7 +21,7 @@ export const addDocument = bsb.action(
       title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
       text: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100_000)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "ai.create"),
   },
   async ({ title, text }, { tenant, supabase }) => {
@@ -47,7 +47,7 @@ export const addDocument = bsb.action(
 export const removeDocument = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "ai.create"),
   },
   async ({ id }, { supabase }) => {
@@ -76,7 +76,7 @@ export const searchKnowledge = bsb.action(
     input: v.object({
       query: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "ai.create"),
   },
   ({ query }, { tenant, supabase }) =>

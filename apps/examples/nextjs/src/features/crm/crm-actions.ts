@@ -36,7 +36,7 @@ export const createContact = bsb.action(
       email: Optional,
       domain: Optional,
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "parties.write"),
   },
   async ({ kind, name, email, domain }, { tenant, db, auth }) => {
@@ -61,7 +61,7 @@ export const createContact = bsb.action(
 export const linkPerson = bsb.action(
   {
     input: v.object({ companyId: Id, personId: Id, role: Optional }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "parties.write"),
   },
   async ({ companyId, personId, role }, { db, auth }) => {
@@ -91,7 +91,7 @@ export const logActivity = bsb.action(
       title: Name,
       body: Optional,
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "engagements.write"),
   },
   async (
@@ -137,7 +137,7 @@ const DEFAULT_STAGES = [
 /** Creates the "Sales" deal pipeline with six stages, unless one exists. */
 export const createDefaultPipeline = bsb.action(
   {
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "pipelines.manage"),
   },
   async (_input, { tenant, db, auth }) => {
@@ -191,7 +191,7 @@ export const createDeal = bsb.action(
       pipelineId: Id,
       stageId: Id,
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "deals.write"),
   },
   async (
@@ -221,7 +221,7 @@ export const createDeal = bsb.action(
 export const moveDeal = bsb.action(
   {
     input: v.object({ dealId: Id, stageId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "deals.write"),
   },
   async ({ dealId, stageId }, { db, auth }) => {
@@ -256,7 +256,7 @@ export const createTarget = bsb.action(
       periodStart: IsoDate,
       periodEnd: IsoDate,
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "targets.manage"),
   },
   async (
@@ -297,7 +297,7 @@ export const createTarget = bsb.action(
 export const createQuote = bsb.action(
   {
     input: v.object({ title: Name, currency: Currency }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "quotes.write"),
   },
   async ({ title, currency }, { tenant, db, auth }) => {
@@ -329,7 +329,7 @@ export const saveQuoteLines = bsb.action(
       currency: Currency,
       lines: v.pipe(v.array(QuoteLine), v.maxLength(100)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "quotes.write"),
   },
   async ({ quoteId, currency, lines }, { db, auth }) => {
@@ -358,7 +358,7 @@ export const saveQuoteLines = bsb.action(
 export const sendQuote = bsb.action(
   {
     input: v.object({ quoteId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "quotes.write"),
   },
   async ({ quoteId }, { db, auth }) => {
@@ -381,7 +381,7 @@ export const decideQuote = bsb.action(
       quoteId: Id,
       decision: v.picklist(["accepted", "rejected", "changes_requested"]),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "quotes.write"),
   },
   async ({ quoteId, decision }, { db, auth }) => {
@@ -401,7 +401,7 @@ export const decideQuote = bsb.action(
 export const reviseQuote = bsb.action(
   {
     input: v.object({ quoteId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "quotes.write"),
   },
   async ({ quoteId }, { db, auth }) => {

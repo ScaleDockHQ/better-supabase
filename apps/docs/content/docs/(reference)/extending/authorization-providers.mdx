@@ -238,7 +238,7 @@ isn't marked. Leave row-conditioned keys to the provider's table policies.
 | Field                    | Used for                                                                                     |
 | ------------------------ | -------------------------------------------------------------------------------------------- |
 | `function`               | BS404 checks its grants, BS405 its shape                                                     |
-| `tenantClaim`            | BS409 compares it with `auth.organization.claim`                                             |
+| `tenantClaim`            | BS409 compares it with `auth.tenant.claim`                                                   |
 | `activeOrganizationFrom` | BS409 compares it with `blocks.permissions.activeTenant`, where `switch_organization` writes |
 | `ownedClaims`            | BS407 reports another hook that writes them; `add memberships` stops on them                 |
 | `registeredClaims`       | BS407 accepts these claims from the functions named, such as `features`                      |

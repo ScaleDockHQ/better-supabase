@@ -27,7 +27,7 @@ export const createCustomer = bsb.action(
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "customers.write"),
   },
   async ({ name }, { tenant: organizationId, db }) => {
@@ -71,7 +71,7 @@ export const createCustomer = bsb.action(
 export const setCustomerOwnerTeam = bsb.action(
   {
     input: v.object({ customerId: Id, teamId: v.nullable(Id) }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "customers.write"),
   },
   async ({ customerId, teamId }, { db }) =>
@@ -95,7 +95,7 @@ export const uploadCustomerLogo = bsb.action(
         v.check((file) => file.size > 0, "Pick a file"),
       ),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "customers.write"),
   },
   async ({ customerId, logo }, { tenant: organizationId, db, supabase }) => {

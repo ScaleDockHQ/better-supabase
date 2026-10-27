@@ -719,12 +719,12 @@
     "auth": {
       "type": "object",
       "properties": {
-        "organization": {
+        "tenant": {
           "type": "object",
           "properties": {
             "claim": {
               "type": "string",
-              "description": "Top-level claim holding the active organization id. Defaults to `tenant_id`."
+              "description": "Top-level claim holding the active tenant id. Defaults to `tenant_id`."
             },
             "column": {
               "type": "string",
@@ -739,7 +739,7 @@
             }
           },
           "additionalProperties": false,
-          "description": "How the active organization is found: the claim that holds its id and the column the tenant plugin filters by."
+          "description": "How the active tenant is found: the claim that holds its id and the column the memberships extension filters by."
         },
         "claims": {
           "type": "object",

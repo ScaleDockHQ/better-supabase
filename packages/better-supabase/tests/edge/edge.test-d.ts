@@ -50,7 +50,7 @@ describe("bsb.routes params", () => {
         return null;
       },
       "/files/*": {
-        requireOrganization: true,
+        requireTenant: true,
         handler: (_request, { params }) => {
           expectTypeOf(params).toEqualTypeOf<{ readonly "*": string }>();
 

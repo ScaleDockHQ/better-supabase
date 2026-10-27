@@ -26,7 +26,7 @@ import {
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { optionalRecordRefOf } from "../../core/block-subjects.ts";
-import { requireOrganization } from "../../core/block-tenant.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError, isDbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { subjectReaders } from "../../core/subject-readers.ts";
@@ -190,7 +190,7 @@ export function createReminders<
 
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "reminder fields");
-  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
   const notifyDelivery = options.notifyDelivery ?? notifyThrough(options);
 
   const audience =

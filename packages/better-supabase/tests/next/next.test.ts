@@ -944,17 +944,13 @@ describe("createNext", () => {
     });
   });
 
-  it("checks requireOrganization and authorize after validation, and passes session and tenant", async () => {
+  it("checks requireTenant and authorize after validation, and passes session and tenant", async () => {
     const authorize = vi.fn(
       (_session: unknown, input: { name: string }) => input.name !== "nope",
     );
 
     const save = bsb.action(
-      {
-        input: v.object({ name: v.string() }),
-        requireOrganization: true,
-        authorize,
-      },
+      { input: v.object({ name: v.string() }), requireTenant: true, authorize },
       (input, ctx) => {
         const tenant: string = ctx.tenant;
 
@@ -1023,7 +1019,7 @@ describe("createNext", () => {
 
     const call = (authorized: boolean) =>
       bsb.route(handler, {
-        requireOrganization: true,
+        requireTenant: true,
         authorize: (session, request) =>
           authorized && session.kind === "user" && request.method === "GET",
       })(
@@ -1069,7 +1065,7 @@ describe("createNext", () => {
       vi.unstubAllEnvs();
     }
 
-    const ctx = await bsb.require({ requireOrganization: true });
+    const ctx = await bsb.require({ requireTenant: true });
     const tenant: string = ctx.tenant;
     expect(tenant).toBe("org-1");
     expect(ctx.session.kind).toBe("user");

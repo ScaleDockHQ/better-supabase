@@ -39,7 +39,7 @@ const REMOVED_NAMES: readonly { pattern: RegExp; replacement: string }[] = [
   },
   {
     pattern: /\brequireTenant\b/,
-    replacement: "`requireOrganization` (`bsb codemod 0.15` renames it)",
+    replacement: "`requireTenant` (`bsb codemod 0.15` renames it)",
   },
   {
     pattern:

@@ -75,7 +75,7 @@ export default defineConfig({
     hooks: "react",
   },
   auth: {
-    organization: { column: "organization_id" },
+    tenant: { column: "organization_id" },
     // Plan features come from the fixture's plan catalog
     // (supabase/schemas/public/tables/plans.sql), not from Stripe.
     entitlements: {

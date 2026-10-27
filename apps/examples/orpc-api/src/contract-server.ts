@@ -36,7 +36,7 @@ export const contractRouter = os.router({
         bsb.middleware({
           roles: ["admin"],
           roleClaim: "user_role",
-          requireOrganization: true,
+          requireTenant: true,
         }),
       )
       .handler(({ context, input }) =>

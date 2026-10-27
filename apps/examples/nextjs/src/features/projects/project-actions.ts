@@ -44,7 +44,7 @@ export const createProject = bsb.action(
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
   },
   async ({ name }, { tenant, db, auth }) => {
     const created = await db.projects.create(
@@ -86,7 +86,7 @@ export const createTask = bsb.action(
         "The start date is after the due date.",
       ),
     ),
-    requireOrganization: true,
+    requireTenant: true,
   },
   async (task, { tenant, db, auth }) => {
     const created = await db.tasks.create(
@@ -116,7 +116,7 @@ export const moveTask = bsb.action(
       previousId: v.nullable(Id),
       nextId: v.nullable(Id),
     }),
-    requireOrganization: true,
+    requireTenant: true,
   },
   async ({ id, status, previousId, nextId }, { db, auth }) => {
     const moved = await db.rank.move(TASK_SUBJECT, id, {
@@ -145,7 +145,7 @@ export const runTaskBulkAction = bsb.action(
         ids: v.pipe(v.array(Id), v.minLength(1), v.maxLength(500)),
       }),
     ]),
-    requireOrganization: true,
+    requireTenant: true,
   },
   async (input, { db, auth }) => {
     const where = { id: { in: input.ids } };
@@ -179,7 +179,7 @@ export const setTaskField = bsb.action(
         v.object({ assignee_id: v.nullable(Id) }),
       ]),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "bulk.run"),
   },
   async ({ ids, values }, { db, auth }) => {
@@ -214,7 +214,7 @@ export const saveTaskView = bsb.action(
       status: v.nullable(TaskStatusSchema),
       projectId: v.nullable(Id),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "views.read"),
   },
   async ({ name, view, q, status, projectId }, { tenant, db, auth }) => {
@@ -258,7 +258,7 @@ export const saveTaskView = bsb.action(
 export const deleteTaskView = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "views.read"),
   },
   async ({ id }, { db, auth }) => {
@@ -289,7 +289,7 @@ export const restoreProjectFields = bsb.action(
         v.minLength(1),
       ),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "versions.restore"),
   },
   async ({ projectId, versionId, fields }, { db, auth }) => {

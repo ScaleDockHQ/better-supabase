@@ -68,7 +68,7 @@ describe("createTanStackStart", () => {
   });
 
   it("runs server function handlers into ActionResults", async () => {
-    const handler = bsb.action({ requireOrganization: true }, () => ok(1));
+    const handler = bsb.action({ requireTenant: true }, () => ok(1));
 
     const result = await serve(await requestAs({ role: "member" }), (context) =>
       handler({ data: {}, context }),

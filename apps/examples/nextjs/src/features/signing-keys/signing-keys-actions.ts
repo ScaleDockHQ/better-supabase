@@ -20,7 +20,7 @@ import {
  */
 export const rotateSigningKey = bsb.action(
   {
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), SIGNING_KEYS_PERMISSION),
   },
   async (_input, { tenant, auth }) => {

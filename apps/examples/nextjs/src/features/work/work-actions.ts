@@ -71,7 +71,7 @@ export const createWorkItem = bsb.action(
       ),
       custom: v.optional(v.record(v.string(), v.string()), {}),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "work_items.write"),
   },
   async ({ title, teamId, priority, custom }, { tenant, db, auth }) => {
@@ -138,7 +138,7 @@ export const moveWorkItem = bsb.action(
       previousId: OptionalId,
       nextId: OptionalId,
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "work_items.write"),
   },
   async ({ id, stageId, stageChanged, previousId, nextId }, { db, auth }) => {
@@ -171,7 +171,7 @@ export const moveWorkItem = bsb.action(
 export const setWorkItemStage = bsb.action(
   {
     input: v.object({ id: Id, stageId: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "work_items.write"),
   },
   async ({ id, stageId }, { db, auth }) => {
@@ -193,7 +193,7 @@ export const setWorkItemStage = bsb.action(
 export const setWorkItemAssignee = bsb.action(
   {
     input: v.object({ id: Id, userId: OptionalId }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "work_items.write"),
   },
   async ({ id, userId }, { db, auth }) => {
@@ -215,7 +215,7 @@ export const createTeam = bsb.action(
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(80)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "teams.manage"),
   },
   async ({ name }, { tenant, db, auth }) => {
@@ -240,7 +240,7 @@ export const saveWorkView = bsb.action(
       state: v.nullable(WorkItemStateSchema),
       sort: WorkItemSortSchema,
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "views.read"),
   },
   async ({ name, q, state, sort }, { tenant, db, auth }) => {
@@ -274,7 +274,7 @@ export const saveWorkView = bsb.action(
 export const deleteWorkView = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "views.read"),
   },
   async ({ id }, { db, auth }) => {
@@ -307,7 +307,7 @@ export const runWorkBulkAction = bsb.action(
         ids: v.pipe(v.array(Id), v.minLength(1), v.maxLength(500)),
       }),
     ]),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "bulk.run"),
   },
   async (input, { tenant, db, auth }) => {

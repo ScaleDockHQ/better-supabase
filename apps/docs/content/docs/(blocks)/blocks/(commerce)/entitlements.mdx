@@ -271,7 +271,7 @@ export function FeatureGate({ feature, children }) {
 ```
 
 It takes `claim` and `tenantClaim` when `auth.claims.features` or
-`auth.organization.claim` rename them. `createFeatureGateController` from
+`auth.tenant.claim` rename them. `createFeatureGateController` from
 `better-supabase/blocks/entitlements` is the same logic without React. Vue,
 Svelte and Solid run it with `useBlockController` from `better-supabase/vue`,
 `/svelte` and `/solid`, taking the controller's options with `auth` from the

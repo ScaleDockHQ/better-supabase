@@ -38,7 +38,7 @@ export const startWorkflow = bsb.action(
       workflow: WorkflowName,
       text: v.optional(v.pipe(v.string(), v.maxLength(20_000))),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "workflow.run"),
   },
   async ({ workflow, text }, { tenant, auth }) => {
@@ -66,7 +66,7 @@ export const startWorkflow = bsb.action(
 export const requestApproval = bsb.action(
   {
     input: v.object({ amount: v.pipe(v.number(), v.minValue(1)) }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "workflow.run"),
   },
   async ({ amount }, { tenant, auth }) => {
@@ -95,7 +95,7 @@ export const requestApproval = bsb.action(
 export const decideApproval = bsb.action(
   {
     input: v.object({ run: v.string(), approved: v.boolean() }),
-    requireOrganization: true,
+    requireTenant: true,
   },
   async ({ run, approved }, { tenant, auth }) => {
     if (auth.kind !== "user") {
@@ -131,7 +131,7 @@ export const decideApproval = bsb.action(
 
 /** Marks the run cancelled in the registry, then cancels it in the engine. */
 export const cancelRun = bsb.action(
-  { input: v.object({ run: v.string() }), requireOrganization: true },
+  { input: v.object({ run: v.string() }), requireTenant: true },
   async ({ run }, { db }) => {
     const marked = await db.workflows.runs.requestCancel(run);
 
@@ -161,7 +161,7 @@ export const createSchedule = bsb.action(
       workflow: WorkflowName,
       cron: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "workflow.admin"),
   },
   async ({ name, workflow, cron }, { tenant, auth, db }) => {
@@ -191,7 +191,7 @@ export const createSchedule = bsb.action(
 export const pauseSchedule = bsb.action(
   {
     input: v.object({ id: v.string(), paused: v.boolean() }),
-    requireOrganization: true,
+    requireTenant: true,
   },
   async ({ id, paused }, { db }) => {
     const updated = await db.workflows.schedules.pause(id, paused);
@@ -207,7 +207,7 @@ export const pauseSchedule = bsb.action(
 );
 
 export const removeSchedule = bsb.action(
-  { input: v.object({ id: v.string() }), requireOrganization: true },
+  { input: v.object({ id: v.string() }), requireTenant: true },
   async ({ id }, { db }) => {
     const removed = await db.workflows.schedules.remove(id);
 

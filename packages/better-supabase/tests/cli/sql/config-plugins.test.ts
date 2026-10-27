@@ -58,7 +58,7 @@ describe("movePluginsInSource", () => {
       movePluginsInSource(`export default defineConfig({
   plugins: { tenant: true, timestamps: false },
   blocks: { memberships: {} },
-  auth: { organization: { onMissing: "skip" } },
+  auth: { tenant: { onMissing: "skip" } },
 });
 `),
     );
@@ -118,7 +118,7 @@ describe("movePluginsInJson", () => {
 
     expect(config).not.toHaveProperty("plugins");
     expect(config).toMatchObject({
-      auth: { organization: { column: "organization_id", onMissing: "error" } },
+      auth: { tenant: { column: "organization_id", onMissing: "error" } },
       blocks: {
         "updated-at": {},
         "created-by": {},
@@ -144,7 +144,7 @@ describe("movePluginsInJson", () => {
         memberships: {},
         "updated-at": { options: { createdAt: "made_at" } },
       },
-      auth: { organization: { onMissing: "error" } },
+      auth: { tenant: { onMissing: "error" } },
     });
   });
 

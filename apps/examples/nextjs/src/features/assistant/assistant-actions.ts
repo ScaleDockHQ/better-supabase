@@ -29,7 +29,7 @@ export const reserveAttachment = bsb.action(
       ),
       chatId: v.pipe(v.string(), v.uuid()),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "ai_chat.create"),
   },
   ({ filename, mediaType, size, chatId }, { tenant, supabase }) =>
@@ -47,7 +47,7 @@ export const reserveAttachment = bsb.action(
 export const confirmAttachment = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "ai_chat.create"),
   },
   ({ id }, { supabase }) =>

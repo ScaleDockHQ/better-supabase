@@ -27,7 +27,7 @@ import type {
   VectorSearchConfig,
 } from "./database.ts";
 import type { EntitlementsConfig } from "./entitlements.ts";
-import type { OrganizationConfig } from "./groups.ts";
+import type { TenantConfig } from "./groups.ts";
 import type { SubjectsConfig } from "./subjects.ts";
 import type {
   DoctorConfig,
@@ -121,10 +121,10 @@ export interface FlatConfig {
   readonly readSets?: readonly string[];
   readonly generators?: readonly Generator[];
   /**
-   * `auth.organization` without its claim (that is `claims.tenant`): the
-   * organization column and how the `memberships` extension resolves it.
+   * `auth.tenant` without its claim (that is `claims.tenant`): the organization
+   * column and how the `memberships` extension resolves it.
    */
-  readonly organization?: Omit<OrganizationConfig, "claim">;
+  readonly organization?: Omit<TenantConfig, "claim">;
   readonly claims?: ClaimsConfig;
   readonly buckets?: Readonly<Record<string, BucketConfig>>;
   /**
@@ -304,8 +304,8 @@ export interface ResolvedExtensions {
   /** `trash`: `blocks.trash.options.deletedAt`. */
   readonly softDelete: { readonly column: string } | undefined;
   /**
-   * `memberships`, or `auth.organization.column` without it: the organization
-   * column and how a request's organization is resolved.
+   * `memberships`, or `auth.tenant.column` without it: the organization column
+   * and how a request's organization is resolved.
    */
   readonly tenant:
     | {
@@ -335,7 +335,7 @@ export type {
   DatabaseConfig,
   EnvironmentConfig,
   GenGroupConfig,
-  OrganizationConfig,
+  TenantConfig,
   SqlInput,
   ToolingConfig,
 } from "./groups.ts";

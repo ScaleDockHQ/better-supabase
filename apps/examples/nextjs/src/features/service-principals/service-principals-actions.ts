@@ -38,7 +38,7 @@ export const createServicePrincipal = bsb.action(
       role: v.picklist(["member", "admin"]),
       isDefault: v.boolean(),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () =>
       can(await getPermissions(), "service_principals.manage"),
   },
@@ -66,7 +66,7 @@ export const createServicePrincipal = bsb.action(
 export const disableServicePrincipal = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () =>
       can(await getPermissions(), "service_principals.manage"),
   },

@@ -21,7 +21,7 @@ export const createDraftInvoice = bsb.action(
         v.regex(/^\d+(\.\d{1,2})?$/, "Enter an amount such as 190.00"),
       ),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "invoices.write"),
   },
   async ({ title, amount }, { tenant, db, auth }) => {
@@ -51,7 +51,7 @@ export const createDraftInvoice = bsb.action(
 export const issueInvoice = bsb.action(
   {
     input: v.object({ invoiceId: v.pipe(v.string(), v.uuid()) }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "invoices.write"),
   },
   async ({ invoiceId }, { db, auth }) => {

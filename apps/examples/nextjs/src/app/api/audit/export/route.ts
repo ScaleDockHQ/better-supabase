@@ -31,7 +31,7 @@ export const GET = bsb.route(
     });
   },
   {
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "audit.read"),
   },
 );

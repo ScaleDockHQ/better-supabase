@@ -54,7 +54,7 @@ export const createDefinition = bsb.action(
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "workflow.edit"),
   },
   async ({ name }, { tenant, supabase }) => {
@@ -95,7 +95,7 @@ export const createDefinition = bsb.action(
 export const saveDraft = bsb.action(
   {
     input: v.object({ definition: Id, graph: Graph }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "workflow.edit"),
   },
   async ({ definition, graph }, { supabase }) => {
@@ -113,7 +113,7 @@ export const saveDraft = bsb.action(
 export const publishGraph = bsb.action(
   {
     input: v.object({ definition: Id, graph: Graph }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "workflow.publish"),
   },
   async ({ definition, graph }, { supabase }) => {
@@ -142,7 +142,7 @@ export const runDefinition = bsb.action(
       definition: Id,
       text: v.optional(v.pipe(v.string(), v.maxLength(20_000))),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "workflow.run"),
   },
   async ({ definition, text }, { auth, supabase }) => {
@@ -167,7 +167,7 @@ export const saveTrigger = bsb.action(
       kind: TriggerKind,
       cron: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(100))),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "workflow.admin"),
   },
   async ({ definition, kind, cron }, { tenant, supabase }) => {
@@ -198,7 +198,7 @@ export const saveTrigger = bsb.action(
 export const removeTrigger = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "workflow.admin"),
   },
   async ({ id }, { supabase }) => {
@@ -218,7 +218,7 @@ export const removeTrigger = bsb.action(
 export const rotateWebhookToken = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "workflow.admin"),
   },
   async ({ id }, { supabase }) => builderFor(supabase).triggers.rotateToken(id),
@@ -234,7 +234,7 @@ export const createCredential = bsb.action(
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
       secret: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(4000)),
     }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "workflow.admin"),
   },
   async ({ name, secret }, { tenant, supabase }) => {
@@ -262,7 +262,7 @@ export const createCredential = bsb.action(
 export const revokeCredential = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "workflow.admin"),
   },
   async ({ id }, { supabase }) => {
@@ -286,7 +286,7 @@ export const revokeCredential = bsb.action(
 export const decideNode = bsb.action(
   {
     input: v.object({ run: Id, node: Id, approved: v.boolean() }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "workflow.run"),
   },
   async ({ run, node, approved }, { tenant, auth, db }) => {

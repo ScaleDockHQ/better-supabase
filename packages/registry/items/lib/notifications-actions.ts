@@ -18,7 +18,7 @@ export interface NotificationRow {
  * `useNotifications`.
  */
 export const loadNotifications = bsb.action(
-  { requireOrganization: true },
+  { requireTenant: true },
   async (_input, { tenant, supabase }) => {
     const items = await blocks(supabase).notifications.list({
       tenant,
@@ -42,14 +42,14 @@ export const loadNotifications = bsb.action(
 
 /** The badge numbers, loaded again after each broadcast on the caller's topic. */
 export const loadNotificationCounts = bsb.action(
-  { requireOrganization: true },
+  { requireTenant: true },
   async (_input, { tenant, supabase }) =>
     blocks(supabase).notifications.counts({ tenant }),
 );
 
 /** Marks the caller's notifications in the active organization read. */
 export const markAllRead = bsb.action(
-  { requireOrganization: true },
+  { requireTenant: true },
   async (_input, { tenant, supabase }) => {
     const updated = await blocks(supabase).notifications.markRead({ tenant });
 

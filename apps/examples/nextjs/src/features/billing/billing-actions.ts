@@ -18,7 +18,7 @@ import { getPlans } from "./billing-queries";
 /** Completes the "Review your plan" onboarding step. */
 export const markPlanReviewed = bsb.action(
   {
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "onboarding.complete"),
   },
   async (_input, { tenant: organizationId, db }) => {
@@ -41,7 +41,7 @@ export const markPlanReviewed = bsb.action(
 /** The plan catalog and the organization's plan, for `usePlanPicker`. */
 export const loadPlanCatalog = bsb.action(
   {
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "billing.read"),
   },
   async (_input, { tenant: organizationId, db }) => {
@@ -66,7 +66,7 @@ export const loadPlanCatalog = bsb.action(
 export const startCheckout = bsb.action(
   {
     input: v.object({ plan: v.string() }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "billing.manage"),
   },
   async ({ plan }): Promise<Result<{ url: string | undefined }>> => {

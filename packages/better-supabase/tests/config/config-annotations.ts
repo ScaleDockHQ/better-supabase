@@ -80,15 +80,15 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "Claim names shared by the SQL modules, codegen and runtime defaults.",
   },
-  "auth.organization": {
+  "auth.tenant": {
     description:
-      "How the active organization is found: the claim that holds its id and the column the tenant plugin filters by.",
+      "How the active tenant is found: the claim that holds its id and the column the memberships extension filters by.",
   },
-  "auth.organization.claim": {
+  "auth.tenant.claim": {
     description:
-      "Top-level claim holding the active organization id. Defaults to `tenant_id`.",
+      "Top-level claim holding the active tenant id. Defaults to `tenant_id`.",
   },
-  "auth.organization.column": {
+  "auth.tenant.column": {
     description:
       "Column the tenant plugin filters and fills on tenant-scoped tables. Defaults to `tenant_id`.",
   },

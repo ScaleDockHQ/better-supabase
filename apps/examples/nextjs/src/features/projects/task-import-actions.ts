@@ -96,7 +96,7 @@ export interface TaskImportOutcome {
 export const previewTaskImport = bsb.action(
   {
     input: Input,
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "imports.manage"),
   },
   async ({ projectId, csv, mapping }, { tenant, db }) => {
@@ -124,7 +124,7 @@ export const previewTaskImport = bsb.action(
 export const runTaskImport = bsb.action(
   {
     input: Input,
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "imports.manage"),
   },
   async ({ projectId, csv, mapping }, { tenant, db, auth }) => {

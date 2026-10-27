@@ -538,7 +538,7 @@ function writeConfig(profile: Profile, contentMapper: boolean): void {
           ? { [`${name(1)}.metadata`]: { type: "{ tags: string[] }" } }
           : undefined,
       },
-      auth: { organization: { column: "organization_id" } },
+      auth: { tenant: { column: "organization_id" } },
       blocks: {
         "updated-at": {},
         trash: { options: { deletedAt: "archived_at" } },

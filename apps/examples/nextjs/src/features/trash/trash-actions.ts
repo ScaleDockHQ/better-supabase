@@ -14,7 +14,7 @@ const Id = v.pipe(v.string(), v.uuid());
 export const restoreTrashItem = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "trash.restore"),
   },
   async ({ id }, { db, auth }) => {
@@ -34,7 +34,7 @@ export const restoreTrashItem = bsb.action(
 export const purgeTrashItem = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireOrganization: true,
+    requireTenant: true,
     authorize: async () => can(await getPermissions(), "trash.manage"),
   },
   async ({ id }, { db, auth }) => {
