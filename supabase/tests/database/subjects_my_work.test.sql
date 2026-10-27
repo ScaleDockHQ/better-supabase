@@ -5,6 +5,9 @@
 begin;
 select plan(6);
 
+-- The seed assigns the member to Acme's work items; start from none.
+delete from better_supabase.work_item_assignees where user_id = '00000000-0000-4000-8000-0000000000a2';
+
 insert into better_supabase.work_items (id, tenant_id, number, identifier, title, due_at, archived_at) values
   ('00000000-0000-4000-8000-00000000f001', '00000000-0000-4000-8000-000000000001', 9001, 'MW-9001', 'Ship it', '2026-12-01T00:00:00Z', null),
   ('00000000-0000-4000-8000-00000000f002', '00000000-0000-4000-8000-000000000001', 9002, 'MW-9002', 'Archived', null, '2026-01-01T00:00:00Z');

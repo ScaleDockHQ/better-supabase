@@ -169,3 +169,34 @@ select better_supabase.record_inbound(jsonb_build_object(
   'contact', jsonb_build_object('external_id', 'beep@roadrunner.test', 'name', 'Road Runner', 'email', 'beep@roadrunner.test'),
   'message', jsonb_build_object('body', 'Our last invoice shows the wrong VAT number. Can you fix it?')
 ));
+
+-- Acme's work: two projects and eight items behind /work, numbered the way
+-- create_work_item numbers them (TASK-<n> per organization). The seed runs
+-- without triggers, so the closed items set closed_at and close_reason here.
+insert into better_supabase.work_projects (id, tenant_id, key, name, owner_user_id, status, start_on, target_on) values
+  ('00000000-0000-4000-8000-00000000f001', '00000000-0000-4000-8000-000000000001', 'WEB', 'Website relaunch', '00000000-0000-4000-8000-0000000000a1', 'active', current_date - 14, current_date + 30),
+  ('00000000-0000-4000-8000-00000000f002', '00000000-0000-4000-8000-000000000001', 'ONB', 'Customer onboarding', '00000000-0000-4000-8000-0000000000a2', 'planned', current_date + 7, current_date + 60);
+
+insert into better_supabase.work_items (id, tenant_id, number, identifier, title, body, team_id, project_id, priority, estimate, state, due_at, rank, created_by, closed_at, close_reason) values
+  ('00000000-0000-4000-8000-00000000f101', '00000000-0000-4000-8000-000000000001', 1, 'TASK-1', 'Draft the new homepage copy', 'Hero, pricing teaser and the customer quotes.', '00000000-0000-4000-8000-0000000000e1', '00000000-0000-4000-8000-00000000f001', 2, 3, 'started', now() + interval '5 days', 'V', '00000000-0000-4000-8000-0000000000a1', null, null),
+  ('00000000-0000-4000-8000-00000000f102', '00000000-0000-4000-8000-000000000001', 2, 'TASK-2', 'Pick a hosting plan', null, null, '00000000-0000-4000-8000-00000000f001', 3, 1, 'completed', null, 'W', '00000000-0000-4000-8000-0000000000a1', now() - interval '3 days', 'completed'),
+  ('00000000-0000-4000-8000-00000000f103', '00000000-0000-4000-8000-000000000001', 3, 'TASK-3', 'Redirect the old blog URLs', 'Map every /blog/<year>/<slug> to /posts/<slug>.', null, '00000000-0000-4000-8000-00000000f001', 2, 2, 'unstarted', now() + interval '12 days', 'X', '00000000-0000-4000-8000-0000000000a1', null, null),
+  ('00000000-0000-4000-8000-00000000f104', '00000000-0000-4000-8000-000000000001', 4, 'TASK-4', 'Fix the broken contact form on mobile', null, '00000000-0000-4000-8000-0000000000e2', '00000000-0000-4000-8000-00000000f001', 1, 1, 'triage', now() + interval '2 days', 'Y', '00000000-0000-4000-8000-0000000000a2', null, null),
+  ('00000000-0000-4000-8000-00000000f105', '00000000-0000-4000-8000-000000000001', 5, 'TASK-5', 'Write the welcome email series', 'Three emails over the first week.', '00000000-0000-4000-8000-0000000000e1', '00000000-0000-4000-8000-00000000f002', 3, 5, 'backlog', null, 'V', '00000000-0000-4000-8000-0000000000a2', null, null),
+  ('00000000-0000-4000-8000-00000000f106', '00000000-0000-4000-8000-000000000001', 6, 'TASK-6', 'Record a product walkthrough', null, null, '00000000-0000-4000-8000-00000000f002', 4, 3, 'backlog', null, 'W', '00000000-0000-4000-8000-0000000000a1', null, null),
+  ('00000000-0000-4000-8000-00000000f107', '00000000-0000-4000-8000-000000000001', 7, 'TASK-7', 'Answer the open VAT question', 'Road Runner reported the wrong VAT number on an invoice.', '00000000-0000-4000-8000-0000000000e2', null, 1, 1, 'started', now() + interval '1 day', 'V', '00000000-0000-4000-8000-0000000000a1', null, null),
+  ('00000000-0000-4000-8000-00000000f108', '00000000-0000-4000-8000-000000000001', 8, 'TASK-8', 'Archive last year''s leads', null, '00000000-0000-4000-8000-0000000000e1', null, 0, null, 'canceled', null, 'W', '00000000-0000-4000-8000-0000000000a2', now() - interval '1 day', 'not_planned');
+
+insert into better_supabase.work_item_assignees (tenant_id, work_item_id, user_id) values
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000f101', '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000f101', '00000000-0000-4000-8000-0000000000a2'),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000f104', '00000000-0000-4000-8000-0000000000a2'),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000f105', '00000000-0000-4000-8000-0000000000a2'),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000f107', '00000000-0000-4000-8000-0000000000a1');
+
+insert into better_supabase.work_item_checklist_items (tenant_id, work_item_id, title, done, done_at, done_by, rank, created_by) values
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000f101', 'Hero headline', true, now() - interval '1 day', '00000000-0000-4000-8000-0000000000a1', 'V', '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000f101', 'Pricing teaser', false, null, null, 'W', '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000f101', 'Three customer quotes', false, null, null, 'X', '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000f105', 'Day 1: welcome', false, null, null, 'V', '00000000-0000-4000-8000-0000000000a2'),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000f105', 'Day 3: invite your team', false, null, null, 'W', '00000000-0000-4000-8000-0000000000a2');

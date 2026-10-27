@@ -20,8 +20,10 @@ flag.
 - `experimental.globalNotFound` needs `app/global-not-found.tsx` with its own
   `<html>`, fonts and `metadataBase`. Next serves it only when routing
   matches nothing; a `notFound()` in a root layout renders Next's built-in
-  404 instead. In the example, `[locale]` matches every path, so unknown
-  `/api` paths answer from `app/api/[...rest]/route.ts`.
+  404 instead. An app with a dynamic root segment (the example's `[locale]`)
+  never reaches it, so the example turns the flag off and answers unknown
+  paths from `[locale]/[...rest]`, `[locale]/not-found.tsx` and
+  `app/api/[...rest]/route.ts`.
 - Outside a Vercel production build, `BSB_BUILD_SCOPE` is `minimal` and every
   `generateStaticParams` in docs and marketing returns its first 3 entries
   through `scopeStaticParams` (ADR 0109). Wrap a new one the same way, and
