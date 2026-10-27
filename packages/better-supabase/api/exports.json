@@ -4998,6 +4998,8 @@
   "./ai-sdk": {
     "values": [
       "AI_SDK_UI_FORMAT",
+      "aiErrorMessage",
+      "aiErrorToDbError",
       "BYOK_FIELD",
       "byokOptions",
       "costBackfill",
@@ -5053,18 +5055,30 @@
   },
   "./ai-sdk/chat": {
     "values": [
-      "createAssistant"
+      "assistantMetadata",
+      "createAssistant",
+      "createCompletionRoute",
+      "createObjectRoute"
     ],
     "types": [
       "Assistant",
       "AssistantContext",
       "AssistantFinish",
+      "AssistantMessageMetadata",
       "AssistantModeration",
       "AssistantOptions",
       "AssistantRequestBody",
       "AssistantRunArgs",
       "AssistantRunResult",
-      "AssistantTurn"
+      "AssistantStreamOptions",
+      "AssistantTurn",
+      "AssistantValidation",
+      "GenerationContext",
+      "GenerationFinish",
+      "GenerationRoute",
+      "GenerationRouteOptions",
+      "GenerationRunArgs",
+      "GenerationRunResult"
     ]
   },
   "./ai-sdk/files": {
@@ -5202,11 +5216,16 @@
   },
   "./ai-sdk/react": {
     "values": [
-      "useAssistant"
+      "assistantTransport",
+      "useAssistant",
+      "useAssistantCompletion",
+      "useAssistantObject"
     ],
     "types": [
       "AssistantState",
       "AssistantTransportConfig",
+      "UseAssistantCompletionOptions",
+      "UseAssistantObjectOptions",
       "UseAssistantOptions"
     ]
   },

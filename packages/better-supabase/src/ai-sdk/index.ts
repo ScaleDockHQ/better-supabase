@@ -65,3 +65,5 @@ export {
   type TelemetryStart,
   tenantOfEvent,
 } from "./telemetry.ts";
+
+export { aiErrorMessage, aiErrorToDbError } from "./errors.ts";

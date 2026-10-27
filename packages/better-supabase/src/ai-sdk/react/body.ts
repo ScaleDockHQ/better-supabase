@@ -3,9 +3,9 @@ import type { UIMessage } from "ai";
 /** What a transport factory gets from `useAssistant`. */
 export interface AssistantTransportConfig {
   readonly api: string;
-  readonly model: string | undefined;
-  readonly body: Readonly<Record<string, unknown>> | undefined;
-  readonly headers: Readonly<Record<string, string>> | undefined;
+  readonly model?: string | undefined;
+  readonly body?: Readonly<Record<string, unknown>> | undefined;
+  readonly headers?: Readonly<Record<string, string>> | undefined;
 }
 
 /** The body `useAssistant` sends for the user's newest message. */

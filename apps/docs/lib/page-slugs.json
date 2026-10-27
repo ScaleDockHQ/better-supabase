@@ -7,6 +7,7 @@
   "ai-sdk/chat",
   "ai-sdk/embeddings",
   "ai-sdk/files",
+  "ai-sdk/generations",
   "ai-sdk/mcp",
   "ai-sdk/memory",
   "ai-sdk/providers",

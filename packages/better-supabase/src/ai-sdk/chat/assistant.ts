@@ -1,4 +1,5 @@
 import type {
+  FinishReason,
   LanguageModelUsage,
   ModelMessage,
   TextStreamPart,
@@ -6,11 +7,13 @@ import type {
   UIMessage,
   UIMessageChunk,
   UIMessageStreamOnEndCallback,
+  UIMessageStreamOptions,
 } from "ai";
 
 import {
   convertToModelMessages,
   JsonToSseTransformStream,
+  safeValidateUIMessages,
   toUIMessageStream,
 } from "ai";
 
@@ -38,6 +41,7 @@ import { isRecord } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { resumeFromStore, teeToStore } from "../../streams/tee.ts";
+import { aiErrorMessage, aiErrorToDbError } from "../errors.ts";
 import { gatewayOptions, problem429, runRelease, usageOf } from "../gateway.ts";
 import { badRequest, readJson, sse } from "../http.ts";
 import {
@@ -79,7 +83,7 @@ export interface AssistantRunArgs {
 }
 
 /** The options the deprecated `toUIMessageStream()` method gets. */
-interface LegacyUIMessageStreamOptions {
+interface LegacyUIMessageStreamOptions extends AssistantStreamOptions {
   originalMessages: UIMessage[];
   generateMessageId: () => string;
   onEnd: UIMessageStreamOnEndCallback<UIMessage>;
@@ -128,6 +132,60 @@ export interface AssistantFinish {
   readonly context: AssistantContext;
 }
 
+/**
+ * The `toUIMessageStream` options an app may set: what the client receives
+ * beside the text. `originalMessages`, `generateMessageId` and the end
+ * callbacks stay with the assistant, which stores the answer.
+ */
+export type AssistantStreamOptions = Pick<
+  UIMessageStreamOptions<UIMessage>,
+  | "messageMetadata"
+  | "sendReasoning"
+  | "sendSources"
+  | "sendStart"
+  | "sendFinish"
+>;
+
+/**
+ * The schemas `safeValidateUIMessages` checks the user's message against before
+ * it is stored. A message that fails answers 422.
+ */
+export type AssistantValidation = Pick<
+  Parameters<typeof safeValidateUIMessages<UIMessage>>[0],
+  "metadataSchema" | "dataSchemas" | "tools"
+>;
+
+/** What `assistantMetadata` attaches to an answer. */
+export interface AssistantMessageMetadata {
+  readonly model?: string;
+  /** When the answer started, as an ISO string. */
+  readonly createdAt?: string;
+  readonly finishReason?: FinishReason;
+  readonly usage?: LanguageModelUsage;
+}
+
+/**
+ * A `stream` option that sends the model and start time with the first chunk
+ * and the finish reason and usage with the last, as message metadata.
+ */
+export function assistantMetadata(
+  args: Pick<AssistantRunArgs, "model">,
+): AssistantStreamOptions {
+  return {
+    messageMetadata: ({ part }): AssistantMessageMetadata | undefined => {
+      if (part.type === "start") {
+        return { model: args.model, createdAt: new Date().toISOString() };
+      }
+
+      if (part.type === "finish") {
+        return { finishReason: part.finishReason, usage: part.totalUsage };
+      }
+
+      return undefined;
+    },
+  };
+}
+
 export interface AssistantOptions {
   /** Where the answer's stream is kept, so a reload resumes it. */
   readonly streams: StreamStore;
@@ -163,8 +221,20 @@ export interface AssistantOptions {
   readonly streamTtl?: number | string;
   /** The `feature` tag of the gateway options. Defaults to `chat`. */
   readonly feature?: string;
-  /** Turns a stream error into the message the client sees. */
+  /**
+   * Turns a stream error into the message the client sees. Defaults to
+   * `aiErrorMessage`, a fixed message per error kind.
+   */
   readonly onError?: (error: unknown) => string;
+  /**
+   * What the client receives beside the text, such as `assistantMetadata` or
+   * `sendReasoning: false`. A function gets the run's arguments.
+   */
+  readonly stream?:
+    | AssistantStreamOptions
+    | ((args: AssistantRunArgs) => AssistantStreamOptions);
+  /** Checks the user's message against schemas before it is stored. */
+  readonly validate?: AssistantValidation;
   /** Makes message and stream ids. Defaults to `crypto.randomUUID()`. */
   readonly generateId?: () => string;
 }
@@ -391,6 +461,22 @@ export function createAssistant(options: AssistantOptions): Assistant {
       return badRequest(body);
     }
 
+    if (options.validate !== undefined) {
+      const checked = await safeValidateUIMessages({
+        messages: [body.message],
+        ...options.validate,
+      });
+
+      if (!checked.success) {
+        return problemResponse(
+          dbError("validation", "The message did not match its schema.", {
+            code: "AI_MESSAGE_INVALID",
+            issues: [{ message: checked.error.message }],
+          }),
+        );
+      }
+    }
+
     const chat = await chatOf(context, body);
 
     if (chat instanceof Response) {
@@ -516,25 +602,31 @@ export function createAssistant(options: AssistantOptions): Assistant {
         runRelease(status, usage, error),
       );
 
+    const runArgs: AssistantRunArgs = {
+      chat,
+      model,
+      messages: turn.messages,
+      uiMessages,
+      abortSignal: abort.signal,
+      providerOptions: turn.providerOptions,
+      context,
+    };
+
     let result: AssistantRunResult;
 
     try {
-      result = await options.run({
-        chat,
-        model,
-        messages: turn.messages,
-        uiMessages,
-        abortSignal: abort.signal,
-        providerOptions: turn.providerOptions,
-        context,
-      });
+      result = await options.run(runArgs);
     } catch (cause) {
       await release("failed", undefined, String(cause));
 
+      const mapped = aiErrorToDbError(cause);
+
       return problemResponse(
-        dbError("unexpected", "The answer could not be started.", {
-          code: "AI_CHAT_RUN_FAILED",
-        }),
+        mapped.kind === "unexpected"
+          ? dbError("unexpected", "The answer could not be started.", {
+              code: "AI_CHAT_RUN_FAILED",
+            })
+          : mapped,
       );
     }
 
@@ -598,11 +690,17 @@ export function createAssistant(options: AssistantOptions): Assistant {
       return finished;
     };
 
+    const extra =
+      typeof options.stream === "function"
+        ? options.stream(runArgs)
+        : (options.stream ?? {});
+
     const streamOptions = {
+      ...extra,
       originalMessages: uiMessages,
       generateMessageId: () => assistantId,
       onEnd,
-      ...(options.onError === undefined ? {} : { onError: options.onError }),
+      onError: options.onError ?? aiErrorMessage,
     };
 
     const chunks = uiChunksOf(result, streamOptions);
