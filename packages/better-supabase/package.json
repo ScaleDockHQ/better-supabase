@@ -114,6 +114,11 @@
       "types": "./dist/records/index.d.ts",
       "default": "./dist/records/index.js"
     },
+    "./claims": {
+      "@better-supabase/source": "./src/claims/index.ts",
+      "types": "./dist/claims/index.d.ts",
+      "default": "./dist/claims/index.js"
+    },
     "./server": {
       "@better-supabase/source": "./src/server/index.ts",
       "types": "./dist/server/index.d.ts",
@@ -1133,6 +1138,10 @@
       "./records": {
         "types": "./dist/records/index.d.ts",
         "default": "./dist/records/index.js"
+      },
+      "./claims": {
+        "types": "./dist/claims/index.d.ts",
+        "default": "./dist/claims/index.js"
       },
       "./server": {
         "types": "./dist/server/index.d.ts",

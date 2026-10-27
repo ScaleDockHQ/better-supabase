@@ -67,7 +67,26 @@ export type { ImpersonationEvents } from "../blocks/impersonation/events.ts";
 
 export { defineAuthorizationHooks } from "../core/contracts/authorization-hooks.ts";
 
-export { PERMISSION_CAP_CLAIM } from "../auth/delegation.ts";
+export {
+  AUTHZ_VERSION_CLAIM,
+  decodeEntitlementClaim,
+  FEATURES_CLAIM,
+  isApiKeySession,
+  isTruncated,
+  isUserSession,
+  MEMBERSHIPS_CLAIM,
+  PERMISSION_CAP_CLAIM,
+  permissionCapOf,
+  PERMISSIONS_CLAIM,
+  PERMISSIONS_TRUNCATED_CLAIM,
+} from "../claims/index.ts";
+
+export type {
+  ApiKeySession,
+  ClaimsRecord,
+  ClaimsSource,
+  UserSession,
+} from "../claims/index.ts";
 
 export type {
   Approver,

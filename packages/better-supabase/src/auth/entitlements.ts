@@ -1,5 +1,9 @@
 import type { AuthSnapshot } from "../client/bind.ts";
+import type { ClaimsSource } from "./claims-source.ts";
 import type { AuthSession } from "./view.ts";
+
+import { FEATURES_CLAIM } from "../core/claim-names.ts";
+import { claimsFrom } from "./claims-source.ts";
 
 /**
  * One entry of the `memberships` claim when a hook writes it as a list. Hooks
@@ -83,6 +87,50 @@ export function hasEntitlement<C>(
   const code = options.keys?.[key] ?? key;
 
   return Array.isArray(keys) && keys.includes(code);
+}
+
+/**
+ * The features claim with its short codes turned back into feature keys, per
+ * tenant. `keys` is `entitlements.claim.keys` (feature key to short code); a
+ * code it doesn't list is kept as written. A malformed claim, or a tenant entry
+ * that isn't a list of strings, is left out.
+ *
+ * ```ts
+ * const features = decodeEntitlementClaim(claims, {
+ *   keys: { "api.access": "a" },
+ * });
+ * features[tenantId]?.includes("api.access");
+ * ```
+ */
+export function decodeEntitlementClaim(
+  source: ClaimsSource,
+  options: EntitlementClaimOptions = {},
+): Readonly<Record<string, readonly string[]>> {
+  const claims = claimsFrom(source);
+  const features = claims?.[options.claim ?? FEATURES_CLAIM];
+
+  if (!isRecord(features)) {
+    return {};
+  }
+
+  const byCode = new Map<string, string>();
+
+  for (const [key, code] of Object.entries(options.keys ?? {})) {
+    byCode.set(code, key);
+  }
+
+  const decoded: Record<string, readonly string[]> = {};
+
+  for (const [tenant, codes] of Object.entries(features)) {
+    if (
+      Array.isArray(codes) &&
+      codes.every((code: unknown) => typeof code === "string")
+    ) {
+      decoded[tenant] = codes.map((code: string) => byCode.get(code) ?? code);
+    }
+  }
+
+  return decoded;
 }
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>

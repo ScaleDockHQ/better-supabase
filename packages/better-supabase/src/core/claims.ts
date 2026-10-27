@@ -1,13 +1,27 @@
 import type { ClaimsMeta, SchemaMeta } from "../schema/types.ts";
 import type { RequestContext } from "./plugin.ts";
 
+import {
+  FEATURES_CLAIM,
+  MEMBERSHIPS_CLAIM,
+  PERMISSIONS_CLAIM,
+} from "./claim-names.ts";
+
 export const DEFAULT_CLAIMS: ClaimsMeta = {
   tenant: "tenant_id",
   scope: "tenant",
-  features: "features",
-  memberships: "memberships",
-  permissions: "permissions",
+  features: FEATURES_CLAIM,
+  memberships: MEMBERSHIPS_CLAIM,
+  permissions: PERMISSIONS_CLAIM,
 };
+
+/**
+ * The claim the hook sets to `true` when `claim` lost keys: `marker` when the
+ * provider declares one, otherwise `<claim>_truncated`.
+ */
+export function truncatedMarker(claim: string, marker?: string): string {
+  return marker ?? `${claim}_truncated`;
+}
 
 /**
  * Where an adapter reads each claim the SQL modules and the provider's hook
@@ -47,7 +61,10 @@ export function claimPaths(claims?: Partial<ClaimsMeta>): ClaimPaths {
     memberships: resolved.memberships,
     scope: resolved.scope,
     permissions: resolved.permissions,
-    permissionsTruncated: `${resolved.permissions}_truncated`,
+    permissionsTruncated: truncatedMarker(
+      resolved.permissions,
+      resolved.permissionsTruncated,
+    ),
   };
 }
 
