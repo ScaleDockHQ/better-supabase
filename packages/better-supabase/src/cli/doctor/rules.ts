@@ -31,6 +31,7 @@ import { advisorRule } from "./advisor-rules.ts";
 import { APP_TABLE_SCOPE_RULES } from "./app-table-scope.ts";
 import { AUTHORIZATION_RULES } from "./authorization.ts";
 import { BLOCK_PREFIX, blockTargets } from "./block-policies.ts";
+import { CLAIM_RULES } from "./claims.ts";
 import { COOKIE_RULES } from "./cookies.ts";
 import { DEPENDENCY_RULES } from "./dependencies.ts";
 import { ENV_RULES } from "./env.ts";
@@ -1118,6 +1119,7 @@ export const RULES: readonly Rule[] = [
   ...SCHEMA_DESIGN_RULES,
   ...HOOK_RULES,
   ...COOKIE_RULES,
+  ...CLAIM_RULES,
   ...REMOVED_API_RULES,
   ...AUTHORIZATION_RULES,
   ...LIVE_RULES,
