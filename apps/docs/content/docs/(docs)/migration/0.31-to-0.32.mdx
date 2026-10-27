@@ -1,17 +1,17 @@
 ---
-title: From 0.30 to 0.31
-description: What to check when upgrading to better-supabase 0.31, where tenant is the public word again and the auth names follow supabase-js.
+title: From 0.31 to 0.32
+description: What to check when upgrading to better-supabase 0.32, where tenant is the public word again and the auth names follow supabase-js.
 ---
 
-0.31 renames public names so they match the words Supabase and Next.js use.
+0.32 renames public names so they match the words Supabase and Next.js use.
 The tenant goes back to `tenant` (`auth.tenant`, `requireTenant`), session
 reads are claims (`bsb.claims()`, `bsb.getClaims()`), sign-in helpers carry
 the supabase-js method names, and the proxy check is `verifySession`. Run the
 codemod first, then work through the lines it lists:
 
 ```sh
-npx better-supabase@latest codemod 0.31 --dry-run
-npx better-supabase@latest codemod 0.31
+npx better-supabase@latest codemod 0.32 --dry-run
+npx better-supabase@latest codemod 0.32
 ```
 
 ## Tenant
@@ -24,11 +24,11 @@ merge by hand. `organization` stays the word for the `organizations` block and
 the UI.
 
 ```ts
-// 0.30
+// 0.31
 export default defineConfig({ auth: { organization: { claim: "org_id" } } });
 bsb.route(handler, { requireOrganization: true });
 
-// 0.31
+// 0.32
 export default defineConfig({ auth: { tenant: { claim: "org_id" } } });
 bsb.route(handler, { requireTenant: true });
 ```
@@ -42,7 +42,7 @@ reads an unverified `getSession()`. It still returns an `AuthSession`.
 `contextFromSession`, one method for both inputs: a `SessionSnapshot`, or an
 `AuthSession` with `{ token }`.
 
-| 0.30                                  | 0.31                                        |
+| 0.31                                  | 0.32                                        |
 | ------------------------------------- | ------------------------------------------- |
 | `bsb.session()`                       | `bsb.claims()`                              |
 | `bsb.getRequestSession()`             | `bsb.getClaims()`                           |
@@ -62,7 +62,7 @@ appear in code it can't tell apart.
 
 ## Sign-in
 
-| 0.30                       | 0.31                                  |
+| 0.31                       | 0.32                                  |
 | -------------------------- | ------------------------------------- |
 | `bsb.signIn(credentials)`  | `bsb.signInWithPassword(credentials)` |
 | `bsb.authorizeUrl(params)` | `bsb.signInWithOAuth(params)`         |
@@ -76,7 +76,7 @@ the OAuth methods and lists `.signIn(` calls, because the React hook and
 
 ## Proxy
 
-| 0.30                                      | 0.31                                           |
+| 0.31                                      | 0.32                                           |
 | ----------------------------------------- | ---------------------------------------------- |
 | `endedSession`, `checkSession`            | `verifySession`                                |
 | `EndedSessionOptions`                     | `VerifySessionOptions`                         |

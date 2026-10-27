@@ -2,9 +2,9 @@
 "better-supabase": minor
 ---
 
-Breaking: the public auth names follow supabase-js and Next.js, and tenant is the public word again. Run `npx better-supabase@latest codemod 0.31`, then read the [0.30 to 0.31 guide](https://bettersupabase.com/docs/migration/0.30-to-0.31).
+Breaking: the public auth names follow supabase-js and Next.js, and tenant is the public word again. Run `npx better-supabase@latest codemod 0.32`, then read the [0.31 to 0.32 guide](https://bettersupabase.com/docs/migration/0.31-to-0.32).
 
-| 0.30                                                  | 0.31                                                                    |
+| 0.31                                                  | 0.32                                                                    |
 | ----------------------------------------------------- | ----------------------------------------------------------------------- |
 | `auth.organization`, `requireOrganization`            | `auth.tenant`, `requireTenant`                                          |
 | `OrganizationConfig`                                  | `TenantConfig`                                                          |

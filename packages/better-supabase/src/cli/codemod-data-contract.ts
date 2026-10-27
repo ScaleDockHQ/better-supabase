@@ -338,7 +338,7 @@ function apply(text: string, edits: readonly Edit[]): string {
 
 /**
  * The data contract moves. 0.15 also renamed `requireTenant` to
- * `requireTenant`; 0.31 renamed it back, so the rewrite leaves it.
+ * `requireTenant`; 0.32 renamed it back, so the rewrite leaves it.
  */
 export function rewrite015(text: string): {
   readonly text: string;

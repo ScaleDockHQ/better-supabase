@@ -373,10 +373,10 @@ Docs: https://bettersupabase.com/docs/cli/codemod
 "
 `;
 
-exports[`help > documents codemod 0.31 1`] = `
-"Usage: better-supabase codemod 0.31 [options] [path...]
+exports[`help > documents codemod 0.32 1`] = `
+"Usage: better-supabase codemod 0.32 [options] [path...]
 
-Changes from 0.30 to 0.31: tenant is the public word again (auth.tenant, requireTenant), and sign-in, session, proxy and cache names follow supabase-js
+Changes from 0.31 to 0.32: tenant is the public word again (auth.tenant, requireTenant), and sign-in, session, proxy and cache names follow supabase-js
 
 Arguments
   [path...]  Files or directories to rewrite (default: the project)
@@ -415,7 +415,7 @@ Commands
   0.11  Changes from 0.10 to 0.11: adopted outgoing webhooks get an explicit defaultFormat
   0.15  Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, exports take their block, record and provider names, the config regroups, renamed blocks take their 0.15 names, and CLI calls use the new commands
   0.29  Changes from 0.28 to 0.29: records is renamed back to subjects in the config, and record tags in the schema files become subject tags
-  0.31  Changes from 0.30 to 0.31: tenant is the public word again (auth.tenant, requireTenant), and sign-in, session, proxy and cache names follow supabase-js
+  0.32  Changes from 0.31 to 0.32: tenant is the public word again (auth.tenant, requireTenant), and sign-in, session, proxy and cache names follow supabase-js
 
 Global options
   --cwd <dir>            Project directory

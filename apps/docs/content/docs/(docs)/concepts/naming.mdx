@@ -24,7 +24,7 @@ records the decision.
 | record type   | a kind of row other blocks attach to (`RecordRef`, config `subjects`)                  | subject, `SubjectRef`              |
 | names         | the nouns an instance uses (`blocks.<name>.names`)                                     | entities                           |
 | tables        | the app's own tables (SQL in `supabase/schemas`)                                       | `tables`                           |
-| tenant        | the account that owns data, in every library name (`auth.tenant`, `requireTenant`)     | organization (0.15 to 0.30)        |
+| tenant        | the account that owns data, in every library name (`auth.tenant`, `requireTenant`)     | organization (0.15 to 0.31)        |
 | organization  | what the examples and the `organizations` block call a tenant in the UI and its tables | nothing                            |
 | preset        | a named selection of blocks                                                            | nothing                            |
 | design        | the JSON document Create writes, the one format for presets                            | preset codes                       |
@@ -98,12 +98,12 @@ library.
 
 ## Renames
 
-From 0.31 the auth names follow supabase-js and Next.js.
-[`better-supabase codemod 0.31`](/docs/cli/codemod) renames them and lists the
+From 0.32 the auth names follow supabase-js and Next.js.
+[`better-supabase codemod 0.32`](/docs/cli/codemod) renames them and lists the
 lines it can't rename safely; the
-[0.30 to 0.31 guide](/docs/migration/0.30-to-0.31) has the details.
+[0.31 to 0.32 guide](/docs/migration/0.31-to-0.32) has the details.
 
-| Before (0.30)                                    | After (0.31)                                            |
+| Before (0.31)                                    | After (0.32)                                            |
 | ------------------------------------------------ | ------------------------------------------------------- |
 | `auth.organization`, `requireOrganization`       | `auth.tenant`, `requireTenant`                          |
 | `bsb.session()`, `bsb.getRequestSession()`       | `bsb.claims()`, `bsb.getClaims()`                       |

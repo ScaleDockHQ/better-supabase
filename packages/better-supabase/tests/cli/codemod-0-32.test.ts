@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { applyCodemod, CODEMODS } from "../../src/cli/codemod.ts";
 
-const v031 = CODEMODS["0.31"]!;
+const v032 = CODEMODS["0.32"]!;
 
-describe("codemod 0.31", () => {
+describe("codemod 0.32", () => {
   it("renames auth.organization to auth.tenant in a TypeScript config", () => {
     const source = `import { defineConfig } from "better-supabase/config";
 
@@ -17,7 +17,7 @@ export default defineConfig({
 });
 `;
 
-    expect(applyCodemod(v031, source, "better-supabase.config.ts").text)
+    expect(applyCodemod(v032, source, "better-supabase.config.ts").text)
       .toBe(`import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
@@ -37,7 +37,7 @@ export default defineConfig({
 
     expect(
       JSON.parse(
-        applyCodemod(v031, source, "better-supabase.config.json").text,
+        applyCodemod(v032, source, "better-supabase.config.json").text,
       ),
     ).toEqual({ auth: { tenant: { claim: "org_id" } } });
   });
@@ -54,7 +54,7 @@ export default defineConfig({
 };
 `;
 
-    expect(applyCodemod(v031, source, "better-supabase.config.ts").text).toBe(
+    expect(applyCodemod(v032, source, "better-supabase.config.ts").text).toBe(
       source.replace("organization:", "tenant:"),
     );
   });
@@ -62,7 +62,7 @@ export default defineConfig({
   it("leaves a TypeScript config without auth.organization unchanged", () => {
     const source = `export default { auth: { tenant: { claim: "org" } } };\n`;
 
-    expect(applyCodemod(v031, source, "better-supabase.config.ts").text).toBe(
+    expect(applyCodemod(v032, source, "better-supabase.config.ts").text).toBe(
       source,
     );
   });
@@ -70,7 +70,7 @@ export default defineConfig({
   it("refuses a TypeScript config it can't read when it names organization", () => {
     const source = `const auth = { organization: {} };\nexport default build(auth);\n`;
 
-    const result = applyCodemod(v031, source, "better-supabase.config.ts");
+    const result = applyCodemod(v032, source, "better-supabase.config.ts");
 
     expect(result.text).toBe(source);
     expect(result.review.map((entry) => entry.message).join("\n")).toMatch(
@@ -81,7 +81,7 @@ export default defineConfig({
   it("leaves a TypeScript config it can't read alone when organization is absent", () => {
     const source = `export default build();\n`;
 
-    expect(applyCodemod(v031, source, "better-supabase.config.ts").text).toBe(
+    expect(applyCodemod(v032, source, "better-supabase.config.ts").text).toBe(
       source,
     );
   });
@@ -96,7 +96,7 @@ export default defineConfig({
 
     expect(
       JSON.parse(
-        applyCodemod(v031, source, "better-supabase.config.json").text,
+        applyCodemod(v032, source, "better-supabase.config.json").text,
       ),
     ).toEqual({
       schema: "public",
@@ -109,7 +109,7 @@ export default defineConfig({
   it("keeps a JSON config that needs no rename byte for byte", () => {
     const source = `{ "auth": { "tenant": {} } }`;
 
-    expect(applyCodemod(v031, source, "better-supabase.config.json").text).toBe(
+    expect(applyCodemod(v032, source, "better-supabase.config.json").text).toBe(
       source,
     );
   });
@@ -119,7 +119,7 @@ export default defineConfig({
       auth: { organization: { claim: "org" }, tenant: { column: "org" } },
     });
 
-    const result = applyCodemod(v031, source, "better-supabase.config.json");
+    const result = applyCodemod(v032, source, "better-supabase.config.json");
 
     expect(result.text).toBe(source);
     expect(result.review).toHaveLength(1);
@@ -127,7 +127,7 @@ export default defineConfig({
 
   it("refuses a JSON config that doesn't parse", () => {
     const result = applyCodemod(
-      v031,
+      v032,
       "{ auth: ",
       "better-supabase.config.json",
     );
@@ -143,7 +143,7 @@ export default defineConfig({
 };
 `;
 
-    const result = applyCodemod(v031, source, "better-supabase.config.ts");
+    const result = applyCodemod(v032, source, "better-supabase.config.ts");
 
     expect(result.text).toBe(source);
     expect(result.review).toEqual([
@@ -158,7 +158,7 @@ const route = { requireOrganization: true, note: "requireOrganization" };
 const tenant: OrganizationConfig = {};
 `;
 
-    expect(applyCodemod(v031, source, "src/routes.ts").text)
+    expect(applyCodemod(v032, source, "src/routes.ts").text)
       .toBe(`import type { TenantConfig } from "better-supabase/config";
 
 const route = { requireTenant: true, note: "requireOrganization" };
@@ -179,7 +179,7 @@ bsb.cacheTag("customers");
 bsb.proxy(request, { endedSession: true, refreshSkewSeconds: 30, expiredPrefetch: "render" });
 `;
 
-    expect(applyCodemod(v031, source, "src/proxy.ts").text)
+    expect(applyCodemod(v032, source, "src/proxy.ts").text)
       .toBe(`import type { SignInWithOAuthParams } from "better-supabase/next";
 import { bsb } from "@/lib/bsb";
 
@@ -200,7 +200,7 @@ await bsb.signIn({ email, password });
 `;
 
     expect(
-      applyCodemod(v031, source, "src/page.ts")
+      applyCodemod(v032, source, "src/page.ts")
         .review.map((entry) => entry.line)
         .toSorted((a, b) => a - b),
     ).toEqual([1, 2, 3]);

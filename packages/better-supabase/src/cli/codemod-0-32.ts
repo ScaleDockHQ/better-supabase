@@ -1,5 +1,5 @@
 /**
- * The 0.31 renames: tenant is the public word again (`auth.organization` and
+ * The 0.32 renames: tenant is the public word again (`auth.organization` and
  * `requireOrganization` from 0.15 go back to `auth.tenant` and
  * `requireTenant`), and the auth names follow supabase-js.
  */
@@ -215,8 +215,8 @@ function renameKeys(text: string): {
   return { text: applyEdits(text, edits), review: [] };
 }
 
-export const CODEMOD_0_31: Codemod = {
-  name: "0.31",
+export const CODEMOD_0_32: Codemod = {
+  name: "0.32",
   description:
     "Renames auth.organization to auth.tenant in better-supabase.config.* (at the top level and in the $env and $<environment> blocks), the requireOrganization route and procedure option to requireTenant, the createNext session, sign-in and cache methods to the supabase-js names (getClaims, contextFromSession, evictSession, signInWithOAuth, exchangeCodeForSession, tag, tags), the proxy and session-check option keys (verifySession, leeway, onExpiredPrefetch), checkSession to verifySession, and the matching types",
   imports: {
