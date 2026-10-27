@@ -33,6 +33,11 @@ export interface PermissionsAuthorizerOptions<Key extends string> {
   ) => Promise<readonly string[] | undefined>;
   /** `config.claims.permissions`, when renamed. Defaults to `permissions`. */
   readonly claim?: string;
+  /**
+   * The claim the hook sets to `true` when it left keys out: the provider's
+   * `tokenHook.truncatedClaim`. Defaults to `<claim>_truncated`.
+   */
+  readonly truncatedClaim?: string;
 }
 
 const OPERATION_ACTIONS: Readonly<Record<string, readonly string[]>> = {
@@ -73,7 +78,12 @@ export function permissionsAuthorizer<Key extends string>(
       return undefined;
     }
 
-    const fromToken = claimedKeys(request.subject.properties, tenant, claim);
+    const fromToken = claimedKeys(
+      request.subject.properties,
+      tenant,
+      claim,
+      options.truncatedClaim,
+    );
 
     if (fromToken !== undefined || options.load === undefined) {
       return fromToken;
@@ -153,10 +163,13 @@ function claimedKeys(
   properties: Readonly<Record<string, unknown>> | undefined,
   tenant: string,
   claim: string,
+  marker: string | undefined,
 ): readonly string[] | undefined {
   const claims = properties?.["claims"];
 
-  return isRecord(claims) ? keysFromClaims(claims, tenant, claim) : undefined;
+  return isRecord(claims)
+    ? keysFromClaims(claims, tenant, claim, marker)
+    : undefined;
 }
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {

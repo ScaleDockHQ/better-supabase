@@ -20,7 +20,12 @@ import { manyRoles, membershipRolesTable } from "./membership-roles.ts";
 import { roleNameOf } from "./memberships.ts";
 import { catalogAudit, membershipRoleKey } from "./permissions-catalog.ts";
 import { capFor, delegationSql } from "./permissions-delegation.ts";
-import { myPermissionsSql, oneTenantClaims } from "./permissions-keys.ts";
+import {
+  myPermissionsSql,
+  oneTenantClaims,
+  permissionClaimHook,
+  sqlCompleteOnly,
+} from "./permissions-keys.ts";
 import {
   accessModel,
   hasPlatformRoles,
@@ -589,7 +594,7 @@ as $$
     when member is not null
       and not better_supabase.user_disabled(member)
       and not better_supabase.tenant_disabled(tenant)${notSuspended(ctx, "tenant", "member")}
-    then coalesce((${providerSql(provider, "permissionsFor", { user: "member", tenant: "tenant" })}), '{}'::text[])
+    then ${sqlCompleteOnly(provider, `coalesce((${providerSql(provider, "permissionsFor", { user: "member", tenant: "tenant" })}), '{}'::text[])`)}
     else '{}'::text[]
   end
 $$;
@@ -1057,19 +1062,7 @@ ${[
   ])
   .join("\n")}
 
--- The permission claim: { [tenant id]: permission keys }, for the access
--- token hook when the app checks permissions from the token. Write the
--- active tenant only, and mark the claim truncated when it outgrows the
--- token budget, so readers ask the database instead:
---   declare
---     tenant text := event #>> '{claims,app_metadata,${ctx.claims.tenant}}';
---     keys jsonb := better_supabase.permission_claims((event ->> 'user_id')::uuid, tenant::${id});
---   begin
---     if octet_length(keys::text) > 2048 then
---       event := jsonb_set(event, '{claims,${ctx.claims.permissions}_truncated}', 'true');
---       keys := '{}'::jsonb;
---     end if;
---     return jsonb_set(event, '{claims,${ctx.claims.permissions}}', keys);`;
+${permissionClaimHook(ctx, layout)}`;
 }
 
 export const ACCESS: BlockSqlDefinition = {

@@ -15,6 +15,7 @@ import {
   accessProviderMode,
   entitlementsMode,
   moduleKeyProblems,
+  ownsPermissionsClaim,
 } from "../authorization.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { moduleLayoutFor, schemasDirOf } from "../sql-layout.ts";
@@ -30,6 +31,14 @@ export const MEMBERSHIP_CLAIM_MODULES: ReadonlySet<string> = new Set([
  */
 export const providerOwnsMemberships = (config: ResolvedConfig): boolean =>
   config.authorization?.tokenHook?.ownedClaims.includes("memberships") ?? false;
+
+/**
+ * Whether the provider's access token hook writes the `permissions` claim
+ * itself, so the hook template and a second hook leave it out.
+ */
+export const providerOwnsPermissions = (config: ResolvedConfig): boolean =>
+  config.authorization !== undefined &&
+  ownsPermissionsClaim(config.authorization, config.claims.permissions);
 
 /**
  * The provider's memberships for the `entitlements` module. When `names`

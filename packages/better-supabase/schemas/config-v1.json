@@ -1128,6 +1128,9 @@
                   },
                   "minItems": 1
                 },
+                "truncatedClaim": {
+                  "type": "string"
+                },
                 "registeredClaims": {
                   "type": "array",
                   "items": {

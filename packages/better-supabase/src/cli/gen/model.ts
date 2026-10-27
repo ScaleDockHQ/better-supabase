@@ -27,6 +27,7 @@ import type {
   TableModel,
 } from "./model-types.ts";
 
+import { providerTruncatedClaim } from "../../config/authorization.ts";
 import { DEFAULT_CLAIMS, tenantClaimPaths } from "../../config/index.ts";
 import { toCamel } from "../../index.ts";
 import { resolveProviderSql } from "../../sql/index.ts";
@@ -823,12 +824,21 @@ function assembleMeta(
 
   const claimOverrides: Partial<Record<keyof ClaimsMeta, string>> = {};
 
-  // SAFETY: DEFAULT_CLAIMS has one entry per ClaimsMeta key, and Object.keys
-  // widens the keys to string.
-  for (const key of Object.keys(DEFAULT_CLAIMS) as (keyof ClaimsMeta)[]) {
+  // SAFETY: DEFAULT_CLAIMS has one entry per configurable ClaimsMeta key, and
+  // Object.keys widens the keys to string.
+  for (const key of Object.keys(DEFAULT_CLAIMS) as Exclude<
+    keyof ClaimsMeta,
+    "permissionsTruncated"
+  >[]) {
     if (config.claims[key] !== DEFAULT_CLAIMS[key]) {
       claimOverrides[key] = config.claims[key];
     }
+  }
+
+  const truncatedClaim = providerTruncatedClaim(config.authorization);
+
+  if (truncatedClaim !== undefined) {
+    claimOverrides.permissionsTruncated = truncatedClaim;
   }
 
   const tenantClaim =

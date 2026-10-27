@@ -12,6 +12,11 @@ import type {
 } from "../sql/index.ts";
 
 import {
+  providerTruncatedClaim,
+  sqlCompleteKeys,
+} from "../config/authorization.ts";
+import { DEFAULT_CLAIMS } from "../core/claims.ts";
+import {
   MODULE_ID_TYPES,
   moduleIdType,
   scopeProblems,
@@ -156,7 +161,8 @@ export function entitlementsMode(
  * default.
  */
 export function accessProviderMode(
-  config: Pick<ResolvedConfig, "authorization" | "blocks">,
+  config: Pick<ResolvedConfig, "authorization" | "blocks"> &
+    Partial<Pick<ResolvedConfig, "claims">>,
 ): AccessProviderMode {
   const access = config.blocks.permissions;
 
@@ -191,6 +197,7 @@ export function accessProviderMode(
   }
 
   const { user, tenant } = provider.suspension ?? {};
+  const truncatedClaim = providerTruncatedClaim(provider);
 
   return {
     kind: "provider",
@@ -217,8 +224,24 @@ export function accessProviderMode(
       ...(provider.operations && Object.keys(provider.operations).length > 0
         ? { operations: provider.operations }
         : {}),
+      sqlCompleteKeys: sqlCompleteKeys(provider),
+      ...(ownsPermissionsClaim(provider, config.claims?.permissions)
+        ? { ownsPermissions: true }
+        : {}),
+      ...(truncatedClaim === undefined ? {} : { truncatedClaim }),
     },
   };
+}
+
+/**
+ * Whether the provider's hook writes the `permissions` claim (`claim`, as
+ * `config.claims.permissions`) itself.
+ */
+export function ownsPermissionsClaim(
+  provider: Pick<AuthorizationProvider, "tokenHook">,
+  claim: string = DEFAULT_CLAIMS.permissions,
+): boolean {
+  return provider.tokenHook?.ownedClaims.includes(claim) ?? false;
 }
 
 /** What `authorization.permissions` says about a key. */

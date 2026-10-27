@@ -87,6 +87,26 @@ describe("permissionsAuthorizer", () => {
     expect(load).toHaveBeenCalledOnce();
   });
 
+  it("reads the provider's truncated marker", async () => {
+    const load = vi.fn(async () => []);
+
+    const authorizer = permissionsAuthorizer({
+      permissions,
+      load,
+      truncatedClaim: "perms_partial",
+    });
+
+    const claims = {
+      permissions: { "org-1": ["invoices.read"] },
+      perms_partial: true,
+    };
+
+    await expect(
+      authorizer.evaluate(requestFor("invoices.read", claims)),
+    ).resolves.toMatchObject({ outcome: "denied" });
+    expect(load).toHaveBeenCalledOnce();
+  });
+
   it("batches the loader across evaluations without a memo", async () => {
     const load = vi.fn(async () => ["invoices.read"]);
     const authorizer = permissionsAuthorizer({ permissions, load });
