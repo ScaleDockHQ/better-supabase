@@ -1,4 +1,4 @@
-import type { AnyAuthorizer } from "../core/authorizer.ts";
+import type { AnyAuthorizer, AuthorizationIntent } from "../core/authorizer.ts";
 import type { SchemaMeta, TableMeta } from "../schema/types.ts";
 import type {
   JsonObject,
@@ -32,6 +32,11 @@ export interface ResourceActionSpec<Ref = string> {
   readonly description?: string;
   readonly deprecated?: boolean;
   readonly permission?: Ref;
+  /**
+   * What the authorizer sees as `context.intent`. Defaults to `read` for a
+   * `GET` action and `write` for the others.
+   */
+  readonly intent?: AuthorizationIntent;
   /** Names of the events the action emits, for AsyncAPI. */
   readonly emits?: readonly string[];
 }

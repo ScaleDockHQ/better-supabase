@@ -2,6 +2,7 @@ import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { defineAuthorizer } from "../../src/core/authorizer.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err } from "../../src/core/result.ts";
@@ -706,6 +707,152 @@ describe("createMcp", () => {
     expect(() =>
       mcp.tool({ name: "echo", description: "again", run: () => null }),
     ).toThrow('Duplicate MCP tool "echo"');
+  });
+});
+
+describe("createMcp versions", () => {
+  it("hands ServerOptions.versions to tools/list and tools/call decisions", async () => {
+    const versions = { evict: () => undefined, epoch: 3 };
+    const seen: unknown[] = [];
+
+    const mcp = createMcp(defineSupabase(schema), {
+      env,
+      auth: { jwks: signer.jwks },
+      name: "crm",
+      version: "1.0.0",
+      versions,
+      authorizer: defineAuthorizer({
+        name: "versions",
+        key: (ref: string) => ref,
+        evaluate: (
+          _request,
+          runtime?: { readonly versions?: typeof versions },
+        ) => {
+          seen.push(runtime?.versions?.epoch);
+
+          return { outcome: "granted" };
+        },
+      }),
+      tools: [
+        defineTool({
+          name: "ping",
+          description: "Ping",
+          permission: "ping",
+          run: () => "pong",
+        }),
+      ],
+    });
+
+    const token = await signer.sign({ sub: USER });
+
+    const send = (id: number, method: string, params?: unknown) =>
+      mcp.fetch(
+        new Request(ENDPOINT, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${token}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
+        }),
+      );
+
+    expect((await send(1, "tools/list")).status).toBe(200);
+    expect(
+      (await send(2, "tools/call", { name: "ping", arguments: {} })).status,
+    ).toBe(200);
+    expect(seen).toEqual([3, 3]);
+  });
+});
+
+describe("createMcp approval", () => {
+  it("lists a tool that needs an approval, refuses with its id and grants on resume", async () => {
+    const seen: (string | undefined)[] = [];
+
+    const mcp = createMcp(defineSupabase(schema), {
+      env,
+      auth: { jwks: signer.jwks },
+      name: "crm",
+      version: "1.0.0",
+      approval: { header: "x-approval-id" },
+      authorizer: defineAuthorizer({
+        name: "approvals",
+        key: (ref: string) => ref,
+        evaluate: (request) => {
+          seen.push(request.context.approval);
+
+          return request.context.approval === "apr_1"
+            ? { outcome: "granted" }
+            : { outcome: "approval-required", approval: { id: "apr_1" } };
+        },
+      }),
+      authorize: () => ({ allowed: false, reason: "authorize ran" }),
+      tools: [
+        defineTool({
+          name: "wire",
+          description: "Wire money",
+          permission: "payments.wire",
+          run: () => "sent",
+        }),
+      ],
+    });
+
+    const token = await signer.sign({ sub: USER });
+
+    const send = (
+      id: number,
+      method: string,
+      params?: unknown,
+      headers: Record<string, string> = {},
+    ) =>
+      mcp.fetch(
+        new Request(ENDPOINT, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${token}`,
+            "content-type": "application/json",
+            ...headers,
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
+        }),
+      );
+
+    const listed = (await (await send(1, "tools/list")).json()) as {
+      result: { tools: { name: string }[] };
+    };
+
+    expect(listed.result.tools.map((tool) => tool.name)).toEqual(["wire"]);
+
+    const refused = (await (
+      await send(2, "tools/call", { name: "wire", arguments: {} })
+    ).json()) as { result: { isError?: boolean; structuredContent?: unknown } };
+
+    expect(refused.result.isError).toBe(true);
+    expect(refused.result.structuredContent).toMatchObject({
+      code: "APPROVAL_REQUIRED",
+      approval: { id: "apr_1" },
+    });
+
+    const viaMeta = (await (
+      await send(3, "tools/call", {
+        name: "wire",
+        arguments: {},
+        _meta: { approval: "apr_1" },
+      })
+    ).json()) as { result: { isError?: boolean; structuredContent?: unknown } };
+
+    // A granted call reaches `authorize`, which still refuses.
+    expect(viaMeta.result.isError).toBe(true);
+    expect(JSON.stringify(viaMeta.result)).toContain("authorize ran");
+
+    await send(
+      4,
+      "tools/call",
+      { name: "wire", arguments: {} },
+      { "x-approval-id": "apr_1" },
+    );
+
+    expect(seen).toEqual([undefined, undefined, "apr_1", "apr_1"]);
   });
 });
 

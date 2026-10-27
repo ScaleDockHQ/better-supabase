@@ -546,6 +546,39 @@ describe("access module with the provider's permissionsFor", () => {
     );
   });
 
+  it("keeps only the keys the provider marks sqlComplete", () => {
+    const withFunctions = {
+      ...PROVIDER,
+      functions: {
+        ...PROVIDER.functions,
+        permissionsFor: "authz.permissions_for({user}, {tenant})",
+      },
+    };
+
+    expect(
+      provider({}, { ...withFunctions, sqlCompleteKeys: ["a.read", "b.it's"] }),
+    ).toContain(
+      "then coalesce(array(select k from unnest(coalesce((authz.permissions_for(member, tenant)), '{}'::text[])) as k where k = any(array['a.read', 'b.it''s']::text[])), '{}'::text[])",
+    );
+    expect(provider({}, { ...withFunctions, sqlCompleteKeys: [] })).toContain(
+      "then '{}'::text[]",
+    );
+  });
+
+  it("leaves the permissions claim to a hook that owns it", () => {
+    const owned = provider({}, { ...PROVIDER, ownsPermissions: true });
+
+    expect(owned).toContain(
+      `-- "permissions" itself, so leave it out of any other hook.`,
+    );
+    expect(owned).not.toContain("jsonb_set(event, '{claims,permissions}'");
+
+    const marked = provider({}, { ...PROVIDER, truncatedClaim: "partial" });
+
+    expect(marked).toContain("jsonb_set(event, '{claims,partial}', 'true')");
+    expect(marked).toContain("jsonb_set(event, '{claims,permissions}', keys)");
+  });
+
   it("keeps both empty without permissionsFor", () => {
     const sql = provider();
     expect(sql).toMatch(

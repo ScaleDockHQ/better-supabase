@@ -7,7 +7,7 @@ import type {
 } from "../../src/core/authorizer.ts";
 import type { Executor } from "../../src/core/executor.ts";
 
-import { defineAuthorizer } from "../../src/core/authorizer.ts";
+import { defineAuthorizer, requestMemo } from "../../src/core/authorizer.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
@@ -627,8 +627,18 @@ describe("defineResource permissions", () => {
         type: "customers",
         id: "c1",
         properties: { id: "c1", name: "Acme", organizationId: "o1" },
+        source: "loaded",
+        change: {
+          current: { id: "c1", name: "Acme", organizationId: "o1" },
+          next: { name: "B" },
+        },
       },
-      context: { tenant: "o1", scopes: ["read", "write"] },
+      context: {
+        tenant: "o1",
+        scopes: ["read", "write"],
+        intent: "write",
+        operation: "update",
+      },
     });
     expect(
       (
@@ -824,6 +834,106 @@ describe("defineResource permissions", () => {
         grantAll,
       ),
     ).toThrow("forOperation");
+  });
+});
+
+describe("defineResource request fields", () => {
+  it("names the operation, intent, source and change of each call", async () => {
+    const { db } = userDb();
+
+    const { authorizer, requests } = authorizerOf(() => ({
+      outcome: "granted",
+    }));
+
+    const customers = defineResource(
+      betterSupabase,
+      "customers",
+      {
+        permissions: {
+          list: "customers.list",
+          get: "customers.read",
+          create: "customers.create",
+          delete: "customers.delete",
+        },
+      },
+      authorizer,
+    );
+
+    await customers.execute(db, "get", { id: "c1" });
+    await customers.execute(db, "create", {
+      data: { name: "N", organizationId: "o1" },
+    });
+    await customers.execute(db, "delete", { id: "c1" });
+    await customers.execute(db, "list", {});
+
+    const summary = requests.map(({ context, resource }) => ({
+      operation: context.operation,
+      intent: context.intent,
+      source: resource.source,
+      change: resource.change,
+    }));
+
+    expect(summary.slice(0, 4)).toEqual([
+      { operation: "get", intent: "read", source: "loaded", change: undefined },
+      {
+        operation: "create",
+        intent: "write",
+        source: "input",
+        change: { next: { name: "N", organizationId: "o1" } },
+      },
+      {
+        operation: "delete",
+        intent: "write",
+        source: "loaded",
+        change: undefined,
+      },
+      {
+        operation: "list",
+        intent: "read",
+        source: "loaded",
+        change: undefined,
+      },
+    ]);
+  });
+
+  it("passes the context's request id and memo to the authorizer", async () => {
+    const memo = requestMemo();
+    const runtimes: unknown[] = [];
+    const requests: AuthorizationRequest[] = [];
+
+    const authorizer = defineAuthorizer({
+      name: "test",
+      key: (ref: string) => ref,
+      evaluate: (request, runtime) => {
+        requests.push(request);
+        runtimes.push(runtime);
+
+        return { outcome: "granted" };
+      },
+    });
+
+    const db = betterSupabase.connect(userDb().db.$executor, {
+      actor: { kind: "user", id: "u1", role: "authenticated" },
+      tenant: "o1",
+      requestId: "req_1",
+      approval: "apr_1",
+      memo,
+    });
+
+    const customers = defineResource(
+      betterSupabase,
+      "customers",
+      { permissions: { get: "customers.read" } },
+      authorizer,
+    );
+
+    await customers.execute(db, "get", { id: "c1" });
+
+    expect(requests[0]?.context).toMatchObject({
+      requestId: "req_1",
+      approval: "apr_1",
+    });
+    expect(runtimes[0]).toEqual({ memo });
   });
 });
 

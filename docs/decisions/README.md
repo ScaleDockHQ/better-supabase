@@ -117,3 +117,4 @@ add one, and link it from the code or config it explains.
 | [0111](0111-workflow-run-keys-and-retention.md)           | Workflow SDK start keys are claimed in a table; ended runs are purged in SQL, hourly with the `retention` option                                   |
 | [0112](0112-vercel-sandbox-adapter.md)                    | Vercel Sandbox runs chat sandboxes through an optional-peer adapter; credentials reach the VM only at its firewall                                 |
 | [0113](0113-eve-tools-approvals-schedules.md)             | eve tools run as the user through `forContext`; the approvals block approves them and queue schedules start them                                   |
+| [0114](0114-typed-authorization-library-contract.md)      | Authorization libraries get a typed, additive contract: claims and contract subpaths, request intent and source, typed versions, approval ids      |

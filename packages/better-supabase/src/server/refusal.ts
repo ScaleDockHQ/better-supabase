@@ -115,6 +115,7 @@ export async function routeRefusal(
     locals.tenant,
     options.authorizer,
     locals,
+    request.method,
   );
 
   if (!("kind" in caller)) {

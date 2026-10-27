@@ -1,6 +1,7 @@
 import type { RequestContext } from "../core/plugin.ts";
 import type { ActClaim } from "./actor.ts";
 
+import { PERMISSION_CAP_CLAIM } from "../core/claim-names.ts";
 import { isRecord } from "../core/guards.ts";
 import { actorOf } from "./actor.ts";
 import { actClaim, impersonatorClaim } from "./impersonation.ts";
@@ -32,12 +33,7 @@ export type DelegatedClaimsOutcome =
       readonly reason: "invalid-chain" | "invalid-delegation";
     };
 
-/**
- * The claim `forContext({ permissions })` sets: the permission keys the work
- * may use. `better_supabase.cap_allows` refuses every other key, and a job
- * queued under a cap keeps it.
- */
-export const PERMISSION_CAP_CLAIM = "bsb_permission_cap";
+export { PERMISSION_CAP_CLAIM };
 
 /**
  * The permission cap claim's 0.14 name. Through 0.15 the access functions and

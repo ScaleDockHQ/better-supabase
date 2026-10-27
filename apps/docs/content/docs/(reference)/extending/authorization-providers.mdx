@@ -75,18 +75,40 @@ A change to one of these types fails
 `tests/core/authorization-library-contract.test-d.ts`, so it can't land
 without a new `apiVersion`.
 
+### Import the contract
+
+`better-supabase/contract` re-exports every type in these slots, the
+request types the authorizer receives (see
+[Authorizers](/docs/extending/authorizers)) and `ContractApiVersion`. It is
+types only, so an adapter can import it from any runtime without adding
+code to its bundle:
+
+```ts title="src/adapter.ts"
+import type {
+  Authorizer,
+  ContractApiVersion,
+  Provider,
+  TokenHook,
+} from "better-supabase/contract";
+
+const apiVersion: ContractApiVersion = 1;
+```
+
+`Provider` is `AuthorizationProvider` and `TokenHook` is
+`AuthorizationTokenHook`, under the names an adapter uses.
+
 ## What reads it
 
-| Feature                                                                                    | What it takes from the provider                                                   |
-| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| `blocks.permissions.model: "provider"`                                                     | `can()` and the modules' checks call `functions`, at `tenantScope`                |
-| `auth.entitlements.memberships: "provider"`                                                | `has_entitlement` and `entitlement_members()` call `memberIds` and `memberIdsFor` |
-| Bucket and topic `access` policies with `sql`                                              | the `idsWith` and `isPlatform` templates, for any scope in `scopes`               |
-| `on.<type>.scope` in attachments and comments                                              | `idsWith` at that scope, for grants on a single record                            |
-| [API keys](/docs/blocks/api-keys) with `claim`                                             | nothing at runtime; the claim names follow the provider's functions               |
-| `better-supabase add memberships`                                                          | refuses when `tokenHook.ownedClaims` has `memberships` (`--force` writes it)      |
-| `better-supabase gen`                                                                      | refuses a bucket or topic key that isn't `sqlComplete: true`                      |
-| [Doctor](/docs/cli/doctor) BS107, BS213, BS214, BS324, BS404, BS405, BS407 to BS409, BS411 | `requires`, `decidingColumns`, `permissions`, `memberships`, `tokenHook`          |
+| Feature                                                                                           | What it takes from the provider                                                   |
+| ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `blocks.permissions.model: "provider"`                                                            | `can()` and the modules' checks call `functions`, at `tenantScope`                |
+| `auth.entitlements.memberships: "provider"`                                                       | `has_entitlement` and `entitlement_members()` call `memberIds` and `memberIdsFor` |
+| Bucket and topic `access` policies with `sql`                                                     | the `idsWith` and `isPlatform` templates, for any scope in `scopes`               |
+| `on.<type>.scope` in attachments and comments                                                     | `idsWith` at that scope, for grants on a single record                            |
+| [API keys](/docs/blocks/api-keys) with `claim`                                                    | nothing at runtime; the claim names follow the provider's functions               |
+| `better-supabase add memberships`                                                                 | refuses when `tokenHook.ownedClaims` has `memberships` (`--force` writes it)      |
+| `better-supabase gen`                                                                             | refuses a bucket or topic key that isn't `sqlComplete: true`                      |
+| [Doctor](/docs/cli/doctor) BS107, BS213, BS214, BS324, BS404, BS405, BS407 to BS409, BS411, BS419 | `requires`, `decidingColumns`, `permissions`, `memberships`, `tokenHook`          |
 
 `auth.entitlements.memberships` and `blocks.permissions.model` both default to
 `"provider"` when `authorization` is set. Set another access model to keep
@@ -265,6 +287,14 @@ the scope. Bucket and topic policies and the SQL modules check by role and
 scope only, so `gen`, `add` and doctor (BS214, BS411) refuse a key that
 isn't marked. Leave row-conditioned keys to the provider's table policies.
 
+The `permissions` claim carries the marked keys only:
+`better_supabase.member_permissions` and `permission_claims` drop every key
+without `sqlComplete: true`, because a key in the token is a grant in the
+whole tenant. `permissionsAuthorizer` decides from that claim, so doctor
+BS419 warns when app code uses it while some keys aren't marked: those keys
+deny there unless its `load` option reads `my_permissions`. Check them with
+your library's own authorizer instead.
+
 ### Token hook
 
 `tokenHook` describes the custom access token hook the provider generates:
@@ -275,10 +305,48 @@ isn't marked. Leave row-conditioned keys to the provider's table policies.
 | `tenantClaim`            | BS409 compares it with `auth.tenant.claim`                                                   |
 | `activeOrganizationFrom` | BS409 compares it with `blocks.permissions.activeTenant`, where `switch_organization` writes |
 | `ownedClaims`            | BS407 reports another hook that writes them; `add memberships` stops on them                 |
+| `truncatedClaim`         | the marker the hook sets when it leaves claims out to fit the budget                         |
 | `registeredClaims`       | BS407 accepts these claims from the functions named, such as `features`                      |
 | `budget`                 | BS405 measures the claims it lists against `bytes` for `doctor --as`                         |
 | `markers`                | comment lines in the provider's files, so doctor recognises its hook and grants migration    |
 | `grantsCommand`          | the command BS404 suggests                                                                   |
+
+A hook that writes `permissions` itself lists it in `ownedClaims`. The hook
+template better-supabase generates then leaves the claim out, and BS407
+reports any other hook that still calls `better_supabase.permission_claims`,
+so only one writer fills it. A provider that leaves the claim to
+better-supabase lists it in `registeredClaims` with that function instead:
+
+```ts
+tokenHook: {
+  function: "authz.access_token_hook",
+  ownedClaims: ["memberships", "permissions"],
+  truncatedClaim: "claims_truncated",
+  budget: { bytes: 3072, claims: ["memberships", "permissions"] },
+},
+```
+
+`truncatedClaim` names the one boolean claim the hook sets when it trimmed
+the claims in `budget` to fit. Without it, the marker is `<claim>_truncated`
+(`permissions_truncated` for the permissions claim). better-supabase passes it
+to `permissionsOf` and `permissionsAuthorizer`, which then answer "can't
+say" instead of "not granted", so the caller asks the database. Read the
+same names from `better-supabase/claims` instead of writing them out:
+
+```ts title="src/adapter/claims.ts"
+import {
+  MEMBERSHIPS_CLAIM,
+  PERMISSIONS_CLAIM,
+  isTruncated,
+} from "better-supabase/claims";
+
+export function complete(claims: Record<string, unknown>): boolean {
+  return (
+    !isTruncated(claims, PERMISSIONS_CLAIM, { marker: "claims_truncated" }) &&
+    claims[MEMBERSHIPS_CLAIM] !== undefined
+  );
+}
+```
 
 ### Approvals
 
@@ -415,6 +483,53 @@ Each `permission` must be in `permissions` when the provider lists them; the
 conformance block checks it. `meta.risk` and `meta.effects` describe the
 operation for approval prompts and tool listings.
 
+## Block tables
+
+An adapter whose SQL reads the memberships or tenant tables asks for their
+names instead of assuming `better_supabase.memberships`. `blockTables(config)`
+from `better-supabase/sql` resolves them from the loaded config, with the
+table and column renames and the block instances applied:
+
+```ts title="scripts/adapter-sql.ts"
+import { resolveConfig } from "better-supabase/config";
+import { blockTables } from "better-supabase/sql";
+import config from "../better-supabase.config";
+
+const tables = blockTables(resolveConfig(config, process.cwd()));
+const members = tables.memberships;
+
+if (members) {
+  console.log(`select ${members.columns.user} from ${members.table}`);
+}
+```
+
+| Field             | Table                                                                                         | Columns                                         |
+| ----------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `memberships`     | a member's tenant and role                                                                    | `tenant`, `user`, `role`, `disabledAt`          |
+| `membershipRoles` | one row per role, only with [`roles.many`](/docs/blocks/memberships#several-roles-per-member) | `tenant`, `user`, `role`                        |
+| `organizations`   | the tenants                                                                                   | `id`, `name`, `slug`, `disabledAt`, `deletedAt` |
+| `byBlock`         | every installed block's tables, by block                                                      |                                                 |
+
+A field is absent when its block isn't installed, and a column is `null`
+when the table has no such column. `table` is `schema.name`, with the
+configured schema and table name.
+
+## Codemod renames
+
+Each `better-supabase codemod` release publishes its renames as JSON, so an
+adapter's own codemod or a check in its CI reads the same list:
+
+```ts title="scripts/check-renames.ts"
+import renames from "better-supabase/codemods/0.32.json" with { type: "json" };
+
+for (const [from, to] of Object.entries(renames.members)) {
+  console.log(`${from} is now ${to}`);
+}
+```
+
+The file has `codemod` (the version) and `imports`, `subpaths`, `members`,
+`configKeys` and `optionKeys`, each a map from the old name to the new one.
+
 ## Bucket and topic policies
 
 An `access` policy calls the access contract (`tenant_ids_with`,
@@ -544,7 +659,9 @@ export const bsb = createNext(betterSupabase, { versions });
 ```
 
 Every authorizer call then gets `{ versions, memo }` as its runtime
-(`AuthorizerRuntime`): `versions` is the shared cache, and `memo` is a
+(`AuthorizerRuntime`): `versions` is the shared cache, typed as the cache
+you passed (see [Typed versions](/docs/extending/authorizers#typed-versions)),
+and `memo` is a
 `RequestMemo` for reads that several checks in one scope share. Create a
 memo with `requestMemo()` from `better-supabase/server`; nothing request-specific lives in module state.
 `bsb.evictSession(userId)` calls `versions.evict(userId)` next to
@@ -618,7 +735,12 @@ the shapes of
 `memberships`, `suspension`, `roleSources`, `decidingColumns` and
 `tokenHook`: `ownedClaims` is not empty, a `registeredClaims` entry is not also
 owned, `budget.claims` are owned or registered, and `budget.bytes` is a
-positive integer. See [conformance blocks](/docs/extending/conformance).
+positive integer. It also checks that the hook names one truncated marker
+(an identifier, apart from the claims it marks, the same in `truncatedClaim`
+and `budget.truncatedClaim`, and present when the budget counts a
+`permissions` claim the hook writes), and that a hook writing `permissions`
+has at least one `sqlComplete` key. See
+[conformance blocks](/docs/extending/conformance).
 
 ```ts title="tests/provider.test.ts"
 import { testAuthorizationProvider } from "better-supabase/testing";

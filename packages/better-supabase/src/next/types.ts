@@ -17,6 +17,7 @@ import type {
   BlockDataOf,
   BlockMethodName,
 } from "../blocks/block-method.ts";
+import type { AuthzVersionCache } from "../core/authorizer.ts";
 import type { ReadSet } from "../core/read-set.ts";
 import type { QuerySpec } from "../core/spec.ts";
 import type { TagOptions } from "../core/tags.ts";
@@ -239,7 +240,8 @@ export interface BetterNext<
   P = unknown,
   Ref = string,
   B = unknown,
-> extends BetterServer<M, F, E, C, P, B> {
+  V extends AuthzVersionCache = AuthzVersionCache,
+> extends BetterServer<M, F, E, C, P, B, V> {
   /** `proxy.ts`: refreshes sessions for page loads and server actions. */
   proxy(request: NextRequest, options?: ProxyOptions<C, P>): Promise<Response>;
   /**

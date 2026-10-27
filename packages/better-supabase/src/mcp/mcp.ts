@@ -8,7 +8,11 @@ import {
   unauthorizedResponse,
 } from "@supabase/server/oauth-protected-resource";
 
-import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
+import type {
+  AnyAuthorizer,
+  AuthzVersionCache,
+  PermissionRef,
+} from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { DbError } from "../core/errors.ts";
 import type { OperationTable } from "../core/operations.ts";
@@ -360,7 +364,8 @@ export interface BetterMcp<
   P = unknown,
   Ref = string,
   B = unknown,
-> extends BetterServer<M, F, E, C, P, B> {
+  V extends AuthzVersionCache = AuthzVersionCache,
+> extends BetterServer<M, F, E, C, P, B, V> {
   /**
    * Everything in one handler: the MCP endpoint and
    * `/.well-known/oauth-protected-resource`.
@@ -614,14 +619,16 @@ export function createMcp<
   E,
   C = unknown,
   P = unknown,
-  A extends AnyAuthorizer | undefined = undefined,
+  A extends AnyAuthorizer<V> | undefined = undefined,
   B = unknown,
+  V extends AuthzVersionCache = AuthzVersionCache,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: McpOptions<M, F, E, C, P, PermissionRef<A>, B> & {
     readonly authorizer?: A;
+    readonly versions?: V;
   },
-): BetterMcp<M, F, E, C, P, PermissionRef<A>, B> {
+): BetterMcp<M, F, E, C, P, PermissionRef<A>, B, V> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
 
@@ -714,7 +721,7 @@ export function createMcp<
       betterSupabase,
       key,
       route,
-      options.authorizer,
+      server.authorizer,
     );
 
     for (const { info, operation } of tableTools(resource, defs)) {
@@ -779,12 +786,7 @@ export function createMcp<
           value = parsed.data;
         }
 
-        const checked = await checkTool(
-          options.authorizer,
-          tool,
-          value,
-          ctx.db,
-        );
+        const checked = await checkTool(server.authorizer, tool, value, ctx.db);
 
         if (!checked.ok) {
           return failure(checked.error);
@@ -883,7 +885,7 @@ export function createMcp<
     const [shown, permitted] = await Promise.all([
       Promise.all(all.map((entry) => isVisible(entry, ctx))),
       permittedTools(
-        options.authorizer,
+        server.authorizer,
         all.map((entry) => ({ name: entry.info.name, ...entry })),
         contextOf(ctx.db),
       ),
@@ -930,6 +932,12 @@ export function createMcp<
   };
 
   const isRefusal = (value: Invocation): value is Refusal => "refusal" in value;
+
+  /** The approval id a client resumes with in `params._meta.approval`. */
+  const approvalOf = (meta: unknown): string | undefined =>
+    isObject(meta) && typeof meta["approval"] === "string"
+      ? meta["approval"]
+      : undefined;
 
   const call: BetterMcp<M, F, E, C, P, PermissionRef<A>, B>["call"] = async (
     name,
@@ -1225,7 +1233,18 @@ export function createMcp<
       case "tools/call": {
         const name = message.params?.["name"];
         const entry = typeof name === "string" ? registry.get(name) : undefined;
-        const context = toolContext();
+        const resume = approvalOf(message.params?.["_meta"]);
+
+        const context =
+          resume === undefined
+            ? toolContext()
+            : withExtra(
+                await server.context(request, {
+                  cookies: options.cookies ?? false,
+                  approval: resume,
+                }),
+                { request, signal: request.signal },
+              );
 
         if (!entry || !(await isVisible(entry, context))) {
           return rpcError(
@@ -1292,7 +1311,7 @@ export function createMcp<
     );
   };
 
-  type Mcp = BetterMcp<M, F, E, C, P, PermissionRef<A>, B>;
+  type Mcp = BetterMcp<M, F, E, C, P, PermissionRef<A>, B, V>;
 
   const mcp: Mcp = extendServer<Mcp>(server, {
     get tools() {

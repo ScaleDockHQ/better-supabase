@@ -102,6 +102,29 @@ export type AuthSession<C = unknown, P = unknown> =
 
 type AnonReason = Extract<AuthState, { kind: "none" }>["reason"];
 
+/** The `AuthSession` of a signed-in user. */
+export type UserSession<C = unknown, P = unknown> = Extract<
+  AuthSession<C, P>,
+  { readonly kind: "user" }
+>;
+
+/** The `AuthSession` of a caller that sent an API key. */
+export type ApiKeySession = Extract<AuthSession, { readonly kind: "apiKey" }>;
+
+/** Whether `session` is a signed-in user, with claims and a version. */
+export function isUserSession<C, P>(
+  session: AuthSession<C, P>,
+): session is UserSession<C, P> {
+  return session.kind === "user";
+}
+
+/** Whether `session` is an API key caller, with its key id and scopes. */
+export function isApiKeySession<C, P>(
+  session: AuthSession<C, P>,
+): session is ApiKeySession & AuthSession<C, P> {
+  return session.kind === "apiKey";
+}
+
 /** Whether the token belongs to an anonymous user (`signInAnonymously()`). */
 export function isAnonymousUser(claims: Readonly<object>): boolean {
   return "is_anonymous" in claims && claims.is_anonymous === true;

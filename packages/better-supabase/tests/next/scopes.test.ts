@@ -369,7 +369,11 @@ describe("explicit tenants", () => {
     );
 
     const explicit = await bsb.context({ tenant: TENANT });
-    expect(explicit.db.$context).toEqual(resolved.db.$context);
+    expect(explicit.db.$context).toEqual({
+      ...resolved.db.$context,
+      requestId: expect.any(String),
+      memo: expect.any(Object),
+    });
     expect(explicit.db.$context.tenant).toBe(TENANT);
     expect(resolver).toHaveBeenCalledOnce();
   });

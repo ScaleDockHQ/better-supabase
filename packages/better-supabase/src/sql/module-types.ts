@@ -458,6 +458,18 @@ export interface BlockSqlAccessProvider {
   readonly approvals?: { readonly distinctApprover?: boolean };
   /** The provider's operations table; `operationPermission` reads it. */
   readonly operations?: Readonly<Record<string, AuthorizationOperation>>;
+  /**
+   * The keys the provider marks `sqlComplete: true`. `member_permissions` and
+   * the `permissions` claim carry only these; unset keeps every key.
+   */
+  readonly sqlCompleteKeys?: readonly string[];
+  /**
+   * The provider's hook writes the `permissions` claim (`ownedClaims`), so the
+   * hook template leaves it out.
+   */
+  readonly ownsPermissions?: boolean;
+  /** The claim the provider's hook sets when it truncated `permissions`. */
+  readonly truncatedClaim?: string;
 }
 
 /** Whether any of the module's tables can be a table the app already has. */

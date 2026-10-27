@@ -162,3 +162,39 @@ export const callerOnlyProvider: BlockSqlAccessProvider = {
     isPlatform: stubProvider.functions.isPlatform,
   },
 };
+
+/**
+ * A provider whose hook writes the `permissions` claim itself, so
+ * better-supabase's hook template leaves it out. It marks a cut claim with
+ * `claims_truncated`.
+ */
+export const ownsPermissionsProvider: AuthorizationProvider = {
+  ...stubProvider,
+  name: "owns-permissions",
+  tokenHook: {
+    ...stubProvider.tokenHook,
+    ownedClaims: ["memberships", "tenant_id", "permissions"],
+    truncatedClaim: "claims_truncated",
+    budget: {
+      claims: ["memberships", "permissions"],
+      bytes: 2048,
+      truncatedClaim: "claims_truncated",
+    },
+  },
+};
+
+/**
+ * A provider that leaves the `permissions` claim to better-supabase's
+ * `permission_claims`, limited to its `sqlComplete` keys.
+ */
+export const sharedPermissionsProvider: AuthorizationProvider = {
+  ...stubProvider,
+  name: "shared-permissions",
+  tokenHook: {
+    ...stubProvider.tokenHook,
+    registeredClaims: [
+      ...(stubProvider.tokenHook.registeredClaims ?? []),
+      { name: "permissions", function: "better_supabase.permission_claims" },
+    ],
+  },
+};

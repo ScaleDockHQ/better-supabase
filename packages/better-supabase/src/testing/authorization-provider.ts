@@ -10,6 +10,7 @@ import {
   templatePlaceholders,
   templateProblems,
 } from "../core/access-sql.ts";
+import { PERMISSIONS_CLAIM } from "../core/claim-names.ts";
 import { conform, expect } from "./conformance.ts";
 import { hasName } from "./kits/executor.ts";
 
@@ -80,7 +81,9 @@ function expectRow(where: string, row: DisabledRow): void {
  * scopes with a tenant scope that has an id type, writes templates that are
  * safe to inline and use the placeholders they need, lists every function its
  * templates call in `requires`, and keeps its token hook, suspension rows, role
- * sources and deciding columns well formed.
+ * sources and deciding columns well formed. A hook that writes `permissions`
+ * (owned or registered) needs a key marked `sqlComplete`, and one truncated
+ * marker when its budget can cut the claim.
  */
 export function testAuthorizationProvider(
   provider: AuthorizationProvider,
@@ -368,6 +371,66 @@ export function testAuthorizationProvider(
             );
           }
         }
+      },
+    ],
+    provider.tokenHook && [
+      "names one truncated marker, apart from the claims it marks",
+      () => {
+        const hook = provider.tokenHook!;
+
+        const markers = [
+          hook.truncatedClaim,
+          hook.budget?.truncatedClaim,
+        ].filter((marker) => marker !== undefined);
+
+        for (const marker of markers) {
+          expect(
+            IDENTIFIER.test(marker),
+            `truncated marker "${marker}" is not a claim name`,
+          );
+          expect(
+            marker !== PERMISSIONS_CLAIM &&
+              !(hook.budget?.claims ?? []).includes(marker),
+            `truncated marker "${marker}" is also a claim it marks`,
+          );
+        }
+
+        expect(
+          new Set(markers).size <= 1,
+          `tokenHook.truncatedClaim "${hook.truncatedClaim}" and budget.truncatedClaim "${hook.budget?.truncatedClaim}" disagree: readers and doctor would look at different markers`,
+        );
+
+        const capped =
+          (hook.budget?.claims ?? []).includes(PERMISSIONS_CLAIM) &&
+          (hook.ownedClaims.includes(PERMISSIONS_CLAIM) ||
+            (hook.registeredClaims ?? []).some(
+              (claim) => claim.name === PERMISSIONS_CLAIM,
+            ));
+
+        expect(
+          !capped || markers.length > 0,
+          `tokenHook.budget can drop "${PERMISSIONS_CLAIM}" entries, so it needs truncatedClaim: readers would take a cut claim as complete`,
+        );
+      },
+    ],
+    provider.tokenHook && [
+      `writes "${PERMISSIONS_CLAIM}" only with keys complete in SQL`,
+      () => {
+        const hook = provider.tokenHook!;
+        const owned = hook.ownedClaims.includes(PERMISSIONS_CLAIM);
+
+        const registered = (hook.registeredClaims ?? []).some(
+          (claim) => claim.name === PERMISSIONS_CLAIM,
+        );
+
+        if (!owned && !registered) {
+          return;
+        }
+
+        expect(
+          (provider.permissions ?? []).some((entry) => entry.sqlComplete),
+          `tokenHook writes "${PERMISSIONS_CLAIM}", but permissions marks no key sqlComplete: the claim only carries those keys, so it would always be empty`,
+        );
       },
     ],
   ]);

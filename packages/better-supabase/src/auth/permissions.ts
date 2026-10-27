@@ -1,16 +1,20 @@
-import type { AuthSnapshot } from "../client/bind.ts";
-import type { AuthSession } from "./view.ts";
+import type { ClaimsRecord, ClaimsSource } from "./claims-source.ts";
 
-import { DEFAULT_CLAIMS } from "../core/claims.ts";
+import { DEFAULT_CLAIMS, truncatedMarker } from "../core/claims.ts";
+import { claimsFrom } from "./claims-source.ts";
 import { tenantOf } from "./tenant.ts";
 
 export interface PermissionsOfOptions {
   /**
    * The claim holding `{ [tenantId]: string[] }`, as
-   * `config.claims.permissions`. Defaults to `permissions`; the truncation
-   * marker is `<claim>_truncated`.
+   * `config.claims.permissions`. Defaults to `permissions`.
    */
   readonly claim?: string;
+  /**
+   * The claim the hook sets to `true` when it left keys out: the provider's
+   * `tokenHook.truncatedClaim`. Defaults to `<claim>_truncated`.
+   */
+  readonly truncatedClaim?: string;
   /**
    * The active tenant claim, as `config.claims.tenant`, when `tenant` is left
    * out.
@@ -20,10 +24,11 @@ export interface PermissionsOfOptions {
 
 /**
  * The permission keys the token grants in `tenant` (the active tenant by
- * default), from the `permissions` claim `permission_claims()` writes.
+ * default), from the `permissions` claim `permission_claims()` writes. Takes a
+ * server session, the client's `useAuth()` snapshot or verified claims.
  *
  * `undefined` means the token can't answer: no claim, no entry for the tenant,
- * or the hook set `permissions_truncated` because the keys didn't fit. Ask the
+ * or the hook set the truncated marker because the keys didn't fit. Ask the
  * database then (`my_permissions`). An empty list means the token says the
  * caller holds no permission there. The claim is a cache the `authz_ver` bump
  * invalidates; RLS stays the authority.
@@ -34,30 +39,49 @@ export interface PermissionsOfOptions {
  * ```
  */
 export function permissionsOf<C, P>(
-  session: AuthSession<C, P> | AuthSnapshot,
+  session: ClaimsSource<C, P>,
   tenant?: string,
   options: PermissionsOfOptions = {},
 ): readonly string[] | undefined {
-  const claims = claimsOf(session);
+  const claims = claimsFrom(session);
 
   if (claims === undefined) {
     return undefined;
   }
 
-  const id = tenant ?? tenantOf(session, options.tenantClaim);
+  const id = tenant ?? tenantOf(claims, options.tenantClaim);
 
   return id === undefined
     ? undefined
-    : keysFromClaims(claims, id, options.claim ?? DEFAULT_CLAIMS.permissions);
+    : keysFromClaims(
+        claims,
+        id,
+        options.claim ?? DEFAULT_CLAIMS.permissions,
+        options.truncatedClaim,
+      );
+}
+
+/**
+ * Whether the hook left entries out of `claim` to stay within its budget.
+ * `marker` is the provider's `tokenHook.truncatedClaim`; without it the marker
+ * is `<claim>_truncated`. A truncated claim can't answer "not granted".
+ */
+export function isTruncated(
+  claims: ClaimsRecord,
+  claim: string = DEFAULT_CLAIMS.permissions,
+  options: { readonly marker?: string | undefined } = {},
+): boolean {
+  return claims[truncatedMarker(claim, options.marker)] === true;
 }
 
 /** The keys `claims` grants in `tenant`, or `undefined` when it can't say. */
 export function keysFromClaims(
-  claims: Readonly<Record<string, unknown>>,
+  claims: ClaimsRecord,
   tenant: string,
   claim: string,
+  marker?: string,
 ): readonly string[] | undefined {
-  if (claims[`${claim}_truncated`] === true) {
+  if (isTruncated(claims, claim, { marker })) {
     return undefined;
   }
 
@@ -79,16 +103,6 @@ function isKeyList(value: unknown): value is readonly string[] {
   );
 }
 
-function claimsOf<C, P>(
-  session: AuthSession<C, P> | AuthSnapshot,
-): Readonly<Record<string, unknown>> | undefined {
-  if ("kind" in session) {
-    return session.kind === "user" ? session.claims : undefined;
-  }
-
-  return session.status === "signed-in" ? session.claims : undefined;
-}
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+function isRecord(value: unknown): value is ClaimsRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

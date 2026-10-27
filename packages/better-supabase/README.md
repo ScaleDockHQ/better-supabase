@@ -116,16 +116,17 @@ A [preset](https://bettersupabase.com/docs/presets) installs a set of blocks for
 
 Each feature is its own entry, so an app only loads what it imports.
 
-| Area                                    | Start here                                                                  |
-| --------------------------------------- | --------------------------------------------------------------------------- |
-| Repositories, results and config        | [`better-supabase`](https://bettersupabase.com/docs/repository)             |
-| Server, Postgres and auth               | [`better-supabase/server`](https://bettersupabase.com/docs/auth/server)     |
-| Framework adapters                      | [`better-supabase/next`](https://bettersupabase.com/docs/frameworks)        |
-| Browser client and data hooks           | [`better-supabase/client`](https://bettersupabase.com/docs/frontend/client) |
-| Blocks                                  | [`better-supabase/blocks/<name>`](https://bettersupabase.com/docs/blocks)   |
-| APIs (OpenAPI, AsyncAPI, Arazzo)        | [`better-supabase/spec`](https://bettersupabase.com/docs/specs)             |
-| AI SDK, Chat SDK, eve, flags, workflows | [Integrations](https://bettersupabase.com/docs/integrations)                |
-| Tests                                   | [`better-supabase/testing`](https://bettersupabase.com/docs/testing)        |
+| Area                                    | Start here                                                                                                                                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repositories, results and config        | [`better-supabase`](https://bettersupabase.com/docs/repository)                                                                                                                       |
+| Server, Postgres and auth               | [`better-supabase/server`](https://bettersupabase.com/docs/auth/server)                                                                                                               |
+| Framework adapters                      | [`better-supabase/next`](https://bettersupabase.com/docs/frameworks)                                                                                                                  |
+| Browser client and data hooks           | [`better-supabase/client`](https://bettersupabase.com/docs/frontend/client)                                                                                                           |
+| Blocks                                  | [`better-supabase/blocks/<name>`](https://bettersupabase.com/docs/blocks)                                                                                                             |
+| APIs (OpenAPI, AsyncAPI, Arazzo)        | [`better-supabase/spec`](https://bettersupabase.com/docs/specs)                                                                                                                       |
+| AI SDK, Chat SDK, eve, flags, workflows | [Integrations](https://bettersupabase.com/docs/integrations)                                                                                                                          |
+| Authorization library adapters          | [`better-supabase/claims`](https://bettersupabase.com/docs/extending/authorization-providers) and [`better-supabase/contract`](https://bettersupabase.com/docs/extending/authorizers) |
+| Tests                                   | [`better-supabase/testing`](https://bettersupabase.com/docs/testing)                                                                                                                  |
 
 ## For AI agents
 

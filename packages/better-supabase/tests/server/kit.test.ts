@@ -214,8 +214,12 @@ describe("permission", () => {
     expect(requests[0]).toMatchObject({
       subject: { type: "user", id: USER },
       action: "posts.create",
-      resource: { type: "action", properties: { title: "Hi" } },
-      context: { tenant: "o1" },
+      resource: {
+        type: "action",
+        properties: { title: "Hi" },
+        source: "input",
+      },
+      context: { tenant: "o1", operation: "action", intent: "write" },
     });
 
     const denied = await requireCaller(
@@ -230,6 +234,26 @@ describe("permission", () => {
       code: "PERMISSION_DENIED",
     });
     expect(requests[1]?.resource).toEqual({ type: "route" });
+    expect(requests[1]?.context).toMatchObject({
+      operation: "route",
+      intent: "read",
+    });
+
+    await requireCaller(
+      user,
+      { permission: "posts.delete" },
+      undefined,
+      authorizer,
+      { requestId: "req_1", approval: "apr_1" },
+      "DELETE",
+    );
+
+    expect(requests[2]?.context).toMatchObject({
+      operation: "route",
+      intent: "write",
+      requestId: "req_1",
+      approval: "apr_1",
+    });
 
     const roles = await requireCaller(
       user,
@@ -239,7 +263,7 @@ describe("permission", () => {
     );
 
     expect(roles).toMatchObject({ code: "MISSING_ROLE" });
-    expect(requests).toHaveLength(2);
+    expect(requests).toHaveLength(3);
   });
 
   it("refuses a declared permission without an authorizer", async () => {

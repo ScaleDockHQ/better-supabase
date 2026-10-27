@@ -1563,7 +1563,8 @@ for records that outlive them (`created_by` on shared documents, audit rows).
 **Error: two authorization hooks.** The authorization provider's hook
 (`authorization.tokenHook`) owns the claims in `ownedClaims`, plus its
 `tenantClaim`. A custom access token hook that also calls
-`better_supabase.membership_claims` (when `memberships` is owned), or writes
+`better_supabase.membership_claims` (when `memberships` is owned) or
+`better_supabase.permission_claims` (when `permissions` is owned), or writes
 one of those claims itself through `jsonb_set` or `jsonb_build_object`, gives
 them two sources that drift apart. Use the provider's hook and remove the
 extra writes.
@@ -1746,6 +1747,17 @@ block (`workItemsBlock`), and the record feature, leases maintenance and pass
 credit APIs that 0.15 removed. Run `better-supabase codemod 0.15` for the
 renames, and use the replacement the finding names for the removed APIs. The
 [0.14 to 0.15 guide](/docs/migration/0.14-to-0.15) lists each one.
+
+### BS419
+
+**Warning: `permissionsAuthorizer` checks keys the token leaves out.** The
+`permissions` claim carries only the keys the authorization provider marks
+`sqlComplete: true`, because the SQL functions can't decide the others.
+Doctor reports app files in `doctor.sources` that call
+`permissionsAuthorizer(` while `authorization.permissions` is missing or has
+keys without `sqlComplete`. A check for such a key is denied unless the
+authorizer's `load` option reads `my_permissions`. Mark the keys
+`sqlComplete` when the SQL functions answer for them, or pass `load`.
 
 ## Env files
 

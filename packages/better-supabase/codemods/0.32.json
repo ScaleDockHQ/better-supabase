@@ -1,0 +1,31 @@
+{
+  "codemod": "0.32",
+  "imports": {
+    "OrganizationConfig": "TenantConfig",
+    "OAuthStart": "SignInWithOAuthParams",
+    "CodeExchange": "ExchangeCodeParams",
+    "EndedSessionOptions": "VerifySessionOptions",
+    "checkSession": "verifySession"
+  },
+  "subpaths": {},
+  "members": {
+    "getRequestSession": "getClaims",
+    "contextForSession": "contextFromSession",
+    "invalidateSession": "evictSession",
+    "forgetSession": "evictSession",
+    "authorizeUrl": "signInWithOAuth",
+    "exchangeCode": "exchangeCodeForSession",
+    "cacheTags": "tags",
+    "cacheTag": "tag"
+  },
+  "configKeys": {
+    "auth.organization": "auth.tenant"
+  },
+  "optionKeys": {
+    "requireOrganization": "requireTenant",
+    "checkSession": "verifySession",
+    "endedSession": "verifySession",
+    "refreshSkewSeconds": "leeway",
+    "expiredPrefetch": "onExpiredPrefetch"
+  }
+}
