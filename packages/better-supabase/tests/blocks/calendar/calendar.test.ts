@@ -200,12 +200,24 @@ describe("calendar client", () => {
     const event = found.find((item) => item.event.id === "e1");
     expect(await calendar.cancelOccurrence(occurrence!).orThrow()).toBe(true);
     expect(await calendar.cancelOccurrence(event!).orThrow()).toBe(true);
+    expect(
+      await calendar
+        .cancelOccurrence({
+          seriesId: "s1",
+          originalStart: Temporal.Instant.from("2026-04-06T07:00:00Z"),
+        })
+        .orThrow(),
+    ).toBe(true);
     expect(calls.slice(1)).toEqual([
       {
         fn: "cancel_calendar_occurrence",
         args: { event_id: "s1", original_start: "2026-03-30T07:00:00Z" },
       },
       { fn: "delete_calendar_event", args: { event_id: "e1" } },
+      {
+        fn: "cancel_calendar_occurrence",
+        args: { event_id: "s1", original_start: "2026-04-06T07:00:00Z" },
+      },
     ]);
   });
 

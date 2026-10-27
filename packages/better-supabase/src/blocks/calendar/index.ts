@@ -9,6 +9,7 @@ export {
   type CalendarGrantRole,
   type CalendarImport,
   type CalendarInfo,
+  type CalendarOccurrenceRef,
   type CalendarOptions,
   type CalendarVisibility,
   type SavedCalendarEvent,

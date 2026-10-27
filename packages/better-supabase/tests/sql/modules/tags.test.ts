@@ -215,9 +215,9 @@ describe("tags module", () => {
     });
 
     expect(sql).toContain(
-      `(jsonb_populate_record(null::"better_supabase"."tags", coalesce(create_tag.fields, '{}'::jsonb)))."icon", `,
+      `(jsonb_populate_record(null::"better_supabase"."tags", jsonb_build_object('icon', create_tag.fields -> 'icon')))."icon", `,
     );
-    expect(sql).toContain(`'{}'::jsonb)))."note")`);
+    expect(sql).toContain(`create_tag.fields -> 'note')))."note")`);
   });
 
   it("checks the record's tag action when the record declares one", () => {

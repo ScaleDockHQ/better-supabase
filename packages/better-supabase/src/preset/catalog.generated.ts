@@ -7714,6 +7714,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "CalendarOccurrence"
         },
         {
+          "name": "CalendarOccurrenceRef"
+        },
+        {
           "name": "CalendarOptions"
         },
         {

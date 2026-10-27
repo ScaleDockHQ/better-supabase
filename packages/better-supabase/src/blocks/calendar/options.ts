@@ -13,6 +13,11 @@ export type CalendarRuleDialect = {
   readonly ordinal?: { readonly weekday: string; readonly position: string };
 };
 
+export type CalendarReadOnly = {
+  readonly column: string;
+  readonly values: readonly string[];
+};
+
 export type CalendarAccessFunctions = {
   readonly read?: string;
   readonly write?: string;
@@ -34,6 +39,7 @@ export type CalendarSqlOptions = {
   readonly attendeeKey?: "email" | "any";
   readonly calendarDetails?: boolean;
   readonly ruleDialect?: CalendarRuleDialect;
+  readonly readOnly?: CalendarReadOnly;
 };
 
 export const calendarSqlOptions: BlockOptionsSchema<CalendarSqlOptions> =
@@ -48,4 +54,5 @@ export const calendarSqlOptions: BlockOptionsSchema<CalendarSqlOptions> =
     attendeeKey: option.string<"email" | "any">({ default: "email" }),
     calendarDetails: option.boolean({ default: false }),
     ruleDialect: option.unknown<CalendarRuleDialect>(),
+    readOnly: option.unknown<CalendarReadOnly>(),
   });

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:bd1d2f4278a59bc3f91ee0477451a5bec9db89b737b0eadeddd98228938be5da
+-- @bsb-hash sha256:6fff12184b28c6bcf249b599e855d17d5a00eaae3a17f3d400aeb00f69819919
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -318,6 +318,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'calendar.write'), false)) then
     raise exception 'not allowed to change this calendar' using errcode = '42501', hint = 'CALENDAR_FORBIDDEN';
   end if;
+
   if v_item ? 'status' and v_item ->> 'status' not in ('confirmed', 'tentative', 'cancelled') then
     raise exception 'status must be confirmed, tentative or cancelled' using errcode = '22023', hint = 'CALENDAR_EVENT_INVALID';
   end if;
@@ -1299,7 +1300,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:518243dc1ecee8a227bdfc6d0392a3875346928e671d7c2abea6945e9b1b3684
+-- @bsb-hash sha256:3874a44b66787f634264dd6e3143bebef20224e8867776b4721cfac9d79621d9
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1616,6 +1617,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'calendar.write'), false)) then
     raise exception 'not allowed to change this calendar' using errcode = '42501', hint = 'CALENDAR_FORBIDDEN';
   end if;
+
   if v_item ? 'status' and v_item ->> 'status' not in ('confirmed', 'tentative', 'cancelled') then
     raise exception 'status must be confirmed, tentative or cancelled' using errcode = '22023', hint = 'CALENDAR_EVENT_INVALID';
   end if;
@@ -2667,7 +2669,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:7f4c8d9ca57ab1995ce653a44f75eb79f0deb784a4e7b796ea8bd6b387a68b86
+-- @bsb-hash sha256:ed704c33ddc7cc576f700a6d2a8b304bdc0937cbafab25f88aa440d06d812680
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2989,6 +2991,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'calendar.write'), false)) then
     raise exception 'not allowed to change this calendar' using errcode = '42501', hint = 'CALENDAR_FORBIDDEN';
   end if;
+
   if v_item ? 'status' and v_item ->> 'status' not in ('confirmed', 'tentative', 'cancelled') then
     raise exception 'status must be confirmed, tentative or cancelled' using errcode = '22023', hint = 'CALENDAR_EVENT_INVALID';
   end if;
@@ -3970,7 +3973,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:2db39abd5f984b977e5b36d763354fb328661765c5d03546e89d0a9f29a22a51
+-- @bsb-hash sha256:5aa663046fee0f79f026cb9270cb81d5abaaee6579cbc4a1ebd5a1581d5a43e9
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4287,6 +4290,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'calendar.write'), false)) then
     raise exception 'not allowed to change this calendar' using errcode = '42501', hint = 'CALENDAR_FORBIDDEN';
   end if;
+
   if v_item ? 'status' and v_item ->> 'status' not in ('confirmed', 'tentative', 'cancelled') then
     raise exception 'status must be confirmed, tentative or cancelled' using errcode = '22023', hint = 'CALENDAR_EVENT_INVALID';
   end if;
@@ -5443,7 +5447,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:b133856767e681f12260235c0bd32c69de14a415a6298c564ad591cba443e947
+-- @bsb-hash sha256:2ed7351108946cbcad33ed87e603096721a38d70f878650a592151e5511d459b
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5753,6 +5757,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'calendar.write'), false)) then
     raise exception 'not allowed to change this calendar' using errcode = '42501', hint = 'CALENDAR_FORBIDDEN';
   end if;
+
   if v_item ? 'status' and v_item ->> 'status' not in ('confirmed', 'tentative', 'cancelled') then
     raise exception 'status must be confirmed, tentative or cancelled' using errcode = '22023', hint = 'CALENDAR_EVENT_INVALID';
   end if;
@@ -5789,7 +5794,7 @@ begin
     v_id := gen_random_uuid();
     v_uid := coalesce(v_uid, v_id::text);
     insert into "better_supabase"."calendar_events" ("id", "tenant_id", "calendar_id", "uid", "recurrence_id", "original_start", "title", "starts_at", "ends_at", "all_day", "tz", "status", "rrule", "exdates", "description", "location", "color", "kind", "transparency", "auto_decline", "subject_type", "subject_id", "created_by")
-    values (v_id, v_tenant, save_calendar_event.calendar_id, v_uid, v_master, (v_item ->> 'originalStart')::timestamptz, coalesce(v_item ->> 'title', ''), (v_item ->> 'startsAt')::timestamptz, (v_item ->> 'endsAt')::timestamptz, coalesce((v_item ->> 'allDay')::boolean, false), coalesce(v_item ->> 'tz', v_tz), better_supabase.as_column_type(coalesce(v_item ->> 'status', 'confirmed'), (null::"better_supabase"."calendar_events")."status"), nullif(v_item ->> 'rrule', ''), v_exdates, v_item ->> 'description', v_item ->> 'location', v_item ->> 'color', coalesce(v_item ->> 'kind', 'event'), coalesce(v_item ->> 'transparency', 'opaque'), coalesce((v_item ->> 'autoDecline')::boolean, false), v_item ->> 'subjectType', v_item ->> 'subjectId', auth.uid());
+    values (v_id, v_tenant, save_calendar_event.calendar_id, v_uid, v_master, (v_item ->> 'originalStart')::timestamptz, coalesce(v_item ->> 'title', ''), (v_item ->> 'startsAt')::timestamptz, (v_item ->> 'endsAt')::timestamptz, coalesce((v_item ->> 'allDay')::boolean, false), coalesce(v_item ->> 'tz', v_tz), better_supabase.as_column_type(coalesce(v_item ->> 'status', 'confirmed'), (null::"better_supabase"."calendar_events")."status"), nullif(v_item ->> 'rrule', ''), v_exdates, v_item ->> 'description', v_item ->> 'location', v_item ->> 'color', better_supabase.as_column_type(coalesce(v_item ->> 'kind', 'event'), (null::"better_supabase"."calendar_events")."kind"), better_supabase.as_column_type(coalesce(v_item ->> 'transparency', 'opaque'), (null::"better_supabase"."calendar_events")."transparency"), coalesce((v_item ->> 'autoDecline')::boolean, false), v_item ->> 'subjectType', v_item ->> 'subjectId', auth.uid());
     v_created := true;
   else
     update "better_supabase"."calendar_events" set
@@ -5803,8 +5808,8 @@ begin
     "description" = case when v_item ? 'description' then v_item ->> 'description' else "description" end,
     "location" = case when v_item ? 'location' then v_item ->> 'location' else "location" end,
     "color" = case when v_item ? 'color' then v_item ->> 'color' else "color" end,
-    "kind" = case when v_item ? 'kind' then coalesce(v_item ->> 'kind', 'event') else "kind" end,
-    "transparency" = case when v_item ? 'transparency' then coalesce(v_item ->> 'transparency', 'opaque') else "transparency" end,
+    "kind" = case when v_item ? 'kind' then better_supabase.as_column_type(coalesce(v_item ->> 'kind', 'event'), (null::"better_supabase"."calendar_events")."kind") else "kind" end,
+    "transparency" = case when v_item ? 'transparency' then better_supabase.as_column_type(coalesce(v_item ->> 'transparency', 'opaque'), (null::"better_supabase"."calendar_events")."transparency") else "transparency" end,
     "auto_decline" = case when v_item ? 'autoDecline' then coalesce((v_item ->> 'autoDecline')::boolean, false) else "auto_decline" end,
     "subject_type" = case when v_item ? 'subjectType' then v_item ->> 'subjectType' else "subject_type" end,
     "subject_id" = case when v_item ? 'subjectId' then v_item ->> 'subjectId' else "subject_id" end,
@@ -6075,7 +6080,7 @@ begin
     raise exception 'not allowed to change this calendar' using errcode = '42501', hint = 'CALENDAR_FORBIDDEN';
   end if;
   insert into "better_supabase"."calendar_attendees" ("tenant_id", "event_id", "email", "name", "user_id", "role")
-  values (v_tenant, set_calendar_attendee.event_id, lower(set_calendar_attendee.email), set_calendar_attendee.name, set_calendar_attendee.user_id, coalesce(set_calendar_attendee.role, 'required'))
+  values (v_tenant, set_calendar_attendee.event_id, lower(set_calendar_attendee.email), set_calendar_attendee.name, set_calendar_attendee.user_id, better_supabase.as_column_type(coalesce(set_calendar_attendee.role, 'required'), (null::"better_supabase"."calendar_attendees")."role"))
   on conflict ("event_id", "email") do update
     set "name" = excluded."name", "user_id" = excluded."user_id", "role" = excluded."role";
   return true;
@@ -6127,7 +6132,7 @@ begin
   if respond_calendar_event.response not in ('needs-action', 'accepted', 'declined', 'tentative') then
     raise exception 'response must be needs-action, accepted, declined or tentative' using errcode = '22023', hint = 'CALENDAR_RESPONSE_INVALID';
   end if;
-  update "better_supabase"."calendar_attendees" set "response" = respond_calendar_event.response,
+  update "better_supabase"."calendar_attendees" set "response" = better_supabase.as_column_type(respond_calendar_event.response, (null::"better_supabase"."calendar_attendees")."response"),
     "user_id" = coalesce("user_id", auth.uid())
   where "event_id" = respond_calendar_event.event_id
     and ("user_id" = auth.uid() or ("user_id" is null and "email" = lower(auth.email())));
@@ -6734,7 +6739,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:4d2581d06201e641c08bb1a541164af9d030ff839b89c890479e00f1a2e2412f
+-- @bsb-hash sha256:9c03f8a87c04f0b091c2d3ca1a3e8837c83d7b314192d0b9838ba9933dc2c711
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7051,6 +7056,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'calendar.write'), false)) then
     raise exception 'not allowed to change this calendar' using errcode = '42501', hint = 'CALENDAR_FORBIDDEN';
   end if;
+
   if v_item ? 'status' and v_item ->> 'status' not in ('confirmed', 'tentative', 'cancelled') then
     raise exception 'status must be confirmed, tentative or cancelled' using errcode = '22023', hint = 'CALENDAR_EVENT_INVALID';
   end if;

@@ -27,10 +27,16 @@ const MODULES = [
 
 // The shared stack's work_items table references `work_projects` (the Next.js
 // example renames it), and `create table if not exists` keeps that table.
-const layout = (maxAssignees = 0): BlockSqlLayout => ({
+const layout = (
+  maxAssignees = 0,
+  options: Readonly<Record<string, unknown>> = {},
+): BlockSqlLayout => ({
   subjects: withBlockSubjects({}, ["tasks"], {}),
   modules: {
-    tasks: { tables: { projects: "work_projects" }, options: { maxAssignees } },
+    tasks: {
+      tables: { projects: "work_projects" },
+      options: { maxAssignees, ...options },
+    },
   },
 });
 
@@ -206,6 +212,42 @@ describe.skipIf(!live)("work items", () => {
       expect(
         (await items.list(org, { search: "Docs" }).orThrow())[0],
       ).toMatchObject({ state: "unstarted", stageId: stage("todo") });
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("names the item and links to it in the assignment notification, or leaves it to the app", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const owner = await s.user("owner");
+      const dev = await s.user("dev");
+      await s.install(MODULES, layout(0, { actionPath: "/tasks/{id}" }));
+      const org = await s.organization(owner, { member: dev });
+      const items = createTasks({ transport: sqlTransport(s.sql) });
+
+      await s.as(owner);
+      const item = await items.create(org, { title: "Ship it" }).orThrow();
+      await items.assign(item.id, [dev.id]).orThrow();
+
+      expect(
+        await s.rows(
+          "select subject_label, action_path from better_supabase.notification_events where type = 'work_item.assigned'",
+        ),
+      ).toEqual([
+        { subject_label: "Ship it", action_path: `/tasks/${item.id}` },
+      ]);
+
+      await s.install(["tasks"], layout(0, { notify: false }));
+      const quiet = await items.create(org, { title: "Quiet" }).orThrow();
+      await items.assign(quiet.id, [dev.id]).orThrow();
+
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.notification_events where type = 'work_item.assigned')",
+        ),
+      ).toBe(1);
     } finally {
       await s.close();
     }

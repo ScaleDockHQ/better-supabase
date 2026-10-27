@@ -958,7 +958,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:6b0c256f2f92bc97aa1f7c533af73fc67ff345e81de4ede89f0c86ea2a86aba6
+-- @bsb-hash sha256:a16028bf1a6cf60de27be14e4be9121739b6b0f7cbe9adb93feffb4cba6cb0ee
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1475,7 +1475,9 @@ begin
       'actor', auth.uid(),
       'subject_type', 'work_item',
       'subject_id', v_row."id"::text,
+      'subject_label', v_row."title",
       'summary', v_row."title",
+      'action_path', null,
       'recipients', to_jsonb(v_new),
       'watchers', false,
       'key', 'work_item.assigned:' || v_row."id"::text || ':' || md5(array_to_string(v_new, ',')),

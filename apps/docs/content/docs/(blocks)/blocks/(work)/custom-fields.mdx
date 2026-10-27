@@ -172,6 +172,7 @@ values, so `permissions.sensitive` is not checked either.
 `integer`, and over your own table the rank text is cast to the type of the
 column `rank` maps to, so an existing `position integer` column works. Pass the
 rank as a string of digits, such as `rank: "3"`; reads return it as a string too.
+A new field without a rank goes after the record's last one.
 `rankType` and `readAccess` apply only to the keyed layout.
 
 ```ts title="better-supabase.config.ts"

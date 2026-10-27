@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:0903771539cac39637b834c48adc95d942204994a352790394a65ae659face19
+-- @bsb-hash sha256:b9c8721e3983195357ebb3aca908e03c8e067d4428a03415fd616d77d0a41931
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -138,6 +138,7 @@ begin
   if create_share_link.max_uses is not null and create_share_link.max_uses < 1 then
     raise exception 'max_uses must be at least 1' using errcode = '22023', hint = 'SHARE_MAX_USES_INVALID';
   end if;
+
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'this subject type can''t be shared' using errcode = '22023', hint = 'SHARE_SUBJECT_UNKNOWN';
   end if;

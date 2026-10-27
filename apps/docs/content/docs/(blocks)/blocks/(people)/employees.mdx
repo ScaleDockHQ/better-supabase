@@ -155,7 +155,9 @@ The three tables declare their tenant to `data-lifecycle`, so an organization ex
 
 With `options.contracts: "editable"`, contracts can be changed and removed
 too: `updateContract(contractId, patch)` sets the keys the patch names
-(`null` clears `endsOn`, `hoursPerWeek`, `salary`, `salaryPeriod` or `note`)
+(`null` clears `endsOn`, `hoursPerWeek`, `salary`, `salaryPeriod` or `note`;
+clearing the salary clears the currency on the block's own table and keeps it on
+an app's table)
 and `deleteContract(contractId)` removes one (`update_employee_contract` and
 `delete_employee_contract` in SQL). Both need the same keys as adding one,
 record `employee.updated` with `fields: ["contract"]`, and fail with

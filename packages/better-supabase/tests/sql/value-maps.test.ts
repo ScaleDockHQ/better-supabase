@@ -155,6 +155,7 @@ describe("value maps", () => {
     const base = {
       calendar: {
         tables: {
+          calendars: "public.calendars",
           events: "public.events",
           attendees: "public.event_attendees",
         },
@@ -163,13 +164,16 @@ describe("value maps", () => {
 
     const plain = render(base, ["calendar"], "calendar");
 
-    expect(plain).not.toContain(`(null::"public"."events")."transparency"`);
+    expect(plain).not.toContain(`(null::"public"."calendars")."owner_id"`);
+    expect(plain).toContain(`(null::"public"."events")."transparency"`);
+    expect(plain).toContain(`(null::"public"."event_attendees")."response"`);
 
     const mapped = render(
       {
         calendar: {
           ...base.calendar,
           values: {
+            calendars: { ownerId: {} },
             events: { status: { cancelled: "canceled" }, transparency: {} },
             attendees: { response: { "needs-action": "pending" } },
           },
@@ -179,7 +183,7 @@ describe("value maps", () => {
       "calendar",
     );
 
-    expect(mapped).toContain(`(null::"public"."events")."transparency"`);
+    expect(mapped).toContain(`(null::"public"."calendars")."owner_id"`);
     expect(mapped).toContain(`"status" <> 'canceled'`);
     expect(mapped).toContain(`= 'pending'`);
   });

@@ -163,7 +163,7 @@ describe("inbox module", () => {
       `better_supabase.can('tenant', v_conv."tenant_id", 'tickets.assign')`,
     );
     expect(assign).toContain(
-      `(assignee = (select auth.uid()) and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'support.reply'), false))`,
+      `(coalesce(assignee = (select auth.uid()), false) and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'support.reply'), false))`,
     );
 
     for (const fn of ["set_conversation_status", "set_bot_mode"]) {

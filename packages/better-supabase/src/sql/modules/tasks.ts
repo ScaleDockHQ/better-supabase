@@ -77,7 +77,14 @@ const NAMES: BlockSqlNames = {
     "before_work_item_update",
     "after_work_item_update",
   ],
-  options: ["prefix", "maxAssignees", "extraColumns", "authorCanDelete"],
+  options: [
+    "prefix",
+    "maxAssignees",
+    "extraColumns",
+    "authorCanDelete",
+    "notify",
+    "actionPath",
+  ],
   tables: {
     items: {
       name: "work_items",
@@ -439,6 +446,8 @@ function build(ctx: BlockSqlContext): string {
         ctx.permissionKey("manage", keys.manage),
     ),
     authorCanDelete: ctx.flag("authorCanDelete", true),
+    notify: ctx.flag("notify", true),
+    actionPath: ctx.text("actionPath", ""),
     prefix: ctx.text("prefix", "TASK-"),
     maxAssignees,
     service: "(auth.role() = 'service_role')",
