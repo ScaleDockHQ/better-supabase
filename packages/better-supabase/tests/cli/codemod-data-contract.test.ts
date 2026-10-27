@@ -21,6 +21,24 @@ describe("rewriteDataContract", () => {
     );
   });
 
+  it("flags calls it can't rewrite and skips the rest", () => {
+    const review = (source: string) =>
+      rewriteDataContract(source).review.length;
+
+    expect(review("db.notes.deleteMany(filter, options)")).toBe(1);
+    expect(review("db.notes.updateMany({ data: patch })")).toBe(1);
+    expect(review("db.notes.updateMany({ where: { id: 1 } })")).toBe(1);
+    expect(rewrite("storage.exists(path, bucket)")).toBe(
+      "storage.exists(path, bucket)",
+    );
+    expect(rewrite("db.notes.deleteMany({ where")).toBe(
+      "db.notes.deleteMany({ where",
+    );
+    expect(rewrite("db.notes.findFirst({})")).toBe(
+      "db.notes.list({ limit: 1 }).map((rows) => rows[0] ?? null)",
+    );
+  });
+
   it("moves where into a filter for updateMany and deleteMany", () => {
     expect(
       rewrite("db.notes.updateMany({ where: { done: true }, data: patch })"),

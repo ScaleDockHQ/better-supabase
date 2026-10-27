@@ -171,11 +171,14 @@ select better_supabase.record_inbound(jsonb_build_object(
 ));
 
 -- Acme's work: two projects and eight items behind /work, numbered the way
--- create_work_item numbers them (TASK-<n> per organization). The seed runs
--- without triggers, so the closed items set closed_at and close_reason here.
+-- create_work_item numbers them (TASK-<n> per organization). The items insert
+-- runs without triggers, since the state machine would start every item in
+-- triage; the closed items set closed_at and close_reason here.
 insert into better_supabase.work_projects (id, tenant_id, key, name, owner_user_id, status, start_on, target_on) values
   ('00000000-0000-4000-8000-00000000f001', '00000000-0000-4000-8000-000000000001', 'WEB', 'Website relaunch', '00000000-0000-4000-8000-0000000000a1', 'active', current_date - 14, current_date + 30),
   ('00000000-0000-4000-8000-00000000f002', '00000000-0000-4000-8000-000000000001', 'ONB', 'Customer onboarding', '00000000-0000-4000-8000-0000000000a2', 'planned', current_date + 7, current_date + 60);
+
+set session_replication_role = replica;
 
 insert into better_supabase.work_items (id, tenant_id, number, identifier, title, body, team_id, project_id, priority, estimate, state, due_at, rank, created_by, closed_at, close_reason) values
   ('00000000-0000-4000-8000-00000000f101', '00000000-0000-4000-8000-000000000001', 1, 'TASK-1', 'Draft the new homepage copy', 'Hero, pricing teaser and the customer quotes.', '00000000-0000-4000-8000-0000000000e1', '00000000-0000-4000-8000-00000000f001', 2, 3, 'started', now() + interval '5 days', 'V', '00000000-0000-4000-8000-0000000000a1', null, null),
@@ -186,6 +189,8 @@ insert into better_supabase.work_items (id, tenant_id, number, identifier, title
   ('00000000-0000-4000-8000-00000000f106', '00000000-0000-4000-8000-000000000001', 6, 'TASK-6', 'Record a product walkthrough', null, null, '00000000-0000-4000-8000-00000000f002', 4, 3, 'backlog', null, 'W', '00000000-0000-4000-8000-0000000000a1', null, null),
   ('00000000-0000-4000-8000-00000000f107', '00000000-0000-4000-8000-000000000001', 7, 'TASK-7', 'Answer the open VAT question', 'Road Runner reported the wrong VAT number on an invoice.', '00000000-0000-4000-8000-0000000000e2', null, 1, 1, 'started', now() + interval '1 day', 'V', '00000000-0000-4000-8000-0000000000a1', null, null),
   ('00000000-0000-4000-8000-00000000f108', '00000000-0000-4000-8000-000000000001', 8, 'TASK-8', 'Archive last year''s leads', null, '00000000-0000-4000-8000-0000000000e1', null, 0, null, 'canceled', null, 'W', '00000000-0000-4000-8000-0000000000a2', now() - interval '1 day', 'not_planned');
+
+set session_replication_role = origin;
 
 insert into better_supabase.work_item_assignees (tenant_id, work_item_id, user_id) values
   ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000f101', '00000000-0000-4000-8000-0000000000a1'),

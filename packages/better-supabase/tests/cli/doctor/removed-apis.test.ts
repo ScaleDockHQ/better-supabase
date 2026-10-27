@@ -70,7 +70,7 @@ describe("BS418", () => {
     ).toEqual([expect.stringContaining("bsb.record(<type>Record)")]);
   });
 
-  it("points requireTenant at requireTenant", () => {
+  it("leaves requireTenant alone", () => {
     expect(
       check([
         {
@@ -78,7 +78,7 @@ describe("BS418", () => {
           text: "export const run = bsb.action(handler, { requireTenant: true });",
         },
       ]),
-    ).toEqual([expect.stringContaining("`requireTenant`")]);
+    ).toEqual([]);
   });
 
   it("points the block framework subpaths at the registry hooks", () => {

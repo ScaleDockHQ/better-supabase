@@ -26,6 +26,12 @@ describe("triggerFills", () => {
     ).toEqual(["slug"]);
   });
 
+  it("doesn't know the columns when the body replaces the whole row", () => {
+    expect(
+      triggerFills("plpgsql", "begin new := defaults(new); return new; end"),
+    ).toBeUndefined();
+  });
+
   it("reads select into new columns", () => {
     expect(
       triggerFills(

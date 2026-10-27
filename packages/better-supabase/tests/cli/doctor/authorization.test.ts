@@ -556,6 +556,19 @@ describe("BS409", () => {
         ),
       },
     ]);
+    expect(
+      await findings("BS409", {
+        auth: {
+          tenant: { claim: "tenant_id" },
+          authorization: reading("resolver"),
+        },
+        blocks: { permissions: { activeTenant: "claim" } },
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining("the request (the tenant resolver)"),
+      }),
+    ]);
   });
 
   it("notes suspension and role sources the access model ignores", async () => {
@@ -585,6 +598,32 @@ describe("BS409", () => {
         blocks: { permissions: { model: "provider" } },
       }),
     ).toEqual([]);
+    expect(
+      await findings("BS409", {
+        auth: {
+          authorization: withProvider({
+            ...provider,
+            roleSources: [
+              {
+                table: "authz.memberships",
+                role: {
+                  column: "role_id",
+                  through: { table: "authz.roles", id: "id", column: "key" },
+                },
+              },
+            ],
+          }),
+        },
+        blocks: { permissions: { model: "roles" } },
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        target: "authorization.suspension",
+        message: expect.stringContaining(
+          'sets suspension and roleSources, but blocks.permissions.model is "roles", so the SQL modules ignore them',
+        ),
+      }),
+    ]);
   });
 });
 
@@ -742,6 +781,15 @@ describe("BS411", () => {
       target: "authorization.functions.canAssignFor",
       message: expect.stringContaining("can_assign_as is not written"),
     });
+    expect(
+      await findings("BS411", config(partial, { inbox: {} }), { snapshot }),
+    ).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringMatching(
+          /The inbox module calls authorization\.functions\.idsWithFor/,
+        ),
+      }),
+    );
     expect(
       (
         await findings(

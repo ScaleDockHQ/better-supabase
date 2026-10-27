@@ -59,6 +59,39 @@ export default defineConfig({
     );
   });
 
+  it("skips spreads, non-object values and auth blocks without organization", () => {
+    const source = `export default {
+  ...base,
+  db: shared,
+  auth: { jwks: true },
+  $env: { preview: previewConfig },
+  $production: { auth: { organization: { claim: "org" } } },
+};
+`;
+
+    expect(applyCodemod(v032, source, "better-supabase.config.ts").text).toBe(
+      source.replace("organization:", "tenant:"),
+    );
+  });
+
+  it("keeps non-object environment values in a JSON config", () => {
+    const source = JSON.stringify({
+      $production: "skip",
+      $env: "skip",
+      auth: { organization: { claim: "org" } },
+    });
+
+    expect(
+      JSON.parse(
+        applyCodemod(v032, source, "better-supabase.config.json").text,
+      ),
+    ).toEqual({
+      $production: "skip",
+      $env: "skip",
+      auth: { tenant: { claim: "org" } },
+    });
+  });
+
   it("leaves a TypeScript config without auth.organization unchanged", () => {
     const source = `export default { auth: { tenant: { claim: "org" } } };\n`;
 
