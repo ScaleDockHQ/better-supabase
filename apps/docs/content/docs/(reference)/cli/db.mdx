@@ -228,3 +228,33 @@ that [doctor reports as BS238](/docs/cli/doctor#bs238). See
 [Your own schemas](/docs/blocks/own-schemas#fill-the-owner-with-db-backfill).
 
 Side effects: Writes to the database.
+
+## prune-workflows
+
+```bash
+pnpm better-supabase db prune-workflows --older-than 30d
+pnpm better-supabase db prune-workflows --older-than 7d --status failed --dry-run
+```
+
+`db prune-workflows` deletes the [Workflow SDK](/docs/blocks/workflow-sdk)
+runs that ended longer ago than `--older-than`, with their events, steps,
+waits, stream chunks and hooks. It calls `workflow_purge_runs` in batches
+until a batch comes back short, so each statement holds its locks only
+briefly. Running runs are never deleted. Run it on a schedule when the
+database has no pg_cron, or set the block's
+[`retention`](/docs/blocks/workflow-sdk#retention) option instead.
+
+| Flag                 | Effect                                                                            |
+| -------------------- | --------------------------------------------------------------------------------- |
+| `--older-than <age>` | `30d`, `12h`, `7 days` or `12 hours` (default `30d`).                             |
+| `--status <list>`    | Comma-separated: `completed`, `failed`, `cancelled` (default all three).          |
+| `--batch-size <n>`   | Runs per statement, 1 to 10000 (default 500).                                     |
+| `--dry-run`          | Counts the runs it would delete and writes nothing.                               |
+| `--stack <name>`     | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BSB_STACK`). |
+| `--db-url-stdin`     | Reads the connection string from stdin, so it never reaches argv.                 |
+
+Against a database that is not local, an agent needs the user's consent
+first. The JSON envelope returns `data.deleted`, or `data.pending` with
+`--dry-run`.
+
+Side effects: Writes to the database.

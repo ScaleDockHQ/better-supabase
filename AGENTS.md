@@ -225,6 +225,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0108: `db diff` plans with pg-delta's library on the stack's postgres role; renames and data loss are gated.
 - 0109: Hooks run an affected lint and typecheck, tests run in CI as shards, Next.js builds prerender a few pages outside Vercel production, worktrees set themselves up.
 - 0110: Flags keep revisions in Postgres, roll out on schedules and draw weighted splits from a second bucket.
+- 0111: Workflow SDK start keys are claimed in `workflow_run_keys`; ended runs purge in SQL (`retention`, `db prune-workflows`).
 
 ## Pre-release pins
 

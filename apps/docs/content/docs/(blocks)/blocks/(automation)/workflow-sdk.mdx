@@ -182,7 +182,7 @@ of the caller, which the World copies into `workflow_runs.tenant_id` and
 `actor_id`. Pass `subject: { type: "deal", id }` to store the record the
 run belongs to (the `bsb.subject` attribute, copied into `subject_type` and
 `subject_id`; see [runs on a record](/docs/blocks/workflows#runs-on-a-record)). With `idempotencyKey`, it returns the run that already has the
-key instead of starting another. To act as the user inside a step, pass
+key instead of starting another (see [Starting a run once](#starting-a-run-once)). To act as the user inside a step, pass
 `workflowContext(ctx)` as an argument and call `bsb.forContext(context)` in
 the step. It keeps the actor and tenant and drops the claims, so no token
 ends up in the run's stored state. A delegated token's `client_id`,
@@ -265,6 +265,68 @@ publisher for work an organization owns.
 | `protectWebHandler(handler, key, { can })`  | Answers 401 or 403 as `application/problem+json` before a workflow UI route or a run's stream                     |
 | `approvalWaiter.wait` and `.wake`           | Pauses a run on an approval token until a deadline, and resumes it by token                                       |
 
+### Starting a run once
+
+`startOnce(ctx, workflow, args, { key })` is `startFor` with a required
+idempotency key of 1 to 500 characters. Use it for a button that can be
+clicked twice or a webhook that can arrive twice:
+
+```ts
+const run = await startOnce(ctx, chargeOrder, [orderId], {
+  key: `charge:${orderId}`,
+});
+```
+
+The Supabase World claims the key in `workflow.workflow_run_keys` before it
+starts the run, so two starts that race start one run: the second waits for
+the first one's run id (up to five seconds) and returns that run. A start
+that fails frees the key, and a claim older than five minutes with no run is
+taken over. Runs started before the key table existed are still found by
+their `bsb.key` attribute. A World without run keys looks the key up in
+`analytics` only, so two concurrent starts can both start a run there.
+
+## Cancelling runs
+
+`cancelRuns(runIds, { reason })` cancels each run a few at a time (10 by
+default, `concurrency` sets it) and records the reason on its
+`run_cancelled` event. A run that fails to cancel lands in `failed` and does
+not stop the others:
+
+```ts
+import { cancelRuns } from "better-supabase/workflow-sdk";
+
+const { cancelled, failed } = await cancelRuns(runIds, {
+  reason: "Organization deleted",
+});
+```
+
+Find the run ids with `workflow_runs_list` or `world.analytics.runs.list`,
+for example by the `bsb.tenant` attribute.
+
+## Resumable streams
+
+A run's `getWritable()` stream is stored chunk by chunk, so a client that
+drops its connection can read on from where it stopped.
+`resumeStreamResponse(run, { startIndex })` returns the stream from
+`startIndex` and sets the `x-workflow-stream-tail-index` header to the index
+of the last chunk written so far:
+
+```ts title="app/api/runs/[id]/stream/route.ts"
+import { resumeStreamResponse } from "better-supabase/workflow-sdk";
+
+export async function GET(request: Request, { params }) {
+  const { id } = await params;
+  const from = new URL(request.url).searchParams.get("from");
+  return resumeStreamResponse(id, {
+    startIndex: from === null ? 0 : Number(from),
+  });
+}
+```
+
+A negative `startIndex` reads the last N chunks, and `namespace` picks a
+named stream (`getWritable({ namespace })`). Check that the caller may read
+the run first, for example through `workflow_runs` under RLS.
+
 ## Approvals with hooks
 
 ```ts title="workflows/approve-invoice.ts"
@@ -338,6 +400,44 @@ requestId }`, and ignores a request no run waits on.
 `wait` resolves `{ status: "resumed", payload }` or `{ status: "expired" }`,
 and returns `expired` at once for a deadline that has passed. `wake`
 sends `null` when you pass no payload.
+
+### Webhooks that resume a hook
+
+A third party that calls back when it finishes (a payment, a signature, a
+long export) can resume the run directly. Create the hook with a token you
+can put in the callback URL, then verify the callback and resume:
+
+```ts title="app/api/callbacks/[token]/route.ts"
+import { resumeHookFromWebhook } from "better-supabase/workflow-sdk";
+
+export async function POST(request: Request, { params }) {
+  const { token } = await params;
+  return resumeHookFromWebhook(request, token, {
+    provider: "standard-webhooks",
+    secrets: process.env.CALLBACK_SIGNING_SECRET!,
+  });
+}
+```
+
+`provider` is `stripe` for the `Stripe-Signature` header or
+`standard-webhooks` for Standard Webhooks and Svix senders. The response is
+202 once the run resumes with the JSON body, 401 for a bad signature, and
+404 when no run waits on the token. Pass `seen` to refuse a replayed
+delivery (409), as for [inbound webhooks](/docs/blocks/webhooks-in).
+
+### Hooks a run waits on
+
+`world.openHooks({ tenantId, workflowName, limit })` lists the hooks of
+pending and running runs, newest first, with the run's workflow, tenant,
+actor and the hook's metadata, such as `hookMetadata(ctx, permission)`. It
+leaves the token out. Use it for an inbox of what is waiting on someone.
+
+### Tool approvals in durable turns
+
+The AI SDK signs tool approval requests when the agent has
+`experimental_toolApprovalSecret`, so a client can't approve a tool call
+the model never made. Pass the secret to the `WorkflowAgent` your
+[durable turn](/docs/ai-sdk/workflow) runs, from a server-only env key.
 
 ## Graph workflows
 
@@ -459,3 +559,23 @@ continues after the last row of the previous one (`created_at`, then the
 id), so runs started while you page don't shift it. Pass back the `cursor`
 the previous page returned. `startFor` uses it to find a run by its
 idempotency key.
+
+## Retention
+
+Runs, their events, steps, waits, stream chunks and hooks stay in the
+`workflow` schema until you delete them. Set `retention` to delete ended
+runs every hour with pg_cron:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "workflow-sdk": { options: { retention: "30 days" } },
+},
+```
+
+`retention` takes a number of `days` or `hours`. Without pg_cron, run
+[`db prune-workflows`](/docs/cli/db#prune-workflows) on a schedule, or call
+`world.purgeRuns({ olderThan: "30 days" })`. Each deletes completed, failed
+and cancelled runs (`statuses` narrows it) that ended longer ago than the
+cutoff, 500 runs per statement until none are left. A hook whose token
+retention has not passed is kept. The copies in `workflow_runs` follow the
+[workflows](/docs/blocks/workflows) block's own retention.
