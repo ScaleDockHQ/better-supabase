@@ -678,13 +678,74 @@ const jobs = createQueue({
 });
 ```
 
+`consumerGroup` also takes a function of the queue name, to give each queue
+its own group.
+
+#### Triggers, retention and headers
+
+`vercelQueueTriggers(route, queues, { maxAttempts })` returns the `functions`
+entry of `vercel.json` for a push route, with `maxDeliveries` set from
+`maxAttempts` (one number, or one per queue):
+
+```ts title="vercel.ts"
+import { vercelQueueTriggers } from "better-supabase/blocks/queue";
+
+export const config = {
+  functions: vercelQueueTriggers(
+    "app/api/queues/route.ts",
+    ["send_email", "sync"],
+    { maxAttempts: { send_email: 3 } },
+  ),
+};
+```
+
+The provider takes `retention` (seconds a message is kept, clamped to 60
+through 604800) and `headers` (sent with every message). A delayed message is
+always kept at least an hour past its delay. `dedupeKey` becomes the message's
+idempotency key; a key longer than 256 characters is sent as its SHA-256 hex
+digest (`vercelIdempotencyKey`). `vercelSendOptionsOf(delay, dedupeKey,
+options)` returns the options `send` passes, for code that calls
+`@vercel/queue` directly.
+
+#### Dead letters
+
+Vercel Queues drops a message after its last attempt. `withDeadLetters`
+hands those jobs to a sink first, such as a table of your own, and serves
+`listDead` and `retryDead` from it when the sink has them:
+
+```ts
+import {
+  vercelQueueProvider,
+  withDeadLetters,
+} from "better-supabase/blocks/queue";
+
+const backend = withDeadLetters(vercelQueueProvider(client), {
+  onDead: (job, error) => saveDeadJob(job, error),
+});
+```
+
+An error in `onDead` doesn't change the outcome: the job stays dead. Push
+routes see the last attempt in `onError` with `dead: true`.
+
+#### Cost
+
+Vercel Queues bills per API operation, in 4 KiB chunks of the message: a send,
+a receive, an acknowledgement, a visibility change and a push delivery each
+count. A retry costs another delivery and acknowledgement, so a `retryAfter`
+that backs off and a `maxAttempts` that fits the job keep the count down. A
+send with `dedupeKey` (an idempotency key) counts twice. `retention` and
+`headers` add no operations. See
+[Vercel Queues pricing](https://vercel.com/docs/queues/pricing).
+
 #### Limits
 
 Vercel Queues keeps a message for a day by default and at most 7 days, so
 `delay` and `runAt` can be at most 7 days out. A delayed message is kept an
 hour past its delay (`vercelRetentionSeconds` computes it). There are no
-schedules, `stats` or `listDead`: `schedule` needs the SQL backend. Job ids are
-numbers local to the process. The backend passes `testQueueProvider`.
+schedules or queue counts: `schedule` needs the SQL backend, and `stats`
+returns an error that points to the queue metrics in the Vercel dashboard.
+Job ids are numbers local to the process. The backend passes
+`testQueueProvider`.
 
 ### Without a database connection
 
