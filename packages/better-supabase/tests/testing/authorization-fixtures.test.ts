@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { AuthorizationProvider } from "../../src/config/index.ts";
 
 import { permissionsAuthorizer } from "../../src/blocks/permissions/authorizer.ts";
-import { providerTruncatedClaim } from "../../src/config/authorization.ts";
+import { providerTruncatedClaim } from "../../src/cli/authorization.ts";
 import { testAuthorizationProvider } from "../../src/testing/authorization-provider.ts";
 import { testAuthorizer } from "../../src/testing/authorizer.ts";
 import { ConformanceError } from "../../src/testing/conformance.ts";

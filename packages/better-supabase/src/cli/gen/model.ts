@@ -27,10 +27,10 @@ import type {
   TableModel,
 } from "./model-types.ts";
 
-import { providerTruncatedClaim } from "../../config/authorization.ts";
 import { DEFAULT_CLAIMS, tenantClaimPaths } from "../../config/index.ts";
 import { toCamel } from "../../index.ts";
 import { resolveProviderSql } from "../../sql/index.ts";
+import { providerTruncatedClaim } from "../authorization.ts";
 import { CliError } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
 import { toCatalog } from "../introspect/catalog.ts";

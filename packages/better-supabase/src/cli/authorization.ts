@@ -11,11 +11,7 @@ import type {
   BlockSqlPermissionKey,
 } from "../sql/index.ts";
 
-import {
-  providerTruncatedClaim,
-  sqlCompleteKeys,
-} from "../config/authorization.ts";
-import { DEFAULT_CLAIMS } from "../core/claims.ts";
+import { DEFAULT_CLAIMS } from "../config/index.ts";
 import {
   MODULE_ID_TYPES,
   moduleIdType,
@@ -471,3 +467,28 @@ export const entitlementRequirements = (
     }),
   ),
 ];
+
+/**
+ * The truncated marker the provider's hook sets on the `permissions` claim:
+ * `tokenHook.truncatedClaim`, then `budget.truncatedClaim`. `undefined` means
+ * the default, `<claim>_truncated`.
+ */
+export function providerTruncatedClaim(
+  provider: Pick<AuthorizationProvider, "tokenHook"> | undefined,
+): string | undefined {
+  const hook = provider?.tokenHook;
+
+  return hook?.truncatedClaim ?? hook?.budget?.truncatedClaim;
+}
+
+/**
+ * The keys the provider marks `sqlComplete: true`: the only ones the SQL
+ * functions answer for, and so the only ones the `permissions` claim carries.
+ */
+export function sqlCompleteKeys(
+  provider: Pick<AuthorizationProvider, "permissions">,
+): readonly string[] {
+  return (provider.permissions ?? [])
+    .filter((permission) => permission.sqlComplete === true)
+    .map((permission) => permission.key);
+}

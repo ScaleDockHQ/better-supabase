@@ -9,8 +9,8 @@ import {
   moduleKeyProblems,
   providerLabel,
   unsafeKey,
+  sqlCompleteKeys,
 } from "../../src/cli/authorization.ts";
-import { sqlCompleteKeys } from "../../src/config/authorization.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 import {
   stubProvider,

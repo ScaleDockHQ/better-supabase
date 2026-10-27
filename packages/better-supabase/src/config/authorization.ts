@@ -314,31 +314,6 @@ export interface AuthorizationProvider {
 }
 
 /**
- * The truncated marker the provider's hook sets on the `permissions` claim:
- * `tokenHook.truncatedClaim`, then `budget.truncatedClaim`. `undefined` means
- * the default, `<claim>_truncated`.
- */
-export function providerTruncatedClaim(
-  provider: Pick<AuthorizationProvider, "tokenHook"> | undefined,
-): string | undefined {
-  const hook = provider?.tokenHook;
-
-  return hook?.truncatedClaim ?? hook?.budget?.truncatedClaim;
-}
-
-/**
- * The keys the provider marks `sqlComplete: true`: the only ones the SQL
- * functions answer for, and so the only ones the `permissions` claim carries.
- */
-export function sqlCompleteKeys(
-  provider: Pick<AuthorizationProvider, "permissions">,
-): readonly string[] {
-  return (provider.permissions ?? [])
-    .filter((permission) => permission.sqlComplete === true)
-    .map((permission) => permission.key);
-}
-
-/**
  * The error for a provider built for another API version, or `undefined` for
  * version 1.
  */
