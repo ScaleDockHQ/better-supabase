@@ -8,7 +8,12 @@ import type {
 import { WorkflowAgent } from "@ai-sdk/workflow";
 import { jsonSchema, tool } from "ai";
 import { durableTurn } from "better-supabase/ai-sdk/workflow";
-import { createHook, getWorkflowMetadata, getWritable } from "workflow";
+import {
+  createHook,
+  getWorkflowMetadata,
+  getWritable,
+  setAttributes,
+} from "workflow";
 
 import {
   answerQuestion,
@@ -26,6 +31,7 @@ function turn(
     runId: getWorkflowMetadata().workflowRunId,
     createHook,
     getWritable,
+    setAttributes,
     agent,
     step: chatStep,
   });

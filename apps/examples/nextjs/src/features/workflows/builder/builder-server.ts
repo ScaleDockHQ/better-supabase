@@ -14,14 +14,19 @@ import "server-only";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
 
-import { graphSteps } from "./graph-steps";
+import { graphSteps, requestGraphApproval } from "./graph-steps";
 import { graphExecutor } from "./graph-workflow";
 import { stepLibrary } from "./step-library";
 
 /** The API schema `gen` wrote for the workflow-editor block. */
 const API_SCHEMA = blockConfig["workflow-editor"].api;
 
-const start = graphStarter({ steps: graphSteps, executor: graphExecutor });
+const start = graphStarter({
+  steps: graphSteps,
+  executor: graphExecutor,
+  executorRunsTests: true,
+  approval: requestGraphApproval,
+});
 
 /**
  * The builder as the caller of `supabase`: RLS and the module's permissions

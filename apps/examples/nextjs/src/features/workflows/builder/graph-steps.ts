@@ -1,5 +1,9 @@
-import type { GraphStepCall } from "better-supabase/blocks/workflow-editor";
+import type {
+  GraphApprovalCall,
+  GraphStepCall,
+} from "better-supabase/blocks/workflow-editor";
 
+import { createApprovals } from "better-supabase/blocks/approvals";
 import {
   createWorkflowEditor,
   rpcTransport,
@@ -127,3 +131,40 @@ export const graphSteps = {
   "text.summarize": summarizeText,
   "slack.post": postToSlack,
 };
+
+/** The subject type and action a graph's approval nodes file requests under. */
+export const GRAPH_APPROVAL = {
+  subject: "workflow_run",
+  action: "approve",
+} as const;
+
+/**
+ * Files an approvals request for an approval node and returns its id, the hook
+ * token the run waits on. Deciding the request on /approvals (or the canvas)
+ * resumes the run through `wakeOnApproval`.
+ */
+export async function requestGraphApproval(
+  call: GraphApprovalCall,
+): Promise<string> {
+  "use step";
+
+  const { tenant } = await runOwner();
+
+  if (tenant === undefined) {
+    throw new Error("A graph run needs a tenant to request an approval");
+  }
+
+  const request = await createApprovals({
+    transport: rpcTransport(serviceSupabase(), { schema: "api" }),
+    schema: "api",
+    tenant,
+    temporal: Temporal,
+  })
+    .request(
+      { type: GRAPH_APPROVAL.subject, id: call.runKey },
+      { action: GRAPH_APPROVAL.action, payload: { node: call.node } },
+    )
+    .orThrow();
+
+  return request.id;
+}

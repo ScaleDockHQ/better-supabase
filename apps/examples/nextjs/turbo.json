@@ -27,6 +27,12 @@
         "!tests/**",
         "!**/*.test.{ts,tsx}",
         "!vitest.config.ts"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "!.next/dev/**",
+        "src/app/.well-known/workflow/**"
       ]
     },
     "lint": {
