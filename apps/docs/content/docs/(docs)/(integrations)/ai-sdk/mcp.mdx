@@ -79,6 +79,15 @@ the credential:
 | `header` | The headers of the server's `credential_ref`, resolved for the app |
 | `oauth`  | The user's Vault tokens, or their grant through another provider   |
 
+An `oauth` server whose grant is a `vercel-connect` ref doesn't send a
+header: the transport gets `connectAuthProvider` from `@vercel/connect/mcp`
+as its `authProvider`, so the MCP SDK reads and refreshes the user's token
+through Connect. Install `@vercel/connect` for it; without it the server is
+skipped with `CONNECTOR_NOT_AUTHORIZED`. When Connect needs the user's
+consent first, the connection fails with `forbidden`, the hint
+`CONNECTOR_AUTHORIZATION_REQUIRED` and the consent URL in `details`, so the
+chat can show the user a link.
+
 With `chatKey`, the MCP session id and initialize result are stored per
 chat and reused on the next request. A server that is disabled, has no
 grant for the user or can't be reached fails with the hint

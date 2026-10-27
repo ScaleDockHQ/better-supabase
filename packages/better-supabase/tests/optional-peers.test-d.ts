@@ -5,6 +5,7 @@ import type {
   PowerSyncBackendConnector,
 } from "@powersync/common";
 import type * as Connect from "@vercel/connect";
+import type * as ConnectChat from "@vercel/connect/chat";
 import type {
   Adapter,
   FlagDeclaration,
@@ -16,6 +17,7 @@ import type {
 import { describe, expectTypeOf, it } from "vitest";
 
 import type { AnthropicMemoryTools } from "../src/ai-sdk/memory/index.ts";
+import type { CredentialSubject } from "../src/credentials/index.ts";
 import type {
   BetterSupabaseAdapterFactory,
   createIdentify,
@@ -25,7 +27,10 @@ import type {
   FlagsSdkProviderData,
 } from "../src/flags-sdk/index.ts";
 import type { SyncedDatabaseLike } from "../src/powersync/index.ts";
-import type { VercelConnectModule } from "../src/vercel-connect/index.ts";
+import type {
+  VercelConnectChatModule,
+  VercelConnectModule,
+} from "../src/vercel-connect/index.ts";
 
 /**
  * The structural types better-supabase declares instead of importing an
@@ -35,6 +40,8 @@ import type { VercelConnectModule } from "../src/vercel-connect/index.ts";
 describe("structurally typed optional peers", () => {
   it("@vercel/connect has the functions the credential provider calls", () => {
     expectTypeOf<typeof Connect>().toExtend<VercelConnectModule>();
+    expectTypeOf<typeof ConnectChat>().toExtend<VercelConnectChatModule>();
+    expectTypeOf<CredentialSubject>().toExtend<Connect.ConnectTokenSubject>();
   });
 
   it("@ai-sdk/anthropic has the pinned memory tool", () => {

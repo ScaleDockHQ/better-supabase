@@ -9,8 +9,8 @@ import {
   outlookMail,
   rpcTransport,
 } from "better-supabase/blocks/mail-sync";
-import { vercelConnectCredentials } from "better-supabase/vercel-connect";
 
+import { connectCredentials } from "@/features/integrations/integrations-server";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
 
@@ -21,9 +21,10 @@ const TRACKING_PATH = "/api/mail/t";
 
 /**
  * Mail sync acting as `supabase`'s caller, or as the service role without one.
- * Each member's Gmail or Outlook grant lives in Vercel Connect, which the
- * adapter loads only when a sync or a send asks it for a token. With `origin`,
- * sent HTML is tracked through the route at `TRACKING_PATH`.
+ * Each member's Gmail or Outlook grant lives in Vercel Connect (connected on
+ * the Integrations settings tab), which the adapter loads only when a sync or a
+ * send asks it for a token. With `origin`, sent HTML is tracked through the
+ * route at `TRACKING_PATH`.
  */
 export function mailSync(
   supabase?: RpcClient,
@@ -34,7 +35,7 @@ export function mailSync(
     transport: rpcTransport(supabase ?? bsb.admin().$client, {
       schema: API_SCHEMA,
     }),
-    credentials: vercelConnectCredentials(),
+    credentials: connectCredentials(),
     providers: [gmailMail(), outlookMail()],
   };
 

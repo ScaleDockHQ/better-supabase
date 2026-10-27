@@ -108,7 +108,11 @@ export default defineMcpClientConnection({
 
 A user without a stored credential gets eve's authorization flow when the
 provider can start one (Vercel Connect can, Vault can't): eve sends the
-user to the provider and resumes the turn after the callback. Pass
+user to the provider and resumes the turn after the callback. A provider
+that finishes the grant itself (Vercel Connect stores it on its side) has no
+`completeAuthorization`; eve's completion step then reads the token once,
+skipping the cache, to confirm it. A device code from `startAuthorization`
+shows up in eve's challenge as "Enter the code ...". Pass
 `interactive: false` to report `authorization.required` instead. Provider
 errors map to eve's errors: a missing or unauthorized credential becomes
 `ConnectionAuthorizationRequiredError`, a forbidden or invalid one

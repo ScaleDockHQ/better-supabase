@@ -71,6 +71,12 @@ export interface MailAccount {
   readonly cursor?: string;
   readonly lastSyncedAt?: Temporal.Instant;
   readonly lastError?: string;
+  /**
+   * The grant is gone or needs consent again
+   * (`CREDENTIAL_AUTHORIZATION_REQUIRED` or `CREDENTIAL_NOT_FOUND`): show a
+   * Reconnect button, not a retry.
+   */
+  readonly reconnect: boolean;
   readonly createdAt: Temporal.Instant;
 }
 
@@ -142,6 +148,8 @@ export interface MailSyncReport {
   readonly failed: readonly {
     readonly accountId: string;
     readonly message: string;
+    /** The member has to connect the mailbox again. */
+    readonly reconnect: boolean;
   }[];
 }
 
@@ -268,6 +276,17 @@ export interface MailSyncOptions extends BlockTemporalOptions {
 }
 
 const SHARES = new Set(["records", "private"]);
+
+const RECONNECT_HINTS = [
+  "CREDENTIAL_AUTHORIZATION_REQUIRED",
+  "CREDENTIAL_NOT_FOUND",
+] as const;
+
+/** The stored error starts with the hint, so `reconnect` survives a reload. */
+const needsReconnect = (error: string | undefined): boolean =>
+  error !== undefined &&
+  RECONNECT_HINTS.some((hint) => error.startsWith(`${hint}: `));
+
 const STATUSES = new Set(["active", "paused", "error", "disconnected"]);
 
 function accountOf(value: unknown): MailAccount {
@@ -298,6 +317,7 @@ function accountOf(value: unknown): MailAccount {
       status === "paused" || status === "error" || status === "disconnected"
         ? status
         : "active",
+    reconnect: needsReconnect(optional.lastError),
     createdAt: requiredInstant(row["created_at"], "createdAt"),
     ...Object.fromEntries(
       Object.entries(optional).filter(([, entry]) => entry !== undefined),
@@ -789,7 +809,12 @@ export function createMailSync(options: MailSyncOptions): MailSync {
         (value) => recordsOf(value, "due_mail_accounts").map(accountOf),
       ).andThen(async (accounts) => {
         let stored = 0;
-        const failed: { accountId: string; message: string }[] = [];
+
+        const failed: {
+          accountId: string;
+          message: string;
+          reconnect: boolean;
+        }[] = [];
 
         for (const account of accounts) {
           const result = await sync(account, {
@@ -802,14 +827,24 @@ export function createMailSync(options: MailSyncOptions): MailSync {
             continue;
           }
 
-          failed.push({ accountId: account.id, message: result.error.message });
+          const hint = "hint" in result.error ? result.error.hint : undefined;
+
+          const message = RECONNECT_HINTS.some((known) => known === hint)
+            ? `${String(hint)}: ${result.error.message}`
+            : result.error.message;
+
+          failed.push({
+            accountId: account.id,
+            message,
+            reconnect: needsReconnect(message),
+          });
 
           const status =
             result.error.kind === "rate_limited" ? "active" : "error";
 
           const marked = await call(
             "set_mail_account_status",
-            { account: account.id, status, error: result.error.message },
+            { account: account.id, status, error: message },
             (value) => value === true,
           );
 

@@ -22,6 +22,10 @@ export function useTabLabel(): (id: SettingsTabId) => string {
         return t("Preferences");
       }
 
+      case "integrations": {
+        return t("Integrations");
+      }
+
       case "security": {
         return t("Security");
       }

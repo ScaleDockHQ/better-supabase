@@ -358,6 +358,41 @@ describe("credentialAuth", () => {
       }),
     ).rejects.toBeInstanceOf(ConnectionAuthorizationFailedError);
   });
+
+  it("is interactive for a provider that finishes the grant itself", async () => {
+    const p = provider({
+      startAuthorization: vi.fn(() =>
+        AsyncResult.ok({
+          url: "https://vercel.com/connect/device",
+          deviceCode: "ABCD-1234",
+        }),
+      ),
+    });
+
+    const auth = credentialAuth({ provider: p, ref, owner: "user" });
+    const callbackUrl = "https://app.test/eve/v1/connections/gh/callback";
+
+    expect(auth).toMatchObject({ principalType: "user" });
+    expect(
+      await auth.startAuthorization?.({ ...request(connected), callbackUrl }),
+    ).toEqual({
+      challenge: {
+        url: "https://vercel.com/connect/device",
+        instructions: "Enter the code ABCD-1234",
+      },
+    });
+    expect(
+      await auth.completeAuthorization?.({
+        ...request(connected),
+        callbackUrl,
+        callback: { params: {}, method: "GET" },
+      }),
+    ).toEqual({ token: "t1" });
+    expect(p.getToken).toHaveBeenLastCalledWith(ref, {
+      subject: { type: "user", id: USER, issuer: user.issuer },
+      fresh: true,
+    });
+  });
 });
 
 /** An in-memory `memory.documents` with the SQL module's version rules. */
