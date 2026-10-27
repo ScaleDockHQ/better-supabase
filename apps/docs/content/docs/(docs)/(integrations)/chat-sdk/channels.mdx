@@ -46,7 +46,10 @@ installation rows and doesn't revoke them, so call `uninstallTenant` first.
 ## Building an adapter with its token
 
 `channelAdapter` asks the credential provider for the install's token and
-hands it to the adapter factory:
+hands it to the adapter factory. The first read fails fast when the install
+has no credential. The factory also gets `resolve`, which reads the token
+again on each call; pass it where the adapter takes a token function, so a
+token that Vercel Connect rotates is never stale:
 
 ```ts
 import { createSlackAdapter } from "@chat-adapter/slack";
@@ -56,7 +59,7 @@ const install = await installations.get("slack", teamId).orThrow();
 const slack = await channelAdapter({
   credentials,
   ref: install.credentialRef,
-  create: (token) => createSlackAdapter({ botToken: token.token }),
+  create: (_token, resolve) => createSlackAdapter({ botToken: resolve }),
 });
 ```
 
