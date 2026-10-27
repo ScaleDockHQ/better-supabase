@@ -10,7 +10,7 @@ import type { WorkflowDeliveryMode } from "../../sql/modules/workflow-sdk.ts";
  * one. Its tables come from `@workflow/world-postgres` at
  * `WORLD_POSTGRES_VERSION`.
  */
-export const WORKFLOW_WORLD_PROTOCOL = "5.0.4";
+export const WORKFLOW_WORLD_PROTOCOL = "5.0.5";
 
 export type { WorkflowDeliveryMode };
 

@@ -1,13 +1,13 @@
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@3 managed
--- @bsb-hash sha256:3e8d1a1aac909363ac14524fa6a3dd40bf5c424cad314de75c467766f926f0d8
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
+-- @bsb-block workflow-sdk@4 managed
+-- @bsb-hash sha256:37dcdd1e125cd9e4fb821ff9a68fe5a29a4c92e38735cfd16533e4abfc3533a7
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.5) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
--- The Workflow SDK World's tables (@workflow/world-postgres 5.0.4).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.0.5).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -41,7 +41,7 @@ create table if not exists workflow.workflow_events (
   "id" character varying not null,
   "type" character varying not null,
   "correlation_id" character varying,
-  "created_at" timestamp without time zone not null default now(),
+  "created_at" timestamp with time zone not null default now(),
   "run_id" character varying not null,
   "payload" jsonb,
   "payload_cbor" bytea,
@@ -55,7 +55,7 @@ alter table workflow.workflow_events
   add column if not exists "id" character varying not null,
   add column if not exists "type" character varying not null,
   add column if not exists "correlation_id" character varying,
-  add column if not exists "created_at" timestamp without time zone not null default now(),
+  add column if not exists "created_at" timestamp with time zone not null default now(),
   add column if not exists "run_id" character varying not null,
   add column if not exists "payload" jsonb,
   add column if not exists "payload_cbor" bytea,
@@ -76,7 +76,7 @@ create table if not exists workflow.workflow_hooks (
   "owner_id" character varying not null,
   "project_id" character varying not null,
   "environment" character varying not null,
-  "created_at" timestamp without time zone not null default now(),
+  "created_at" timestamp with time zone not null default now(),
   "metadata" jsonb,
   "metadata_cbor" bytea,
   "spec_version" integer,
@@ -95,7 +95,7 @@ alter table workflow.workflow_hooks
   add column if not exists "owner_id" character varying not null,
   add column if not exists "project_id" character varying not null,
   add column if not exists "environment" character varying not null,
-  add column if not exists "created_at" timestamp without time zone not null default now(),
+  add column if not exists "created_at" timestamp with time zone not null default now(),
   add column if not exists "metadata" jsonb,
   add column if not exists "metadata_cbor" bytea,
   add column if not exists "spec_version" integer,
@@ -116,9 +116,9 @@ create table if not exists workflow.workflow_invocations (
   "payload" bytea,
   "fingerprint" character varying,
   "result" bytea,
-  "created_at" timestamp without time zone not null default now(),
-  "responded_at" timestamp without time zone,
-  "expired_at" timestamp without time zone,
+  "created_at" timestamp with time zone not null default now(),
+  "responded_at" timestamp with time zone,
+  "expired_at" timestamp with time zone,
   "result_version" integer not null default 0,
   constraint "workflow_invocations_pkey" PRIMARY KEY (run_id, request_id)
 );
@@ -130,9 +130,9 @@ alter table workflow.workflow_invocations
   add column if not exists "payload" bytea,
   add column if not exists "fingerprint" character varying,
   add column if not exists "result" bytea,
-  add column if not exists "created_at" timestamp without time zone not null default now(),
-  add column if not exists "responded_at" timestamp without time zone,
-  add column if not exists "expired_at" timestamp without time zone,
+  add column if not exists "created_at" timestamp with time zone not null default now(),
+  add column if not exists "responded_at" timestamp with time zone,
+  add column if not exists "expired_at" timestamp with time zone,
   add column if not exists "result_version" integer not null default 0;
 
 create index if not exists workflow_invocations_pending ON workflow.workflow_invocations USING btree (run_id, sequence) WHERE (responded_at IS NULL);
@@ -146,14 +146,14 @@ create table if not exists workflow.workflow_runs (
   "execution_context" jsonb,
   "input" jsonb,
   "error" text,
-  "created_at" timestamp without time zone not null default now(),
-  "updated_at" timestamp without time zone not null default now(),
-  "completed_at" timestamp without time zone,
-  "started_at" timestamp without time zone,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now(),
+  "completed_at" timestamp with time zone,
+  "started_at" timestamp with time zone,
   "output_cbor" bytea,
   "execution_context_cbor" bytea,
   "input_cbor" bytea,
-  "expired_at" timestamp without time zone,
+  "expired_at" timestamp with time zone,
   "spec_version" character varying,
   "error_cbor" bytea,
   "error_code" character varying,
@@ -172,14 +172,14 @@ alter table workflow.workflow_runs
   add column if not exists "execution_context" jsonb,
   add column if not exists "input" jsonb,
   add column if not exists "error" text,
-  add column if not exists "created_at" timestamp without time zone not null default now(),
-  add column if not exists "updated_at" timestamp without time zone not null default now(),
-  add column if not exists "completed_at" timestamp without time zone,
-  add column if not exists "started_at" timestamp without time zone,
+  add column if not exists "created_at" timestamp with time zone not null default now(),
+  add column if not exists "updated_at" timestamp with time zone not null default now(),
+  add column if not exists "completed_at" timestamp with time zone,
+  add column if not exists "started_at" timestamp with time zone,
   add column if not exists "output_cbor" bytea,
   add column if not exists "execution_context_cbor" bytea,
   add column if not exists "input_cbor" bytea,
-  add column if not exists "expired_at" timestamp without time zone,
+  add column if not exists "expired_at" timestamp with time zone,
   add column if not exists "spec_version" character varying,
   add column if not exists "error_cbor" bytea,
   add column if not exists "error_code" character varying,
@@ -195,7 +195,7 @@ create table if not exists workflow.workflow_snapshots (
   "run_id" character varying not null,
   "data" bytea not null,
   "events_cursor" character varying,
-  "created_at" timestamp without time zone not null default now(),
+  "created_at" timestamp with time zone not null default now(),
   constraint "workflow_snapshots_pkey" PRIMARY KEY (run_id)
 );
 
@@ -203,7 +203,7 @@ alter table workflow.workflow_snapshots
   add column if not exists "run_id" character varying not null,
   add column if not exists "data" bytea not null,
   add column if not exists "events_cursor" character varying,
-  add column if not exists "created_at" timestamp without time zone not null default now();
+  add column if not exists "created_at" timestamp with time zone not null default now();
 
 create table if not exists workflow.workflow_steps (
   "run_id" character varying not null,
@@ -214,11 +214,11 @@ create table if not exists workflow.workflow_steps (
   "output" jsonb,
   "error" text,
   "attempt" integer not null,
-  "started_at" timestamp without time zone,
-  "completed_at" timestamp without time zone,
-  "created_at" timestamp without time zone not null default now(),
-  "updated_at" timestamp without time zone not null default now(),
-  "retry_after" timestamp without time zone,
+  "started_at" timestamp with time zone,
+  "completed_at" timestamp with time zone,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now(),
+  "retry_after" timestamp with time zone,
   "input_cbor" bytea,
   "output_cbor" bytea,
   "error_cbor" bytea,
@@ -235,11 +235,11 @@ alter table workflow.workflow_steps
   add column if not exists "output" jsonb,
   add column if not exists "error" text,
   add column if not exists "attempt" integer not null,
-  add column if not exists "started_at" timestamp without time zone,
-  add column if not exists "completed_at" timestamp without time zone,
-  add column if not exists "created_at" timestamp without time zone not null default now(),
-  add column if not exists "updated_at" timestamp without time zone not null default now(),
-  add column if not exists "retry_after" timestamp without time zone,
+  add column if not exists "started_at" timestamp with time zone,
+  add column if not exists "completed_at" timestamp with time zone,
+  add column if not exists "created_at" timestamp with time zone not null default now(),
+  add column if not exists "updated_at" timestamp with time zone not null default now(),
+  add column if not exists "retry_after" timestamp with time zone,
   add column if not exists "input_cbor" bytea,
   add column if not exists "output_cbor" bytea,
   add column if not exists "error_cbor" bytea,
@@ -253,7 +253,7 @@ create table if not exists workflow.workflow_stream_chunks (
   "id" character varying not null,
   "stream_id" character varying not null,
   "data" bytea not null,
-  "created_at" timestamp without time zone not null default now(),
+  "created_at" timestamp with time zone not null default now(),
   "eof" boolean not null,
   "run_id" character varying,
   constraint "workflow_stream_chunks_stream_id_id_pk" PRIMARY KEY (stream_id, id)
@@ -263,7 +263,7 @@ alter table workflow.workflow_stream_chunks
   add column if not exists "id" character varying not null,
   add column if not exists "stream_id" character varying not null,
   add column if not exists "data" bytea not null,
-  add column if not exists "created_at" timestamp without time zone not null default now(),
+  add column if not exists "created_at" timestamp with time zone not null default now(),
   add column if not exists "eof" boolean not null,
   add column if not exists "run_id" character varying;
 
@@ -273,10 +273,10 @@ create table if not exists workflow.workflow_waits (
   "wait_id" character varying not null,
   "run_id" character varying not null,
   "status" workflow.wait_status not null,
-  "resume_at" timestamp without time zone,
-  "completed_at" timestamp without time zone,
-  "created_at" timestamp without time zone not null default now(),
-  "updated_at" timestamp without time zone not null default now(),
+  "resume_at" timestamp with time zone,
+  "completed_at" timestamp with time zone,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now(),
   "spec_version" integer,
   constraint "workflow_waits_pkey" PRIMARY KEY (wait_id)
 );
@@ -285,14 +285,86 @@ alter table workflow.workflow_waits
   add column if not exists "wait_id" character varying not null,
   add column if not exists "run_id" character varying not null,
   add column if not exists "status" workflow.wait_status not null,
-  add column if not exists "resume_at" timestamp without time zone,
-  add column if not exists "completed_at" timestamp without time zone,
-  add column if not exists "created_at" timestamp without time zone not null default now(),
-  add column if not exists "updated_at" timestamp without time zone not null default now(),
+  add column if not exists "resume_at" timestamp with time zone,
+  add column if not exists "completed_at" timestamp with time zone,
+  add column if not exists "created_at" timestamp with time zone not null default now(),
+  add column if not exists "updated_at" timestamp with time zone not null default now(),
   add column if not exists "spec_version" integer;
 
 create index if not exists workflow_waits_run_id_index ON workflow.workflow_waits USING btree (run_id);
 
+-- world-postgres 5.0.5 stores every World timestamp as timestamptz.
+do $$
+declare
+  v_zone text := current_setting('TimeZone');
+  v_lock_timeout text := current_setting('lock_timeout');
+  v_legacy text := coalesce(nullif(current_setting('workflow.legacy_timezone', true), ''), current_setting('TimeZone'));
+begin
+  if (select atttypid from pg_catalog.pg_attribute
+      where attrelid = 'workflow.workflow_runs'::regclass and attname = 'created_at') = 'timestamptz'::regtype then
+    return;
+  end if;
+  if v_lock_timeout = '0' then
+    perform set_config('lock_timeout', '10s', true);
+  end if;
+  lock table workflow.workflow_runs, workflow.workflow_events, workflow.workflow_steps, workflow.workflow_hooks, workflow.workflow_waits, workflow.workflow_invocations, workflow.workflow_snapshots, workflow.workflow_stream_chunks in access exclusive mode;
+  perform set_config('lock_timeout', v_lock_timeout, true);
+  if (select atttypid from pg_catalog.pg_attribute
+      where attrelid = 'workflow.workflow_runs'::regclass and attname = 'created_at') = 'timestamptz'::regtype then
+    return;
+  end if;
+  perform set_config('TimeZone', 'UTC', true);
+  alter table workflow.workflow_runs
+    alter column "created_at" type timestamptz,
+    alter column "updated_at" type timestamptz,
+    alter column "completed_at" type timestamptz,
+    alter column "started_at" type timestamptz,
+    alter column "expired_at" type timestamptz;
+  alter table workflow.workflow_events
+    alter column "created_at" type timestamptz;
+  alter table workflow.workflow_steps
+    alter column "started_at" type timestamptz,
+    alter column "completed_at" type timestamptz,
+    alter column "created_at" type timestamptz,
+    alter column "updated_at" type timestamptz,
+    alter column "retry_after" type timestamptz;
+  alter table workflow.workflow_hooks
+    alter column "created_at" type timestamptz;
+  alter table workflow.workflow_waits
+    alter column "resume_at" type timestamptz,
+    alter column "completed_at" type timestamptz,
+    alter column "created_at" type timestamptz,
+    alter column "updated_at" type timestamptz;
+  alter table workflow.workflow_invocations
+    alter column "created_at" type timestamptz,
+    alter column "responded_at" type timestamptz,
+    alter column "expired_at" type timestamptz;
+  alter table workflow.workflow_snapshots
+    alter column "created_at" type timestamptz;
+  alter table workflow.workflow_stream_chunks
+    alter column "created_at" type timestamptz;
+  -- An updated_at equal to created_at came from the same now(); every other
+  -- updated_at, and invocations.expired_at, came from JavaScript.
+  if timezone(v_legacy, timestamp '2000-01-01') <> timestamptz '2000-01-01 00:00:00+00'
+    or timezone(v_legacy, timestamp '2000-07-01') <> timestamptz '2000-07-01 00:00:00+00' then
+    update workflow.workflow_runs set "created_at" = timezone(v_legacy, timezone('UTC', "created_at")), "updated_at" = case when "updated_at" = "created_at" then timezone(v_legacy, timezone('UTC', "updated_at")) else "updated_at" end
+      where timezone(v_legacy, timezone('UTC', "created_at")) <> "created_at";
+    update workflow.workflow_steps set "created_at" = timezone(v_legacy, timezone('UTC', "created_at")), "updated_at" = case when "updated_at" = "created_at" then timezone(v_legacy, timezone('UTC', "updated_at")) else "updated_at" end
+      where timezone(v_legacy, timezone('UTC', "created_at")) <> "created_at";
+    update workflow.workflow_waits set "created_at" = timezone(v_legacy, timezone('UTC', "created_at")), "updated_at" = case when "updated_at" = "created_at" then timezone(v_legacy, timezone('UTC', "updated_at")) else "updated_at" end
+      where timezone(v_legacy, timezone('UTC', "created_at")) <> "created_at";
+    update workflow.workflow_events set "created_at" = timezone(v_legacy, timezone('UTC', "created_at"))
+      where timezone(v_legacy, timezone('UTC', "created_at")) <> "created_at";
+    update workflow.workflow_hooks set "created_at" = timezone(v_legacy, timezone('UTC', "created_at"))
+      where timezone(v_legacy, timezone('UTC', "created_at")) <> "created_at";
+    update workflow.workflow_stream_chunks set "created_at" = timezone(v_legacy, timezone('UTC', "created_at"))
+      where timezone(v_legacy, timezone('UTC', "created_at")) <> "created_at";
+    update workflow.workflow_invocations set "created_at" = timezone(v_legacy, timezone('UTC', "created_at")), "responded_at" = timezone(v_legacy, timezone('UTC', "responded_at"))
+      where timezone(v_legacy, timezone('UTC', "created_at")) <> "created_at" or timezone(v_legacy, timezone('UTC', "responded_at")) <> "responded_at";
+  end if;
+  perform set_config('TimeZone', v_zone, true);
+end;
+$$;
 
 -- One row per start idempotency key: startFor claims the key before it starts
 -- a run, so two concurrent starts with one key start one run. run_id is null
@@ -379,8 +451,8 @@ begin
     v_actor,
     coalesce(new.attributes, '{}'::jsonb) - 'bsb.tenant' - 'bsb.actor' - 'bsb.subject' - 'bsb.principal_kind' - 'bsb.principal' - 'bsb.mode' - 'bsb.trigger_node',
     case when new.status::text = 'failed' then coalesce(new.error_code, left(new.error, 4000)) end,
-    new.started_at at time zone 'UTC',
-    new.completed_at at time zone 'UTC',
+    new.started_at,
+    new.completed_at,
     v_subject_type,
     v_subject_id,
     v_principal_kind,
@@ -514,7 +586,7 @@ begin
   select coalesce(array_agg(x.id), '{}') into v_ids from (
     select r.id from workflow.workflow_runs r
     where r.status::text = any (v_statuses)
-      and coalesce(r.completed_at, r.updated_at) < (now() at time zone 'UTC') - coalesce(older_than, interval '30 days')
+      and coalesce(r.completed_at, r.updated_at) < now() - coalesce(older_than, interval '30 days')
     order by coalesce(r.completed_at, r.updated_at)
     limit least(greatest(coalesce(batch, 500), 1), 10000)
     for update skip locked
@@ -561,7 +633,7 @@ set search_path = ''
 as $$
   select h.hook_id::text, h.run_id::text, r.name::text,
     r.attributes ->> 'bsb.tenant', r.attributes ->> 'bsb.actor',
-    h.metadata, h.created_at at time zone 'UTC'
+    h.metadata, h.created_at
   from workflow.workflow_hooks h
   join workflow.workflow_runs r on r.id = h.run_id
   where r.status::text in ('pending', 'running')

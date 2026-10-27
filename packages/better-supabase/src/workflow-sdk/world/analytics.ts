@@ -12,9 +12,6 @@ import type {
 } from "@workflow/world";
 import type { Pool } from "pg";
 
-/** World-postgres stores UTC in `timestamp without time zone` columns. */
-const utc = (column: string): string => `(${column} at time zone 'UTC')`;
-
 /** The column every keyset query adds: the row's sort key as `text[]`. */
 const CURSOR = "__cursor";
 
@@ -22,17 +19,17 @@ const RUN_COLUMNS = `
   r.id as "runId", r.status::text as status, r.deployment_id as "deploymentId",
   r.name as "workflowName", nullif(r.spec_version, '')::int as "specVersion",
   coalesce(r.attributes, '{}'::jsonb) as attributes,
-  ${utc("r.created_at")} as "createdAt", ${utc("r.updated_at")} as "updatedAt",
-  ${utc("r.started_at")} as "startedAt", ${utc("r.completed_at")} as "completedAt",
+  r.created_at as "createdAt", r.updated_at as "updatedAt",
+  r.started_at as "startedAt", r.completed_at as "completedAt",
   r.error_code as "errorCode",
   r.encryption_public_key is not null as "workflowEncryptionEnabled"`;
 
 const STEP_COLUMNS = `
   s.run_id as "runId", s.step_id as "stepId", s.step_name as "stepName",
   s.status::text as status, s.attempt,
-  ${utc("s.created_at")} as "createdAt", ${utc("s.updated_at")} as "updatedAt",
-  ${utc("s.started_at")} as "startedAt", ${utc("s.completed_at")} as "completedAt",
-  ${utc("s.retry_after")} as "retryAfter"`;
+  s.created_at as "createdAt", s.updated_at as "updatedAt",
+  s.started_at as "startedAt", s.completed_at as "completedAt",
+  s.retry_after as "retryAfter"`;
 
 const EVENT_COLUMNS = `
   e.run_id as "runId", e.id as "eventId", e.type as "eventType",
@@ -40,8 +37,8 @@ const EVENT_COLUMNS = `
   (select s.step_name from workflow.workflow_steps s
     where s.run_id = e.run_id and s.step_id = e.correlation_id) as "stepName",
   r.name as "workflowName", r.deployment_id as "deploymentId",
-  e.spec_version as "specVersion", ${utc("r.created_at")} as "runCreatedAt",
-  ${utc("e.created_at")} as "createdAt",
+  e.spec_version as "specVersion", r.created_at as "runCreatedAt",
+  e.created_at as "createdAt",
   case when e.payload ? 'resumeAt' then (e.payload ->> 'resumeAt')::timestamptz end as "resumeAt",
   case when e.payload ? 'retryAfter' then (e.payload ->> 'retryAfter')::timestamptz end as "retryAfter",
   e.payload ->> 'errorCode' as "errorCode"`;
@@ -55,8 +52,8 @@ const WAIT_COLUMNS = `
   case when starts_with(w.wait_id, w.run_id || '-')
     then substr(w.wait_id, length(w.run_id) + 2) else w.wait_id end as "waitId",
   w.status::text as status,
-  ${utc("w.resume_at")} as "resumeAt", ${utc("w.created_at")} as "createdAt",
-  ${utc("w.updated_at")} as "updatedAt", ${utc("w.completed_at")} as "completedAt"`;
+  w.resume_at as "resumeAt", w.created_at as "createdAt",
+  w.updated_at as "updatedAt", w.completed_at as "completedAt"`;
 
 /**
  * Hooks keep their row only while active, so the status comes from the event
@@ -70,10 +67,10 @@ const HOOKS = `
       when bool_or(e.type = 'hook_received') then 'received'
       else 'created'
     end as status,
-    ${utc("min(e.created_at)")} as "createdAt",
-    ${utc("max(e.created_at)")} as "updatedAt",
-    ${utc("max(e.created_at) filter (where e.type = 'hook_received')")} as "receivedAt",
-    ${utc("max(e.created_at) filter (where e.type = 'hook_disposed')")} as "disposedAt",
+    min(e.created_at) as "createdAt",
+    max(e.created_at) as "updatedAt",
+    max(e.created_at) filter (where e.type = 'hook_received') as "receivedAt",
+    max(e.created_at) filter (where e.type = 'hook_disposed') as "disposedAt",
     bool_or(h.is_webhook) as "isWebhook", bool_or(h.is_system) as "isSystem",
     ${cursorColumn(["min(e.created_at)", "e.correlation_id"])}
   from workflow.workflow_events e
@@ -260,7 +257,7 @@ export function createAnalytics(pool: Pool): Analytics {
 
     values.push(params.startTime, params.endTime);
 
-    return ` and ${utc(column)} between $${String(values.length - 1)}::timestamptz and $${String(values.length)}::timestamptz`;
+    return ` and ${column} between $${String(values.length - 1)}::timestamptz and $${String(values.length)}::timestamptz`;
   };
 
   const listEvents = async (
@@ -364,8 +361,8 @@ export function createAnalytics(pool: Pool): Analytics {
 
         return paged<AnalyticsAttributeKey>(
           `select k.key, count(*)::int as "runCount",
-             ${utc("min(r.created_at)")} as "firstSeenAt",
-             ${utc("max(r.updated_at)")} as "lastSeenAt",
+             min(r.created_at) as "firstSeenAt",
+             max(r.updated_at) as "lastSeenAt",
              ${cursorColumn(["k.key"])}
            from workflow.workflow_runs r
            cross join lateral jsonb_object_keys(coalesce(r.attributes, '{}'::jsonb)) as k(key)

@@ -50,6 +50,107 @@ function deliveryQueueOf(ctx: BlockSqlContext): string {
 
 const PRINCIPAL_KINDS = "'user', 'service_principal', 'system', 'external'";
 
+/**
+ * The World's columns that world-postgres 5.0.5 (migration 0027) moved from
+ * `timestamp` to `timestamptz`. The generated DDL only adds missing columns.
+ */
+const TIMESTAMP_COLUMNS: Readonly<Record<string, readonly string[]>> = {
+  workflow_runs: [
+    "created_at",
+    "updated_at",
+    "completed_at",
+    "started_at",
+    "expired_at",
+  ],
+  workflow_events: ["created_at"],
+  workflow_steps: [
+    "started_at",
+    "completed_at",
+    "created_at",
+    "updated_at",
+    "retry_after",
+  ],
+  workflow_hooks: ["created_at"],
+  workflow_waits: ["resume_at", "completed_at", "created_at", "updated_at"],
+  workflow_invocations: ["created_at", "responded_at", "expired_at"],
+  workflow_snapshots: ["created_at"],
+  workflow_stream_chunks: ["created_at"],
+};
+
+/** Moves a `now()` value from the legacy zone's wall time to its instant. */
+const fromLegacy = (column: string): string =>
+  `timezone(v_legacy, timezone('UTC', "${column}"))`;
+
+const repairNow = (table: string, columns: readonly string[]): string => {
+  const sets = columns.map((column) =>
+    column === "updated_at"
+      ? `"updated_at" = case when "updated_at" = "created_at" then ${fromLegacy("updated_at")} else "updated_at" end`
+      : `"${column}" = ${fromLegacy(column)}`,
+  );
+
+  const changed = columns
+    .filter((column) => column !== "updated_at")
+    .map((column) => `${fromLegacy(column)} <> "${column}"`);
+
+  return `    update workflow.${table} set ${sets.join(", ")}
+      where ${changed.join(" or ")};`;
+};
+
+/**
+ * Migration 0027 of world-postgres for installs from before it: converts the
+ * World's columns with the session in UTC (JavaScript wrote UTC wall times),
+ * then moves the values `now()` wrote from the zone it wrote them in, the
+ * session's or `workflow.legacy_timezone`. Supabase sessions default to UTC, so
+ * that second step usually matches no rows. It runs once: it checks the type,
+ * and again under the lock, so a converted install skips it.
+ */
+const TIMESTAMPTZ_UPGRADE = `-- world-postgres 5.0.5 stores every World timestamp as timestamptz.
+do $$
+declare
+  v_zone text := current_setting('TimeZone');
+  v_lock_timeout text := current_setting('lock_timeout');
+  v_legacy text := coalesce(nullif(current_setting('workflow.legacy_timezone', true), ''), current_setting('TimeZone'));
+begin
+  if (select atttypid from pg_catalog.pg_attribute
+      where attrelid = 'workflow.workflow_runs'::regclass and attname = 'created_at') = 'timestamptz'::regtype then
+    return;
+  end if;
+  if v_lock_timeout = '0' then
+    perform set_config('lock_timeout', '10s', true);
+  end if;
+  lock table ${Object.keys(TIMESTAMP_COLUMNS)
+    .map((table) => `workflow.${table}`)
+    .join(", ")} in access exclusive mode;
+  perform set_config('lock_timeout', v_lock_timeout, true);
+  if (select atttypid from pg_catalog.pg_attribute
+      where attrelid = 'workflow.workflow_runs'::regclass and attname = 'created_at') = 'timestamptz'::regtype then
+    return;
+  end if;
+  perform set_config('TimeZone', 'UTC', true);
+${Object.entries(TIMESTAMP_COLUMNS)
+  .map(
+    ([table, columns]) =>
+      `  alter table workflow.${table}\n${columns
+        .map((column) => `    alter column "${column}" type timestamptz`)
+        .join(",\n")};`,
+  )
+  .join("\n")}
+  -- An updated_at equal to created_at came from the same now(); every other
+  -- updated_at, and invocations.expired_at, came from JavaScript.
+  if timezone(v_legacy, timestamp '2000-01-01') <> timestamptz '2000-01-01 00:00:00+00'
+    or timezone(v_legacy, timestamp '2000-07-01') <> timestamptz '2000-07-01 00:00:00+00' then
+${repairNow("workflow_runs", ["created_at", "updated_at"])}
+${repairNow("workflow_steps", ["created_at", "updated_at"])}
+${repairNow("workflow_waits", ["created_at", "updated_at"])}
+${repairNow("workflow_events", ["created_at"])}
+${repairNow("workflow_hooks", ["created_at"])}
+${repairNow("workflow_stream_chunks", ["created_at"])}
+${repairNow("workflow_invocations", ["created_at", "responded_at"])}
+  end if;
+  perform set_config('TimeZone', v_zone, true);
+end;
+$$;`;
+
 /** The functions only the service role calls, with their argument types. */
 const SERVICE_FUNCTIONS: readonly (readonly [string, string])[] = [
   ["workflow_claim_run_key", "text, interval"],
@@ -81,6 +182,7 @@ function build(ctx: BlockSqlContext): string {
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 ${WORLD_POSTGRES_DDL}
+${TIMESTAMPTZ_UPGRADE}
 
 -- One row per start idempotency key: startFor claims the key before it starts
 -- a run, so two concurrent starts with one key start one run. run_id is null
@@ -167,8 +269,8 @@ begin
     v_actor,
     coalesce(new.attributes, '{}'::jsonb) - 'bsb.tenant' - 'bsb.actor' - 'bsb.subject' - 'bsb.principal_kind' - 'bsb.principal' - 'bsb.mode' - 'bsb.trigger_node',
     case when new.status::text = 'failed' then coalesce(new.error_code, left(new.error, 4000)) end,
-    new.started_at at time zone 'UTC',
-    new.completed_at at time zone 'UTC',
+    new.started_at,
+    new.completed_at,
     v_subject_type,
     v_subject_id,
     v_principal_kind,
@@ -302,7 +404,7 @@ begin
   select coalesce(array_agg(x.id), '{}') into v_ids from (
     select r.id from workflow.workflow_runs r
     where r.status::text = any (v_statuses)
-      and coalesce(r.completed_at, r.updated_at) < (now() at time zone 'UTC') - coalesce(older_than, interval '30 days')
+      and coalesce(r.completed_at, r.updated_at) < now() - coalesce(older_than, interval '30 days')
     order by coalesce(r.completed_at, r.updated_at)
     limit least(greatest(coalesce(batch, 500), 1), 10000)
     for update skip locked
@@ -349,7 +451,7 @@ set search_path = ''
 as $$
   select h.hook_id::text, h.run_id::text, r.name::text,
     r.attributes ->> 'bsb.tenant', r.attributes ->> 'bsb.actor',
-    h.metadata, h.created_at at time zone 'UTC'
+    h.metadata, h.created_at
   from workflow.workflow_hooks h
   join workflow.workflow_runs r on r.id = h.run_id
   where r.status::text in ('pending', 'running')
@@ -478,7 +580,7 @@ export const WORKFLOW_SDK_WORLD: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   upgrades: [
     {
       from: 1,
@@ -490,6 +592,12 @@ export const WORKFLOW_SDK_WORLD: BlockSqlDefinition = {
       from: 2,
       description:
         "workflow.workflow_run_keys holds start idempotency keys (workflow_claim_run_key, workflow_set_run_key, workflow_release_run_key); workflow_open_hooks lists the hooks open runs wait on; workflow_purge_runs deletes ended runs, hourly when the retention option is set.",
+      sql: () => "",
+    },
+    {
+      from: 3,
+      description:
+        "The World's tables follow @workflow/world-postgres 5.0.5: every timestamp column becomes timestamptz, under a lock on the World's tables. Values written by now() in a session outside UTC move to the instant they recorded; set workflow.legacy_timezone when the World's pool ran in another zone than this upgrade. Deploy better-supabase after this upgrade runs.",
       sql: () => "",
     },
   ],

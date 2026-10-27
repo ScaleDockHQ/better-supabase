@@ -82,9 +82,19 @@ deliveries before the World gives up on it, the same budget as
 write).
 
 The World speaks the `@workflow/world` protocol in
-`WORKFLOW_WORLD_PROTOCOL` (5.0.4 for `workflow` 5.2) and stores its tables
+`WORKFLOW_WORLD_PROTOCOL` (5.0.5 for `workflow` 5.2) and stores its tables
 in the shape of the `@workflow/world-postgres` version in
 `WORLD_POSTGRES_VERSION`. It passes the `@workflow/world-testing` suite.
+
+From 5.0.5 every timestamp in the `workflow` schema is `timestamptz`. The
+block's SQL converts an older install once, under a lock on the World's
+tables, and moves the values Postgres wrote with `now()` from the session's
+time zone to the instant they recorded. Supabase sessions run in UTC, so
+those values usually stay as they are. If the World's pool ran in another
+zone, set `workflow.legacy_timezone` (for example `alter database postgres
+set workflow.legacy_timezone = 'Europe/Berlin'`) before the migration runs.
+Run `better-supabase upgrade` and apply the migration before you deploy the
+new release, because the World reads the converted columns.
 
 ## Delivery
 
