@@ -47,6 +47,48 @@ Errors are `unauthorized` with Auth's `error_code` as `code`
 `rate_limited`, `network` or `timeout`. Auth's own message never reaches the
 result, so a form can't tell whether an account exists.
 
+## Where auth runs
+
+Each layer of a Next.js app does one auth job, so a request verifies its
+token once and refreshes it in one place.
+
+| Layer                      | What it does                                                                                                                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `proxy.ts`                 | Refreshes an expiring session through `@supabase/ssr`, verifies the token through `@supabase/server`, and forwards the refreshed cookies to the render with `AUTH_CACHE_HEADERS` set |
+| `protect`                  | Answers from the verified claims before rendering: sign-in redirects, and a 403 from the `permissions` claim                                                                         |
+| Layouts                    | Check nothing. A layout renders once per segment and is not re-run on navigation, so a check there can go stale                                                                      |
+| Pages, islands and actions | Read the one verified session from the request memo with `getClaims()` (ADR 0095) and never refresh                                                                                  |
+| Actions and route handlers | Check again with `permission:` or `authorize`, because they can be called without a page                                                                                             |
+
+The proxy runs on [`@supabase/middleware`](https://supabase.com/docs/guides/auth/server-side/nextjs)
+(ADR 0008), so a refreshed session reaches the page in the same request
+instead of on the next one. A Server Component can't write cookies, so it
+never refreshes; it reads the session the proxy left.
+
+A valid token is verified locally against the project's JWKS, without a
+call to Auth. Supabase recommends `getUser()` when a revoked session must
+stop working before its token expires; that round trip is the proxy's
+`verifySession` option, and it runs on top-level document loads only.
+
+```ts title="proxy.ts"
+export const proxy = (request: NextRequest) =>
+  bsb.proxy(request, {
+    protect: (auth, req) =>
+      auth.kind === "user"
+        ? undefined
+        : NextResponse.redirect(new URL("/sign-in", req.url)),
+    verifySession: true,
+  });
+```
+
+A response that read the session is private. The proxy marks it
+`private, no-store`, so a shared cache never holds it and it needs no
+`vary: cookie`. Don't serve a private page through ISR; put its public parts
+in the static shell and read the session behind `<Suspense>`. See the
+Supabase guides for
+[server-side auth](https://supabase.com/docs/guides/auth/server-side) and
+[creating a client for Next.js](https://supabase.com/docs/guides/auth/server-side/creating-a-client?framework=nextjs).
+
 ## One URL
 
 The session cookie name comes from the project URL

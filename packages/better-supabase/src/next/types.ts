@@ -103,7 +103,7 @@ export interface ProxyOptions<C = unknown, P = unknown> {
   ) => Response | undefined | Promise<Response | undefined>;
   /**
    * A prefetch never refreshes, so a session cookie whose token expired
-   * resolves to `{ kind: 'anon', reason: 'expired' }` there. `'redirect'` (the
+   * resolves to `{ kind: 'none', reason: 'expired' }` there. `'redirect'` (the
    * default) passes that to `protect` like any other caller. `'render'` skips
    * `protect` for it, so the prefetch renders signed out instead of caching a
    * redirect to sign-in; `sessionStale` keeps that view out of the App Shell,
