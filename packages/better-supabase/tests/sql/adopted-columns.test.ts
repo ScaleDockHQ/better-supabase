@@ -284,6 +284,12 @@ create table public.app_events (
       ).find((table) => table.logical === "history")?.textColumns;
 
     expect(history()).toEqual([]);
-    expect(history({ machines })).toEqual(["subjectId", "reason"]);
+    expect(history({ machines })).toEqual([
+      "subjectId",
+      "actorName",
+      "actorEmail",
+      "userAgent",
+      "reason",
+    ]);
   });
 });

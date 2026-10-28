@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
--- @bsb-block state-machine@2 managed
--- @bsb-hash sha256:12e3219335814b982f43b9fe86b06bd9e4635cf3e293e9dd41e9085c61316992
+-- @bsb-block state-machine@3 managed
+-- @bsb-hash sha256:2550bda7077e104b37ba27fa2a736f5dfaa3f45c13a15181af1a05044a6ebf1f
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,10 @@ create table if not exists "better_supabase"."status_history" (
   "from_status" text,
   "to_status" text not null,
   "actor_user_id" uuid,
+  "actor_name" text,
+  "actor_email" text,
+  "ip_address" inet,
+  "user_agent" text,
   "reason" text,
   "created_at" timestamptz not null default now()
 );
@@ -105,9 +109,13 @@ create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles"
 
 
 
+drop function if exists "better_supabase"."transition"(text, text, text, text);
+
 -- Sets the status as the caller, so the subject table's policies decide
--- whether they may update the record; the trigger checks the edge.
-create or replace function "better_supabase"."transition"(subject_type text, subject_id text, to_status text, reason text)
+-- whether they may update the record; the trigger checks the edge. actor
+-- carries the name, email, ip and userAgent the history row keeps, e.g. for
+-- a portal visitor who isn't an auth user.
+create or replace function "better_supabase"."transition"(subject_type text, subject_id text, to_status text, reason text default null, actor jsonb default null)
 returns boolean
 language plpgsql
 security invoker
@@ -116,7 +124,18 @@ as $$
 declare
   v_found boolean;
 begin
+  if transition.actor is not null then
+    if jsonb_typeof(transition.actor) <> 'object' then
+      raise exception 'actor must be an object of name, email, ip and userAgent' using errcode = '22023', hint = 'STATE_ACTOR_INVALID';
+    end if;
+    begin
+      perform nullif(transition.actor ->> 'ip', '')::inet;
+    exception when invalid_text_representation then
+      raise exception 'actor.ip must be an IP address' using errcode = '22023', hint = 'STATE_ACTOR_INVALID';
+    end;
+  end if;
   perform set_config('better_supabase.transition_reason', coalesce(transition.reason, ''), true);
+  perform set_config('better_supabase.transition_actor', coalesce(transition.actor::text, ''), true);
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_status_transition"(text, text, text)');
   begin
@@ -128,6 +147,7 @@ begin
   raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
   v_found := found;
   perform set_config('better_supabase.transition_reason', '', true);
+  perform set_config('better_supabase.transition_actor', '', true);
   if not v_found then
     raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
   end if;
@@ -142,8 +162,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."transition"(text, text, text, text) from public, anon;
-grant execute on function "better_supabase"."transition"(text, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."transition"(text, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."transition"(text, text, text, text, jsonb) to authenticated, service_role;
 
 -- Pauses the record until a time (or until resume_lifecycle when null); the
 -- trigger refuses transitions meanwhile (STATE_PAUSED). As the caller.
@@ -376,13 +396,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block-data state-machine
--- @bsb-hash sha256:5d7403d9a64f8fbaf3bf7657ec34ce81a8b879a5ad9827b08d0441016bd9de7e
+-- @bsb-hash sha256:eed0cde016d3acd0ea24fb6d8c5faf9cfd3417857dd07b02e0b4266dfa97fe1c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('state-machine', 2, 'managed')
+values ('state-machine', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

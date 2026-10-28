@@ -1061,11 +1061,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "ai-chat",
         "ai-files",
-        "queue"
+        "queue",
+        "teams"
       ],
       "manifest": "knowledge",
       "scopes": [
         "tenant"
+      ],
+      "tenantNameClashes": [
+        "team"
       ],
       "entities": {
         "specs": {
@@ -1092,6 +1096,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "error": "error",
               "chunkCount": "chunk_count",
               "model": "embedding_model",
+              "collection": "collection_id",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }
@@ -1148,6 +1153,14 @@ export const PRESET_CATALOG: PresetCatalog = {
               "model": "embedding_model",
               "sourceMessage": "source_message_id",
               "supersededBy": "superseded_by",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "category": "category",
+              "confidence": "confidence",
+              "expiresAt": "expires_at",
+              "deletedAt": "deleted_at",
+              "useCount": "use_count",
+              "lastUsedAt": "last_used_at",
               "tsv": "tsv",
               "createdAt": "created_at",
               "updatedAt": "updated_at"

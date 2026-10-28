@@ -398,7 +398,7 @@ create table if not exists ${memories} (
   ${m.supersededBy} uuid references ${memories} (${m.id}) on delete set null,${line(memory("subjectType"), `${m.subjectType} text`)}${line(memory("subjectId"), `${m.subjectId} text`)}${line(memory("category"), `${m.category} text check (${m.category} ~ ${sqlString(CATEGORY_PATTERN)})`)}${line(memory("confidence"), `${m.confidence} real check (${m.confidence} between 0 and 1)`)}${line(memory("expiresAt"), `${m.expiresAt} timestamptz`)}${line(memory("deletedAt"), `${m.deletedAt} timestamptz`)}${line(memory("useCount"), `${m.useCount} integer not null default 0`)}${line(memory("lastUsedAt"), `${m.lastUsedAt} timestamptz`)}${line(memory("tsv"), `${m.tsv} tsvector generated always as (to_tsvector(${config}::regconfig, ${m.content})) stored`)}${line(memory("createdAt"), `${m.createdAt} timestamptz not null default now()`)}
   ${m.updatedAt} timestamptz not null default now(),
   check ((${m.kind} = 'core') = (${m.path} is not null)),
-  constraint memories_owner_check check ((${m.scope} in (${SHARED})) = (${m.owner} is null))${subject ? `,\n  constraint memories_subject_check check ((${m.scope} = 'record') = (${m.subjectId} is not null) and (${m.subjectId} is null) = (${m.subjectType} is null))` : ""}
+  constraint ${ctx.naming.rename("memories_owner_check")} check ((${m.scope} in (${SHARED})) = (${m.owner} is null))${subject ? `,\n  constraint ${ctx.naming.rename("memories_subject_check")} check ((${m.scope} = 'record') = (${m.subjectId} is not null) and (${m.subjectId} is null) = (${m.subjectType} is null))` : ""}
 );
 create unique index if not exists ${ctx.naming.rename("memories_path_idx")} on ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.project}${subjectColumns}, ${m.path}) nulls not distinct
   where ${m.path} is not null and ${m.supersededBy} is null${live("")};
@@ -987,10 +987,10 @@ begin
   end loop;
 end;
 $$;
-alter table ${memories} drop constraint if exists memories_owner_check;
-alter table ${memories} add constraint memories_owner_check check ((${col("scope")} in (${SHARED})) = (${col("owner")} is null));
-alter table ${memories} drop constraint if exists memories_subject_check;
-alter table ${memories} add constraint memories_subject_check check ((${col("scope")} = 'record') = (${col("subjectId")} is not null) and (${col("subjectId")} is null) = (${col("subjectType")} is null));
+alter table ${memories} drop constraint if exists ${ctx.naming.rename("memories_owner_check")};
+alter table ${memories} add constraint ${ctx.naming.rename("memories_owner_check")} check ((${col("scope")} in (${SHARED})) = (${col("owner")} is null));
+alter table ${memories} drop constraint if exists ${ctx.naming.rename("memories_subject_check")};
+alter table ${memories} add constraint ${ctx.naming.rename("memories_subject_check")} check ((${col("scope")} = 'record') = (${col("subjectId")} is not null) and (${col("subjectId")} is null) = (${col("subjectType")} is null));
 ${dropPathIndex(memories)}`;
 }
 

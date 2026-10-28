@@ -951,14 +951,16 @@ export interface BlockNameRegistry {
   };
   readonly "knowledge": {
     readonly tables: {
-      readonly "documents": "id" | "tenant" | "owner" | "scope" | "scopeId" | "file" | "title" | "source" | "metadata" | "status" | "error" | "chunkCount" | "model" | "createdAt" | "updatedAt";
+      readonly "documents": "id" | "tenant" | "owner" | "scope" | "scopeId" | "file" | "title" | "source" | "metadata" | "status" | "error" | "chunkCount" | "model" | "collection" | "createdAt" | "updatedAt";
+      readonly "collections": "id" | "tenant" | "name" | "description" | "visibility" | "priority" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "collectionGrants": "collection" | "user" | "team" | "createdAt";
       readonly "chunks": "document" | "index" | "content" | "tokens" | "embedding" | "hash" | "metadata" | "tsv";
     };
-    readonly functions: "create_knowledge_document" | "delete_knowledge_document" | "fail_knowledge_document" | "get_knowledge_document" | "knowledge_search" | "list_knowledge_documents" | "pending_knowledge_chunks" | "pending_knowledge_documents" | "reembed_knowledge" | "set_knowledge_embeddings" | "write_knowledge_chunks";
+    readonly functions: "create_knowledge_collection" | "create_knowledge_document" | "delete_knowledge_collection" | "delete_knowledge_document" | "fail_knowledge_document" | "get_knowledge_document" | "knowledge_collection_readable" | "knowledge_search" | "list_knowledge_collection_grants" | "list_knowledge_collections" | "list_knowledge_documents" | "pending_knowledge_chunks" | "pending_knowledge_documents" | "reembed_knowledge" | "set_knowledge_collection_grant" | "set_knowledge_embeddings" | "update_knowledge_collection" | "write_knowledge_chunks";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "document": "id" | "organization_id" | "owner_id" | "scope" | "scope_id" | "file_id" | "title" | "source" | "metadata" | "status" | "error" | "chunk_count" | "embedding_model" | "created_at" | "updated_at";
+      readonly "document": "id" | "organization_id" | "owner_id" | "scope" | "scope_id" | "file_id" | "title" | "source" | "metadata" | "status" | "error" | "chunk_count" | "embedding_model" | "collection_id" | "created_at" | "updated_at";
     };
     readonly primary: "document";
   };
@@ -1051,15 +1053,15 @@ export interface BlockNameRegistry {
   };
   readonly "memory": {
     readonly tables: {
-      readonly "memories": "id" | "tenant" | "owner" | "scope" | "agent" | "chat" | "project" | "kind" | "path" | "content" | "version" | "embedding" | "model" | "sourceMessage" | "supersededBy" | "tsv" | "createdAt" | "updatedAt";
+      readonly "memories": "id" | "tenant" | "owner" | "scope" | "agent" | "chat" | "project" | "kind" | "path" | "content" | "version" | "embedding" | "model" | "sourceMessage" | "supersededBy" | "subjectType" | "subjectId" | "category" | "confidence" | "expiresAt" | "deletedAt" | "useCount" | "lastUsedAt" | "tsv" | "createdAt" | "updatedAt";
       readonly "messageEmbeddings": "chat" | "message" | "user" | "tenant" | "embedding" | "model" | "createdAt";
       readonly "documents": "scopeKey" | "path" | "content" | "version" | "expiresAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "memory_create" | "memory_delete" | "memory_document_read" | "memory_document_write" | "memory_forget" | "memory_insert" | "memory_list" | "memory_rename" | "memory_save" | "memory_search" | "memory_str_replace" | "memory_view" | "pending_memory_embeddings" | "purge_memory_documents" | "recall_ai_messages" | "set_ai_message_embedding" | "set_memory_embedding" | "set_memory_embeddings";
+    readonly functions: "memory_create" | "memory_delete" | "memory_document_read" | "memory_document_write" | "memory_forget" | "memory_insert" | "memory_list" | "memory_rename" | "memory_restore" | "memory_save" | "memory_search" | "memory_str_replace" | "memory_view" | "pending_memory_embeddings" | "purge_memories" | "purge_memory_documents" | "recall_ai_messages" | "set_ai_message_embedding" | "set_memory_embedding" | "set_memory_embeddings";
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "memory": "id" | "organization_id" | "owner_id" | "scope" | "agent_id" | "chat_id" | "project_id" | "kind" | "path" | "content" | "version" | "embedding" | "embedding_model" | "source_message_id" | "superseded_by" | "tsv" | "created_at" | "updated_at";
+      readonly "memory": "id" | "organization_id" | "owner_id" | "scope" | "agent_id" | "chat_id" | "project_id" | "kind" | "path" | "content" | "version" | "embedding" | "embedding_model" | "source_message_id" | "superseded_by" | "subject_type" | "subject_id" | "category" | "confidence" | "expires_at" | "deleted_at" | "use_count" | "last_used_at" | "tsv" | "created_at" | "updated_at";
     };
     readonly primary: "memory";
   };
@@ -1633,7 +1635,7 @@ export interface BlockNameRegistry {
   };
   readonly "state-machine": {
     readonly tables: {
-      readonly "history": "id" | "tenant" | "subjectType" | "subjectId" | "fromStatus" | "toStatus" | "actor" | "reason" | "createdAt";
+      readonly "history": "id" | "tenant" | "subjectType" | "subjectId" | "fromStatus" | "toStatus" | "actor" | "actorName" | "actorEmail" | "ip" | "userAgent" | "reason" | "createdAt";
       readonly "stages": "id" | "tenant" | "subjectType" | "subjectId" | "label" | "outcome" | "display" | "clearedAt" | "createdAt";
       readonly "lifecycles": "id" | "tenant" | "subjectType" | "subjectId" | "version" | "flags" | "pausedAt" | "pausedUntil" | "pauseReason" | "pausedBy" | "createdAt" | "updatedAt";
     };

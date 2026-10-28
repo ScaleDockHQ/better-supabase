@@ -121,7 +121,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   invoices:
     "add_invoice_charge create_invoice credit_invoice invoice_aging issue_invoice record_invoice_payment remove_invoice_charge reverse_invoice_payment set_invoice_lines void_invoice write_off_invoice",
   knowledge:
-    "create_knowledge_document delete_knowledge_document fail_knowledge_document get_knowledge_document knowledge_search list_knowledge_documents pending_knowledge_chunks pending_knowledge_documents reembed_knowledge set_knowledge_embeddings write_knowledge_chunks",
+    "create_knowledge_collection create_knowledge_document delete_knowledge_collection delete_knowledge_document fail_knowledge_document get_knowledge_document knowledge_search list_knowledge_collection_grants list_knowledge_collections list_knowledge_documents pending_knowledge_chunks pending_knowledge_documents reembed_knowledge set_knowledge_collection_grant set_knowledge_embeddings update_knowledge_collection write_knowledge_chunks",
   "lead-scoring": "lead_fields score_lead score_leads_due",
   leases:
     "activate_lease create_lease get_lease list_lease_charges list_leases post_due_rent record_rent_payment renew_lease terminate_lease",
@@ -132,7 +132,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "mail-sync":
     "connect_mail_account disconnect_mail_account due_mail_accounts get_mail_account get_mail_thread ingest_mail link_mail_thread list_mail_threads mail_accounts_of mail_template_stats mail_threads_of record_sent_mail set_mail_account_status track_mail unlink_mail_thread update_mail_account",
   memory:
-    "memory_create memory_delete memory_document_read memory_document_write memory_forget memory_insert memory_list memory_rename memory_save memory_search memory_str_replace memory_view pending_memory_embeddings purge_memory_documents recall_ai_messages set_ai_message_embedding set_memory_embeddings",
+    "memory_create memory_delete memory_document_read memory_document_write memory_forget memory_insert memory_list memory_rename memory_restore memory_save memory_search memory_str_replace memory_view pending_memory_embeddings purge_memories purge_memory_documents recall_ai_messages set_ai_message_embedding set_memory_embeddings",
   messaging:
     "add_conversation_members archive_conversation can_conversation delete_message edit_message get_message list_conversations list_file_anchors list_message_edits list_messages list_pinned_messages list_record_mentions list_replies mark_read open_conversation pin_message publish_due_messages remove_conversation_member resolve_message save_thread_summary send_message set_conversation_notify set_typing thread_summary unread_counts",
   metrics: "metric_definitions metric_series metric_value metrics_rollup",

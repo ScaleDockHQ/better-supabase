@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("knowledge", { modules })!;
@@ -130,5 +131,51 @@ describe("knowledge module", () => {
     expect(sql).toContain(
       `"better_supabase"."enqueue_job"(queue => 'knowledge_ingest'`,
     );
+  });
+
+  it("groups documents into collections with a visibility and grants", () => {
+    const sql = body();
+
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."knowledge_collections" (',
+    );
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."knowledge_collection_grants" (',
+    );
+    expect(sql).toContain("('automatic', 'restricted', 'disabled')");
+    expect(sql).toContain('"collection_id" uuid');
+    expect(sql).toContain('"knowledge_collection_readable"("id")');
+    expect(sql).toContain("hint = 'KNOWLEDGE_VISIBILITY'");
+    expect(sql).toContain("hint = 'KNOWLEDGE_GRANT'");
+    expect(sql).toContain(
+      '"set_knowledge_collection_grant"(uuid, uuid, text, boolean)',
+    );
+    expect(sql).not.toContain('"team_members"');
+  });
+
+  it("checks team grants against team members with teams installed", () => {
+    const sql = rendered(["teams"]);
+
+    expect(sql).toContain('"better_supabase"."team_members" tm');
+  });
+
+  it("keeps system documents tenant-free and shared with every tenant", () => {
+    const sql = body();
+
+    expect(sql).toContain("knowledge_documents_system_check");
+    expect(sql).toContain('"organization_id" is null');
+    expect(sql).toContain(
+      'drop function if exists "better_supabase"."create_knowledge_document"(',
+    );
+    expect(sql).toContain("collections uuid[] default null");
+    expect(sql).toContain("<> 'disabled'");
+    expect(sql).toContain('"priority"');
+  });
+
+  it("drops the tenant not null when upgrading from version 2", () => {
+    const [plan] = upgradePlan([{ module: "knowledge", version: 2 }]);
+    const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
+
+    expect(sql).toContain('alter column "organization_id" drop not null');
   });
 });

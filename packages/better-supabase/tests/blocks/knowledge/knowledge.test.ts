@@ -567,3 +567,128 @@ describe("createKnowledge", () => {
     expect(calls.at(-1)?.args).toEqual({ tenant: "o1", model: "m2" });
   });
 });
+
+const collectionRow = (overrides: Record<string, unknown> = {}) => ({
+  id: "c1",
+  organization_id: "o1",
+  name: "Handbook",
+  description: null,
+  visibility: "restricted",
+  priority: 2,
+  created_by: "u1",
+  created_at: AT,
+  updated_at: AT,
+  ...overrides,
+});
+
+describe("knowledge collections", () => {
+  it("creates, updates, lists and removes collections", async () => {
+    const { transport, calls } = fakeTransport({
+      create_knowledge_collection: () => collectionRow(),
+      update_knowledge_collection: () =>
+        collectionRow({ visibility: "unknown", priority: null }),
+      list_knowledge_collections: () => [
+        collectionRow(),
+        collectionRow({ id: "c2", organization_id: null }),
+      ],
+      delete_knowledge_collection: () => true,
+    });
+
+    const { collections } = createKnowledge({ transport });
+
+    const created = await collections
+      .create("o1", { name: "Handbook", visibility: "restricted", priority: 2 })
+      .orThrow();
+
+    expect(created).toMatchObject({
+      id: "c1",
+      organizationId: "o1",
+      description: undefined,
+      visibility: "restricted",
+      priority: 2,
+    });
+    expect(calls[0]?.args).toMatchObject({
+      tenant: "o1",
+      name: "Handbook",
+      visibility: "restricted",
+      priority: 2,
+    });
+
+    const updated = await collections
+      .update("c1", { visibility: "disabled" })
+      .orThrow();
+
+    expect(updated).toMatchObject({ visibility: "disabled", priority: 0 });
+    expect(calls[1]?.args).toEqual({
+      collection_id: "c1",
+      patch: { visibility: "disabled" },
+    });
+
+    const listed = await collections.list("o1").orThrow();
+    expect(listed.map((row) => row.organizationId)).toEqual(["o1", undefined]);
+    expect(await collections.remove("c1").orThrow()).toBe(true);
+  });
+
+  it("grants and revokes users and teams", async () => {
+    const { transport, calls } = fakeTransport({
+      set_knowledge_collection_grant: () => true,
+      list_knowledge_collection_grants: () => [
+        { user_id: "u2", team_id: null, created_at: AT },
+        { user_id: null, team_id: "t1", created_at: AT },
+      ],
+    });
+
+    const { collections } = createKnowledge({ transport });
+
+    await collections.grant("c1", { userId: "u2" }).orThrow();
+    await collections.revoke("c1", { teamId: "t1" }).orThrow();
+    expect(calls.map((call) => call.args)).toEqual([
+      { collection_id: "c1", user_id: "u2", granted: true },
+      { collection_id: "c1", team_id: "t1", granted: false },
+    ]);
+
+    const grants = await collections.grants("c1").orThrow();
+    expect(grants).toEqual([
+      { userId: "u2", teamId: undefined, createdAt: expect.anything() },
+      { userId: undefined, teamId: "t1", createdAt: expect.anything() },
+    ]);
+  });
+
+  it("passes collections to documents and search", async () => {
+    const { transport, calls } = fakeTransport({
+      create_knowledge_document: () =>
+        documentRow({
+          collection_id: "c1",
+          organization_id: null,
+          owner_id: null,
+        }),
+      list_knowledge_documents: () => [],
+      knowledge_search: () => [],
+    });
+
+    const knowledge = createKnowledge({ transport });
+
+    const doc = await knowledge.documents
+      .create("o1", {
+        title: "Policy",
+        scope: "organization",
+        collectionId: "c1",
+      })
+      .orThrow();
+
+    expect(doc).toMatchObject({
+      collectionId: "c1",
+      organizationId: undefined,
+      ownerId: undefined,
+    });
+    expect(calls[0]?.args).toMatchObject({ collection_id: "c1" });
+
+    await knowledge.documents.list("o1", { collectionId: "c1" }).orThrow();
+    expect(calls[1]?.args).toMatchObject({ collection_id: "c1" });
+
+    await knowledge
+      .search("o1", { text: "leave" }, { collections: ["c1"] })
+      .orThrow();
+    expect(calls[2]?.args).toMatchObject({ collections: ["c1"] });
+  });
+});
