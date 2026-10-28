@@ -215,15 +215,22 @@ export interface ExpenseInput<F extends object = Record<never, never>> {
   readonly merchant?: string;
   readonly userId?: string;
   readonly employeeId?: string;
+  /**
+   * An expense of the organization itself, without a member or employee. Needs
+   * `options.companyExpenses` and `expenses.manage`.
+   */
+  readonly company?: boolean;
   readonly fields?: Partial<F>;
 }
 
-export interface ExpenseUpdate {
+/** What it leaves out keeps its value; `null` clears the column. */
+export interface ExpenseUpdate<F extends object = Record<never, never>> {
   readonly spentOn?: Temporal.PlainDate;
   readonly amount?: Money;
-  readonly categoryId?: string;
-  readonly description?: string;
-  readonly merchant?: string;
+  readonly categoryId?: string | null;
+  readonly description?: string | null;
+  readonly merchant?: string | null;
+  readonly fields?: Partial<F>;
 }
 
 export interface ExpenseListOptions {
@@ -286,9 +293,13 @@ export interface Expenses<F extends object = Record<never, never>> {
   createExpense(input: ExpenseInput<F>): AsyncResult<Expense<F>>;
   updateExpense(
     expenseId: string,
-    update: ExpenseUpdate,
+    update: ExpenseUpdate<F>,
   ): AsyncResult<Expense<F>>;
   submitExpense(expenseId: string): AsyncResult<Expense<F>>;
+  /** Moves a submitted expense back to draft. */
+  withdrawExpense(expenseId: string): AsyncResult<Expense<F>>;
+  /** Deletes a draft expense. */
+  deleteExpense(expenseId: string): AsyncResult<boolean>;
   decideExpense(
     expenseId: string,
     decision: { readonly approved: boolean; readonly note?: string },
@@ -711,6 +722,7 @@ export function createExpenses<
                 merchant: input.merchant ?? null,
                 user_id: input.userId ?? null,
                 ...optional("employee_id", input.employeeId),
+                ...(input.company === true ? { company: true } : {}),
                 ...(checked === undefined ? {} : { fields: checked }),
               },
               expense("create_expense"),
@@ -718,19 +730,45 @@ export function createExpenses<
           ),
         ),
     updateExpense: (expenseId, update) =>
+      fields.args(update.fields).andThen((checked) => {
+        const clear = (
+          [
+            ["category", update.categoryId],
+            ["description", update.description],
+            ["merchant", update.merchant],
+          ] as const
+        )
+          .filter(([, value]) => value === null)
+          .map(([name]) => name);
+
+        return call(
+          "update_expense",
+          {
+            expense_id: expenseId,
+            spent_on: update.spentOn?.toString() ?? null,
+            amount: update.amount ? amountText(update.amount) : null,
+            currency: update.amount?.currency ?? null,
+            category_id: update.categoryId ?? null,
+            description: update.description ?? null,
+            merchant: update.merchant ?? null,
+            ...(clear.length === 0 ? {} : { clear }),
+            ...(checked === undefined ? {} : { fields: checked }),
+          },
+          expense("update_expense"),
+        ).andThen(fields.row);
+      }),
+    withdrawExpense: (expenseId) =>
       call(
-        "update_expense",
-        {
-          expense_id: expenseId,
-          spent_on: update.spentOn?.toString() ?? null,
-          amount: update.amount ? amountText(update.amount) : null,
-          currency: update.amount?.currency ?? null,
-          category_id: update.categoryId ?? null,
-          description: update.description ?? null,
-          merchant: update.merchant ?? null,
-        },
-        expense("update_expense"),
+        "withdraw_expense",
+        { expense_id: expenseId },
+        expense("withdraw_expense"),
       ).andThen(fields.row),
+    deleteExpense: (expenseId) =>
+      call(
+        "delete_expense",
+        { expense_id: expenseId },
+        (value) => value === true,
+      ),
     submitExpense: (expenseId) =>
       call(
         "submit_expense",

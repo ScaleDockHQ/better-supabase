@@ -11,6 +11,12 @@ export type ExpensesSqlOptions = {
    */
   readonly approvals?: boolean;
   readonly owner?: "user" | "employee";
+  /**
+   * Without reports: `createExpense` with `company: true` records an expense of
+   * the organization itself, without a member or employee. Its owner column
+   * must allow null.
+   */
+  readonly companyExpenses?: boolean;
 };
 
 export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
@@ -18,4 +24,5 @@ export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
     extraColumns: option.extraColumns(),
     approvals: option.boolean({ default: true }),
     owner: option.string<"user" | "employee">({ default: "user" }),
+    companyExpenses: option.boolean({ default: false }),
   });

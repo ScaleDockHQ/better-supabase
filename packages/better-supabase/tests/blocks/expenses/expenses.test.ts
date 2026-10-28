@@ -609,6 +609,69 @@ describe("createExpenses", () => {
     ]);
   });
 
+  it("clears columns, sets fields, records company expenses, withdraws and deletes", async () => {
+    const EXPENSE = {
+      id: "exp-2",
+      organizationId: "org-1",
+      userId: null,
+      employeeId: null,
+      categoryId: null,
+      spentOn: "2026-10-20",
+      description: null,
+      merchant: null,
+      amount: "9900",
+      currency: "EUR",
+      status: "draft",
+      createdAt: AT,
+      updatedAt: AT,
+      fields: { project: "P1" },
+    };
+
+    const fake = fakeTransport({
+      create_expense: EXPENSE,
+      update_expense: EXPENSE,
+      withdraw_expense: EXPENSE,
+      delete_expense: true,
+    });
+
+    const expenses = createExpenses({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    const created = await expenses
+      .createExpense({
+        spentOn: Temporal.PlainDate.from("2026-10-20"),
+        amount: money(9900n, "EUR"),
+        company: true,
+      })
+      .orThrow();
+
+    expect(created.employeeId).toBeUndefined();
+    await expenses
+      .updateExpense("exp-2", {
+        merchant: null,
+        categoryId: null,
+        fields: { project: "P1" },
+      })
+      .orThrow();
+    expect((await expenses.withdrawExpense("exp-2").orThrow()).status).toBe(
+      "draft",
+    );
+    expect(await expenses.deleteExpense("exp-2").orThrow()).toBe(true);
+    expect(fake.calls.map(([fn]) => fn)).toEqual([
+      "create_expense",
+      "update_expense",
+      "withdraw_expense",
+      "delete_expense",
+    ]);
+    expect(fake.calls[0]?.[1]).toMatchObject({ company: true });
+    expect(fake.calls[1]?.[1]).toMatchObject({
+      clear: ["category", "merchant"],
+      fields: { project: "P1" },
+    });
+  });
+
   it("fails without a tenant", async () => {
     const expenses = createExpenses({ transport: fakeTransport({}).transport });
 

@@ -11,6 +11,7 @@ import {
   extraFieldsArg,
   extraFieldsJson,
   fail,
+  insertExtraColumns,
   pageSize,
   SERVICE_CALLER,
   userGrant,
@@ -94,6 +95,8 @@ export function standaloneContract(
     ? ["uuid"]
     : [];
 
+  const company = ctx.flag("companyExpenses", false) ? ["boolean"] : [];
+
   const extra = extraFieldsArg(
     ctx.extraColumns("expenses", EXPENSE_RESERVED),
   ).contract;
@@ -122,16 +125,29 @@ export function standaloneContract(
         "text",
         "uuid",
         ...employee,
+        ...company,
         ...extra,
       ],
       returns: "jsonb",
     },
     {
       name: "update_expense",
-      args: ["uuid", "date", "bigint", "text", "uuid", "text", "text"],
+      args: [
+        "uuid",
+        "date",
+        "bigint",
+        "text",
+        "uuid",
+        "text",
+        "text",
+        "text[]",
+        ...extra,
+      ],
       returns: "jsonb",
     },
     { name: "submit_expense", args: ["uuid"], returns: "jsonb" },
+    { name: "withdraw_expense", args: ["uuid"], returns: "jsonb" },
+    { name: "delete_expense", args: ["uuid"], returns: "boolean" },
     {
       name: "decide_expense",
       args: ["uuid", "boolean", "text"],
@@ -171,6 +187,13 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   const extras = ctx.extraColumns("expenses", EXPENSE_RESERVED);
   const extra = extraFieldsArg(extras);
   const statusColumn = has("status");
+  const company = ctx.flag("companyExpenses", false);
+
+  const inserted = insertExtraColumns(
+    table,
+    extras,
+    "coalesce(create_expense.fields, '{}'::jsonb)",
+  );
 
   if (!statusColumn && !(has("approvedAt") && has("rejectedAt"))) {
     throw new TypeError(
@@ -268,7 +291,38 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
     ? `${has("user") ? "v_user, " : ""}v_owner`
     : "v_owner";
 
-  const createTypes = `${idType}, date, bigint, text, uuid, text, text, uuid${employee ? ", uuid" : ""}`;
+  const createBase = `${idType}, date, bigint, text, uuid, text, text, uuid`;
+  const createTypes = `${createBase}${employee ? ", uuid" : ""}${company ? ", boolean" : ""}`;
+
+  const createDrops = [false, true]
+    .flatMap((withEmployee) =>
+      [false, true].flatMap((withCompany) =>
+        [false, true].map(
+          (withFields) =>
+            `${createBase}${withEmployee ? ", uuid" : ""}${withCompany ? ", boolean" : ""}${withFields ? ", jsonb" : ""}`,
+        ),
+      ),
+    )
+    .filter(
+      (types) =>
+        types !== createTypes && types !== `${createTypes}${extra.type}`,
+    )
+    .map(
+      (types) => `drop function if exists ${fn("create_expense")}(${types});
+`,
+    )
+    .join("");
+
+  const updateBase = "uuid, date, bigint, text, uuid, text, text";
+  const updateTypes = `${updateBase}, text[]`;
+
+  const clearable = ["category", "description", "merchant"].filter((column) =>
+    has(column),
+  );
+
+  const clears = (name: string): string =>
+    `${sqlString(name)} = any (coalesce(update_expense.clear, '{}'::text[]))`;
+
   const listTypes = `${idType}, uuid, text, boolean, integer`;
 
   const ownTable = ctx.owns("expenses")
@@ -276,7 +330,7 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
 create table if not exists ${table} (
   ${e("id")} uuid primary key default gen_random_uuid(),
   ${e("tenant")} ${idType} not null,
-  ${employee ? `${has("user") ? `${e("user")} uuid,\n  ` : ""}${e("employee")} uuid not null,` : `${e("user")} uuid not null references auth.users (id) on delete cascade,`}${has("category") ? `\n  ${e("category")} uuid,` : ""}
+  ${employee ? `${has("user") ? `${e("user")} uuid,\n  ` : ""}${e("employee")} uuid${company ? "" : " not null"},` : `${e("user")} uuid${company ? "" : " not null"} references auth.users (id) on delete cascade,`}${has("category") ? `\n  ${e("category")} uuid,` : ""}
   ${e("spentOn")} date not null,${has("description") ? `\n  ${e("description")} text check (${e("description")} is null or length(${e("description")}) <= 500),` : ""}${has("merchant") ? `\n  ${e("merchant")} text check (${e("merchant")} is null or length(${e("merchant")}) <= 200),` : ""}
   ${e("amount")} bigint not null check (${e("amount")} >= 0),
   ${e("currency")} char(3) not null check (${e("currency")} ~ '^[A-Z]{3}$'),${statusColumn ? `\n  ${e("status")} text not null default 'draft' check (${e("status")} in (${STATUSES.map(sqlString).join(", ")})),` : ""}
@@ -284,7 +338,7 @@ create table if not exists ${table} (
   ${e("reimbursedAt")} timestamptz,${has("reimbursedBy") ? `\n  ${e("reimbursedBy")} uuid,` : ""}${has("reimbursement") ? `\n  ${e("reimbursement")} text check (${e("reimbursement")} is null or length(${e("reimbursement")}) <= 200),` : ""}${has("createdBy") ? `\n  ${e("createdBy")} uuid,` : ""}
   ${e("createdAt")} timestamptz not null default now(),
   ${e("updatedAt")} timestamptz not null default now()${has("category") ? `,\n  foreign key (${e("tenant")}, ${e("category")}) references ${categories} (${k("tenant")}, ${k("id")}) on delete restrict` : ""}
-);${addExtraColumns(table, extras)}
+);${addExtraColumns(table, extras)}${company ? `\nalter table ${table} alter column ${owner.column} drop not null;` : ""}
 create index if not exists ${sqlIdent(`${ctx.tableName("expenses").name}_owner_idx`)} on ${table} (${e("tenant")}, ${owner.column}, ${e("spentOn")} desc);
 ${lockModuleTable(ctx, "expenses", { read: true })}
 ${renderPolicy(makePolicy({ table, name: ctx.naming.rename("expenses_read"), command: "select", roles: ["authenticated"], using: `${owner.mine} or ${ctx.scope.check(e("tenant"), read)}` }), { drop: true, target: table })}
@@ -292,8 +346,7 @@ ${renderPolicy(makePolicy({ table, name: ctx.naming.rename("expenses_read"), com
     : "";
 
   return `${owner.helper}${ownTable}
-${employee ? `drop function if exists ${fn("create_expense")}(${idType}, date, bigint, text, uuid, text, text, uuid);\ndrop function if exists ${fn("create_expense")}(${idType}, date, bigint, text, uuid, text, text, uuid, jsonb);\n` : ""}${extra.drop(fn("create_expense"), createTypes)}
-create or replace function ${fn("create_expense")}(tenant ${idType}, spent_on date, amount bigint, currency text, category_id uuid default null, description text default null, merchant text default null, user_id uuid default null${employee ? ", employee_id uuid default null" : ""}${extra.param})
+${createDrops}create or replace function ${fn("create_expense")}(tenant ${idType}, spent_on date, amount bigint, currency text, category_id uuid default null, description text default null, merchant text default null, user_id uuid default null${employee ? ", employee_id uuid default null" : ""}${company ? ", company boolean default false" : ""}${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -306,8 +359,20 @@ declare
   v_row ${table}%rowtype;
 begin
 ${
-  employee
-    ? `  ${owner.resolve("create_expense.tenant", "create_expense.user_id", "create_expense.employee_id")}
+  company
+    ? `  if coalesce(create_expense.company, false) then
+    if create_expense.user_id is not null${employee ? " or create_expense.employee_id is not null" : ""} then
+      ${invalid("a company expense has no member or employee")}
+    end if;
+    if not (${SERVICE_CALLER} or ${ctx.can("tenant", "create_expense.tenant", manage)}) then
+      ${forbidden("not allowed to record company expenses")}
+    end if;
+  else
+`
+    : ""
+}${
+    employee
+      ? `  ${owner.resolve("create_expense.tenant", "create_expense.user_id", "create_expense.employee_id")}
   if v_owner is null then
     ${fail("EXPENSE_EMPLOYEE_INVALID", "no employee record for that member in this organization", "22023")}
   end if;
@@ -315,7 +380,7 @@ ${
     or ${SERVICE_CALLER} or ${ctx.can("tenant", "create_expense.tenant", manage)} or ${owner.manages("create_expense.tenant", "v_owner")}) then
     ${forbidden("not allowed to record expenses for this employee")}
   end if;`
-    : `  v_owner := coalesce(create_expense.user_id, auth.uid());
+      : `  v_owner := coalesce(create_expense.user_id, auth.uid());
   v_user := v_owner;
   if v_owner is null then
     ${forbidden("sign in to record expenses")}
@@ -327,7 +392,7 @@ ${
   if not ${owner.exists("create_expense.tenant", "v_owner")} then
     ${invalid("the user is not a member of this organization")}
   end if;`
-}
+  }${company ? "\n  end if;" : ""}
   if create_expense.spent_on is null then
     ${invalid("an expense needs spent_on")}
   end if;
@@ -337,16 +402,18 @@ ${
   if create_expense.currency is null or create_expense.currency !~ '^[A-Z]{3}$' then
     ${invalid("currency must be a three-letter currency code")}
   end if;${categoryCheck("create_expense.category_id", "create_expense.tenant")}${unsupported("description", "nullif(trim(create_expense.description), '')")}${unsupported("merchant", "nullif(trim(create_expense.merchant), '')")}
-  insert into ${table} (${e("tenant")}, ${ownerInsert}${has("category") ? `, ${e("category")}` : ""}, ${e("spentOn")}${has("description") ? `, ${e("description")}` : ""}${has("merchant") ? `, ${e("merchant")}` : ""}, ${e("amount")}, ${e("currency")}${statusColumn ? `, ${e("status")}` : ""}${has("createdBy") ? `, ${e("createdBy")}` : ""})
-  values (create_expense.tenant, ${ownerValues}${has("category") ? ", create_expense.category_id" : ""}, create_expense.spent_on${has("description") ? ", nullif(trim(create_expense.description), '')" : ""}${has("merchant") ? ", nullif(trim(create_expense.merchant), '')" : ""}, create_expense.amount, create_expense.currency${statusColumn ? `, ${ctx.cast("expenses", "status", "'draft'")}` : ""}${has("createdBy") ? ", auth.uid()" : ""})
-  returning * into v_row;${writeExtraColumns(table, extras, "create_expense.fields", `x.${e("id")} = v_row.${e("id")}`, "v_row")}
+  insert into ${table} (${e("tenant")}, ${ownerInsert}${has("category") ? `, ${e("category")}` : ""}, ${e("spentOn")}${has("description") ? `, ${e("description")}` : ""}${has("merchant") ? `, ${e("merchant")}` : ""}, ${e("amount")}, ${e("currency")}${statusColumn ? `, ${e("status")}` : ""}${has("createdBy") ? `, ${e("createdBy")}` : ""}${inserted.columns})
+  values (create_expense.tenant, ${ownerValues}${has("category") ? ", create_expense.category_id" : ""}, create_expense.spent_on${has("description") ? ", nullif(trim(create_expense.description), '')" : ""}${has("merchant") ? ", nullif(trim(create_expense.merchant), '')" : ""}, create_expense.amount, create_expense.currency${statusColumn ? `, ${ctx.cast("expenses", "status", "'draft'")}` : ""}${has("createdBy") ? ", auth.uid()" : ""}${inserted.values})
+  returning * into v_row;
   ${record("expense.created", "recorded an expense")}
   return ${json("v_row")};
 end;
 $$;
 ${userGrant(`${fn("create_expense")}(${createTypes}${extra.type})`)}
 
-create or replace function ${fn("update_expense")}(expense_id uuid, spent_on date default null, amount bigint default null, currency text default null, category_id uuid default null, description text default null, merchant text default null)
+drop function if exists ${fn("update_expense")}(${updateBase});
+${extra.drop(fn("update_expense"), updateTypes)}
+create or replace function ${fn("update_expense")}(expense_id uuid, spent_on date default null, amount bigint default null, currency text default null, category_id uuid default null, description text default null, merchant text default null, clear text[] default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -361,18 +428,21 @@ begin${load("update_expense.expense_id")}${ownerOrManager}${editable}
   end if;
   if update_expense.currency is not null and update_expense.currency !~ '^[A-Z]{3}$' then
     ${invalid("currency must be a three-letter currency code")}
+  end if;
+  if exists (select 1 from unnest(coalesce(update_expense.clear, '{}'::text[])) c where c <> all (${sqlString(`{${clearable.join(",")}}`)}::text[])) then
+    ${invalid(`clear names only ${clearable.join(", ")}`)}
   end if;${categoryCheck("update_expense.category_id", `v_row.${e("tenant")}`)}${unsupported("description", "update_expense.description")}${unsupported("merchant", "update_expense.merchant")}
   update ${table} x set
     ${e("spentOn")} = coalesce(update_expense.spent_on, x.${e("spentOn")}),
     ${e("amount")} = coalesce(update_expense.amount, x.${e("amount")}),
-    ${e("currency")} = coalesce(update_expense.currency, x.${e("currency")})${has("category") ? `,\n    ${e("category")} = coalesce(update_expense.category_id, x.${e("category")})` : ""}${has("description") ? `,\n    ${e("description")} = coalesce(nullif(trim(update_expense.description), ''), x.${e("description")})` : ""}${has("merchant") ? `,\n    ${e("merchant")} = coalesce(nullif(trim(update_expense.merchant), ''), x.${e("merchant")})` : ""},
+    ${e("currency")} = coalesce(update_expense.currency, x.${e("currency")})${has("category") ? `,\n    ${e("category")} = case when ${clears("category")} then null else coalesce(update_expense.category_id, x.${e("category")}) end` : ""}${has("description") ? `,\n    ${e("description")} = case when ${clears("description")} then null else coalesce(nullif(trim(update_expense.description), ''), x.${e("description")}) end` : ""}${has("merchant") ? `,\n    ${e("merchant")} = case when ${clears("merchant")} then null else coalesce(nullif(trim(update_expense.merchant), ''), x.${e("merchant")}) end` : ""},
     ${e("updatedAt")} = now()
     where x.${e("id")} = v_row.${e("id")}
-    returning * into v_row;
+    returning * into v_row;${writeExtraColumns(table, extras, "update_expense.fields", `x.${e("id")} = v_row.${e("id")}`, "v_row")}
   return ${json("v_row")};
 end;
 $$;
-${userGrant(`${fn("update_expense")}(uuid, date, bigint, text, uuid, text, text)`)}
+${userGrant(`${fn("update_expense")}(${updateTypes}${extra.type})`)}
 
 create or replace function ${fn("submit_expense")}(expense_id uuid)
 returns jsonb
@@ -391,6 +461,46 @@ begin${load("submit_expense.expense_id")}${ownerOrManager}${editable}
 end;
 $$;
 ${userGrant(`${fn("submit_expense")}(uuid)`)}
+
+create or replace function ${fn("withdraw_expense")}(expense_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${table}%rowtype;
+begin${load("withdraw_expense.expense_id")}${ownerOrManager}
+  if ${status("v_row")} <> 'submitted' then
+    ${fail("EXPENSE_LOCKED", "only a submitted expense is withdrawn", "55000")}
+  end if;
+  update ${table} x set ${e("submittedAt")} = null${setStatus("draft")}, ${e("updatedAt")} = now()
+    where x.${e("id")} = v_row.${e("id")}
+    returning * into v_row;
+  ${record("expense.withdrawn", "withdrew an expense")}
+  return ${json("v_row")};
+end;
+$$;
+${userGrant(`${fn("withdraw_expense")}(uuid)`)}
+
+create or replace function ${fn("delete_expense")}(expense_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${table}%rowtype;
+begin${load("delete_expense.expense_id")}${ownerOrManager}
+  if ${status("v_row")} <> 'draft' then
+    ${fail("EXPENSE_LOCKED", "only a draft expense is deleted", "55000")}
+  end if;
+  delete from ${table} x where x.${e("id")} = v_row.${e("id")};
+  ${record("expense.deleted", "deleted an expense")}
+  return true;
+end;
+$$;
+${userGrant(`${fn("delete_expense")}(uuid)`)}
 
 create or replace function ${fn("decide_expense")}(expense_id uuid, approved boolean, note text default null)
 returns jsonb

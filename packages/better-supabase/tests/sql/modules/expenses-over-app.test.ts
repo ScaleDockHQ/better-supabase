@@ -439,6 +439,82 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("inserts extra columns with the row, clears columns, records company expenses, withdraws and deletes", async () => {
+    const standalone = STANDALONE["expenses"];
+
+    await expect(
+      runStandalone(
+        `do $$
+declare
+  v_expense jsonb;
+  v_id uuid;
+  v_company uuid;
+begin
+  ${AS(ALICE)}
+  v_expense := better_supabase.create_expense('${TENANT}', '2099-03-02', 4250, 'EUR', null, 'Train', 'NS', fields => '{"base_currency": "EUR", "project_code": "P1"}');
+  v_id := (v_expense ->> 'id')::uuid;
+  if (select base_currency from public.expenses where id = v_id) <> 'EUR' or v_expense -> 'fields' ->> 'project_code' <> 'P1' then
+    raise exception 'created %', v_expense;
+  end if;
+  v_expense := better_supabase.update_expense(v_id, clear => array['merchant', 'description'], fields => '{"project_code": null}');
+  if (select row(merchant, description, project_code, base_currency)::text from public.expenses where id = v_id) <> '(,,,EUR)' then
+    raise exception 'cleared %', v_expense;
+  end if;
+  perform better_supabase.submit_expense(v_id);
+  v_expense := better_supabase.withdraw_expense(v_id);
+  if v_expense ->> 'status' <> 'draft' or (select submitted_at from public.expenses where id = v_id) is not null then
+    raise exception 'withdrawn %', v_expense;
+  end if;
+  begin
+    perform better_supabase.create_expense('${TENANT}', '2099-03-02', 100, 'EUR', employee_id => '${ALICE_EMPLOYEE}', company => true, fields => '{"base_currency": "EUR"}');
+    raise exception 'a company expense took an employee';
+  exception when others then
+    if sqlerrm not like '%no member or employee%' then
+      raise;
+    end if;
+  end;
+  if not better_supabase.delete_expense(v_id) then
+    raise exception 'delete returned false';
+  end if;
+  if exists (select 1 from public.expenses where id = v_id) then
+    raise exception 'not deleted';
+  end if;
+  ${SERVICE}
+  v_expense := better_supabase.create_expense('${TENANT}', '2099-03-04', 9900, 'EUR', null, 'Office rent', company => true, fields => '{"base_currency": "EUR"}');
+  v_company := (v_expense ->> 'id')::uuid;
+  if v_expense ->> 'employeeId' is not null or (select employee_id from public.expenses where id = v_company) is not null then
+    raise exception 'company %', v_expense;
+  end if;
+  perform better_supabase.submit_expense(v_company);
+  begin
+    perform better_supabase.delete_expense(v_company);
+    raise exception 'deleted a submitted expense';
+  exception when others then
+    if sqlerrm not like '%only a draft%' then
+      raise;
+    end if;
+  end;
+end;
+$$;`,
+        {
+          expenses: {
+            ...standalone,
+            options: {
+              ...standalone?.options,
+              companyExpenses: true,
+              extraColumns: { base_currency: "text", project_code: "text" },
+            },
+          },
+        },
+        STANDALONE_OWN,
+        STANDALONE_APP.replace(
+          "  created_by uuid,",
+          "  created_by uuid,\n  base_currency text not null,\n  project_code text,",
+        ),
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("keeps a member's expenses in the block's own table with categories", async () => {
     await expect(
       runStandalone(
