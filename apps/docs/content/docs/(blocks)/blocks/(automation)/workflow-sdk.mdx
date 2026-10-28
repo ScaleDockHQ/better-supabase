@@ -535,6 +535,26 @@ export async function sendEmail(call: GraphStepCall) {
 export const steps = { "email.send": sendEmail };
 ```
 
+The app's own node kinds ([`defineNodeKind`](/docs/blocks/workflow-editor#your-own-node-kinds))
+run as steps too. Pass the kinds as `nodeKinds` and one step per kind as
+`nodes`; a dynamic start binds each custom node to its kind's step, and
+refuses a graph with a kind it has no step for. The static executor passes
+the same kinds and a `node` function to `executeGraph`:
+
+```ts
+export async function notify(call: GraphNodeCall) {
+  "use step";
+  return slack.post(String(call.config["channel"]), call.input);
+}
+
+export const start = graphStarter({
+  steps,
+  nodeKinds: NODE_KINDS,
+  nodes: { notify },
+  dynamic: true,
+});
+```
+
 Dynamic workflows are experimental in the Workflow SDK. With
 `WORKFLOW_EXPERIMENTAL_DYNAMIC_WORKFLOWS=1`, `graphStarter` compiles the
 published version's graph again on every start and runs that source; it

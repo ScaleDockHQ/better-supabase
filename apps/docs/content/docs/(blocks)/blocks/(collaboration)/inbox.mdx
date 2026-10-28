@@ -174,6 +174,29 @@ handlers in [Chat SDK adapters](/docs/chat-sdk) run the bot and post the
 reply on its channel. A staff reply or `handoff` switches the conversation
 to `human`, so the bot stops answering.
 
+## Reply drafts
+
+`inbox.drafts` keeps an unsent reply per staff member and conversation in
+`inbox_drafts`, so a reply survives a reload or a switch to another
+device. `upsert` replaces the caller's open draft on the conversation or
+starts one; `send` posts it as the caller, with any last edits, and marks
+it `sent`; `discard` marks it `discarded`.
+
+```ts
+await inbox.drafts
+  .upsert(conversationId, { body: "Thanks, we are on it." })
+  .orThrow();
+const [draft] = await inbox.drafts.list(conversationId).orThrow();
+const message = await inbox.drafts.send(draft.id).orThrow();
+```
+
+The service role files an AI draft with `suggest(conversationId, input,
+{ model })`. It has no author: every staff member who can reply on the
+conversation sees it in `list`, and one of them sends or discards it, so
+a model proposes a reply and a person decides. A draft holds a message
+or an internal note (`kind: "note"`), its format, attachments, mentions
+and the message it replies to.
+
 ## Snooze and scheduled replies
 
 Snooze a conversation until a time in the future, or schedule a staff reply

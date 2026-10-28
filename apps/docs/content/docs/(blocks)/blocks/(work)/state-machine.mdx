@@ -56,7 +56,7 @@ blocks: {
 
 ## Who may transition
 
-`transition(subject_type, id, to, reason)` runs as the caller. It updates the status column with the caller's privileges, so the subject table's row level security decides whether they may change that record: a member of another tenant, or a member whose policies allow a read but not an update, gets `STATE_SUBJECT_NOT_FOUND` (Postgres `P0002`, a `not_found` error in TypeScript). The trigger then checks the edge, and the history, stages and lifecycle writes happen inside it. The service role passes every policy, as it does for a direct update.
+`transition(subject_type, id, to, reason, actor)` runs as the caller. It updates the status column with the caller's privileges, so the subject table's row level security decides whether they may change that record: a member of another tenant, or a member whose policies allow a read but not an update, gets `STATE_SUBJECT_NOT_FOUND` (Postgres `P0002`, a `not_found` error in TypeScript). The trigger then checks the edge, and the history, stages and lifecycle writes happen inside it. The service role passes every policy, as it does for a direct update.
 
 The block's readers run as the caller too, and return `STATE_SUBJECT_NOT_FOUND` for a record the caller can't see:
 
@@ -71,6 +71,23 @@ Every method takes the record as a `RecordRef`, `{ type, id }`, whose type is th
 `progress` is 0 at the first status of `order` and 1 at the last; a status outside `order` (`void` above) has no `step` or `progress`. The `status_history`, `status_stages` and `subject_lifecycles` tables have select policies that show a row when the caller can see its record, so a query on them returns the same rows as the readers.
 
 History goes to `status_history`, or to a table named on the machine (`history.table` and its columns; `history()` also reads its `id` and `createdAt` columns). Set `stages: true` on a machine to also write `status_stages`: a label snapshot, an optional outcome, a display order and `cleared_at` on the previous open stage.
+
+## Who made the change
+
+The client's `transition(subject, to, options)` takes the reason and an actor in one object. The history row keeps the caller's user id, and the actor adds a name, an email, an IP address and a user agent, for a change a portal visitor made without an auth user or to record where a request came from:
+
+```ts
+await machine
+  .transition({ type: "quote", id }, "accepted", {
+    reason: "Signed in the portal",
+    actor: { name: "Ada Lovelace", email: "ada@example.com", ip, userAgent },
+  })
+  .orThrow();
+```
+
+An `ip` that isn't an IPv4 or IPv6 address fails with `STATE_ACTOR_INVALID`. `history(subject)` returns the four fields as `actorName`, `actorEmail`, `ip` and `userAgent`. An app history table keeps them when the machine names its columns (`history.actorName`, `history.actorEmail`, `history.ip`, `history.userAgent`); without them the table keeps the user id and reason only.
+
+`history: "app"` leaves the history to the app: the block writes no history row, and `history()` fails with `STATE_HISTORY_APP`. The trigger still checks the edge and records `status.changed`, and the reason and actor stay readable in the transaction as the settings `better_supabase.transition_reason` and `better_supabase.transition_actor` (JSON), so an app trigger on the subject table can write its own row. `history: { table, write: false, ... }` reads an app table the app writes itself.
 
 ## Lifecycle: pause, flags and a pinned version
 
