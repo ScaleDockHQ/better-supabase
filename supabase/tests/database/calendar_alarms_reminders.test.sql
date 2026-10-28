@@ -28,14 +28,14 @@ select set_config(
   'test.event',
   api.save_calendar_event(
     current_setting('test.calendar')::uuid,
-    '{"title":"Review","startsAt":"2030-03-06T09:00:00Z","endsAt":"2030-03-06T10:00:00Z","alarms":[{"triggerMinutes":-15},{"action":"email","triggerAt":"2030-03-05T18:00:00Z","summary":"Prepare","description":"Read the notes","repeat":2,"repeatMinutes":5}]}'
+    '{"title":"Review","startsAt":"2030-03-06T09:00:00Z","endsAt":"2030-03-06T10:00:00Z","alarms":[{"offsetMinutes":15},{"method":"email","at":"2030-03-05T18:00:00Z","summary":"Prepare","description":"Read the notes","repeat":2,"repeatMinutes":5}]}'
   ) ->> 'id',
   true
 );
 
 select is(
   (
-    select jsonb_agg(a -> 'action' order by a ->> 'action')
+    select jsonb_agg(a -> 'method' order by a ->> 'method')
     from jsonb_array_elements(api.list_calendar_events(array[current_setting('test.calendar')::uuid], '2030-03-01T00:00:00Z', '2030-04-01T00:00:00Z') -> 0 -> 'alarms') a
   ),
   '["display", "email"]'::jsonb,
@@ -45,7 +45,7 @@ select is(
   (
     select (a ->> 'repeat')::integer
     from jsonb_array_elements(api.list_calendar_events(array[current_setting('test.calendar')::uuid], '2030-03-01T00:00:00Z', '2030-04-01T00:00:00Z') -> 0 -> 'alarms') a
-    where a ->> 'action' = 'email'
+    where a ->> 'method' = 'email'
   ),
   2,
   'an alarm keeps its repeat count'
@@ -54,9 +54,9 @@ select throws_like(
   format(
     $$ select api.save_calendar_event(%L::uuid, %L::jsonb) $$,
     current_setting('test.calendar'),
-    jsonb_build_object('id', current_setting('test.event'), 'alarms', '[{"triggerMinutes":-15,"triggerAt":"2030-03-05T18:00:00Z"}]'::jsonb)
+    jsonb_build_object('id', current_setting('test.event'), 'alarms', '[{"offsetMinutes":15,"at":"2030-03-05T18:00:00Z"}]'::jsonb)
   ),
-  '%triggerMinutes or triggerAt%',
+  '%offsetMinutes or at%',
   'an alarm with both a relative and an absolute trigger is refused'
 );
 select is(
