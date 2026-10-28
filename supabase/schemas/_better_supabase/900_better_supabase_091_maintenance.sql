@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@2 managed tasks
--- @bsb-hash sha256:174ec5ee16a9c859d264ef4fef704f85c3822be2d7aef4fc8d24caf992832af6
+-- @bsb-hash sha256:6f854dace05206c4d1f6be54ae7043de13acc1d196618f6afcf8b32db4f910f0
 -- @bsb-names maintenance work_item=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -121,7 +121,7 @@ grant all on "better_supabase"."maintenance_requests" to service_role;
 drop policy if exists maintenance_requests_read on "better_supabase"."maintenance_requests";
 create policy maintenance_requests_read on "better_supabase"."maintenance_requests"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
 create table if not exists "better_supabase"."maintenance_request_assignees" (
   "tenant_id" uuid not null,
@@ -138,7 +138,7 @@ grant all on "better_supabase"."maintenance_request_assignees" to service_role;
 drop policy if exists maintenance_request_assignees_read on "better_supabase"."maintenance_request_assignees";
 create policy maintenance_request_assignees_read on "better_supabase"."maintenance_request_assignees"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
 alter table "better_supabase"."maintenance_requests" add column if not exists "recurs_from" uuid references "better_supabase"."maintenance_requests" ("id") on delete set null;
 create unique index if not exists maintenance_requests_recurs_from_idx on "better_supabase"."maintenance_requests" ("recurs_from");
@@ -163,7 +163,7 @@ grant all on "better_supabase"."maintenance_request_checklist_items" to service_
 drop policy if exists maintenance_request_checklist_items_read on "better_supabase"."maintenance_request_checklist_items";
 create policy maintenance_request_checklist_items_read on "better_supabase"."maintenance_request_checklist_items"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
 create or replace function better_supabase.bsb_maintenance_request_guard()
 returns trigger
@@ -241,7 +241,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', create_maintenance_request.tenant, 'maintenance_requests.write'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', create_maintenance_request.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to change work items' using errcode = '42501', hint = 'WORK_ITEM_FORBIDDEN';
   end if;
   if nullif(trim(create_maintenance_request.attrs ->> 'title'), '') is null then
@@ -338,7 +338,7 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_item := (v_change ->> 'maintenanceRequestId')::uuid;
-      if not exists (select 1 from "better_supabase"."maintenance_requests" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance_requests.write'), false)) and x."archived_at" is null) then
+      if not exists (select 1 from "better_supabase"."maintenance_requests" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
       end if;
       declare
@@ -443,7 +443,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = set_maintenance_request_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance_requests.write'), false));
+  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = set_maintenance_request_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
   end if;
@@ -497,7 +497,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "better_supabase"."maintenance_requests" x set "archived_at" = case when archive_maintenance_request.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_maintenance_request.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance_requests.write'), false))
+  where x."id" = archive_maintenance_request.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
   if v_row."id" is null then
     return false;
@@ -526,7 +526,7 @@ begin
   end if;
   delete from "better_supabase"."maintenance_requests" x
   where x."id" = delete_maintenance_request.work_item
-    and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance_requests.manage'), false))
+    and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
   returning * into v_row;
   if v_row."id" is null then
     return false;
@@ -618,7 +618,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = save_maintenance_request_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance_requests.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = save_maintenance_request_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
   end if;
@@ -669,7 +669,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x.* into v_row from "better_supabase"."maintenance_requests" x join "better_supabase"."maintenance_request_checklist_items" y on y."maintenance_request_id" = x."id"
-  where y."id" = delete_maintenance_request_checklist_item.checklist_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance_requests.write'), false)) and x."archived_at" is null;
+  where y."id" = delete_maintenance_request_checklist_item.checklist_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     return false;
   end if;
@@ -723,7 +723,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = set_maintenance_request_recurrence.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance_requests.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = set_maintenance_request_recurrence.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
   end if;
@@ -801,7 +801,7 @@ as $$
 declare
   v_row "better_supabase"."maintenance_requests";
 begin
-  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = watch_maintenance_request.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance_requests.read'), false));
+  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = watch_maintenance_request.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can read' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
   end if;
@@ -824,7 +824,7 @@ as $$
   from "better_supabase"."maintenance_requests" x
   join "better_supabase"."notification_subscriptions" s on s."subject_type" = 'maintenance_request' and s."subject_id" = x."id"::text
     and s."organization_id" = x."tenant_id"
-  where x."id" = list_maintenance_request_watchers.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'maintenance_requests.read'), false)) and s."level" in ('all', 'participating')
+  where x."id" = list_maintenance_request_watchers.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)) and s."level" in ('all', 'participating')
 $$;
 revoke execute on function "better_supabase"."list_maintenance_request_watchers"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_maintenance_request_watchers"(uuid) to authenticated, service_role;
@@ -850,7 +850,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."maintenance_requests
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_requests" as restrictive
@@ -871,7 +871,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."maintenance_request_
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_request_checklist_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_request_checklist_items" as restrictive
@@ -892,7 +892,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."maintenance_request_
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_request_assignees";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_request_assignees" as restrictive

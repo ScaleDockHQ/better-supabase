@@ -119,6 +119,7 @@ import type { WorkflowEditorEvents } from "better-supabase/blocks/workflow-edito
 import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
 import { accessRequestsBlock as accessRequestsBlockInstance } from "better-supabase/blocks/access-requests";
+import { acknowledgementsBlock as acknowledgementsBlockInstance } from "better-supabase/blocks/acknowledgements";
 import { agentsBlock as agentsBlockInstance } from "better-supabase/blocks/agents";
 import { aiCacheBlock as aiCacheBlockInstance } from "better-supabase/blocks/ai-cache";
 import { aiChatBlock as aiChatBlockInstance } from "better-supabase/blocks/ai-chat";
@@ -240,6 +241,11 @@ export const blockConfig = {
     options: {},
   },
   "access-requests": {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  acknowledgements: {
     schema: "better_supabase",
     api: "api",
     options: {},
@@ -969,6 +975,7 @@ export type MaintenanceEvents = RenamedEvents<DefaultTasksEvents, MaintenanceRen
 export const blocks = {
   permissions: permissionsBlockInstance,
   "access-requests": accessRequestsBlockInstance,
+  acknowledgements: acknowledgementsBlockInstance,
   agents: agentsBlockInstance,
   "ai-cache": aiCacheBlockInstance,
   "ai-chat": aiChatBlockInstance,
@@ -1112,16 +1119,21 @@ export const permissions = {
     manage: "access_requests.manage",
     approve: "members.update_role",
   },
+  acknowledgements: {
+    read: "acknowledgements.read",
+    manage: "acknowledgements.manage",
+    acknowledge: "acknowledgements.acknowledge",
+  },
   activities: {
-    read: "engagements.read",
-    write: "engagements.write",
-    manage: "engagements.manage",
+    read: "activities.read",
+    write: "activities.write",
+    manage: "activities.manage",
   },
   agents: {
-    read: "ai.read",
-    create: "ai.create",
-    publish: "ai.share",
-    moderate: "ai.moderate",
+    read: "agents.read",
+    create: "agents.create",
+    publish: "agents.publish",
+    moderate: "agents.moderate",
   },
   "ai-chat": {
     read: "ai_chat.read",
@@ -1131,16 +1143,16 @@ export const permissions = {
     admin: "ai_chat.admin",
   },
   "ai-files": {
-    upload: "ai.create",
-    manage: "ai.admin",
+    upload: "ai_files.upload",
+    manage: "ai_files.manage",
   },
   "ai-keys": {
-    use: "ai.create",
-    manage: "ai.admin",
+    use: "ai_keys.use",
+    manage: "ai_keys.manage",
   },
   "ai-schedules": {
-    create: "ai.create",
-    manage: "ai.admin",
+    create: "ai_schedules.create",
+    manage: "ai_schedules.manage",
   },
   announcements: {
     manage: "announcements.manage",
@@ -1187,10 +1199,10 @@ export const permissions = {
     revert: "audit.revert",
   },
   automations: {
-    read: "rules.read",
-    edit: "rules.edit",
-    publish: "rules.publish",
-    admin: "rules.admin",
+    read: "automations.read",
+    edit: "automations.write",
+    publish: "automations.publish",
+    admin: "automations.manage",
   },
   "billable-time": {
     read: "billable_time.read",
@@ -1237,24 +1249,24 @@ export const permissions = {
     moderate: "messages.moderate",
   },
   company: {
-    read: "parties.read",
-    write: "parties.write",
+    read: "contacts.read",
+    write: "contacts.write",
   },
   compliance: {
-    read: "controls.read",
-    manage: "controls.manage",
-    collect: "controls.collect",
-    acknowledge: "controls.acknowledge",
+    read: "compliance.read",
+    manage: "compliance.manage",
+    collect: "compliance.collect",
+    acknowledge: "compliance.acknowledge",
   },
   connectors: {
-    read: "ai.read",
-    use: "ai.create",
-    manage: "ai.admin",
+    read: "connectors.read",
+    use: "connectors.use",
+    manage: "connectors.manage",
   },
   contacts: {
-    read: "parties.read",
-    write: "parties.write",
-    manage: "parties.manage",
+    read: "contacts.read",
+    write: "contacts.write",
+    manage: "contacts.manage",
   },
   content: {
     read: "content.read",
@@ -1275,8 +1287,8 @@ export const permissions = {
     manage: "contracts.manage",
   },
   control: {
-    read: "controls.read",
-    write: "controls.manage",
+    read: "compliance.read",
+    write: "compliance.manage",
   },
   conversation: {
     read: "messages.read",
@@ -1295,16 +1307,16 @@ export const permissions = {
   "custom-fields": {
     manage: "custom_fields.manage",
     read: "custom_fields.read",
-    sensitive: "custom_fields.sensitive.read",
+    sensitive: "custom_fields.read_sensitive",
   },
   customer: {
     read: "customers.read",
     write: "customers.write",
   },
   "data-lifecycle": {
-    export: "organization.export",
-    delete: "organization.delete",
-    cancelDelete: "organization.delete",
+    export: "data_lifecycle.export",
+    delete: "data_lifecycle.delete",
+    cancelDelete: "data_lifecycle.delete",
   },
   deal: {
     read: "deals.read",
@@ -1357,8 +1369,8 @@ export const permissions = {
     viewSensitive: "employees.view_sensitive",
   },
   engagement: {
-    read: "engagements.read",
-    write: "engagements.write",
+    read: "activities.read",
+    write: "activities.write",
   },
   enrichment: {
     read: "enrichment.read",
@@ -1385,7 +1397,7 @@ export const permissions = {
     manage: "expenses.manage",
   },
   "field-history": {
-    read: "history.read",
+    read: "field_history.read",
   },
   flags: {
     manage: "flags.manage",
@@ -1405,8 +1417,8 @@ export const permissions = {
     review: "forms.review",
   },
   goals: {
-    read: "targets.read",
-    manage: "targets.manage",
+    read: "goals.read",
+    manage: "goals.manage",
   },
   guests: {
     read: "guests.read",
@@ -1457,9 +1469,9 @@ export const permissions = {
     manage: "invoices.manage",
   },
   knowledge: {
-    read: "ai.read",
-    write: "ai.create",
-    manage: "ai.admin",
+    read: "knowledge.read",
+    write: "knowledge.write",
+    manage: "knowledge.manage",
   },
   lease: {
     read: "leases.read",
@@ -1480,14 +1492,14 @@ export const permissions = {
     write: "ledger.manage",
   },
   "mail-sync": {
-    read: "mail.read",
-    connect: "mail.connect",
-    send: "mail.send",
-    manage: "mail.manage",
+    read: "mail_sync.read",
+    connect: "mail_sync.connect",
+    send: "mail_sync.send",
+    manage: "mail_sync.manage",
   },
   memory: {
-    read: "ai.read",
-    manage: "ai.admin",
+    read: "memory.read",
+    manage: "memory.manage",
   },
   message: {
     read: "messages.read",
@@ -1514,7 +1526,7 @@ export const permissions = {
     read: "notifications.read",
   },
   numbering: {
-    assign: "number_sequences.assign",
+    assign: "numbering.assign",
   },
   onboarding: {
     read: "onboarding.read",
@@ -1548,16 +1560,16 @@ export const permissions = {
     setOverride: "roles.manage",
   },
   person: {
-    read: "parties.read",
-    write: "parties.write",
+    read: "contacts.read",
+    write: "contacts.write",
   },
   pipelines: {
     read: "pipelines.read",
     manage: "pipelines.manage",
   },
   policy: {
-    read: "controls.read",
-    write: "controls.manage",
+    read: "compliance.read",
+    write: "compliance.manage",
   },
   post: {
     read: "posts.read",
@@ -1604,8 +1616,8 @@ export const permissions = {
     read: "reminders.read",
   },
   "saved-views": {
-    read: "views.read",
-    share: "views.share",
+    read: "saved_views.read",
+    share: "saved_views.share",
   },
   scores: {
     read: "scores.read",
@@ -1617,7 +1629,7 @@ export const permissions = {
   },
   segments: {
     read: "segments.read",
-    edit: "segments.edit",
+    edit: "segments.write",
   },
   sequences: {
     read: "sequences.read",
@@ -1625,8 +1637,8 @@ export const permissions = {
     manage: "sequences.manage",
   },
   "service-accounts": {
-    read: "service_principals.read",
-    manage: "service_principals.manage",
+    read: "service_accounts.read",
+    manage: "service_accounts.manage",
   },
   settings: {
     read: "settings.read",
@@ -1663,9 +1675,9 @@ export const permissions = {
     apply: "tags.apply",
   },
   tasks: {
-    read: "work_items.read",
-    write: "work_items.write",
-    manage: "work_items.manage",
+    read: "tasks.read",
+    write: "tasks.write",
+    manage: "tasks.manage",
   },
   teams: {
     manage: "teams.manage",
@@ -1683,7 +1695,7 @@ export const permissions = {
     manage: "time_tracking.manage",
   },
   timeline: {
-    read: "activity.read",
+    read: "timeline.read",
   },
   trash: {
     read: "trash.read",
@@ -1703,31 +1715,31 @@ export const permissions = {
   },
   waitlist: {
     manage: "waitlist.manage",
-    invite: "members.invite",
+    invite: "waitlist.invite",
   },
   "webhooks-out": {
     manage: "webhooks.manage",
     view: "webhooks.read",
   },
   work_item: {
-    read: "work_items.read",
-    write: "work_items.write",
+    read: "tasks.read",
+    write: "tasks.write",
   },
   work_order: {
     read: "dispatch.read",
     write: "dispatch.manage",
   },
   "workflow-editor": {
-    read: "workflow.read",
-    run: "workflow.run",
-    edit: "workflow.edit",
-    publish: "workflow.publish",
-    admin: "workflow.admin",
+    read: "workflow_editor.read",
+    run: "workflow_editor.run",
+    edit: "workflow_editor.write",
+    publish: "workflow_editor.publish",
+    admin: "workflow_editor.manage",
   },
   workflows: {
-    read: "workflow.read",
-    run: "workflow.run",
-    admin: "workflow.admin",
+    read: "workflows.read",
+    run: "workflows.run",
+    admin: "workflows.manage",
   },
 } as const;
 
@@ -1736,7 +1748,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "access_requests.create" | "access_requests.manage" | "access_requests.read" | "activity.read" | "ai.admin" | "ai.create" | "ai.moderate" | "ai.read" | "ai.share" | "ai_chat.admin" | "ai_chat.create" | "ai_chat.moderate" | "ai_chat.read" | "ai_chat.share" | "announcements.manage" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "assignment.assign" | "assignment.manage" | "assignment.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billable_time.invoice" | "billable_time.manage" | "billable_time.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "bulk.run" | "calendar.manage" | "calendar.read" | "calendar.write" | "catalog.manage" | "catalog.read" | "channels.create" | "channels.manage" | "content.publish" | "content.read" | "content.write" | "contracts.manage" | "contracts.read" | "contracts.write" | "controls.acknowledge" | "controls.collect" | "controls.manage" | "controls.read" | "courses.enroll" | "courses.manage" | "courses.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "customers.read" | "customers.write" | "deals.manage" | "deals.read" | "deals.write" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "donations.manage" | "donations.read" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.view_sensitive" | "employees.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrichment.read" | "enrichment.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "flags.manage" | "forecasts.read" | "forecasts.snapshot" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "guests.manage" | "guests.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "history.read" | "imports.manage" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "incidents.manage" | "incidents.read" | "incidents.write" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.manage" | "invoices.read" | "invoices.write" | "leases.maintain" | "leases.manage" | "leases.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "mail.connect" | "mail.manage" | "mail.read" | "mail.send" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "number_sequences.assign" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.export" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "passes.check_in" | "passes.manage" | "passes.read" | "pipelines.manage" | "pipelines.read" | "platform.invite" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "promotions.manage" | "promotions.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "reminders.manage" | "reminders.read" | "roles.manage" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "segments.edit" | "segments.read" | "sequences.enroll" | "sequences.manage" | "sequences.read" | "service_principals.manage" | "service_principals.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "shipments.manage" | "shipments.read" | "signatures.manage" | "signatures.read" | "signatures.request" | "sla.manage" | "sla.read" | "sso.manage" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "trash.create" | "trash.manage" | "trash.read" | "trash.restore" | "usage.read" | "usage.record" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore" | "views.read" | "views.share" | "waitlist.manage" | "webhooks.manage" | "webhooks.read" | "work_items.manage" | "work_items.read" | "work_items.write" | "workflow.admin" | "workflow.edit" | "workflow.publish" | "workflow.read" | "workflow.run";
+export type PermissionKey = "access_requests.create" | "access_requests.manage" | "access_requests.read" | "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "activities.manage" | "activities.read" | "activities.write" | "agents.create" | "agents.moderate" | "agents.publish" | "agents.read" | "ai_chat.admin" | "ai_chat.create" | "ai_chat.moderate" | "ai_chat.read" | "ai_chat.share" | "ai_files.manage" | "ai_files.upload" | "ai_keys.manage" | "ai_keys.use" | "ai_schedules.create" | "ai_schedules.manage" | "announcements.manage" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "assignment.assign" | "assignment.manage" | "assignment.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "billable_time.invoice" | "billable_time.manage" | "billable_time.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "bulk.run" | "calendar.manage" | "calendar.read" | "calendar.write" | "catalog.manage" | "catalog.read" | "channels.create" | "channels.manage" | "compliance.acknowledge" | "compliance.collect" | "compliance.manage" | "compliance.read" | "connectors.manage" | "connectors.read" | "connectors.use" | "contacts.manage" | "contacts.read" | "contacts.write" | "content.publish" | "content.read" | "content.write" | "contracts.manage" | "contracts.read" | "contracts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.read_sensitive" | "customers.read" | "customers.write" | "data_lifecycle.delete" | "data_lifecycle.export" | "deals.manage" | "deals.read" | "deals.write" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "donations.manage" | "donations.read" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.view_sensitive" | "employees.write" | "enrichment.read" | "enrichment.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "field_history.read" | "flags.manage" | "forecasts.read" | "forecasts.snapshot" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "goals.manage" | "goals.read" | "guests.manage" | "guests.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "imports.manage" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "incidents.manage" | "incidents.read" | "incidents.write" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.manage" | "invoices.read" | "invoices.write" | "knowledge.manage" | "knowledge.read" | "knowledge.write" | "leases.maintain" | "leases.manage" | "leases.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "mail_sync.connect" | "mail_sync.manage" | "mail_sync.read" | "mail_sync.send" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "memory.manage" | "memory.read" | "messages.moderate" | "messages.read" | "messages.send" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "passes.check_in" | "passes.manage" | "passes.read" | "pipelines.manage" | "pipelines.read" | "platform.invite" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "promotions.manage" | "promotions.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "reminders.manage" | "reminders.read" | "roles.manage" | "saved_views.read" | "saved_views.share" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "segments.read" | "segments.write" | "sequences.enroll" | "sequences.manage" | "sequences.read" | "service_accounts.manage" | "service_accounts.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "shipments.manage" | "shipments.read" | "signatures.manage" | "signatures.read" | "signatures.request" | "sla.manage" | "sla.read" | "sso.manage" | "tags.apply" | "tags.manage" | "tags.read" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "timeline.read" | "trash.create" | "trash.manage" | "trash.read" | "trash.restore" | "usage.read" | "usage.record" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore" | "waitlist.invite" | "waitlist.manage" | "webhooks.manage" | "webhooks.read" | "workflow_editor.manage" | "workflow_editor.publish" | "workflow_editor.read" | "workflow_editor.run" | "workflow_editor.write" | "workflows.manage" | "workflows.read" | "workflows.run";
 
 /** Every installed block's events: type to data. @public */
 export type BlockEvents = AccessRequestsEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkEvents & CalendarEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & TasksEvents & MaintenanceEvents & WorkflowEditorEvents & WorkflowsEvents;
