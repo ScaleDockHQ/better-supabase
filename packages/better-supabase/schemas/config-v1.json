@@ -6584,6 +6584,7 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "brand": {},
               "extraColumns": {
                 "type": "object",
                 "additionalProperties": {

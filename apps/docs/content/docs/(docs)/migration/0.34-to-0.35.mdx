@@ -209,3 +209,18 @@ Redeclare your stock hooks with a `numeric` quantity: the block looks them
 up by signature, so a hook still declared with `integer` is no longer
 called. Code that switches over the order status needs a `confirmed` case.
 The codemod lists these lines for review.
+
+## Templates, lifecycles and timelines
+
+`better-supabase upgrade` adds a nullable `brand` column to `templates`, the
+`template_schedules` and `template_schedule_runs` tables when `reminders` is
+installed, and a `workflow_version_id` column to `subject_lifecycles` when a
+machine sets `workflow`. Three unions gained members, so an exhaustive
+`switch` over them stops compiling until it handles the new ones:
+
+| 0.34                                                     | 0.35                                                           |
+| -------------------------------------------------------- | -------------------------------------------------------------- |
+| `TemplateScope`: `"tenant" \| "system"`                  | adds `"brand"`, for a starter of one brand                     |
+| `ActivitySource`: `event`, `audit`, `delivery`, `run`    | adds `transition` and `message`                                |
+| `StatusState` without workflow fields                    | adds `workflow` and `workflowVersionId`                        |
+| a timeline lists status changes only as `status.changed` | also as `transition` entries; pass `sources` to show them once |

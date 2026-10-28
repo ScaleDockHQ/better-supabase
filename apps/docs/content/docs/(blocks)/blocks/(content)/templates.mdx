@@ -67,6 +67,32 @@ await templates.setDefault(fork.id).orThrow();
 
 `list(organizationId)` returns the organization's templates and the system ones, defaults first; `list(null)` returns only the system ones. `setDefault` makes a template the default for its organization, type and language; a unique index keeps one.
 
+### Brand starters
+
+When one app serves several brands, a starter can belong to one brand. better-supabase has no brands table: the brand is a column you keep, as for a [custom flag context](/docs/flags-sdk). Set `options.brand` to the table and column that hold a tenant's brand, and give the starter a `brand` in `sync`:
+
+```ts title="better-supabase.config.ts"
+templates: {
+  options: { brand: { table: "public.organizations", column: "brand" } },
+},
+```
+
+```ts
+await service
+  .sync([
+    {
+      key: "launch",
+      type: "project",
+      brand: "acme",
+      name: "Acme launch",
+      body: { tasks: ["Kickoff", "Brand review", "Retro"] },
+    },
+  ])
+  .orThrow();
+```
+
+A brand starter has scope `brand`, no organization and the brand in `brand`. Every organization whose column holds that brand reads, forks and applies it like a system starter, and other organizations don't see it. Keys and defaults count the brand, so each brand keeps its own `launch`. A brand table other than the tenant table takes `tenant`, the column there with the tenant id (`id` by default). Without `options.brand`, `sync` refuses a starter with a `brand`.
+
 ## Versions
 
 ```ts
@@ -134,6 +160,47 @@ export const steps = {
 
 A node's config takes `template` and optional `values`, and the step applies the template in the run's organization. It passes `<runKey>:<node>` to your type's `apply` as `key`, so a retried step can find the record it already created instead of creating a second one. It returns `{ applicationId, subject, runs }`. Publishing a graph with the node checks `templates.apply`.
 
+### Schedules
+
+Without a workflow, a schedule applies a template at each occurrence of a recurrence rule. The rule lives in the [reminders](/docs/blocks/reminders) module's `recurrence_rules` (subject type `template_schedule`), so install reminders with `ruleFormat: "rrule"` and the [queue](/docs/blocks/queue) module, and pass the queue client as `jobs`:
+
+```ts title="lib/templates.ts"
+export const templatesFor = (sql: Sql) =>
+  createTemplates({
+    transport: sqlTransport(sql),
+    types: { invoice },
+    jobs: jobsFor(sql),
+  });
+```
+
+```ts
+const schedule = await templates.recurring
+  .upsert({
+    template: invoiceTemplate.id,
+    organizationId,
+    dtstart: Temporal.Instant.from("2026-11-01T08:00:00Z"),
+    tzid: "Europe/Amsterdam",
+    rrule: "FREQ=MONTHLY;BYMONTHDAY=1",
+    input: { plan: "pro" },
+  })
+  .orThrow();
+```
+
+`upsert` needs `templates.manage` in the organization, and the template must be one the organization can apply. `list(organizationId, template?)` and `remove(id)` read and remove schedules; removing a schedule or its template removes its rule.
+
+Two service-role calls run the schedules. The manifest's `recurring` schedule calls `recurring.schedule()` every five minutes: it expands every enabled rule in its time zone and enqueues one `templates.recur` job per occurrence in the next day (`horizonMinutes`, default 1440), and also an occurrence missed in the last 15 minutes (`lookbackMinutes`). The dedupe key is the schedule and the occurrence, so running it again enqueues nothing new. Work the `templates.recur` queue with `recurring.job`:
+
+```ts title="worker.ts"
+import { TEMPLATE_RECUR_QUEUE } from "better-supabase/blocks/templates";
+
+const templates = templatesFor(postgres.admin);
+await jobs.work(TEMPLATE_RECUR_QUEUE, templates.recurring.job, {
+  signal: controller.signal,
+});
+```
+
+The job calls `recurring.run(schedule, occurrenceAt)`. It claims the occurrence in `template_schedule_runs`, applies the template in the schedule's organization with the schedule's `input` as `values`, and records the application. An occurrence that already made a record returns `{ status: "skipped" }`. Two workers that claim the same occurrence before either records it both call your type's `apply`, with the same key `template-schedule:<id>:<occurrence>`, so use the key in `apply` to return the record the first one created. A rule that doesn't expand (an unknown time zone) counts in `skipped` and the other schedules still run.
+
 ## Merge fields
 
 ```ts
@@ -165,12 +232,14 @@ Errors carry these hints: `TEMPLATE_INVALID`, `TEMPLATE_NOT_FOUND`, `TEMPLATE_FO
 
 ## Tables
 
-| Table                   | What it holds                                                                                                          |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `templates`             | One row per template: organization (none for a system one), type, name, language, default, settings, the fork's source |
-| `template_versions`     | The versions of each template, with the body and its SHA-256; the draft has no `published_at`                          |
-| `template_applications` | Which version of which template created which record, by whom                                                          |
-| `template_workflows`    | The workflow definitions each template starts on a new record, with their inputs (with `workflow-editor`)              |
+| Table                    | What it holds                                                                                                          |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `templates`              | One row per template: organization (none for a system one), type, name, language, default, settings, the fork's source |
+| `template_versions`      | The versions of each template, with the body and its SHA-256; the draft has no `published_at`                          |
+| `template_applications`  | Which version of which template created which record, by whom                                                          |
+| `template_workflows`     | The workflow definitions each template starts on a new record, with their inputs (with `workflow-editor`)              |
+| `template_schedules`     | Recurring records: the template, organization, input and whether it runs; the rule is in reminders (with `reminders`)  |
+| `template_schedule_runs` | One row per occurrence a schedule claimed, with the application it made (with `reminders`)                             |
 
 ## Your own columns
 
