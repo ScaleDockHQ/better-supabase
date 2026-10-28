@@ -52,7 +52,7 @@ export const categoryExtras = (ctx: BlockSqlContext): readonly ExtraColumn[] =>
  * stock when variants don't say. Each is a parameter with a null default that
  * leaves the column as it is.
  */
-export function productSettings(
+function productSettings(
   ctx: BlockSqlContext,
 ): readonly (readonly [string, string, string])[] {
   const onVariant = !ctx.hasTable("prices");
