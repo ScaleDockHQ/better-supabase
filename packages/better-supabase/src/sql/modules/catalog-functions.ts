@@ -695,7 +695,7 @@ function variantFunctions(
   const retired = (alias: string): string =>
     typeof ctx.config.columns["variants"]?.["status"] === "string" &&
     ctx.has("variants", "status")
-      ? ` and ${alias}.${v("status")} is distinct from ${ctx.value("variants", "status", "archived")}`
+      ? ` and ${ctx.is("variants", "status", `${alias}.${v("status")}::text`, ["archived"], true)}`
       : "";
 
   const hasValues =

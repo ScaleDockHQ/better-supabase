@@ -217,6 +217,7 @@ const NAMES: BlockSqlNames = {
         "price",
         "status",
       ],
+      mappable: ["status"],
     },
     variantValues: {
       name: "product_variant_values",

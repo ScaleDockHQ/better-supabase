@@ -401,6 +401,10 @@ $$;`,
               status: "status",
             },
           },
+          values: {
+            ...catalog?.values,
+            variants: { status: { archived: ["archived", "discontinued"] } },
+          },
           options: {
             ...catalog?.options,
             extraColumns: { digital_delivery: "text" },
