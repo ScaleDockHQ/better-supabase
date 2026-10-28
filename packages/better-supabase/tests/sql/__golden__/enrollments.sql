@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:23696c6b9d4b31237905282d9240e51a56c04580ff4c3d90e0cd61279fa5b777
+-- @bsb-hash sha256:cda02a7fb58cfc5163d9378fa53b72456e4ec2a8b6403d7f50128616c033ba03
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -106,6 +106,8 @@ create table if not exists "better_supabase"."enrollments" (
   "status" text not null default 'active' check ("status" in ('active', 'completed', 'cancelled')),
   "enrolled_by" uuid,
   "enrolled_at" timestamptz not null default now(),
+  "starts_at" timestamptz,
+  "ends_at" timestamptz,
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "updated_at" timestamptz not null default now(),
@@ -117,14 +119,21 @@ create index if not exists "enrollments_program_idx" on "better_supabase"."enrol
 create index if not exists "enrollments_subject_idx" on "better_supabase"."enrollments" ("tenant_id", "subject_type", "subject_id");
 create index if not exists "enrollments_user_idx" on "better_supabase"."enrollments" ("user_id");
 
+-- A completed step, or an open one whose program step has an assignee or a
+-- due date (completed_at is null until it is done).
 create table if not exists "better_supabase"."enrollment_steps" (
   "enrollment_id" uuid not null references "better_supabase"."enrollments" ("id") on delete cascade,
   "tenant_id" uuid,
   "step" text not null,
+  "assignee_role" text check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "assignee_user_id" uuid references auth.users (id) on delete set null,
+  "due_at" timestamptz,
   "completed_by" uuid,
-  "completed_at" timestamptz not null default now(),
+  "completed_at" timestamptz default now(),
   primary key ("enrollment_id", "step")
 );
+create index if not exists "enrollment_steps_assignee_idx" on "better_supabase"."enrollment_steps" ("assignee_user_id", "due_at");
+create index if not exists "enrollment_steps_due_idx" on "better_supabase"."enrollment_steps" ("tenant_id", "due_at") where "completed_at" is null;
 
 alter table "better_supabase"."enrollment_programs" enable row level security;
 revoke all on "better_supabase"."enrollment_programs" from public, anon, authenticated;
@@ -167,7 +176,14 @@ as $$
     'cancelledAt', x."cancelled_at", 'updatedAt', x."updated_at",
     'progress', coalesce((
       select jsonb_agg(jsonb_build_object('step', y."step", 'completedAt', y."completed_at", 'completedBy', y."completed_by") order by y."completed_at", array_position(x."steps", y."step"), y."step")
-      from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id"
+      from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."completed_at" is not null
+    ), '[]'::jsonb),
+    'startsAt', x."starts_at", 'endsAt', x."ends_at",
+    'schedule', coalesce((
+      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
+      from "better_supabase"."enrollment_steps" y
+      where y."enrollment_id" = x."id"
+        and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null)
     ), '[]'::jsonb)
   )
   from "better_supabase"."enrollments" x
@@ -210,9 +226,9 @@ begin
     update "better_supabase"."enrollments" x set "steps" = enrollment_ensure.steps, "program_version" = enrollment_ensure.program_version
     where x."id" = v_row."id";
     update "better_supabase"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -221,6 +237,59 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."enrollment_ensure"(uuid, text, integer, text[], text, text, uuid) from public, anon, authenticated;
+
+-- Renders the open step rows of an enrollment from its program: one per step
+-- of the enrollment that has an assignee or a due date, due its days after
+-- the enrollment's start (or enrolled_at) or its end. A due date from the end
+-- stays null until the enrollment has one. Completed rows keep their
+-- completion; open rows of steps without a schedule go. Module programs
+-- (keys with a colon) are not in the programs table and render nothing.
+create or replace function "better_supabase"."enrollment_schedule"(target uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments";
+  v_program "better_supabase"."enrollment_programs";
+  v_plan jsonb;
+begin
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_schedule.target;
+  if v_row."id" is null or v_row."tenant_id" is null then
+    return;
+  end if;
+  select * into v_program from "better_supabase"."enrollment_programs" x
+  where x."tenant_id" = v_row."tenant_id" and x."key" = v_row."program";
+  v_plan := coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'step', t.value ->> 'id',
+      'role', t.value -> 'assignee' ->> 'role',
+      'userId', t.value -> 'assignee' ->> 'userId',
+      'dueAt', case t.value -> 'due' ->> 'from'
+        when 'start' then coalesce(v_row."starts_at", v_row."enrolled_at") + make_interval(days => (t.value -> 'due' ->> 'days')::integer)
+        when 'end' then v_row."ends_at" + make_interval(days => (t.value -> 'due' ->> 'days')::integer)
+      end
+    ))
+    from jsonb_array_elements(coalesce(v_program."steps", '[]'::jsonb)) as t(value)
+    where t.value ->> 'id' = any(v_row."steps")
+      and (jsonb_typeof(t.value -> 'assignee') = 'object' or jsonb_typeof(t.value -> 'due') = 'object')
+  ), '[]'::jsonb);
+  delete from "better_supabase"."enrollment_steps" y
+  where y."enrollment_id" = v_row."id" and y."completed_at" is null and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step");
+  update "better_supabase"."enrollment_steps" y
+  set "assignee_role" = null, "assignee_user_id" = null, "due_at" = null
+  where y."enrollment_id" = v_row."id" and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step")
+    and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null);
+  insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "assignee_role", "assignee_user_id", "due_at", "completed_by", "completed_at")
+  select v_row."id", v_row."tenant_id", z.value ->> 'step', z.value ->> 'role', (z.value ->> 'userId')::uuid, (z.value ->> 'dueAt')::timestamptz, null, null
+  from jsonb_array_elements(v_plan) as z(value)
+  on conflict ("enrollment_id", "step") do update
+  set "assignee_role" = excluded."assignee_role", "assignee_user_id" = excluded."assignee_user_id", "due_at" = excluded."due_at";
+end;
+$$;
+revoke execute on function "better_supabase"."enrollment_schedule"(uuid) from public, anon, authenticated;
 
 -- Marks a step done or not done without a permission check; false when it
 -- already was. Emits enrollment.step_completed and enrollment.completed for
@@ -248,21 +317,34 @@ begin
     raise exception 'the enrollment is cancelled' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
   v_was := v_row."status";
+  -- An open row of a step with a schedule is completed in place.
   if enrollment_mark.done then
-    insert into "better_supabase"."enrollment_steps" ("enrollment_id", "tenant_id", "step", "completed_by")
-    values (v_row."id", v_row."tenant_id", enrollment_mark.step, enrollment_mark.actor)
-    on conflict do nothing;
+    update "better_supabase"."enrollment_steps" y
+    set "completed_by" = enrollment_mark.actor, "completed_at" = now()
+    where y."enrollment_id" = v_row."id" and y."step" = enrollment_mark.step and y."completed_at" is null;
+    get diagnostics v_count = row_count;
+    if v_count = 0 then
+      insert into "better_supabase"."enrollment_steps" ("enrollment_id", "tenant_id", "step", "completed_by", "completed_at")
+      values (v_row."id", v_row."tenant_id", enrollment_mark.step, enrollment_mark.actor, now())
+      on conflict do nothing;
+      get diagnostics v_count = row_count;
+    end if;
   else
-    delete from "better_supabase"."enrollment_steps" x where x."enrollment_id" = v_row."id" and x."step" = enrollment_mark.step;
+    delete from "better_supabase"."enrollment_steps" x
+    where x."enrollment_id" = v_row."id" and x."step" = enrollment_mark.step and x."completed_at" is not null;
+    get diagnostics v_count = row_count;
   end if;
-  get diagnostics v_count = row_count;
   if v_count = 0 then
     return false;
   end if;
+  -- A reset step with a schedule gets its open row back.
+  if not enrollment_mark.done then
+    perform "better_supabase"."enrollment_schedule"(v_row."id");
+  end if;
   update "better_supabase"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -366,10 +448,32 @@ begin
     if length(v_step ->> 'title') > 200 or length(v_step ->> 'description') > 2000 then
       raise exception 'a step title holds at most 200 characters and a description 2000' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
     end if;
+    if jsonb_typeof(v_step -> 'assignee') is not null and jsonb_typeof(v_step -> 'assignee') <> 'null' then
+      if jsonb_typeof(v_step -> 'assignee') <> 'object' then
+        raise exception 'a step assignee is { role } with a lowercase role or { userId } with a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+      if (select count(*) from jsonb_object_keys(v_step -> 'assignee')) <> 1
+        or not (coalesce(v_step -> 'assignee' ->> 'role', '') ~ '^[a-z][a-z0-9_-]{0,62}$' or coalesce(v_step -> 'assignee' ->> 'userId', '') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
+        raise exception 'a step assignee is { role } with a lowercase role or { userId } with a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+    end if;
+    if jsonb_typeof(v_step -> 'due') is not null and jsonb_typeof(v_step -> 'due') <> 'null' then
+      if jsonb_typeof(v_step -> 'due') <> 'object' then
+        raise exception 'a step due date is { days, from } with whole days from -3650 to 3650 and from "start" or "end"' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+      if exists (select 1 from jsonb_object_keys(v_step -> 'due') as k(key) where k.key not in ('days', 'from'))
+        or coalesce(v_step -> 'due' ->> 'from', '') not in ('start', 'end')
+        or jsonb_typeof(v_step -> 'due' -> 'days') is distinct from 'number'
+        or (case when (v_step -> 'due' ->> 'days') ~ '^-?[0-9]{1,4}$' then abs((v_step -> 'due' ->> 'days')::integer) > 3650 else true end) then
+        raise exception 'a step due date is { days, from } with whole days from -3650 to 3650 and from "start" or "end"' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+    end if;
     v_ids := v_ids || (v_step ->> 'id');
   end loop;
   v_steps := (
-    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', t.value ->> 'id', 'title', t.value ->> 'title', 'description', t.value ->> 'description')) order by t.ord)
+    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', t.value ->> 'id', 'title', t.value ->> 'title', 'description', t.value ->> 'description',
+      'assignee', case when jsonb_typeof(t.value -> 'assignee') = 'object' then t.value -> 'assignee' end,
+      'due', case when jsonb_typeof(t.value -> 'due') = 'object' then jsonb_build_object('days', (t.value -> 'due' ->> 'days')::integer, 'from', t.value -> 'due' ->> 'from') end)) order by t.ord)
     from jsonb_array_elements(v_steps) with ordinality as t(value, ord)
   );
   if v_old."id" is null then
@@ -496,9 +600,9 @@ begin
       "steps" = v_steps, "program_version" = v_program."version"
     where x."id" = v_row."id";
     update "better_supabase"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -506,6 +610,7 @@ begin
   else
     v_id := "better_supabase"."enrollment_ensure"(enroll.tenant, enroll.program, v_program."version", v_steps, enroll.subject_type, enroll.subject_id, auth.uid());
   end if;
+  perform "better_supabase"."enrollment_schedule"(v_id);
   return "better_supabase"."enrollment_json"(v_id);
 end;
 $$;
@@ -573,8 +678,8 @@ $$;
 revoke execute on function "better_supabase"."list_enrollments"(uuid, text, text, text, text, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."list_enrollments"(uuid, text, text, text, text, integer, timestamptz) to authenticated, service_role;
 
--- Marks a step of an enrollment done or not done: enrollments.enroll, or the
--- enrolled user for their own.
+-- Marks a step of an enrollment done or not done: enrollments.enroll, the
+-- enrolled user for their own, or the user a step is assigned to.
 create or replace function "better_supabase"."enrollment_step"(enrollment_id uuid, step text, done boolean)
 returns jsonb
 language plpgsql
@@ -585,10 +690,10 @@ declare
   v_row "better_supabase"."enrollments";
 begin
   select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false))) then
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -665,6 +770,111 @@ end;
 $$;
 revoke execute on function "better_supabase"."cancel_enrollment"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_enrollment"(uuid) to authenticated, service_role;
+
+-- Sets the dates an enrollment's due dates count from and renders them again.
+-- dates is { startsAt?, endsAt? }; keys left out keep their value and null
+-- clears one. Needs enrollments.enroll. Module programs have no schedules.
+create or replace function "better_supabase"."set_enrollment_dates"(enrollment_id uuid, dates jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments";
+  v_starts timestamptz;
+  v_ends timestamptz;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = set_enrollment_dates.enrollment_id for update;
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) then
+    raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) then
+    raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if position(':' in v_row."program") > 0 then
+    raise exception 'this enrollment belongs to a module and has no schedule' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  if dates is null or jsonb_typeof(dates) <> 'object' then
+    raise exception 'dates must be an object' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  v_starts := v_row."starts_at";
+  v_ends := v_row."ends_at";
+  if dates ? 'startsAt' then
+    begin
+      v_starts := (dates ->> 'startsAt')::timestamptz;
+    exception when invalid_datetime_format or datetime_field_overflow or invalid_text_representation then
+      raise exception 'startsAt must be an ISO 8601 instant or null' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+    end;
+  end if;
+  if dates ? 'endsAt' then
+    begin
+      v_ends := (dates ->> 'endsAt')::timestamptz;
+    exception when invalid_datetime_format or datetime_field_overflow or invalid_text_representation then
+      raise exception 'endsAt must be an ISO 8601 instant or null' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+    end;
+  end if;
+  if v_ends < v_starts then
+    raise exception 'endsAt can''t be before startsAt' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  update "better_supabase"."enrollments" x
+  set "starts_at" = v_starts, "ends_at" = v_ends, "updated_at" = now()
+  where x."id" = v_row."id";
+  perform "better_supabase"."enrollment_schedule"(v_row."id");
+  return "better_supabase"."enrollment_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."set_enrollment_dates"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."set_enrollment_dates"(uuid, jsonb) to authenticated, service_role;
+
+-- The open steps of active enrollments that have an assignee or a due date,
+-- soonest due first and undated last. Without enrollments.read, the steps
+-- assigned to the caller.
+create or replace function "better_supabase"."open_enrollment_steps"(tenant uuid, assignee_role text default null, assignee_user uuid default null, due_before timestamptz default null, page_size integer default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_read boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (open_enrollment_steps.tenant is not null and coalesce(better_supabase.can('tenant', open_enrollment_steps.tenant, 'enrollments.read'), false)));
+begin
+  if not v_read and auth.uid() is null then
+    raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+      'id', o.row_id, 'organizationId', o.scope_id, 'program', o.program,
+      'subjectType', o.subject_type, 'subjectId', o.subject_id, 'step', o.step, 'title', o.title,
+      'assignee', o.assignee, 'dueAt', o.due_at
+    )) order by o.due_at nulls last, o.row_id, o.step)
+    from (
+      select x."id" as row_id, x."tenant_id" as scope_id, x."program" as program,
+        x."subject_type" as subject_type, x."subject_id" as subject_id, y."step" as step,
+        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end as assignee, y."due_at" as due_at,
+        (select t.value ->> 'title' from "better_supabase"."enrollment_programs" q, jsonb_array_elements(q."steps") as t(value)
+          where q."tenant_id" = x."tenant_id" and q."key" = x."program" and t.value ->> 'id' = y."step" limit 1) as title
+      from "better_supabase"."enrollment_steps" y
+      join "better_supabase"."enrollments" x on x."id" = y."enrollment_id"
+      where y."tenant_id" = open_enrollment_steps.tenant and x."tenant_id" = open_enrollment_steps.tenant
+        and y."completed_at" is null and x."status" = 'active'
+        and (v_read or y."assignee_user_id" = auth.uid())
+        and (open_enrollment_steps.assignee_role is null or y."assignee_role" = open_enrollment_steps.assignee_role)
+        and (open_enrollment_steps.assignee_user is null or y."assignee_user_id" = open_enrollment_steps.assignee_user)
+        and (open_enrollment_steps.due_before is null or y."due_at" < open_enrollment_steps.due_before)
+      order by y."due_at" nulls last, x."id", y."step"
+      limit least(greatest(coalesce(open_enrollment_steps.page_size, 50), 1), 200)
+    ) o
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."open_enrollment_steps"(uuid, text, uuid, timestamptz, integer) from public, anon;
+grant execute on function "better_supabase"."open_enrollment_steps"(uuid, text, uuid, timestamptz, integer) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -775,7 +985,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:f77b8cf8d79d759b3b758b07400a1f2097a2f2907a4360495b0c8bf30073c40a
+-- @bsb-hash sha256:952a14a7aee2f41cd165946ae55d4960bebb15d59e65c870fbd57ed2bdb8ffee
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -880,6 +1090,8 @@ create table if not exists "better_supabase"."enrollments" (
   "status" text not null default 'active' check ("status" in ('active', 'completed', 'cancelled')),
   "enrolled_by" uuid,
   "enrolled_at" timestamptz not null default now(),
+  "starts_at" timestamptz,
+  "ends_at" timestamptz,
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "updated_at" timestamptz not null default now(),
@@ -891,14 +1103,21 @@ create index if not exists "enrollments_program_idx" on "better_supabase"."enrol
 create index if not exists "enrollments_subject_idx" on "better_supabase"."enrollments" ("tenant_id", "subject_type", "subject_id");
 create index if not exists "enrollments_user_idx" on "better_supabase"."enrollments" ("user_id");
 
+-- A completed step, or an open one whose program step has an assignee or a
+-- due date (completed_at is null until it is done).
 create table if not exists "better_supabase"."enrollment_steps" (
   "enrollment_id" uuid not null references "better_supabase"."enrollments" ("id") on delete cascade,
   "tenant_id" uuid,
   "step" text not null,
+  "assignee_role" text check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "assignee_user_id" uuid references auth.users (id) on delete set null,
+  "due_at" timestamptz,
   "completed_by" uuid,
-  "completed_at" timestamptz not null default now(),
+  "completed_at" timestamptz default now(),
   primary key ("enrollment_id", "step")
 );
+create index if not exists "enrollment_steps_assignee_idx" on "better_supabase"."enrollment_steps" ("assignee_user_id", "due_at");
+create index if not exists "enrollment_steps_due_idx" on "better_supabase"."enrollment_steps" ("tenant_id", "due_at") where "completed_at" is null;
 
 alter table "better_supabase"."enrollment_programs" enable row level security;
 revoke all on "better_supabase"."enrollment_programs" from public, anon, authenticated;
@@ -941,7 +1160,14 @@ as $$
     'cancelledAt', x."cancelled_at", 'updatedAt', x."updated_at",
     'progress', coalesce((
       select jsonb_agg(jsonb_build_object('step', y."step", 'completedAt', y."completed_at", 'completedBy', y."completed_by") order by y."completed_at", array_position(x."steps", y."step"), y."step")
-      from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id"
+      from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."completed_at" is not null
+    ), '[]'::jsonb),
+    'startsAt', x."starts_at", 'endsAt', x."ends_at",
+    'schedule', coalesce((
+      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
+      from "better_supabase"."enrollment_steps" y
+      where y."enrollment_id" = x."id"
+        and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null)
     ), '[]'::jsonb)
   )
   from "better_supabase"."enrollments" x
@@ -987,9 +1213,9 @@ begin
     update "better_supabase"."enrollments" x set "steps" = enrollment_ensure.steps, "program_version" = enrollment_ensure.program_version
     where x."id" = v_row."id";
     update "better_supabase"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -998,6 +1224,59 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."enrollment_ensure"(uuid, text, integer, text[], text, text, uuid) from public, anon, authenticated;
+
+-- Renders the open step rows of an enrollment from its program: one per step
+-- of the enrollment that has an assignee or a due date, due its days after
+-- the enrollment's start (or enrolled_at) or its end. A due date from the end
+-- stays null until the enrollment has one. Completed rows keep their
+-- completion; open rows of steps without a schedule go. Module programs
+-- (keys with a colon) are not in the programs table and render nothing.
+create or replace function "better_supabase"."enrollment_schedule"(target uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments";
+  v_program "better_supabase"."enrollment_programs";
+  v_plan jsonb;
+begin
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_schedule.target;
+  if v_row."id" is null or v_row."tenant_id" is null then
+    return;
+  end if;
+  select * into v_program from "better_supabase"."enrollment_programs" x
+  where x."tenant_id" = v_row."tenant_id" and x."key" = v_row."program";
+  v_plan := coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'step', t.value ->> 'id',
+      'role', t.value -> 'assignee' ->> 'role',
+      'userId', t.value -> 'assignee' ->> 'userId',
+      'dueAt', case t.value -> 'due' ->> 'from'
+        when 'start' then coalesce(v_row."starts_at", v_row."enrolled_at") + make_interval(days => (t.value -> 'due' ->> 'days')::integer)
+        when 'end' then v_row."ends_at" + make_interval(days => (t.value -> 'due' ->> 'days')::integer)
+      end
+    ))
+    from jsonb_array_elements(coalesce(v_program."steps", '[]'::jsonb)) as t(value)
+    where t.value ->> 'id' = any(v_row."steps")
+      and (jsonb_typeof(t.value -> 'assignee') = 'object' or jsonb_typeof(t.value -> 'due') = 'object')
+  ), '[]'::jsonb);
+  delete from "better_supabase"."enrollment_steps" y
+  where y."enrollment_id" = v_row."id" and y."completed_at" is null and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step");
+  update "better_supabase"."enrollment_steps" y
+  set "assignee_role" = null, "assignee_user_id" = null, "due_at" = null
+  where y."enrollment_id" = v_row."id" and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step")
+    and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null);
+  insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "assignee_role", "assignee_user_id", "due_at", "completed_by", "completed_at")
+  select v_row."id", v_row."tenant_id", z.value ->> 'step', z.value ->> 'role', (z.value ->> 'userId')::uuid, (z.value ->> 'dueAt')::timestamptz, null, null
+  from jsonb_array_elements(v_plan) as z(value)
+  on conflict ("enrollment_id", "step") do update
+  set "assignee_role" = excluded."assignee_role", "assignee_user_id" = excluded."assignee_user_id", "due_at" = excluded."due_at";
+end;
+$$;
+revoke execute on function "better_supabase"."enrollment_schedule"(uuid) from public, anon, authenticated;
 
 -- Marks a step done or not done without a permission check; false when it
 -- already was. Emits enrollment.step_completed and enrollment.completed for
@@ -1025,21 +1304,34 @@ begin
     raise exception 'the enrollment is cancelled' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
   v_was := v_row."status";
+  -- An open row of a step with a schedule is completed in place.
   if enrollment_mark.done then
-    insert into "better_supabase"."enrollment_steps" ("enrollment_id", "tenant_id", "step", "completed_by")
-    values (v_row."id", v_row."tenant_id", enrollment_mark.step, enrollment_mark.actor)
-    on conflict do nothing;
+    update "better_supabase"."enrollment_steps" y
+    set "completed_by" = enrollment_mark.actor, "completed_at" = now()
+    where y."enrollment_id" = v_row."id" and y."step" = enrollment_mark.step and y."completed_at" is null;
+    get diagnostics v_count = row_count;
+    if v_count = 0 then
+      insert into "better_supabase"."enrollment_steps" ("enrollment_id", "tenant_id", "step", "completed_by", "completed_at")
+      values (v_row."id", v_row."tenant_id", enrollment_mark.step, enrollment_mark.actor, now())
+      on conflict do nothing;
+      get diagnostics v_count = row_count;
+    end if;
   else
-    delete from "better_supabase"."enrollment_steps" x where x."enrollment_id" = v_row."id" and x."step" = enrollment_mark.step;
+    delete from "better_supabase"."enrollment_steps" x
+    where x."enrollment_id" = v_row."id" and x."step" = enrollment_mark.step and x."completed_at" is not null;
+    get diagnostics v_count = row_count;
   end if;
-  get diagnostics v_count = row_count;
   if v_count = 0 then
     return false;
   end if;
+  -- A reset step with a schedule gets its open row back.
+  if not enrollment_mark.done then
+    perform "better_supabase"."enrollment_schedule"(v_row."id");
+  end if;
   update "better_supabase"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -1149,10 +1441,32 @@ begin
     if length(v_step ->> 'title') > 200 or length(v_step ->> 'description') > 2000 then
       raise exception 'a step title holds at most 200 characters and a description 2000' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
     end if;
+    if jsonb_typeof(v_step -> 'assignee') is not null and jsonb_typeof(v_step -> 'assignee') <> 'null' then
+      if jsonb_typeof(v_step -> 'assignee') <> 'object' then
+        raise exception 'a step assignee is { role } with a lowercase role or { userId } with a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+      if (select count(*) from jsonb_object_keys(v_step -> 'assignee')) <> 1
+        or not (coalesce(v_step -> 'assignee' ->> 'role', '') ~ '^[a-z][a-z0-9_-]{0,62}$' or coalesce(v_step -> 'assignee' ->> 'userId', '') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
+        raise exception 'a step assignee is { role } with a lowercase role or { userId } with a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+    end if;
+    if jsonb_typeof(v_step -> 'due') is not null and jsonb_typeof(v_step -> 'due') <> 'null' then
+      if jsonb_typeof(v_step -> 'due') <> 'object' then
+        raise exception 'a step due date is { days, from } with whole days from -3650 to 3650 and from "start" or "end"' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+      if exists (select 1 from jsonb_object_keys(v_step -> 'due') as k(key) where k.key not in ('days', 'from'))
+        or coalesce(v_step -> 'due' ->> 'from', '') not in ('start', 'end')
+        or jsonb_typeof(v_step -> 'due' -> 'days') is distinct from 'number'
+        or (case when (v_step -> 'due' ->> 'days') ~ '^-?[0-9]{1,4}$' then abs((v_step -> 'due' ->> 'days')::integer) > 3650 else true end) then
+        raise exception 'a step due date is { days, from } with whole days from -3650 to 3650 and from "start" or "end"' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+    end if;
     v_ids := v_ids || (v_step ->> 'id');
   end loop;
   v_steps := (
-    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', t.value ->> 'id', 'title', t.value ->> 'title', 'description', t.value ->> 'description')) order by t.ord)
+    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', t.value ->> 'id', 'title', t.value ->> 'title', 'description', t.value ->> 'description',
+      'assignee', case when jsonb_typeof(t.value -> 'assignee') = 'object' then t.value -> 'assignee' end,
+      'due', case when jsonb_typeof(t.value -> 'due') = 'object' then jsonb_build_object('days', (t.value -> 'due' ->> 'days')::integer, 'from', t.value -> 'due' ->> 'from') end)) order by t.ord)
     from jsonb_array_elements(v_steps) with ordinality as t(value, ord)
   );
   if v_old."id" is null then
@@ -1299,9 +1613,9 @@ begin
       "steps" = v_steps, "program_version" = v_program."version"
     where x."id" = v_row."id";
     update "better_supabase"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -1312,6 +1626,7 @@ begin
   else
     v_id := "better_supabase"."enrollment_ensure"(enroll.tenant, enroll.program, v_program."version", v_steps, enroll.subject_type, enroll.subject_id, auth.uid());
   end if;
+  perform "better_supabase"."enrollment_schedule"(v_id);
   return "better_supabase"."enrollment_json"(v_id);
 end;
 $$;
@@ -1379,8 +1694,8 @@ $$;
 revoke execute on function "better_supabase"."list_enrollments"(uuid, text, text, text, text, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."list_enrollments"(uuid, text, text, text, text, integer, timestamptz) to authenticated, service_role;
 
--- Marks a step of an enrollment done or not done: enrollments.enroll, or the
--- enrolled user for their own.
+-- Marks a step of an enrollment done or not done: enrollments.enroll, the
+-- enrolled user for their own, or the user a step is assigned to.
 create or replace function "better_supabase"."enrollment_step"(enrollment_id uuid, step text, done boolean)
 returns jsonb
 language plpgsql
@@ -1391,10 +1706,10 @@ declare
   v_row "better_supabase"."enrollments";
 begin
   select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false))) then
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -1474,6 +1789,111 @@ end;
 $$;
 revoke execute on function "better_supabase"."cancel_enrollment"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_enrollment"(uuid) to authenticated, service_role;
+
+-- Sets the dates an enrollment's due dates count from and renders them again.
+-- dates is { startsAt?, endsAt? }; keys left out keep their value and null
+-- clears one. Needs enrollments.enroll. Module programs have no schedules.
+create or replace function "better_supabase"."set_enrollment_dates"(enrollment_id uuid, dates jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments";
+  v_starts timestamptz;
+  v_ends timestamptz;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = set_enrollment_dates.enrollment_id for update;
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) then
+    raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) then
+    raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if position(':' in v_row."program") > 0 then
+    raise exception 'this enrollment belongs to a module and has no schedule' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  if dates is null or jsonb_typeof(dates) <> 'object' then
+    raise exception 'dates must be an object' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  v_starts := v_row."starts_at";
+  v_ends := v_row."ends_at";
+  if dates ? 'startsAt' then
+    begin
+      v_starts := (dates ->> 'startsAt')::timestamptz;
+    exception when invalid_datetime_format or datetime_field_overflow or invalid_text_representation then
+      raise exception 'startsAt must be an ISO 8601 instant or null' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+    end;
+  end if;
+  if dates ? 'endsAt' then
+    begin
+      v_ends := (dates ->> 'endsAt')::timestamptz;
+    exception when invalid_datetime_format or datetime_field_overflow or invalid_text_representation then
+      raise exception 'endsAt must be an ISO 8601 instant or null' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+    end;
+  end if;
+  if v_ends < v_starts then
+    raise exception 'endsAt can''t be before startsAt' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  update "better_supabase"."enrollments" x
+  set "starts_at" = v_starts, "ends_at" = v_ends, "updated_at" = now()
+  where x."id" = v_row."id";
+  perform "better_supabase"."enrollment_schedule"(v_row."id");
+  return "better_supabase"."enrollment_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."set_enrollment_dates"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."set_enrollment_dates"(uuid, jsonb) to authenticated, service_role;
+
+-- The open steps of active enrollments that have an assignee or a due date,
+-- soonest due first and undated last. Without enrollments.read, the steps
+-- assigned to the caller.
+create or replace function "better_supabase"."open_enrollment_steps"(tenant uuid, assignee_role text default null, assignee_user uuid default null, due_before timestamptz default null, page_size integer default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_read boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (open_enrollment_steps.tenant is not null and coalesce(better_supabase.can('tenant', open_enrollment_steps.tenant, 'enrollments.read'), false)));
+begin
+  if not v_read and auth.uid() is null then
+    raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+      'id', o.row_id, 'organizationId', o.scope_id, 'program', o.program,
+      'subjectType', o.subject_type, 'subjectId', o.subject_id, 'step', o.step, 'title', o.title,
+      'assignee', o.assignee, 'dueAt', o.due_at
+    )) order by o.due_at nulls last, o.row_id, o.step)
+    from (
+      select x."id" as row_id, x."tenant_id" as scope_id, x."program" as program,
+        x."subject_type" as subject_type, x."subject_id" as subject_id, y."step" as step,
+        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end as assignee, y."due_at" as due_at,
+        (select t.value ->> 'title' from "better_supabase"."enrollment_programs" q, jsonb_array_elements(q."steps") as t(value)
+          where q."tenant_id" = x."tenant_id" and q."key" = x."program" and t.value ->> 'id' = y."step" limit 1) as title
+      from "better_supabase"."enrollment_steps" y
+      join "better_supabase"."enrollments" x on x."id" = y."enrollment_id"
+      where y."tenant_id" = open_enrollment_steps.tenant and x."tenant_id" = open_enrollment_steps.tenant
+        and y."completed_at" is null and x."status" = 'active'
+        and (v_read or y."assignee_user_id" = auth.uid())
+        and (open_enrollment_steps.assignee_role is null or y."assignee_role" = open_enrollment_steps.assignee_role)
+        and (open_enrollment_steps.assignee_user is null or y."assignee_user_id" = open_enrollment_steps.assignee_user)
+        and (open_enrollment_steps.due_before is null or y."due_at" < open_enrollment_steps.due_before)
+      order by y."due_at" nulls last, x."id", y."step"
+      limit least(greatest(coalesce(open_enrollment_steps.page_size, 50), 1), 200)
+    ) o
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."open_enrollment_steps"(uuid, text, uuid, timestamptz, integer) from public, anon;
+grant execute on function "better_supabase"."open_enrollment_steps"(uuid, text, uuid, timestamptz, integer) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1584,7 +2004,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:2c26baf157c1e5b10cb57be74f3d366e312b196077499b13e4eb3c6cd01b5304
+-- @bsb-hash sha256:2d7aacbcec81f92297acf679790744cd385304af12b2c749e73629c887903258
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1694,6 +2114,8 @@ create table if not exists "app_private"."enrollments" (
   "status" text not null default 'active' check ("status" in ('active', 'completed', 'cancelled')),
   "enrolled_by" uuid,
   "enrolled_at" timestamptz not null default now(),
+  "starts_at" timestamptz,
+  "ends_at" timestamptz,
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "updated_at" timestamptz not null default now(),
@@ -1705,14 +2127,21 @@ create index if not exists "enrollments_program_idx" on "app_private"."enrollmen
 create index if not exists "enrollments_subject_idx" on "app_private"."enrollments" ("tenant_id", "subject_type", "subject_id");
 create index if not exists "enrollments_user_idx" on "app_private"."enrollments" ("user_id");
 
+-- A completed step, or an open one whose program step has an assignee or a
+-- due date (completed_at is null until it is done).
 create table if not exists "app_private"."enrollment_steps" (
   "enrollment_id" uuid not null references "app_private"."enrollments" ("id") on delete cascade,
   "tenant_id" uuid,
   "step" text not null,
+  "assignee_role" text check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "assignee_user_id" uuid references auth.users (id) on delete set null,
+  "due_at" timestamptz,
   "completed_by" uuid,
-  "completed_at" timestamptz not null default now(),
+  "completed_at" timestamptz default now(),
   primary key ("enrollment_id", "step")
 );
+create index if not exists "enrollment_steps_assignee_idx" on "app_private"."enrollment_steps" ("assignee_user_id", "due_at");
+create index if not exists "enrollment_steps_due_idx" on "app_private"."enrollment_steps" ("tenant_id", "due_at") where "completed_at" is null;
 
 alter table "app_private"."enrollment_programs" enable row level security;
 revoke all on "app_private"."enrollment_programs" from public, anon, authenticated;
@@ -1755,7 +2184,14 @@ as $$
     'cancelledAt', x."cancelled_at", 'updatedAt', x."updated_at",
     'progress', coalesce((
       select jsonb_agg(jsonb_build_object('step', y."step", 'completedAt', y."completed_at", 'completedBy', y."completed_by") order by y."completed_at", array_position(x."steps", y."step"), y."step")
-      from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id"
+      from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."completed_at" is not null
+    ), '[]'::jsonb),
+    'startsAt', x."starts_at", 'endsAt', x."ends_at",
+    'schedule', coalesce((
+      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
+      from "app_private"."enrollment_steps" y
+      where y."enrollment_id" = x."id"
+        and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null)
     ), '[]'::jsonb)
   )
   from "app_private"."enrollments" x
@@ -1798,9 +2234,9 @@ begin
     update "app_private"."enrollments" x set "steps" = enrollment_ensure.steps, "program_version" = enrollment_ensure.program_version
     where x."id" = v_row."id";
     update "app_private"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -1809,6 +2245,59 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."enrollment_ensure"(uuid, text, integer, text[], text, text, uuid) from public, anon, authenticated;
+
+-- Renders the open step rows of an enrollment from its program: one per step
+-- of the enrollment that has an assignee or a due date, due its days after
+-- the enrollment's start (or enrolled_at) or its end. A due date from the end
+-- stays null until the enrollment has one. Completed rows keep their
+-- completion; open rows of steps without a schedule go. Module programs
+-- (keys with a colon) are not in the programs table and render nothing.
+create or replace function "app_private"."enrollment_schedule"(target uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "app_private"."enrollments";
+  v_program "app_private"."enrollment_programs";
+  v_plan jsonb;
+begin
+  select * into v_row from "app_private"."enrollments" x where x."id" = enrollment_schedule.target;
+  if v_row."id" is null or v_row."tenant_id" is null then
+    return;
+  end if;
+  select * into v_program from "app_private"."enrollment_programs" x
+  where x."tenant_id" = v_row."tenant_id" and x."key" = v_row."program";
+  v_plan := coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'step', t.value ->> 'id',
+      'role', t.value -> 'assignee' ->> 'role',
+      'userId', t.value -> 'assignee' ->> 'userId',
+      'dueAt', case t.value -> 'due' ->> 'from'
+        when 'start' then coalesce(v_row."starts_at", v_row."enrolled_at") + make_interval(days => (t.value -> 'due' ->> 'days')::integer)
+        when 'end' then v_row."ends_at" + make_interval(days => (t.value -> 'due' ->> 'days')::integer)
+      end
+    ))
+    from jsonb_array_elements(coalesce(v_program."steps", '[]'::jsonb)) as t(value)
+    where t.value ->> 'id' = any(v_row."steps")
+      and (jsonb_typeof(t.value -> 'assignee') = 'object' or jsonb_typeof(t.value -> 'due') = 'object')
+  ), '[]'::jsonb);
+  delete from "app_private"."enrollment_steps" y
+  where y."enrollment_id" = v_row."id" and y."completed_at" is null and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step");
+  update "app_private"."enrollment_steps" y
+  set "assignee_role" = null, "assignee_user_id" = null, "due_at" = null
+  where y."enrollment_id" = v_row."id" and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step")
+    and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null);
+  insert into "app_private"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "assignee_role", "assignee_user_id", "due_at", "completed_by", "completed_at")
+  select v_row."id", v_row."tenant_id", z.value ->> 'step', z.value ->> 'role', (z.value ->> 'userId')::uuid, (z.value ->> 'dueAt')::timestamptz, null, null
+  from jsonb_array_elements(v_plan) as z(value)
+  on conflict ("enrollment_id", "step") do update
+  set "assignee_role" = excluded."assignee_role", "assignee_user_id" = excluded."assignee_user_id", "due_at" = excluded."due_at";
+end;
+$$;
+revoke execute on function "app_private"."enrollment_schedule"(uuid) from public, anon, authenticated;
 
 -- Marks a step done or not done without a permission check; false when it
 -- already was. Emits enrollment.step_completed and enrollment.completed for
@@ -1836,21 +2325,34 @@ begin
     raise exception 'the enrollment is cancelled' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
   v_was := v_row."status";
+  -- An open row of a step with a schedule is completed in place.
   if enrollment_mark.done then
-    insert into "app_private"."enrollment_steps" ("enrollment_id", "tenant_id", "step", "completed_by")
-    values (v_row."id", v_row."tenant_id", enrollment_mark.step, enrollment_mark.actor)
-    on conflict do nothing;
+    update "app_private"."enrollment_steps" y
+    set "completed_by" = enrollment_mark.actor, "completed_at" = now()
+    where y."enrollment_id" = v_row."id" and y."step" = enrollment_mark.step and y."completed_at" is null;
+    get diagnostics v_count = row_count;
+    if v_count = 0 then
+      insert into "app_private"."enrollment_steps" ("enrollment_id", "tenant_id", "step", "completed_by", "completed_at")
+      values (v_row."id", v_row."tenant_id", enrollment_mark.step, enrollment_mark.actor, now())
+      on conflict do nothing;
+      get diagnostics v_count = row_count;
+    end if;
   else
-    delete from "app_private"."enrollment_steps" x where x."enrollment_id" = v_row."id" and x."step" = enrollment_mark.step;
+    delete from "app_private"."enrollment_steps" x
+    where x."enrollment_id" = v_row."id" and x."step" = enrollment_mark.step and x."completed_at" is not null;
+    get diagnostics v_count = row_count;
   end if;
-  get diagnostics v_count = row_count;
   if v_count = 0 then
     return false;
   end if;
+  -- A reset step with a schedule gets its open row back.
+  if not enrollment_mark.done then
+    perform "app_private"."enrollment_schedule"(v_row."id");
+  end if;
   update "app_private"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -1954,10 +2456,32 @@ begin
     if length(v_step ->> 'title') > 200 or length(v_step ->> 'description') > 2000 then
       raise exception 'a step title holds at most 200 characters and a description 2000' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
     end if;
+    if jsonb_typeof(v_step -> 'assignee') is not null and jsonb_typeof(v_step -> 'assignee') <> 'null' then
+      if jsonb_typeof(v_step -> 'assignee') <> 'object' then
+        raise exception 'a step assignee is { role } with a lowercase role or { userId } with a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+      if (select count(*) from jsonb_object_keys(v_step -> 'assignee')) <> 1
+        or not (coalesce(v_step -> 'assignee' ->> 'role', '') ~ '^[a-z][a-z0-9_-]{0,62}$' or coalesce(v_step -> 'assignee' ->> 'userId', '') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
+        raise exception 'a step assignee is { role } with a lowercase role or { userId } with a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+    end if;
+    if jsonb_typeof(v_step -> 'due') is not null and jsonb_typeof(v_step -> 'due') <> 'null' then
+      if jsonb_typeof(v_step -> 'due') <> 'object' then
+        raise exception 'a step due date is { days, from } with whole days from -3650 to 3650 and from "start" or "end"' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+      if exists (select 1 from jsonb_object_keys(v_step -> 'due') as k(key) where k.key not in ('days', 'from'))
+        or coalesce(v_step -> 'due' ->> 'from', '') not in ('start', 'end')
+        or jsonb_typeof(v_step -> 'due' -> 'days') is distinct from 'number'
+        or (case when (v_step -> 'due' ->> 'days') ~ '^-?[0-9]{1,4}$' then abs((v_step -> 'due' ->> 'days')::integer) > 3650 else true end) then
+        raise exception 'a step due date is { days, from } with whole days from -3650 to 3650 and from "start" or "end"' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+    end if;
     v_ids := v_ids || (v_step ->> 'id');
   end loop;
   v_steps := (
-    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', t.value ->> 'id', 'title', t.value ->> 'title', 'description', t.value ->> 'description')) order by t.ord)
+    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', t.value ->> 'id', 'title', t.value ->> 'title', 'description', t.value ->> 'description',
+      'assignee', case when jsonb_typeof(t.value -> 'assignee') = 'object' then t.value -> 'assignee' end,
+      'due', case when jsonb_typeof(t.value -> 'due') = 'object' then jsonb_build_object('days', (t.value -> 'due' ->> 'days')::integer, 'from', t.value -> 'due' ->> 'from') end)) order by t.ord)
     from jsonb_array_elements(v_steps) with ordinality as t(value, ord)
   );
   if v_old."id" is null then
@@ -2084,9 +2608,9 @@ begin
       "steps" = v_steps, "program_version" = v_program."version"
     where x."id" = v_row."id";
     update "app_private"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "app_private"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -2094,6 +2618,7 @@ begin
   else
     v_id := "app_private"."enrollment_ensure"(enroll.tenant, enroll.program, v_program."version", v_steps, enroll.subject_type, enroll.subject_id, auth.uid());
   end if;
+  perform "app_private"."enrollment_schedule"(v_id);
   return "app_private"."enrollment_json"(v_id);
 end;
 $$;
@@ -2161,8 +2686,8 @@ $$;
 revoke execute on function "app_private"."list_enrollments"(uuid, text, text, text, text, integer, timestamptz) from public, anon;
 grant execute on function "app_private"."list_enrollments"(uuid, text, text, text, text, integer, timestamptz) to authenticated, service_role;
 
--- Marks a step of an enrollment done or not done: enrollments.enroll, or the
--- enrolled user for their own.
+-- Marks a step of an enrollment done or not done: enrollments.enroll, the
+-- enrolled user for their own, or the user a step is assigned to.
 create or replace function "app_private"."enrollment_step"(enrollment_id uuid, step text, done boolean)
 returns jsonb
 language plpgsql
@@ -2173,10 +2698,10 @@ declare
   v_row "app_private"."enrollments";
 begin
   select * into v_row from "app_private"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false))) then
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "app_private"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "app_private"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -2253,6 +2778,111 @@ end;
 $$;
 revoke execute on function "app_private"."cancel_enrollment"(uuid) from public, anon;
 grant execute on function "app_private"."cancel_enrollment"(uuid) to authenticated, service_role;
+
+-- Sets the dates an enrollment's due dates count from and renders them again.
+-- dates is { startsAt?, endsAt? }; keys left out keep their value and null
+-- clears one. Needs enrollments.enroll. Module programs have no schedules.
+create or replace function "app_private"."set_enrollment_dates"(enrollment_id uuid, dates jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "app_private"."enrollments";
+  v_starts timestamptz;
+  v_ends timestamptz;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."enrollments" x where x."id" = set_enrollment_dates.enrollment_id for update;
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) then
+    raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) then
+    raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if position(':' in v_row."program") > 0 then
+    raise exception 'this enrollment belongs to a module and has no schedule' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  if dates is null or jsonb_typeof(dates) <> 'object' then
+    raise exception 'dates must be an object' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  v_starts := v_row."starts_at";
+  v_ends := v_row."ends_at";
+  if dates ? 'startsAt' then
+    begin
+      v_starts := (dates ->> 'startsAt')::timestamptz;
+    exception when invalid_datetime_format or datetime_field_overflow or invalid_text_representation then
+      raise exception 'startsAt must be an ISO 8601 instant or null' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+    end;
+  end if;
+  if dates ? 'endsAt' then
+    begin
+      v_ends := (dates ->> 'endsAt')::timestamptz;
+    exception when invalid_datetime_format or datetime_field_overflow or invalid_text_representation then
+      raise exception 'endsAt must be an ISO 8601 instant or null' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+    end;
+  end if;
+  if v_ends < v_starts then
+    raise exception 'endsAt can''t be before startsAt' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  update "app_private"."enrollments" x
+  set "starts_at" = v_starts, "ends_at" = v_ends, "updated_at" = now()
+  where x."id" = v_row."id";
+  perform "app_private"."enrollment_schedule"(v_row."id");
+  return "app_private"."enrollment_json"(v_row."id");
+end;
+$$;
+revoke execute on function "app_private"."set_enrollment_dates"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."set_enrollment_dates"(uuid, jsonb) to authenticated, service_role;
+
+-- The open steps of active enrollments that have an assignee or a due date,
+-- soonest due first and undated last. Without enrollments.read, the steps
+-- assigned to the caller.
+create or replace function "app_private"."open_enrollment_steps"(tenant uuid, assignee_role text default null, assignee_user uuid default null, due_before timestamptz default null, page_size integer default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_read boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (open_enrollment_steps.tenant is not null and coalesce(better_supabase.can('tenant', open_enrollment_steps.tenant, 'enrollments.read'), false)));
+begin
+  if not v_read and auth.uid() is null then
+    raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+      'id', o.row_id, 'organizationId', o.scope_id, 'program', o.program,
+      'subjectType', o.subject_type, 'subjectId', o.subject_id, 'step', o.step, 'title', o.title,
+      'assignee', o.assignee, 'dueAt', o.due_at
+    )) order by o.due_at nulls last, o.row_id, o.step)
+    from (
+      select x."id" as row_id, x."tenant_id" as scope_id, x."program" as program,
+        x."subject_type" as subject_type, x."subject_id" as subject_id, y."step" as step,
+        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end as assignee, y."due_at" as due_at,
+        (select t.value ->> 'title' from "app_private"."enrollment_programs" q, jsonb_array_elements(q."steps") as t(value)
+          where q."tenant_id" = x."tenant_id" and q."key" = x."program" and t.value ->> 'id' = y."step" limit 1) as title
+      from "app_private"."enrollment_steps" y
+      join "app_private"."enrollments" x on x."id" = y."enrollment_id"
+      where y."tenant_id" = open_enrollment_steps.tenant and x."tenant_id" = open_enrollment_steps.tenant
+        and y."completed_at" is null and x."status" = 'active'
+        and (v_read or y."assignee_user_id" = auth.uid())
+        and (open_enrollment_steps.assignee_role is null or y."assignee_role" = open_enrollment_steps.assignee_role)
+        and (open_enrollment_steps.assignee_user is null or y."assignee_user_id" = open_enrollment_steps.assignee_user)
+        and (open_enrollment_steps.due_before is null or y."due_at" < open_enrollment_steps.due_before)
+      order by y."due_at" nulls last, x."id", y."step"
+      limit least(greatest(coalesce(open_enrollment_steps.page_size, 50), 1), 200)
+    ) o
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "app_private"."open_enrollment_steps"(uuid, text, uuid, timestamptz, integer) from public, anon;
+grant execute on function "app_private"."open_enrollment_steps"(uuid, text, uuid, timestamptz, integer) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -2363,7 +2993,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:8c3c38cf23e340871e5f89140bee7c242a5b736e3221f29ee6fdb36f3b524df6
+-- @bsb-hash sha256:bdc071211906f5709311ed7edad134c2bec6fd174b6689c86ea62e9e605fe6c0
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2468,6 +3098,8 @@ create table if not exists "better_supabase"."enrollments" (
   "status" text not null default 'active' check ("status" in ('active', 'completed', 'cancelled')),
   "enrolled_by" uuid,
   "enrolled_at" timestamptz not null default now(),
+  "starts_at" timestamptz,
+  "ends_at" timestamptz,
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "updated_at" timestamptz not null default now(),
@@ -2479,14 +3111,21 @@ create index if not exists "enrollments_program_idx" on "better_supabase"."enrol
 create index if not exists "enrollments_subject_idx" on "better_supabase"."enrollments" ("tenant_id", "subject_type", "subject_id");
 create index if not exists "enrollments_user_idx" on "better_supabase"."enrollments" ("user_id");
 
+-- A completed step, or an open one whose program step has an assignee or a
+-- due date (completed_at is null until it is done).
 create table if not exists "better_supabase"."enrollment_steps" (
   "enrollment_id" uuid not null references "better_supabase"."enrollments" ("id") on delete cascade,
   "tenant_id" uuid,
   "step" text not null,
+  "assignee_role" text check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "assignee_user_id" uuid references auth.users (id) on delete set null,
+  "due_at" timestamptz,
   "completed_by" uuid,
-  "completed_at" timestamptz not null default now(),
+  "completed_at" timestamptz default now(),
   primary key ("enrollment_id", "step")
 );
+create index if not exists "enrollment_steps_assignee_idx" on "better_supabase"."enrollment_steps" ("assignee_user_id", "due_at");
+create index if not exists "enrollment_steps_due_idx" on "better_supabase"."enrollment_steps" ("tenant_id", "due_at") where "completed_at" is null;
 
 alter table "better_supabase"."enrollment_programs" enable row level security;
 revoke all on "better_supabase"."enrollment_programs" from public, anon, authenticated;
@@ -2529,7 +3168,14 @@ as $$
     'cancelledAt', x."cancelled_at", 'updatedAt', x."updated_at",
     'progress', coalesce((
       select jsonb_agg(jsonb_build_object('step', y."step", 'completedAt', y."completed_at", 'completedBy', y."completed_by") order by y."completed_at", array_position(x."steps", y."step"), y."step")
-      from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id"
+      from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."completed_at" is not null
+    ), '[]'::jsonb),
+    'startsAt', x."starts_at", 'endsAt', x."ends_at",
+    'schedule', coalesce((
+      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
+      from "better_supabase"."enrollment_steps" y
+      where y."enrollment_id" = x."id"
+        and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null)
     ), '[]'::jsonb)
   )
   from "better_supabase"."enrollments" x
@@ -2572,9 +3218,9 @@ begin
     update "better_supabase"."enrollments" x set "steps" = enrollment_ensure.steps, "program_version" = enrollment_ensure.program_version
     where x."id" = v_row."id";
     update "better_supabase"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -2583,6 +3229,59 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."enrollment_ensure"(uuid, text, integer, text[], text, text, uuid) from public, anon, authenticated;
+
+-- Renders the open step rows of an enrollment from its program: one per step
+-- of the enrollment that has an assignee or a due date, due its days after
+-- the enrollment's start (or enrolled_at) or its end. A due date from the end
+-- stays null until the enrollment has one. Completed rows keep their
+-- completion; open rows of steps without a schedule go. Module programs
+-- (keys with a colon) are not in the programs table and render nothing.
+create or replace function "better_supabase"."enrollment_schedule"(target uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments";
+  v_program "better_supabase"."enrollment_programs";
+  v_plan jsonb;
+begin
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_schedule.target;
+  if v_row."id" is null or v_row."tenant_id" is null then
+    return;
+  end if;
+  select * into v_program from "better_supabase"."enrollment_programs" x
+  where x."tenant_id" = v_row."tenant_id" and x."key" = v_row."program";
+  v_plan := coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'step', t.value ->> 'id',
+      'role', t.value -> 'assignee' ->> 'role',
+      'userId', t.value -> 'assignee' ->> 'userId',
+      'dueAt', case t.value -> 'due' ->> 'from'
+        when 'start' then coalesce(v_row."starts_at", v_row."enrolled_at") + make_interval(days => (t.value -> 'due' ->> 'days')::integer)
+        when 'end' then v_row."ends_at" + make_interval(days => (t.value -> 'due' ->> 'days')::integer)
+      end
+    ))
+    from jsonb_array_elements(coalesce(v_program."steps", '[]'::jsonb)) as t(value)
+    where t.value ->> 'id' = any(v_row."steps")
+      and (jsonb_typeof(t.value -> 'assignee') = 'object' or jsonb_typeof(t.value -> 'due') = 'object')
+  ), '[]'::jsonb);
+  delete from "better_supabase"."enrollment_steps" y
+  where y."enrollment_id" = v_row."id" and y."completed_at" is null and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step");
+  update "better_supabase"."enrollment_steps" y
+  set "assignee_role" = null, "assignee_user_id" = null, "due_at" = null
+  where y."enrollment_id" = v_row."id" and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step")
+    and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null);
+  insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "assignee_role", "assignee_user_id", "due_at", "completed_by", "completed_at")
+  select v_row."id", v_row."tenant_id", z.value ->> 'step', z.value ->> 'role', (z.value ->> 'userId')::uuid, (z.value ->> 'dueAt')::timestamptz, null, null
+  from jsonb_array_elements(v_plan) as z(value)
+  on conflict ("enrollment_id", "step") do update
+  set "assignee_role" = excluded."assignee_role", "assignee_user_id" = excluded."assignee_user_id", "due_at" = excluded."due_at";
+end;
+$$;
+revoke execute on function "better_supabase"."enrollment_schedule"(uuid) from public, anon, authenticated;
 
 -- Marks a step done or not done without a permission check; false when it
 -- already was. Emits enrollment.step_completed and enrollment.completed for
@@ -2610,21 +3309,34 @@ begin
     raise exception 'the enrollment is cancelled' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
   v_was := v_row."status";
+  -- An open row of a step with a schedule is completed in place.
   if enrollment_mark.done then
-    insert into "better_supabase"."enrollment_steps" ("enrollment_id", "tenant_id", "step", "completed_by")
-    values (v_row."id", v_row."tenant_id", enrollment_mark.step, enrollment_mark.actor)
-    on conflict do nothing;
+    update "better_supabase"."enrollment_steps" y
+    set "completed_by" = enrollment_mark.actor, "completed_at" = now()
+    where y."enrollment_id" = v_row."id" and y."step" = enrollment_mark.step and y."completed_at" is null;
+    get diagnostics v_count = row_count;
+    if v_count = 0 then
+      insert into "better_supabase"."enrollment_steps" ("enrollment_id", "tenant_id", "step", "completed_by", "completed_at")
+      values (v_row."id", v_row."tenant_id", enrollment_mark.step, enrollment_mark.actor, now())
+      on conflict do nothing;
+      get diagnostics v_count = row_count;
+    end if;
   else
-    delete from "better_supabase"."enrollment_steps" x where x."enrollment_id" = v_row."id" and x."step" = enrollment_mark.step;
+    delete from "better_supabase"."enrollment_steps" x
+    where x."enrollment_id" = v_row."id" and x."step" = enrollment_mark.step and x."completed_at" is not null;
+    get diagnostics v_count = row_count;
   end if;
-  get diagnostics v_count = row_count;
   if v_count = 0 then
     return false;
   end if;
+  -- A reset step with a schedule gets its open row back.
+  if not enrollment_mark.done then
+    perform "better_supabase"."enrollment_schedule"(v_row."id");
+  end if;
   update "better_supabase"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -2728,10 +3440,32 @@ begin
     if length(v_step ->> 'title') > 200 or length(v_step ->> 'description') > 2000 then
       raise exception 'a step title holds at most 200 characters and a description 2000' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
     end if;
+    if jsonb_typeof(v_step -> 'assignee') is not null and jsonb_typeof(v_step -> 'assignee') <> 'null' then
+      if jsonb_typeof(v_step -> 'assignee') <> 'object' then
+        raise exception 'a step assignee is { role } with a lowercase role or { userId } with a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+      if (select count(*) from jsonb_object_keys(v_step -> 'assignee')) <> 1
+        or not (coalesce(v_step -> 'assignee' ->> 'role', '') ~ '^[a-z][a-z0-9_-]{0,62}$' or coalesce(v_step -> 'assignee' ->> 'userId', '') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
+        raise exception 'a step assignee is { role } with a lowercase role or { userId } with a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+    end if;
+    if jsonb_typeof(v_step -> 'due') is not null and jsonb_typeof(v_step -> 'due') <> 'null' then
+      if jsonb_typeof(v_step -> 'due') <> 'object' then
+        raise exception 'a step due date is { days, from } with whole days from -3650 to 3650 and from "start" or "end"' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+      if exists (select 1 from jsonb_object_keys(v_step -> 'due') as k(key) where k.key not in ('days', 'from'))
+        or coalesce(v_step -> 'due' ->> 'from', '') not in ('start', 'end')
+        or jsonb_typeof(v_step -> 'due' -> 'days') is distinct from 'number'
+        or (case when (v_step -> 'due' ->> 'days') ~ '^-?[0-9]{1,4}$' then abs((v_step -> 'due' ->> 'days')::integer) > 3650 else true end) then
+        raise exception 'a step due date is { days, from } with whole days from -3650 to 3650 and from "start" or "end"' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+    end if;
     v_ids := v_ids || (v_step ->> 'id');
   end loop;
   v_steps := (
-    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', t.value ->> 'id', 'title', t.value ->> 'title', 'description', t.value ->> 'description')) order by t.ord)
+    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', t.value ->> 'id', 'title', t.value ->> 'title', 'description', t.value ->> 'description',
+      'assignee', case when jsonb_typeof(t.value -> 'assignee') = 'object' then t.value -> 'assignee' end,
+      'due', case when jsonb_typeof(t.value -> 'due') = 'object' then jsonb_build_object('days', (t.value -> 'due' ->> 'days')::integer, 'from', t.value -> 'due' ->> 'from') end)) order by t.ord)
     from jsonb_array_elements(v_steps) with ordinality as t(value, ord)
   );
   if v_old."id" is null then
@@ -2858,9 +3592,9 @@ begin
       "steps" = v_steps, "program_version" = v_program."version"
     where x."id" = v_row."id";
     update "better_supabase"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -2868,6 +3602,7 @@ begin
   else
     v_id := "better_supabase"."enrollment_ensure"(enroll.tenant, enroll.program, v_program."version", v_steps, enroll.subject_type, enroll.subject_id, auth.uid());
   end if;
+  perform "better_supabase"."enrollment_schedule"(v_id);
   return "better_supabase"."enrollment_json"(v_id);
 end;
 $$;
@@ -2935,8 +3670,8 @@ $$;
 revoke execute on function "better_supabase"."list_enrollments"(uuid, text, text, text, text, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."list_enrollments"(uuid, text, text, text, text, integer, timestamptz) to authenticated, service_role;
 
--- Marks a step of an enrollment done or not done: enrollments.enroll, or the
--- enrolled user for their own.
+-- Marks a step of an enrollment done or not done: enrollments.enroll, the
+-- enrolled user for their own, or the user a step is assigned to.
 create or replace function "better_supabase"."enrollment_step"(enrollment_id uuid, step text, done boolean)
 returns jsonb
 language plpgsql
@@ -2947,10 +3682,10 @@ declare
   v_row "better_supabase"."enrollments";
 begin
   select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false))) then
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -3027,6 +3762,111 @@ end;
 $$;
 revoke execute on function "better_supabase"."cancel_enrollment"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_enrollment"(uuid) to authenticated, service_role;
+
+-- Sets the dates an enrollment's due dates count from and renders them again.
+-- dates is { startsAt?, endsAt? }; keys left out keep their value and null
+-- clears one. Needs enrollments.enroll. Module programs have no schedules.
+create or replace function "better_supabase"."set_enrollment_dates"(enrollment_id uuid, dates jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments";
+  v_starts timestamptz;
+  v_ends timestamptz;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = set_enrollment_dates.enrollment_id for update;
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) then
+    raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) then
+    raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if position(':' in v_row."program") > 0 then
+    raise exception 'this enrollment belongs to a module and has no schedule' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  if dates is null or jsonb_typeof(dates) <> 'object' then
+    raise exception 'dates must be an object' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  v_starts := v_row."starts_at";
+  v_ends := v_row."ends_at";
+  if dates ? 'startsAt' then
+    begin
+      v_starts := (dates ->> 'startsAt')::timestamptz;
+    exception when invalid_datetime_format or datetime_field_overflow or invalid_text_representation then
+      raise exception 'startsAt must be an ISO 8601 instant or null' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+    end;
+  end if;
+  if dates ? 'endsAt' then
+    begin
+      v_ends := (dates ->> 'endsAt')::timestamptz;
+    exception when invalid_datetime_format or datetime_field_overflow or invalid_text_representation then
+      raise exception 'endsAt must be an ISO 8601 instant or null' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+    end;
+  end if;
+  if v_ends < v_starts then
+    raise exception 'endsAt can''t be before startsAt' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  update "better_supabase"."enrollments" x
+  set "starts_at" = v_starts, "ends_at" = v_ends, "updated_at" = now()
+  where x."id" = v_row."id";
+  perform "better_supabase"."enrollment_schedule"(v_row."id");
+  return "better_supabase"."enrollment_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."set_enrollment_dates"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."set_enrollment_dates"(uuid, jsonb) to authenticated, service_role;
+
+-- The open steps of active enrollments that have an assignee or a due date,
+-- soonest due first and undated last. Without enrollments.read, the steps
+-- assigned to the caller.
+create or replace function "better_supabase"."open_enrollment_steps"(tenant uuid, assignee_role text default null, assignee_user uuid default null, due_before timestamptz default null, page_size integer default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_read boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (open_enrollment_steps.tenant is not null and coalesce(better_supabase.can('tenant', open_enrollment_steps.tenant, 'enrollments.read'), false)));
+begin
+  if not v_read and auth.uid() is null then
+    raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+      'id', o.row_id, 'organizationId', o.scope_id, 'program', o.program,
+      'subjectType', o.subject_type, 'subjectId', o.subject_id, 'step', o.step, 'title', o.title,
+      'assignee', o.assignee, 'dueAt', o.due_at
+    )) order by o.due_at nulls last, o.row_id, o.step)
+    from (
+      select x."id" as row_id, x."tenant_id" as scope_id, x."program" as program,
+        x."subject_type" as subject_type, x."subject_id" as subject_id, y."step" as step,
+        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end as assignee, y."due_at" as due_at,
+        (select t.value ->> 'title' from "better_supabase"."enrollment_programs" q, jsonb_array_elements(q."steps") as t(value)
+          where q."tenant_id" = x."tenant_id" and q."key" = x."program" and t.value ->> 'id' = y."step" limit 1) as title
+      from "better_supabase"."enrollment_steps" y
+      join "better_supabase"."enrollments" x on x."id" = y."enrollment_id"
+      where y."tenant_id" = open_enrollment_steps.tenant and x."tenant_id" = open_enrollment_steps.tenant
+        and y."completed_at" is null and x."status" = 'active'
+        and (v_read or y."assignee_user_id" = auth.uid())
+        and (open_enrollment_steps.assignee_role is null or y."assignee_role" = open_enrollment_steps.assignee_role)
+        and (open_enrollment_steps.assignee_user is null or y."assignee_user_id" = open_enrollment_steps.assignee_user)
+        and (open_enrollment_steps.due_before is null or y."due_at" < open_enrollment_steps.due_before)
+      order by y."due_at" nulls last, x."id", y."step"
+      limit least(greatest(coalesce(open_enrollment_steps.page_size, 50), 1), 200)
+    ) o
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."open_enrollment_steps"(uuid, text, uuid, timestamptz, integer) from public, anon;
+grant execute on function "better_supabase"."open_enrollment_steps"(uuid, text, uuid, timestamptz, integer) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -3210,6 +4050,24 @@ as $$ select "better_supabase"."cancel_enrollment"($1) $$;
 revoke execute on function "api"."cancel_enrollment"(uuid) from public, anon;
 grant execute on function "api"."cancel_enrollment"(uuid) to authenticated, service_role;
 
+create or replace function "api"."set_enrollment_dates"(enrollment_id uuid, dates jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_enrollment_dates"($1, $2) $$;
+revoke execute on function "api"."set_enrollment_dates"(uuid, jsonb) from public, anon;
+grant execute on function "api"."set_enrollment_dates"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."open_enrollment_steps"(tenant uuid, assignee_role text default null, assignee_user uuid default null, due_before timestamptz default null, page_size integer default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."open_enrollment_steps"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."open_enrollment_steps"(uuid, text, uuid, timestamptz, integer) from public, anon;
+grant execute on function "api"."open_enrollment_steps"(uuid, text, uuid, timestamptz, integer) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3240,7 +4098,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:d363024d64962c039ddbcca613286510defef5ccd4dc0fc657f3b8b019a09752
+-- @bsb-hash sha256:633b2f73761e88278c9c25f737dbba46e1df692440a43013950981d7c269f051
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3357,6 +4215,8 @@ alter table "better_supabase"."enrollments" add column if not exists "completed_
 alter table "better_supabase"."enrollments" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'completed', 'cancelled'));
 alter table "better_supabase"."enrollments" add column if not exists "enrolled_by" uuid;
 alter table "better_supabase"."enrollments" add column if not exists "enrolled_at" timestamptz not null default now();
+alter table "better_supabase"."enrollments" add column if not exists "starts_at" timestamptz;
+alter table "better_supabase"."enrollments" add column if not exists "ends_at" timestamptz;
 alter table "better_supabase"."enrollments" add column if not exists "completed_at" timestamptz;
 alter table "better_supabase"."enrollments" add column if not exists "cancelled_at" timestamptz;
 alter table "better_supabase"."enrollments" add column if not exists "updated_at" timestamptz not null default now();
@@ -3365,13 +4225,20 @@ create index if not exists "enrollments_program_idx" on "better_supabase"."enrol
 create index if not exists "enrollments_subject_idx" on "better_supabase"."enrollments" ("tenant_id", "subject_type", "subject_id");
 create index if not exists "enrollments_user_idx" on "better_supabase"."enrollments" ("user_id");
 
+-- A completed step, or an open one whose program step has an assignee or a
+-- due date (completed_at is null until it is done).
 -- better_supabase.enrollment_steps is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."enrollment_steps" add column if not exists "enrollment_id" uuid references "better_supabase"."enrollments" ("id") on delete cascade;
 alter table "better_supabase"."enrollment_steps" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."enrollment_steps" add column if not exists "step" text;
+alter table "better_supabase"."enrollment_steps" add column if not exists "assignee_role" text check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."enrollment_steps" add column if not exists "assignee_user_id" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."enrollment_steps" add column if not exists "due_at" timestamptz;
 alter table "better_supabase"."enrollment_steps" add column if not exists "completed_by" uuid;
-alter table "better_supabase"."enrollment_steps" add column if not exists "completed_at" timestamptz not null default now();
+alter table "better_supabase"."enrollment_steps" add column if not exists "completed_at" timestamptz default now();
 create unique index if not exists "bsb_enrollment_steps_step_key" on "better_supabase"."enrollment_steps" ("enrollment_id", "step");
+create index if not exists "enrollment_steps_assignee_idx" on "better_supabase"."enrollment_steps" ("assignee_user_id", "due_at");
+create index if not exists "enrollment_steps_due_idx" on "better_supabase"."enrollment_steps" ("tenant_id", "due_at") where "completed_at" is null;
 
 alter table "better_supabase"."enrollment_programs" enable row level security;
 grant select on "better_supabase"."enrollment_programs" to authenticated;
@@ -3411,7 +4278,14 @@ as $$
     'cancelledAt', x."cancelled_at", 'updatedAt', x."updated_at",
     'progress', coalesce((
       select jsonb_agg(jsonb_build_object('step', y."step", 'completedAt', y."completed_at", 'completedBy', y."completed_by") order by y."completed_at", array_position(x."steps", y."step"), y."step")
-      from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id"
+      from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."completed_at" is not null
+    ), '[]'::jsonb),
+    'startsAt', x."starts_at", 'endsAt', x."ends_at",
+    'schedule', coalesce((
+      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
+      from "better_supabase"."enrollment_steps" y
+      where y."enrollment_id" = x."id"
+        and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null)
     ), '[]'::jsonb)
   )
   from "better_supabase"."enrollments" x
@@ -3454,9 +4328,9 @@ begin
     update "better_supabase"."enrollments" x set "steps" = enrollment_ensure.steps, "program_version" = enrollment_ensure.program_version
     where x."id" = v_row."id";
     update "better_supabase"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = better_supabase.as_column_type(case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end, (null::"better_supabase"."enrollments")."status"),
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = better_supabase.as_column_type(case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end, (null::"better_supabase"."enrollments")."status"),
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -3465,6 +4339,59 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."enrollment_ensure"(uuid, text, integer, text[], text, text, uuid) from public, anon, authenticated;
+
+-- Renders the open step rows of an enrollment from its program: one per step
+-- of the enrollment that has an assignee or a due date, due its days after
+-- the enrollment's start (or enrolled_at) or its end. A due date from the end
+-- stays null until the enrollment has one. Completed rows keep their
+-- completion; open rows of steps without a schedule go. Module programs
+-- (keys with a colon) are not in the programs table and render nothing.
+create or replace function "better_supabase"."enrollment_schedule"(target uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments";
+  v_program "better_supabase"."enrollment_programs";
+  v_plan jsonb;
+begin
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_schedule.target;
+  if v_row."id" is null or v_row."tenant_id" is null then
+    return;
+  end if;
+  select * into v_program from "better_supabase"."enrollment_programs" x
+  where x."tenant_id" = v_row."tenant_id" and x."key" = v_row."program";
+  v_plan := coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'step', t.value ->> 'id',
+      'role', t.value -> 'assignee' ->> 'role',
+      'userId', t.value -> 'assignee' ->> 'userId',
+      'dueAt', case t.value -> 'due' ->> 'from'
+        when 'start' then coalesce(v_row."starts_at", v_row."enrolled_at") + make_interval(days => (t.value -> 'due' ->> 'days')::integer)
+        when 'end' then v_row."ends_at" + make_interval(days => (t.value -> 'due' ->> 'days')::integer)
+      end
+    ))
+    from jsonb_array_elements(coalesce(v_program."steps", '[]'::jsonb)) as t(value)
+    where t.value ->> 'id' = any(v_row."steps")
+      and (jsonb_typeof(t.value -> 'assignee') = 'object' or jsonb_typeof(t.value -> 'due') = 'object')
+  ), '[]'::jsonb);
+  delete from "better_supabase"."enrollment_steps" y
+  where y."enrollment_id" = v_row."id" and y."completed_at" is null and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step");
+  update "better_supabase"."enrollment_steps" y
+  set "assignee_role" = null, "assignee_user_id" = null, "due_at" = null
+  where y."enrollment_id" = v_row."id" and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step")
+    and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null);
+  insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "assignee_role", "assignee_user_id", "due_at", "completed_by", "completed_at")
+  select v_row."id", v_row."tenant_id", z.value ->> 'step', z.value ->> 'role', (z.value ->> 'userId')::uuid, (z.value ->> 'dueAt')::timestamptz, null, null
+  from jsonb_array_elements(v_plan) as z(value)
+  on conflict ("enrollment_id", "step") do update
+  set "assignee_role" = excluded."assignee_role", "assignee_user_id" = excluded."assignee_user_id", "due_at" = excluded."due_at";
+end;
+$$;
+revoke execute on function "better_supabase"."enrollment_schedule"(uuid) from public, anon, authenticated;
 
 -- Marks a step done or not done without a permission check; false when it
 -- already was. Emits enrollment.step_completed and enrollment.completed for
@@ -3492,21 +4419,34 @@ begin
     raise exception 'the enrollment is cancelled' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
   v_was := v_row."status";
+  -- An open row of a step with a schedule is completed in place.
   if enrollment_mark.done then
-    insert into "better_supabase"."enrollment_steps" ("enrollment_id", "tenant_id", "step", "completed_by")
-    values (v_row."id", v_row."tenant_id", enrollment_mark.step, enrollment_mark.actor)
-    on conflict do nothing;
+    update "better_supabase"."enrollment_steps" y
+    set "completed_by" = enrollment_mark.actor, "completed_at" = now()
+    where y."enrollment_id" = v_row."id" and y."step" = enrollment_mark.step and y."completed_at" is null;
+    get diagnostics v_count = row_count;
+    if v_count = 0 then
+      insert into "better_supabase"."enrollment_steps" ("enrollment_id", "tenant_id", "step", "completed_by", "completed_at")
+      values (v_row."id", v_row."tenant_id", enrollment_mark.step, enrollment_mark.actor, now())
+      on conflict do nothing;
+      get diagnostics v_count = row_count;
+    end if;
   else
-    delete from "better_supabase"."enrollment_steps" x where x."enrollment_id" = v_row."id" and x."step" = enrollment_mark.step;
+    delete from "better_supabase"."enrollment_steps" x
+    where x."enrollment_id" = v_row."id" and x."step" = enrollment_mark.step and x."completed_at" is not null;
+    get diagnostics v_count = row_count;
   end if;
-  get diagnostics v_count = row_count;
   if v_count = 0 then
     return false;
   end if;
+  -- A reset step with a schedule gets its open row back.
+  if not enrollment_mark.done then
+    perform "better_supabase"."enrollment_schedule"(v_row."id");
+  end if;
   update "better_supabase"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = better_supabase.as_column_type(case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end, (null::"better_supabase"."enrollments")."status"),
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = better_supabase.as_column_type(case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end, (null::"better_supabase"."enrollments")."status"),
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -3610,10 +4550,32 @@ begin
     if length(v_step ->> 'title') > 200 or length(v_step ->> 'description') > 2000 then
       raise exception 'a step title holds at most 200 characters and a description 2000' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
     end if;
+    if jsonb_typeof(v_step -> 'assignee') is not null and jsonb_typeof(v_step -> 'assignee') <> 'null' then
+      if jsonb_typeof(v_step -> 'assignee') <> 'object' then
+        raise exception 'a step assignee is { role } with a lowercase role or { userId } with a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+      if (select count(*) from jsonb_object_keys(v_step -> 'assignee')) <> 1
+        or not (coalesce(v_step -> 'assignee' ->> 'role', '') ~ '^[a-z][a-z0-9_-]{0,62}$' or coalesce(v_step -> 'assignee' ->> 'userId', '') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
+        raise exception 'a step assignee is { role } with a lowercase role or { userId } with a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+    end if;
+    if jsonb_typeof(v_step -> 'due') is not null and jsonb_typeof(v_step -> 'due') <> 'null' then
+      if jsonb_typeof(v_step -> 'due') <> 'object' then
+        raise exception 'a step due date is { days, from } with whole days from -3650 to 3650 and from "start" or "end"' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+      if exists (select 1 from jsonb_object_keys(v_step -> 'due') as k(key) where k.key not in ('days', 'from'))
+        or coalesce(v_step -> 'due' ->> 'from', '') not in ('start', 'end')
+        or jsonb_typeof(v_step -> 'due' -> 'days') is distinct from 'number'
+        or (case when (v_step -> 'due' ->> 'days') ~ '^-?[0-9]{1,4}$' then abs((v_step -> 'due' ->> 'days')::integer) > 3650 else true end) then
+        raise exception 'a step due date is { days, from } with whole days from -3650 to 3650 and from "start" or "end"' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+    end if;
     v_ids := v_ids || (v_step ->> 'id');
   end loop;
   v_steps := (
-    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', t.value ->> 'id', 'title', t.value ->> 'title', 'description', t.value ->> 'description')) order by t.ord)
+    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', t.value ->> 'id', 'title', t.value ->> 'title', 'description', t.value ->> 'description',
+      'assignee', case when jsonb_typeof(t.value -> 'assignee') = 'object' then t.value -> 'assignee' end,
+      'due', case when jsonb_typeof(t.value -> 'due') = 'object' then jsonb_build_object('days', (t.value -> 'due' ->> 'days')::integer, 'from', t.value -> 'due' ->> 'from') end)) order by t.ord)
     from jsonb_array_elements(v_steps) with ordinality as t(value, ord)
   );
   if v_old."id" is null then
@@ -3740,9 +4702,9 @@ begin
       "steps" = v_steps, "program_version" = v_program."version"
     where x."id" = v_row."id";
     update "better_supabase"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = better_supabase.as_column_type(case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end, (null::"better_supabase"."enrollments")."status"),
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = better_supabase.as_column_type(case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end, (null::"better_supabase"."enrollments")."status"),
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -3750,6 +4712,7 @@ begin
   else
     v_id := "better_supabase"."enrollment_ensure"(enroll.tenant, enroll.program, v_program."version", v_steps, enroll.subject_type, enroll.subject_id, auth.uid());
   end if;
+  perform "better_supabase"."enrollment_schedule"(v_id);
   return "better_supabase"."enrollment_json"(v_id);
 end;
 $$;
@@ -3817,8 +4780,8 @@ $$;
 revoke execute on function "better_supabase"."list_enrollments"(uuid, text, text, text, text, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."list_enrollments"(uuid, text, text, text, text, integer, timestamptz) to authenticated, service_role;
 
--- Marks a step of an enrollment done or not done: enrollments.enroll, or the
--- enrolled user for their own.
+-- Marks a step of an enrollment done or not done: enrollments.enroll, the
+-- enrolled user for their own, or the user a step is assigned to.
 create or replace function "better_supabase"."enrollment_step"(enrollment_id uuid, step text, done boolean)
 returns jsonb
 language plpgsql
@@ -3829,10 +4792,10 @@ declare
   v_row "better_supabase"."enrollments";
 begin
   select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false))) then
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -3909,6 +4872,111 @@ end;
 $$;
 revoke execute on function "better_supabase"."cancel_enrollment"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_enrollment"(uuid) to authenticated, service_role;
+
+-- Sets the dates an enrollment's due dates count from and renders them again.
+-- dates is { startsAt?, endsAt? }; keys left out keep their value and null
+-- clears one. Needs enrollments.enroll. Module programs have no schedules.
+create or replace function "better_supabase"."set_enrollment_dates"(enrollment_id uuid, dates jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments";
+  v_starts timestamptz;
+  v_ends timestamptz;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = set_enrollment_dates.enrollment_id for update;
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) then
+    raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) then
+    raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if position(':' in v_row."program") > 0 then
+    raise exception 'this enrollment belongs to a module and has no schedule' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  if dates is null or jsonb_typeof(dates) <> 'object' then
+    raise exception 'dates must be an object' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  v_starts := v_row."starts_at";
+  v_ends := v_row."ends_at";
+  if dates ? 'startsAt' then
+    begin
+      v_starts := (dates ->> 'startsAt')::timestamptz;
+    exception when invalid_datetime_format or datetime_field_overflow or invalid_text_representation then
+      raise exception 'startsAt must be an ISO 8601 instant or null' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+    end;
+  end if;
+  if dates ? 'endsAt' then
+    begin
+      v_ends := (dates ->> 'endsAt')::timestamptz;
+    exception when invalid_datetime_format or datetime_field_overflow or invalid_text_representation then
+      raise exception 'endsAt must be an ISO 8601 instant or null' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+    end;
+  end if;
+  if v_ends < v_starts then
+    raise exception 'endsAt can''t be before startsAt' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  update "better_supabase"."enrollments" x
+  set "starts_at" = v_starts, "ends_at" = v_ends, "updated_at" = now()
+  where x."id" = v_row."id";
+  perform "better_supabase"."enrollment_schedule"(v_row."id");
+  return "better_supabase"."enrollment_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."set_enrollment_dates"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."set_enrollment_dates"(uuid, jsonb) to authenticated, service_role;
+
+-- The open steps of active enrollments that have an assignee or a due date,
+-- soonest due first and undated last. Without enrollments.read, the steps
+-- assigned to the caller.
+create or replace function "better_supabase"."open_enrollment_steps"(tenant uuid, assignee_role text default null, assignee_user uuid default null, due_before timestamptz default null, page_size integer default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_read boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (open_enrollment_steps.tenant is not null and coalesce(better_supabase.can('tenant', open_enrollment_steps.tenant, 'enrollments.read'), false)));
+begin
+  if not v_read and auth.uid() is null then
+    raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+      'id', o.row_id, 'organizationId', o.scope_id, 'program', o.program,
+      'subjectType', o.subject_type, 'subjectId', o.subject_id, 'step', o.step, 'title', o.title,
+      'assignee', o.assignee, 'dueAt', o.due_at
+    )) order by o.due_at nulls last, o.row_id, o.step)
+    from (
+      select x."id" as row_id, x."tenant_id" as scope_id, x."program" as program,
+        x."subject_type" as subject_type, x."subject_id" as subject_id, y."step" as step,
+        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end as assignee, y."due_at" as due_at,
+        (select t.value ->> 'title' from "better_supabase"."enrollment_programs" q, jsonb_array_elements(q."steps") as t(value)
+          where q."tenant_id" = x."tenant_id" and q."key" = x."program" and t.value ->> 'id' = y."step" limit 1) as title
+      from "better_supabase"."enrollment_steps" y
+      join "better_supabase"."enrollments" x on x."id" = y."enrollment_id"
+      where y."tenant_id" = open_enrollment_steps.tenant and x."tenant_id" = open_enrollment_steps.tenant
+        and y."completed_at" is null and x."status" = better_supabase.as_column_type('active', (null::"better_supabase"."enrollments")."status")
+        and (v_read or y."assignee_user_id" = auth.uid())
+        and (open_enrollment_steps.assignee_role is null or y."assignee_role" = open_enrollment_steps.assignee_role)
+        and (open_enrollment_steps.assignee_user is null or y."assignee_user_id" = open_enrollment_steps.assignee_user)
+        and (open_enrollment_steps.due_before is null or y."due_at" < open_enrollment_steps.due_before)
+      order by y."due_at" nulls last, x."id", y."step"
+      limit least(greatest(coalesce(open_enrollment_steps.page_size, 50), 1), 200)
+    ) o
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."open_enrollment_steps"(uuid, text, uuid, timestamptz, integer) from public, anon;
+grant execute on function "better_supabase"."open_enrollment_steps"(uuid, text, uuid, timestamptz, integer) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -4019,7 +5087,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:c130f17868351506098a904a11f7557b2a4e3831263c5dee5565f33fdaa00bc6
+-- @bsb-hash sha256:8f45d45e1681db9a9708a92625c75d157b590e3b5bee6408de917eb800fe74a1
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4124,6 +5192,8 @@ create table if not exists "better_supabase"."enrollments" (
   "status" text not null default 'active' check ("status" in ('active', 'completed', 'cancelled')),
   "enrolled_by" uuid,
   "enrolled_at" timestamptz not null default now(),
+  "starts_at" timestamptz,
+  "ends_at" timestamptz,
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "updated_at" timestamptz not null default now(),
@@ -4135,14 +5205,21 @@ create index if not exists "enrollments_program_idx" on "better_supabase"."enrol
 create index if not exists "enrollments_subject_idx" on "better_supabase"."enrollments" ("org_id", "subject_type", "subject_id");
 create index if not exists "enrollments_user_idx" on "better_supabase"."enrollments" ("user_id");
 
+-- A completed step, or an open one whose program step has an assignee or a
+-- due date (completed_at is null until it is done).
 create table if not exists "better_supabase"."enrollment_steps" (
   "enrollment_id" uuid not null references "better_supabase"."enrollments" ("id") on delete cascade,
   "org_id" uuid,
   "step" text not null,
+  "assignee_role" text check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "assignee_user_id" uuid references auth.users (id) on delete set null,
+  "due_at" timestamptz,
   "completed_by" uuid,
-  "completed_at" timestamptz not null default now(),
+  "completed_at" timestamptz default now(),
   primary key ("enrollment_id", "step")
 );
+create index if not exists "enrollment_steps_assignee_idx" on "better_supabase"."enrollment_steps" ("assignee_user_id", "due_at");
+create index if not exists "enrollment_steps_due_idx" on "better_supabase"."enrollment_steps" ("org_id", "due_at") where "completed_at" is null;
 
 alter table "better_supabase"."enrollment_programs" enable row level security;
 revoke all on "better_supabase"."enrollment_programs" from public, anon, authenticated;
@@ -4185,7 +5262,14 @@ as $$
     'cancelledAt', x."cancelled_at", 'updatedAt', x."updated_at",
     'progress', coalesce((
       select jsonb_agg(jsonb_build_object('step', y."step", 'completedAt', y."completed_at", 'completedBy', y."completed_by") order by y."completed_at", array_position(x."steps", y."step"), y."step")
-      from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id"
+      from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."completed_at" is not null
+    ), '[]'::jsonb),
+    'startsAt', x."starts_at", 'endsAt', x."ends_at",
+    'schedule', coalesce((
+      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
+      from "better_supabase"."enrollment_steps" y
+      where y."enrollment_id" = x."id"
+        and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null)
     ), '[]'::jsonb)
   )
   from "better_supabase"."enrollments" x
@@ -4228,9 +5312,9 @@ begin
     update "better_supabase"."enrollments" x set "steps" = enrollment_ensure.steps, "program_version" = enrollment_ensure.program_version
     where x."id" = v_row."id";
     update "better_supabase"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -4239,6 +5323,59 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."enrollment_ensure"(uuid, text, integer, text[], text, text, uuid) from public, anon, authenticated;
+
+-- Renders the open step rows of an enrollment from its program: one per step
+-- of the enrollment that has an assignee or a due date, due its days after
+-- the enrollment's start (or enrolled_at) or its end. A due date from the end
+-- stays null until the enrollment has one. Completed rows keep their
+-- completion; open rows of steps without a schedule go. Module programs
+-- (keys with a colon) are not in the programs table and render nothing.
+create or replace function "better_supabase"."enrollment_schedule"(target uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments";
+  v_program "better_supabase"."enrollment_programs";
+  v_plan jsonb;
+begin
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_schedule.target;
+  if v_row."id" is null or v_row."org_id" is null then
+    return;
+  end if;
+  select * into v_program from "better_supabase"."enrollment_programs" x
+  where x."org_id" = v_row."org_id" and x."key" = v_row."program";
+  v_plan := coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'step', t.value ->> 'id',
+      'role', t.value -> 'assignee' ->> 'role',
+      'userId', t.value -> 'assignee' ->> 'userId',
+      'dueAt', case t.value -> 'due' ->> 'from'
+        when 'start' then coalesce(v_row."starts_at", v_row."enrolled_at") + make_interval(days => (t.value -> 'due' ->> 'days')::integer)
+        when 'end' then v_row."ends_at" + make_interval(days => (t.value -> 'due' ->> 'days')::integer)
+      end
+    ))
+    from jsonb_array_elements(coalesce(v_program."steps", '[]'::jsonb)) as t(value)
+    where t.value ->> 'id' = any(v_row."steps")
+      and (jsonb_typeof(t.value -> 'assignee') = 'object' or jsonb_typeof(t.value -> 'due') = 'object')
+  ), '[]'::jsonb);
+  delete from "better_supabase"."enrollment_steps" y
+  where y."enrollment_id" = v_row."id" and y."completed_at" is null and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step");
+  update "better_supabase"."enrollment_steps" y
+  set "assignee_role" = null, "assignee_user_id" = null, "due_at" = null
+  where y."enrollment_id" = v_row."id" and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step")
+    and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null);
+  insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "org_id", "step", "assignee_role", "assignee_user_id", "due_at", "completed_by", "completed_at")
+  select v_row."id", v_row."org_id", z.value ->> 'step', z.value ->> 'role', (z.value ->> 'userId')::uuid, (z.value ->> 'dueAt')::timestamptz, null, null
+  from jsonb_array_elements(v_plan) as z(value)
+  on conflict ("enrollment_id", "step") do update
+  set "assignee_role" = excluded."assignee_role", "assignee_user_id" = excluded."assignee_user_id", "due_at" = excluded."due_at";
+end;
+$$;
+revoke execute on function "better_supabase"."enrollment_schedule"(uuid) from public, anon, authenticated;
 
 -- Marks a step done or not done without a permission check; false when it
 -- already was. Emits enrollment.step_completed and enrollment.completed for
@@ -4266,21 +5403,34 @@ begin
     raise exception 'the enrollment is cancelled' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
   v_was := v_row."status";
+  -- An open row of a step with a schedule is completed in place.
   if enrollment_mark.done then
-    insert into "better_supabase"."enrollment_steps" ("enrollment_id", "org_id", "step", "completed_by")
-    values (v_row."id", v_row."org_id", enrollment_mark.step, enrollment_mark.actor)
-    on conflict do nothing;
+    update "better_supabase"."enrollment_steps" y
+    set "completed_by" = enrollment_mark.actor, "completed_at" = now()
+    where y."enrollment_id" = v_row."id" and y."step" = enrollment_mark.step and y."completed_at" is null;
+    get diagnostics v_count = row_count;
+    if v_count = 0 then
+      insert into "better_supabase"."enrollment_steps" ("enrollment_id", "org_id", "step", "completed_by", "completed_at")
+      values (v_row."id", v_row."org_id", enrollment_mark.step, enrollment_mark.actor, now())
+      on conflict do nothing;
+      get diagnostics v_count = row_count;
+    end if;
   else
-    delete from "better_supabase"."enrollment_steps" x where x."enrollment_id" = v_row."id" and x."step" = enrollment_mark.step;
+    delete from "better_supabase"."enrollment_steps" x
+    where x."enrollment_id" = v_row."id" and x."step" = enrollment_mark.step and x."completed_at" is not null;
+    get diagnostics v_count = row_count;
   end if;
-  get diagnostics v_count = row_count;
   if v_count = 0 then
     return false;
   end if;
+  -- A reset step with a schedule gets its open row back.
+  if not enrollment_mark.done then
+    perform "better_supabase"."enrollment_schedule"(v_row."id");
+  end if;
   update "better_supabase"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -4384,10 +5534,32 @@ begin
     if length(v_step ->> 'title') > 200 or length(v_step ->> 'description') > 2000 then
       raise exception 'a step title holds at most 200 characters and a description 2000' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
     end if;
+    if jsonb_typeof(v_step -> 'assignee') is not null and jsonb_typeof(v_step -> 'assignee') <> 'null' then
+      if jsonb_typeof(v_step -> 'assignee') <> 'object' then
+        raise exception 'a step assignee is { role } with a lowercase role or { userId } with a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+      if (select count(*) from jsonb_object_keys(v_step -> 'assignee')) <> 1
+        or not (coalesce(v_step -> 'assignee' ->> 'role', '') ~ '^[a-z][a-z0-9_-]{0,62}$' or coalesce(v_step -> 'assignee' ->> 'userId', '') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
+        raise exception 'a step assignee is { role } with a lowercase role or { userId } with a user id' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+    end if;
+    if jsonb_typeof(v_step -> 'due') is not null and jsonb_typeof(v_step -> 'due') <> 'null' then
+      if jsonb_typeof(v_step -> 'due') <> 'object' then
+        raise exception 'a step due date is { days, from } with whole days from -3650 to 3650 and from "start" or "end"' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+      if exists (select 1 from jsonb_object_keys(v_step -> 'due') as k(key) where k.key not in ('days', 'from'))
+        or coalesce(v_step -> 'due' ->> 'from', '') not in ('start', 'end')
+        or jsonb_typeof(v_step -> 'due' -> 'days') is distinct from 'number'
+        or (case when (v_step -> 'due' ->> 'days') ~ '^-?[0-9]{1,4}$' then abs((v_step -> 'due' ->> 'days')::integer) > 3650 else true end) then
+        raise exception 'a step due date is { days, from } with whole days from -3650 to 3650 and from "start" or "end"' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+      end if;
+    end if;
     v_ids := v_ids || (v_step ->> 'id');
   end loop;
   v_steps := (
-    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', t.value ->> 'id', 'title', t.value ->> 'title', 'description', t.value ->> 'description')) order by t.ord)
+    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', t.value ->> 'id', 'title', t.value ->> 'title', 'description', t.value ->> 'description',
+      'assignee', case when jsonb_typeof(t.value -> 'assignee') = 'object' then t.value -> 'assignee' end,
+      'due', case when jsonb_typeof(t.value -> 'due') = 'object' then jsonb_build_object('days', (t.value -> 'due' ->> 'days')::integer, 'from', t.value -> 'due' ->> 'from') end)) order by t.ord)
     from jsonb_array_elements(v_steps) with ordinality as t(value, ord)
   );
   if v_old."id" is null then
@@ -4514,9 +5686,9 @@ begin
       "steps" = v_steps, "program_version" = v_program."version"
     where x."id" = v_row."id";
     update "better_supabase"."enrollments" x
-  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")),
-    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
-    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps")) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
+  set "completed_steps" = (select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null),
+    "status" = case when x."status" = 'cancelled' then 'cancelled' when ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then 'completed' else 'active' end,
+    "completed_at" = case when x."status" <> 'cancelled' and ((select count(*)::integer from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."step" = any(x."steps") and y."completed_at" is not null) >= cardinality(x."steps") and cardinality(x."steps") > 0) then coalesce(x."completed_at", now()) end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -4524,6 +5696,7 @@ begin
   else
     v_id := "better_supabase"."enrollment_ensure"(enroll.tenant, enroll.program, v_program."version", v_steps, enroll.subject_type, enroll.subject_id, auth.uid());
   end if;
+  perform "better_supabase"."enrollment_schedule"(v_id);
   return "better_supabase"."enrollment_json"(v_id);
 end;
 $$;
@@ -4591,8 +5764,8 @@ $$;
 revoke execute on function "better_supabase"."list_enrollments"(uuid, text, text, text, text, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."list_enrollments"(uuid, text, text, text, text, integer, timestamptz) to authenticated, service_role;
 
--- Marks a step of an enrollment done or not done: enrollments.enroll, or the
--- enrolled user for their own.
+-- Marks a step of an enrollment done or not done: enrollments.enroll, the
+-- enrolled user for their own, or the user a step is assigned to.
 create or replace function "better_supabase"."enrollment_step"(enrollment_id uuid, step text, done boolean)
 returns jsonb
 language plpgsql
@@ -4603,10 +5776,10 @@ declare
   v_row "better_supabase"."enrollments";
 begin
   select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false))) then
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -4683,6 +5856,111 @@ end;
 $$;
 revoke execute on function "better_supabase"."cancel_enrollment"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_enrollment"(uuid) to authenticated, service_role;
+
+-- Sets the dates an enrollment's due dates count from and renders them again.
+-- dates is { startsAt?, endsAt? }; keys left out keep their value and null
+-- clears one. Needs enrollments.enroll. Module programs have no schedules.
+create or replace function "better_supabase"."set_enrollment_dates"(enrollment_id uuid, dates jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments";
+  v_starts timestamptz;
+  v_ends timestamptz;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = set_enrollment_dates.enrollment_id for update;
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.read'), false))) then
+    raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.enroll'), false))) then
+    raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if position(':' in v_row."program") > 0 then
+    raise exception 'this enrollment belongs to a module and has no schedule' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  if dates is null or jsonb_typeof(dates) <> 'object' then
+    raise exception 'dates must be an object' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  v_starts := v_row."starts_at";
+  v_ends := v_row."ends_at";
+  if dates ? 'startsAt' then
+    begin
+      v_starts := (dates ->> 'startsAt')::timestamptz;
+    exception when invalid_datetime_format or datetime_field_overflow or invalid_text_representation then
+      raise exception 'startsAt must be an ISO 8601 instant or null' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+    end;
+  end if;
+  if dates ? 'endsAt' then
+    begin
+      v_ends := (dates ->> 'endsAt')::timestamptz;
+    exception when invalid_datetime_format or datetime_field_overflow or invalid_text_representation then
+      raise exception 'endsAt must be an ISO 8601 instant or null' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+    end;
+  end if;
+  if v_ends < v_starts then
+    raise exception 'endsAt can''t be before startsAt' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
+  update "better_supabase"."enrollments" x
+  set "starts_at" = v_starts, "ends_at" = v_ends, "updated_at" = now()
+  where x."id" = v_row."id";
+  perform "better_supabase"."enrollment_schedule"(v_row."id");
+  return "better_supabase"."enrollment_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."set_enrollment_dates"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."set_enrollment_dates"(uuid, jsonb) to authenticated, service_role;
+
+-- The open steps of active enrollments that have an assignee or a due date,
+-- soonest due first and undated last. Without enrollments.read, the steps
+-- assigned to the caller.
+create or replace function "better_supabase"."open_enrollment_steps"(tenant uuid, assignee_role text default null, assignee_user uuid default null, due_before timestamptz default null, page_size integer default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_read boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (open_enrollment_steps.tenant is not null and coalesce(better_supabase.can('tenant', open_enrollment_steps.tenant, 'enrollments.read'), false)));
+begin
+  if not v_read and auth.uid() is null then
+    raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+      'id', o.row_id, 'organizationId', o.scope_id, 'program', o.program,
+      'subjectType', o.subject_type, 'subjectId', o.subject_id, 'step', o.step, 'title', o.title,
+      'assignee', o.assignee, 'dueAt', o.due_at
+    )) order by o.due_at nulls last, o.row_id, o.step)
+    from (
+      select x."id" as row_id, x."org_id" as scope_id, x."program" as program,
+        x."subject_type" as subject_type, x."subject_id" as subject_id, y."step" as step,
+        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end as assignee, y."due_at" as due_at,
+        (select t.value ->> 'title' from "better_supabase"."enrollment_programs" q, jsonb_array_elements(q."steps") as t(value)
+          where q."org_id" = x."org_id" and q."key" = x."program" and t.value ->> 'id' = y."step" limit 1) as title
+      from "better_supabase"."enrollment_steps" y
+      join "better_supabase"."enrollments" x on x."id" = y."enrollment_id"
+      where y."org_id" = open_enrollment_steps.tenant and x."org_id" = open_enrollment_steps.tenant
+        and y."completed_at" is null and x."status" = 'active'
+        and (v_read or y."assignee_user_id" = auth.uid())
+        and (open_enrollment_steps.assignee_role is null or y."assignee_role" = open_enrollment_steps.assignee_role)
+        and (open_enrollment_steps.assignee_user is null or y."assignee_user_id" = open_enrollment_steps.assignee_user)
+        and (open_enrollment_steps.due_before is null or y."due_at" < open_enrollment_steps.due_before)
+      order by y."due_at" nulls last, x."id", y."step"
+      limit least(greatest(coalesce(open_enrollment_steps.page_size, 50), 1), 200)
+    ) o
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."open_enrollment_steps"(uuid, text, uuid, timestamptz, integer) from public, anon;
+grant execute on function "better_supabase"."open_enrollment_steps"(uuid, text, uuid, timestamptz, integer) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

@@ -11,6 +11,7 @@ import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
 import { enrollmentsFunctions } from "./enrollments-functions.ts";
+import { schedulesSteps } from "./enrollments-schedule.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const PROGRAM_PAYLOAD = ["organizationId", "id", "key", "version"] as const;
@@ -87,7 +88,7 @@ const NAMES: BlockSqlNames = {
       name: "enrollments",
       app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
-      optional: ["programVersion"],
+      optional: ["programVersion", "startsAt", "endsAt"],
       typed: ["status"],
       columns: {
         id: "id",
@@ -102,6 +103,8 @@ const NAMES: BlockSqlNames = {
         status: "status",
         enrolledBy: "enrolled_by",
         enrolledAt: "enrolled_at",
+        startsAt: "starts_at",
+        endsAt: "ends_at",
         completedAt: "completed_at",
         cancelledAt: "cancelled_at",
         updatedAt: "updated_at",
@@ -111,16 +114,36 @@ const NAMES: BlockSqlNames = {
       name: "enrollment_steps",
       app: {},
       lifecycle: { tenant: "tenant", export: true },
+      optional: ["assigneeRole", "assigneeUser", "dueAt"],
       columns: {
         enrollment: "enrollment_id",
         tenant: "tenant_id",
         step: "step",
+        assigneeRole: "assignee_role",
+        assigneeUser: "assignee_user_id",
+        dueAt: "due_at",
         completedBy: "completed_by",
         completedAt: "completed_at",
       },
     },
   },
 };
+
+function scheduleIndexes(
+  ctx: BlockSqlContext,
+  name: (logical: string, suffix: string) => string,
+): string {
+  if (!schedulesSteps(ctx)) {
+    return "";
+  }
+
+  const steps = ctx.table("steps");
+  const s = (column: string): string => ctx.col("steps", column);
+
+  return `
+create index if not exists ${name("steps", "assignee_idx")} on ${steps} (${s("assigneeUser")}, ${s("dueAt")});
+create index if not exists ${name("steps", "due_idx")} on ${steps} (${s("tenant")}, ${s("dueAt")}) where ${s("completedAt")} is null;`;
+}
 
 /**
  * The enrollments tables, their indexes and read policies. The onboarding
@@ -183,7 +206,7 @@ create table if not exists ${enrollments} (
   ${e("completedSteps")} integer not null default 0 check (${e("completedSteps")} >= 0),
   ${e("status")} text not null default 'active' check (${e("status")} in ('active', 'completed', 'cancelled')),
   ${e("enrolledBy")} uuid,
-  ${e("enrolledAt")} timestamptz not null default now(),
+  ${e("enrolledAt")} timestamptz not null default now(),${optional("enrollments", "startsAt", (c) => `${c} timestamptz`)}${optional("enrollments", "endsAt", (c) => `${c} timestamptz`)}
   ${e("completedAt")} timestamptz,
   ${e("cancelledAt")} timestamptz,
   ${e("updatedAt")} timestamptz not null default now(),
@@ -195,14 +218,16 @@ create index if not exists ${name("enrollments", "program_idx")} on ${enrollment
 create index if not exists ${name("enrollments", "subject_idx")} on ${enrollments} (${e("tenant")}, ${e("subjectType")}, ${e("subjectId")});
 create index if not exists ${name("enrollments", "user_idx")} on ${enrollments} (${e("user")});
 
+-- A completed step, or an open one whose program step has an assignee or a
+-- due date (completed_at is null until it is done).
 create table if not exists ${steps} (
   ${s("enrollment")} uuid not null references ${enrollments} (${e("id")}) on delete cascade,
   ${s("tenant")} ${ctx.idType},
-  ${s("step")} text not null,
+  ${s("step")} text not null,${optional("steps", "assigneeRole", (c) => `${c} text check (${c} is null or ${c} ~ '^[a-z][a-z0-9_-]{0,62}$')`)}${optional("steps", "assigneeUser", (c) => `${c} uuid references auth.users (id) on delete set null`)}${optional("steps", "dueAt", (c) => `${c} timestamptz`)}
   ${s("completedBy")} uuid,
-  ${s("completedAt")} timestamptz not null default now(),
+  ${s("completedAt")} timestamptz default now(),
   primary key (${s("enrollment")}, ${s("step")})
-);${key("steps", "step_key", `(${s("enrollment")}, ${s("step")})`)}
+);${key("steps", "step_key", `(${s("enrollment")}, ${s("step")})`)}${scheduleIndexes(ctx, name)}
 
 ${lockTable(programs, { read: true })}
 drop policy if exists ${name("programs", "read")} on ${programs};
@@ -255,6 +280,7 @@ export const ENROLLMENTS: BlockSqlDefinition = {
     "enrollment_mark",
     "enrollment_json",
     "enrollment_step",
+    "enrollment_schedule",
   ],
   name: "enrollments",
   scopes: ["tenant"],

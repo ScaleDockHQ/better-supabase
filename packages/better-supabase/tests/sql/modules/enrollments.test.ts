@@ -37,6 +37,38 @@ describe("enrollments module", () => {
     expect(sql).toContain("audit_event");
   });
 
+  it("renders step assignees and due dates into the steps", () => {
+    const sql = sqlOf(["enrollments"]);
+
+    expect(sql).toContain('"assignee_role" text');
+    expect(sql).toContain('"assignee_user_id" uuid references auth.users');
+    expect(sql).toContain('"due_at" timestamptz');
+    expect(sql).toContain('"starts_at" timestamptz');
+    expect(sql).toContain('"ends_at" timestamptz');
+    expect(sql).toContain('"completed_at" timestamptz default now()');
+    expect(sql).toContain("a step due date is { days, from }");
+    expect(sql).toMatch(/function \S+"enrollment_schedule"\(target uuid\)/);
+    expect(sql).toContain(
+      'revoke execute on function "better_supabase"."enrollment_schedule"',
+    );
+    expect(sql).toMatch(/function \S+"set_enrollment_dates"\(/);
+    expect(sql).toMatch(/function \S+"open_enrollment_steps"\(/);
+    expect(sql).toContain(
+      'perform "better_supabase"."enrollment_schedule"(v_id);',
+    );
+  });
+
+  it("leaves schedules out when an adopted table has no columns for them", () => {
+    const sql = sqlOf(["enrollments"], {
+      modules: { enrollments: { columns: { steps: { dueAt: null } } } },
+    });
+
+    expect(sql).not.toContain("enrollment_schedule");
+    expect(sql).not.toContain("set_enrollment_dates");
+    expect(sql).not.toContain("open_enrollment_steps");
+    expect(sql).not.toContain("'schedule'");
+  });
+
   it("takes maxSteps from the options", () => {
     expect(
       sqlOf(["enrollments"], {

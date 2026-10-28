@@ -3,12 +3,12 @@ import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -43,12 +43,29 @@ const STATUSES = ["active", "completed", "cancelled"] as const;
 /** Where an enrollment stands. A cancelled one keeps its completed steps. */
 export type EnrollmentStatus = (typeof STATUSES)[number];
 
+/** Who a step is for: members with a role, or one user. */
+export type EnrollmentAssignee =
+  | { readonly role: string }
+  | { readonly userId: string };
+
+/**
+ * When a step is due: whole days (from -3650 to 3650) after the enrollment's
+ * start or end. The start falls back to when it enrolled; a step due from the
+ * end has no due date until the enrollment has one.
+ */
+export interface EnrollmentDue {
+  readonly days: number;
+  readonly from: "start" | "end";
+}
+
 /** A step of a program. */
 export interface EnrollmentStep {
   /** Lowercase letters, digits, `_`, `.` or `-`, starting with a letter. */
   readonly id: string;
   readonly title?: string;
   readonly description?: string;
+  readonly assignee?: EnrollmentAssignee;
+  readonly due?: EnrollmentDue;
 }
 
 /** A program of steps that subjects enroll in. */
@@ -93,6 +110,45 @@ export interface EnrollmentProgress {
   readonly completedBy?: string;
 }
 
+/** A step of an enrollment with an assignee or a due date. */
+export interface EnrollmentScheduledStep {
+  readonly step: string;
+  readonly assignee?: EnrollmentAssignee;
+  /** Rendered from the step's `due` and the enrollment's dates. */
+  readonly dueAt?: Temporal.Instant;
+  /** Set once the step is done. */
+  readonly completedAt?: Temporal.Instant;
+}
+
+/** An open step with an assignee or a due date, from `openSteps`. */
+export interface EnrollmentOpenStep {
+  readonly enrollmentId: string;
+  readonly organizationId: string;
+  readonly program: string;
+  readonly subject: RecordRef;
+  readonly step: string;
+  readonly title?: string;
+  readonly assignee?: EnrollmentAssignee;
+  readonly dueAt?: Temporal.Instant;
+}
+
+/** The dates an enrollment's due dates count from; `null` clears one. */
+export interface EnrollmentDates {
+  readonly startsAt?: Temporal.Instant | null;
+  readonly endsAt?: Temporal.Instant | null;
+}
+
+export interface EnrollmentOpenStepsFilter {
+  /** Steps assigned to this role. */
+  readonly role?: string;
+  /** Steps assigned to this user. */
+  readonly userId?: string;
+  /** Steps due before this instant. */
+  readonly dueBefore?: Temporal.Instant;
+  /** Default 50, at most 200. */
+  readonly pageSize?: number;
+}
+
 /** A subject's enrollment in a program, with its completed steps. */
 export interface Enrollment {
   readonly id: string;
@@ -109,8 +165,13 @@ export interface Enrollment {
   readonly totalSteps: number;
   /** Oldest first. */
   readonly progress: readonly EnrollmentProgress[];
+  /** The steps with an assignee or a due date, in step order. */
+  readonly schedule: readonly EnrollmentScheduledStep[];
   readonly enrolledBy?: string;
   readonly enrolledAt: Temporal.Instant;
+  /** When it starts; due dates from the start fall back to `enrolledAt`. */
+  readonly startsAt?: Temporal.Instant;
+  readonly endsAt?: Temporal.Instant;
   readonly completedAt?: Temporal.Instant;
   readonly cancelledAt?: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
@@ -135,9 +196,26 @@ export interface Enrollments {
   deleteProgram(programId: string): AsyncResult<boolean>;
   /**
    * Enrolls a subject. An enrolled subject keeps its enrollment, and a
-   * cancelled one starts again with its completed steps.
+   * cancelled one starts again with its completed steps. With `dates`, it sets
+   * them as `setDates` does.
    */
-  enroll(program: string, subject: RecordRef): AsyncResult<Enrollment>;
+  enroll(
+    program: string,
+    subject: RecordRef,
+    dates?: EnrollmentDates,
+  ): AsyncResult<Enrollment>;
+  /** Sets the dates its due dates count from and renders them again. */
+  setDates(
+    enrollmentId: string,
+    dates: EnrollmentDates,
+  ): AsyncResult<Enrollment>;
+  /**
+   * Open steps of active enrollments that have an assignee or a due date,
+   * soonest due first. Without `enrollments.read`, the caller's own.
+   */
+  openSteps(
+    filter?: EnrollmentOpenStepsFilter,
+  ): AsyncResult<readonly EnrollmentOpenStep[]>;
   /** A subject's enrollment in a program, or `null`. */
   enrollment(
     program: string,
@@ -173,6 +251,35 @@ function optional<K extends string, V>(
 const texts = (value: unknown): readonly string[] =>
   Array.isArray(value) ? value.map((item) => textOf(item)) : [];
 
+const FROM = ["start", "end"] as const;
+
+function assigneeOf(value: unknown): EnrollmentAssignee | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const role = optionalText(value["role"]);
+
+  if (role !== undefined) {
+    return { role };
+  }
+
+  const userId = optionalText(value["userId"]);
+
+  return userId === undefined ? undefined : { userId };
+}
+
+function dueOf(value: unknown): EnrollmentDue | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return {
+    days: Number(value["days"] ?? 0),
+    from: enumOrThrow(value["from"], FROM, "due date anchor"),
+  };
+}
+
 function stepOf(value: unknown, fn: string): EnrollmentStep {
   const row = recordOf(value, fn);
 
@@ -180,6 +287,41 @@ function stepOf(value: unknown, fn: string): EnrollmentStep {
     id: textOf(row["id"]),
     ...optional("title", optionalText(row["title"])),
     ...optional("description", optionalText(row["description"])),
+    ...optional("assignee", assigneeOf(row["assignee"])),
+    ...optional("due", dueOf(row["due"])),
+  };
+}
+
+function scheduledOf(value: unknown, fn: string): EnrollmentScheduledStep {
+  const row = recordOf(value, fn);
+
+  return {
+    step: textOf(row["step"]),
+    ...optional("assignee", assigneeOf(row["assignee"])),
+    ...optional("dueAt", optionalInstant(row["dueAt"])),
+    ...optional("completedAt", optionalInstant(row["completedAt"])),
+  };
+}
+
+function openStepOf(value: unknown, fn: string): EnrollmentOpenStep {
+  const row = recordOf(value, fn);
+
+  return {
+    enrollmentId: textOf(row["id"]),
+    organizationId: textOf(row["organizationId"]),
+    program: textOf(row["program"]),
+    subject: { type: textOf(row["subjectType"]), id: textOf(row["subjectId"]) },
+    step: textOf(row["step"]),
+    ...optional("title", optionalText(row["title"])),
+    ...optional("assignee", assigneeOf(row["assignee"])),
+    ...optional("dueAt", optionalInstant(row["dueAt"])),
+  };
+}
+
+function datesArg(dates: EnrollmentDates): Record<string, string | null> {
+  return {
+    ...optional("startsAt", instantArg(dates.startsAt)),
+    ...optional("endsAt", instantArg(dates.endsAt)),
   };
 }
 
@@ -227,7 +369,12 @@ function enrollmentOf(value: unknown, fn: string): Enrollment {
     progress: recordsOf(row["progress"] ?? [], fn).map((item) =>
       progressOf(item, fn),
     ),
+    schedule: recordsOf(row["schedule"] ?? [], fn).map((item) =>
+      scheduledOf(item, fn),
+    ),
     enrolledAt: requiredInstant(row["enrolledAt"], "enrolledAt"),
+    ...optional("startsAt", optionalInstant(row["startsAt"])),
+    ...optional("endsAt", optionalInstant(row["endsAt"])),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     ...optional("organizationId", optionalText(row["organizationId"])),
     ...optional(
@@ -263,6 +410,16 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
     (value: unknown): Enrollment =>
       enrollmentOf(value, fn);
 
+  const setDates = (
+    enrollmentId: string,
+    dates: EnrollmentDates,
+  ): AsyncResult<Enrollment> =>
+    call(
+      "set_enrollment_dates",
+      { enrollment_id: enrollmentId, dates: datesArg(dates) },
+      one("set_enrollment_dates"),
+    );
+
   const client: Enrollments = {
     saveProgram: (program) =>
       tenant().andThen((organizationId) =>
@@ -286,17 +443,41 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
         { program_id: programId },
         (value) => value === true,
       ),
-    enroll: (program, subject) =>
+    enroll: (program, subject, dates) =>
+      tenant()
+        .andThen((organizationId) =>
+          call(
+            "enroll",
+            {
+              tenant: organizationId,
+              program,
+              subject_type: subject.type,
+              subject_id: subject.id,
+            },
+            one("enroll"),
+          ),
+        )
+        .andThen((enrollment) =>
+          dates === undefined
+            ? AsyncResult.ok(enrollment)
+            : setDates(enrollment.id, dates),
+        ),
+    setDates: (enrollmentId, dates) => setDates(enrollmentId, dates),
+    openSteps: (filter = {}) =>
       tenant().andThen((organizationId) =>
         call(
-          "enroll",
+          "open_enrollment_steps",
           {
             tenant: organizationId,
-            program,
-            subject_type: subject.type,
-            subject_id: subject.id,
+            assignee_role: filter.role ?? null,
+            assignee_user: filter.userId ?? null,
+            due_before: instantArg(filter.dueBefore) ?? null,
+            page_size: filter.pageSize ?? null,
           },
-          one("enroll"),
+          (value) =>
+            recordsOf(value, "open_enrollment_steps").map((row) =>
+              openStepOf(row, "open_enrollment_steps"),
+            ),
         ),
       ),
     enrollment: (program, subject) =>

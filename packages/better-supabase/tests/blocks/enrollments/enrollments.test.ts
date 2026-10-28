@@ -270,6 +270,205 @@ describe("createEnrollments", () => {
     ]);
   });
 
+  it("reads step assignees, due dates and the schedule", async () => {
+    const fake = fakeTransport({
+      save_enrollment_program: {
+        ...PROGRAM,
+        steps: [
+          {
+            id: "kickoff",
+            assignee: { role: "admin" },
+            due: { days: 3, from: "start" },
+          },
+          {
+            id: "import",
+            assignee: { userId: "u2" },
+            due: { days: -1, from: "end" },
+          },
+          { id: "review", assignee: {}, due: null },
+        ],
+      },
+      enroll: { ...ENROLLMENT, startsAt: AT, endsAt: null, schedule: null },
+      set_enrollment_dates: {
+        ...ENROLLMENT,
+        startsAt: AT,
+        endsAt: "2026-11-01T00:00:00Z",
+        schedule: [
+          {
+            step: "kickoff",
+            assignee: { role: "admin" },
+            dueAt: "2026-10-25T10:00:00Z",
+          },
+          { step: "import", assignee: { userId: "u2" }, completedAt: AT },
+        ],
+      },
+    });
+
+    const enrollments = createEnrollments({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    const program = await enrollments
+      .saveProgram({ key: "customer-onboarding" })
+      .orThrow();
+
+    expect(program.steps).toEqual([
+      {
+        id: "kickoff",
+        assignee: { role: "admin" },
+        due: { days: 3, from: "start" },
+      },
+      {
+        id: "import",
+        assignee: { userId: "u2" },
+        due: { days: -1, from: "end" },
+      },
+      { id: "review" },
+    ]);
+
+    const party = { type: "party", id: "pa1" };
+
+    const plain = await enrollments
+      .enroll("customer-onboarding", party)
+      .orThrow();
+
+    expect(plain.schedule).toEqual([]);
+    expect(plain.startsAt).toBeInstanceOf(Temporal.Instant);
+    expect(plain).not.toHaveProperty("endsAt");
+
+    const dated = await enrollments
+      .enroll("customer-onboarding", party, {
+        endsAt: Temporal.Instant.from("2026-11-01T00:00:00Z"),
+      })
+      .orThrow();
+
+    expect(dated.endsAt?.toString()).toBe("2026-11-01T00:00:00Z");
+    expect(dated.schedule[0]?.dueAt?.toString()).toBe("2026-10-25T10:00:00Z");
+    expect(dated.schedule[1]).toMatchObject({
+      step: "import",
+      assignee: { userId: "u2" },
+    });
+    expect(dated.schedule[1]).not.toHaveProperty("dueAt");
+
+    await enrollments
+      .setDates("e1", { startsAt: Temporal.Instant.from(AT), endsAt: null })
+      .orThrow();
+
+    expect(fake.calls.slice(2)).toEqual([
+      [
+        "enroll",
+        {
+          tenant: "org-1",
+          program: "customer-onboarding",
+          subject_type: "party",
+          subject_id: "pa1",
+        },
+      ],
+      [
+        "set_enrollment_dates",
+        { enrollment_id: "e1", dates: { endsAt: "2026-11-01T00:00:00Z" } },
+      ],
+      [
+        "set_enrollment_dates",
+        {
+          enrollment_id: "e1",
+          dates: { startsAt: "2026-10-22T10:00:00Z", endsAt: null },
+        },
+      ],
+    ]);
+  });
+
+  it("rejects an unknown due date anchor", async () => {
+    const enrollments = createEnrollments({
+      transport: fakeTransport({
+        enrollment_programs: [
+          {
+            ...PROGRAM,
+            steps: [{ id: "kickoff", due: { days: 1, from: "later" } }],
+          },
+        ],
+      }).transport,
+      tenant: "org-1",
+    });
+
+    expect((await enrollments.programs()).ok).toBe(false);
+  });
+
+  it("lists open steps", async () => {
+    const fake = fakeTransport({
+      open_enrollment_steps: [
+        {
+          id: "e1",
+          organizationId: "org-1",
+          program: "customer-onboarding",
+          subjectType: "party",
+          subjectId: "pa1",
+          step: "kickoff",
+          title: "Kickoff call",
+          assignee: { role: "admin" },
+          dueAt: AT,
+        },
+        {
+          id: "e2",
+          organizationId: "org-1",
+          program: "customer-onboarding",
+          subjectType: "party",
+          subjectId: "pa2",
+          step: "import",
+        },
+      ],
+    });
+
+    const enrollments = createEnrollments({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    const open = await enrollments
+      .openSteps({
+        role: "admin",
+        userId: "u2",
+        dueBefore: Temporal.Instant.from(AT),
+        pageSize: 10,
+      })
+      .orThrow();
+
+    expect(open[0]).toMatchObject({
+      enrollmentId: "e1",
+      subject: { type: "party", id: "pa1" },
+      title: "Kickoff call",
+      assignee: { role: "admin" },
+    });
+    expect(open[0]?.dueAt).toBeInstanceOf(Temporal.Instant);
+    expect(open[1]).not.toHaveProperty("assignee");
+    expect(open[1]).not.toHaveProperty("dueAt");
+    await enrollments.openSteps().orThrow();
+
+    expect(fake.calls).toEqual([
+      [
+        "open_enrollment_steps",
+        {
+          tenant: "org-1",
+          assignee_role: "admin",
+          assignee_user: "u2",
+          due_before: "2026-10-22T10:00:00Z",
+          page_size: 10,
+        },
+      ],
+      [
+        "open_enrollment_steps",
+        {
+          tenant: "org-1",
+          assignee_role: null,
+          assignee_user: null,
+          due_before: null,
+          page_size: null,
+        },
+      ],
+    ]);
+  });
+
   it("rejects an unknown status from the database", async () => {
     const enrollments = createEnrollments({
       transport: fakeTransport({

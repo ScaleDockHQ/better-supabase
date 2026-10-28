@@ -14,7 +14,8 @@ Reading programs and enrollments needs `enrollments.read`, enrolling and
 changing an enrollment needs `enrollments.enroll`, and managing programs
 needs `enrollments.manage`. Admins get all three and members get
 `enrollments.read`. A user enrolled as a `user` subject always reads their own
-enrollment and completes or resets its steps.
+enrollment and completes or resets its steps, and a user a step is assigned
+to completes or resets that step.
 
 ```bash
 better-supabase add enrollments
@@ -67,11 +68,11 @@ const rows = useEnrollments({ limit: 50 });
 | ---------- | ------- | ------------------------------ |
 | `maxSteps` | `100`   | The most steps a program holds |
 
-| Table                 | Holds                                                                                  |
-| --------------------- | -------------------------------------------------------------------------------------- |
-| `enrollment_programs` | One row per program: `key`, `name`, `subject_types`, the ordered `steps` and `version` |
-| `enrollments`         | One row per program and subject: the step snapshot, `completed_steps` and `status`     |
-| `enrollment_steps`    | One row per completed step, with who completed it and when                             |
+| Table                 | Holds                                                                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `enrollment_programs` | One row per program: `key`, `name`, `subject_types`, the ordered `steps` and `version`                                                                 |
+| `enrollments`         | One row per program and subject: the step snapshot, `completed_steps`, `status`, `starts_at` and `ends_at`                                             |
+| `enrollment_steps`    | One row per completed step, and one open row per step with an assignee or a due date: `assignee_role`, `assignee_user_id`, `due_at` and `completed_at` |
 
 ## Programs
 
@@ -96,6 +97,68 @@ takes the user's id, so the user can follow their own progress.
 An enrollment keeps the program's step ids from when it enrolled, so changing
 a program doesn't change running enrollments. Enrolling the subject again
 takes the program's current steps and recounts its progress against them.
+
+## Assignees and due dates
+
+A step can name who it is for and when it is due. `assignee` is `{ role }`
+for the members with a role or `{ userId }` for one user, and `due` is
+`{ days, from }`: whole days, from -3650 to 3650, after the enrollment's
+`start` or `end`. A negative number counts back, so `{ days: -2, from: "end" }`
+is two days before the end.
+
+```ts
+await db.enrollments
+  .saveProgram({
+    key: "customer-onboarding",
+    name: "Customer onboarding",
+    steps: [
+      {
+        id: "kickoff",
+        assignee: { role: "admin" },
+        due: { days: 2, from: "start" },
+      },
+      {
+        id: "import",
+        assignee: { userId: csmId },
+        due: { days: 14, from: "start" },
+      },
+      { id: "review", due: { days: -2, from: "end" } },
+    ],
+  })
+  .orThrow();
+
+const enrollment = await db.enrollments
+  .enroll(
+    "customer-onboarding",
+    { type: "party", id: partyId },
+    { endsAt: Temporal.Instant.from("2026-12-01T00:00:00Z") },
+  )
+  .orThrow();
+
+const mine = await db.enrollments
+  .openSteps({ userId, dueBefore: nextWeek })
+  .orThrow();
+```
+
+Each step with an assignee or a due date gets a row in `enrollment_steps`
+when the subject enrolls, with the assignee and `due_at` rendered from the
+enrollment's dates. The start is `startsAt`, or `enrolledAt` when it has
+none; a step due from the end has no `due_at` until the enrollment has an
+`endsAt`. The row stays open (`completed_at` is null) until the step is done,
+so a query or an index on `due_at` finds what is overdue.
+
+`setDates(enrollmentId, { startsAt, endsAt })` changes the dates and renders
+the due dates again; keys you leave out keep their value and `null` clears
+one. `enroll(program, subject, dates)` sets them right after enrolling.
+Saving a program doesn't move existing due dates: they follow its new steps
+when the subject enrolls again or its dates change, and a completed step
+stays completed. An enrollment's `schedule` lists its scheduled steps in
+step order with `dueAt` and `completedAt`.
+
+`openSteps(filter)` returns the open scheduled steps of active enrollments,
+soonest due first and undated last: filter by `role`, `userId` or
+`dueBefore`. Without `enrollments.read`, it returns the steps assigned to the
+caller. Onboarding checklists have no schedules.
 
 ## Progress
 
@@ -126,27 +189,29 @@ can't change them and their enrollments can't be cancelled. See
 
 ## Functions
 
-| Function                                                                      | Granted to                      | Does                                   |
-| ----------------------------------------------------------------------------- | ------------------------------- | -------------------------------------- |
-| `save_enrollment_program(tenant, program)`                                    | `authenticated`, `service_role` | Creates or changes a program           |
-| `enrollment_programs(tenant)`                                                 | `authenticated`, `service_role` | The organization's programs by key     |
-| `delete_enrollment_program(program_id)`                                       | `authenticated`, `service_role` | Deletes a program with its enrollments |
-| `enroll(tenant, program, subject_type, subject_id)`                           | `authenticated`, `service_role` | Enrolls a subject                      |
-| `enrollment(tenant, program, subject_type, subject_id)`                       | `authenticated`, `service_role` | A subject's enrollment, or null        |
-| `list_enrollments(tenant, program, subject_type, subject_id, status, ...)`    | `authenticated`, `service_role` | The organization's enrollments         |
-| `complete_enrollment_step(enrollment_id, step)`, `reset_enrollment_step(...)` | `authenticated`, `service_role` | Marks a step done or not done          |
-| `cancel_enrollment(enrollment_id)`                                            | `authenticated`, `service_role` | Cancels an active enrollment           |
+| Function                                                                       | Granted to                      | Does                                       |
+| ------------------------------------------------------------------------------ | ------------------------------- | ------------------------------------------ |
+| `save_enrollment_program(tenant, program)`                                     | `authenticated`, `service_role` | Creates or changes a program               |
+| `enrollment_programs(tenant)`                                                  | `authenticated`, `service_role` | The organization's programs by key         |
+| `delete_enrollment_program(program_id)`                                        | `authenticated`, `service_role` | Deletes a program with its enrollments     |
+| `enroll(tenant, program, subject_type, subject_id)`                            | `authenticated`, `service_role` | Enrolls a subject                          |
+| `enrollment(tenant, program, subject_type, subject_id)`                        | `authenticated`, `service_role` | A subject's enrollment, or null            |
+| `list_enrollments(tenant, program, subject_type, subject_id, status, ...)`     | `authenticated`, `service_role` | The organization's enrollments             |
+| `complete_enrollment_step(enrollment_id, step)`, `reset_enrollment_step(...)`  | `authenticated`, `service_role` | Marks a step done or not done              |
+| `cancel_enrollment(enrollment_id)`                                             | `authenticated`, `service_role` | Cancels an active enrollment               |
+| `set_enrollment_dates(enrollment_id, dates)`                                   | `authenticated`, `service_role` | Sets the dates and renders due dates again |
+| `open_enrollment_steps(tenant, assignee_role, assignee_user, due_before, ...)` | `authenticated`, `service_role` | Open steps with an assignee or a due date  |
 
 ## Errors
 
-| Hint                            | Cause                                                                                 |
-| ------------------------------- | ------------------------------------------------------------------------------------- |
-| `ENROLLMENTS_FORBIDDEN`         | the caller lacks the permission                                                       |
-| `ENROLLMENTS_INVALID`           | an invalid program, a step outside the program, or a change to a cancelled enrollment |
-| `ENROLLMENTS_PROGRAM_NOT_FOUND` | no program in the organization has this id or key                                     |
-| `ENROLLMENTS_PROGRAM_EXISTS`    | a program with this key already exists                                                |
-| `ENROLLMENTS_PROGRAM_CONFLICT`  | the program changed since you read its `version`                                      |
-| `ENROLLMENTS_NOT_FOUND`         | no enrollment the caller can see has this id                                          |
+| Hint                            | Cause                                                                                                                           |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `ENROLLMENTS_FORBIDDEN`         | the caller lacks the permission                                                                                                 |
+| `ENROLLMENTS_INVALID`           | an invalid program, step assignee or due date, a step outside the program, invalid dates, or a change to a cancelled enrollment |
+| `ENROLLMENTS_PROGRAM_NOT_FOUND` | no program in the organization has this id or key                                                                               |
+| `ENROLLMENTS_PROGRAM_EXISTS`    | a program with this key already exists                                                                                          |
+| `ENROLLMENTS_PROGRAM_CONFLICT`  | the program changed since you read its `version`                                                                                |
+| `ENROLLMENTS_NOT_FOUND`         | no enrollment the caller can see has this id                                                                                    |
 
 ## Events
 
@@ -166,7 +231,9 @@ There is no prebuilt enrollments UI. List enrollments in a `data-grid` with
 the subject, a `Progress` of `completedSteps` over `totalSteps` and `status`
 as a `Badge` (`success-light` for completed, `secondary` for cancelled). Show
 an enrollment's steps as a `Stepper` or a checklist of `Checkbox` rows, and
-edit a program's steps in a `Sheet` with a sortable list. Confirm
+edit a program's steps in a `Sheet` with a sortable list. List `openSteps`
+in a `data-grid` with the due date and a `destructive-light` `Badge` once it
+is overdue. Confirm
 `cancel` with an `AlertDialog`.
 
 ## Why it works this way
@@ -176,6 +243,11 @@ rewrites a subject's history: progress counts only the steps it enrolled
 with. The tenant is nullable so a user's own onboarding checklist fits the
 same tables, and the module's internal functions let other blocks drive
 programs they own without going through `enrollment_programs`.
+
+Due dates are rendered into rows rather than computed on read so the
+database can index and filter them: overdue work is one indexed query, and
+a rule or a reminder reads `due_at` like any other column. The rows are
+rendered again whenever the dates or the enrollment's steps change.
 
 ## Without the client
 

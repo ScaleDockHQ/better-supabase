@@ -1,6 +1,14 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
+import {
+  assigneeJson,
+  scheduleFunctions,
+  scheduleInternals,
+  schedulesSteps,
+  stepRuleChecks,
+  stepRuleJson,
+} from "./enrollments-schedule.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const STEP_ID = "^[a-z][a-z0-9_.-]{0,63}$";
@@ -61,6 +69,15 @@ export function enrollmentsFunctions(ctx: BlockSqlContext): string {
 
   const hasDescription = ctx.has("programs", "description");
   const hasVersion = ctx.has("enrollments", "programVersion");
+  const scheduled = schedulesSteps(ctx);
+
+  const schedule = (id: string): string =>
+    scheduled ? `\n  perform ${fn("enrollment_schedule")}(${id});` : "";
+
+  const assigned = (row: string, step: string): string =>
+    scheduled
+      ? ` or exists (select 1 from ${steps} a where a.${s("enrollment")} = ${row}.${e("id")} and a.${s("step")} = ${step} and a.${s("assigneeUser")} = auth.uid())`
+      : "";
 
   const programInsert = (
     [
@@ -131,7 +148,7 @@ export function enrollmentsFunctions(ctx: BlockSqlContext): string {
   const done = (count: string): string =>
     `(${count} >= cardinality(x.${e("steps")}) and cardinality(x.${e("steps")}) > 0)`;
 
-  const count = `(select count(*)::integer from ${steps} y where y.${s("enrollment")} = x.${e("id")} and y.${s("step")} = any(x.${e("steps")}))`;
+  const count = `(select count(*)::integer from ${steps} y where y.${s("enrollment")} = x.${e("id")} and y.${s("step")} = any(x.${e("steps")}) and y.${s("completedAt")} is not null)`;
 
   // Counts the completed steps of the program's current steps and sets the
   // status; a cancelled enrollment stays cancelled.
@@ -162,8 +179,19 @@ as $$
     'cancelledAt', x.${e("cancelledAt")}, 'updatedAt', x.${e("updatedAt")},
     'progress', coalesce((
       select jsonb_agg(jsonb_build_object('step', y.${s("step")}, 'completedAt', y.${s("completedAt")}, 'completedBy', y.${s("completedBy")}) order by y.${s("completedAt")}, array_position(x.${e("steps")}, y.${s("step")}), y.${s("step")})
-      from ${steps} y where y.${s("enrollment")} = x.${e("id")}
-    ), '[]'::jsonb)
+      from ${steps} y where y.${s("enrollment")} = x.${e("id")} and y.${s("completedAt")} is not null
+    ), '[]'::jsonb)${
+      scheduled
+        ? `,
+    'startsAt', x.${e("startsAt")}, 'endsAt', x.${e("endsAt")},
+    'schedule', coalesce((
+      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y.${s("step")}, 'assignee', ${assigneeJson(ctx, "y")}, 'dueAt', y.${s("dueAt")}, 'completedAt', y.${s("completedAt")})) order by array_position(x.${e("steps")}, y.${s("step")}), y.${s("step")})
+      from ${steps} y
+      where y.${s("enrollment")} = x.${e("id")}
+        and (y.${s("assigneeRole")} is not null or y.${s("assigneeUser")} is not null or y.${s("dueAt")} is not null)
+    ), '[]'::jsonb)`
+        : ""
+    }
   )
   from ${enrollments} x
   where x.${e("id")} = enrollment_json.enrollment_id
@@ -210,7 +238,7 @@ begin
 end;
 $$;
 revoke execute on function ${fn("enrollment_ensure")}(${idType}, text, integer, text[], text, text, uuid) from public, anon, authenticated;
-
+${scheduleInternals(ctx)}
 -- Marks a step done or not done without a permission check; false when it
 -- already was. Emits enrollment.step_completed and enrollment.completed for
 -- enrollments in an organization.
@@ -237,17 +265,34 @@ begin
     ${invalid("the enrollment is cancelled")}
   end if;
   v_was := v_row.${e("status")};
+  -- An open row of a step with a schedule is completed in place.
   if enrollment_mark.done then
-    insert into ${steps} (${s("enrollment")}, ${s("tenant")}, ${s("step")}, ${s("completedBy")})
-    values (v_row.${e("id")}, v_row.${e("tenant")}, enrollment_mark.step, enrollment_mark.actor)
-    on conflict do nothing;
+    update ${steps} y
+    set ${s("completedBy")} = enrollment_mark.actor, ${s("completedAt")} = now()
+    where y.${s("enrollment")} = v_row.${e("id")} and y.${s("step")} = enrollment_mark.step and y.${s("completedAt")} is null;
+    get diagnostics v_count = row_count;
+    if v_count = 0 then
+      insert into ${steps} (${s("enrollment")}, ${s("tenant")}, ${s("step")}, ${s("completedBy")}, ${s("completedAt")})
+      values (v_row.${e("id")}, v_row.${e("tenant")}, enrollment_mark.step, enrollment_mark.actor, now())
+      on conflict do nothing;
+      get diagnostics v_count = row_count;
+    end if;
   else
-    delete from ${steps} x where x.${s("enrollment")} = v_row.${e("id")} and x.${s("step")} = enrollment_mark.step;
+    delete from ${steps} x
+    where x.${s("enrollment")} = v_row.${e("id")} and x.${s("step")} = enrollment_mark.step and x.${s("completedAt")} is not null;
+    get diagnostics v_count = row_count;
   end if;
-  get diagnostics v_count = row_count;
   if v_count = 0 then
     return false;
-  end if;
+  end if;${
+    scheduled
+      ? `
+  -- A reset step with a schedule gets its open row back.
+  if not enrollment_mark.done then
+    perform ${fn("enrollment_schedule")}(v_row.${e("id")});
+  end if;`
+      : ""
+  }
   ${recount(`v_row.${e("id")}`, "v_row")}
   if enrollment_mark.done then${emit("enrollment.step_completed", "v_row", "enrollment_mark.step")}
     if v_was <> 'completed' and v_row.${e("status")} = 'completed' then${emit("enrollment.completed", "v_row")}
@@ -346,10 +391,12 @@ begin
     if length(v_step ->> 'title') > 200 or length(v_step ->> 'description') > 2000 then
       ${invalid("a step title holds at most 200 characters and a description 2000")}
     end if;
+    ${stepRuleChecks(invalid)}
     v_ids := v_ids || (v_step ->> 'id');
   end loop;
   v_steps := (
-    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', t.value ->> 'id', 'title', t.value ->> 'title', 'description', t.value ->> 'description')) order by t.ord)
+    select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', t.value ->> 'id', 'title', t.value ->> 'title', 'description', t.value ->> 'description',
+      ${stepRuleJson("t.value")})) order by t.ord)
     from jsonb_array_elements(v_steps) with ordinality as t(value, ord)
   );
   if v_old.${p("id")} is null then
@@ -474,7 +521,7 @@ begin
     v_id := v_row.${e("id")};
   else
     v_id := ${fn("enrollment_ensure")}(enroll.tenant, enroll.program, v_program.${p("version")}, v_steps, enroll.subject_type, enroll.subject_id, auth.uid());
-  end if;
+  end if;${schedule("v_id")}
   return ${fn("enrollment_json")}(v_id);
 end;
 $$;
@@ -539,8 +586,8 @@ end;
 $$;
 ${userGrant(`${fn("list_enrollments")}(${idType}, text, text, text, text, integer, timestamptz)`)}
 
--- Marks a step of an enrollment done or not done: enrollments.enroll, or the
--- enrolled user for their own.
+-- Marks a step of an enrollment done or not done: enrollments.enroll, the
+-- enrolled user for their own, or the user a step is assigned to.
 create or replace function ${fn("enrollment_step")}(enrollment_id uuid, step text, done boolean)
 returns jsonb
 language plpgsql
@@ -551,10 +598,10 @@ declare
   v_row ${enrollments};
 begin
   select * into v_row from ${enrollments} x where x.${e("id")} = enrollment_step.enrollment_id;
-  if v_row.${e("id")} is null or not (${allowed(`v_row.${e("tenant")}`, read)} or ${self("v_row")}) then
+  if v_row.${e("id")} is null or not (${allowed(`v_row.${e("tenant")}`, read)} or ${self("v_row")}${assigned("v_row", "enrollment_step.step")}) then
     ${enrollmentMissing}
   end if;
-  if not (${allowed(`v_row.${e("tenant")}`, enroll)} or ${self("v_row")}) then
+  if not (${allowed(`v_row.${e("tenant")}`, enroll)} or ${self("v_row")}${assigned("v_row", "enrollment_step.step")}) then
     ${forbidden("not allowed to change this enrollment")}
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -625,5 +672,5 @@ begin
 end;
 $$;
 ${userGrant(`${fn("cancel_enrollment")}(uuid)`)}
-`;
+${scheduleFunctions(ctx)}`;
 }
