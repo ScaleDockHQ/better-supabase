@@ -112,6 +112,10 @@ blocks: {
 
 `options.approvals: false` keeps the decision on the request, so leave runs without the [approvals block](/docs/blocks/approvals) (an `approval` column mapped to `null` does the same). A request stays `pending` until `decide(requestId, { approved, note? })` approves or rejects it: the service role, or a member with `leave.approve` who didn't ask for it. Approval books the leave like a final approval; rejection sets `rejected_at` and records `leave.rejected`. The requests table takes optional `rejectedAt`, `decidedBy` and `decisionNote` columns; without `rejectedAt` a rejection fails with `LEAVE_REJECTION_UNSUPPORTED`. An app that decides elsewhere calls `decide_leave_request` from its own flow.
 
+### Your own tables without a key or part-of-day column
+
+Over your own tables, `columns.types.key` and `columns.requests.partial` can map to `null`. Without a key column, a type's `key` is its id: `saveType` with an existing type's id updates it, and any other key creates a type. Without a partial column, a request takes whole days (`LEAVE_PARTIAL_UNSUPPORTED` for `morning` or `afternoon`) or, for an hours type, hours, and reads return `full` or `hours`.
+
 ### A feed of approved leave
 
 With [share-links](/docs/blocks/share-links), the organization's approved leave can be shared as a feed, for example to subscribe in a calendar app. A member with `leave.read` creates a link of subject type `leave_feed` whose subject id is the organization's id, and `feed(token)` (or `leave_feed(token)`, open to `anon`) returns the approved requests a year back and everything ahead. The link stops working when it is revoked or expires, and when its creator no longer holds `leave.read`. Turn the requests into iCalendar all-day events in your feed route.

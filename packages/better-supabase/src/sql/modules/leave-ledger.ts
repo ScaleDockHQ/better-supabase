@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
+import { leaveTypeKey } from "./leave-feed.ts";
 import { ledgerRebalance, ledgerTables } from "./ledger.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -191,7 +192,7 @@ begin
     ${invalid("name user_id")}
   end if;
   select coalesce(jsonb_agg(jsonb_build_object(
-      'typeId', t.${ty("id")}, 'key', t.${ty("key")}, 'name', t.${ty("name")}, 'unit', t.${ty("unit")},
+      'typeId', t.${ty("id")}, 'key', ${leaveTypeKey(ctx, "t")}, 'name', t.${ty("name")}, 'unit', t.${ty("unit")},
       'userId', v_user, 'period', v_period,
       'granted', ${decimalText("coalesce(b.granted, 0)")},
       'taken', ${decimalText("coalesce(b.taken, 0)")},

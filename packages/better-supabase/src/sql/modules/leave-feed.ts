@@ -5,6 +5,26 @@ import { feedDateWindow, feedOptions } from "../feed-options.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { liveShareLink, touchShareLink } from "./share-links.ts";
 
+/** A type row's key: its key column, or its id without one. */
+export const leaveTypeKey = (ctx: BlockSqlContext, row: string): string =>
+  ctx.has("types", "key")
+    ? `${row}.${ctx.col("types", "key")}`
+    : `${row}.${ctx.col("types", "id")}::text`;
+
+/**
+ * A request row's part of the day: its partial column, or without one `hours`
+ * for an hours type and `full` otherwise.
+ */
+export function leavePartial(ctx: BlockSqlContext, row: string): string {
+  if (ctx.has("requests", "partial")) {
+    return `${row}.${ctx.col("requests", "partial")}`;
+  }
+
+  const unit = ctx.label("types", "unit", `p.${ctx.col("types", "unit")}`);
+
+  return `(select case when ${unit} = 'hours' then 'hours' else 'full' end from ${ctx.table("types")} p where p.${ctx.col("types", "id")} = ${row}.${ctx.col("requests", "type")})`;
+}
+
 /** The share-links subject of an organization's leave feed. */
 const LEAVE_FEED_SUBJECT = "leave_feed";
 
@@ -76,7 +96,7 @@ begin
       select jsonb_agg(x.item order by x.starts_on, x.id)
       from (
         select jsonb_build_object('id', ${q("id")}, 'userId', ${q("user")}, 'typeId', ${q("type")}, 'type', ${ty("name")}, 'unit', ${ty("unit")},
-          'startsOn', ${q("startsOn")}, 'endsOn', ${q("endsOn")}, 'partial', ${q("partial")}, 'amount', ${q("amount")}::text, 'approvedAt', ${q("approvedAt")}, 'updatedAt', ${q("updatedAt")}) as item,
+          'startsOn', ${q("startsOn")}, 'endsOn', ${q("endsOn")}, 'partial', ${leavePartial(ctx, "r")}, 'amount', ${q("amount")}::text, 'approvedAt', ${q("approvedAt")}, 'updatedAt', ${q("updatedAt")}) as item,
           ${q("startsOn")} as starts_on, ${q("id")} as id
         from ${ctx.table("requests")} r
         join ${ctx.table("types")} t on ${ty("id")} = ${q("type")}

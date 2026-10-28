@@ -172,6 +172,62 @@ $$;`),
     ).resolves.toBeUndefined();
   });
 
+  it("runs without a type key or a partial column", async () => {
+    const leave = BLOCKS["leave"];
+
+    await expect(
+      run(
+        `do $$
+declare
+  v_type jsonb;
+  v_type_id uuid;
+  v_request jsonb;
+begin
+  ${SERVICE}
+  v_type := better_supabase.save_leave_type('${TENANT}', 'vacation', 'Vacation');
+  v_type_id := (v_type ->> 'id')::uuid;
+  if v_type ->> 'key' <> v_type_id::text then
+    raise exception 'key %', v_type;
+  end if;
+  v_type := better_supabase.save_leave_type('${TENANT}', v_type_id::text, 'Holiday');
+  if (v_type ->> 'id')::uuid <> v_type_id or (select count(*) from public.absence_kinds) <> 1
+    or (select label from public.absence_kinds) <> 'Holiday' then
+    raise exception 'updated %', v_type;
+  end if;
+  perform better_supabase.adjust_leave_balance('${TENANT}', '${ALICE}', v_type_id, 10, 2099);
+  ${AS_ALICE}
+  v_request := better_supabase.request_leave('${TENANT}', v_type_id, '2099-03-02', '2099-03-03');
+  if v_request ->> 'partial' <> 'full' or (v_request ->> 'amount')::numeric <> 2 then
+    raise exception 'requested %', v_request;
+  end if;
+  begin
+    perform better_supabase.request_leave('${TENANT}', v_type_id, '2099-03-09', '2099-03-09', 'morning');
+    raise exception 'a half day was accepted';
+  exception when others then
+    if sqlerrm not like '%no partial column%' then
+      raise;
+    end if;
+  end;
+end;
+$$;`,
+        {
+          leave: {
+            ...leave,
+            columns: {
+              types: { ...leave?.columns?.["types"], key: null },
+              requests: { ...leave?.columns?.["requests"], partial: null },
+            },
+          },
+        },
+        ["leave"],
+        APP.replace("  code text not null,\n", "").replace(
+          "  part public.absence_part not null default 'full',\n",
+          "",
+        ),
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("refuses a note the app's table has no column for", async () => {
     await expect(
       run(`do $$
