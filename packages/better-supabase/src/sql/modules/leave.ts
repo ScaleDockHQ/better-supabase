@@ -1,10 +1,4 @@
-import type { LeaveEvents } from "../../blocks/leave/events.ts";
-import type {
-  BlockSqlContext,
-  BlockSqlContractFunction,
-  BlockSqlEvents,
-  BlockSqlNames,
-} from "../context.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
@@ -23,13 +17,26 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
+import { leaveBalanceFunctions, unpostTaken } from "./leave-balances.ts";
 import {
+  leaveEndPart,
   leaveFeed,
   leaveFeedSubject,
   leavePartial,
+  leaveStartPart,
   leaveTypeKey,
 } from "./leave-feed.ts";
 import { leaveLedgerFunctions, leaveLedgerUpgrade } from "./leave-ledger.ts";
+import { LEAVE_NAMES } from "./leave-names.ts";
+import {
+  dropSignatures,
+  halfDays,
+  leaveBalancesTable,
+  leaveByEmployee,
+  leaveOwner,
+  leaveParts,
+  leavePartsMapped,
+} from "./leave-owner.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { OPERATIONS, moduleOperations } from "./permissions-model.ts";
 
@@ -37,114 +44,6 @@ import { OPERATIONS, moduleOperations } from "./permissions-model.ts";
 const LEAVE_REQUEST_SUBJECT = "leave_request";
 
 const WHERE = "blocks.leave.options";
-
-const REQUEST_PAYLOAD = [
-  "organizationId",
-  "id",
-  "userId",
-  "typeId",
-  "startsOn",
-  "endsOn",
-  "amount",
-  "approvalId",
-] as const;
-
-const ADJUSTED_PAYLOAD = [
-  "organizationId",
-  "id",
-  "userId",
-  "typeId",
-  "kind",
-  "amount",
-  "period",
-] as const;
-
-const EVENTS: BlockSqlEvents<LeaveEvents> = {
-  "leave.requested": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
-  "leave.approved": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
-  "leave.cancelled": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
-  "leave.rejected": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
-  "leave.adjusted": {
-    subject: "leave-ledger-entries",
-    payload: ADJUSTED_PAYLOAD,
-  },
-};
-
-const NAMES: BlockSqlNames = {
-  entities: {
-    request: { table: "requests", singular: "leave_request", primary: true },
-    type: { table: "types", singular: "leave_type" },
-  },
-  events: EVENTS,
-  hooks: ["before_leave_request", "after_leave_request"],
-  options: [
-    "policy",
-    "workingDays",
-    "allowNegative",
-    "extraColumns",
-    "feed",
-    "approvals",
-  ],
-  tables: {
-    types: {
-      name: "leave_types",
-      app: {},
-      lifecycle: { tenant: "tenant", export: true },
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        key: "key",
-        name: "name",
-        unit: "unit",
-        paid: "paid",
-        tracked: "tracked",
-        allowance: "allowance",
-        carryoverMax: "carryover_max",
-        color: "color",
-        archivedAt: "archived_at",
-        createdAt: "created_at",
-        updatedAt: "updated_at",
-      },
-      optional: ["key", "allowance", "carryoverMax", "color"],
-      typed: ["unit"],
-    },
-    requests: {
-      name: "leave_requests",
-      app: {},
-      lifecycle: { tenant: "tenant", user: "user", export: true },
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        user: "user_id",
-        type: "type_id",
-        startsOn: "starts_on",
-        endsOn: "ends_on",
-        partial: "partial",
-        amount: "amount",
-        note: "note",
-        approval: "approval_id",
-        approvedAt: "approved_at",
-        cancelledAt: "cancelled_at",
-        cancelledBy: "cancelled_by",
-        createdAt: "created_at",
-        updatedAt: "updated_at",
-        rejectedAt: "rejected_at",
-        decidedBy: "decided_by",
-        decisionNote: "decision_note",
-      },
-      optional: [
-        "partial",
-        "note",
-        "cancelledBy",
-        "approval",
-        "rejectedAt",
-        "decidedBy",
-        "decisionNote",
-      ],
-      typed: ["partial"],
-    },
-  },
-};
 
 /** The keys the request reads return next to the extra columns. */
 const RESERVED = ["fields"] as const;
@@ -233,6 +132,10 @@ function build(ctx: BlockSqlContext): string {
     );
   }
 
+  const owner = leaveOwner(ctx);
+  const parts = leaveParts(ctx);
+  const appBalances = leaveBalancesTable(ctx);
+  const me = owner.variable;
   const types = ctx.table("types");
   const requests = ctx.table("requests");
   const ty = (column: string): string => ctx.col("types", column);
@@ -265,12 +168,8 @@ function build(ctx: BlockSqlContext): string {
   const working = `array[${workingDaysOf(ctx).join(", ")}]`;
   const allowNegative = ctx.flag("allowNegative", false);
   const idType = ctx.idType;
-  const members = ctx.of("memberships");
   const extras = ctx.extraColumns("requests", RESERVED);
   const extra = extraFieldsArg(extras);
-
-  const isMember = (tenant: string, user: string): string =>
-    `exists (select 1 from ${members.table("memberships")} m where m.${members.col("memberships", "tenant")} = ${tenant} and m.${members.col("memberships", "user")} = ${user})`;
 
   const forbidden = (message: string): string =>
     fail("LEAVE_FORBIDDEN", message);
@@ -367,12 +266,12 @@ function build(ctx: BlockSqlContext): string {
     `jsonb_build_object('id', ${row}.${ty("id")}, 'organizationId', ${row}.${ty("tenant")}, 'key', ${leaveTypeKey(ctx, row)}, 'name', ${row}.${ty("name")}, 'unit', ${row}.${ty("unit")}, 'paid', ${row}.${ty("paid")}, 'tracked', ${row}.${ty("tracked")}, 'allowance', ${or("types", row, "allowance")}::text, 'carryoverMax', ${or("types", row, "carryoverMax")}::text, 'color', ${or("types", row, "color")}, 'archivedAt', ${row}.${ty("archivedAt")}, 'createdAt', ${row}.${ty("createdAt")}, 'updatedAt', ${row}.${ty("updatedAt")})`;
 
   const requestJson = (row: string, approval: string): string =>
-    `jsonb_build_object('id', ${row}.${q("id")}, 'organizationId', ${row}.${q("tenant")}, 'userId', ${row}.${q("user")}, 'typeId', ${row}.${q("type")}, 'startsOn', ${row}.${q("startsOn")}, 'endsOn', ${row}.${q("endsOn")}, 'partial', ${leavePartial(ctx, row)}, 'amount', ${row}.${q("amount")}::text, 'note', ${or("requests", row, "note")}, 'status', ${status(row, approval)}, 'approvalId', ${or("requests", row, "approval")}, 'approvedAt', ${row}.${q("approvedAt")}, 'cancelledAt', ${row}.${q("cancelledAt")}, 'createdAt', ${row}.${q("createdAt")}, 'updatedAt', ${row}.${q("updatedAt")}${extraFieldsJson(row, extras)})`;
+    `jsonb_build_object('id', ${row}.${q("id")}, 'organizationId', ${row}.${q("tenant")}, 'userId', ${or("requests", row, "user")}${owner.json(row)}, 'typeId', ${row}.${q("type")}, 'startsOn', ${row}.${q("startsOn")}, 'endsOn', ${row}.${q("endsOn")}, 'partial', ${leavePartial(ctx, row)}${parts ? `, 'startPart', ${leaveStartPart(ctx, row)}, 'endPart', ${leaveEndPart(ctx, row)}` : ""}, 'amount', ${row}.${q("amount")}::text, 'note', ${or("requests", row, "note")}, 'status', ${status(row, approval)}, 'approvalId', ${or("requests", row, "approval")}, 'approvedAt', ${row}.${q("approvedAt")}, 'cancelledAt', ${row}.${q("cancelledAt")}, 'createdAt', ${row}.${q("createdAt")}, 'updatedAt', ${row}.${q("updatedAt")}${extraFieldsJson(row, extras)})`;
 
   const requestRecord = (type: string, row: string, summary: string): string =>
     ctx.record({
       type,
-      payload: `jsonb_build_object('organizationId', ${row}.${q("tenant")}, 'id', ${row}.${q("id")}, 'userId', ${row}.${q("user")}, 'typeId', ${row}.${q("type")}, 'startsOn', ${row}.${q("startsOn")}, 'endsOn', ${row}.${q("endsOn")}, 'amount', ${row}.${q("amount")}::text, 'approvalId', ${or("requests", row, "approval")})`,
+      payload: `jsonb_build_object('organizationId', ${row}.${q("tenant")}, 'id', ${row}.${q("id")}, 'userId', ${or("requests", row, "user")}${owner.json(row)}, 'typeId', ${row}.${q("type")}, 'startsOn', ${row}.${q("startsOn")}, 'endsOn', ${row}.${q("endsOn")}, 'amount', ${row}.${q("amount")}::text, 'approvalId', ${or("requests", row, "approval")})`,
       subject: `'leave-requests/' || ${row}.${q("id")}::text`,
       tenant: `${row}.${q("tenant")}`,
       audit: {
@@ -414,7 +313,7 @@ begin
   if not found then
     ${fail("LEAVE_REQUEST_NOT_FOUND", "leave request not found", "P0002")}
   end if;
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", `v_row.${q("tenant")}`, approve)} and v_row.${q("user")} is distinct from auth.uid())) then
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", `v_row.${q("tenant")}`, approve)} and ${owner.requester("v_row")} is distinct from auth.uid())) then
     ${forbidden("not allowed to decide this leave request")}
   end if;
   if not (${pendingIn("v_row", "")}) then
@@ -448,7 +347,7 @@ ${userGrant(`${fn("decide_leave_request")}(uuid, boolean, text)`)}
   const balanceCheck = allowNegative
     ? ""
     : `
-  if v_type.${ty("tracked")} and ${fn("leave_available")}(request_leave.tenant, v_me, v_type.${ty("id")}, extract(year from request_leave.starts_on)::integer) < v_amount then
+  if v_type.${ty("tracked")} and ${fn("leave_available")}(request_leave.tenant, ${me}, v_type.${ty("id")}, ${appBalances ? "request_leave.starts_on" : "extract(year from request_leave.starts_on)::integer"}) < v_amount then
     ${fail("LEAVE_BALANCE_EXCEEDED", "this request is more than the available balance", "23514")}
   end if;`;
 
@@ -478,7 +377,7 @@ ${renderPolicy(makePolicy({ table: types, name: ctx.naming.rename("leave_types_r
 create table if not exists ${requests} (
   ${q("id")} uuid primary key default gen_random_uuid(),
   ${q("tenant")} ${idType} not null,
-  ${q("user")} uuid not null,
+  ${owner.employee ? `${ctx.has("requests", "user") ? `${q("user")} uuid,\n  ` : ""}${q("employee")} uuid not null` : `${q("user")} uuid not null`},
   ${q("type")} uuid not null,
   ${q("startsOn")} date not null,
   ${q("endsOn")} date not null,
@@ -492,11 +391,11 @@ ${approvals === undefined ? "" : `  ${q("approval")} uuid references ${ar} (${a(
   check (${q("endsOn")} >= ${q("startsOn")}),
   foreign key (${q("tenant")}, ${q("type")}) references ${types} (${ty("tenant")}, ${ty("id")}) on delete restrict
 );${addExtraColumns(requests, extras)}
-create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_user_idx`)} on ${requests} (${q("tenant")}, ${q("user")}, ${q("startsOn")} desc);
+create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_user_idx`)} on ${requests} (${q("tenant")}, ${owner.column}, ${q("startsOn")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_dates_idx`)} on ${requests} (${q("tenant")}, ${q("startsOn")}, ${q("endsOn")});
 ${approvals === undefined ? "" : `create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_approval_idx`)} on ${requests} (${q("approval")}) where ${q("approval")} is not null;\n`}create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_type_idx`)} on ${requests} (${q("tenant")}, ${q("type")});
 ${lockModuleTable(ctx, "requests", { read: true })}
-${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("leave_requests_read"), command: "select", roles: ["authenticated"], using: `${q("user")} = (select auth.uid()) or ${ctx.scope.check(q("tenant"), read)}` }), { drop: true, target: requests })}
+${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("leave_requests_read"), command: "select", roles: ["authenticated"], using: `${owner.mine} or ${ctx.scope.check(q("tenant"), read)}` }), { drop: true, target: requests })}
 
 `
     : "";
@@ -508,16 +407,44 @@ ${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("leave_requ
     year: string,
   ): string =>
     `coalesce((select sum(r.${q("amount")}) from ${requests} r${joinApproval("r", "p").replace("\n    ", "\n      ")}
-      where r.${q("tenant")} = ${tenant} and r.${q("user")} = ${user}
+      where r.${q("tenant")} = ${tenant} and r.${owner.column} = ${user}
         and r.${q("type")} = ${type} and ${period("r")} = ${year}
         and ${pendingIn("r", "p")}), 0)`;
 
-  const employeeKey = ctx.installed("employees")
-    ? employeeKeySql(ctx.of("employees"), { owner: ctx, table: "requests" })
-    : "";
+  const requestBase = `${idType}, uuid, date, date, text, numeric, text`;
+  const listBase = `${idType}, uuid, text, date, date, boolean, integer`;
+  const requestTypes = `${requestBase}${parts ? ", text, text" : ""}${owner.employee ? ", uuid" : ""}`;
+  const requestParams = `${parts ? ", start_part text default null, end_part text default null" : ""}${owner.employee ? ", employee_id uuid default null" : ""}`;
+
+  const ownerColumns = owner.employee
+    ? `${ctx.has("requests", "user") ? `${q("user")}, ` : ""}${q("employee")}`
+    : q("user");
+
+  const ownerValues = owner.employee
+    ? `${ctx.has("requests", "user") ? "v_user, " : ""}v_owner`
+    : "v_me";
+
+  const existing = halfDays(
+    `r.${q("startsOn")}`,
+    `r.${q("endsOn")}`,
+    leaveStartPart(ctx, "r"),
+    leaveEndPart(ctx, "r"),
+  );
+
+  const asked = halfDays(
+    "request_leave.starts_on",
+    "request_leave.ends_on",
+    "v_start",
+    "v_end",
+  );
+
+  const employeeKey =
+    ctx.installed("employees") && !owner.employee
+      ? employeeKeySql(ctx.of("employees"), { owner: ctx, table: "requests" })
+      : "";
 
   return `${schemaPreamble(ctx)}
-${tables}${employeeKey}${leaveLedgerFunctions(ctx, { isMember, pending })}
+${owner.helper}${tables}${employeeKey}${appBalances ? leaveBalanceFunctions(ctx, { owner, pending }) : leaveLedgerFunctions(ctx, { owner, pending })}
 -- The working days (options.workingDays) from one date to another, inclusive.
 create or replace function ${fn("leave_working_days")}(starts_on date, ends_on date)
 returns integer
@@ -595,8 +522,8 @@ ${userGrant(`${fn("list_leave_types")}(${idType}, boolean)`)}
 -- (half a day for a morning or afternoon); an hours type books hours.
 -- Without options.allowNegative the request can't exceed the balance of
 -- the period it starts in. fields: the extra columns to set.
-${extra.drop(fn("request_leave"), `${idType}, uuid, date, date, text, numeric, text`)}
-create or replace function ${fn("request_leave")}(tenant ${idType}, type_id uuid, starts_on date, ends_on date, partial text default 'full', hours numeric default null, note text default null${extra.param})
+${requestTypes === requestBase ? "" : `${dropSignatures(fn("request_leave"), requestBase)}\n`}${extra.drop(fn("request_leave"), requestTypes)}
+create or replace function ${fn("request_leave")}(tenant ${idType}, type_id uuid, starts_on date, ends_on date, partial text default 'full', hours numeric default null, note text default null${requestParams}${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -606,13 +533,27 @@ as $$
 declare
   v_me uuid := auth.uid();
   v_type ${types}%rowtype;
-  v_partial text := coalesce(request_leave.partial, 'full');
+  v_partial text := coalesce(request_leave.partial, 'full');${parts ? "\n  v_start text;\n  v_end text;" : ""}${owner.declare}
   v_amount numeric;
   v_row ${requests}%rowtype;${approvalVar}${approvals === undefined ? "" : "\n  v_request jsonb;"}
 begin
-  if v_me is null or not ${ctx.can("tenant", "request_leave.tenant", request)} then
-    ${forbidden("not allowed to request leave here")}
+${
+  owner.employee
+    ? `  ${owner.resolve("request_leave.tenant", "null", "request_leave.employee_id")}
+  if v_owner is null then
+    ${fail("LEAVE_EMPLOYEE_INVALID", "no employee record for that member in this organization", "22023")}
   end if;
+  if v_me is not null and v_user = v_me then
+    if not ${ctx.can("tenant", "request_leave.tenant", request)} then
+      ${forbidden("not allowed to request leave here")}
+    end if;
+  elsif not (${SERVICE_CALLER} or ${ctx.can("tenant", "request_leave.tenant", manage)} or ${owner.manages("request_leave.tenant", "v_owner")}) then
+    ${forbidden("not allowed to request leave for another employee")}
+  end if;`
+    : `  if v_me is null or not ${ctx.can("tenant", "request_leave.tenant", request)} then
+    ${forbidden("not allowed to request leave here")}
+  end if;`
+}
   select * into v_type from ${types} x
     where x.${ty("id")} = request_leave.type_id and x.${ty("tenant")} = request_leave.tenant and x.${ty("archivedAt")} is null;
   if not found then
@@ -621,7 +562,40 @@ begin
   if request_leave.starts_on is null or request_leave.ends_on is null or request_leave.ends_on < request_leave.starts_on then
     ${invalid("ends_on must be on or after starts_on")}
   end if;
-  if v_partial not in ('full', 'morning', 'afternoon', 'hours') then
+${
+  parts
+    ? `  if v_partial not in ('full', 'morning', 'afternoon', 'hours') then
+    ${invalid("partial must be full, morning, afternoon or hours")}
+  end if;
+  v_start := coalesce(request_leave.start_part, case v_partial when 'afternoon' then 'afternoon' when 'hours' then 'hours' else 'full' end);
+  v_end := coalesce(request_leave.end_part, case v_partial when 'morning' then 'morning' when 'hours' then 'hours' else 'full' end);
+  if v_start not in ('full', 'morning', 'afternoon', 'hours') or v_end not in ('full', 'morning', 'afternoon', 'hours') then
+    ${invalid("start_part and end_part must be full, morning, afternoon or hours")}
+  end if;
+  if (v_start = 'hours' or v_end = 'hours') and (v_start <> v_end or request_leave.starts_on <> request_leave.ends_on) then
+    ${invalid("a request in hours starts and ends in hours on the same date")}
+  end if;
+  if request_leave.starts_on = request_leave.ends_on and v_start = 'afternoon' and v_end = 'morning' then
+    ${invalid("a single day can't start in the afternoon and end in the morning")}
+  end if;
+  if v_type.${ty("unit")} = 'hours' then
+    if request_leave.hours is null or request_leave.hours <= 0 then
+      ${invalid("an hours type needs hours greater than zero")}
+    end if;
+    v_amount := request_leave.hours;
+  else
+    if v_start = 'hours' then
+      ${invalid("a day type takes parts full, morning or afternoon")}
+    end if;
+    v_amount := ${fn("leave_working_days")}(request_leave.starts_on, request_leave.ends_on)
+      - case when v_start = 'afternoon' and ${fn("leave_working_days")}(request_leave.starts_on, request_leave.starts_on) = 1 then 0.5 else 0 end
+      - case when v_end = 'morning' and ${fn("leave_working_days")}(request_leave.ends_on, request_leave.ends_on) = 1 then 0.5 else 0 end;
+  end if;
+  v_partial := case when v_start = 'hours' then 'hours'
+    when request_leave.starts_on = request_leave.ends_on and v_start = 'afternoon' then 'afternoon'
+    when request_leave.starts_on = request_leave.ends_on and v_end = 'morning' then 'morning'
+    else 'full' end;`
+    : `  if v_partial not in ('full', 'morning', 'afternoon', 'hours') then
     ${invalid("partial must be full, morning, afternoon or hours")}
   end if;
   if v_type.${ty("unit")} = 'hours' then
@@ -649,7 +623,8 @@ begin
     }
     v_amount := ${fn("leave_working_days")}(request_leave.starts_on, request_leave.ends_on)
       * case when v_partial = 'full' then 1 else 0.5 end;
-  end if;
+  end if;`
+}
   if v_amount <= 0 then
     ${invalid("the request covers no working days")}
   end if;${
@@ -660,19 +635,24 @@ begin
     ${fail("LEAVE_NOTE_UNSUPPORTED", "this leave requests table has no note column", "22023")}
   end if;`
   }
-  perform pg_advisory_xact_lock(hashtextextended('leave:' || request_leave.tenant::text || ':' || v_me::text, 0));
+  perform pg_advisory_xact_lock(hashtextextended('leave:' || request_leave.tenant::text || ':' || ${me}::text, 0));
   if exists (
     select 1 from ${requests} r${joinApproval("r", "p")}
-    where r.${q("tenant")} = request_leave.tenant and r.${q("user")} = v_me
+    where r.${q("tenant")} = request_leave.tenant and r.${owner.column} = ${me}
       and r.${q("cancelledAt")} is null and (r.${q("approvedAt")} is not null or ${approvals === undefined ? `(${pendingIn("r", "p")})` : `p.${a("status")} = 'pending'`})
-      and daterange(r.${q("startsOn")}, r.${q("endsOn")}, '[]') && daterange(request_leave.starts_on, request_leave.ends_on, '[]')
 ${
-  ctx.has("requests", "partial")
-    ? `      and not (r.${q("partial")} = 'morning' and v_partial = 'afternoon')
+  parts
+    ? `      and ${existing.first} <= ${asked.last} and ${asked.first} <= ${existing.last}
+`
+    : `      and daterange(r.${q("startsOn")}, r.${q("endsOn")}, '[]') && daterange(request_leave.starts_on, request_leave.ends_on, '[]')
+`
+}${
+    !parts && ctx.has("requests", "partial")
+      ? `      and not (r.${q("partial")} = 'morning' and v_partial = 'afternoon')
       and not (r.${q("partial")} = 'afternoon' and v_partial = 'morning')
 `
-    : ""
-}  ) then
+      : ""
+  }  ) then
     ${fail("LEAVE_OVERLAP", "this overlaps another leave request", "23P01")}
   end if;${balanceCheck}
   ${ctx.hook("before_leave_request", [
@@ -682,8 +662,8 @@ ${
     ["date", "request_leave.ends_on"],
     ["numeric", "v_amount"],
   ])}
-  insert into ${requests} (${q("tenant")}, ${q("user")}, ${q("type")}, ${q("startsOn")}, ${q("endsOn")}${also("requests", "partial")}, ${q("amount")}${also("requests", "note")})
-  values (request_leave.tenant, v_me, v_type.${ty("id")}, request_leave.starts_on, request_leave.ends_on${ctx.has("requests", "partial") ? `, ${ctx.cast("requests", "partial", "v_partial")}` : ""}, v_amount${alsoValue("requests", "note", "nullif(trim(request_leave.note), '')")})
+  insert into ${requests} (${q("tenant")}, ${ownerColumns}, ${q("type")}, ${q("startsOn")}, ${q("endsOn")}${also("requests", "partial")}${parts ? `, ${q("startPart")}, ${q("endPart")}` : ""}, ${q("amount")}${also("requests", "note")})
+  values (request_leave.tenant, ${ownerValues}, v_type.${ty("id")}, request_leave.starts_on, request_leave.ends_on${ctx.has("requests", "partial") ? `, ${ctx.cast("requests", "partial", "v_partial")}` : ""}${parts ? `, ${ctx.cast("requests", "startPart", "v_start")}, ${ctx.cast("requests", "endPart", "v_end")}` : ""}, v_amount${alsoValue("requests", "note", "nullif(trim(request_leave.note), '')")})
   returning * into v_row;${writeExtraColumns(requests, extras, "request_leave.fields", `x.${q("id")} = v_row.${q("id")}`, "v_row")}${
     approvals === undefined
       ? ""
@@ -691,7 +671,7 @@ ${
   v_request := ${approvals.fn("open_approval")}(
     request_leave.tenant, ${sqlString(LEAVE_REQUEST_SUBJECT)}, v_row.${q("id")}::text, 'approve',
     ${sqlString(policy)}::jsonb, ${or("requests", "v_row", "note")},
-    jsonb_build_object('userId', v_me, 'typeId', v_type.${ty("id")}, 'type', v_type.${ty("name")}, 'startsOn', v_row.${q("startsOn")}, 'endsOn', v_row.${q("endsOn")}, 'amount', v_amount::text, 'unit', v_type.${ty("unit")})
+    jsonb_build_object('userId', ${owner.employee ? "v_user, 'employeeId', v_owner" : "v_me"}, 'typeId', v_type.${ty("id")}, 'type', v_type.${ty("name")}, 'startsOn', v_row.${q("startsOn")}, 'endsOn', v_row.${q("endsOn")}, 'amount', v_amount::text, 'unit', v_type.${ty("unit")})
   );
   update ${requests} x set ${q("approval")} = (v_request ->> 'id')::uuid
     where x.${q("id")} = v_row.${q("id")}
@@ -702,7 +682,7 @@ ${
   return ${requestJson("v_row", approvalRow)};
 end;
 $$;
-${userGrant(`${fn("request_leave")}(${idType}, uuid, date, date, text, numeric, text${extra.type})`)}
+${userGrant(`${fn("request_leave")}(${requestTypes}${extra.type})`)}
 
 -- Books the leave once the approval is final: approved_at and, for a
 -- tracked type, a taken entry. Approvals calls it; it isn't granted to anyone.
@@ -721,7 +701,7 @@ begin
   if not found then
     return;
   end if;
-  perform ${fn("leave_post")}(v_row.${q("tenant")}, v_row.${q("user")}, v_row.${q("type")}, 'taken', -v_row.${q("amount")}, ${period("v_row")}, v_row.${q("id")})
+  perform ${fn("leave_post")}(v_row.${q("tenant")}, v_row.${owner.column}, v_row.${q("type")}, 'taken', -v_row.${q("amount")}, ${period("v_row")}, v_row.${q("id")})
   from ${types} t where t.${ty("id")} = v_row.${q("type")} and t.${ty("tracked")};
   ${requestRecord("leave.approved", "v_row", "approved leave")}
 end;
@@ -745,8 +725,8 @@ begin
   if not found then
     ${fail("LEAVE_REQUEST_NOT_FOUND", "leave request not found", "P0002")}
   end if;
-  v_manager := ${SERVICE_CALLER} or ${ctx.can("tenant", `v_row.${q("tenant")}`, manage)};
-  if not (v_manager or coalesce(v_row.${q("user")} = auth.uid(), false)) then
+  v_manager := ${SERVICE_CALLER} or ${ctx.can("tenant", `v_row.${q("tenant")}`, manage)}${owner.employee ? ` or ${owner.manages(`v_row.${q("tenant")}`, `v_row.${q("employee")}`)}` : ""};
+  if not (v_manager or coalesce(${owner.requester("v_row")} = auth.uid(), false)) then
     ${forbidden("not allowed to cancel this leave request")}
   end if;
   if v_row.${q("cancelledAt")} is not null then
@@ -762,8 +742,12 @@ ${
     where p.${a("id")} = v_row.${q("approval")} and p.${a("status")} = 'pending';
 `
 }  if v_row.${q("approvedAt")} is not null then
-    perform ${fn("leave_post")}(v_row.${q("tenant")}, v_row.${q("user")}, v_row.${q("type")}, 'taken', v_row.${q("amount")}, ${period("v_row")}, v_row.${q("id")}, 'cancelled')
-    from ${types} t where t.${ty("id")} = v_row.${q("type")} and t.${ty("tracked")};
+    ${
+      appBalances
+        ? unpostTaken(ctx, `v_row.${q("id")}`)
+        : `perform ${fn("leave_post")}(v_row.${q("tenant")}, v_row.${owner.column}, v_row.${q("type")}, 'taken', v_row.${q("amount")}, ${period("v_row")}, v_row.${q("id")}, 'cancelled')
+    from ${types} t where t.${ty("id")} = v_row.${q("type")} and t.${ty("tracked")};`
+    }
   end if;
   update ${requests} x set ${q("cancelledAt")} = now()${ctx.has("requests", "cancelledBy") ? `, ${q("cancelledBy")} = auth.uid()` : ""}, ${q("updatedAt")} = now()
     where x.${q("id")} = v_row.${q("id")}
@@ -776,7 +760,7 @@ ${userGrant(`${fn("cancel_leave_request")}(uuid)`)}
 ${statusMode ? decide : ""}${leaveFeed(ctx)}
 -- Requests that overlap a date range, earliest first: the caller's, or
 -- everyone's with the read permission.
-create or replace function ${fn("list_leave_requests")}(tenant ${idType}, user_id uuid default null, status text default null, starts date default null, ends date default null, everyone boolean default false, page_size integer default 100)
+${owner.employee ? `drop function if exists ${fn("list_leave_requests")}(${listBase});\n` : ""}create or replace function ${fn("list_leave_requests")}(tenant ${idType}, user_id uuid default null, status text default null, starts date default null, ends date default null, everyone boolean default false, page_size integer default 100${owner.employee ? ", employee_id uuid default null" : ""})
 returns jsonb
 language plpgsql
 stable
@@ -786,24 +770,36 @@ as $$
 #variable_conflict use_column
 declare
   v_reader boolean := ${SERVICE_CALLER} or ${ctx.can("tenant", "list_leave_requests.tenant", read)};
-  v_rows jsonb;
+  v_rows jsonb;${owner.declare}
 begin
-  if not (v_reader or ${ctx.can("tenant", "list_leave_requests.tenant", request)}) then
+${
+  owner.employee
+    ? `  ${owner.resolve("list_leave_requests.tenant", "list_leave_requests.user_id", "list_leave_requests.employee_id")}
+  if not v_reader and (coalesce(list_leave_requests.everyone, false)
+    or not ((coalesce(v_user = auth.uid(), false) and ${ctx.can("tenant", "list_leave_requests.tenant", request)}) or ${owner.manages("list_leave_requests.tenant", "v_owner")})) then
+    ${forbidden("not allowed to read this employee's leave")}
+  end if;`
+    : `  if not (v_reader or ${ctx.can("tenant", "list_leave_requests.tenant", request)}) then
     ${forbidden("not allowed to list leave requests")}
   end if;
   if not v_reader and (coalesce(list_leave_requests.everyone, false) or (list_leave_requests.user_id is not null and list_leave_requests.user_id is distinct from auth.uid())) then
     ${forbidden("not allowed to read another member's leave")}
-  end if;
+  end if;`
+}
   select coalesce(jsonb_agg(z.item order by z.starts, z.created), '[]'::jsonb) into v_rows
   from (
     select ${requestJson("r", "p")} as item, r.${q("startsOn")} as starts, r.${q("createdAt")} as created
     from ${requests} r${joinApproval("r", "p")}
     where r.${q("tenant")} = list_leave_requests.tenant
-      and (case
+      and ${
+        owner.employee
+          ? `(coalesce(list_leave_requests.everyone, false) or r.${q("employee")} = v_owner)`
+          : `(case
         when coalesce(list_leave_requests.everyone, false) then true
         when list_leave_requests.user_id is not null then r.${q("user")} = list_leave_requests.user_id
         else r.${q("user")} = auth.uid()
-      end)
+      end)`
+      }
       and (list_leave_requests.status is null or ${status("r", "p")} = list_leave_requests.status)
       and (list_leave_requests.starts is null or r.${q("endsOn")} >= list_leave_requests.starts)
       and (list_leave_requests.ends is null or r.${q("startsOn")} <= list_leave_requests.ends)
@@ -813,13 +809,14 @@ begin
   return v_rows;
 end;
 $$;
-${userGrant(`${fn("list_leave_requests")}(${idType}, uuid, text, date, date, boolean, integer)`)}
+${userGrant(`${fn("list_leave_requests")}(${listBase}${owner.employee ? ", uuid" : ""})`)}
 
 `;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(ctx.extraColumns("requests", RESERVED)).contract;
+  const employee = leaveByEmployee(ctx) ? ["uuid"] : [];
 
   return [
     {
@@ -832,6 +829,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         "text",
         "numeric",
         "text",
+        ...(leavePartsMapped(ctx) ? ["text", "text"] : []),
+        ...employee,
         ...extra,
       ],
       returns: "jsonb",
@@ -839,12 +838,21 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "cancel_leave_request", args: ["uuid"], returns: "jsonb" },
     {
       name: "leave_balances",
-      args: ["{id}", "uuid", "integer"],
+      args: ["{id}", "uuid", "integer", ...employee],
       returns: "jsonb",
     },
     {
       name: "list_leave_requests",
-      args: ["{id}", "uuid", "text", "date", "date", "boolean", "integer"],
+      args: [
+        "{id}",
+        "uuid",
+        "text",
+        "date",
+        "date",
+        "boolean",
+        "integer",
+        ...employee,
+      ],
       returns: "jsonb",
     },
     ...(leaveStatusMode(ctx)
@@ -886,12 +894,20 @@ export const LEAVE: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Leave",
   description:
-    "Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.",
+    'Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app\'s own table of signed amounts instead of the ledger.',
   requires: [...REQUIRES],
   dependencies: (layout) =>
-    layout.modules?.["leave"]?.options?.["approvals"] === false
-      ? REQUIRES.filter((name) => name !== "approvals")
-      : [...REQUIRES],
+    REQUIRES.filter(
+      (name) =>
+        !(
+          name === "approvals" &&
+          layout.modules?.["leave"]?.options?.["approvals"] === false
+        ) &&
+        !(
+          name === "ledger" &&
+          typeof layout.modules?.["leave"]?.tables?.["balances"] === "string"
+        ),
+    ),
   integrates: ["outbox", "audit", "employees", "share-links"],
   target: "schema",
   modes: ["managed", "custom"],
@@ -901,14 +917,14 @@ export const LEAVE: BlockSqlDefinition = {
       from: 1,
       description:
         "Leave balances move onto the ledger block: each member gets an account per type and year, every leave_ledger row becomes a ledger transaction, and leave_ledger is dropped.",
-      sql: leaveLedgerUpgrade,
+      sql: (ctx) => (leaveBalancesTable(ctx) ? "" : leaveLedgerUpgrade(ctx)),
     },
     {
       from: 2,
       description:
         "With employees, leave requests gain employee_id, backfilled and kept current by triggers.",
       sql: (ctx) =>
-        ctx.installed("employees")
+        ctx.installed("employees") && !leaveByEmployee(ctx)
           ? employeeKeyBackfillSql(ctx.of("employees"), {
               owner: ctx,
               table: "requests",
@@ -916,7 +932,7 @@ export const LEAVE: BlockSqlDefinition = {
           : "",
     },
   ],
-  names: NAMES,
+  names: LEAVE_NAMES,
   contract,
   build,
 };

@@ -1300,7 +1300,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:f94a9ca4b8d7528421fb1601f0d3bc2f80c661d02863d8ebf8fcc33823f85968
+-- @bsb-hash sha256:c484a654f15979753660b1d059eed017f9f62e212385ace7630f1f5f12b98227
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2269,14 +2269,15 @@ begin
   cross join lateral (select coalesce((select h."tz" from "better_supabase"."calendar_working_hours" h where h."tenant_id" = calendar_busy_blocks.tenant and h."user_id" = r."user_id" limit 1), 'UTC') as tz) z
   cross join lateral (
     select
-      (case when r."partial" = 'afternoon' then r."starts_on" + time '12:00' else r."starts_on"::timestamp end) at time zone z.tz as s,
-      (case r."partial" when 'morning' then r."starts_on" + time '12:00' when 'afternoon' then (r."starts_on" + 1)::timestamp else (r."ends_on" + 1)::timestamp end) at time zone z.tz as en
+      (case when (case r."partial" when 'afternoon' then 'afternoon' when 'hours' then 'hours' else 'full' end) = 'afternoon' then r."starts_on" + time '12:00' else r."starts_on"::timestamp end) at time zone z.tz as s,
+      (case when (case r."partial" when 'morning' then 'morning' when 'hours' then 'hours' else 'full' end) = 'morning' then r."ends_on" + time '12:00' else (r."ends_on" + 1)::timestamp end) at time zone z.tz as en
   ) t
   where r."tenant_id" = calendar_busy_blocks.tenant
     and r."user_id" = any (calendar_busy_blocks.user_ids)
     and r."approved_at" is not null
     and r."cancelled_at" is null
-    and r."partial" <> 'hours'
+    and (case r."partial" when 'afternoon' then 'afternoon' when 'hours' then 'hours' else 'full' end) <> 'hours'
+    and (case r."partial" when 'morning' then 'morning' when 'hours' then 'hours' else 'full' end) <> 'hours'
     and t.s < calendar_busy_blocks.range_end
     and t.en > calendar_busy_blocks.range_start;
 end;

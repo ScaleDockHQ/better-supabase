@@ -15,6 +15,7 @@ export type LeaveSqlOptions = {
    * until `decide_leave_request` approves or rejects it.
    */
   readonly approvals?: boolean;
+  readonly owner?: "user" | "employee";
 };
 
 export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
@@ -27,4 +28,5 @@ export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
     extraColumns: option.extraColumns(),
     feed: option.unknown<ShareLinkFeedOptions>(),
     approvals: option.boolean({ default: true }),
+    owner: option.string<"user" | "employee">({ default: "user" }),
   });

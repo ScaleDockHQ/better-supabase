@@ -18,6 +18,11 @@ import {
   ownerText,
   recurrenceSql,
 } from "./calendar-features.ts";
+import {
+  leaveEndPart,
+  leaveRequestUser,
+  leaveStartPart,
+} from "./leave-feed.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 /** The weekly hours a member works, in their own time zone. */
@@ -272,19 +277,20 @@ function leaveBlocks(ctx: BlockSqlContext, hoursTz: string): string {
 
   return `
   union all
-  select ${r("user")}, 'out_of_office'::text, t.s, t.en, null::uuid, true
+  select ${leaveRequestUser(leave, "r")}, 'out_of_office'::text, t.s, t.en, null::uuid, true
   from ${leave.table("requests")} r
   cross join lateral (select ${hoursTz} as tz) z
   cross join lateral (
     select
-      (case when ${r("partial")} = 'afternoon' then ${r("startsOn")} + time '12:00' else ${r("startsOn")}::timestamp end) at time zone z.tz as s,
-      (case ${r("partial")} when 'morning' then ${r("startsOn")} + time '12:00' when 'afternoon' then (${r("startsOn")} + 1)::timestamp else (${r("endsOn")} + 1)::timestamp end) at time zone z.tz as en
+      (case when ${leaveStartPart(leave, "r")} = 'afternoon' then ${r("startsOn")} + time '12:00' else ${r("startsOn")}::timestamp end) at time zone z.tz as s,
+      (case when ${leaveEndPart(leave, "r")} = 'morning' then ${r("endsOn")} + time '12:00' else (${r("endsOn")} + 1)::timestamp end) at time zone z.tz as en
   ) t
   where ${r("tenant")} = calendar_busy_blocks.tenant
-    and ${r("user")} = any (calendar_busy_blocks.user_ids)
+    and ${leaveRequestUser(leave, "r")} = any (calendar_busy_blocks.user_ids)
     and ${r("approvedAt")} is not null
     and ${r("cancelledAt")} is null
-    and ${r("partial")} <> 'hours'
+    and ${leaveStartPart(leave, "r")} <> 'hours'
+    and ${leaveEndPart(leave, "r")} <> 'hours'
     and t.s < calendar_busy_blocks.range_end
     and t.en > calendar_busy_blocks.range_start`;
 }
@@ -346,7 +352,7 @@ function busyBlocks(ctx: BlockSqlContext): string {
   }
 
   const hoursTz = ctx.hasTable("workingHours")
-    ? `coalesce((select h.${ctx.col("workingHours", "tz")} from ${ctx.table("workingHours")} h where h.${ctx.col("workingHours", "tenant")} = calendar_busy_blocks.tenant and h.${ctx.col("workingHours", "user")} = r.${ctx.installed("leave") ? ctx.of("leave").col("requests", "user") : "user_id"} limit 1), 'UTC')`
+    ? `coalesce((select h.${ctx.col("workingHours", "tz")} from ${ctx.table("workingHours")} h where h.${ctx.col("workingHours", "tenant")} = calendar_busy_blocks.tenant and h.${ctx.col("workingHours", "user")} = ${ctx.installed("leave") ? leaveRequestUser(ctx.of("leave"), "r") : "r.user_id"} limit 1), 'UTC')`
     : "'UTC'";
 
   const eventBlocks =

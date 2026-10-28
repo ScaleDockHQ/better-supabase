@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
+import { adoptedColumnProblems } from "../../../src/sql/adopted-columns.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
 
@@ -331,6 +332,286 @@ language sql volatile as $$ select decode(md5(random()::text) || md5(random()::t
 create or replace function extensions.digest(data bytea, type text) returns bytea
 language sql immutable as $$ select sha256(data) $$;
 `,
+      ),
+    ).resolves.toBeUndefined();
+  });
+});
+
+const BOB = "33333333-3333-4333-8333-333333333333";
+const ALICE_EMPLOYEE = "55555555-5555-4555-8555-555555555555";
+const BOB_EMPLOYEE = "66666666-6666-4666-8666-666666666666";
+const NO_ACCOUNT = "77777777-7777-4777-8777-777777777777";
+
+const STAFF = `
+insert into auth.users (id) values ('${BOB}');
+insert into better_supabase.employees (id, tenant_id, user_id, name, manager_id) values
+  ('${BOB_EMPLOYEE}', '${TENANT}', '${BOB}', 'Bob', null),
+  ('${ALICE_EMPLOYEE}', '${TENANT}', '${ALICE}', 'Alice', '${BOB_EMPLOYEE}'),
+  ('${NO_ACCOUNT}', '${TENANT}', null, 'Dana', '${BOB_EMPLOYEE}');
+`;
+
+const EMPLOYEE_APP = `
+create type public.time_off_part as enum ('full', 'morning', 'afternoon', 'hours');
+create type public.time_off_entry_kind as enum ('grant', 'accrual', 'taken', 'adjustment', 'carryover', 'expiry');
+
+create table public.time_off_types (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  name text not null,
+  unit text not null default 'hours',
+  paid boolean not null default true,
+  deducts_balance boolean not null default true,
+  archived_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table public.time_off_requests (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  employee_id uuid not null,
+  time_off_type_id uuid not null references public.time_off_types (id),
+  starts_on date not null,
+  ends_on date not null,
+  start_part public.time_off_part not null default 'full',
+  end_part public.time_off_part not null default 'full',
+  hours numeric(7, 2) not null,
+  note text,
+  approved_at timestamptz,
+  rejected_at timestamptz,
+  decided_by uuid,
+  decision_note text,
+  canceled_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table public.time_off_ledger (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  employee_id uuid not null,
+  time_off_type_id uuid not null,
+  kind public.time_off_entry_kind not null,
+  hours numeric(8, 2) not null,
+  effective_on date not null,
+  expires_on date,
+  time_off_request_id uuid,
+  note text,
+  created_by uuid,
+  created_at timestamptz not null default now()
+);
+`;
+
+const EMPLOYEE_OWN = {
+  "public.time_off_types": "app.sql",
+  "public.time_off_requests": "app.sql",
+  "public.time_off_ledger": "app.sql",
+};
+
+const EMPLOYEE_BLOCKS: AnyBlocksConfig = {
+  leave: {
+    tables: {
+      types: "public.time_off_types",
+      requests: "public.time_off_requests",
+      balances: "public.time_off_ledger",
+    },
+    columns: {
+      types: {
+        tenant: "organization_id",
+        key: null,
+        tracked: "deducts_balance",
+        allowance: null,
+        carryoverMax: null,
+        color: null,
+      },
+      requests: {
+        tenant: "organization_id",
+        user: null,
+        employee: "employee_id",
+        type: "time_off_type_id",
+        partial: null,
+        startPart: "start_part",
+        endPart: "end_part",
+        amount: "hours",
+        approval: null,
+        cancelledAt: "canceled_at",
+        cancelledBy: null,
+      },
+      balances: {
+        tenant: "organization_id",
+        user: null,
+        employee: "employee_id",
+        type: "time_off_type_id",
+        amount: "hours",
+        request: "time_off_request_id",
+        key: null,
+      },
+    },
+    options: { owner: "employee", approvals: false },
+  },
+};
+
+const AS = (
+  user: string,
+): string => `perform set_config('request.jwt.claims', '{"sub":"${user}","role":"authenticated"}', true);
+  perform set_config('request.jwt.claim.sub', '${user}', true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);`;
+
+async function runEmployees(
+  check: string,
+  modules: AnyBlocksConfig,
+  ownTables: Readonly<Record<string, string>>,
+  app: string,
+): Promise<void> {
+  const files = renderBlocks(["employees", "leave"], { modules, ownTables });
+
+  await using stack = await liteStack({
+    driver: "pglite",
+    migrations: [
+      ROLES,
+      app,
+      ...files
+        .filter((file) => file.kind !== "data")
+        .map((file) => file.contents),
+    ],
+    seed: [
+      ...files
+        .filter((file) => file.kind === "data")
+        .map((file) => file.contents),
+      ALLOW,
+      STAFF,
+      check,
+    ],
+  });
+
+  expect(stack.url).not.toBe("");
+}
+
+describe("leave by employee over the app's requests and balances", BOOT, () => {
+  it("adopts the tables without problems", () => {
+    expect(
+      adoptedColumnProblems(
+        EMPLOYEE_BLOCKS,
+        [{ text: EMPLOYEE_APP }],
+        ["public"],
+        EMPLOYEE_OWN,
+      ),
+    ).toEqual([]);
+  });
+
+  it("books half days and hours for employees with and without accounts against the app's balances", async () => {
+    await expect(
+      runEmployees(
+        `do $$
+declare
+  v_type uuid;
+  v_request jsonb;
+  v_first uuid;
+  v_second uuid;
+  v_balances jsonb;
+begin
+  ${SERVICE}
+  v_type := (better_supabase.save_leave_type('${TENANT}', 'vacation', 'Vacation', 'hours') ->> 'id')::uuid;
+  perform better_supabase.adjust_leave_balance('${TENANT}', null, v_type, 40, 2099, 'grant', 'yearly', employee_id => '${ALICE_EMPLOYEE}');
+  perform better_supabase.adjust_leave_balance('${TENANT}', null, v_type, 8, 2099, 'grant', null, employee_id => '${ALICE_EMPLOYEE}', expires_on => '2099-01-31');
+  perform better_supabase.adjust_leave_balance('${TENANT}', null, v_type, 16, 2099, 'grant', null, employee_id => '${NO_ACCOUNT}');
+  ${AS(ALICE)}
+  v_request := better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-04', 'full', 20, null, start_part => 'afternoon', end_part => 'morning');
+  v_first := (v_request ->> 'id')::uuid;
+  if v_request ->> 'employeeId' <> '${ALICE_EMPLOYEE}' or v_request ->> 'startPart' <> 'afternoon' or v_request ->> 'endPart' <> 'morning'
+    or (select hours from public.time_off_requests where id = v_first) <> 20
+    or (select start_part from public.time_off_requests where id = v_first) <> 'afternoon' then
+    raise exception 'requested %', v_request;
+  end if;
+  v_second := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-04', '2099-03-04', 'full', 4, null, start_part => 'afternoon', end_part => 'full') ->> 'id')::uuid;
+  begin
+    perform better_supabase.request_leave('${TENANT}', v_type, '2099-03-03', '2099-03-03', 'full', 8);
+    raise exception 'an overlapping day was accepted';
+  exception when others then
+    if sqlerrm not like '%overlaps%' then
+      raise;
+    end if;
+  end;
+  begin
+    perform better_supabase.request_leave('${TENANT}', v_type, '2099-03-09', '2099-03-09', 'full', 8, employee_id => '${NO_ACCOUNT}');
+    raise exception 'requested for another employee';
+  exception when others then
+    if sqlerrm not like '%another employee%' then
+      raise;
+    end if;
+  end;
+  ${AS(BOB)}
+  perform better_supabase.request_leave('${TENANT}', v_type, '2099-03-09', '2099-03-09', 'full', 8, employee_id => '${NO_ACCOUNT}');
+  if jsonb_array_length(better_supabase.list_leave_requests('${TENANT}', employee_id => '${ALICE_EMPLOYEE}')) <> 2 then
+    raise exception 'manager list %', better_supabase.list_leave_requests('${TENANT}', employee_id => '${ALICE_EMPLOYEE}');
+  end if;
+  perform better_supabase.decide_leave_request(v_first, true, 'enjoy');
+  if (select count(*) from public.time_off_ledger where time_off_request_id = v_first and kind = 'taken' and hours = -20) <> 1 then
+    raise exception 'taken not posted';
+  end if;
+  ${AS(ALICE)}
+  v_balances := better_supabase.leave_balances('${TENANT}', null, 2099);
+  if (v_balances -> 0 ->> 'available')::numeric <> 24 or (v_balances -> 0 ->> 'taken')::numeric <> 20
+    or v_balances -> 0 ->> 'employeeId' <> '${ALICE_EMPLOYEE}' then
+    raise exception 'balances %', v_balances;
+  end if;
+  if jsonb_array_length(better_supabase.leave_ledger_entries('${TENANT}', null, 2099)) <> 3 then
+    raise exception 'entries %', better_supabase.leave_ledger_entries('${TENANT}', null, 2099);
+  end if;
+  ${SERVICE}
+  perform better_supabase.cancel_leave_request(v_first);
+  if exists (select 1 from public.time_off_ledger where time_off_request_id = v_first) then
+    raise exception 'taken kept after cancel';
+  end if;
+  if (better_supabase.leave_balances('${TENANT}', null, 2099, employee_id => '${NO_ACCOUNT}') -> 0 ->> 'pending')::numeric <> 8 then
+    raise exception 'no account balance %', better_supabase.leave_balances('${TENANT}', null, 2099, employee_id => '${NO_ACCOUNT}');
+  end if;
+  begin
+    perform better_supabase.request_leave('${TENANT}', v_type, '2099-04-01', '2099-04-10', 'full', 100, employee_id => '${ALICE_EMPLOYEE}');
+    raise exception 'an overdraft was accepted';
+  exception when others then
+    if sqlerrm not like '%available balance%' then
+      raise;
+    end if;
+  end;
+  perform v_second;
+end;
+$$;`,
+        EMPLOYEE_BLOCKS,
+        EMPLOYEE_OWN,
+        EMPLOYEE_APP,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("keys the ledger by employee on the block's own tables", async () => {
+    await expect(
+      runEmployees(
+        `do $$
+declare
+  v_type uuid;
+  v_id uuid;
+  v_balances jsonb;
+begin
+  ${SERVICE}
+  v_type := (better_supabase.save_leave_type('${TENANT}', 'vacation', 'Vacation') ->> 'id')::uuid;
+  if better_supabase.accrue_leave('${TENANT}', v_type, 10, 2099) <> 3 then
+    raise exception 'accrued';
+  end if;
+  ${AS(BOB)}
+  v_id := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03', employee_id => '${NO_ACCOUNT}') ->> 'id')::uuid;
+  ${SERVICE}
+  perform better_supabase.approve_leave_request(v_id);
+  ${AS(BOB)}
+  v_balances := better_supabase.leave_balances('${TENANT}', null, 2099, employee_id => '${NO_ACCOUNT}');
+  if (v_balances -> 0 ->> 'available')::numeric <> 8 or v_balances -> 0 ->> 'userId' is not null then
+    raise exception 'balances %', v_balances;
+  end if;
+end;
+$$;`,
+        { employees: {}, leave: { options: { owner: "employee" } } },
+        {},
+        "",
       ),
     ).resolves.toBeUndefined();
   });

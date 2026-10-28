@@ -246,11 +246,11 @@ may be your own enum or domain.
   - `better_supabase.donation_receipts`: `id`, `tenant_id`, `donor_type`, `donor_id`, `sequence`, `number`, `kind`, `year`, `amount`, `currency`, `issued_at`, `voided_at`; typed: `kind`
   - `better_supabase.donations`: `id`, `tenant_id`, `donor_type`, `donor_id`, `fund_id`, `pledge_id`, `period_start`, `amount`, `currency`, `received_on`, `status`, `provider`, `payment_reference`, `transaction_id`, `receipt_id`, `created_by`, `created_at`, `updated_at`; typed: `status`
 - `drive`
-  - `better_supabase.drive_nodes`: `id`, `tenant_id`, `parent_id`, `kind`, `name`, `created_at`
-  - `better_supabase.drive_grants`: `id`, `tenant_id`, `node_id`, `role`, `created_at`
-  - `better_supabase.drive_drives`: `id`, `tenant_id`, `name`, `created_at`
-  - `better_supabase.drive_drive_grants`: `id`, `tenant_id`, `drive_id`, `role`, `created_at`
-  - `better_supabase.drive_connections`: `id`, `tenant_id`, `user_id`, `provider`, `name`, `status`, `created_at`
+  - `better_supabase.drive_nodes`: `id`, `tenant_id`, `parent_id`, `kind`, `name`, `created_at`; typed: `kind`, `source`
+  - `better_supabase.drive_grants`: `id`, `tenant_id`, `node_id`, `role`, `created_at`; typed: `role`
+  - `better_supabase.drive_drives`: `id`, `tenant_id`, `name`, `created_at`; typed: `kind`
+  - `better_supabase.drive_drive_grants`: `id`, `tenant_id`, `drive_id`, `role`, `created_at`; typed: `role`
+  - `better_supabase.drive_connections`: `id`, `tenant_id`, `user_id`, `provider`, `name`, `status`, `created_at`; typed: `provider`, `status`
 - `employees`
   - `better_supabase.employees`: `id`, `tenant_id`, `user_id`, `manager_id`, `status`; typed: `status`; typed with values: `employment_type`
   - `better_supabase.employee_private_details`: `employee_id`, `tenant_id`
@@ -350,7 +350,8 @@ may be your own enum or domain.
   - `better_supabase.lease_charges`: `id`, `tenant_id`, `lease_id`, `period_start`, `period_end`, `amount`, `currency`, `transaction_id`
 - `leave`
   - `better_supabase.leave_types`: `id`, `tenant_id`, `name`, `unit`, `paid`, `tracked`, `archived_at`, `created_at`, `updated_at`; typed: `unit`
-  - `better_supabase.leave_requests`: `id`, `tenant_id`, `user_id`, `type_id`, `starts_on`, `ends_on`, `amount`, `approved_at`, `cancelled_at`, `created_at`, `updated_at`; typed: `partial`
+  - `better_supabase.leave_requests`: `id`, `tenant_id`, `type_id`, `starts_on`, `ends_on`, `amount`, `approved_at`, `cancelled_at`, `created_at`, `updated_at`; typed: `partial`, `start_part`, `end_part`
+  - `better_supabase.leave_balance_entries`, once mapped: `id`, `tenant_id`, `type_id`, `kind`, `amount`, `request_id`, `created_at`; typed: `kind`
 - `ledger`
   - `better_supabase.ledger_accounts`: `id`, `tenant_id`, `kind`, `code`, `name`, `unit`, `scale`, `holder_type`, `holder_id`, `owner_id`, `allow_negative`, `read_permission`, `managed_by`, `metadata`, `closed_at`, `created_at`, `updated_at`; typed: `kind`
   - `better_supabase.ledger_transactions`: `id`, `tenant_id`, `kind`, `reference_type`, `reference_id`, `idempotency_key`, `reverses`, `metadata`, `effective_at`, `actor_id`, `created_at`

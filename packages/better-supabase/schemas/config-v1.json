@@ -5181,6 +5181,10 @@
               "approvals": {
                 "type": "boolean",
                 "default": true
+              },
+              "owner": {
+                "type": "string",
+                "default": "user"
               }
             }
           }

@@ -233,6 +233,8 @@ export default defineConfig({ records: { drive_node: driveSubject() } });
 
 Map `tables.nodes` and `tables.grants` to run the drive on your own tree and grant tables. A grant table can name its principal with `principalType` and `principalId` columns (users, teams and roles), or with a `user` column and an optional `team` column (users and teams). With `drives` on, map `tables.drives`, `tables.driveGrants` and `tables.connections` too; a drive grant table takes the same principal columns as a node grant table. Set `attachment` to `null` when your files don't live in attachments: the tree, grants, sharing and checks still work, and uploads stay with your code.
 
+The node `kind` and `source`, the `role` of node and drive grants, the drive `kind` and the connection `provider` and `status` may be enums of yours: the block casts what it writes into them and compares roles as text.
+
 When your schema already has its own read policies, set `readPolicy` to `false` so the block leaves reads to them. Name `roleFunctions.node` or `roleFunctions.drive` to let your own functions decide the caller's role at that level, as the Access section describes.
 
 ```ts title="better-supabase.config.ts"
