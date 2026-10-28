@@ -48,6 +48,7 @@ import {
   refuseWithMetadata,
 } from "../gen/metadata.ts";
 import { MetadataRejectedError } from "../introspect/typegen.ts";
+import { betterSupabaseInstall } from "../lockfile.ts";
 import { peerVersions } from "../peers.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import {
@@ -138,6 +139,11 @@ export interface DoctorOptions {
   readonly database?: DoctorContext["database"];
   /** Peers and installed versions (tests); otherwise read from `node_modules`. */
   readonly peers?: DoctorContext["peers"];
+  /**
+   * The installed and locked better-supabase (tests); otherwise read from
+   * `node_modules` and the lockfile (BS607).
+   */
+  readonly install?: DoctorContext["install"];
   /** The content mapper setup (tests); otherwise read from the project (BS602). */
   readonly contentMapper?: DoctorContext["contentMapper"];
   /**
@@ -341,6 +347,7 @@ export async function runDoctor(
     stackEnv,
     localStacks,
     nextConfig,
+    install,
   ] = await Promise.all([
     options.snapshot ?? loadSnapshot(config, env, source, pg, opened.open),
     Promise.all(ENV_FILES.map((path) => readText(config.root, path))).then(
@@ -375,6 +382,10 @@ export async function runDoctor(
     Promise.all(
       NEXT_CONFIG_FILES.map((path) => readText(config.root, path)),
     ).then((files) => files.find((file) => file !== undefined)),
+    options.install ??
+      (rules.some((rule) => rule.code === "BS607")
+        ? betterSupabaseInstall(config.root).catch(() => undefined)
+        : undefined),
   ]).catch(async (cause: unknown) => {
     await opened.close();
     throw cause;
@@ -399,6 +410,7 @@ export async function runDoctor(
     sources,
     readSets,
     peers,
+    ...(install ? { install } : {}),
     ...(contentMapper ? { contentMapper } : {}),
     ...(stackEnv ? { stackEnv } : {}),
     shellEnv: env[PROCESS_ENV] ?? {},

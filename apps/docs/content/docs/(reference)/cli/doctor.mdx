@@ -1443,6 +1443,35 @@ a missing write policy is info, since your app may not write through the
 block. Add your own policy for each command your app uses, or set
 `ownTablePolicies` back to `block` for that block.
 
+### BS351
+
+**Warning: app code writes a block's table directly.** A source file matched
+by `doctor.sources` calls `.from("x").insert()`, `.update()`, `.upsert()` or
+`.delete()` with supabase-js on a table a block creates, the tables
+`blockTables(config).byBlock` lists. The write skips the block's functions,
+so its events, hooks and the checks it runs before a write don't run, and the
+block's other tables can disagree with the row. A `.from()` without
+`.schema()` counts when you have no table of that name in `public`, since a
+client created with `db: { schema }` reaches the block's. Tables of yours that
+a block runs over are yours to write and are not reported. Write the row
+through the block's API that [`createBlocks`](/docs/blocks/create-blocks)
+returns.
+
+### BS352
+
+**Warning: plain secret column next to a block that encrypts it.** One of
+your tables has a `text`, `varchar`, `char`, `json` or `jsonb` column whose
+name ends in `credentials`, `token` or `secret` (`access_token`,
+`client_secret`), and [`field-encryption`](/docs/blocks/field-encryption) or
+the [`credentials`](/docs/extending/credentials) module is installed. The
+value sits in the row as written, so every role that reads the row, and every
+backup, has the secret. With field-encryption, set `encrypted: true` on the
+column in `appTables`, which stores it as ciphertext under a Vault data key.
+With credentials, move the secret to Vault and store a `credential_ref jsonb`
+in its place. Block tables, columns already marked `encrypted` and names that
+end in another word, such as `token_hash`, `secret_id` or `credential_ref`,
+are not reported.
+
 ## Auth config
 
 ### BS401
@@ -1842,6 +1871,28 @@ names each missing piece: `tsconfig.json` has no `contentMappers` entry for
 Doctor skips the script check when there is no `typecheck` script.
 `better-supabase init --content-mapper` adds the entry and the flag. To go
 back to the type files, turn `gen.contentMapper` off and run `gen`.
+
+### BS607
+
+**Warning: installed better-supabase differs from the lockfile or the
+database.** Doctor compares three records of which release the project runs.
+The finding names the one that differs:
+
+- The `better-supabase` in `node_modules` is not a version the nearest
+  lockfile at or above the project resolves (`pnpm-lock.yaml`,
+  `package-lock.json`, `yarn.lock` or `bun.lock`), which happens after a pull
+  that changed the lockfile. Run the install command the finding prints.
+  Workspace links and file paths are skipped.
+- A block file in `supabase/schemas`, or the module migration under the
+  migrations workflow, carries a `@bsb-block` version newer than this release
+  ships.
+- A `better_supabase.blocks` row in the database records a newer version,
+  read when doctor checks a live database.
+
+The last two mean a newer release wrote the SQL, so `gen`, `add` and
+`upgrade` would render the blocks of an older release. Install the release
+your lockfile and teammates use, then run `better-supabase upgrade --check`.
+[BS311](#bs311) reports the opposite case, SQL older than the release.
 
 ### BS608
 

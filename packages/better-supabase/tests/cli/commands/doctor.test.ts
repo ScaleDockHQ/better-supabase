@@ -482,4 +482,25 @@ describe("doctor command", () => {
       expect.objectContaining({ code: "BS602", target: "package.json" }),
     ]);
   });
+
+  it("reads the installed release and the lockfile for BS607", async () => {
+    await write(
+      "node_modules/better-supabase/package.json",
+      JSON.stringify({ name: "better-supabase", version: "0.33.0" }),
+    );
+    await write(
+      "pnpm-lock.yaml",
+      "packages:\n\n  better-supabase@0.34.0:\n    resolution: {}\n",
+    );
+
+    const result = await doctor(
+      ["--only", "BS607", "--json"],
+      { snapshot: await parseSnapshot(fixture) },
+      {},
+    );
+
+    expect(findings(result)).toEqual([
+      expect.objectContaining({ code: "BS607", target: "pnpm-lock.yaml" }),
+    ]);
+  });
 });
