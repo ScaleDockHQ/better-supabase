@@ -227,6 +227,10 @@ function hasUniqueIndex(sql: string, target: ConflictTarget): boolean {
   );
 }
 
+const OWNER_COLUMNS: Readonly<
+  Partial<Record<(typeof MODULES)[number], Readonly<Record<string, string>>>>
+> = { leave: { requests: "user", balances: "user" } };
+
 /** The optional columns of each table, all mapped to `null`. */
 function nullOptional(module: string): AnyBlocksConfig {
   const columns = Object.fromEntries(
@@ -238,7 +242,14 @@ function nullOptional(module: string): AnyBlocksConfig {
               [
                 logical,
                 Object.fromEntries(
-                  spec.optional.map((column) => [column, null]),
+                  spec.optional
+                    .filter(
+                      (column) =>
+                        OWNER_COLUMNS[module as (typeof MODULES)[number]]?.[
+                          logical
+                        ] !== column,
+                    )
+                    .map((column) => [column, null]),
                 ),
               ],
             ],

@@ -154,6 +154,7 @@ export const NAMES: BlockSqlNames = {
         "createdBy",
         "updatedAt",
       ],
+      typed: ["kind", "source"],
     },
     grants: {
       name: "drive_grants",
@@ -185,6 +186,7 @@ export const NAMES: BlockSqlNames = {
         "expiresAt",
         "createdBy",
       ],
+      typed: ["role"],
     },
     drives: {
       name: "drive_drives",
@@ -203,6 +205,7 @@ export const NAMES: BlockSqlNames = {
         updatedAt: "updated_at",
       },
       optional: ["kind", "owner", "connection", "createdBy", "updatedAt"],
+      typed: ["kind"],
     },
     driveGrants: {
       name: "drive_drive_grants",
@@ -235,6 +238,7 @@ export const NAMES: BlockSqlNames = {
         "expiresAt",
         "createdBy",
       ],
+      typed: ["role"],
     },
     connections: {
       name: "drive_connections",
@@ -264,6 +268,7 @@ export const NAMES: BlockSqlNames = {
         "createdBy",
         "updatedAt",
       ],
+      typed: ["provider", "status"],
     },
   },
 };
@@ -758,7 +763,7 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
   const rolesArray = `array[${roles.all.map(sqlString).join(", ")}]::text[]`;
 
   const rank = (role: string): string =>
-    `coalesce(array_position(${rolesArray}, ${role}), 0)`;
+    `coalesce(array_position(${rolesArray}, ${role}::text), 0)`;
 
   const live = (row: string): string =>
     binColumn ? ` and ${row}.${n("deletedAt")} is null` : "";
@@ -965,7 +970,7 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
     "drive_insert_node.tenant",
     ...(driveColumn ? ["v_drive"] : []),
     "drive_insert_node.parent",
-    "drive_insert_node.kind",
+    ctx.cast("nodes", "kind", "drive_insert_node.kind"),
     "v_name",
     ...(ranked ? [rankAfter("v_last")] : []),
     ...(sourceColumn ? ["'internal'"] : []),
@@ -979,11 +984,11 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
   const directGrant = (node: string, role: string, uid: string): string =>
     typed
       ? `insert into ${G} (${g("tenant")}, ${g("node")}, ${g("principalType")}, ${g("principalId")}, ${g("role")})
-    values (${node}.${n("tenant")}, ${node}.${n("id")}, 'user', ${uid}::text, ${role})
+    values (${node}.${n("tenant")}, ${node}.${n("id")}, 'user', ${uid}::text, ${ctx.cast("grants", "role", role)})
     on conflict (${g("node")}, ${g("principalType")}, ${g("principalId")}) do update set ${g("role")} = excluded.${g("role")};`
       : `delete from ${G} dg where dg.${g("node")} = ${node}.${n("id")} and dg.${g("user")} = ${uid};
     insert into ${G} (${g("tenant")}, ${g("node")}, ${g("user")}, ${g("role")})
-    values (${node}.${n("tenant")}, ${node}.${n("id")}, ${uid}, ${role});`;
+    values (${node}.${n("tenant")}, ${node}.${n("id")}, ${uid}, ${ctx.cast("grants", "role", role)});`;
 
   const siblings = (
     alias: string,

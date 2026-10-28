@@ -119,7 +119,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   invitations:
     "accept_invitation accept_invitation_by_id decline_invitation decline_invitation_by_id invitation_preview invite_member my_invitations resend_invitation revoke_invitation update_invitation",
   invoices:
-    "add_invoice_charge create_invoice credit_invoice invoice_aging issue_invoice record_invoice_payment set_invoice_lines void_invoice write_off_invoice",
+    "add_invoice_charge create_invoice credit_invoice invoice_aging issue_invoice record_invoice_payment remove_invoice_charge reverse_invoice_payment set_invoice_lines void_invoice write_off_invoice",
   knowledge:
     "create_knowledge_document delete_knowledge_document fail_knowledge_document get_knowledge_document knowledge_search list_knowledge_documents pending_knowledge_chunks pending_knowledge_documents reembed_knowledge set_knowledge_embeddings write_knowledge_chunks",
   "lead-scoring": "lead_fields score_lead score_leads_due",

@@ -10,7 +10,8 @@ export interface LeaveRequestEventData {
   readonly organizationId: string;
   /** The leave request. */
   readonly id: string;
-  readonly userId: string;
+  readonly userId: string | null;
+  readonly employeeId?: string;
   readonly typeId: string;
   /** `YYYY-MM-DD`. */
   readonly startsOn: string;
@@ -26,7 +27,8 @@ export interface LeaveAdjustedEventData {
   readonly organizationId: string;
   /** The ledger entry. */
   readonly id: string;
-  readonly userId: string;
+  readonly userId: string | null;
+  readonly employeeId?: string;
   readonly typeId: string;
   readonly kind: "grant" | "adjustment";
   /** Signed, as text. */

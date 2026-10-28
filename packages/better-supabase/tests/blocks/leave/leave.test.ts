@@ -165,6 +165,108 @@ describe("leave client", () => {
     ]);
   });
 
+  it("requests and adjusts leave for an employee with parts of the day", async () => {
+    const employeeRequest = {
+      ...REQUEST,
+      userId: null,
+      employeeId: "e1",
+      startPart: "afternoon",
+      endPart: "morning",
+      amount: "20.00",
+    };
+
+    const fake = transport({
+      request_leave: () => employeeRequest,
+      adjust_leave_balance: () => ({
+        ...ENTRY,
+        userId: null,
+        employeeId: "e1",
+        expiresOn: "2026-12-31",
+      }),
+      accrue_leave: () => 1,
+    });
+
+    const leave = createLeave({ transport: fake });
+    const day = Temporal.PlainDate.from("2026-10-19");
+
+    const request = await leave
+      .request("o", {
+        typeId: "t1",
+        startsOn: day,
+        endsOn: day.add({ days: 2 }),
+        startPart: "afternoon",
+        endPart: "morning",
+        hours: 20,
+        employeeId: "e1",
+      })
+      .orThrow();
+
+    expect(request).toMatchObject({
+      employeeId: "e1",
+      startPart: "afternoon",
+      endPart: "morning",
+      amount: 20,
+    });
+    expect(request.userId).toBeUndefined();
+
+    const entry = await leave
+      .adjust("o", {
+        employeeId: "e1",
+        typeId: "t1",
+        amount: 8,
+        expiresOn: Temporal.PlainDate.from("2026-12-31"),
+      })
+      .orThrow();
+
+    expect(entry.employeeId).toBe("e1");
+    expect(entry.expiresOn?.toString()).toBe("2026-12-31");
+    await leave.accrue("o", { typeId: "t1", employeeIds: ["e1"] }).orThrow();
+    expect(fake.calls).toEqual([
+      [
+        "request_leave",
+        {
+          tenant: "o",
+          type_id: "t1",
+          starts_on: "2026-10-19",
+          ends_on: "2026-10-21",
+          partial: "full",
+          hours: 20,
+          note: null,
+          start_part: "afternoon",
+          end_part: "morning",
+          employee_id: "e1",
+        },
+      ],
+      [
+        "adjust_leave_balance",
+        {
+          tenant: "o",
+          user_id: null,
+          type_id: "t1",
+          amount: 8,
+          period: null,
+          kind: "adjustment",
+          note: null,
+          employee_id: "e1",
+          expires_on: "2026-12-31",
+        },
+      ],
+      [
+        "accrue_leave",
+        {
+          tenant: "o",
+          type_id: "t1",
+          amount: null,
+          period: null,
+          user_ids: null,
+          idempotency_key: null,
+          note: null,
+          employee_ids: ["e1"],
+        },
+      ],
+    ]);
+  });
+
   it("reads balances and the ledger as numbers", async () => {
     const fake = transport({
       leave_balances: () => [

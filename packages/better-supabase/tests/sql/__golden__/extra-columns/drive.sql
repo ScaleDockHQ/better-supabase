@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:1e223f5163a5f315e8ccd34d0fa074c7e2285e463bc85580cf0d6f53aa6a0a1e
+-- @bsb-hash sha256:1a9f1520360989e8a0ce4e3f1b4210875f9f064071bf633bb52aa2e0f868a2b9
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -197,7 +197,7 @@ begin
     return 'owner';
   end if;
   
-  select greatest(coalesce(v_rank, 0), coalesce(max(coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"), 0)), 0)) into v_rank from "better_supabase"."drive_grants" dg
+  select greatest(coalesce(v_rank, 0), coalesce(max(coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"::text), 0)), 0)) into v_rank from "better_supabase"."drive_grants" dg
   where dg."node_id" = any ("better_supabase"."drive_ancestors"(drive_role.node)) and (dg."expires_at" is null or dg."expires_at" > now())
     and ((dg."principal_type" = 'user' and dg."principal_id" = v_uid::text)
       or (dg."principal_type" = 'team' and false)
@@ -219,7 +219,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(coalesce(array_position(array['viewer', 'editor', 'owner']::text[], "better_supabase"."drive_role"(drive_can.node)), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], drive_can.role), 0) and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], drive_can.role), 0) > 0, false)
+  select coalesce(coalesce(array_position(array['viewer', 'editor', 'owner']::text[], "better_supabase"."drive_role"(drive_can.node)::text), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], drive_can.role::text), 0) and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], drive_can.role::text), 0) > 0, false)
 $$;
 revoke execute on function "better_supabase"."drive_can"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."drive_can"(uuid, text) to authenticated, service_role;
@@ -261,8 +261,8 @@ as $$
   cross join lateral "better_supabase"."drive_subtree"(dg."node_id") s
   join "better_supabase"."drive_nodes" x on x."id" = s.node_id
   where auth.uid() is not null and (dg."expires_at" is null or dg."expires_at" > now())
-    and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'viewer'), 0)
-    and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'viewer'), 0) > 0
+    and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"::text), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'viewer'::text), 0)
+    and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'viewer'::text), 0) > 0
     and x."tenant_id" in (select better_supabase.tenant_ids_with('drive.read'))
     and ((dg."principal_type" = 'user' and dg."principal_id" = auth.uid()::text)
       or (dg."principal_type" = 'team' and false)
@@ -863,13 +863,13 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
     raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ("better_supabase"."drive_can"(v_node."id", 'owner') and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], drive_share.role), 0) <= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], "better_supabase"."drive_role"(v_node."id")), 0))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ("better_supabase"."drive_can"(v_node."id", 'owner') and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], drive_share.role::text), 0) <= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], "better_supabase"."drive_role"(v_node."id")::text), 0))) then
     raise exception 'not allowed to share this item with that role' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
   if (coalesce(v_node."source", 'internal') <> 'internal' or false) then
     raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
   end if;
-  if coalesce(array_position(array['viewer', 'editor', 'owner']::text[], drive_share.role), 0) = 0 then
+  if coalesce(array_position(array['viewer', 'editor', 'owner']::text[], drive_share.role::text), 0) = 0 then
     raise exception 'role must be one of viewer, editor, owner' using errcode = '22023', hint = 'DRIVE_ROLE_UNKNOWN';
   end if;
   if v_type not in ('user', 'team', 'role') or drive_share.principal_id is null then
@@ -960,7 +960,7 @@ begin
     raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', dg."id", 'nodeId', dg."node_id", 'principalType', dg."principal_type", 'principalId', dg."principal_id", 'role', dg."role", 'expiresAt', dg."expires_at", 'inherited', dg."node_id" <> drive_grants.node) order by dg."node_id" = drive_grants.node, coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"), 0) desc, dg."id"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', dg."id", 'nodeId', dg."node_id", 'principalType', dg."principal_type", 'principalId', dg."principal_id", 'role', dg."role", 'expiresAt', dg."expires_at", 'inherited', dg."node_id" <> drive_grants.node) order by dg."node_id" = drive_grants.node, coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"::text), 0) desc, dg."id"), '[]'::jsonb)
     from "better_supabase"."drive_grants" dg
     where dg."node_id" = any ("better_supabase"."drive_ancestors"(drive_grants.node)) and (dg."expires_at" is null or dg."expires_at" > now())
   );

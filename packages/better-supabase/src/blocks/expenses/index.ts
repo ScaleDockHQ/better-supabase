@@ -1,5 +1,10 @@
 export {
   createExpenses,
+  type Expense,
+  type ExpenseInput,
+  type ExpenseListOptions,
+  type ExpenseStatus,
+  type ExpenseUpdate,
   type ExpenseCategory,
   type ExpenseCategoryInput,
   type ExpenseLine,
@@ -45,6 +50,7 @@ export {
 export { expensesEvents } from "./events.ts";
 
 export type {
+  ExpenseEventData,
   ExpenseReportEventData,
   ExpenseReportPostedEventData,
   ExpenseReportSubmittedEventData,

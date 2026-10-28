@@ -236,6 +236,28 @@ export async function GET(
 }
 ```
 
+The feed carries the link's creator as `createdBy`, and each event's
+reminders become `VALARM`s: the creator's reminders from the reminders block,
+or, with `options.feed.reminders`, the alarms your own table keeps per event.
+
+```ts title="better-supabase.config.ts"
+calendar: {
+  options: {
+    feed: {
+      reminders: {
+        table: "public.event_alarms",
+        event: "event_id",
+        offsetMinutes: "minutes_before",
+        method: "action",
+      },
+    },
+  },
+},
+```
+
+`method` and `user` are optional; with `user`, a row with a user counts only
+in the feeds of that user's links.
+
 ## Event keys and read-only events
 
 Three event actions take their own key when you set one, on top of

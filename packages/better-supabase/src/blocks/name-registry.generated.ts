@@ -325,7 +325,7 @@ export interface BlockNameRegistry {
       readonly "media": "id" | "tenant" | "product" | "variant" | "attachment" | "position" | "alt" | "createdAt";
     };
     readonly functions: "add_to_collection" | "channel_price" | "channel_products" | "currency_minor_units" | "delete_catalog_channel" | "delete_category" | "delete_collection" | "delete_price" | "delete_price_list" | "delete_product" | "delete_product_option" | "delete_variant" | "move_category" | "product_text" | "publish_storefront" | "rank_variant" | "remove_from_collection" | "save_catalog_channel" | "save_category" | "save_collection" | "save_price_list" | "save_product" | "save_product_option" | "save_variant" | "set_channel_listing" | "set_price" | "set_product_categories" | "set_product_status" | "set_product_translation" | "set_variant_translation" | "storefront_products" | "storefront_tenants" | "variant_price";
-    readonly actions: "manage" | "read";
+    readonly actions: "manage" | "read" | "create" | "update" | "delete";
     readonly hooks: "before_product_save" | "after_product_save" | "before_variant_save" | "after_variant_save" | "before_price_set" | "after_price_set";
     readonly entities: {
       readonly "product": "id" | "tenant_id" | "slug" | "title" | "description" | "kind" | "status" | "created_at" | "updated_at" | "price" | "currency" | "track_inventory";
@@ -680,6 +680,7 @@ export interface BlockNameRegistry {
       readonly "categories": "id" | "tenant" | "key" | "name" | "currency" | "limitAmount" | "receiptOver" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "reports": "id" | "tenant" | "user" | "title" | "currency" | "note" | "approval" | "submittedAt" | "approvedAt" | "approvalTransaction" | "reimbursedAt" | "reimbursement" | "cancelledAt" | "createdAt" | "updatedAt" | "rejectedAt" | "decidedBy" | "decisionNote";
       readonly "lines": "id" | "tenant" | "report" | "category" | "spentOn" | "description" | "merchant" | "amount" | "createdAt" | "updatedAt";
+      readonly "expenses": "id" | "tenant" | "user" | "employee" | "category" | "spentOn" | "description" | "merchant" | "amount" | "currency" | "status" | "submittedAt" | "approvedAt" | "rejectedAt" | "decidedBy" | "decidedAt" | "decisionNote" | "reimbursedAt" | "reimbursedBy" | "reimbursement" | "createdBy" | "createdAt" | "updatedAt";
     };
     readonly functions: "add_expense_line" | "approve_expense_report" | "archive_expense_category" | "cancel_expense_report" | "check_expense_report" | "create_expense_report" | "expense_report_violations" | "get_expense_report" | "list_expense_categories" | "list_expense_reports" | "reimburse_expense_report" | "remove_expense_line" | "save_expense_category" | "submit_expense_report" | "update_expense_line";
     readonly actions: "read" | "submit" | "approve" | "manage";
@@ -925,15 +926,15 @@ export interface BlockNameRegistry {
   };
   readonly "invoices": {
     readonly tables: {
-      readonly "invoices": "id" | "tenant" | "kind" | "number" | "identifier" | "original" | "title" | "companyType" | "companyId" | "contactType" | "contactId" | "currency" | "status" | "termsDays" | "issuedOn" | "dueOn" | "paidTotal" | "creditedTotal" | "paidAt" | "voidedAt" | "voidReason" | "note" | "originType" | "originId" | "depositBps" | "createdBy" | "createdAt" | "updatedAt" | "listTotal" | "discountTotal" | "subtotal" | "taxTotal" | "total";
+      readonly "invoices": "id" | "tenant" | "kind" | "number" | "identifier" | "original" | "title" | "companyType" | "companyId" | "contactType" | "contactId" | "currency" | "status" | "termsDays" | "issuedOn" | "dueOn" | "paidTotal" | "creditedTotal" | "paidAt" | "voidedAt" | "voidReason" | "writeOffReason" | "note" | "originType" | "originId" | "depositBps" | "createdBy" | "createdAt" | "updatedAt" | "listTotal" | "discountTotal" | "subtotal" | "taxTotal" | "total";
       readonly "lines": "id" | "tenant" | "parent" | "productType" | "productId" | "description" | "quantity" | "unitAmount" | "discountBps" | "taxRateBps" | "taxCode" | "position" | "createdAt";
       readonly "charges": "id" | "tenant" | "invoice" | "amount" | "currency" | "description" | "createdBy" | "createdAt";
     };
-    readonly functions: "add_invoice_charge" | "create_invoice" | "credit_invoice" | "invoice_aging" | "issue_invoice" | "record_invoice_payment" | "set_invoice_lines" | "set_invoice_lines_recount" | "void_invoice" | "write_off_invoice";
+    readonly functions: "add_invoice_charge" | "create_invoice" | "credit_invoice" | "invoice_aging" | "issue_invoice" | "record_invoice_payment" | "remove_invoice_charge" | "reverse_invoice_payment" | "set_invoice_lines" | "set_invoice_lines_recount" | "void_invoice" | "write_off_invoice";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_invoice_issue" | "after_invoice_issue" | "before_invoice_payment" | "after_invoice_payment";
     readonly entities: {
-      readonly "invoice": "id" | "tenant_id" | "kind" | "number" | "identifier" | "original_id" | "title" | "company_type" | "company_id" | "contact_type" | "contact_id" | "currency" | "status" | "terms_days" | "issued_on" | "due_on" | "paid_total" | "credited_total" | "paid_at" | "voided_at" | "void_reason" | "note" | "origin_type" | "origin_id" | "deposit_bps" | "created_by" | "created_at" | "updated_at" | "list_total" | "discount_total" | "subtotal" | "tax_total" | "total";
+      readonly "invoice": "id" | "tenant_id" | "kind" | "number" | "identifier" | "original_id" | "title" | "company_type" | "company_id" | "contact_type" | "contact_id" | "currency" | "status" | "terms_days" | "issued_on" | "due_on" | "paid_total" | "credited_total" | "paid_at" | "voided_at" | "void_reason" | "write_off_reason" | "note" | "origin_type" | "origin_id" | "deposit_bps" | "created_by" | "created_at" | "updated_at" | "list_total" | "discount_total" | "subtotal" | "tax_total" | "total";
     };
     readonly primary: "invoice";
   };
@@ -984,13 +985,14 @@ export interface BlockNameRegistry {
   readonly "leave": {
     readonly tables: {
       readonly "types": "id" | "tenant" | "key" | "name" | "unit" | "paid" | "tracked" | "allowance" | "carryoverMax" | "color" | "archivedAt" | "createdAt" | "updatedAt";
-      readonly "requests": "id" | "tenant" | "user" | "type" | "startsOn" | "endsOn" | "partial" | "amount" | "note" | "approval" | "approvedAt" | "cancelledAt" | "cancelledBy" | "createdAt" | "updatedAt" | "rejectedAt" | "decidedBy" | "decisionNote";
+      readonly "requests": "id" | "tenant" | "user" | "employee" | "type" | "startsOn" | "endsOn" | "partial" | "startPart" | "endPart" | "amount" | "note" | "approval" | "approvedAt" | "cancelledAt" | "cancelledBy" | "createdAt" | "updatedAt" | "rejectedAt" | "decidedBy" | "decisionNote";
+      readonly "balances": "id" | "tenant" | "user" | "employee" | "type" | "kind" | "amount" | "effectiveOn" | "expiresOn" | "request" | "note" | "key" | "createdBy" | "createdAt";
     };
-    readonly functions: "accrue_leave" | "adjust_leave_balance" | "approve_leave_request" | "archive_leave_type" | "cancel_leave_request" | "close_leave_year" | "decide_leave_request" | "leave_available" | "leave_balances" | "leave_ledger_entries" | "leave_post" | "leave_posted" | "leave_working_days" | "list_leave_requests" | "list_leave_types" | "request_leave" | "save_leave_type";
+    readonly functions: "accrue_leave" | "adjust_leave_balance" | "approve_leave_request" | "archive_leave_type" | "cancel_leave_request" | "close_leave_year" | "decide_leave_request" | "leave_available" | "leave_balances" | "leave_is_mine" | "leave_ledger_entries" | "leave_post" | "leave_posted" | "leave_working_days" | "list_leave_requests" | "list_leave_types" | "request_leave" | "save_leave_type";
     readonly actions: "request" | "read" | "approve" | "manage";
     readonly hooks: "before_leave_request" | "after_leave_request";
     readonly entities: {
-      readonly "request": "id" | "tenant_id" | "user_id" | "type_id" | "starts_on" | "ends_on" | "partial" | "amount" | "note" | "approval_id" | "approved_at" | "cancelled_at" | "cancelled_by" | "created_at" | "updated_at" | "rejected_at" | "decided_by" | "decision_note";
+      readonly "request": "id" | "tenant_id" | "user_id" | "employee_id" | "type_id" | "starts_on" | "ends_on" | "partial" | "start_part" | "end_part" | "amount" | "note" | "approval_id" | "approved_at" | "cancelled_at" | "cancelled_by" | "created_at" | "updated_at" | "rejected_at" | "decided_by" | "decision_note";
       readonly "type": "id" | "tenant_id" | "key" | "name" | "unit" | "paid" | "tracked" | "allowance" | "carryover_max" | "color" | "archived_at" | "created_at" | "updated_at";
     };
     readonly primary: "request";

@@ -35,6 +35,11 @@ roles: {
 
 The service role passes every check, for imports and sync jobs.
 
+`blocks.catalog.permissions.create`, `update` and `delete` name separate keys
+for creating, changing and deleting products, options and variants (statuses
+and options count as changes). Without them those writes check `manage`, and
+prices, categories, collections and channels always do.
+
 ## Products
 
 Server code calls the `catalog` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
@@ -77,8 +82,11 @@ add a `review` state.
 Over your own products table with other statuses, map the block's three
 through `values.products.status`. An app with `active`, `discontinued` and
 `archived` and no draft maps `{ draft: null, archived: ["archived",
-"discontinued"] }`: `setProductStatus(id, "archived")` writes `archived`, a
-discontinued product reads as `archived`, and a move to `draft` is refused.
+"discontinued"] }`: `setProductStatus(id, "archived")` writes `archived`, also
+over a discontinued product, which reads as `archived`;
+`setProductStatus(id, "discontinued")` writes that app value; and a move to
+`draft` is refused. Without a draft status, an archived product goes back to
+`active`.
 
 ## Options and variants
 
@@ -101,11 +109,16 @@ A variant names exactly one value of every option of its product
 (`CATALOG_VARIANT_DUPLICATE`). SKUs are unique per organization
 (`CATALOG_SKU_TAKEN`). A product without options has one variant.
 
-Once a product has variants, its options can't gain or lose an option
-(`CATALOG_OPTION_HAS_VARIANTS`), and a value a variant uses can't be removed
+A product with variants can gain an option: each existing variant gets the
+option's first value, so the default variant of a product without options
+becomes its first combination. Without a variant values table that is refused
+(`CATALOG_OPTION_HAS_VARIANTS`). A value a variant uses can't be removed
 (`CATALOG_OPTION_VALUE_IN_USE`). Variants keep a rank key, and
 `reorderVariant(id, { previous, next })` computes a new one with
 [`rankBetween`](/docs/blocks/rank).
+
+`updateVariant` changes only what it names: a SKU, option values or a flag
+left out keeps its value, and `sku` is optional.
 
 `trackInventory` and `allowBackorder` are read by the
 [inventory](/docs/blocks/inventory) block when it is installed.
@@ -156,7 +169,8 @@ amount, when `outbox` is installed.
 When your variants hold their own price, map `tables.prices` to `null`, and
 `columns.variants.price` to the variant's price column. A variant without a
 price falls back to `columns.products.price`, and the price is in the
-product's currency (`columns.products.currency`). `setPrice` writes the
+product's currency (`columns.products.currency`). `updateProduct` with
+`price: null` clears the product's price. `setPrice` writes the
 variant's column and refuses another currency, a compare-at amount, a price
 list or a validity window; `deletePrice(variantId)` clears the variant's own
 price; `variantPrice` returns the variant's or the product's price, and a

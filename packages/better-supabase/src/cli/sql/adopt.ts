@@ -11,6 +11,7 @@ import type {
   BlockConfig,
   SubjectsConfig,
 } from "../../config/index.ts";
+import type { BlockSqlLayout } from "../../sql/index.ts";
 import type { CatalogTable } from "../introspect/types.ts";
 
 import { toSnake } from "../../index.ts";
@@ -309,6 +310,7 @@ export interface ProposeOptions {
   readonly blocks?: AnyBlocksConfig;
   /** `config.subjects`, which a block's `on` entries inherit from. */
   readonly subjects?: SubjectsConfig;
+  readonly accessProvider?: BlockSqlLayout["accessProvider"];
   /**
    * Schemas searched for the module's default table names. Defaults to
    * `public`.
@@ -498,6 +500,9 @@ export function proposeAdoption(
         ...(options.subjects === undefined
           ? {}
           : { subjects: options.subjects }),
+        ...(options.accessProvider === undefined
+          ? {}
+          : { accessProvider: options.accessProvider }),
       });
 
       errors.push(
@@ -507,6 +512,7 @@ export function proposeAdoption(
           [...new Set(adopted.map((table) => table.schema))],
           ownTables,
           options.subjects,
+          options.accessProvider,
         ),
       );
     } catch (error) {

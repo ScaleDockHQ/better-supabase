@@ -168,6 +168,43 @@ own it. Approval posts on the ledger like a final approval; rejection sets
 the report and submit it again. The reports table takes optional
 `rejectedAt`, `decidedBy` and `decisionNote` columns.
 
+## Expenses without reports
+
+Map `tables.reports` and `tables.lines` to `null` and each expense is one row of `tables.expenses` instead: the block's own table, or yours. It needs neither the approvals block nor the ledger, and the app decides each expense.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  expenses: {
+    tables: { reports: null, lines: null, expenses: "public.expenses" },
+    columns: {
+      expenses: {
+        tenant: "organization_id",
+        user: null,
+        employee: "employee_id",
+        category: null,
+        amount: "amount_cents",
+        approvedAt: null,
+        rejectedAt: null,
+      },
+    },
+    options: { owner: "employee" },
+  },
+},
+```
+
+An expense belongs to a member (`user`), or with `options.owner: "employee"` to an employee of the [employees block](/docs/blocks/employees), who may have no account. Its state lives in a `status` column (`draft`, `submitted`, `approved`, `rejected` or `reimbursed`, which may be an enum), or in the `approvedAt` and `rejectedAt` timestamps next to `submittedAt` and `reimbursedAt`. `category`, `description`, `merchant`, `decidedBy`, `decidedAt`, `decisionNote`, `reimbursedBy`, `reimbursement` and `createdBy` are optional.
+
+| Method                                    | Who                                                                                                                |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `createExpense(input)`                    | the owner with `expenses.submit`, their manager, or `expenses.manage`; takes `employeeId`                          |
+| `updateExpense(id, update)`               | the same, while the expense is a draft or rejected; null keeps a value                                             |
+| `submitExpense(id)`                       | the same, for a draft or rejected expense                                                                          |
+| `decideExpense(id, { approved, note? })`  | the service role, or `expenses.approve` for someone else's submitted expense                                       |
+| `reimburseExpense(id, { reference? })`    | the service role or `expenses.manage`, for an approved expense                                                     |
+| `getExpense(id)`, `listExpenses(options)` | the owner, their manager, or `expenses.read`; `listExpenses` takes `status`, `userId`, `employeeId` and `everyone` |
+
+Amounts are `Money` in minor units. Each change records `expense.created`, `expense.submitted`, `expense.approved`, `expense.rejected` or `expense.reimbursed`.
+
 ## Errors
 
 | Hint                         | Cause                                                                           |
@@ -183,6 +220,10 @@ the report and submit it again. The reports table takes optional
 | `EXPENSE_REPORT_INVALID`     | the title, currency or note isn't valid                                         |
 | `EXPENSE_REPORT_LOCKED`      | the report isn't in a status that allows the change                             |
 | `EXPENSE_REPORT_NOT_FOUND`   | no report with this id that the caller can read                                 |
+| `EXPENSE_INVALID`            | an expense's day, amount, currency or decision isn't valid                      |
+| `EXPENSE_LOCKED`             | the expense isn't in a status that allows the change                            |
+| `EXPENSE_NOT_FOUND`          | no expense with this id that the caller can read                                |
+| `EXPENSE_EMPLOYEE_INVALID`   | no employee has this id, or the caller has no employee record                   |
 
 ## Events
 

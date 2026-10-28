@@ -15,6 +15,7 @@ import { list } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import { applyPlan, planResult } from "../core/files.ts";
 import { display } from "../core/io.ts";
+import { adoptionContext } from "../doctor/app-tables.ts";
 import { latestMigrationVersion } from "../doctor/migration-safety.ts";
 import { toCatalog } from "../introspect/index.ts";
 import {
@@ -146,7 +147,7 @@ export async function runAdopt(
   const proposal = proposeAdoption(block, await deps.tables(), {
     from: list(args.tables),
     blocks: config.blocks,
-    subjects: config.subjects,
+    ...adoptionContext({ config }),
     schemas: adoptSchemas(config),
   });
 

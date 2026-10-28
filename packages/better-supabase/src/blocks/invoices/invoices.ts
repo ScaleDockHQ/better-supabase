@@ -153,6 +153,7 @@ export interface Invoices<F extends object = Record<never, never>> {
   issue(
     invoiceId: string,
     issuedOn?: Temporal.PlainDate,
+    options?: { readonly dueOn?: Temporal.PlainDate },
   ): AsyncResult<Invoice<F>>;
   /** Records a payment; a negative amount is a refund. */
   recordPayment(
@@ -172,7 +173,9 @@ export interface Invoices<F extends object = Record<never, never>> {
     options?: { readonly lines?: readonly LineInput[]; readonly note?: string },
   ): AsyncResult<Invoice<F>>;
   void(invoiceId: string, reason?: string): AsyncResult<Invoice<F>>;
-  writeOff(invoiceId: string): AsyncResult<Invoice<F>>;
+  writeOff(invoiceId: string, reason?: string): AsyncResult<Invoice<F>>;
+  reversePayment(paymentId: string, reason?: string): AsyncResult<Invoice<F>>;
+  removeCharge(chargeId: string): AsyncResult<Invoice<F>>;
   /**
    * Adds a charge on top of an issued invoice's total, in its currency. The
    * balance rises, so a paid invoice is open again until the charge is paid.
@@ -402,10 +405,13 @@ export function createInvoices<
           )
         : AsyncResult.err(invalid);
     },
-    issue: (invoiceId, issuedOn) =>
+    issue: (invoiceId, issuedOn, issueOptions = {}) =>
       invoice("issue_invoice", {
         invoice: invoiceId,
         issued_on: issuedOn === undefined ? null : issuedOn.toString(),
+        ...(issueOptions.dueOn === undefined
+          ? {}
+          : { due_on: issueOptions.dueOn.toString() }),
       }),
     recordPayment: (invoiceId, payment) =>
       invoice("record_invoice_payment", {
@@ -433,8 +439,18 @@ export function createInvoices<
     },
     void: (invoiceId, reason) =>
       invoice("void_invoice", { invoice: invoiceId, reason: reason ?? null }),
-    writeOff: (invoiceId) =>
-      invoice("write_off_invoice", { invoice: invoiceId }),
+    writeOff: (invoiceId, reason) =>
+      invoice("write_off_invoice", {
+        invoice: invoiceId,
+        reason: reason ?? null,
+      }),
+    reversePayment: (paymentId, reason) =>
+      invoice("reverse_invoice_payment", {
+        payment: paymentId,
+        reason: reason ?? null,
+      }),
+    removeCharge: (chargeId) =>
+      invoice("remove_invoice_charge", { charge: chargeId }),
     charge: (invoiceId, charge) =>
       invoice("add_invoice_charge", {
         invoice: invoiceId,

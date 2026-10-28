@@ -17,6 +17,11 @@ import {
   expenseApprovals,
   expensesFunctions,
 } from "./expenses-functions.ts";
+import {
+  EXPENSE_TABLE,
+  expensesStandalone,
+  standaloneContract,
+} from "./expenses-standalone.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -26,6 +31,15 @@ const REPORT_PAYLOAD = [
   "userId",
   "status",
   "total",
+  "currency",
+] as const;
+
+const EXPENSE_PAYLOAD = [
+  "organizationId",
+  "id",
+  "userId",
+  "status",
+  "amount",
   "currency",
 ] as const;
 
@@ -54,6 +68,11 @@ const EVENTS: BlockSqlEvents<ExpensesEvents> = {
     subject: "expense-reports",
     payload: REPORT_PAYLOAD,
   },
+  "expense.created": { subject: "expenses", payload: EXPENSE_PAYLOAD },
+  "expense.submitted": { subject: "expenses", payload: EXPENSE_PAYLOAD },
+  "expense.approved": { subject: "expenses", payload: EXPENSE_PAYLOAD },
+  "expense.rejected": { subject: "expenses", payload: EXPENSE_PAYLOAD },
+  "expense.reimbursed": { subject: "expenses", payload: EXPENSE_PAYLOAD },
 };
 
 const NAMES: BlockSqlNames = {
@@ -83,7 +102,7 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
-  options: ["extraColumns", "approvals"],
+  options: ["extraColumns", "approvals", "owner"],
   tables: {
     categories: {
       name: "expense_categories",
@@ -106,6 +125,7 @@ const NAMES: BlockSqlNames = {
     reports: {
       name: "expense_reports",
       app: {},
+      optionalTable: true,
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
         id: "id",
@@ -140,6 +160,7 @@ const NAMES: BlockSqlNames = {
     lines: {
       name: "expense_lines",
       app: {},
+      optionalTable: true,
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -155,6 +176,7 @@ const NAMES: BlockSqlNames = {
       },
       optional: ["merchant"],
     },
+    expenses: EXPENSE_TABLE,
   },
 };
 
@@ -163,10 +185,11 @@ function tables(ctx: BlockSqlContext): string {
     return "";
   }
 
+  const standalone = expensesStandalone(ctx);
   const approvals = expenseApprovals(ctx) ? ctx.of("approvals") : undefined;
   const categories = ctx.table("categories");
-  const reports = ctx.table("reports");
-  const lines = ctx.table("lines");
+  const reports = standalone ? "" : ctx.table("reports");
+  const lines = standalone ? "" : ctx.table("lines");
   const k = (column: string): string => ctx.col("categories", column);
   const r = (column: string): string => ctx.col("reports", column);
   const x = (column: string): string => ctx.col("lines", column);
@@ -219,7 +242,10 @@ create table if not exists ${categories} (
 ${lockModuleTable(ctx, "categories", { read: true })}
 drop policy if exists ${index("categories", "read")} on ${categories};
 ${renderPolicy(makePolicy({ table: categories, name: index("categories", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(k("tenant"), read) }), { target: categories })}
-
+${
+  standalone
+    ? ""
+    : `
 create table if not exists ${reports} (
   ${r("id")} uuid primary key default gen_random_uuid(),
   ${r("tenant")} ${ctx.idType} not null,
@@ -268,7 +294,8 @@ ${renderPolicy(
   }),
   { target: lines },
 )}
-`;
+`
+}`;
 }
 
 function build(ctx: BlockSqlContext): string {
@@ -277,8 +304,13 @@ function build(ctx: BlockSqlContext): string {
   }
 
   const approvals = expenseApprovals(ctx);
+  const standalone = expensesStandalone(ctx);
 
-  for (const needed of approvals ? ["approvals", "ledger"] : ["ledger"]) {
+  for (const needed of standalone
+    ? []
+    : approvals
+      ? ["approvals", "ledger"]
+      : ["ledger"]) {
     if (ctx.of(needed).mode === "custom") {
       throw new TypeError(
         `blocks.expenses needs the ${needed} tables; ${needed} can't be in custom mode`,
@@ -294,6 +326,10 @@ ${tables(ctx)}${expensesFunctions(ctx)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
+  if (expensesStandalone(ctx)) {
+    return standaloneContract(ctx);
+  }
+
   const extra = extraFieldsArg(
     ctx.extraColumns("reports", EXPENSE_REPORT_RESERVED),
   ).contract;
@@ -374,13 +410,20 @@ export const EXPENSES: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Expenses",
   description:
-    "Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units.",
+    "Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.",
   requires: [...REQUIRES],
-  dependencies: (layout) =>
-    layout.modules?.["expenses"]?.options?.["approvals"] === false
+  dependencies: (layout) => {
+    const expenses = layout.modules?.["expenses"];
+
+    if (expenses?.tables?.["reports"] === null) {
+      return ["memberships", "permissions"];
+    }
+
+    return expenses?.options?.["approvals"] === false
       ? REQUIRES.filter((name) => name !== "approvals")
-      : [...REQUIRES],
-  integrates: ["outbox", "audit", "attachments"],
+      : [...REQUIRES];
+  },
+  integrates: ["outbox", "audit", "attachments", "employees"],
   target: "schema",
   modes: ["managed", "custom"],
   names: NAMES,

@@ -136,6 +136,9 @@ export interface Names {
   readonly fn: (name: string) => string;
   readonly manage: string;
   readonly read: string;
+  readonly create: string;
+  readonly update: string;
+  readonly remove: string;
 }
 
 /** `blocks.catalog.options.rankType`: rank keys or integer positions. */
@@ -151,8 +154,12 @@ export function catalogRank(ctx: BlockSqlContext): RankSql {
   return rankSql(type);
 }
 
-export function guard(names: Names, tenant: string): string {
-  return `if not (auth.role() = 'service_role' or ${names.scope.can(tenant, names.manage)}) then
+export function guard(
+  names: Names,
+  tenant: string,
+  key: string = names.manage,
+): string {
+  return `if not (auth.role() = 'service_role' or ${names.scope.can(tenant, key)}) then
     ${fail("CATALOG_FORBIDDEN", "not allowed to manage the catalog")}
   end if;`;
 }
@@ -172,11 +179,12 @@ export function productFunctions(ctx: BlockSqlContext, names: Names): string {
   const extras = productExtras(ctx);
   const settings = productSettings(ctx);
   const baseArgs = `${ctx.idType}, uuid, text, text, text, text`;
-  const saveArgs = [baseArgs, ...productSettingTypes(ctx)].join(", ");
+  const oldArgs = [baseArgs, ...productSettingTypes(ctx)].join(", ");
+  const saveArgs = settings.length === 0 ? oldArgs : `${oldArgs}, text[]`;
 
-  const settingParams = settings
+  const settingParams = `${settings
     .map(([, param, type]) => `, ${param} ${type} default null`)
-    .join("");
+    .join("")}${settings.length === 0 ? "" : ", clear text[] default null"}`;
 
   const settingWrite =
     settings.length === 0
@@ -185,22 +193,38 @@ export function productFunctions(ctx: BlockSqlContext, names: Names): string {
   update ${products} x set ${settings
     .map(
       ([logical, param]) =>
-        `${p(logical)} = coalesce(${logical === "currency" ? `upper(save_product.${param})` : `save_product.${param}`}, x.${p(logical)})`,
+        `${p(logical)} = case when ${sqlString(logical)} = any (coalesce(save_product.clear, '{}'::text[])) then null else coalesce(${logical === "currency" ? `upper(save_product.${param})` : `save_product.${param}`}, x.${p(logical)}) end`,
     )
-    .join(", ")}
+    .join(",\n    ")}
   where x.${p("id")} = v_id;`;
+
+  const clearCheck =
+    settings.length === 0
+      ? ""
+      : `
+  if exists (select 1 from unnest(coalesce(save_product.clear, '{}'::text[])) c where c <> all (${sqlString(`{${settings.map(([logical]) => logical).join(",")}}`)}::text[])) then
+    ${fail("CATALOG_CLEAR_INVALID", `clear names only ${settings.map(([logical]) => logical).join(", ")}`, "22023")}
+  end if;`;
 
   const staleDrops =
     settings.length === 0
       ? ""
       : `drop function if exists ${fn("save_product")}(${baseArgs});
 drop function if exists ${fn("save_product")}(${baseArgs}, jsonb);
+drop function if exists ${fn("save_product")}(${oldArgs});
+drop function if exists ${fn("save_product")}(${oldArgs}, jsonb);
 `;
 
+  const draftless = ctx.appValues("products", "status", "draft").length === 0;
+
   const edges = Object.entries(STATUS_EDGES)
+    .map(([from, to]): [string, readonly string[]] => [
+      from,
+      draftless && from === "archived" ? [...to, "active"] : to,
+    ])
     .map(
       ([from, to]) =>
-        `    when ${sqlString(from)} then set_product_status.status = any (${sqlString(`{${to.join(",")}}`)}::text[])`,
+        `    when ${sqlString(from)} then v_to = any (${sqlString(`{${to.join(",")}}`)}::text[])`,
     )
     .join("\n");
 
@@ -232,7 +256,11 @@ declare
   v_status text;
   v_created boolean := save_product.product is null;
 begin
-  ${guard(names, "save_product.tenant")}
+  if v_created then
+    ${guard(names, "save_product.tenant", names.create)}
+  else
+    ${guard(names, "save_product.tenant", names.update)}
+  end if;${clearCheck}
   if v_slug is null or v_slug !~ ${SLUG} then
     ${fail("CATALOG_SLUG_INVALID", "the slug must be lower-case letters, digits and hyphens", "22023")}
   end if;
@@ -302,22 +330,26 @@ as $$
 declare
   v_tenant ${ctx.idType};
   v_from text;
+  v_from_raw text;
+  v_to text := ${ctx.label("products", "status", "set_product_status.status")};
+  v_to_raw text;
 begin
-  select x.${p("tenant")}, ${ctx.label("products", "status", `x.${p("status")}`)} into v_tenant, v_from from ${products} x where x.${p("id")} = set_product_status.product for update;
+  select x.${p("tenant")}, ${ctx.label("products", "status", `x.${p("status")}`)}, x.${p("status")}::text into v_tenant, v_from, v_from_raw from ${products} x where x.${p("id")} = set_product_status.product for update;
   if v_tenant is null then
     ${fail("CATALOG_PRODUCT_NOT_FOUND", "product not found", "P0002")}
   end if;
-  ${guard(names, "v_tenant")}
-  if set_product_status.status not in ('draft', 'active', 'archived') then
+  ${guard(names, "v_tenant", names.update)}
+  if v_to is null or v_to not in ('draft', 'active', 'archived') then
     ${fail("CATALOG_STATUS_INVALID", "the status must be draft, active or archived", "22023")}
   end if;
-  if v_from = set_product_status.status then
+  v_to_raw := (${ctx.cast("products", "status", "set_product_status.status")})::text;
+  if v_from_raw = v_to_raw then
     return jsonb_build_object('id', set_product_status.product, 'status', v_from, 'from', v_from);
   end if;
 ${
   governed
     ? ""
-    : `  if not (case v_from
+    : `  if v_from <> v_to and not (case v_from
 ${edges}
     else false
   end) then
@@ -328,12 +360,12 @@ ${edges}
   where x.${p("id")} = set_product_status.product;
   ${ctx.record({
     type: "product.status_changed",
-    payload: `jsonb_build_object('organizationId', v_tenant, 'id', set_product_status.product, 'from', v_from, 'to', set_product_status.status)`,
+    payload: `jsonb_build_object('organizationId', v_tenant, 'id', set_product_status.product, 'from', v_from, 'to', v_to)`,
     subject: `'products/' || set_product_status.product::text`,
     tenant: "v_tenant",
     audit: false,
   })}
-  return jsonb_build_object('id', set_product_status.product, 'status', set_product_status.status, 'from', v_from);
+  return jsonb_build_object('id', set_product_status.product, 'status', v_to, 'from', v_from);
 end;
 $$;
 ${userGrant(`${fn("set_product_status")}(uuid, text)`)}
@@ -352,7 +384,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  ${guard(names, "v_tenant")}${historyCheck(`select v.${ctx.col("variants", "id")} from ${ctx.table("variants")} v where v.${ctx.col("variants", "product")} = delete_product.product`, "CATALOG_PRODUCT_IN_USE")}
+  ${guard(names, "v_tenant", names.remove)}${historyCheck(`select v.${ctx.col("variants", "id")} from ${ctx.table("variants")} v where v.${ctx.col("variants", "product")} = delete_product.product`, "CATALOG_PRODUCT_IN_USE")}
   delete from ${products} x where x.${p("id")} = delete_product.product;
   ${ctx.record({
     type: "product.deleted",
@@ -383,6 +415,17 @@ export function optionFunctions(ctx: BlockSqlContext, names: Names): string {
   const o = (column: string): string => ctx.col("options", column);
   const ov = (column: string): string => ctx.col("optionValues", column);
   const v = (column: string): string => ctx.col("variants", column);
+  const linked = ctx.hasTable("variantValues");
+  const vv = (column: string): string => ctx.col("variantValues", column);
+
+  const linkVariants = linked
+    ? `
+  if v_new then
+    insert into ${ctx.table("variantValues")} (${vv("tenant")}, ${vv("variant")}, ${vv("value")})
+    select v_tenant, x.${v("id")}, (select y.${ov("id")} from ${values} y where y.${ov("option")} = v_id and y.${ov("value")} = save_product_option.option_values[1])
+    from ${variants} x where x.${v("product")} = save_product_option.product;
+  end if;`
+    : "";
 
   return `
 -- Creates an option (option null) or updates one, with its values in order.
@@ -399,12 +442,13 @@ declare
   v_last text;
   v_rank text;
   v_value text;
+  v_new boolean := save_product_option.option is null;
 begin
   select x.${p("tenant")} into v_tenant from ${products} x where x.${p("id")} = save_product_option.product for update;
   if v_tenant is null then
     ${fail("CATALOG_PRODUCT_NOT_FOUND", "product not found", "P0002")}
   end if;
-  ${guard(names, "v_tenant")}
+  ${guard(names, "v_tenant", names.update)}
   if coalesce(cardinality(save_product_option.option_values), 0) = 0 then
     ${fail("CATALOG_OPTION_EMPTY", "an option needs at least one value", "22023")}
   end if;
@@ -412,10 +456,14 @@ begin
     ${fail("CATALOG_OPTION_DUPLICATE", "an option lists the same value twice", "22023")}
   end if;
   begin
-    if v_id is null then
+    if v_id is null then${
+      linked
+        ? ""
+        : `
       if exists (select 1 from ${variants} x where x.${v("product")} = save_product_option.product) then
         ${fail("CATALOG_OPTION_HAS_VARIANTS", "add options before the product has variants", "22023")}
-      end if;
+      end if;`
+    }
       select max(${rank.order(`x.${o("rank")}`)}) into v_last from ${options} x where x.${o("product")} = save_product_option.product;
       insert into ${options} (${o("tenant")}, ${o("product")}, ${o("name")}, ${o("rank")})
       values (v_tenant, save_product_option.product, save_product_option.name, ${rank.write(rank.after("v_last"))})
@@ -443,7 +491,7 @@ begin
       insert into ${values} (${ov("tenant")}, ${ov("option")}, ${ov("value")}, ${ov("rank")})
       values (v_tenant, v_id, v_value, ${rank.write("v_rank")});
     end if;
-  end loop;
+  end loop;${linkVariants}
   return jsonb_build_object(
     'id', v_id,
     'values', (select coalesce(jsonb_agg(jsonb_build_object('id', x.${ov("id")}, 'value', x.${ov("value")}) order by ${rank.order(`x.${ov("rank")}`)}), '[]'::jsonb) from ${values} x where x.${ov("option")} = v_id)
@@ -466,7 +514,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  ${guard(names, "v_tenant")}
+  ${guard(names, "v_tenant", names.update)}
   begin
     delete from ${options} x where x.${o("id")} = delete_product_option.option;
   exception when foreign_key_violation then
@@ -515,21 +563,33 @@ function variantFunctions(
     ctx.hasTable("optionValues") &&
     ctx.hasTable("options");
 
-  const columns: readonly (readonly [string, string])[] = [
-    ["sku", "save_variant.sku"],
-    ...(optional("title") ? ([["title", "save_variant.title"]] as const) : []),
+  const columns: readonly (readonly [string, string, string])[] = [
+    ["sku", "save_variant.sku", "save_variant.sku"],
+    ...(optional("title")
+      ? ([["title", "save_variant.title", "save_variant.title"]] as const)
+      : []),
     ...(optional("barcode")
-      ? ([["barcode", "save_variant.barcode"]] as const)
+      ? ([["barcode", "save_variant.barcode", "save_variant.barcode"]] as const)
       : []),
     ...(optional("weight")
-      ? ([["weight", "save_variant.weight_grams"]] as const)
+      ? ([
+          ["weight", "save_variant.weight_grams", "save_variant.weight_grams"],
+        ] as const)
       : []),
     ...(optional("trackInventory")
       ? ([
-          ["trackInventory", "coalesce(save_variant.track_inventory, true)"],
+          [
+            "trackInventory",
+            "coalesce(save_variant.track_inventory, true)",
+            "save_variant.track_inventory",
+          ],
         ] as const)
       : []),
-    ["allowBackorder", "coalesce(save_variant.allow_backorder, false)"],
+    [
+      "allowBackorder",
+      "coalesce(save_variant.allow_backorder, false)",
+      "save_variant.allow_backorder",
+    ],
   ];
 
   const valueChecks = hasValues
@@ -542,7 +602,8 @@ function variantFunctions(
         const vv = (column: string): string => ctx.col("variantValues", column);
 
         return {
-          check: `  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
+          check: `  if v_created or save_variant.option_values is not null then
+  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
   if cardinality(v_wanted) <> coalesce(cardinality(save_variant.option_values), 0)
     or exists (
       select 1 from unnest(v_wanted) x
@@ -562,11 +623,14 @@ function variantFunctions(
       and coalesce((select array_agg(y.${vv("value")} order by y.${vv("value")}) from ${variantValues} y where y.${vv("variant")} = x.${v("id")}), '{}'::uuid[]) = v_wanted
   ) then
     ${fail("CATALOG_VARIANT_DUPLICATE", "another variant has these option values", "23505")}
+  end if;
   end if;`,
-          write: `  delete from ${variantValues} x where x.${vv("variant")} = v_id and not (x.${vv("value")} = any (v_wanted));
+          write: `  if v_wanted is not null then
+  delete from ${variantValues} x where x.${vv("variant")} = v_id and not (x.${vv("value")} = any (v_wanted));
   insert into ${variantValues} (${vv("tenant")}, ${vv("variant")}, ${vv("value")})
   select v_tenant, v_id, x from unnest(v_wanted) x
-  on conflict do nothing;`,
+  on conflict do nothing;
+  end if;`,
         };
       })()
     : {
@@ -598,12 +662,17 @@ declare
   v_wanted uuid[];
   v_last text;
   v_rank text;
+  v_sku text := save_variant.sku;
 begin
   select x.${p("tenant")} into v_tenant from ${products} x where x.${p("id")} = save_variant.product for update;
   if v_tenant is null then
     ${fail("CATALOG_PRODUCT_NOT_FOUND", "product not found", "P0002")}
   end if;
-  ${guard(names, "v_tenant")}${tracking}
+  if v_created then
+    ${guard(names, "v_tenant", names.create)}
+  else
+    ${guard(names, "v_tenant", names.update)}
+  end if;${tracking}
 ${valueChecks.check}
   ${ctx.hook("before_variant_save", [
     ["uuid", "save_variant.product"],
@@ -619,9 +688,9 @@ ${valueChecks.check}
       values (v_tenant, save_variant.product, ${columns.map(([, value]) => value).join(", ")}, ${rank.write("v_rank")}${inserted.values})
       returning ${v("id")} into v_id;
     else
-      update ${variants} x set ${columns.map(([column, value]) => `${v(column)} = ${value}`).join(", ")}, ${v("updatedAt")} = now()
+      update ${variants} x set ${columns.map(([column, , param]) => `${v(column)} = coalesce(${param}, x.${v(column)})`).join(", ")}, ${v("updatedAt")} = now()
       where x.${v("id")} = save_variant.variant and x.${v("product")} = save_variant.product
-      returning x.${v("rank")} into v_rank;
+      returning x.${v("rank")}, x.${v("sku")} into v_rank, v_sku;
       if not found then
         ${fail("CATALOG_VARIANT_NOT_FOUND", "variant not found", "P0002")}
       end if;${writeExtraColumns(variants, extras, "save_variant.fields", `x.${v("id")} = v_id`).replaceAll("\n  ", "\n      ")}
@@ -633,7 +702,7 @@ ${valueChecks.write}
   if v_created then
     ${ctx.record({
       type: "variant.created",
-      payload: `jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', save_variant.sku)`,
+      payload: `jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', v_sku)`,
       subject: `'variants/' || v_id::text`,
       tenant: "v_tenant",
       audit: false,
@@ -641,7 +710,7 @@ ${valueChecks.write}
   else
     ${ctx.record({
       type: "variant.updated",
-      payload: `jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', save_variant.sku)`,
+      payload: `jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', v_sku)`,
       subject: `'variants/' || v_id::text`,
       tenant: "v_tenant",
       audit: false,
@@ -651,7 +720,7 @@ ${valueChecks.write}
     ["uuid", "v_id"],
     ["boolean", "v_created"],
   ])}
-  return jsonb_build_object('id', v_id, 'sku', save_variant.sku, 'rank', v_rank)${
+  return jsonb_build_object('id', v_id, 'sku', v_sku, 'rank', v_rank)${
     extras.length === 0
       ? ""
       : ` || (select jsonb_build_object('fields', ${columnsObject(
@@ -702,7 +771,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  ${guard(names, "v_tenant")}${historyCheck("delete_variant.variant", "CATALOG_VARIANT_IN_USE")}
+  ${guard(names, "v_tenant", names.remove)}${historyCheck("delete_variant.variant", "CATALOG_VARIANT_IN_USE")}
   delete from ${variants} x where x.${v("id")} = delete_variant.variant;
   ${ctx.record({
     type: "variant.deleted",

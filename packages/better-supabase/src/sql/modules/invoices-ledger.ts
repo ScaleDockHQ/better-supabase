@@ -33,6 +33,7 @@ export interface InvoiceLedger {
     method: string,
     reference: string,
   ) => string;
+  readonly reverse: (alias: string, payment: string, reason: string) => string;
   /** Sum of payments in one currency an organization received in a window. */
   readonly received: (
     tenant: string,
@@ -84,6 +85,13 @@ export function invoiceLedger(ctx: BlockSqlContext): InvoiceLedger {
     'invoices', ${alias}.${i("id")}::text, null,
     case when ${reference} is not null then ${paymentKey(reference)} end, ${paidAt},
     jsonb_strip_nulls(jsonb_build_object('invoiceId', ${alias}.${i("id")}, 'method', ${method}, 'reference', ${reference})))`,
+    reverse: (alias, payment, reason) =>
+      `${ledger.fn("ledger_post")}(${alias}.${i("tenant")}, 'invoice.payment_reversal',
+    (select jsonb_agg(jsonb_build_object('account', e.${le("account")}, 'amount', (-e.${le("amount")})::text) order by e.${le("createdAt")}, e.${le("id")})
+      from ${entries} e where e.${le("transaction")} = ${payment}),
+    'invoices', ${alias}.${i("id")}::text, null, null, null,
+    (select y.${tx("metadata")} from ${transactions} y where y.${tx("id")} = ${payment}) || jsonb_strip_nulls(jsonb_build_object('reversal', true, 'reason', ${reason})),
+    ${payment})`,
     received: (tenant, currency, window) =>
       `(select coalesce(sum(e.${le("amount")}), 0) from ${entries} e
       join ${accounts} a on a.${la("id")} = e.${le("account")}

@@ -36,6 +36,7 @@ export interface InvoiceNames {
   readonly creditPrefix: string;
   /** Days from issue to due date by default. */
   readonly termsDays: number;
+  readonly providerMethods: readonly string[];
   readonly service: string;
   /** `options.extraColumns`, which `create_invoice` writes by name. */
   readonly extras: readonly ExtraColumn[];
@@ -409,6 +410,10 @@ ${userGrant(`${fn("invoice_from_quote")}(uuid, integer)`)}
     "coalesce(add_invoice_charge.fields, '{}'::jsonb)",
   );
 
+  const writeOffReason =
+    typeof ctx.config.columns["invoices"]?.["writeOffReason"] === "string" &&
+    ctx.has("invoices", "writeOffReason");
+
   const addCharge = charges
     ? `
 ${chargeFields.drop(fn("add_invoice_charge"), "uuid, bigint, text, text")}
@@ -447,6 +452,33 @@ begin
 end;
 $$;
 ${userGrant(`${fn("add_invoice_charge")}(uuid, bigint, text, text${chargeFields.type})`)}
+
+create or replace function ${fn("remove_invoice_charge")}(charge uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${t("invoices")};
+  v_amount bigint;
+begin
+  select x.* into v_row from ${t("invoices")} x join ${t("charges")} c on c.${ch("invoice")} = x.${i("id")}
+  where c.${ch("id")} = remove_invoice_charge.charge and ${can("x", n.write)}
+  for update of x;
+  if v_row.${i("id")} is null then
+    ${fail("INVOICE_CHARGE_NOT_FOUND", "no such charge on an invoice you can edit", "P0002")}
+  end if;
+  if ${st(`v_row.${i("status")}`, ["issued", "partially_paid", "paid"], true)} then
+    ${fail("INVOICE_NOT_CHARGEABLE", "only an issued invoice changes its charges", "55000")}
+  end if;
+  delete from ${t("charges")} c where c.${ch("id")} = remove_invoice_charge.charge
+  returning c.${ch("amount")} into v_amount;${settle("v_row")}
+  ${record("invoice.charge_removed", "v_row", `, 'chargeId', remove_invoice_charge.charge, 'amount', v_amount::text, 'balance', ${balance("v_row")}::text`, true)}
+  return ${row("v_row")};
+end;
+$$;
+${userGrant(`${fn("remove_invoice_charge")}(uuid)`)}
 `
     : "";
 
@@ -505,7 +537,7 @@ begin
       ],
       [
         "upper(coalesce(create_invoice.attrs ->> 'currency', 'EUR'))",
-        `coalesce((create_invoice.attrs ->> 'termsDays')::integer, ${String(n.termsDays)})`,
+        `case when create_invoice.attrs ? 'termsDays' then (create_invoice.attrs ->> 'termsDays')::integer else ${String(n.termsDays)} end`,
       ],
       [
         present("note", "create_invoice.attrs ->> 'note'"),
@@ -561,7 +593,8 @@ ${lineItemsSql(
 -- Issues a draft: it gets the next number of its kind (gapless, so a
 -- number is only taken when the invoice is final), its issue and due date,
 -- and its lines freeze. A credit note reduces the balance of its original.
-create or replace function ${fn("issue_invoice")}(invoice uuid, issued_on date)
+drop function if exists ${fn("issue_invoice")}(uuid, date);
+create or replace function ${fn("issue_invoice")}(invoice uuid, issued_on date, due_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -584,11 +617,14 @@ begin
   if not exists (select 1 from ${t("lines")} x where x.${l("parent")} = v_row.${i("id")}) then
     ${fail("INVOICE_EMPTY", "an invoice needs a line before it is issued", "23514")}
   end if;
+  if issue_invoice.due_on < v_issued_on then
+    ${fail("INVOICE_DUE_INVALID", "an invoice falls due on or after its issue date", "22023")}
+  end if;
   ${ctx.hook("before_invoice_issue", [["uuid", `v_row.${i("id")}`]])}
   if ${kd(`v_row.${i("kind")}`, ["credit_note"])} then
     select * into v_original from ${t("invoices")} x where x.${i("id")} = v_row.${i("original")} for update;
-    if v_row.${i("total")} > ${balance("v_original")} then
-      ${fail("INVOICE_CREDIT_TOO_LARGE", "a credit note can't exceed what is still owed", "23514")}
+    if v_row.${i("total")} > v_original.${i("total")}${charges ? ` + ${charged("v_original")}` : ""} - v_original.${i("creditedTotal")} then
+      ${fail("INVOICE_CREDIT_TOO_LARGE", "a credit note can't exceed the invoice's total less its earlier credits", "23514")}
     end if;
     ${assignNumberSql(ctx, "credit_note", `v_row.${i("tenant")}`, { seq: "v_seq", identifier: "v_identifier" }, { table: kindTable("credit_note"), seq: i("number"), tenant: i("tenant"), prefix: n.creditPrefix }, "v_issued_on::timestamptz")}
   else
@@ -596,7 +632,7 @@ begin
   end if;
   update ${t("invoices")} x set ${i("status")} = ${ctx.value("invoices", "status", "issued")}, ${i("number")} = v_seq, ${i("identifier")} = v_identifier,
     ${i("issuedOn")} = v_issued_on,
-    ${i("dueOn")} = v_issued_on + x.${i("termsDays")},
+    ${i("dueOn")} = coalesce(issue_invoice.due_on, v_issued_on + x.${i("termsDays")}),
     ${i("updatedAt")} = now()
   where x.${i("id")} = v_row.${i("id")}
   returning * into v_row;
@@ -614,7 +650,7 @@ begin
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${fn("issue_invoice")}(uuid, date)`)}
+${userGrant(`${fn("issue_invoice")}(uuid, date, date)`)}
 
 -- Records a payment (a negative amount is a refund) in the invoice's
 -- currency as a ledger transaction from the invoice's receivable account to
@@ -781,7 +817,8 @@ $$;
 ${userGrant(`${fn("void_invoice")}(uuid, text)`)}
 
 -- Writes an open invoice off as uncollectible. Needs invoices.manage.
-create or replace function ${fn("write_off_invoice")}(invoice uuid)
+drop function if exists ${fn("write_off_invoice")}(uuid);
+create or replace function ${fn("write_off_invoice")}(invoice uuid, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -790,17 +827,51 @@ as $$
 declare
   v_row ${t("invoices")};
 begin
-  update ${t("invoices")} x set ${i("status")} = ${ctx.value("invoices", "status", "uncollectible")}, ${i("updatedAt")} = now()
+  update ${t("invoices")} x set ${i("status")} = ${ctx.value("invoices", "status", "uncollectible")}, ${writeOffReason ? `${i("writeOffReason")} = nullif(trim(write_off_invoice.reason), ''), ` : ""}${i("updatedAt")} = now()
   where x.${i("id")} = write_off_invoice.invoice and ${can("x", n.manage)} and ${st(`x.${i("status")}`, ["issued", "partially_paid"])}
   returning * into v_row;
   if v_row.${i("id")} is null then
     ${fail("INVOICE_NOT_OPEN", "only an open invoice you can manage is written off", "55000")}
   end if;
-  ${record("invoice.uncollected", "v_row", `, 'balance', ${balance("v_row")}::text`, true)}
+  ${record("invoice.uncollected", "v_row", `, 'balance', ${balance("v_row")}::text, 'reason', nullif(trim(write_off_invoice.reason), '')`, true)}
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${fn("write_off_invoice")}(uuid)`)}
+${userGrant(`${fn("write_off_invoice")}(uuid, text)`)}
+
+create or replace function ${fn("reverse_invoice_payment")}(payment uuid, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${t("invoices")};
+  v_meta jsonb;
+  v_amount bigint;
+  v_reversal uuid;
+begin
+  select y.${ledger.tx("metadata")} into v_meta from ${ledger.transactions} y
+  where y.${ledger.tx("id")} = reverse_invoice_payment.payment and y.${ledger.tx("referenceType")} = 'invoices';
+  select * into v_row from ${t("invoices")} x where x.${i("id")} = (v_meta ->> 'invoiceId')::uuid and ${can("x", n.manage)} for update;
+  if v_meta is null or v_row.${i("id")} is null then
+    ${fail("INVOICE_PAYMENT_NOT_FOUND", "no such payment on an invoice you can manage", "P0002")}
+  end if;
+  if coalesce(v_meta ->> 'method', '') = any (${sqlString(`{${n.providerMethods.join(",")}}`)}::text[]) then
+    ${fail("INVOICE_PAYMENT_PROVIDER", "a payment provider's payment is refunded through the provider, not reversed", "55000")}
+  end if;
+  if (v_meta ->> 'reversal')::boolean is true
+    or exists (select 1 from ${ledger.transactions} y where y.${ledger.tx("reverses")} = reverse_invoice_payment.payment) then
+    ${fail("INVOICE_PAYMENT_REVERSED", "this payment is a reversal or is already reversed", "55000")}
+  end if;
+  v_amount := ${ledger.paidTotal("v_row")};
+  v_reversal := ${ledger.reverse("v_row", "reverse_invoice_payment.payment", "nullif(trim(reverse_invoice_payment.reason), '')")};
+  v_amount := v_amount - ${ledger.paidTotal("v_row")};${settle("v_row")}
+  ${record("invoice.payment_reversed", "v_row", `, 'paymentId', reverse_invoice_payment.payment, 'reversalId', v_reversal, 'amount', v_amount::text, 'balance', ${balance("v_row")}::text, 'reason', nullif(trim(reverse_invoice_payment.reason), '')`, true)}
+  return ${row("v_row")};
+end;
+$$;
+${userGrant(`${fn("reverse_invoice_payment")}(uuid, text)`)}
 ${addCharge}
 -- What a tenant is owed in one currency on as_of, by days past due:
 -- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.

@@ -84,6 +84,32 @@ const ROW = {
 };
 
 describe("invoices block", () => {
+  it("issues with a due date, writes off with a reason, reverses payments and removes charges", async () => {
+    const t = transport({
+      issue_invoice: () => ROW,
+      write_off_invoice: () => ({ ...ROW, status: "uncollectible" }),
+      reverse_invoice_payment: () => ROW,
+      remove_invoice_charge: () => ROW,
+    });
+
+    const invoices = createInvoices({ transport: t });
+    await invoices
+      .issue("i1", undefined, { dueOn: Temporal.PlainDate.from("2026-12-31") })
+      .orThrow();
+    await invoices.writeOff("i1", "bankrupt").orThrow();
+    await invoices.reversePayment("p1", "bounced").orThrow();
+    await invoices.removeCharge("c1").orThrow();
+    expect(t.calls.map((call) => call.slice(0, 2))).toEqual([
+      [
+        "issue_invoice",
+        { invoice: "i1", issued_on: null, due_on: "2026-12-31" },
+      ],
+      ["write_off_invoice", { invoice: "i1", reason: "bankrupt" }],
+      ["reverse_invoice_payment", { payment: "p1", reason: "bounced" }],
+      ["remove_invoice_charge", { charge: "c1" }],
+    ]);
+  });
+
   it("reads balances, payments and the deposit share", async () => {
     const t = transport({ issue_invoice: () => ROW });
 

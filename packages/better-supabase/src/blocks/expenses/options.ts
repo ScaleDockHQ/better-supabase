@@ -10,10 +10,12 @@ export type ExpensesSqlOptions = {
    * until `decide_expense_report` approves or rejects it.
    */
   readonly approvals?: boolean;
+  readonly owner?: "user" | "employee";
 };
 
 export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
   blockOptions<ExpensesSqlOptions>({
     extraColumns: option.extraColumns(),
     approvals: option.boolean({ default: true }),
+    owner: option.string<"user" | "employee">({ default: "user" }),
   });
