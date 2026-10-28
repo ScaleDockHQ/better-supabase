@@ -101,6 +101,7 @@ function build(ctx: BlockSqlContext): string {
     `(auth.role() = 'service_role' or ${ctx.scope.can(tenant, key)})`;
 
   const fields = eventFields(ctx);
+  const eventInserted = insertExtraColumns(events, eventExtras(ctx), "v_item");
   const features = calendarFeatures(ctx);
 
   const writesCalendar = (calendar: string, tenant: string) =>
@@ -590,8 +591,8 @@ ${
     end if;
     v_id := gen_random_uuid();
     v_uid := coalesce(v_uid, v_id::text);
-    insert into ${events} (${e("id")}, ${e("tenant")}, ${e("calendar")}, ${e("uid")}, ${e("recurrence")}, ${e("originalStart")}, ${fields.map(([column]) => column).join(", ")}${ctx.has("events", "createdBy") ? `, ${e("createdBy")}` : ""}${features.access && ctx.has("events", "owner") ? `, ${e("owner")}` : ""})
-    values (v_id, v_tenant, save_calendar_event.calendar_id, v_uid, v_master, (v_item ->> 'originalStart')::timestamptz, ${fields.map(([, value]) => value).join(", ")}${ctx.has("events", "createdBy") ? ", auth.uid()" : ""}${features.access && ctx.has("events", "owner") ? ", auth.uid()" : ""});
+    insert into ${events} (${e("id")}, ${e("tenant")}, ${e("calendar")}, ${e("uid")}, ${e("recurrence")}, ${e("originalStart")}, ${fields.map(([column]) => column).join(", ")}${ctx.has("events", "createdBy") ? `, ${e("createdBy")}` : ""}${features.access && ctx.has("events", "owner") ? `, ${e("owner")}` : ""}${eventInserted.columns})
+    values (v_id, v_tenant, save_calendar_event.calendar_id, v_uid, v_master, (v_item ->> 'originalStart')::timestamptz, ${fields.map(([, value]) => value).join(", ")}${ctx.has("events", "createdBy") ? ", auth.uid()" : ""}${features.access && ctx.has("events", "owner") ? ", auth.uid()" : ""}${eventInserted.values});
     v_created := true;
   else
     update ${events} set
@@ -600,8 +601,8 @@ ${
     returning ${e("uid")} into v_uid;
     if not found then
       ${fail("CALENDAR_EVENT_NOT_FOUND", "event not found", "P0002")}
-    end if;
-  end if;${tableWrites}${alarmWrites(ctx)}${writeExtraColumns(events, eventExtras(ctx), "v_item", `x.${e("id")} = v_id`)}
+    end if;${writeExtraColumns(events, eventExtras(ctx), "v_item", `x.${e("id")} = v_id`).replaceAll("\n  ", "\n    ")}
+  end if;${tableWrites}${alarmWrites(ctx)}
   if exists (select 1 from ${events} where ${e("id")} = v_id and ${e("endsAt")} < ${e("startsAt")}) then
     ${fail("CALENDAR_EVENT_INVALID", "endsAt must not be before startsAt", "22023")}
   end if;
@@ -999,7 +1000,7 @@ export const CALENDAR: BlockSqlDefinition = {
   description:
     "Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.",
   requires: ["memberships", "permissions"],
-  integrates: ["share-links", "reminders", "outbox", "leave"],
+  integrates: ["share-links", "reminders", "outbox", "leave", "organizations"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

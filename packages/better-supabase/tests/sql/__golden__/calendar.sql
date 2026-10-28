@@ -1461,7 +1461,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:2c36a8609fb69244ca95c8646ee6a218620fe24be2bf90327f2cead4fc340063
+-- @bsb-hash sha256:fd271f01357046ebf8edd7f4841e55570f485f091d9a774fba460c836de1ecb4
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2838,7 +2838,8 @@ begin
   update "better_supabase"."share_links" set "use_count" = "use_count" + 1, "last_used_at" = now() where "id" = v_link;
   return (
     select jsonb_build_object(
-      'calendar', jsonb_build_object('id', k."id", 'name', k."name", 'tz', k."tz"),
+      'calendar', jsonb_build_object('id', k."id", 'name', k."name", 'tz', k."tz", 'color', k."color"),
+      'organization', jsonb_build_object('id', v_tenant, 'name', (select g."name" from "better_supabase"."organizations" g where g."id" = v_tenant)),
       'createdBy', v_creator,
       'events', coalesce((
       select jsonb_agg(f.item order by f.starts)

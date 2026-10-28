@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:6e18538aef5ebe116e8b4938632c2ccbd7d11ee8f614fb693a7e486f0aa6e90f
+-- @bsb-hash sha256:b45c0c0e041e745029bbc955258f9f07b84e01a2ba0c0f29f32946bdffb3a4e8
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -473,8 +473,8 @@ begin
     end if;
     v_id := gen_random_uuid();
     v_uid := coalesce(v_uid, v_id::text);
-    insert into "better_supabase"."calendar_events" ("id", "tenant_id", "calendar_id", "uid", "recurrence_id", "original_start", "title", "starts_at", "ends_at", "all_day", "tz", "status", "rrule", "exdates", "description", "location", "color", "kind", "transparency", "auto_decline", "subject_type", "subject_id", "created_by")
-    values (v_id, v_tenant, save_calendar_event.calendar_id, v_uid, v_master, (v_item ->> 'originalStart')::timestamptz, coalesce(v_item ->> 'title', ''), (v_item ->> 'startsAt')::timestamptz, (v_item ->> 'endsAt')::timestamptz, coalesce((v_item ->> 'allDay')::boolean, false), coalesce(v_item ->> 'tz', v_tz), coalesce(v_item ->> 'status', 'confirmed'), nullif(v_item ->> 'rrule', ''), v_exdates, v_item ->> 'description', v_item ->> 'location', v_item ->> 'color', coalesce(v_item ->> 'kind', 'event'), coalesce(v_item ->> 'transparency', 'opaque'), coalesce((v_item ->> 'autoDecline')::boolean, false), v_item ->> 'subjectType', v_item ->> 'subjectId', auth.uid());
+    insert into "better_supabase"."calendar_events" ("id", "tenant_id", "calendar_id", "uid", "recurrence_id", "original_start", "title", "starts_at", "ends_at", "all_day", "tz", "status", "rrule", "exdates", "description", "location", "color", "kind", "transparency", "auto_decline", "subject_type", "subject_id", "created_by", "app_note")
+    values (v_id, v_tenant, save_calendar_event.calendar_id, v_uid, v_master, (v_item ->> 'originalStart')::timestamptz, coalesce(v_item ->> 'title', ''), (v_item ->> 'startsAt')::timestamptz, (v_item ->> 'endsAt')::timestamptz, coalesce((v_item ->> 'allDay')::boolean, false), coalesce(v_item ->> 'tz', v_tz), coalesce(v_item ->> 'status', 'confirmed'), nullif(v_item ->> 'rrule', ''), v_exdates, v_item ->> 'description', v_item ->> 'location', v_item ->> 'color', coalesce(v_item ->> 'kind', 'event'), coalesce(v_item ->> 'transparency', 'opaque'), coalesce((v_item ->> 'autoDecline')::boolean, false), v_item ->> 'subjectType', v_item ->> 'subjectId', auth.uid(), (jsonb_populate_record(null::"better_supabase"."calendar_events", jsonb_build_object('app_note', v_item -> 'app_note')))."app_note");
     v_created := true;
   else
     update "better_supabase"."calendar_events" set
@@ -500,6 +500,9 @@ begin
     if not found then
       raise exception 'event not found' using errcode = 'P0002', hint = 'CALENDAR_EVENT_NOT_FOUND';
     end if;
+    update "better_supabase"."calendar_events" x set "app_note" = case when v_item ? 'app_note' then r."app_note" else x."app_note" end
+    from jsonb_populate_record(null::"better_supabase"."calendar_events", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(v_item) e where e.key in ('app_note'))) r
+    where x."id" = v_id;
   end if;
   if v_item ? 'alarms' then
     if jsonb_typeof(v_item -> 'alarms') <> 'array' or jsonb_array_length(v_item -> 'alarms') > 20 then
@@ -523,9 +526,6 @@ begin
     select v_tenant, v_id, (x ->> 'offsetMinutes')::integer, coalesce(x ->> 'method', 'display'), coalesce(x ->> 'related', 'start'), (x ->> 'at')::timestamptz, coalesce((x ->> 'repeat')::integer, 0), (x ->> 'repeatMinutes')::integer, x ->> 'description', x ->> 'summary'
     from jsonb_array_elements(v_item -> 'alarms') x;
   end if;
-  update "better_supabase"."calendar_events" x set "app_note" = case when v_item ? 'app_note' then r."app_note" else x."app_note" end
-  from jsonb_populate_record(null::"better_supabase"."calendar_events", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(v_item) e where e.key in ('app_note'))) r
-  where x."id" = v_id;
   if exists (select 1 from "better_supabase"."calendar_events" where "id" = v_id and "ends_at" < "starts_at") then
     raise exception 'endsAt must not be before startsAt' using errcode = '22023', hint = 'CALENDAR_EVENT_INVALID';
   end if;

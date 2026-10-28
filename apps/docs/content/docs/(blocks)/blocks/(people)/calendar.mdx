@@ -313,6 +313,22 @@ installed, the creator's reminders for the event. A reminder whose method is
 not an iCalendar action, such as `notification`, is written as a display
 alarm with an `X-BSB-METHOD` property, and `importIcs` skips it.
 
+`feedData(token)` returns what `feed` serializes, parsed, for an app that
+writes the iCalendar itself: the `calendar` with its `color`, the
+`organization` (`id` and `name`, with the organizations block), `createdBy`,
+and the `events` with their reminders, attendees and extra columns.
+`userFeedData(token)` does the same for a user feed. `toIcs` stays available
+for the events.
+
+```ts
+const data = await calendar.feedData(token).orThrow();
+if (data === null) return new Response("Not found", { status: 404 });
+const ics = toIcs(data.events, {
+  name: data.calendar.name,
+  tz: data.calendar.tz,
+});
+```
+
 ## Event keys and read-only events
 
 Three event actions take their own key when you set one, on top of
