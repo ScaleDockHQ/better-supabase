@@ -1,7 +1,11 @@
 import type { LeaveEvents } from "../../blocks/leave/events.ts";
 import type { BlockSqlEvents, BlockSqlNames } from "../context.ts";
 
-import { leaveByEmployee, leavePartsMapped } from "./leave-owner.ts";
+import {
+  leaveAutoApproveMapped,
+  leaveByEmployee,
+  leavePartsMapped,
+} from "./leave-owner.ts";
 
 const REQUEST_PAYLOAD = [
   "organizationId",
@@ -29,6 +33,8 @@ const EVENTS: BlockSqlEvents<LeaveEvents> = {
   "leave.approved": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
   "leave.cancelled": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
   "leave.rejected": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
+  "leave.updated": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
+  "leave.split": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
   "leave.adjusted": {
     subject: "leave-ledger-entries",
     payload: ADJUSTED_PAYLOAD,
@@ -54,7 +60,9 @@ export const LEAVE_NAMES: BlockSqlNames = {
   tables: {
     types: {
       name: "leave_types",
-      app: {},
+      app: {
+        unused: (ctx) => (leaveAutoApproveMapped(ctx) ? [] : ["autoApprove"]),
+      },
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -67,11 +75,12 @@ export const LEAVE_NAMES: BlockSqlNames = {
         allowance: "allowance",
         carryoverMax: "carryover_max",
         color: "color",
+        autoApprove: "auto_approve",
         archivedAt: "archived_at",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["key", "allowance", "carryoverMax", "color"],
+      optional: ["key", "allowance", "carryoverMax", "color", "autoApprove"],
       typed: ["unit"],
     },
     requests: {

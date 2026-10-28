@@ -132,7 +132,13 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
         "better_supabase.save_product_option($1, $2, 'Size', array['M'])",
         [product.id, size.id],
       ),
-    ).toBe("CATALOG_OPTION_VALUE_IN_USE");
+    ).toBe("no error");
+    expect(
+      await call<boolean>(
+        "exists (select 1 from better_supabase.product_variants where id = $1)",
+        [variant.id],
+      ),
+    ).toBe(false);
     expect(
       await session.hint(
         "better_supabase.save_product_option($1, null, 'Fit', array['Slim'])",

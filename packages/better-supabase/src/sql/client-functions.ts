@@ -46,7 +46,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   calendar:
     "calendar_free_busy cancel_calendar_occurrence create_calendar delete_calendar delete_calendar_event import_calendar_events list_calendar_events list_calendar_working_hours list_calendars remove_calendar_attendee respond_calendar_event save_calendar_event set_calendar_attendee set_calendar_working_hours split_calendar_event",
   catalog:
-    "add_to_collection channel_price channel_products delete_catalog_channel delete_category delete_collection delete_price delete_price_list delete_product delete_product_option delete_variant move_category product_text publish_storefront rank_variant remove_from_collection save_catalog_channel save_category save_collection save_price_list save_product save_product_option save_variant set_channel_listing set_price set_product_categories set_product_status set_product_translation set_variant_translation variant_price",
+    "add_to_collection channel_price channel_products delete_catalog_channel delete_category delete_collection delete_price delete_price_list delete_product delete_product_option delete_variant move_category product_text publish_storefront rank_variant remove_from_collection reorder_product_options save_catalog_channel save_category save_collection save_price_list save_product save_product_option save_variant set_channel_listing set_price set_product_categories set_product_status set_product_translation set_variant_translation variant_price",
   channels:
     "archive_channel channels_for_record create_channel find_channel get_channel invite_to_channel join_channel leave_channel list_channels update_channel",
   "chat-sdk-state":
@@ -126,7 +126,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   leases:
     "activate_lease create_lease get_lease list_lease_charges list_leases post_due_rent record_rent_payment renew_lease terminate_lease",
   leave:
-    "accrue_leave adjust_leave_balance archive_leave_type cancel_leave_request close_leave_year leave_balances leave_ledger_entries list_leave_requests list_leave_types request_leave save_leave_type",
+    "accrue_leave adjust_leave_balance archive_leave_type cancel_leave_request close_leave_year leave_balances leave_ledger_entries list_leave_requests list_leave_types request_leave save_leave_type split_leave_request update_leave_request",
   ledger:
     "capture_ledger_hold close_ledger_account get_ledger_transaction ledger_account_entries list_ledger_accounts open_ledger_account place_ledger_hold post_ledger_transaction release_ledger_hold reverse_ledger_transaction",
   "mail-sync":

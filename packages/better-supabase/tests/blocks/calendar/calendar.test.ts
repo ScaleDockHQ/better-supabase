@@ -296,6 +296,57 @@ describe("calendar client", () => {
     expect(await none.calendar.feed("bad").orThrow()).toBeNull();
   });
 
+  it("reads a share link feed as data with colour, organization and extra columns", async () => {
+    const { calendar } = recorder({
+      calendar_feed: {
+        calendar: {
+          id: "c1",
+          name: "Team",
+          tz: "Europe/Amsterdam",
+          color: "#0a0",
+        },
+        organization: { id: "o1", name: "Acme" },
+        createdBy: "u1",
+        events: [
+          {
+            ...SERIES,
+            reminders: [{ method: "email", offsetMinutes: 30 }],
+            fields: { task_id: "t9" },
+          },
+        ],
+      },
+      calendar_user_feed: {
+        userId: "u1",
+        calendars: [{ id: "c1", name: "Team", tz: null }],
+        events: [],
+      },
+    });
+
+    const data = await calendar.feedData("t".repeat(48)).orThrow();
+    expect(data).toMatchObject({
+      calendar: {
+        id: "c1",
+        name: "Team",
+        tz: "Europe/Amsterdam",
+        color: "#0a0",
+      },
+      organization: { id: "o1", name: "Acme" },
+      createdBy: "u1",
+      events: [
+        {
+          uid: "s1",
+          reminders: [{ method: "email", offsetMinutes: 30 }],
+          task_id: "t9",
+        },
+      ],
+    });
+    expect(
+      (await calendar.userFeedData("t".repeat(48)).orThrow())?.calendars,
+    ).toEqual([{ id: "c1", name: "Team", tz: "UTC" }]);
+    const none = recorder({ calendar_feed: null });
+    expect(await none.calendar.feedData("bad").orThrow()).toBeNull();
+  });
+
   it("maps a database error to a Result", async () => {
     const { calendar } = recorder({
       delete_calendar_event: Object.assign(new Error("event not found"), {

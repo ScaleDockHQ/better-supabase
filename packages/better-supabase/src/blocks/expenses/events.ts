@@ -35,7 +35,7 @@ export interface ExpenseEventData {
   readonly organizationId: string;
   readonly id: string;
   readonly userId: string | null;
-  readonly employeeId?: string;
+  readonly employeeId?: string | null;
   readonly status:
     | "draft"
     | "submitted"
@@ -59,6 +59,10 @@ export type ExpensesEvents = {
   readonly "expense.approved": ExpenseEventData;
   readonly "expense.rejected": ExpenseEventData;
   readonly "expense.reimbursed": ExpenseEventData;
+  /** A submitted expense went back to draft. */
+  readonly "expense.withdrawn": ExpenseEventData;
+  /** A draft expense was deleted. */
+  readonly "expense.deleted": ExpenseEventData;
 };
 
 /** The `expenses` block's event types, for its manifest and `onBlockEvent`. */
@@ -74,4 +78,6 @@ export const expensesEvents: Events<ExpensesEvents> = defineEvents({
   "expense.approved": event<ExpenseEventData>(),
   "expense.rejected": event<ExpenseEventData>(),
   "expense.reimbursed": event<ExpenseEventData>(),
+  "expense.withdrawn": event<ExpenseEventData>(),
+  "expense.deleted": event<ExpenseEventData>(),
 });

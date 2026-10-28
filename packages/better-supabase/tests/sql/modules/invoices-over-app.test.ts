@@ -121,8 +121,14 @@ begin
   if (select state from public.bills where id = v_id) <> 'issued' or (select seq from public.bills where id = v_id) is null then
     raise exception 'issue missed';
   end if;
+  perform set_config('request.jwt.claims', '{"role":"service_role","sub":"44444444-4444-4444-8444-444444444444"}', true);
+  perform set_config('request.jwt.claim.sub', '44444444-4444-4444-8444-444444444444', true);
+  v_invoice := better_supabase.record_invoice_payment(v_id, 4000, 'EUR', now(), 'bank', 'tx-1', 'paid at the desk');
   perform better_supabase.record_invoice_payment(v_id, 4000, 'EUR', now(), 'bank', 'tx-1');
-  perform better_supabase.record_invoice_payment(v_id, 4000, 'EUR', now(), 'bank', 'tx-1');
+  if v_invoice -> 'payments' -> 0 ->> 'note' <> 'paid at the desk'
+    or v_invoice -> 'payments' -> 0 ->> 'recordedBy' <> '44444444-4444-4444-8444-444444444444' then
+    raise exception 'payment note %', v_invoice -> 'payments';
+  end if;
   if (select state from public.bills where id = v_id) <> 'partially_paid' then
     raise exception 'partial payment left %', (select state from public.bills where id = v_id);
   end if;

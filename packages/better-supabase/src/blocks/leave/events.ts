@@ -43,6 +43,10 @@ export type LeaveEvents = {
   readonly "leave.approved": LeaveRequestEventData;
   readonly "leave.cancelled": LeaveRequestEventData;
   readonly "leave.rejected": LeaveRequestEventData;
+  /** A pending or approved request's dates, parts or hours changed. */
+  readonly "leave.updated": LeaveRequestEventData;
+  /** Approved leave was split around a gap; the event names the new part. */
+  readonly "leave.split": LeaveRequestEventData;
   readonly "leave.adjusted": LeaveAdjustedEventData;
 };
 
@@ -52,5 +56,7 @@ export const leaveEvents: Events<LeaveEvents> = defineEvents({
   "leave.approved": event<LeaveRequestEventData>(),
   "leave.cancelled": event<LeaveRequestEventData>(),
   "leave.rejected": event<LeaveRequestEventData>(),
+  "leave.updated": event<LeaveRequestEventData>(),
+  "leave.split": event<LeaveRequestEventData>(),
   "leave.adjusted": event<LeaveAdjustedEventData>(),
 });

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:f909bea90cb65b98c112250d0d99163fba4cd6040b82c4013fbc795a21ce5de3
+-- @bsb-hash sha256:92a3d5581f0e5e70cdd703e167d59fc376ba6b91c7e96db028182c4f49b8a7c5
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -78,12 +78,14 @@ create table if not exists "better_supabase"."leave_types" (
   -- How much close_leave_year carries into the next period; null carries everything.
   "carryover_max" numeric(8, 2) check ("carryover_max" is null or "carryover_max" >= 0),
   "color" text check ("color" is null or "color" ~ '^#[0-9a-fA-F]{6}$'),
+  "auto_approve" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
+alter table "better_supabase"."leave_types" add column if not exists "auto_approve" boolean not null default false;
 alter table "better_supabase"."leave_types" enable row level security;
 revoke all on "better_supabase"."leave_types" from public, anon, authenticated;
 grant select on "better_supabase"."leave_types" to authenticated;
@@ -445,8 +447,10 @@ revoke execute on function "better_supabase"."leave_working_days"(date, date) fr
 grant execute on function "better_supabase"."leave_working_days"(date, date) to authenticated, service_role;
 
 -- Creates or updates a leave type by key. Without a key column, key is the
--- id of the type to update, and any other key creates one.
-create or replace function "better_supabase"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null)
+-- id of the type to update, and any other key creates one. auto_approve:
+-- its requests need no approval.
+drop function if exists "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text);
+create or replace function "better_supabase"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
 returns jsonb
 language plpgsql
 security definer
@@ -462,19 +466,19 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
-  insert into "better_supabase"."leave_types" ("tenant_id", "key", "name", "unit", "paid", "tracked", "allowance", "carryover_max", "color")
-  values (save_leave_type.tenant, save_leave_type.key, save_leave_type.name, coalesce(save_leave_type.unit, 'days'), coalesce(save_leave_type.paid, true), coalesce(save_leave_type.tracked, true), save_leave_type.allowance, save_leave_type.carryover_max, save_leave_type.color)
+  insert into "better_supabase"."leave_types" ("tenant_id", "key", "name", "unit", "paid", "tracked", "allowance", "carryover_max", "color", "auto_approve")
+  values (save_leave_type.tenant, save_leave_type.key, save_leave_type.name, coalesce(save_leave_type.unit, 'days'), coalesce(save_leave_type.paid, true), coalesce(save_leave_type.tracked, true), save_leave_type.allowance, save_leave_type.carryover_max, save_leave_type.color, coalesce(save_leave_type.auto_approve, false))
   on conflict ("tenant_id", "key") do update
     set "name" = excluded."name", "unit" = excluded."unit", "paid" = excluded."paid",
       "tracked" = excluded."tracked", "allowance" = excluded."allowance",
-      "carryover_max" = excluded."carryover_max", "color" = excluded."color",
+      "carryover_max" = excluded."carryover_max", "color" = excluded."color", "auto_approve" = excluded."auto_approve",
       "archived_at" = null, "updated_at" = now()
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'autoApprove', v_row."auto_approve", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text) from public, anon;
-grant execute on function "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) from public, anon;
+grant execute on function "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) to authenticated, service_role;
 
 -- Hides a type from new requests; its requests and ledger stay.
 create or replace function "better_supabase"."archive_leave_type"(type_id uuid)
@@ -499,7 +503,7 @@ begin
   update "better_supabase"."leave_types" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'autoApprove', v_row."auto_approve", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."archive_leave_type"(uuid) from public, anon;
@@ -512,7 +516,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'unit', x."unit", 'paid', x."paid", 'tracked', x."tracked", 'allowance', x."allowance"::text, 'carryoverMax', x."carryover_max"::text, 'color', x."color", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'unit', x."unit", 'paid', x."paid", 'tracked', x."tracked", 'allowance', x."allowance"::text, 'carryoverMax', x."carryover_max"::text, 'color', x."color", 'autoApprove', x."auto_approve", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name"), '[]'::jsonb)
   from "better_supabase"."leave_types" x
   where x."tenant_id" = list_leave_types.tenant
     and (coalesce(list_leave_types.archived, false) or x."archived_at" is null)
@@ -606,16 +610,22 @@ begin
   insert into "better_supabase"."leave_requests" ("tenant_id", "user_id", "type_id", "starts_on", "ends_on", "partial", "amount", "note")
   values (request_leave.tenant, v_me, v_type."id", request_leave.starts_on, request_leave.ends_on, v_partial, v_amount, nullif(trim(request_leave.note), ''))
   returning * into v_row;
-  v_request := "better_supabase"."open_approval"(
-    request_leave.tenant, 'leave_request', v_row."id"::text, 'approve',
-    '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
-    jsonb_build_object('userId', v_me, 'typeId', v_type."id", 'type', v_type."name", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_amount::text, 'unit', v_type."unit")
-  );
-  update "better_supabase"."leave_requests" x set "approval_id" = (v_request ->> 'id')::uuid
-    where x."id" = v_row."id"
-    returning * into v_row;
-  select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
+  if not v_type."auto_approve" then
+    v_request := "better_supabase"."open_approval"(
+      request_leave.tenant, 'leave_request', v_row."id"::text, 'approve',
+      '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
+      jsonb_build_object('userId', v_me, 'typeId', v_type."id", 'type', v_type."name", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_amount::text, 'unit', v_type."unit")
+    );
+    update "better_supabase"."leave_requests" x set "approval_id" = (v_request ->> 'id')::uuid
+      where x."id" = v_row."id"
+      returning * into v_row;
+    select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
+  end if;
   null;
+  if v_type."auto_approve" then
+    perform "better_supabase"."approve_leave_request"(v_row."id");
+    select * into v_row from "better_supabase"."leave_requests" x where x."id" = v_row."id";
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_leave_request"(uuid)');
   begin
@@ -701,6 +711,218 @@ end;
 $$;
 revoke execute on function "better_supabase"."cancel_leave_request"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_leave_request"(uuid) to authenticated, service_role;
+
+-- Changes a pending or approved request: its dates, parts of the day,
+-- hours, note or extra columns. What it leaves null keeps its value, and an
+-- empty note clears it. The requester changes a pending request, which goes
+-- back to approval; a manager also changes approved leave, which is booked
+-- again for the new amount, so leave can be shortened.
+drop function if exists "better_supabase"."update_leave_request"(uuid, date, date, text, numeric, text, jsonb);
+create or replace function "better_supabase"."update_leave_request"(request_id uuid, starts_on date default null, ends_on date default null, partial text default null, hours numeric default null, note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_me uuid;
+  v_row "better_supabase"."leave_requests"%rowtype;
+  v_old "better_supabase"."leave_requests"%rowtype;
+  v_type "better_supabase"."leave_types"%rowtype;
+  v_partial text;
+  v_amount numeric;
+  v_manager boolean;
+  v_status text;
+  v_starts date;
+  v_ends date;
+  v_approval "better_supabase"."approval_requests"%rowtype;
+  v_request jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."leave_requests" x where x."id" = update_leave_request.request_id for update;
+  if not found then
+    raise exception 'leave request not found' using errcode = 'P0002', hint = 'LEAVE_REQUEST_NOT_FOUND';
+  end if;
+  select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
+  v_old := v_row;
+  v_manager := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false);
+  if not (v_manager or coalesce(v_row."user_id" = auth.uid(), false)) then
+    raise exception 'not allowed to change this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  v_status := case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end;
+  if v_status not in ('pending', 'approved') then
+    raise exception 'only a pending or approved leave request changes' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+  end if;
+  if v_status = 'approved' and not v_manager then
+    raise exception 'approved leave is changed by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  select * into v_type from "better_supabase"."leave_types" x where x."id" = v_row."type_id";
+  v_me := v_row."user_id";
+  v_starts := coalesce(update_leave_request.starts_on, v_row."starts_on");
+  v_ends := coalesce(update_leave_request.ends_on, v_row."ends_on");
+  if v_ends < v_starts then
+    raise exception 'ends_on must be on or after starts_on' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  v_partial := coalesce(update_leave_request.partial, (v_old."partial")::text);
+  if v_partial not in ('full', 'morning', 'afternoon', 'hours') then
+    raise exception 'partial must be full, morning, afternoon or hours' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  if v_type."unit" = 'hours' then
+    if v_partial <> 'hours' and v_partial <> 'full' then
+      raise exception 'an hours type takes partial hours' using errcode = '22023', hint = 'LEAVE_INVALID';
+    end if;
+    if coalesce(update_leave_request.hours, case when v_type."unit" = 'hours' then v_old."amount" end) is null or coalesce(update_leave_request.hours, case when v_type."unit" = 'hours' then v_old."amount" end) <= 0 then
+      raise exception 'an hours type needs hours greater than zero' using errcode = '22023', hint = 'LEAVE_INVALID';
+    end if;
+    v_partial := 'hours';
+    v_amount := coalesce(update_leave_request.hours, case when v_type."unit" = 'hours' then v_old."amount" end);
+  else
+    if v_partial = 'hours' then
+      raise exception 'a day type takes partial full, morning or afternoon' using errcode = '22023', hint = 'LEAVE_INVALID';
+    end if;
+    if v_partial in ('morning', 'afternoon') and v_starts <> v_ends then
+      raise exception 'a half day starts and ends on the same date' using errcode = '22023', hint = 'LEAVE_INVALID';
+    end if;
+    v_amount := "better_supabase"."leave_working_days"(v_starts, v_ends)
+      * case when v_partial = 'full' then 1 else 0.5 end;
+  end if;
+  if v_amount <= 0 then
+    raise exception 'the request covers no working days' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended('leave:' || v_row."tenant_id"::text || ':' || v_me::text, 0));
+  if exists (
+    select 1 from "better_supabase"."leave_requests" r
+    left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
+    where r."tenant_id" = v_row."tenant_id" and r."user_id" = v_me
+      and r."cancelled_at" is null and r."id" <> v_row."id" and (r."approved_at" is not null or p."status" = 'pending')
+      and daterange(r."starts_on", r."ends_on", '[]') && daterange(v_starts, v_ends, '[]')
+      and not (r."partial" = 'morning' and v_partial = 'afternoon')
+      and not (r."partial" = 'afternoon' and v_partial = 'morning')
+  ) then
+    raise exception 'this overlaps another leave request' using errcode = '23P01', hint = 'LEAVE_OVERLAP';
+  end if;
+  if v_type."tracked" and "better_supabase"."leave_available"(v_row."tenant_id", v_me, v_type."id", extract(year from v_starts)::integer)
+    + (case when extract(year from v_old."starts_on") = extract(year from v_starts) then v_old."amount" else 0 end) < v_amount then
+    raise exception 'this request is more than the available balance' using errcode = '23514', hint = 'LEAVE_BALANCE_EXCEEDED';
+  end if;
+  if v_status = 'approved' then
+    perform "better_supabase"."leave_post"(v_old."tenant_id", v_old."user_id", v_old."type_id", 'taken', v_old."amount", extract(year from v_old."starts_on")::integer, v_old."id", 'changed')
+    from "better_supabase"."leave_types" t where t."id" = v_old."type_id" and t."tracked";
+  end if;
+  update "better_supabase"."leave_requests" x set "starts_on" = v_starts, "ends_on" = v_ends, "partial" = v_partial, "amount" = v_amount, "note" = case when update_leave_request.note is null then x."note" else nullif(trim(update_leave_request.note), '') end, "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  if v_status = 'approved' then
+    perform "better_supabase"."leave_post"(v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', -v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id")
+    from "better_supabase"."leave_types" t where t."id" = v_row."type_id" and t."tracked";
+  end if;
+  if v_status = 'pending' then
+    update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
+      where p."id" = v_row."approval_id" and p."status" = 'pending';
+    if not v_type."auto_approve" then
+      v_request := "better_supabase"."open_approval"(
+        v_row."tenant_id", 'leave_request', v_row."id"::text, 'approve',
+        '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
+        jsonb_build_object('userId', v_me, 'typeId', v_type."id", 'type', v_type."name", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_amount::text, 'unit', v_type."unit")
+      );
+      update "better_supabase"."leave_requests" x set "approval_id" = (v_request ->> 'id')::uuid
+        where x."id" = v_row."id"
+        returning * into v_row;
+      select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
+    end if;
+    if v_type."auto_approve" then
+      perform "better_supabase"."approve_leave_request"(v_row."id");
+      select * into v_row from "better_supabase"."leave_requests" x where x."id" = v_row."id";
+    end if;
+  end if;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'partial', v_row."partial", 'amount', v_row."amount"::text, 'note', v_row."note", 'status', case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end, 'approvalId', v_row."approval_id", 'approvedAt', v_row."approved_at", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."update_leave_request"(uuid, date, date, text, numeric, text) from public, anon;
+grant execute on function "better_supabase"."update_leave_request"(uuid, date, date, text, numeric, text) to authenticated, service_role;
+
+-- Takes a gap out of approved leave, such as sick days during a holiday:
+-- the request ends before the gap and a new approved request takes the days
+-- after it. Needs a manager.
+create or replace function "better_supabase"."split_leave_request"(request_id uuid, gap_starts date, gap_ends date)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_old "better_supabase"."leave_requests"%rowtype;
+  v_row "better_supabase"."leave_requests"%rowtype;
+  v_type "better_supabase"."leave_types"%rowtype;
+  v_partial text := 'full';
+  v_amount numeric;
+  v_approval "better_supabase"."approval_requests"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_old from "better_supabase"."leave_requests" x where x."id" = split_leave_request.request_id for update;
+  if not found then
+    raise exception 'leave request not found' using errcode = 'P0002', hint = 'LEAVE_REQUEST_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_old."tenant_id", 'leave.manage'), false)) then
+    raise exception 'approved leave is split by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  if v_old."approved_at" is null or v_old."cancelled_at" is not null then
+    raise exception 'only approved leave is split' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+  end if;
+  select * into v_type from "better_supabase"."leave_types" x where x."id" = v_old."type_id";
+  if v_type."unit" = 'hours' then
+    raise exception 'leave in hours isn''t split' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  if split_leave_request.gap_starts is null or split_leave_request.gap_ends is null
+    or split_leave_request.gap_ends < split_leave_request.gap_starts
+    or split_leave_request.gap_starts <= v_old."starts_on" or split_leave_request.gap_ends >= v_old."ends_on" then
+    raise exception 'the gap lies inside the leave with days on both sides; shorten leave with update_leave_request' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  if v_partial not in ('full', 'morning', 'afternoon', 'hours') then
+    raise exception 'partial must be full, morning, afternoon or hours' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  if v_type."unit" = 'hours' then
+    if v_partial <> 'hours' and v_partial <> 'full' then
+      raise exception 'an hours type takes partial hours' using errcode = '22023', hint = 'LEAVE_INVALID';
+    end if;
+    if null is null or null <= 0 then
+      raise exception 'an hours type needs hours greater than zero' using errcode = '22023', hint = 'LEAVE_INVALID';
+    end if;
+    v_partial := 'hours';
+    v_amount := null;
+  else
+    if v_partial = 'hours' then
+      raise exception 'a day type takes partial full, morning or afternoon' using errcode = '22023', hint = 'LEAVE_INVALID';
+    end if;
+    if v_partial in ('morning', 'afternoon') and (split_leave_request.gap_ends + 1) <> v_old."ends_on" then
+      raise exception 'a half day starts and ends on the same date' using errcode = '22023', hint = 'LEAVE_INVALID';
+    end if;
+    v_amount := "better_supabase"."leave_working_days"((split_leave_request.gap_ends + 1), v_old."ends_on")
+      * case when v_partial = 'full' then 1 else 0.5 end;
+  end if;
+  perform "better_supabase"."update_leave_request"(v_old."id", ends_on => split_leave_request.gap_starts - 1, partial => 'full');
+  insert into "better_supabase"."leave_requests" ("tenant_id", "user_id", "type_id", "starts_on", "ends_on", "partial", "amount", "note", "approval_id", "approved_at")
+  values (v_old."tenant_id", v_old."user_id", v_old."type_id", split_leave_request.gap_ends + 1, v_old."ends_on", v_partial, v_amount, v_old."note", v_old."approval_id", v_old."approved_at")
+  returning * into v_row;
+  perform "better_supabase"."leave_post"(v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', -v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id")
+  from "better_supabase"."leave_types" t where t."id" = v_row."type_id" and t."tracked";
+  select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
+  null;
+  return jsonb_build_object(
+    'request', (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', x."note", 'status', case when x."cancelled_at" is not null then 'cancelled' when x."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."leave_requests" x where x."id" = v_old."id"),
+    'split', jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'partial', v_row."partial", 'amount', v_row."amount"::text, 'note', v_row."note", 'status', case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end, 'approvalId', v_row."approval_id", 'approvedAt', v_row."approved_at", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at")
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."split_leave_request"(uuid, date, date) from public, anon;
+grant execute on function "better_supabase"."split_leave_request"(uuid, date, date) to authenticated, service_role;
 
 -- Requests that overlap a date range, earliest first: the caller's, or
 -- everyone's with the read permission.

@@ -80,6 +80,8 @@ const ROW = {
       paidAt: "2026-10-16T09:00:00Z",
       method: "bank",
       reference: "b1",
+      note: "Paid in two parts",
+      recordedBy: "u1",
     },
   ],
 };
@@ -129,7 +131,14 @@ describe("invoices block", () => {
       pricesIncludeTax: true,
       origin: { type: "quote", id: "q1" },
       payments: [
-        { id: "pay1", amount: eur(500n), method: "bank", reference: "b1" },
+        {
+          id: "pay1",
+          amount: eur(500n),
+          method: "bank",
+          reference: "b1",
+          note: "Paid in two parts",
+          recordedBy: "u1",
+        },
       ],
       lines: [{ unitAmount: eur(1000n) }],
       totals: { total: eur(1000n) },
@@ -201,6 +210,7 @@ describe("invoices block", () => {
         amount: eur(-50n),
         paidAt: Temporal.Instant.from("2026-10-16T09:00:00Z"),
         reference: "r",
+        note: "Refund at the desk",
       })
       .orThrow();
     expect(t.calls[0]?.[1]).toEqual({
@@ -210,6 +220,7 @@ describe("invoices block", () => {
       paid_at: "2026-10-16T09:00:00Z",
       method: null,
       reference: "r",
+      note: "Refund at the desk",
     });
     expect(
       (await invoices.credit("i1", { note: "Goodwill" }).orThrow()).originalId,
@@ -312,6 +323,7 @@ describe("invoices block, defaults", () => {
         paid_at: null,
         method: "card",
         reference: null,
+        note: null,
       },
       { tenant: "o", currency: "EUR", as_of: "2026-12-01" },
     ]);

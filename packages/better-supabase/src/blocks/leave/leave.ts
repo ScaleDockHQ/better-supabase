@@ -65,6 +65,8 @@ export interface LeaveType {
   /** How much `closePeriod` carries over; missing carries everything. */
   readonly carryoverMax?: number;
   readonly color?: string;
+  /** Requests of this type need no approval. */
+  readonly autoApprove?: boolean;
   readonly archivedAt?: Temporal.Instant;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
@@ -83,6 +85,12 @@ export interface LeaveTypeInput {
   readonly carryoverMax?: number;
   /** `#rrggbb`. */
   readonly color?: string;
+  /**
+   * Requests of this type are approved when they are made, also by the
+   * requester. Needs the block's types table or a mapped
+   * `columns.types.autoApprove`.
+   */
+  readonly autoApprove?: boolean;
 }
 
 export type LeavePartial = "full" | "morning" | "afternoon" | "hours";
@@ -94,20 +102,30 @@ export interface LeaveFeedEntry {
   readonly id: string;
   readonly userId?: string;
   readonly employeeId?: string;
+  /** The employee's name, with `options.feed.names`. */
+  readonly name?: string;
   readonly typeId: string;
-  /** The leave type's name. */
-  readonly type: string;
+  /** The leave type's name; missing for a type in `options.feed.hideTypes`. */
+  readonly type?: string;
   readonly startsOn: Temporal.PlainDate;
   /** Inclusive. */
   readonly endsOn: Temporal.PlainDate;
   readonly partial: LeavePartial;
+  /** The part of the first day. */
+  readonly startPart?: LeavePartial;
+  /** The part of the last day. */
+  readonly endPart?: LeavePartial;
   readonly amount: number;
   readonly updatedAt: Temporal.Instant;
+  /** The request's extra columns, with `options.feed.fields`. */
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 /** What a leave feed share link reads. */
 export interface LeaveFeed {
   readonly organizationId: string;
+  /** The team of a `leave_team_feed` link. */
+  readonly teamId?: string;
   readonly requests: readonly LeaveFeedEntry[];
 }
 
@@ -151,6 +169,22 @@ export interface LeaveRequestInput<F extends object = Record<never, never>> {
   readonly note?: string;
   readonly employeeId?: string;
   /** The extra columns to set. */
+  readonly fields?: Partial<F>;
+}
+
+/**
+ * A change to a pending or approved request. What it leaves out keeps its
+ * value; an empty `note` clears it.
+ */
+export interface LeaveRequestUpdate<F extends object = Record<never, never>> {
+  readonly startsOn?: Temporal.PlainDate;
+  /** Inclusive. */
+  readonly endsOn?: Temporal.PlainDate;
+  readonly partial?: Exclude<LeavePartial, "hours">;
+  readonly startPart?: LeavePartial;
+  readonly endPart?: LeavePartial;
+  readonly hours?: number;
+  readonly note?: string;
   readonly fields?: Partial<F>;
 }
 
@@ -260,6 +294,30 @@ export interface Leave<F extends object = Record<never, never>> {
    * `leave.manage` any time.
    */
   cancel(requestId: string): AsyncResult<LeaveRequest<F>>;
+  /**
+   * Changes a request's dates, parts of the day, hours, note or fields. The
+   * requester changes a pending request, which goes back to approval;
+   * `leave.manage` also changes approved leave, which is booked again.
+   */
+  update(
+    requestId: string,
+    update: LeaveRequestUpdate<F>,
+  ): AsyncResult<LeaveRequest<F>>;
+  /**
+   * Takes a gap out of approved leave: the request ends before `gapStarts`, and
+   * a new approved request (`split`) takes the days after `gapEnds`. Needs
+   * `leave.manage`.
+   */
+  split(
+    requestId: string,
+    gap: {
+      readonly gapStarts: Temporal.PlainDate;
+      readonly gapEnds: Temporal.PlainDate;
+    },
+  ): AsyncResult<{
+    readonly request: LeaveRequest<F>;
+    readonly split: LeaveRequest<F>;
+  }>;
   /**
    * Approves or rejects a pending request when leave runs without the approvals
    * block (`options.approvals: false`). Needs `leave.approve`, and the
@@ -394,6 +452,10 @@ function typeOf(value: unknown, fn: string): LeaveType {
     ...optional("allowance", optionalDecimal(row["allowance"])),
     ...optional("carryoverMax", optionalDecimal(row["carryoverMax"])),
     ...optional("color", optionalText(row["color"])),
+    ...optional(
+      "autoApprove",
+      typeof row["autoApprove"] === "boolean" ? row["autoApprove"] : undefined,
+    ),
     ...optional("archivedAt", optionalInstant(row["archivedAt"])),
   };
 }
@@ -491,6 +553,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
           allowance: input.allowance ?? null,
           carryover_max: input.carryoverMax ?? null,
           color: input.color ?? null,
+          ...optional("auto_approve", input.autoApprove),
         },
         (value) => typeOf(value, "save_leave_type"),
       ),
@@ -533,6 +596,51 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
       call("cancel_leave_request", { request_id: requestId }, (value) =>
         requestOf(value, "cancel_leave_request"),
       ).andThen(fields.row),
+    update: (requestId, update) =>
+      fields
+        .args(update.fields)
+        .andThen((checked) =>
+          call(
+            "update_leave_request",
+            {
+              request_id: requestId,
+              starts_on: update.startsOn?.toString() ?? null,
+              ends_on: update.endsOn?.toString() ?? null,
+              partial: update.partial ?? null,
+              hours: update.hours ?? null,
+              note: update.note ?? null,
+              ...optional("start_part", update.startPart),
+              ...optional("end_part", update.endPart),
+              ...(checked === undefined ? {} : { fields: checked }),
+            },
+            (value) => requestOf(value, "update_leave_request"),
+          ).andThen(fields.row),
+        ),
+    split: (requestId, gap) =>
+      call(
+        "split_leave_request",
+        {
+          request_id: requestId,
+          gap_starts: gap.gapStarts.toString(),
+          gap_ends: gap.gapEnds.toString(),
+        },
+        (value) => {
+          const row = recordOf(value, "split_leave_request");
+
+          return {
+            request: requestOf(row["request"], "split_leave_request"),
+            split: requestOf(row["split"], "split_leave_request"),
+          };
+        },
+      ).andThen(({ request, split }) =>
+        fields
+          .row(request)
+          .andThen((first) =>
+            fields
+              .row(split)
+              .map((second) => ({ request: first, split: second })),
+          ),
+      ),
     decide: (requestId, decision) =>
       call(
         "decide_leave_request",
@@ -553,16 +661,24 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
 
         return {
           organizationId: textOf(row["organizationId"]),
+          ...optional("teamId", optionalText(row["teamId"])),
           requests: recordsOf(row["requests"], "leave_feed").map((entry) => ({
             id: textOf(entry["id"]),
             ...owners(entry),
+            ...optional("name", optionalText(entry["name"])),
             typeId: textOf(entry["typeId"]),
-            type: textOf(entry["type"]),
+            ...optional("type", optionalText(entry["type"])),
             startsOn: dateOf(entry["startsOn"]),
             endsOn: dateOf(entry["endsOn"]),
             partial: enumOrThrow(entry["partial"], PARTIALS, "leave partial"),
+            ...optional("startPart", optionalPart(entry["startPart"])),
+            ...optional("endPart", optionalPart(entry["endPart"])),
             amount: decimal(entry["amount"]),
             updatedAt: requiredInstant(entry["updatedAt"], "updatedAt"),
+            ...optional(
+              "fields",
+              isRecord(entry["fields"]) ? entry["fields"] : undefined,
+            ),
           })),
         };
       }),

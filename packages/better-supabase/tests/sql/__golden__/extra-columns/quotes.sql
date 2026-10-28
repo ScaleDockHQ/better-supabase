@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:c9f1be1a466f49830e341d7ddd4e798b05de5f5d1ec241e777ae3bc44ae6f31d
+-- @bsb-hash sha256:a03acfc83a3d617b3b815cc6dd9003a7dc15d6e5a2c810cea5813fb06ff6f8cd
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -237,7 +237,7 @@ begin
   v_identifier := 'Q-' || v_seq::text;
   begin
     insert into "better_supabase"."quotes" ("tenant_id", "number", "identifier", "title", "company_type", "company_id", "contact_type", "contact_id",
-      "owner_user_id", "currency", "valid_until", "terms", "note", "origin_type", "origin_id", "prices_include_tax", "discount_bps", "discount_amount", "deposit_bps", "created_by")
+      "owner_user_id", "currency", "valid_until", "terms", "note", "origin_type", "origin_id", "prices_include_tax", "discount_bps", "discount_amount", "deposit_bps", "created_by", "app_note")
     values (create_quote.tenant, v_seq, v_identifier, trim(create_quote.attrs ->> 'title'),
       case when v_company_id is null then null else v_company_type end, v_company_id,
       case when v_contact_id is null then null else v_contact_type end, v_contact_id,
@@ -245,11 +245,8 @@ begin
       coalesce((create_quote.attrs ->> 'validUntil')::date, current_date + 30),
       create_quote.attrs ->> 'terms', create_quote.attrs ->> 'note',
       create_quote.attrs -> 'origin' ->> 'type', create_quote.attrs -> 'origin' ->> 'id',
-      coalesce((create_quote.attrs ->> 'pricesIncludeTax')::boolean, false), coalesce((create_quote.attrs ->> 'discountBps')::integer, 0), coalesce((create_quote.attrs ->> 'discountAmount')::bigint, 0), (create_quote.attrs ->> 'depositBps')::integer, auth.uid())
+      coalesce((create_quote.attrs ->> 'pricesIncludeTax')::boolean, false), coalesce((create_quote.attrs ->> 'discountBps')::integer, 0), coalesce((create_quote.attrs ->> 'discountAmount')::bigint, 0), (create_quote.attrs ->> 'depositBps')::integer, auth.uid(), (jsonb_populate_record(null::"better_supabase"."quotes", jsonb_build_object('app_note', coalesce(create_quote.attrs -> 'fields', '{}'::jsonb) -> 'app_note')))."app_note")
     returning * into v_row;
-  update "better_supabase"."quotes" x set "app_note" = case when (create_quote.attrs -> 'fields') ? 'app_note' then r."app_note" else x."app_note" end
-  from jsonb_populate_record(null::"better_supabase"."quotes", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each((create_quote.attrs -> 'fields')) e where e.key in ('app_note'))) r
-  where x."id" = v_row."id";
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a quote field has an invalid value' using errcode = '22023', hint = 'QUOTE_ATTRS_INVALID';
   end;

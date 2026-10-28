@@ -5,11 +5,11 @@ import {
   extraFieldsArg,
   extraFieldsJson,
   fail,
+  insertExtraColumns,
   pageSize,
   raise,
   SERVICE_CALLER,
   userGrant,
-  writeExtraColumns,
 } from "../shared.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import {
@@ -482,9 +482,9 @@ begin
   if create_expense_report.currency is null or create_expense_report.currency !~ '^[A-Z]{3}$' then
     ${invalid("EXPENSE_REPORT_INVALID", "currency must be a three-letter currency code")}
   end if;${unsupported("reports", "note", "nullif(trim(create_expense_report.note), '')", "EXPENSE_NOTE_UNSUPPORTED", "this expense reports table has no note column")}
-  insert into ${reports} (${r("tenant")}, ${r("user")}, ${r("title")}, ${r("currency")}${also("reports", "note")})
-  values (create_expense_report.tenant, auth.uid(), trim(create_expense_report.title), create_expense_report.currency${ctx.has("reports", "note") ? ",\n    nullif(trim(create_expense_report.note), '')" : ""})
-  returning * into v_row;${writeExtraColumns(reports, extras, "create_expense_report.fields", `x.${r("id")} = v_row.${r("id")}`, "v_row")}
+  insert into ${reports} (${r("tenant")}, ${r("user")}, ${r("title")}, ${r("currency")}${also("reports", "note")}${insertExtraColumns(reports, extras, "coalesce(create_expense_report.fields, '{}'::jsonb)").columns})
+  values (create_expense_report.tenant, auth.uid(), trim(create_expense_report.title), create_expense_report.currency${ctx.has("reports", "note") ? ",\n    nullif(trim(create_expense_report.note), '')" : ""}${insertExtraColumns(reports, extras, "coalesce(create_expense_report.fields, '{}'::jsonb)").values})
+  returning * into v_row;
   ${reportRecord("expense_report.created", "created an expense report")}
   return ${reportJson("v_row", "v_approval")};
 end;

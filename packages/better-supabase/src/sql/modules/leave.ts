@@ -1,4 +1,4 @@
-import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
@@ -10,19 +10,28 @@ import {
   extraFieldsArg,
   extraFieldsJson,
   fail,
+  insertExtraColumns,
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
-import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import { leaveBalanceFunctions, unpostTaken } from "./leave-balances.ts";
+import {
+  LEAVE_REQUEST_SUBJECT,
+  RESERVED,
+  leaveContract,
+  leavePolicy,
+  leaveStatusMode,
+  workingDaysOf,
+} from "./leave-contract.ts";
 import {
   leaveEndPart,
   leaveFeed,
   leaveFeedSubject,
   leavePartial,
+  leaveTeamFeedSubject,
   leaveStartPart,
   leaveTypeKey,
 } from "./leave-feed.ts";
@@ -31,89 +40,14 @@ import { LEAVE_NAMES } from "./leave-names.ts";
 import {
   dropSignatures,
   halfDays,
+  leaveAutoApprove,
   leaveBalancesTable,
   leaveByEmployee,
   leaveOwner,
   leaveParts,
-  leavePartsMapped,
 } from "./leave-owner.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
-import { OPERATIONS, moduleOperations } from "./permissions-model.ts";
-
-/** Leave requests this block files with approvals. */
-const LEAVE_REQUEST_SUBJECT = "leave_request";
-
-const WHERE = "blocks.leave.options";
-
-/** The keys the request reads return next to the extra columns. */
-const RESERVED = ["fields"] as const;
-
-const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
-
-const ISO_WEEKDAY = new Map<string, number>(
-  DAYS.map((day, index) => [day, index + 1]),
-);
-
-/** `options.workingDays` as ISO weekday numbers (Monday is 1). */
-function workingDaysOf(ctx: BlockSqlContext): readonly number[] {
-  const days = ctx.list("workingDays", ["mon", "tue", "wed", "thu", "fri"]);
-
-  if (days.length === 0) {
-    throw new TypeError(`${WHERE}.workingDays must name at least one day`);
-  }
-
-  return [
-    ...new Set(
-      days.map((day) => {
-        const weekday = ISO_WEEKDAY.get(day);
-
-        if (weekday === undefined) {
-          throw new TypeError(
-            `${WHERE}.workingDays: "${day}" is not one of ${DAYS.join(", ")}`,
-          );
-        }
-
-        return weekday;
-      }),
-    ),
-  ].toSorted((a, b) => a - b);
-}
-
-/** `options.policy` as an approvals policy; defaults to one approver step. */
-function leavePolicy(ctx: BlockSqlContext): string {
-  const raw = ctx.option("policy") ?? {
-    steps: [
-      {
-        approvers: {
-          permission: ctx.permissionKey("approve", OPERATIONS["leave.approve"]),
-        },
-      },
-    ],
-  };
-
-  const policy = policyOf(
-    LEAVE_REQUEST_SUBJECT,
-    "approve",
-    raw,
-    `${WHERE}.policy`,
-  );
-
-  if (policy.run !== undefined) {
-    throw new TypeError(
-      `${WHERE}.policy.run is not allowed; the final approval books the leave`,
-    );
-  }
-
-  return policySnapshot(policy);
-}
-
-/**
- * Whether requests keep their decision themselves instead of in the approvals
- * block: `options.approvals: false`, or no approval column.
- */
-function leaveStatusMode(ctx: BlockSqlContext): boolean {
-  return !ctx.flag("approvals", true) || !ctx.has("requests", "approval");
-}
+import { moduleOperations } from "./permissions-model.ts";
 
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
@@ -170,6 +104,13 @@ function build(ctx: BlockSqlContext): string {
   const idType = ctx.idType;
   const extras = ctx.extraColumns("requests", RESERVED);
   const extra = extraFieldsArg(extras);
+  const auto = leaveAutoApprove(ctx);
+
+  const inserted = insertExtraColumns(
+    requests,
+    extras,
+    "coalesce(request_leave.fields, '{}'::jsonb)",
+  );
 
   const forbidden = (message: string): string =>
     fail("LEAVE_FORBIDDEN", message);
@@ -218,8 +159,11 @@ function build(ctx: BlockSqlContext): string {
       ["allowance", "save_leave_type.allowance"],
       ["carryoverMax", "save_leave_type.carryover_max"],
       ["color", "save_leave_type.color"],
+      ["autoApprove", "coalesce(save_leave_type.auto_approve, false)"],
     ] as const
-  ).filter(([logical]) => ctx.has("types", logical));
+  ).filter(([logical]) =>
+    logical === "autoApprove" ? auto : ctx.has("types", logical),
+  );
 
   // The upsert's third line of the type's settings, after allowance.
   const settingsLine = typeSettings
@@ -263,7 +207,7 @@ function build(ctx: BlockSqlContext): string {
       : `case when ${row}.${q("cancelledAt")} is not null then 'cancelled' when ${row}.${q("approvedAt")} is not null then 'approved' when ${approval}.${a("status")} in ('rejected', 'expired') then 'rejected' when ${approval}.${a("status")} = 'cancelled' then 'cancelled' else 'pending' end`;
 
   const typeJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${ty("id")}, 'organizationId', ${row}.${ty("tenant")}, 'key', ${leaveTypeKey(ctx, row)}, 'name', ${row}.${ty("name")}, 'unit', ${row}.${ty("unit")}, 'paid', ${row}.${ty("paid")}, 'tracked', ${row}.${ty("tracked")}, 'allowance', ${or("types", row, "allowance")}::text, 'carryoverMax', ${or("types", row, "carryoverMax")}::text, 'color', ${or("types", row, "color")}, 'archivedAt', ${row}.${ty("archivedAt")}, 'createdAt', ${row}.${ty("createdAt")}, 'updatedAt', ${row}.${ty("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${ty("id")}, 'organizationId', ${row}.${ty("tenant")}, 'key', ${leaveTypeKey(ctx, row)}, 'name', ${row}.${ty("name")}, 'unit', ${row}.${ty("unit")}, 'paid', ${row}.${ty("paid")}, 'tracked', ${row}.${ty("tracked")}, 'allowance', ${or("types", row, "allowance")}::text, 'carryoverMax', ${or("types", row, "carryoverMax")}::text, 'color', ${or("types", row, "color")}${auto ? `, 'autoApprove', ${row}.${ty("autoApprove")}` : ""}, 'archivedAt', ${row}.${ty("archivedAt")}, 'createdAt', ${row}.${ty("createdAt")}, 'updatedAt', ${row}.${ty("updatedAt")})`;
 
   const requestJson = (row: string, approval: string): string =>
     `jsonb_build_object('id', ${row}.${q("id")}, 'organizationId', ${row}.${q("tenant")}, 'userId', ${or("requests", row, "user")}${owner.json(row)}, 'typeId', ${row}.${q("type")}, 'startsOn', ${row}.${q("startsOn")}, 'endsOn', ${row}.${q("endsOn")}, 'partial', ${leavePartial(ctx, row)}${parts ? `, 'startPart', ${leaveStartPart(ctx, row)}, 'endPart', ${leaveEndPart(ctx, row)}` : ""}, 'amount', ${row}.${q("amount")}::text, 'note', ${or("requests", row, "note")}, 'status', ${status(row, approval)}, 'approvalId', ${or("requests", row, "approval")}, 'approvedAt', ${row}.${q("approvedAt")}, 'cancelledAt', ${row}.${q("cancelledAt")}, 'createdAt', ${row}.${q("createdAt")}, 'updatedAt', ${row}.${q("updatedAt")}${extraFieldsJson(row, extras)})`;
@@ -360,7 +304,7 @@ ${column("types", "key", (name) => `${name} text not null check (${name} ~ '^[a-
   ${ty("unit")} text not null default 'days' check (${ty("unit")} in ('days', 'hours')),
   ${ty("paid")} boolean not null default true,
   -- Untracked types (unpaid leave, say) book no ledger entries and skip the balance check.
-  ${ty("tracked")} boolean not null default true,${ctx.has("types", "allowance") ? `\n  -- What accrue_leave grants each member per period when it names no amount.` : ""}${column("types", "allowance", (name) => `${name} numeric(8, 2) check (${name} is null or ${name} >= 0)`)}${ctx.has("types", "carryoverMax") ? `\n  -- How much close_leave_year carries into the next period; null carries everything.` : ""}${column("types", "carryoverMax", (name) => `${name} numeric(8, 2) check (${name} is null or ${name} >= 0)`)}${column("types", "color", (name) => `${name} text check (${name} is null or ${name} ~ '^#[0-9a-fA-F]{6}$')`)}
+  ${ty("tracked")} boolean not null default true,${ctx.has("types", "allowance") ? `\n  -- What accrue_leave grants each member per period when it names no amount.` : ""}${column("types", "allowance", (name) => `${name} numeric(8, 2) check (${name} is null or ${name} >= 0)`)}${ctx.has("types", "carryoverMax") ? `\n  -- How much close_leave_year carries into the next period; null carries everything.` : ""}${column("types", "carryoverMax", (name) => `${name} numeric(8, 2) check (${name} is null or ${name} >= 0)`)}${column("types", "color", (name) => `${name} text check (${name} is null or ${name} ~ '^#[0-9a-fA-F]{6}$')`)}${auto ? `\n  ${ty("autoApprove")} boolean not null default false,` : ""}
   ${ty("archivedAt")} timestamptz,
   ${ty("createdAt")} timestamptz not null default now(),
   ${ty("updatedAt")} timestamptz not null default now(),
@@ -370,7 +314,7 @@ ${
 `
     : ""
 }  unique (${ty("tenant")}, ${ty("id")})
-);${ctx.has("types", "key") ? appUniqueIndex(ctx, "types", ["tenant", "key"]) : ""}${appUniqueIndex(ctx, "types", ["tenant", "id"])}
+);${auto && ctx.owns("types") ? `\nalter table ${types} add column if not exists ${ty("autoApprove")} boolean not null default false;` : ""}${ctx.has("types", "key") ? appUniqueIndex(ctx, "types", ["tenant", "key"]) : ""}${appUniqueIndex(ctx, "types", ["tenant", "id"])}
 ${lockModuleTable(ctx, "types", { read: true })}
 ${renderPolicy(makePolicy({ table: types, name: ctx.naming.rename("leave_types_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(ty("tenant"), request)} or ${ctx.scope.check(ty("tenant"), read)}` }), { drop: true, target: types })}
 
@@ -431,17 +375,324 @@ ${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("leave_requ
     leaveEndPart(ctx, "r"),
   );
 
-  const asked = halfDays(
-    "request_leave.starts_on",
-    "request_leave.ends_on",
-    "v_start",
-    "v_end",
-  );
-
   const employeeKey =
     ctx.installed("employees") && !owner.employee
       ? employeeKeySql(ctx.of("employees"), { owner: ctx, table: "requests" })
       : "";
+
+  // Sets v_partial, v_start, v_end and v_amount for v_type from the dates,
+  // the hours and the parts of the day, with v_partial set beforehand.
+  const measure = (a: {
+    readonly starts: string;
+    readonly ends: string;
+    readonly hours: string;
+    readonly startPart: string;
+    readonly endPart: string;
+  }): string =>
+    parts
+      ? `  if v_partial not in ('full', 'morning', 'afternoon', 'hours') then
+    ${invalid("partial must be full, morning, afternoon or hours")}
+  end if;
+  v_start := coalesce(${a.startPart}, case v_partial when 'afternoon' then 'afternoon' when 'hours' then 'hours' else 'full' end);
+  v_end := coalesce(${a.endPart}, case v_partial when 'morning' then 'morning' when 'hours' then 'hours' else 'full' end);
+  if v_start not in ('full', 'morning', 'afternoon', 'hours') or v_end not in ('full', 'morning', 'afternoon', 'hours') then
+    ${invalid("start_part and end_part must be full, morning, afternoon or hours")}
+  end if;
+  if (v_start = 'hours' or v_end = 'hours') and (v_start <> v_end or ${a.starts} <> ${a.ends}) then
+    ${invalid("a request in hours starts and ends in hours on the same date")}
+  end if;
+  if ${a.starts} = ${a.ends} and v_start = 'afternoon' and v_end = 'morning' then
+    ${invalid("a single day can't start in the afternoon and end in the morning")}
+  end if;
+  if v_type.${ty("unit")} = 'hours' then
+    if ${a.hours} is null or ${a.hours} <= 0 then
+      ${invalid("an hours type needs hours greater than zero")}
+    end if;
+    v_amount := ${a.hours};
+  else
+    if v_start = 'hours' then
+      ${invalid("a day type takes parts full, morning or afternoon")}
+    end if;
+    v_amount := ${fn("leave_working_days")}(${a.starts}, ${a.ends})
+      - case when v_start = 'afternoon' and ${fn("leave_working_days")}(${a.starts}, ${a.starts}) = 1 then 0.5 else 0 end
+      - case when v_end = 'morning' and ${fn("leave_working_days")}(${a.ends}, ${a.ends}) = 1 then 0.5 else 0 end;
+  end if;
+  v_partial := case when v_start = 'hours' then 'hours'
+    when ${a.starts} = ${a.ends} and v_start = 'afternoon' then 'afternoon'
+    when ${a.starts} = ${a.ends} and v_end = 'morning' then 'morning'
+    else 'full' end;`
+      : `  if v_partial not in ('full', 'morning', 'afternoon', 'hours') then
+    ${invalid("partial must be full, morning, afternoon or hours")}
+  end if;
+  if v_type.${ty("unit")} = 'hours' then
+    if v_partial <> 'hours' and v_partial <> 'full' then
+      ${invalid("an hours type takes partial hours")}
+    end if;
+    if ${a.hours} is null or ${a.hours} <= 0 then
+      ${invalid("an hours type needs hours greater than zero")}
+    end if;
+    v_partial := 'hours';
+    v_amount := ${a.hours};
+  else
+    if v_partial = 'hours' then
+      ${invalid("a day type takes partial full, morning or afternoon")}
+    end if;
+    if v_partial in ('morning', 'afternoon') and ${a.starts} <> ${a.ends} then
+      ${invalid("a half day starts and ends on the same date")}
+    end if;${
+      ctx.has("requests", "partial")
+        ? ""
+        : `
+    if v_partial <> 'full' then
+      ${fail("LEAVE_PARTIAL_UNSUPPORTED", "this leave requests table has no partial column, so a request takes whole days", "22023")}
+    end if;`
+    }
+    v_amount := ${fn("leave_working_days")}(${a.starts}, ${a.ends})
+      * case when v_partial = 'full' then 1 else 0.5 end;
+  end if;`;
+
+  // Refuses leave of the owner in v_owner or v_me that overlaps these dates,
+  // other than request self.
+  const overlapCheck = (
+    tenant: string,
+    starts: string,
+    ends: string,
+    self?: string,
+  ): string => `  if exists (
+    select 1 from ${requests} r${joinApproval("r", "p")}
+    where r.${q("tenant")} = ${tenant} and r.${owner.column} = ${me}
+      and r.${q("cancelledAt")} is null${self === undefined ? "" : ` and r.${q("id")} <> ${self}`} and (r.${q("approvedAt")} is not null or ${approvals === undefined ? `(${pendingIn("r", "p")})` : `p.${a("status")} = 'pending'`})
+${
+  parts
+    ? `      and ${existing.first} <= ${halfDays(starts, ends, "v_start", "v_end").last} and ${halfDays(starts, ends, "v_start", "v_end").first} <= ${existing.last}
+`
+    : `      and daterange(r.${q("startsOn")}, r.${q("endsOn")}, '[]') && daterange(${starts}, ${ends}, '[]')
+`
+}${
+    !parts && ctx.has("requests", "partial")
+      ? `      and not (r.${q("partial")} = 'morning' and v_partial = 'afternoon')
+      and not (r.${q("partial")} = 'afternoon' and v_partial = 'morning')
+`
+      : ""
+  }  ) then
+    ${fail("LEAVE_OVERLAP", "this overlaps another leave request", "23P01")}
+  end if;`;
+
+  // Opens the approval of v_row for v_type, unless the type needs none.
+  const openApproval = (tenant: string): string => {
+    if (approvals === undefined) {
+      return "";
+    }
+
+    const open = `
+  v_request := ${approvals.fn("open_approval")}(
+    ${tenant}, ${sqlString(LEAVE_REQUEST_SUBJECT)}, v_row.${q("id")}::text, 'approve',
+    ${sqlString(policy)}::jsonb, ${or("requests", "v_row", "note")},
+    jsonb_build_object('userId', ${owner.employee ? "v_user, 'employeeId', v_owner" : "v_me"}, 'typeId', v_type.${ty("id")}, 'type', v_type.${ty("name")}, 'startsOn', v_row.${q("startsOn")}, 'endsOn', v_row.${q("endsOn")}, 'amount', v_amount::text, 'unit', v_type.${ty("unit")})
+  );
+  update ${requests} x set ${q("approval")} = (v_request ->> 'id')::uuid
+    where x.${q("id")} = v_row.${q("id")}
+    returning * into v_row;${loadApproval}`;
+
+    return auto
+      ? `
+  if not v_type.${ty("autoApprove")} then${open.replaceAll("\n  ", "\n    ")}
+  end if;`
+      : open;
+  };
+
+  // Books v_row at once when its type needs no approval.
+  const autoApproved = auto
+    ? `
+  if v_type.${ty("autoApprove")} then
+    perform ${fn("approve_leave_request")}(v_row.${q("id")});
+    select * into v_row from ${requests} x where x.${q("id")} = v_row.${q("id")};
+  end if;`
+    : "";
+
+  // Takes back (sign 1) or books (sign -1) the taken leave of request row.
+  const taken = (row: string, sign: 1 | -1, note?: string): string =>
+    appBalances && sign === 1
+      ? `
+    ${unpostTaken(ctx, `${row}.${q("id")}`)}`
+      : `
+    perform ${fn("leave_post")}(${row}.${q("tenant")}, ${row}.${owner.column}, ${row}.${q("type")}, 'taken', ${sign === 1 ? "" : "-"}${row}.${q("amount")}, ${period(row)}, ${row}.${q("id")}${note === undefined ? "" : `, ${sqlString(note)}`})
+    from ${types} t where t.${ty("id")} = ${row}.${q("type")} and t.${ty("tracked")};`;
+
+  // ", v_old.<column>" when the requests table has the column.
+  const copied = (logical: string): string =>
+    ctx.has("requests", logical) ? `, v_old.${q(logical)}` : "";
+
+  const ownerFromRow = owner.employee
+    ? `
+  v_owner := v_row.${q("employee")};
+  v_user := ${owner.userOf(`v_row.${q("employee")}`)};`
+    : `
+  v_me := v_row.${q("user")};`;
+
+  const updateBase = `uuid, date, date, text, numeric, text${parts ? ", text, text" : ""}`;
+
+  const keepParts = (part: "start" | "end"): string =>
+    `coalesce(update_leave_request.${part}_part, case when update_leave_request.partial is null then ${part === "start" ? leaveStartPart(ctx, "v_old") : leaveEndPart(ctx, "v_old")} end)`;
+
+  const editFunctions = `
+-- Changes a pending or approved request: its dates, parts of the day,
+-- hours, note or extra columns. What it leaves null keeps its value, and an
+-- empty note clears it. The requester changes a pending request, which goes
+-- back to approval; a manager also changes approved leave, which is booked
+-- again for the new amount, so leave can be shortened.
+${extra.drop(fn("update_leave_request"), updateBase)}
+create or replace function ${fn("update_leave_request")}(request_id uuid, starts_on date default null, ends_on date default null, partial text default null, hours numeric default null, note text default null${parts ? ", start_part text default null, end_part text default null" : ""}${extra.param})
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_me uuid;${owner.declare}
+  v_row ${requests}%rowtype;
+  v_old ${requests}%rowtype;
+  v_type ${types}%rowtype;
+  v_partial text;${parts ? "\n  v_start text;\n  v_end text;" : ""}
+  v_amount numeric;
+  v_manager boolean;
+  v_status text;
+  v_starts date;
+  v_ends date;${approvalVar}${approvals === undefined ? "" : "\n  v_request jsonb;"}
+begin
+  select * into v_row from ${requests} x where x.${q("id")} = update_leave_request.request_id for update;
+  if not found then
+    ${fail("LEAVE_REQUEST_NOT_FOUND", "leave request not found", "P0002")}
+  end if;${loadApproval}
+  v_old := v_row;
+  v_manager := ${SERVICE_CALLER} or ${ctx.can("tenant", `v_row.${q("tenant")}`, manage)}${owner.employee ? ` or ${owner.manages(`v_row.${q("tenant")}`, `v_row.${q("employee")}`)}` : ""};
+  if not (v_manager or coalesce(${owner.requester("v_row")} = auth.uid(), false)) then
+    ${forbidden("not allowed to change this leave request")}
+  end if;
+  v_status := ${status("v_row", approvals === undefined ? "v_row" : "v_approval")};
+  if v_status not in ('pending', 'approved') then
+    ${fail("LEAVE_REQUEST_CLOSED", "only a pending or approved leave request changes", "55000")}
+  end if;
+  if v_status = 'approved' and not v_manager then
+    ${forbidden("approved leave is changed by a manager")}
+  end if;
+  select * into v_type from ${types} x where x.${ty("id")} = v_row.${q("type")};${ownerFromRow}
+  v_starts := coalesce(update_leave_request.starts_on, v_row.${q("startsOn")});
+  v_ends := coalesce(update_leave_request.ends_on, v_row.${q("endsOn")});
+  if v_ends < v_starts then
+    ${invalid("ends_on must be on or after starts_on")}
+  end if;
+  v_partial := coalesce(update_leave_request.partial, (${leavePartial(ctx, "v_old")})::text);
+${measure({
+  starts: "v_starts",
+  ends: "v_ends",
+  hours: `coalesce(update_leave_request.hours, case when v_type.${ty("unit")} = 'hours' then v_old.${q("amount")} end)`,
+  startPart: parts ? keepParts("start") : "null",
+  endPart: parts ? keepParts("end") : "null",
+})}
+  if v_amount <= 0 then
+    ${invalid("the request covers no working days")}
+  end if;${
+    ctx.has("requests", "note")
+      ? ""
+      : `
+  if nullif(trim(update_leave_request.note), '') is not null then
+    ${fail("LEAVE_NOTE_UNSUPPORTED", "this leave requests table has no note column", "22023")}
+  end if;`
+  }
+  perform pg_advisory_xact_lock(hashtextextended('leave:' || v_row.${q("tenant")}::text || ':' || ${me}::text, 0));
+${overlapCheck(`v_row.${q("tenant")}`, "v_starts", "v_ends", `v_row.${q("id")}`)}${
+    allowNegative
+      ? ""
+      : `
+  if v_type.${ty("tracked")} and ${fn("leave_available")}(v_row.${q("tenant")}, ${me}, v_type.${ty("id")}, ${appBalances ? "v_starts" : "extract(year from v_starts)::integer"})
+    + (case when extract(year from v_old.${q("startsOn")}) = extract(year from v_starts) then v_old.${q("amount")} else 0 end) < v_amount then
+    ${fail("LEAVE_BALANCE_EXCEEDED", "this request is more than the available balance", "23514")}
+  end if;`
+  }
+  if v_status = 'approved' then${taken("v_old", 1, "changed")}
+  end if;
+  update ${requests} x set ${q("startsOn")} = v_starts, ${q("endsOn")} = v_ends${ctx.has("requests", "partial") ? `, ${q("partial")} = ${ctx.cast("requests", "partial", "v_partial")}` : ""}${parts ? `, ${q("startPart")} = ${ctx.cast("requests", "startPart", "v_start")}, ${q("endPart")} = ${ctx.cast("requests", "endPart", "v_end")}` : ""}, ${q("amount")} = v_amount${ctx.has("requests", "note") ? `, ${q("note")} = case when update_leave_request.note is null then x.${q("note")} else nullif(trim(update_leave_request.note), '') end` : ""}, ${q("updatedAt")} = now()
+    where x.${q("id")} = v_row.${q("id")}
+    returning * into v_row;${writeExtraColumns(requests, extras, "update_leave_request.fields", `x.${q("id")} = v_row.${q("id")}`, "v_row")}
+  if v_status = 'approved' then${taken("v_row", -1)}
+  end if;${
+    approvals === undefined
+      ? ""
+      : `
+  if v_status = 'pending' then
+    update ${ar} p set ${a("status")} = 'cancelled', ${a("decidedAt")} = now()
+      where p.${a("id")} = v_row.${q("approval")} and p.${a("status")} = 'pending';${openApproval(`v_row.${q("tenant")}`).replaceAll("\n  ", "\n    ")}${autoApproved.replaceAll("\n  ", "\n    ")}
+  end if;`
+  }
+  ${requestRecord("leave.updated", "v_row", "changed leave")}
+  return ${requestJson("v_row", approvalRow)};
+end;
+$$;
+${userGrant(`${fn("update_leave_request")}(${updateBase}${extra.type})`)}
+
+-- Takes a gap out of approved leave, such as sick days during a holiday:
+-- the request ends before the gap and a new approved request takes the days
+-- after it. Needs a manager.
+create or replace function ${fn("split_leave_request")}(request_id uuid, gap_starts date, gap_ends date)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_old ${requests}%rowtype;
+  v_row ${requests}%rowtype;
+  v_type ${types}%rowtype;
+  v_partial text := 'full';${parts ? "\n  v_start text;\n  v_end text;" : ""}
+  v_amount numeric;${approvals === undefined ? "" : `\n  v_approval ${ar}%rowtype;`}
+begin
+  select * into v_old from ${requests} x where x.${q("id")} = split_leave_request.request_id for update;
+  if not found then
+    ${fail("LEAVE_REQUEST_NOT_FOUND", "leave request not found", "P0002")}
+  end if;
+  if not (${SERVICE_CALLER} or ${ctx.can("tenant", `v_old.${q("tenant")}`, manage)}${owner.employee ? ` or ${owner.manages(`v_old.${q("tenant")}`, `v_old.${q("employee")}`)}` : ""}) then
+    ${forbidden("approved leave is split by a manager")}
+  end if;
+  if v_old.${q("approvedAt")} is null or v_old.${q("cancelledAt")} is not null then
+    ${fail("LEAVE_REQUEST_CLOSED", "only approved leave is split", "55000")}
+  end if;
+  select * into v_type from ${types} x where x.${ty("id")} = v_old.${q("type")};
+  if v_type.${ty("unit")} = 'hours' then
+    ${invalid("leave in hours isn't split")}
+  end if;
+  if split_leave_request.gap_starts is null or split_leave_request.gap_ends is null
+    or split_leave_request.gap_ends < split_leave_request.gap_starts
+    or split_leave_request.gap_starts <= v_old.${q("startsOn")} or split_leave_request.gap_ends >= v_old.${q("endsOn")} then
+    ${invalid("the gap lies inside the leave with days on both sides; shorten leave with update_leave_request")}
+  end if;
+${measure({
+  starts: "(split_leave_request.gap_ends + 1)",
+  ends: `v_old.${q("endsOn")}`,
+  hours: "null",
+  startPart: "'full'",
+  endPart: leaveEndPart(ctx, "v_old"),
+})}
+  perform ${fn("update_leave_request")}(v_old.${q("id")}, ends_on => split_leave_request.gap_starts - 1${parts ? ", end_part => 'full'" : ", partial => 'full'"});
+  insert into ${requests} (${q("tenant")}, ${ownerColumns}, ${q("type")}, ${q("startsOn")}, ${q("endsOn")}${also("requests", "partial")}${parts ? `, ${q("startPart")}, ${q("endPart")}` : ""}, ${q("amount")}${also("requests", "note")}${also("requests", "approval")}, ${q("approvedAt")}${statusMode ? `${also("requests", "decidedBy")}${also("requests", "decisionNote")}` : ""}${extras.map((x) => `, ${x.ident}`).join("")})
+  values (v_old.${q("tenant")}, ${ownerColumns
+    .split(", ")
+    .map((column) => `v_old.${column}`)
+    .join(
+      ", ",
+    )}, v_old.${q("type")}, split_leave_request.gap_ends + 1, v_old.${q("endsOn")}${ctx.has("requests", "partial") ? `, ${ctx.cast("requests", "partial", "v_partial")}` : ""}${parts ? `, ${ctx.cast("requests", "startPart", "v_start")}, ${ctx.cast("requests", "endPart", "v_end")}` : ""}, v_amount${copied("note")}${copied("approval")}, v_old.${q("approvedAt")}${statusMode ? `${copied("decidedBy")}${copied("decisionNote")}` : ""}${extras.map((x) => `, v_old.${x.ident}`).join("")})
+  returning * into v_row;${taken("v_row", -1).replaceAll("\n    ", "\n  ")}${approvals === undefined ? "" : `\n  select * into v_approval from ${ar} x where x.${a("id")} = v_row.${q("approval")};`}
+  ${requestRecord("leave.split", "v_row", "split leave")}
+  return jsonb_build_object(
+    'request', (select ${requestJson("x", approvals === undefined ? "" : "v_approval")} from ${requests} x where x.${q("id")} = v_old.${q("id")}),
+    'split', ${requestJson("v_row", approvals === undefined ? "" : "v_approval")}
+  );
+end;
+$$;
+${userGrant(`${fn("split_leave_request")}(uuid, date, date)`)}
+`;
 
   return `${schemaPreamble(ctx)}
 ${owner.helper}${tables}${employeeKey}${appBalances ? leaveBalanceFunctions(ctx, { owner, pending }) : leaveLedgerFunctions(ctx, { owner, pending })}
@@ -459,8 +710,10 @@ $$;
 ${userGrant(`${fn("leave_working_days")}(date, date)`)}
 
 -- Creates or updates a leave type by key. Without a key column, key is the
--- id of the type to update, and any other key creates one.
-create or replace function ${fn("save_leave_type")}(tenant ${idType}, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null)
+-- id of the type to update, and any other key creates one. auto_approve:
+-- its requests need no approval.
+drop function if exists ${fn("save_leave_type")}(${idType}, text, text, text, boolean, boolean, numeric, numeric, text);
+create or replace function ${fn("save_leave_type")}(tenant ${idType}, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
 returns jsonb
 language plpgsql
 security definer
@@ -472,12 +725,19 @@ declare
 begin
   if not (${SERVICE_CALLER} or ${ctx.can("tenant", "save_leave_type.tenant", manage)}) then
     ${forbidden("not allowed to manage leave types")}
-  end if;${typeUnsupported("allowance", "save_leave_type.allowance", "allowance")}${typeUnsupported("carryoverMax", "save_leave_type.carryover_max", "carryover")}${typeUnsupported("color", "save_leave_type.color", "color")}
+  end if;${typeUnsupported("allowance", "save_leave_type.allowance", "allowance")}${typeUnsupported("carryoverMax", "save_leave_type.carryover_max", "carryover")}${typeUnsupported("color", "save_leave_type.color", "color")}${
+    auto
+      ? ""
+      : `
+  if save_leave_type.auto_approve is not null then
+    ${fail("LEAVE_AUTO_APPROVE_UNSUPPORTED", "this leave types table has no auto_approve column", "22023")}
+  end if;`
+  }
 ${typeUpsert}
   return ${typeJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_leave_type")}(${idType}, text, text, text, boolean, boolean, numeric, numeric, text)`)}
+${userGrant(`${fn("save_leave_type")}(${idType}, text, text, text, boolean, boolean, numeric, numeric, text, boolean)`)}
 
 -- Hides a type from new requests; its requests and ledger stay.
 create or replace function ${fn("archive_leave_type")}(type_id uuid)
@@ -562,69 +822,13 @@ ${
   if request_leave.starts_on is null or request_leave.ends_on is null or request_leave.ends_on < request_leave.starts_on then
     ${invalid("ends_on must be on or after starts_on")}
   end if;
-${
-  parts
-    ? `  if v_partial not in ('full', 'morning', 'afternoon', 'hours') then
-    ${invalid("partial must be full, morning, afternoon or hours")}
-  end if;
-  v_start := coalesce(request_leave.start_part, case v_partial when 'afternoon' then 'afternoon' when 'hours' then 'hours' else 'full' end);
-  v_end := coalesce(request_leave.end_part, case v_partial when 'morning' then 'morning' when 'hours' then 'hours' else 'full' end);
-  if v_start not in ('full', 'morning', 'afternoon', 'hours') or v_end not in ('full', 'morning', 'afternoon', 'hours') then
-    ${invalid("start_part and end_part must be full, morning, afternoon or hours")}
-  end if;
-  if (v_start = 'hours' or v_end = 'hours') and (v_start <> v_end or request_leave.starts_on <> request_leave.ends_on) then
-    ${invalid("a request in hours starts and ends in hours on the same date")}
-  end if;
-  if request_leave.starts_on = request_leave.ends_on and v_start = 'afternoon' and v_end = 'morning' then
-    ${invalid("a single day can't start in the afternoon and end in the morning")}
-  end if;
-  if v_type.${ty("unit")} = 'hours' then
-    if request_leave.hours is null or request_leave.hours <= 0 then
-      ${invalid("an hours type needs hours greater than zero")}
-    end if;
-    v_amount := request_leave.hours;
-  else
-    if v_start = 'hours' then
-      ${invalid("a day type takes parts full, morning or afternoon")}
-    end if;
-    v_amount := ${fn("leave_working_days")}(request_leave.starts_on, request_leave.ends_on)
-      - case when v_start = 'afternoon' and ${fn("leave_working_days")}(request_leave.starts_on, request_leave.starts_on) = 1 then 0.5 else 0 end
-      - case when v_end = 'morning' and ${fn("leave_working_days")}(request_leave.ends_on, request_leave.ends_on) = 1 then 0.5 else 0 end;
-  end if;
-  v_partial := case when v_start = 'hours' then 'hours'
-    when request_leave.starts_on = request_leave.ends_on and v_start = 'afternoon' then 'afternoon'
-    when request_leave.starts_on = request_leave.ends_on and v_end = 'morning' then 'morning'
-    else 'full' end;`
-    : `  if v_partial not in ('full', 'morning', 'afternoon', 'hours') then
-    ${invalid("partial must be full, morning, afternoon or hours")}
-  end if;
-  if v_type.${ty("unit")} = 'hours' then
-    if v_partial <> 'hours' and v_partial <> 'full' then
-      ${invalid("an hours type takes partial hours")}
-    end if;
-    if request_leave.hours is null or request_leave.hours <= 0 then
-      ${invalid("an hours type needs hours greater than zero")}
-    end if;
-    v_partial := 'hours';
-    v_amount := request_leave.hours;
-  else
-    if v_partial = 'hours' then
-      ${invalid("a day type takes partial full, morning or afternoon")}
-    end if;
-    if v_partial in ('morning', 'afternoon') and request_leave.starts_on <> request_leave.ends_on then
-      ${invalid("a half day starts and ends on the same date")}
-    end if;${
-      ctx.has("requests", "partial")
-        ? ""
-        : `
-    if v_partial <> 'full' then
-      ${fail("LEAVE_PARTIAL_UNSUPPORTED", "this leave requests table has no partial column, so a request takes whole days", "22023")}
-    end if;`
-    }
-    v_amount := ${fn("leave_working_days")}(request_leave.starts_on, request_leave.ends_on)
-      * case when v_partial = 'full' then 1 else 0.5 end;
-  end if;`
-}
+${measure({
+  starts: "request_leave.starts_on",
+  ends: "request_leave.ends_on",
+  hours: "request_leave.hours",
+  startPart: "request_leave.start_part",
+  endPart: "request_leave.end_part",
+})}
   if v_amount <= 0 then
     ${invalid("the request covers no working days")}
   end if;${
@@ -636,25 +840,7 @@ ${
   end if;`
   }
   perform pg_advisory_xact_lock(hashtextextended('leave:' || request_leave.tenant::text || ':' || ${me}::text, 0));
-  if exists (
-    select 1 from ${requests} r${joinApproval("r", "p")}
-    where r.${q("tenant")} = request_leave.tenant and r.${owner.column} = ${me}
-      and r.${q("cancelledAt")} is null and (r.${q("approvedAt")} is not null or ${approvals === undefined ? `(${pendingIn("r", "p")})` : `p.${a("status")} = 'pending'`})
-${
-  parts
-    ? `      and ${existing.first} <= ${asked.last} and ${asked.first} <= ${existing.last}
-`
-    : `      and daterange(r.${q("startsOn")}, r.${q("endsOn")}, '[]') && daterange(request_leave.starts_on, request_leave.ends_on, '[]')
-`
-}${
-    !parts && ctx.has("requests", "partial")
-      ? `      and not (r.${q("partial")} = 'morning' and v_partial = 'afternoon')
-      and not (r.${q("partial")} = 'afternoon' and v_partial = 'morning')
-`
-      : ""
-  }  ) then
-    ${fail("LEAVE_OVERLAP", "this overlaps another leave request", "23P01")}
-  end if;${balanceCheck}
+${overlapCheck("request_leave.tenant", "request_leave.starts_on", "request_leave.ends_on")}${balanceCheck}
   ${ctx.hook("before_leave_request", [
     [idType, "request_leave.tenant"],
     ["uuid", `v_type.${ty("id")}`],
@@ -662,22 +848,10 @@ ${
     ["date", "request_leave.ends_on"],
     ["numeric", "v_amount"],
   ])}
-  insert into ${requests} (${q("tenant")}, ${ownerColumns}, ${q("type")}, ${q("startsOn")}, ${q("endsOn")}${also("requests", "partial")}${parts ? `, ${q("startPart")}, ${q("endPart")}` : ""}, ${q("amount")}${also("requests", "note")})
-  values (request_leave.tenant, ${ownerValues}, v_type.${ty("id")}, request_leave.starts_on, request_leave.ends_on${ctx.has("requests", "partial") ? `, ${ctx.cast("requests", "partial", "v_partial")}` : ""}${parts ? `, ${ctx.cast("requests", "startPart", "v_start")}, ${ctx.cast("requests", "endPart", "v_end")}` : ""}, v_amount${alsoValue("requests", "note", "nullif(trim(request_leave.note), '')")})
-  returning * into v_row;${writeExtraColumns(requests, extras, "request_leave.fields", `x.${q("id")} = v_row.${q("id")}`, "v_row")}${
-    approvals === undefined
-      ? ""
-      : `
-  v_request := ${approvals.fn("open_approval")}(
-    request_leave.tenant, ${sqlString(LEAVE_REQUEST_SUBJECT)}, v_row.${q("id")}::text, 'approve',
-    ${sqlString(policy)}::jsonb, ${or("requests", "v_row", "note")},
-    jsonb_build_object('userId', ${owner.employee ? "v_user, 'employeeId', v_owner" : "v_me"}, 'typeId', v_type.${ty("id")}, 'type', v_type.${ty("name")}, 'startsOn', v_row.${q("startsOn")}, 'endsOn', v_row.${q("endsOn")}, 'amount', v_amount::text, 'unit', v_type.${ty("unit")})
-  );
-  update ${requests} x set ${q("approval")} = (v_request ->> 'id')::uuid
-    where x.${q("id")} = v_row.${q("id")}
-    returning * into v_row;${loadApproval}`
-  }
-  ${requestRecord("leave.requested", "v_row", "requested leave")}
+  insert into ${requests} (${q("tenant")}, ${ownerColumns}, ${q("type")}, ${q("startsOn")}, ${q("endsOn")}${also("requests", "partial")}${parts ? `, ${q("startPart")}, ${q("endPart")}` : ""}, ${q("amount")}${also("requests", "note")}${inserted.columns})
+  values (request_leave.tenant, ${ownerValues}, v_type.${ty("id")}, request_leave.starts_on, request_leave.ends_on${ctx.has("requests", "partial") ? `, ${ctx.cast("requests", "partial", "v_partial")}` : ""}${parts ? `, ${ctx.cast("requests", "startPart", "v_start")}, ${ctx.cast("requests", "endPart", "v_end")}` : ""}, v_amount${alsoValue("requests", "note", "nullif(trim(request_leave.note), '')")}${inserted.values})
+  returning * into v_row;${openApproval("request_leave.tenant")}
+  ${requestRecord("leave.requested", "v_row", "requested leave")}${autoApproved}
   ${ctx.hook("after_leave_request", [["uuid", `v_row.${q("id")}`]])}
   return ${requestJson("v_row", approvalRow)};
 end;
@@ -757,7 +931,7 @@ ${
 end;
 $$;
 ${userGrant(`${fn("cancel_leave_request")}(uuid)`)}
-${statusMode ? decide : ""}${leaveFeed(ctx)}
+${statusMode ? decide : ""}${editFunctions}${leaveFeed(ctx)}
 -- Requests that overlap a date range, earliest first: the caller's, or
 -- everyone's with the read permission.
 ${owner.employee ? `drop function if exists ${fn("list_leave_requests")}(${listBase});\n` : ""}create or replace function ${fn("list_leave_requests")}(tenant ${idType}, user_id uuid default null, status text default null, starts date default null, ends date default null, everyone boolean default false, page_size integer default 100${owner.employee ? ", employee_id uuid default null" : ""})
@@ -814,64 +988,8 @@ ${userGrant(`${fn("list_leave_requests")}(${listBase}${owner.employee ? ", uuid"
 `;
 }
 
-function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
-  const extra = extraFieldsArg(ctx.extraColumns("requests", RESERVED)).contract;
-  const employee = leaveByEmployee(ctx) ? ["uuid"] : [];
-
-  return [
-    {
-      name: "request_leave",
-      args: [
-        "{id}",
-        "uuid",
-        "date",
-        "date",
-        "text",
-        "numeric",
-        "text",
-        ...(leavePartsMapped(ctx) ? ["text", "text"] : []),
-        ...employee,
-        ...extra,
-      ],
-      returns: "jsonb",
-    },
-    { name: "cancel_leave_request", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "leave_balances",
-      args: ["{id}", "uuid", "integer", ...employee],
-      returns: "jsonb",
-    },
-    {
-      name: "list_leave_requests",
-      args: [
-        "{id}",
-        "uuid",
-        "text",
-        "date",
-        "date",
-        "boolean",
-        "integer",
-        ...employee,
-      ],
-      returns: "jsonb",
-    },
-    ...(leaveStatusMode(ctx)
-      ? [
-          {
-            name: "decide_leave_request",
-            args: ["uuid", "boolean", "text"],
-            returns: "jsonb",
-          },
-        ]
-      : []),
-    ...(ctx.installed("share-links")
-      ? [{ name: "leave_feed", args: ["text"], returns: "jsonb" }]
-      : []),
-  ];
-}
-
 const CONTRIBUTES: BlockContributes = {
-  "share-links": (own) => [leaveFeedSubject(own)],
+  "share-links": (own) => [leaveFeedSubject(own), ...leaveTeamFeedSubject(own)],
   approvals: (own) =>
     leaveStatusMode(own)
       ? []
@@ -908,7 +1026,7 @@ export const LEAVE: BlockSqlDefinition = {
           typeof layout.modules?.["leave"]?.tables?.["balances"] === "string"
         ),
     ),
-  integrates: ["outbox", "audit", "employees", "share-links"],
+  integrates: ["outbox", "audit", "employees", "share-links", "teams"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 3,
@@ -933,6 +1051,6 @@ export const LEAVE: BlockSqlDefinition = {
     },
   ],
   names: LEAVE_NAMES,
-  contract,
+  contract: leaveContract,
   build,
 };

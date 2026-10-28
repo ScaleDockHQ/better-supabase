@@ -107,6 +107,24 @@ function feedEvents(
     ), '[]'::jsonb)`;
 }
 
+/** `, 'color', <column>` of calendar alias `k`, when calendars have one. */
+const calendarColor = (ctx: BlockSqlContext): string =>
+  ctx.has("calendars", "color")
+    ? `, 'color', k.${ctx.col("calendars", "color")}`
+    : "";
+
+/** `'organization', { id, name }` of `tenant`, with the organizations block. */
+function organizationJson(ctx: BlockSqlContext, tenant: string): string {
+  if (!ctx.installed("organizations")) {
+    return "";
+  }
+
+  const o = ctx.of("organizations");
+
+  return `
+      'organization', jsonb_build_object('id', ${tenant}, 'name', (select g.${o.col("organizations", "name")} from ${o.table("organizations")} g where g.${o.col("organizations", "id")} = ${tenant})),`;
+}
+
 export function feed(
   ctx: BlockSqlContext,
   events: string,
@@ -165,7 +183,7 @@ begin
   ${touchShareLink(s, "v_link")}
   return (
     select jsonb_build_object(
-      'calendar', jsonb_build_object('id', ${k("id")}, 'name', ${k("name")}, 'tz', ${k("tz")}),
+      'calendar', jsonb_build_object('id', ${k("id")}, 'name', ${k("name")}, 'tz', ${k("tz")}${calendarColor(ctx)}),${organizationJson(ctx, "v_tenant")}
       'createdBy', v_creator,
       'events', ${feedEvents(ctx, events, calendars, attendees, `${k("id")} = v_calendar`, "v_creator")}
     )
@@ -234,9 +252,9 @@ begin
   end if;
   ${touchShareLink(s, "v_link")}
   return jsonb_build_object(
-    'userId', v_user,
+    'userId', v_user,${organizationJson(ctx, "v_tenant").replace("\n      ", "\n    ")}
     'calendars', coalesce((
-      select jsonb_agg(jsonb_build_object('id', ${k("id")}, 'name', ${k("name")}, 'tz', ${k("tz")}) order by ${k("name")})
+      select jsonb_agg(jsonb_build_object('id', ${k("id")}, 'name', ${k("name")}, 'tz', ${k("tz")}${calendarColor(ctx)}) order by ${k("name")})
       from ${calendars} k
       where ${k("tenant")} = v_tenant and ${readable}
     ), '[]'::jsonb),

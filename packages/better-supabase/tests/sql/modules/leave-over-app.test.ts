@@ -229,6 +229,42 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("reopens the approval of a changed request and books types without approval on the block's tables", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_holiday uuid;
+  v_sick uuid;
+  v_request jsonb;
+  v_approval uuid;
+begin
+  ${SERVICE}
+  v_holiday := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday') ->> 'id')::uuid;
+  v_sick := (better_supabase.save_leave_type('${TENANT}', 'sick', 'Sick', 'days', true, false, auto_approve => true) ->> 'id')::uuid;
+  perform better_supabase.adjust_leave_balance('${TENANT}', '${ALICE}', v_holiday, 10, 2099);
+  ${AS_ALICE}
+  v_request := better_supabase.request_leave('${TENANT}', v_holiday, '2099-03-02', '2099-03-03');
+  v_approval := (v_request ->> 'approvalId')::uuid;
+  v_request := better_supabase.update_leave_request((v_request ->> 'id')::uuid, ends_on => '2099-03-04');
+  if v_request ->> 'status' <> 'pending' or (v_request ->> 'approvalId')::uuid = v_approval
+    or (select status from better_supabase.approval_requests where id = v_approval) <> 'cancelled'
+    or (v_request ->> 'amount')::numeric <> 3 then
+    raise exception 'changed %', v_request;
+  end if;
+  v_request := better_supabase.request_leave('${TENANT}', v_sick, '2099-03-09', '2099-03-09');
+  if v_request ->> 'status' <> 'approved' or v_request ->> 'approvalId' is not null then
+    raise exception 'sick %', v_request;
+  end if;
+end;
+$$;`,
+        {},
+        ["leave"],
+        "",
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("refuses a note the app's table has no column for", async () => {
     await expect(
       run(`do $$
@@ -582,6 +618,147 @@ $$;`,
         EMPLOYEE_APP,
       ),
     ).resolves.toBeUndefined();
+  });
+
+  it("changes, shortens and splits leave and approves types that need no approval", async () => {
+    const leave = EMPLOYEE_BLOCKS["leave"];
+
+    await expect(
+      runEmployees(
+        `do $$
+declare
+  v_days uuid;
+  v_sick uuid;
+  v_id uuid;
+  v_request jsonb;
+  v_split jsonb;
+begin
+  ${SERVICE}
+  v_days := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days') ->> 'id')::uuid;
+  v_sick := (better_supabase.save_leave_type('${TENANT}', 'sick', 'Sick', 'days', true, false, auto_approve => true) ->> 'id')::uuid;
+  if not (select auto_approve from public.time_off_types where id = v_sick) then
+    raise exception 'auto approve not saved';
+  end if;
+  perform better_supabase.adjust_leave_balance('${TENANT}', null, v_days, 20, 2099, 'grant', null, employee_id => '${ALICE_EMPLOYEE}');
+  ${AS(ALICE)}
+  v_id := (better_supabase.request_leave('${TENANT}', v_days, '2099-03-02', '2099-03-06') ->> 'id')::uuid;
+  v_request := better_supabase.update_leave_request(v_id, ends_on => '2099-03-04', note => 'shorter');
+  if v_request ->> 'status' <> 'pending' or (select row(hours, note)::text from public.time_off_requests where id = v_id) <> '(3.00,shorter)' then
+    raise exception 'pending change %', v_request;
+  end if;
+  ${AS(BOB)}
+  perform better_supabase.decide_leave_request(v_id, true, null);
+  v_request := better_supabase.update_leave_request(v_id, ends_on => '2099-03-13');
+  if (select sum(hours) from public.time_off_ledger where time_off_request_id = v_id and kind = 'taken') <> -10 then
+    raise exception 'approved change %', (select jsonb_agg(row_to_json(l)) from public.time_off_ledger l);
+  end if;
+  v_split := better_supabase.split_leave_request(v_id, '2099-03-05', '2099-03-06');
+  if (select row(ends_on, hours)::text from public.time_off_requests where id = v_id) <> '(2099-03-04,3.00)'
+    or v_split -> 'split' ->> 'status' <> 'approved' or (v_split -> 'split' ->> 'amount')::numeric <> 5
+    or v_split -> 'split' ->> 'startsOn' <> '2099-03-07' then
+    raise exception 'split %', v_split;
+  end if;
+  if (select sum(hours) from public.time_off_ledger where employee_id = '${ALICE_EMPLOYEE}' and kind = 'taken') <> -8 then
+    raise exception 'split taken %', (select jsonb_agg(row_to_json(l)) from public.time_off_ledger l);
+  end if;
+  ${AS(ALICE)}
+  v_request := better_supabase.request_leave('${TENANT}', v_sick, '2099-03-05', '2099-03-06');
+  if v_request ->> 'status' <> 'approved' then
+    raise exception 'sick leave waited %', v_request;
+  end if;
+end;
+$$;`,
+        {
+          leave: {
+            ...leave,
+            columns: {
+              ...leave?.columns,
+              types: {
+                ...leave?.columns?.["types"],
+                autoApprove: "auto_approve",
+              },
+            },
+          },
+        },
+        EMPLOYEE_OWN,
+        EMPLOYEE_APP.replace(
+          "  deducts_balance boolean not null default true,",
+          "  deducts_balance boolean not null default true,\n  auto_approve boolean not null default false,",
+        ),
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("shares one team's leave with names, parts and fields, and hides configured types", async () => {
+    const files = renderBlocks(["employees", "teams", "leave", "share-links"], {
+      modules: {
+        employees: {},
+        leave: {
+          options: {
+            owner: "employee",
+            extraColumns: { reason: "text" },
+            feed: {
+              teams: true,
+              names: true,
+              fields: true,
+              hideTypes: ["sick"],
+            },
+          },
+        },
+      },
+    });
+
+    await using stack = await liteStack({
+      driver: "pglite",
+      migrations: [
+        ROLES,
+        `create schema if not exists extensions;
+create or replace function extensions.gen_random_bytes(n integer) returns bytea
+language sql volatile as $$ select decode(md5(random()::text) || md5(random()::text), 'hex') $$;
+create or replace function extensions.digest(data bytea, type text) returns bytea
+language sql immutable as $$ select sha256(data) $$;`,
+        ...files
+          .filter((file) => file.kind !== "data")
+          .map((file) => file.contents),
+      ],
+      seed: [
+        ...files
+          .filter((file) => file.kind === "data")
+          .map((file) => file.contents),
+        ALLOW,
+        STAFF,
+        `insert into better_supabase.teams (id, tenant_id, name, slug) values ('88888888-8888-4888-8888-888888888888', '${TENANT}', 'Support', 'support');
+insert into better_supabase.team_members (team_id, user_id, tenant_id) values ('88888888-8888-4888-8888-888888888888', '${ALICE}', '${TENANT}');`,
+        `do $$
+declare
+  v_holiday uuid;
+  v_sick uuid;
+  v_link jsonb;
+  v_feed jsonb;
+begin
+  ${SERVICE}
+  v_holiday := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday') ->> 'id')::uuid;
+  v_sick := (better_supabase.save_leave_type('${TENANT}', 'sick', 'Sick', 'days', true, false, auto_approve => true) ->> 'id')::uuid;
+  perform better_supabase.accrue_leave('${TENANT}', v_holiday, 10, 2099);
+  perform better_supabase.request_leave('${TENANT}', v_sick, '2099-03-02', '2099-03-02', 'afternoon', employee_id => '${ALICE_EMPLOYEE}', fields => '{"reason": "dentist"}');
+  perform better_supabase.request_leave('${TENANT}', v_sick, '2099-03-03', '2099-03-03', employee_id => '${BOB_EMPLOYEE}');
+  ${AS(ALICE)}
+  v_link := better_supabase.create_share_link('${TENANT}', 'leave_team_feed', '88888888-8888-4888-8888-888888888888', 'view');
+  v_feed := better_supabase.leave_feed(v_link ->> 'token');
+  if v_feed ->> 'teamId' <> '88888888-8888-4888-8888-888888888888'
+    or jsonb_array_length(v_feed -> 'requests') <> 1
+    or v_feed -> 'requests' -> 0 ->> 'name' <> 'Alice'
+    or v_feed -> 'requests' -> 0 ->> 'type' is not null
+    or v_feed -> 'requests' -> 0 ->> 'startPart' <> 'afternoon'
+    or v_feed -> 'requests' -> 0 -> 'fields' ->> 'reason' <> 'dentist' then
+    raise exception 'team feed %', v_feed;
+  end if;
+end;
+$$;`,
+      ],
+    });
+
+    expect(stack.url).not.toBe("");
   });
 
   it("keys the ledger by employee on the block's own tables", async () => {

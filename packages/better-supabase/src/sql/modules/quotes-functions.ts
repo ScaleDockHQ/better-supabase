@@ -9,6 +9,7 @@ import {
 import { assignNumberSql } from "../numbering-sql.ts";
 import {
   fail,
+  insertExtraColumns,
   serviceGrant,
   sha256Hex,
   userGrant,
@@ -227,7 +228,7 @@ begin
   )}
   begin
     insert into ${t("quotes")} (${q("tenant")}, ${q("number")}, ${q("identifier")}, ${q("title")}${also("companyType")}${also("companyId")}${also("contactType")}${also("contactId")},
-      ${q("owner")}, ${q("currency")}, ${q("validUntil")}${also("terms")}${also("note")}${also("originType")}${also("originId")}${also("pricesIncludeTax")}${also("discountBps")}${also("discountAmount")}${also("depositBps")}${also("createdBy")})
+      ${q("owner")}, ${q("currency")}, ${q("validUntil")}${also("terms")}${also("note")}${also("originType")}${also("originId")}${also("pricesIncludeTax")}${also("discountBps")}${also("discountAmount")}${also("depositBps")}${also("createdBy")}${insertExtraColumns(t("quotes"), n.extras, "coalesce(create_quote.attrs -> 'fields', '{}'::jsonb)").columns})
     values (${valueLines(
       "      ",
       [
@@ -279,8 +280,8 @@ begin
         present("depositBps", "(create_quote.attrs ->> 'depositBps')::integer"),
         present("createdBy", "auth.uid()"),
       ],
-    )})
-    returning * into v_row;${writeExtraColumns(t("quotes"), n.extras, "(create_quote.attrs -> 'fields')", `x.${q("id")} = v_row.${q("id")}`)}
+    )}${insertExtraColumns(t("quotes"), n.extras, "coalesce(create_quote.attrs -> 'fields', '{}'::jsonb)").values})
+    returning * into v_row;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     ${fail("QUOTE_ATTRS_INVALID", "a quote field has an invalid value", "22023")}
   end;

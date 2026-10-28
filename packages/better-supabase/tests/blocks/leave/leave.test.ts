@@ -72,6 +72,85 @@ const ENTRY = {
 };
 
 describe("leave client", () => {
+  it("changes and splits requests, saves auto-approved types and reads team feeds", async () => {
+    const fake = transport({
+      save_leave_type: () => ({ ...TYPE, autoApprove: true }),
+      update_leave_request: () => ({ ...REQUEST, endsOn: "2026-10-21" }),
+      split_leave_request: () => ({
+        request: { ...REQUEST, status: "approved" },
+        split: { ...REQUEST, id: "q2", status: "approved" },
+      }),
+      leave_feed: () => ({
+        organizationId: "o",
+        teamId: "team-1",
+        requests: [
+          {
+            id: "q1",
+            userId: "u1",
+            name: "Alice",
+            typeId: "t1",
+            type: null,
+            unit: "days",
+            startsOn: "2026-10-19",
+            endsOn: "2026-10-19",
+            partial: "afternoon",
+            startPart: "afternoon",
+            endPart: "full",
+            amount: "0.5",
+            approvedAt: AT,
+            updatedAt: AT,
+          },
+        ],
+      }),
+    });
+
+    const leave = createLeave({ transport: fake });
+
+    expect(
+      (
+        await leave
+          .saveType("o", { key: "sick", name: "Sick", autoApprove: true })
+          .orThrow()
+      ).autoApprove,
+    ).toBe(true);
+    await leave
+      .update("q1", { endsOn: Temporal.PlainDate.from("2026-10-21"), note: "" })
+      .orThrow();
+
+    const split = await leave
+      .split("q1", {
+        gapStarts: Temporal.PlainDate.from("2026-10-20"),
+        gapEnds: Temporal.PlainDate.from("2026-10-21"),
+      })
+      .orThrow();
+
+    expect(split.split.id).toBe("q2");
+    const feed = await leave.feed("t".repeat(40)).orThrow();
+    expect(feed).toMatchObject({
+      teamId: "team-1",
+      requests: [{ name: "Alice", startPart: "afternoon" }],
+    });
+    expect(feed?.requests[0]?.type).toBeUndefined();
+    expect(fake.calls.slice(0, 3)).toEqual([
+      ["save_leave_type", expect.objectContaining({ auto_approve: true })],
+      [
+        "update_leave_request",
+        {
+          request_id: "q1",
+          starts_on: null,
+          ends_on: "2026-10-21",
+          partial: null,
+          hours: null,
+          note: "",
+        },
+      ],
+      [
+        "split_leave_request",
+        { request_id: "q1", gap_starts: "2026-10-20", gap_ends: "2026-10-21" },
+      ],
+    ]);
+  });
+
   it("saves and lists types with decimal allowances", async () => {
     const fake = transport({
       save_leave_type: () => TYPE,

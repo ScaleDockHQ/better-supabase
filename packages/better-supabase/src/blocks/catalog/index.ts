@@ -18,6 +18,7 @@ export {
   type PriceInput,
   type PriceListInput,
   type ProductInput,
+  type ProductPatch,
   type ProductKind,
   type ProductMedia,
   type ProductMediaInput,

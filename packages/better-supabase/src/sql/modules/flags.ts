@@ -12,6 +12,7 @@ import {
   addExtraColumns,
   extraFieldsJson,
   fail,
+  insertExtraColumns,
   lockTable,
   quotedTable,
   schemaPreamble,
@@ -688,9 +689,9 @@ begin
   ) then
     ${fail("FLAGS_ROLLOUT_VARIANTS", "Each rollout variant needs a known variant and a weight from 0 to 100", "22023")}
   end if;
-  insert into ${flags} as x (${[f("key"), ...written.map(([logical]) => f(logical))].join(", ")})
+  insert into ${flags} as x (${[f("key"), ...written.map(([logical]) => f(logical))].join(", ")}${insertExtraColumns(flags, extras, "coalesce(d -> 'fields', '{}'::jsonb)").columns})
   values (
-    ${["save_flag.key", ...written.map(([, value]) => value)].join(",\n    ")}
+    ${["save_flag.key", ...written.map(([, value]) => value)].join(",\n    ")}${insertExtraColumns(flags, extras, "coalesce(d -> 'fields', '{}'::jsonb)").values}
   )
   on conflict (${f("key")}) do update set
     ${assignments.join(",\n    ")};${writeExtraColumns(flags, extras, "d -> 'fields'", `x.${f("key")} = save_flag.key`)}

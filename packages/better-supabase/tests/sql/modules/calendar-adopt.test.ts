@@ -520,7 +520,7 @@ describe("calendar over an app's tables with per-calendar access", () => {
   );
 
   it(
-    "adds the app's event alarms and the link's creator to a calendar feed",
+    "adds the app's event alarms, the link's creator, the colour and the organization to a calendar feed",
     { timeout: 60_000 },
     async () => {
       const modules = {
@@ -543,7 +543,7 @@ describe("calendar over an app's tables with per-calendar access", () => {
         },
       };
 
-      const files = renderBlocks(["calendar", "share-links"], {
+      const files = renderBlocks(["calendar", "share-links", "organizations"], {
         modules,
         ownTables: { "public.event_alarms": "app.sql" },
       });
@@ -585,6 +585,8 @@ begin
   ${ANON}
   v_feed := better_supabase.calendar_feed(v_token);
   if v_feed ->> 'createdBy' is distinct from '${OWNER}'
+    or not (v_feed -> 'calendar' ? 'color')
+    or v_feed -> 'organization' ->> 'id' is distinct from '${TENANT}'
     or jsonb_array_length(v_feed -> 'events' -> 0 -> 'reminders') is distinct from 2
     or v_feed -> 'events' -> 0 -> 'reminders' -> 0 ->> 'offsetMinutes' is distinct from '15'
     or v_feed -> 'events' -> 0 -> 'reminders' -> 1 ->> 'method' is distinct from 'email' then

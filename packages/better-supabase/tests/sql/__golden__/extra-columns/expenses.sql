@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:4930b5d3784bed2ea1ceda12d5925f8bc05a49ce6f3e711943e8ab358e0842ac
+-- @bsb-hash sha256:c08b564d49a7a2e4336b370c39f37ddbcc59366a018dddc0d18e2e06cc5e6be5
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -315,14 +315,10 @@ begin
   if create_expense_report.currency is null or create_expense_report.currency !~ '^[A-Z]{3}$' then
     raise exception 'currency must be a three-letter currency code' using errcode = '22023', hint = 'EXPENSE_REPORT_INVALID';
   end if;
-  insert into "better_supabase"."expense_reports" ("tenant_id", "user_id", "title", "currency", "note")
+  insert into "better_supabase"."expense_reports" ("tenant_id", "user_id", "title", "currency", "note", "app_note")
   values (create_expense_report.tenant, auth.uid(), trim(create_expense_report.title), create_expense_report.currency,
-    nullif(trim(create_expense_report.note), ''))
+    nullif(trim(create_expense_report.note), ''), (jsonb_populate_record(null::"better_supabase"."expense_reports", jsonb_build_object('app_note', coalesce(create_expense_report.fields, '{}'::jsonb) -> 'app_note')))."app_note")
   returning * into v_row;
-  update "better_supabase"."expense_reports" x set "app_note" = case when create_expense_report.fields ? 'app_note' then r."app_note" else x."app_note" end
-  from jsonb_populate_record(null::"better_supabase"."expense_reports", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(create_expense_report.fields) e where e.key in ('app_note'))) r
-  where x."id" = v_row."id"
-  returning x.* into v_row;
   null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'title', v_row."title", 'currency', v_row."currency", 'note', v_row."note", 'status', (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)::text, 'approvalId', v_row."approval_id", 'submittedAt', v_row."submitted_at", 'approvedAt', v_row."approved_at", 'approvalTransactionId', v_row."approval_transaction_id", 'reimbursedAt', v_row."reimbursed_at", 'reimbursementTransactionId', v_row."reimbursement_transaction_id", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"),
       'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));

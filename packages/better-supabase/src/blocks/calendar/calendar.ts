@@ -91,6 +91,28 @@ export interface CalendarInfo {
 
 export type CalendarVisibility = "shared" | "private";
 
+/** What a calendar share link reads, for an app that renders the feed itself. */
+export interface CalendarFeedData<F extends object = Record<never, never>> {
+  readonly calendar: Pick<CalendarInfo, "id" | "name" | "tz" | "color">;
+  /** The organization, with the organizations block. */
+  readonly organization?: { readonly id: string; readonly name?: string };
+  /** The member who created the link. */
+  readonly createdBy?: string;
+  /** With their reminders, attendees and extra columns. */
+  readonly events: readonly (CalendarEvent & F)[];
+}
+
+/** What a `calendar_user` share link reads: every calendar its user reads. */
+export interface CalendarUserFeedData<F extends object = Record<never, never>> {
+  readonly userId: string;
+  readonly organization?: { readonly id: string; readonly name?: string };
+  readonly calendars: readonly Pick<
+    CalendarInfo,
+    "id" | "name" | "tz" | "color"
+  >[];
+  readonly events: readonly (CalendarEvent & F)[];
+}
+
 export type CalendarGrantRole = "viewer" | "editor";
 
 export interface CalendarGrant {
@@ -257,6 +279,14 @@ export interface Calendar<F extends object = Record<never, never>> {
    */
   feed(token: string): AsyncResult<string | null>;
   userFeed(token: string): AsyncResult<string | null>;
+  /**
+   * What `feed` serializes, parsed: the calendar with its colour, the
+   * organization, the link's creator and the events with their reminders and
+   * extra columns, or `null` for an unknown, revoked or expired token.
+   */
+  feedData(token: string): AsyncResult<CalendarFeedData<F> | null>;
+  /** What `userFeed` serializes, parsed. */
+  userFeedData(token: string): AsyncResult<CalendarUserFeedData<F> | null>;
   /** Replaces a member's weekly working hours. Returns how many stretches. */
   setWorkingHours(
     organizationId: string,
@@ -322,6 +352,32 @@ function attendeeOf(value: Record<string, unknown>): CalendarAttendee {
     ...flag("organizer"),
     ...flag("optional"),
   };
+}
+
+function feedCalendarOf(
+  value: unknown,
+): Pick<CalendarInfo, "id" | "name" | "tz" | "color"> {
+  const row = recordOf(value, "calendar feed");
+  const color = optionalText(row["color"]);
+
+  return {
+    id: textOf(row["id"]),
+    name: textOf(row["name"]),
+    tz: optionalText(row["tz"]) ?? "UTC",
+    ...(color === undefined ? {} : { color }),
+  };
+}
+
+function feedOrganizationOf(
+  value: unknown,
+): { readonly id: string; readonly name?: string } | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const name = optionalText(value["name"]);
+
+  return { id: textOf(value["id"]), ...(name === undefined ? {} : { name }) };
 }
 
 /** A `list_calendar_events` or `calendar_feed` row as an event. */
@@ -580,6 +636,17 @@ export function createCalendar<
           (raw) => [raw, calendarEventOf(raw)] as const,
         ),
     ).andThen((rows) => allWithFields(fields, rows));
+
+  const feedEvents = (
+    value: unknown,
+    fn: string,
+  ): AsyncResult<(CalendarEvent & F)[]> =>
+    AsyncResult.from(() =>
+      allWithFields(
+        fields,
+        recordsOf(value, fn).map((raw) => [raw, calendarEventOf(raw)] as const),
+      ),
+    );
 
   const client: Calendar<F> = {
     createCalendar: (organizationId, name, extra = {}) => {
@@ -869,31 +936,59 @@ export function createCalendar<
         toIcs(events, { name: calendar.name, tz: calendar.tz }),
       ),
     feed: (token) =>
-      call("calendar_feed", { token }, (value) => {
+      client
+        .feedData(token)
+        .map((data) =>
+          data === null
+            ? null
+            : toIcs(data.events, {
+                name: data.calendar.name,
+                tz: data.calendar.tz,
+              }),
+        ),
+    userFeed: (token) =>
+      client
+        .userFeedData(token)
+        .map((data) => (data === null ? null : toIcs(data.events))),
+    feedData: (token) =>
+      call("calendar_feed", { token }, (value) => value).andThen((value) => {
         if (value === null || value === undefined) {
-          return null;
+          return AsyncResult.ok(null);
         }
 
         const row = recordOf(value, "calendar_feed");
-        const info = recordOf(row["calendar"], "calendar_feed");
+        const organization = feedOrganizationOf(row["organization"]);
+        const createdBy = optionalText(row["createdBy"]);
 
-        return toIcs(
-          recordsOf(row["events"], "calendar_feed").map(calendarEventOf),
-          { name: textOf(info["name"]), tz: optionalText(info["tz"]) ?? "UTC" },
-        );
+        return feedEvents(row["events"], "calendar_feed").map((events) => ({
+          calendar: feedCalendarOf(row["calendar"]),
+          ...(organization === undefined ? {} : { organization }),
+          ...(createdBy === undefined ? {} : { createdBy }),
+          events,
+        }));
       }),
-    userFeed: (token) =>
-      call("calendar_user_feed", { token }, (value) => {
-        if (value === null || value === undefined) {
-          return null;
-        }
+    userFeedData: (token) =>
+      call("calendar_user_feed", { token }, (value) => value).andThen(
+        (value) => {
+          if (value === null || value === undefined) {
+            return AsyncResult.ok(null);
+          }
 
-        const row = recordOf(value, "calendar_user_feed");
+          const row = recordOf(value, "calendar_user_feed");
+          const organization = feedOrganizationOf(row["organization"]);
 
-        return toIcs(
-          recordsOf(row["events"], "calendar_user_feed").map(calendarEventOf),
-        );
-      }),
+          return feedEvents(row["events"], "calendar_user_feed").map(
+            (events) => ({
+              userId: textOf(row["userId"]),
+              ...(organization === undefined ? {} : { organization }),
+              calendars: recordsOf(row["calendars"], "calendar_user_feed").map(
+                feedCalendarOf,
+              ),
+              events,
+            }),
+          );
+        },
+      ),
     setWorkingHours: (organizationId, input) =>
       call(
         "set_calendar_working_hours",

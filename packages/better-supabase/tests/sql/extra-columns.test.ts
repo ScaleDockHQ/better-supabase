@@ -69,7 +69,7 @@ const CASES: readonly {
   {
     module: "invoices",
     table: "invoices",
-    writes: [`"region" = case when create_invoice.attrs ? 'region'`],
+    writes: [`jsonb_build_object('region', create_invoice.attrs -> 'region')`],
     reads: ["to_jsonb(x)"],
   },
 ];

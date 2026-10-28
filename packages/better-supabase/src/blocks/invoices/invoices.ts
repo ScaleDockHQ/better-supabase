@@ -63,6 +63,10 @@ export interface InvoicePayment {
   readonly paidAt: Temporal.Instant;
   readonly method?: string;
   readonly reference?: string;
+  /** The note given when it was recorded. */
+  readonly note?: string;
+  /** The user who recorded it. */
+  readonly recordedBy?: string;
 }
 
 /** An amount added on top of an issued invoice, such as collection costs. */
@@ -169,6 +173,8 @@ export interface Invoices<F extends object = Record<never, never>> {
       readonly method?: string;
       /** Unique per organization, so a replayed payment is added once. */
       readonly reference?: string;
+      /** A memo kept with the payment. */
+      readonly note?: string;
     },
   ): AsyncResult<Invoice<F>>;
   /** A draft credit note for the whole invoice, or for the given lines. */
@@ -337,6 +343,8 @@ function invoiceOf(value: unknown): Invoice {
         paidAt: requiredInstant(payment["paidAt"], "paidAt"),
         method: optionalText(payment["method"]),
         reference: optionalText(payment["reference"]),
+        note: optionalText(payment["note"]),
+        recordedBy: optionalText(payment["recordedBy"]),
       }),
     ),
     totals: totalsOf(row, false),
@@ -427,6 +435,7 @@ export function createInvoices<
         paid_at: instantArg(payment.paidAt) ?? null,
         method: payment.method ?? null,
         reference: payment.reference ?? null,
+        note: payment.note ?? null,
       }),
     credit: (invoiceId, credit = {}) => {
       const invalid = amountsError(

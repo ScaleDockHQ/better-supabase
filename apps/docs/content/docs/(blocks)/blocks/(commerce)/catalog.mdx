@@ -112,13 +112,35 @@ A variant names exactly one value of every option of its product
 A product with variants can gain an option: each existing variant gets the
 option's first value, so the default variant of a product without options
 becomes its first combination. Without a variant values table that is refused
-(`CATALOG_OPTION_HAS_VARIANTS`). A value a variant uses can't be removed
-(`CATALOG_OPTION_VALUE_IN_USE`). Variants keep a rank key, and
+(`CATALOG_OPTION_HAS_VARIANTS`). Variants keep a rank key, and
 `reorderVariant(id, { previous, next })` computes a new one with
-[`rankBetween`](/docs/blocks/rank).
+[`rankBetween`](/docs/blocks/rank). `reorderOptions(productId, optionIds)` puts
+the product's options in the given order; the list names each option once
+(`CATALOG_OPTION_ORDER_INVALID`).
+
+A value `saveOption` leaves out is removed with the variants that use it. A
+variant something still references is archived instead: a foreign key of yours
+that refuses the delete, stock movements in [inventory](/docs/blocks/inventory),
+or your own check in `options.variantInUse`, a function `(variant uuid) returns
+boolean`. Archiving sets the mapped `columns.variants.status` to its `archived`
+value (through `values.variants.status`) and drops the variant's option values;
+without a status column such a variant refuses the change
+(`CATALOG_OPTION_VALUE_IN_USE`). Removing variants needs the update permission,
+not delete. An archived variant doesn't block a new one with the same values.
+
+```ts
+catalog: {
+  columns: { variants: { status: "status" } },
+  options: { variantInUse: "public.product_variant_in_use" },
+}
+```
 
 `updateVariant` changes only what it names: a SKU, option values or a flag
-left out keeps its value, and `sku` is optional.
+left out keeps its value, and `null` clears `sku`, `title`, `barcode` or
+`weightGrams` (`save_variant` takes `clear`). Clearing a SKU needs a nullable
+SKU column. `updateProduct` patches the same way: `title`, `slug`,
+`description` and `kind` left out keep their value, `description: null` clears
+the description and `slug: null` derives it from the title again.
 
 `trackInventory` and `allowBackorder` are read by the
 [inventory](/docs/blocks/inventory) block when it is installed.

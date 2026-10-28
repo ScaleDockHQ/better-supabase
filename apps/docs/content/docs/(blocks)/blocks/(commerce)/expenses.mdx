@@ -194,16 +194,20 @@ blocks: {
 
 An expense belongs to a member (`user`), or with `options.owner: "employee"` to an employee of the [employees block](/docs/blocks/employees), who may have no account. Its state lives in a `status` column (`draft`, `submitted`, `approved`, `rejected` or `reimbursed`, which may be an enum), or in the `approvedAt` and `rejectedAt` timestamps next to `submittedAt` and `reimbursedAt`. `category`, `description`, `merchant`, `decidedBy`, `decidedAt`, `decisionNote`, `reimbursedBy`, `reimbursement` and `createdBy` are optional.
 
-| Method                                    | Who                                                                                                                |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `createExpense(input)`                    | the owner with `expenses.submit`, their manager, or `expenses.manage`; takes `employeeId`                          |
-| `updateExpense(id, update)`               | the same, while the expense is a draft or rejected; null keeps a value                                             |
-| `submitExpense(id)`                       | the same, for a draft or rejected expense                                                                          |
-| `decideExpense(id, { approved, note? })`  | the service role, or `expenses.approve` for someone else's submitted expense                                       |
-| `reimburseExpense(id, { reference? })`    | the service role or `expenses.manage`, for an approved expense                                                     |
-| `getExpense(id)`, `listExpenses(options)` | the owner, their manager, or `expenses.read`; `listExpenses` takes `status`, `userId`, `employeeId` and `everyone` |
+| Method                                    | Who                                                                                                                                                                          |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createExpense(input)`                    | the owner with `expenses.submit`, their manager, or `expenses.manage`; takes `employeeId`                                                                                    |
+| `updateExpense(id, update)`               | the same, while the expense is a draft or rejected; a key left out keeps its value, `null` clears `categoryId`, `description` or `merchant`, and `fields` sets extra columns |
+| `submitExpense(id)`                       | the same, for a draft or rejected expense                                                                                                                                    |
+| `withdrawExpense(id)`                     | the same, for a submitted expense, which goes back to draft                                                                                                                  |
+| `deleteExpense(id)`                       | the same, for a draft expense                                                                                                                                                |
+| `decideExpense(id, { approved, note? })`  | the service role, or `expenses.approve` for someone else's submitted expense                                                                                                 |
+| `reimburseExpense(id, { reference? })`    | the service role or `expenses.manage`, for an approved expense                                                                                                               |
+| `getExpense(id)`, `listExpenses(options)` | the owner, their manager, or `expenses.read`; `listExpenses` takes `status`, `userId`, `employeeId` and `everyone`                                                           |
 
-Amounts are `Money` in minor units. Each change records `expense.created`, `expense.submitted`, `expense.approved`, `expense.rejected` or `expense.reimbursed`.
+Amounts are `Money` in minor units. Each change records `expense.created`, `expense.submitted`, `expense.approved`, `expense.rejected`, `expense.reimbursed`, `expense.withdrawn` or `expense.deleted`. Extra columns (`options.extraColumns`) are written in the insert itself, so a `not null` column without a default or a check across columns holds from the first write.
+
+With `options.companyExpenses: true`, `createExpense({ company: true, ... })` records an expense of the organization itself, without a member or employee. It needs `expenses.manage` (or the service role), and the owner column must allow null; the block's own table does. `listExpenses({ everyone: true })` returns them with the rest.
 
 ## Errors
 

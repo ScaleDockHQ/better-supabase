@@ -4057,6 +4057,9 @@
               "rankType": {
                 "type": "string",
                 "default": "text"
+              },
+              "variantInUse": {
+                "type": "string"
               }
             }
           }
@@ -4680,6 +4683,10 @@
               "owner": {
                 "type": "string",
                 "default": "user"
+              },
+              "companyExpenses": {
+                "type": "boolean",
+                "default": false
               }
             }
           }

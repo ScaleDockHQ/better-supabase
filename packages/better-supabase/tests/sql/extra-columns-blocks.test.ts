@@ -74,7 +74,7 @@ const CASES = [
     module: "quotes",
     needs: ["organizations"],
     table: "quotes",
-    write: "(create_quote.attrs -> 'fields')",
+    write: "coalesce(create_quote.attrs -> 'fields', '{}'::jsonb)",
     read: "create_quote",
   },
   {
@@ -109,7 +109,7 @@ const CASES = [
     module: "expenses",
     needs: ["organizations", "attachments", "approvals", "ledger"],
     table: "expense_reports",
-    write: "create_expense_report.fields",
+    write: "coalesce(create_expense_report.fields, '{}'::jsonb)",
     read: "get_expense_report",
   },
   {
@@ -149,7 +149,7 @@ describe("extraColumns on the notifications to settings blocks", () => {
       expect(sql).toContain(
         `add column if not exists "app_rank" integer default 0;`,
       );
-      expect(sql).toContain(`${entry.write} ? 'app_note'`);
+      expect(sql).toContain(`${entry.write} ? 'app_`);
       expect(sql).toContain(
         `jsonb_populate_record(null::"better_supabase"."${entry.table}", `,
       );

@@ -18,7 +18,6 @@ import {
   fail,
   insertExtraColumns,
   userGrant,
-  writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { invoiceLedger, paymentKey } from "./invoices-ledger.ts";
@@ -542,7 +541,7 @@ begin
   }${refuse(has("depositBps"), "create_invoice.attrs ->> 'depositBps'", "DEPOSIT", "deposit column")}${refuse(has("pricesIncludeTax"), "nullif(create_invoice.attrs ->> 'pricesIncludeTax', 'false')", "PRICING", "prices_include_tax column")}
   begin
     insert into ${t("invoices")} (${i("tenant")}, ${i("title")}${also("companyType")}${also("companyId")}${also("contactType")}${also("contactId")}, ${i("currency")},
-      ${i("termsDays")}${also("note")}${also("originType")}${also("originId")}${also("depositBps")}${also("pricesIncludeTax")}${also("createdBy")})
+      ${i("termsDays")}${also("note")}${also("originType")}${also("originId")}${also("depositBps")}${also("pricesIncludeTax")}${also("createdBy")}${insertExtraColumns(t("invoices"), n.extras, "create_invoice.attrs").columns})
     values (${valueLines(
       "      ",
       ["create_invoice.tenant", "trim(create_invoice.attrs ->> 'title')"],
@@ -583,11 +582,11 @@ begin
         ),
         present("createdBy", "auth.uid()"),
       ],
-    )})
+    )}${insertExtraColumns(t("invoices"), n.extras, "create_invoice.attrs").values})
     returning * into v_row;
   exception when check_violation or invalid_text_representation then
     ${fail("INVOICE_ATTRS_INVALID", "an invoice field has an invalid value", "22023")}
-  end;${writeExtraColumns(t("invoices"), n.extras, "create_invoice.attrs", `x.${i("id")} = v_row.${i("id")}`)}
+  end;
   if create_invoice.lines is not null then
     perform ${fn("set_invoice_lines")}(v_row.${i("id")}, create_invoice.lines);
   end if;${
@@ -686,7 +685,8 @@ ${userGrant(`${fn("issue_invoice")}(uuid, date, date)`)}
 -- cash. A reference, such as a bank or payment provider id, is unique per
 -- organization, so recording the same payment twice adds it once.
 drop function if exists ${fn("record_invoice_payment")}(uuid, bigint, timestamptz, text, text);
-create or replace function ${fn("record_invoice_payment")}(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text)
+drop function if exists ${fn("record_invoice_payment")}(uuid, bigint, text, timestamptz, text, text);
+create or replace function ${fn("record_invoice_payment")}(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -727,7 +727,7 @@ begin
     ["bigint", "record_invoice_payment.amount"],
   ])}
   v_was := v_row.${i("status")};
-  v_payment := ${ledger.post("v_row", "record_invoice_payment.amount", "coalesce(record_invoice_payment.paid_at, now())", "record_invoice_payment.method", "v_reference")};${settle("v_row")}
+  v_payment := ${ledger.post("v_row", "record_invoice_payment.amount", "coalesce(record_invoice_payment.paid_at, now())", "record_invoice_payment.method", "v_reference", "nullif(trim(record_invoice_payment.note), '')")};${settle("v_row")}
   ${record("invoice.payment_recorded", "v_row", `, 'paymentId', v_payment, 'amount', record_invoice_payment.amount::text, 'balance', ${balance("v_row")}::text`)}
   if ${st(`v_row.${i("status")}`, ["paid"])} and ${st("v_was", ["paid"], true)} then
     ${record("invoice.paid", "v_row", `, 'total', v_row.${i("total")}::text`)}
@@ -739,7 +739,7 @@ begin
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${fn("record_invoice_payment")}(uuid, bigint, text, timestamptz, text, text)`)}
+${userGrant(`${fn("record_invoice_payment")}(uuid, bigint, text, timestamptz, text, text, text)`)}
 
 -- A draft credit note against an issued invoice: its lines, or the given
 -- lines for a partial credit. Issue it to apply it.

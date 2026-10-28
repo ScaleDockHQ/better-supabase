@@ -106,6 +106,8 @@ describe("leave module", () => {
     expect(contract?.functions.map((fn) => fn.name)).toEqual([
       "request_leave",
       "cancel_leave_request",
+      "update_leave_request",
+      "split_leave_request",
       "leave_balances",
       "list_leave_requests",
     ]);

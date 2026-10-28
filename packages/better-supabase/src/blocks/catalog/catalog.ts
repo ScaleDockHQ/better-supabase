@@ -81,6 +81,19 @@ export interface ProductInput {
   readonly trackInventory?: boolean;
 }
 
+/**
+ * `updateProduct`'s input: what it leaves out keeps its value, and `null`
+ * clears `description` or derives `slug` from the title again.
+ */
+export interface ProductPatch {
+  readonly title?: string;
+  readonly slug?: string | null;
+  readonly description?: string | null;
+  readonly kind?: ProductKind;
+  readonly price?: Money | null;
+  readonly trackInventory?: boolean;
+}
+
 export interface SavedProduct {
   readonly id: string;
   readonly slug: string;
@@ -96,7 +109,10 @@ export interface OptionInput {
   /** Updates this option; creates one when left out. */
   readonly id?: string;
   readonly name: string;
-  /** The values in display order. Values left out are removed. */
+  /**
+   * The values in display order. A value left out is removed with the variants
+   * that use it; a variant something still references is archived instead.
+   */
   readonly values: readonly string[];
 }
 
@@ -110,13 +126,17 @@ export interface SavedOption {
   readonly values: readonly OptionValue[];
 }
 
+/**
+ * On `updateVariant`, a key left out keeps its value and `null` clears `sku`,
+ * `title`, `barcode` or `weightGrams`.
+ */
 export interface VariantInput {
-  readonly sku?: string;
+  readonly sku?: string | null;
   /** One option value id per product option. */
   readonly optionValues?: readonly string[];
-  readonly title?: string;
-  readonly barcode?: string;
-  readonly weightGrams?: number;
+  readonly title?: string | null;
+  readonly barcode?: string | null;
+  readonly weightGrams?: number | null;
   /** Whether inventory counts stock for it. Default `true`. */
   readonly trackInventory?: boolean;
   /** Whether it sells with no stock available. Default `false`. */
@@ -127,7 +147,7 @@ export interface VariantInput {
 
 export interface SavedVariant {
   readonly id: string;
-  readonly sku: string;
+  readonly sku?: string;
   /** Its rank key among the product's variants. */
   readonly rank: string;
   /** The extra columns, with `options.variantExtraColumns`. */
@@ -311,7 +331,7 @@ export interface Catalog<F extends object = Record<never, never>> {
   updateProduct(
     organizationId: string,
     productId: string,
-    input: ProductInput & Partial<F>,
+    input: ProductPatch & Partial<F>,
   ): AsyncResult<SavedProduct & F>;
   /** Moves a product between `draft`, `active` and `archived`. */
   setProductStatus(
@@ -321,6 +341,11 @@ export interface Catalog<F extends object = Record<never, never>> {
   deleteProduct(productId: string): AsyncResult<boolean>;
   saveOption(productId: string, input: OptionInput): AsyncResult<SavedOption>;
   deleteOption(optionId: string): AsyncResult<boolean>;
+  /** Puts the product's options in this order; it names each one once. */
+  reorderOptions(
+    productId: string,
+    optionIds: readonly string[],
+  ): AsyncResult<boolean>;
   createVariant(
     productId: string,
     input: VariantInput,
@@ -487,10 +512,11 @@ function productOf(value: unknown): SavedProduct {
 
 function variantOf(value: unknown): SavedVariant {
   const row = recordOf(value, "save_variant");
+  const sku = optionalText(row["sku"]);
 
   return {
     id: textOf(row["id"]),
-    sku: textOf(row["sku"]),
+    ...(sku === undefined ? {} : { sku }),
     rank: textOf(row["rank"]),
     ...(isRecord(row["fields"]) ? { fields: row["fields"] } : {}),
   };
@@ -602,6 +628,17 @@ function variantArgs(
   variantId: string | null,
   input: VariantInput,
 ): Record<string, unknown> {
+  const clear = (
+    [
+      ["sku", input.sku],
+      ["title", input.title],
+      ["barcode", input.barcode],
+      ["weight", input.weightGrams],
+    ] as const
+  )
+    .filter(([, value]) => value === null)
+    .map(([name]) => name);
+
   return {
     product: productId,
     variant: variantId,
@@ -612,6 +649,7 @@ function variantArgs(
     weight_grams: input.weightGrams ?? null,
     track_inventory: input.trackInventory ?? null,
     allow_backorder: input.allowBackorder ?? null,
+    ...(clear.length === 0 ? {} : { clear }),
     fields: input.fields,
   };
 }
@@ -640,16 +678,26 @@ export function createCatalog<
       price,
       trackInventory,
       ...extra
-    }: ProductInput,
-  ): AsyncResult<SavedProduct & F> =>
-    AsyncResult.from(() => extraFieldsArg(fields, extra))
+    }: ProductPatch,
+  ): AsyncResult<SavedProduct & F> => {
+    const clear = (
+      [
+        ["price", price],
+        ["slug", slug],
+        ["description", description],
+      ] as const
+    )
+      .filter(([, value]) => value === null)
+      .map(([name]) => name);
+
+    return AsyncResult.from(() => extraFieldsArg(fields, extra))
       .andThen((more) =>
         call(
           "save_product",
           {
             tenant: organizationId,
             product: productId,
-            title,
+            title: title ?? null,
             slug: slug ?? null,
             description: description ?? null,
             kind: kind ?? null,
@@ -659,13 +707,14 @@ export function createCatalog<
                 : amountText(price),
             currency: price?.currency,
             track_inventory: trackInventory,
-            ...(price === null ? { clear: ["price"] } : {}),
+            ...(productId === null || clear.length === 0 ? {} : { clear }),
             ...more,
           },
           (value) => value,
         ),
       )
       .andThen((value) => withFields(fields, value, productOf(value)));
+  };
 
   const catalog: Catalog<F> = {
     createProduct: (organizationId, input) =>
@@ -710,6 +759,12 @@ export function createCatalog<
       call(
         "delete_product_option",
         { option: optionId },
+        (value) => value === true,
+      ),
+    reorderOptions: (productId, optionIds) =>
+      call(
+        "reorder_product_options",
+        { product: productId, options: optionIds },
         (value) => value === true,
       ),
     createVariant: (productId, input) =>

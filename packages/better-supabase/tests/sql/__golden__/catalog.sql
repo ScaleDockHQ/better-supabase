@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:8aa1e10706ff24cdc4114d756449e0720a16a700ac8721cbc3382e33ff709890
+-- @bsb-hash sha256:4369d6b48bb4685ea9906600e6fa6ac54572bbbe17844bcfd3e340c5b63a52d3
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -492,9 +492,14 @@ create policy product_variant_translations_read on "better_supabase"."product_va
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- Creates a product (product null) or updates one. Returns its id, slug and
--- status.
+-- status. On an update a null argument keeps the column and clear names the
+-- columns to empty; a cleared slug is derived from the title again.
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text);
 drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, jsonb);
-create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text);
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, jsonb);
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[], jsonb);
+create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -502,7 +507,8 @@ set search_path = ''
 as $$
 declare
   v_id uuid := save_product.product;
-  v_slug text := coalesce(nullif(save_product.slug, ''), trim(both '-' from regexp_replace(lower(save_product.title), '[^a-z0-9]+', '-', 'g')));
+  v_title text := save_product.title;
+  v_slug text := nullif(save_product.slug, '');
   v_status text;
   v_created boolean := save_product.product is null;
 begin
@@ -518,6 +524,18 @@ begin
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
+  if exists (select 1 from unnest(coalesce(save_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
+    raise exception 'clear names only slug, description' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
+  end if;
+  if not v_created then
+    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(save_product.clear, '{}'::text[])) then x."slug" else v_slug end
+    into v_title, v_slug
+    from "better_supabase"."products" x where x."id" = save_product.product and x."tenant_id" = save_product.tenant;
+    if not found then
+      raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+    end if;
+  end if;
+  v_slug := coalesce(v_slug, trim(both '-' from regexp_replace(lower(v_title), '[^a-z0-9]+', '-', 'g')));
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
   end if;
@@ -526,16 +544,16 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text, $5::text)', v_hook::oid::regproc)
-        using save_product.tenant, save_product.product, save_product.title, v_slug, save_product.kind;
+        using save_product.tenant, save_product.product, v_title, v_slug, save_product.kind;
     end if;
   end;
   begin
     if v_created then
       insert into "better_supabase"."products" ("tenant_id", "title", "slug", "description", "kind")
-      values (save_product.tenant, save_product.title, v_slug, save_product.description, coalesce(save_product.kind, 'physical'))
+      values (save_product.tenant, v_title, v_slug, save_product.description, coalesce(save_product.kind, 'physical'))
       returning "id", "status" into v_id, v_status;
     else
-      update "better_supabase"."products" x set "title" = save_product.title, "slug" = v_slug, "description" = save_product.description, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
+      update "better_supabase"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(save_product.clear, '{}'::text[])) then null else coalesce(save_product.description, x."description") end, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
       where x."id" = save_product.product and x."tenant_id" = save_product.tenant
       returning x."status" into v_status;
       if not found then
@@ -561,8 +579,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
 
 -- Moves a product to another status: draft, active or archived.
 create or replace function "better_supabase"."set_product_status"(product uuid, status text)
@@ -642,9 +660,12 @@ grant execute on function "better_supabase"."delete_product"(uuid) to authentica
 
 -- Creates a variant (variant null) or updates one. option_values holds one
 -- option value id per product option; no two variants share a combination.
--- fields: the extra columns (options.variantExtraColumns) to set.
+-- On an update a null argument keeps the column and clear names the columns
+-- to empty. fields: the extra columns (options.variantExtraColumns) to set.
+drop function if exists "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean);
 drop function if exists "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, jsonb);
-create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean)
+drop function if exists "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[], jsonb);
+create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -674,6 +695,9 @@ begin
     if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
+  end if;
+  if exists (select 1 from unnest(coalesce(save_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
+    raise exception 'clear names only sku, title, barcode, weight' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
   if v_created or save_variant.option_values is not null then
   v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
@@ -718,7 +742,7 @@ begin
       values (v_tenant, save_variant.product, save_variant.sku, save_variant.title, save_variant.barcode, save_variant.weight_grams, coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
       returning "id" into v_id;
     else
-      update "better_supabase"."product_variants" x set "sku" = coalesce(save_variant.sku, x."sku"), "title" = coalesce(save_variant.title, x."title"), "barcode" = coalesce(save_variant.barcode, x."barcode"), "weight_grams" = coalesce(save_variant.weight_grams, x."weight_grams"), "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
+      update "better_supabase"."product_variants" x set "sku" = case when 'sku' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
       where x."id" = save_variant.variant and x."product_id" = save_variant.product
       returning x."rank", x."sku" into v_rank, v_sku;
       if not found then
@@ -750,8 +774,8 @@ begin
   return jsonb_build_object('id', v_id, 'sku', v_sku, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) from public, anon;
-grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
+grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
 
 -- Sets a variant's rank key among the product's variants.
 create or replace function "better_supabase"."rank_variant"(variant uuid, rank text)
@@ -813,7 +837,8 @@ revoke execute on function "better_supabase"."delete_variant"(uuid) from public,
 grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
 
 -- Creates an option (option null) or updates one, with its values in order.
--- Values missing from the list are removed; values a variant uses can't be.
+-- Values missing from the list are removed with the variants that use them;
+-- a variant something still references is archived instead.
 create or replace function "better_supabase"."save_product_option"(product uuid, option uuid, name text, option_values text[])
 returns jsonb
 language plpgsql
@@ -826,6 +851,7 @@ declare
   v_last text;
   v_rank text;
   v_value text;
+  v_variant uuid;
   v_new boolean := save_product_option.option is null;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -864,6 +890,18 @@ begin
   exception when unique_violation then
     raise exception 'the product has another option with this name' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';
   end;
+  for v_variant in
+    select distinct x."variant_id" from "better_supabase"."product_variant_values" x
+    join "better_supabase"."product_option_values" y on y."id" = x."option_value_id"
+    where y."option_id" = v_id and not (y."value" = any (save_product_option.option_values))
+  loop
+    begin
+      delete from "better_supabase"."product_variants" x where x."id" = v_variant;
+      null;
+    exception when foreign_key_violation then
+      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+    end;
+  end loop;
   begin
     delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (save_product_option.option_values));
   exception when foreign_key_violation then
@@ -895,6 +933,47 @@ end;
 $$;
 revoke execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
 grant execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+
+-- Puts a product's options in the given order; the list names each once.
+create or replace function "better_supabase"."reorder_product_options"(product uuid, options uuid[])
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_rank text;
+  v_option uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = reorder_product_options.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if coalesce(cardinality(reorder_product_options.options), 0) <> (select count(*) from "better_supabase"."product_options" x where x."product_id" = reorder_product_options.product)
+    or (select count(distinct y) from unnest(reorder_product_options.options) y) <> cardinality(reorder_product_options.options)
+    or exists (select 1 from unnest(reorder_product_options.options) y where not exists (select 1 from "better_supabase"."product_options" x where x."id" = y and x."product_id" = reorder_product_options.product)) then
+    raise exception 'the list must name each option of the product once' using errcode = '22023', hint = 'CATALOG_OPTION_ORDER_INVALID';
+  end if;
+  foreach v_option in array reorder_product_options.options loop
+    v_rank := case
+    when v_rank is null then 'V'
+    when length(substring(v_rank from '^z*')) = length(v_rank) then v_rank || 'V'
+    else left(v_rank, length(substring(v_rank from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_rank, length(substring(v_rank from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+    update "better_supabase"."product_options" x set "rank" = v_rank where x."id" = v_option;
+  end loop;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."reorder_product_options"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."reorder_product_options"(uuid, uuid[]) to authenticated, service_role;
 
 -- Deletes an option and its values; refused while a variant uses one.
 create or replace function "better_supabase"."delete_product_option"(option uuid)
@@ -2231,7 +2310,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:838695b0fb3167dfeb194c1932dd1c421a498c5869600b0f12ea30613a859dec
+-- @bsb-hash sha256:47b2fe472f3f5570a63fad278704d144d79fa58745316b2ea3f5977909e2d8fd
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2753,9 +2832,14 @@ create policy product_media_read on "better_supabase"."product_media"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- Creates a product (product null) or updates one. Returns its id, slug and
--- status.
+-- status. On an update a null argument keeps the column and clear names the
+-- columns to empty; a cleared slug is derived from the title again.
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text);
 drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, jsonb);
-create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text);
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, jsonb);
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[], jsonb);
+create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2763,7 +2847,8 @@ set search_path = ''
 as $$
 declare
   v_id uuid := save_product.product;
-  v_slug text := coalesce(nullif(save_product.slug, ''), trim(both '-' from regexp_replace(lower(save_product.title), '[^a-z0-9]+', '-', 'g')));
+  v_title text := save_product.title;
+  v_slug text := nullif(save_product.slug, '');
   v_status text;
   v_created boolean := save_product.product is null;
 begin
@@ -2779,6 +2864,18 @@ begin
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
+  if exists (select 1 from unnest(coalesce(save_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
+    raise exception 'clear names only slug, description' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
+  end if;
+  if not v_created then
+    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(save_product.clear, '{}'::text[])) then x."slug" else v_slug end
+    into v_title, v_slug
+    from "better_supabase"."products" x where x."id" = save_product.product and x."tenant_id" = save_product.tenant;
+    if not found then
+      raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+    end if;
+  end if;
+  v_slug := coalesce(v_slug, trim(both '-' from regexp_replace(lower(v_title), '[^a-z0-9]+', '-', 'g')));
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
   end if;
@@ -2787,16 +2884,16 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text, $5::text)', v_hook::oid::regproc)
-        using save_product.tenant, save_product.product, save_product.title, v_slug, save_product.kind;
+        using save_product.tenant, save_product.product, v_title, v_slug, save_product.kind;
     end if;
   end;
   begin
     if v_created then
       insert into "better_supabase"."products" ("tenant_id", "title", "slug", "description", "kind")
-      values (save_product.tenant, save_product.title, v_slug, save_product.description, coalesce(save_product.kind, 'physical'))
+      values (save_product.tenant, v_title, v_slug, save_product.description, coalesce(save_product.kind, 'physical'))
       returning "id", "status" into v_id, v_status;
     else
-      update "better_supabase"."products" x set "title" = save_product.title, "slug" = v_slug, "description" = save_product.description, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
+      update "better_supabase"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(save_product.clear, '{}'::text[])) then null else coalesce(save_product.description, x."description") end, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
       where x."id" = save_product.product and x."tenant_id" = save_product.tenant
       returning x."status" into v_status;
       if not found then
@@ -2822,8 +2919,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
 
 -- Moves a product to another status: draft, active or archived.
 create or replace function "better_supabase"."set_product_status"(product uuid, status text)
@@ -2906,9 +3003,12 @@ grant execute on function "better_supabase"."delete_product"(uuid) to authentica
 
 -- Creates a variant (variant null) or updates one. option_values holds one
 -- option value id per product option; no two variants share a combination.
--- fields: the extra columns (options.variantExtraColumns) to set.
+-- On an update a null argument keeps the column and clear names the columns
+-- to empty. fields: the extra columns (options.variantExtraColumns) to set.
+drop function if exists "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean);
 drop function if exists "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, jsonb);
-create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean)
+drop function if exists "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[], jsonb);
+create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2938,6 +3038,9 @@ begin
     if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
+  end if;
+  if exists (select 1 from unnest(coalesce(save_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
+    raise exception 'clear names only sku, title, barcode, weight' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
   if v_created or save_variant.option_values is not null then
   v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
@@ -2982,7 +3085,7 @@ begin
       values (v_tenant, save_variant.product, save_variant.sku, save_variant.title, save_variant.barcode, save_variant.weight_grams, coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
       returning "id" into v_id;
     else
-      update "better_supabase"."product_variants" x set "sku" = coalesce(save_variant.sku, x."sku"), "title" = coalesce(save_variant.title, x."title"), "barcode" = coalesce(save_variant.barcode, x."barcode"), "weight_grams" = coalesce(save_variant.weight_grams, x."weight_grams"), "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
+      update "better_supabase"."product_variants" x set "sku" = case when 'sku' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
       where x."id" = save_variant.variant and x."product_id" = save_variant.product
       returning x."rank", x."sku" into v_rank, v_sku;
       if not found then
@@ -3014,8 +3117,8 @@ begin
   return jsonb_build_object('id', v_id, 'sku', v_sku, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) from public, anon;
-grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
+grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
 
 -- Sets a variant's rank key among the product's variants.
 create or replace function "better_supabase"."rank_variant"(variant uuid, rank text)
@@ -3080,7 +3183,8 @@ revoke execute on function "better_supabase"."delete_variant"(uuid) from public,
 grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
 
 -- Creates an option (option null) or updates one, with its values in order.
--- Values missing from the list are removed; values a variant uses can't be.
+-- Values missing from the list are removed with the variants that use them;
+-- a variant something still references is archived instead.
 create or replace function "better_supabase"."save_product_option"(product uuid, option uuid, name text, option_values text[])
 returns jsonb
 language plpgsql
@@ -3093,6 +3197,7 @@ declare
   v_last text;
   v_rank text;
   v_value text;
+  v_variant uuid;
   v_new boolean := save_product_option.option is null;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -3131,6 +3236,22 @@ begin
   exception when unique_violation then
     raise exception 'the product has another option with this name' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';
   end;
+  for v_variant in
+    select distinct x."variant_id" from "better_supabase"."product_variant_values" x
+    join "better_supabase"."product_option_values" y on y."id" = x."option_value_id"
+    where y."option_id" = v_id and not (y."value" = any (save_product_option.option_values))
+  loop
+    if exists (select 1 from "better_supabase"."ledger_accounts" sa where sa."managed_by" = 'inventory' and sa."kind" = 'stock' and (case when sa."kind" = 'stock' then (sa."metadata" ->> 'variantId')::uuid end) = v_variant) then
+      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+      continue;
+    end if;
+    begin
+      delete from "better_supabase"."product_variants" x where x."id" = v_variant;
+      perform "better_supabase".emit_event('variant.deleted', jsonb_build_object('organizationId', v_tenant, 'id', v_variant, 'productId', save_product_option.product), 'variants/' || v_variant::text, (v_tenant)::text, null, 'better-supabase/catalog');
+    exception when foreign_key_violation then
+      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+    end;
+  end loop;
   begin
     delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (save_product_option.option_values));
   exception when foreign_key_violation then
@@ -3162,6 +3283,47 @@ end;
 $$;
 revoke execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
 grant execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+
+-- Puts a product's options in the given order; the list names each once.
+create or replace function "better_supabase"."reorder_product_options"(product uuid, options uuid[])
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_rank text;
+  v_option uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = reorder_product_options.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if coalesce(cardinality(reorder_product_options.options), 0) <> (select count(*) from "better_supabase"."product_options" x where x."product_id" = reorder_product_options.product)
+    or (select count(distinct y) from unnest(reorder_product_options.options) y) <> cardinality(reorder_product_options.options)
+    or exists (select 1 from unnest(reorder_product_options.options) y where not exists (select 1 from "better_supabase"."product_options" x where x."id" = y and x."product_id" = reorder_product_options.product)) then
+    raise exception 'the list must name each option of the product once' using errcode = '22023', hint = 'CATALOG_OPTION_ORDER_INVALID';
+  end if;
+  foreach v_option in array reorder_product_options.options loop
+    v_rank := case
+    when v_rank is null then 'V'
+    when length(substring(v_rank from '^z*')) = length(v_rank) then v_rank || 'V'
+    else left(v_rank, length(substring(v_rank from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_rank, length(substring(v_rank from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+    update "better_supabase"."product_options" x set "rank" = v_rank where x."id" = v_option;
+  end loop;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."reorder_product_options"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."reorder_product_options"(uuid, uuid[]) to authenticated, service_role;
 
 -- Deletes an option and its values; refused while a variant uses one.
 create or replace function "better_supabase"."delete_product_option"(option uuid)
@@ -4706,7 +4868,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:a659e0a25cd5740bd0e4593f70765993532d884ce03d1a7f5680bc79ff56cb00
+-- @bsb-hash sha256:335f068516562486eb36189293666ebfe4eab18e1b1c665b154757272f67205f
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5202,9 +5364,14 @@ create policy product_variant_translations_read on "app_private"."product_varian
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- Creates a product (product null) or updates one. Returns its id, slug and
--- status.
+-- status. On an update a null argument keeps the column and clear names the
+-- columns to empty; a cleared slug is derived from the title again.
+drop function if exists "app_private"."save_product"(uuid, uuid, text, text, text, text);
 drop function if exists "app_private"."save_product"(uuid, uuid, text, text, text, text, jsonb);
-create or replace function "app_private"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
+drop function if exists "app_private"."save_product"(uuid, uuid, text, text, text, text);
+drop function if exists "app_private"."save_product"(uuid, uuid, text, text, text, text, jsonb);
+drop function if exists "app_private"."save_product"(uuid, uuid, text, text, text, text, text[], jsonb);
+create or replace function "app_private"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5212,7 +5379,8 @@ set search_path = ''
 as $$
 declare
   v_id uuid := save_product.product;
-  v_slug text := coalesce(nullif(save_product.slug, ''), trim(both '-' from regexp_replace(lower(save_product.title), '[^a-z0-9]+', '-', 'g')));
+  v_title text := save_product.title;
+  v_slug text := nullif(save_product.slug, '');
   v_status text;
   v_created boolean := save_product.product is null;
 begin
@@ -5228,6 +5396,18 @@ begin
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
+  if exists (select 1 from unnest(coalesce(save_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
+    raise exception 'clear names only slug, description' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
+  end if;
+  if not v_created then
+    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(save_product.clear, '{}'::text[])) then x."slug" else v_slug end
+    into v_title, v_slug
+    from "app_private"."products" x where x."id" = save_product.product and x."tenant_id" = save_product.tenant;
+    if not found then
+      raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+    end if;
+  end if;
+  v_slug := coalesce(v_slug, trim(both '-' from regexp_replace(lower(v_title), '[^a-z0-9]+', '-', 'g')));
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
   end if;
@@ -5236,16 +5416,16 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text, $5::text)', v_hook::oid::regproc)
-        using save_product.tenant, save_product.product, save_product.title, v_slug, save_product.kind;
+        using save_product.tenant, save_product.product, v_title, v_slug, save_product.kind;
     end if;
   end;
   begin
     if v_created then
       insert into "app_private"."products" ("tenant_id", "title", "slug", "description", "kind")
-      values (save_product.tenant, save_product.title, v_slug, save_product.description, coalesce(save_product.kind, 'physical'))
+      values (save_product.tenant, v_title, v_slug, save_product.description, coalesce(save_product.kind, 'physical'))
       returning "id", "status" into v_id, v_status;
     else
-      update "app_private"."products" x set "title" = save_product.title, "slug" = v_slug, "description" = save_product.description, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
+      update "app_private"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(save_product.clear, '{}'::text[])) then null else coalesce(save_product.description, x."description") end, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
       where x."id" = save_product.product and x."tenant_id" = save_product.tenant
       returning x."status" into v_status;
       if not found then
@@ -5271,8 +5451,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
 end;
 $$;
-revoke execute on function "app_private"."save_product"(uuid, uuid, text, text, text, text) from public, anon;
-grant execute on function "app_private"."save_product"(uuid, uuid, text, text, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."save_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
+grant execute on function "app_private"."save_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
 
 -- Moves a product to another status: draft, active or archived.
 create or replace function "app_private"."set_product_status"(product uuid, status text)
@@ -5352,9 +5532,12 @@ grant execute on function "app_private"."delete_product"(uuid) to authenticated,
 
 -- Creates a variant (variant null) or updates one. option_values holds one
 -- option value id per product option; no two variants share a combination.
--- fields: the extra columns (options.variantExtraColumns) to set.
+-- On an update a null argument keeps the column and clear names the columns
+-- to empty. fields: the extra columns (options.variantExtraColumns) to set.
+drop function if exists "app_private"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean);
 drop function if exists "app_private"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, jsonb);
-create or replace function "app_private"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean)
+drop function if exists "app_private"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[], jsonb);
+create or replace function "app_private"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5384,6 +5567,9 @@ begin
     if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
+  end if;
+  if exists (select 1 from unnest(coalesce(save_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
+    raise exception 'clear names only sku, title, barcode, weight' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
   if v_created or save_variant.option_values is not null then
   v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
@@ -5428,7 +5614,7 @@ begin
       values (v_tenant, save_variant.product, save_variant.sku, save_variant.title, save_variant.barcode, save_variant.weight_grams, coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
       returning "id" into v_id;
     else
-      update "app_private"."product_variants" x set "sku" = coalesce(save_variant.sku, x."sku"), "title" = coalesce(save_variant.title, x."title"), "barcode" = coalesce(save_variant.barcode, x."barcode"), "weight_grams" = coalesce(save_variant.weight_grams, x."weight_grams"), "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
+      update "app_private"."product_variants" x set "sku" = case when 'sku' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
       where x."id" = save_variant.variant and x."product_id" = save_variant.product
       returning x."rank", x."sku" into v_rank, v_sku;
       if not found then
@@ -5460,8 +5646,8 @@ begin
   return jsonb_build_object('id', v_id, 'sku', v_sku, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "app_private"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) from public, anon;
-grant execute on function "app_private"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) to authenticated, service_role;
+revoke execute on function "app_private"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
+grant execute on function "app_private"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
 
 -- Sets a variant's rank key among the product's variants.
 create or replace function "app_private"."rank_variant"(variant uuid, rank text)
@@ -5523,7 +5709,8 @@ revoke execute on function "app_private"."delete_variant"(uuid) from public, ano
 grant execute on function "app_private"."delete_variant"(uuid) to authenticated, service_role;
 
 -- Creates an option (option null) or updates one, with its values in order.
--- Values missing from the list are removed; values a variant uses can't be.
+-- Values missing from the list are removed with the variants that use them;
+-- a variant something still references is archived instead.
 create or replace function "app_private"."save_product_option"(product uuid, option uuid, name text, option_values text[])
 returns jsonb
 language plpgsql
@@ -5536,6 +5723,7 @@ declare
   v_last text;
   v_rank text;
   v_value text;
+  v_variant uuid;
   v_new boolean := save_product_option.option is null;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -5574,6 +5762,18 @@ begin
   exception when unique_violation then
     raise exception 'the product has another option with this name' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';
   end;
+  for v_variant in
+    select distinct x."variant_id" from "app_private"."product_variant_values" x
+    join "app_private"."product_option_values" y on y."id" = x."option_value_id"
+    where y."option_id" = v_id and not (y."value" = any (save_product_option.option_values))
+  loop
+    begin
+      delete from "app_private"."product_variants" x where x."id" = v_variant;
+      null;
+    exception when foreign_key_violation then
+      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+    end;
+  end loop;
   begin
     delete from "app_private"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (save_product_option.option_values));
   exception when foreign_key_violation then
@@ -5605,6 +5805,47 @@ end;
 $$;
 revoke execute on function "app_private"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
 grant execute on function "app_private"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+
+-- Puts a product's options in the given order; the list names each once.
+create or replace function "app_private"."reorder_product_options"(product uuid, options uuid[])
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_rank text;
+  v_option uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "app_private"."products" x where x."id" = reorder_product_options.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if coalesce(cardinality(reorder_product_options.options), 0) <> (select count(*) from "app_private"."product_options" x where x."product_id" = reorder_product_options.product)
+    or (select count(distinct y) from unnest(reorder_product_options.options) y) <> cardinality(reorder_product_options.options)
+    or exists (select 1 from unnest(reorder_product_options.options) y where not exists (select 1 from "app_private"."product_options" x where x."id" = y and x."product_id" = reorder_product_options.product)) then
+    raise exception 'the list must name each option of the product once' using errcode = '22023', hint = 'CATALOG_OPTION_ORDER_INVALID';
+  end if;
+  foreach v_option in array reorder_product_options.options loop
+    v_rank := case
+    when v_rank is null then 'V'
+    when length(substring(v_rank from '^z*')) = length(v_rank) then v_rank || 'V'
+    else left(v_rank, length(substring(v_rank from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_rank, length(substring(v_rank from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+    update "app_private"."product_options" x set "rank" = v_rank where x."id" = v_option;
+  end loop;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."reorder_product_options"(uuid, uuid[]) from public, anon;
+grant execute on function "app_private"."reorder_product_options"(uuid, uuid[]) to authenticated, service_role;
 
 -- Deletes an option and its values; refused while a variant uses one.
 create or replace function "app_private"."delete_product_option"(option uuid)
@@ -6941,7 +7182,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:d9aea24111ea8ed9c2f84a175e562c1aa621c3e0d2e430e5557e438a4a3bcb56
+-- @bsb-hash sha256:5e1afbd8af0b7cc92db7c8015041d82026eb83a48909f051e1632fadea65a8fd
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7432,9 +7673,14 @@ create policy product_variant_translations_read on "better_supabase"."product_va
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- Creates a product (product null) or updates one. Returns its id, slug and
--- status.
+-- status. On an update a null argument keeps the column and clear names the
+-- columns to empty; a cleared slug is derived from the title again.
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text);
 drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, jsonb);
-create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text);
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, jsonb);
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[], jsonb);
+create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -7442,7 +7688,8 @@ set search_path = ''
 as $$
 declare
   v_id uuid := save_product.product;
-  v_slug text := coalesce(nullif(save_product.slug, ''), trim(both '-' from regexp_replace(lower(save_product.title), '[^a-z0-9]+', '-', 'g')));
+  v_title text := save_product.title;
+  v_slug text := nullif(save_product.slug, '');
   v_status text;
   v_created boolean := save_product.product is null;
 begin
@@ -7458,6 +7705,18 @@ begin
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
+  if exists (select 1 from unnest(coalesce(save_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
+    raise exception 'clear names only slug, description' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
+  end if;
+  if not v_created then
+    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(save_product.clear, '{}'::text[])) then x."slug" else v_slug end
+    into v_title, v_slug
+    from "better_supabase"."products" x where x."id" = save_product.product and x."tenant_id" = save_product.tenant;
+    if not found then
+      raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+    end if;
+  end if;
+  v_slug := coalesce(v_slug, trim(both '-' from regexp_replace(lower(v_title), '[^a-z0-9]+', '-', 'g')));
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
   end if;
@@ -7466,16 +7725,16 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text, $5::text)', v_hook::oid::regproc)
-        using save_product.tenant, save_product.product, save_product.title, v_slug, save_product.kind;
+        using save_product.tenant, save_product.product, v_title, v_slug, save_product.kind;
     end if;
   end;
   begin
     if v_created then
       insert into "better_supabase"."products" ("tenant_id", "title", "slug", "description", "kind")
-      values (save_product.tenant, save_product.title, v_slug, save_product.description, coalesce(save_product.kind, 'physical'))
+      values (save_product.tenant, v_title, v_slug, save_product.description, coalesce(save_product.kind, 'physical'))
       returning "id", "status" into v_id, v_status;
     else
-      update "better_supabase"."products" x set "title" = save_product.title, "slug" = v_slug, "description" = save_product.description, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
+      update "better_supabase"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(save_product.clear, '{}'::text[])) then null else coalesce(save_product.description, x."description") end, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
       where x."id" = save_product.product and x."tenant_id" = save_product.tenant
       returning x."status" into v_status;
       if not found then
@@ -7501,8 +7760,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
 
 -- Moves a product to another status: draft, active or archived.
 create or replace function "better_supabase"."set_product_status"(product uuid, status text)
@@ -7582,9 +7841,12 @@ grant execute on function "better_supabase"."delete_product"(uuid) to authentica
 
 -- Creates a variant (variant null) or updates one. option_values holds one
 -- option value id per product option; no two variants share a combination.
--- fields: the extra columns (options.variantExtraColumns) to set.
+-- On an update a null argument keeps the column and clear names the columns
+-- to empty. fields: the extra columns (options.variantExtraColumns) to set.
+drop function if exists "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean);
 drop function if exists "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, jsonb);
-create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean)
+drop function if exists "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[], jsonb);
+create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -7614,6 +7876,9 @@ begin
     if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
+  end if;
+  if exists (select 1 from unnest(coalesce(save_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
+    raise exception 'clear names only sku, title, barcode, weight' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
   if v_created or save_variant.option_values is not null then
   v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
@@ -7658,7 +7923,7 @@ begin
       values (v_tenant, save_variant.product, save_variant.sku, save_variant.title, save_variant.barcode, save_variant.weight_grams, coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
       returning "id" into v_id;
     else
-      update "better_supabase"."product_variants" x set "sku" = coalesce(save_variant.sku, x."sku"), "title" = coalesce(save_variant.title, x."title"), "barcode" = coalesce(save_variant.barcode, x."barcode"), "weight_grams" = coalesce(save_variant.weight_grams, x."weight_grams"), "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
+      update "better_supabase"."product_variants" x set "sku" = case when 'sku' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
       where x."id" = save_variant.variant and x."product_id" = save_variant.product
       returning x."rank", x."sku" into v_rank, v_sku;
       if not found then
@@ -7690,8 +7955,8 @@ begin
   return jsonb_build_object('id', v_id, 'sku', v_sku, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) from public, anon;
-grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
+grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
 
 -- Sets a variant's rank key among the product's variants.
 create or replace function "better_supabase"."rank_variant"(variant uuid, rank text)
@@ -7753,7 +8018,8 @@ revoke execute on function "better_supabase"."delete_variant"(uuid) from public,
 grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
 
 -- Creates an option (option null) or updates one, with its values in order.
--- Values missing from the list are removed; values a variant uses can't be.
+-- Values missing from the list are removed with the variants that use them;
+-- a variant something still references is archived instead.
 create or replace function "better_supabase"."save_product_option"(product uuid, option uuid, name text, option_values text[])
 returns jsonb
 language plpgsql
@@ -7766,6 +8032,7 @@ declare
   v_last text;
   v_rank text;
   v_value text;
+  v_variant uuid;
   v_new boolean := save_product_option.option is null;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -7804,6 +8071,18 @@ begin
   exception when unique_violation then
     raise exception 'the product has another option with this name' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';
   end;
+  for v_variant in
+    select distinct x."variant_id" from "better_supabase"."product_variant_values" x
+    join "better_supabase"."product_option_values" y on y."id" = x."option_value_id"
+    where y."option_id" = v_id and not (y."value" = any (save_product_option.option_values))
+  loop
+    begin
+      delete from "better_supabase"."product_variants" x where x."id" = v_variant;
+      null;
+    exception when foreign_key_violation then
+      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+    end;
+  end loop;
   begin
     delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (save_product_option.option_values));
   exception when foreign_key_violation then
@@ -7835,6 +8114,47 @@ end;
 $$;
 revoke execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
 grant execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+
+-- Puts a product's options in the given order; the list names each once.
+create or replace function "better_supabase"."reorder_product_options"(product uuid, options uuid[])
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_rank text;
+  v_option uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = reorder_product_options.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if coalesce(cardinality(reorder_product_options.options), 0) <> (select count(*) from "better_supabase"."product_options" x where x."product_id" = reorder_product_options.product)
+    or (select count(distinct y) from unnest(reorder_product_options.options) y) <> cardinality(reorder_product_options.options)
+    or exists (select 1 from unnest(reorder_product_options.options) y where not exists (select 1 from "better_supabase"."product_options" x where x."id" = y and x."product_id" = reorder_product_options.product)) then
+    raise exception 'the list must name each option of the product once' using errcode = '22023', hint = 'CATALOG_OPTION_ORDER_INVALID';
+  end if;
+  foreach v_option in array reorder_product_options.options loop
+    v_rank := case
+    when v_rank is null then 'V'
+    when length(substring(v_rank from '^z*')) = length(v_rank) then v_rank || 'V'
+    else left(v_rank, length(substring(v_rank from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_rank, length(substring(v_rank from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+    update "better_supabase"."product_options" x set "rank" = v_rank where x."id" = v_option;
+  end loop;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."reorder_product_options"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."reorder_product_options"(uuid, uuid[]) to authenticated, service_role;
 
 -- Deletes an option and its values; refused while a variant uses one.
 create or replace function "better_supabase"."delete_product_option"(option uuid)
@@ -9145,8 +9465,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."product_variant_tran
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."save_product"(uuid, uuid, text, text, text, text);
 drop function if exists "api"."save_product"(uuid, uuid, text, text, text, text, jsonb);
+drop function if exists "api"."save_product"(uuid, uuid, text, text, text, text, text[], jsonb);
+drop function if exists "api"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean);
 drop function if exists "api"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, jsonb);
+drop function if exists "api"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[], jsonb);
 drop function if exists "api"."save_category"(uuid, uuid, uuid, text, text, text, jsonb);
 
 create or replace function "api"."actor_may_write"()
@@ -9176,14 +9500,14 @@ as $$ select "better_supabase"."currency_minor_units"($1) $$;
 revoke execute on function "api"."currency_minor_units"(text) from public;
 grant execute on function "api"."currency_minor_units"(text) to anon, authenticated, service_role;
 
-create or replace function "api"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
+create or replace function "api"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_product"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."save_product"(uuid, uuid, text, text, text, text) from public, anon;
-grant execute on function "api"."save_product"(uuid, uuid, text, text, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."save_product"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."save_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
+grant execute on function "api"."save_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
 
 create or replace function "api"."set_product_status"(product uuid, status text)
 returns jsonb
@@ -9203,14 +9527,14 @@ as $$ select "better_supabase"."delete_product"($1) $$;
 revoke execute on function "api"."delete_product"(uuid) from public, anon;
 grant execute on function "api"."delete_product"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean)
+create or replace function "api"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_variant"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
-revoke execute on function "api"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) from public, anon;
-grant execute on function "api"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."save_variant"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
+revoke execute on function "api"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
+grant execute on function "api"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
 
 create or replace function "api"."rank_variant"(variant uuid, rank text)
 returns boolean
@@ -9238,6 +9562,15 @@ set search_path = ''
 as $$ select "better_supabase"."save_product_option"($1, $2, $3, $4) $$;
 revoke execute on function "api"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
 grant execute on function "api"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+
+create or replace function "api"."reorder_product_options"(product uuid, options uuid[])
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."reorder_product_options"($1, $2) $$;
+revoke execute on function "api"."reorder_product_options"(uuid, uuid[]) from public, anon;
+grant execute on function "api"."reorder_product_options"(uuid, uuid[]) to authenticated, service_role;
 
 create or replace function "api"."delete_product_option"(option uuid)
 returns boolean
@@ -9494,7 +9827,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:7b347b8b1602fbbeb7657c7dfdd08bd48604bf3a8a359b90bc786c391b883006
+-- @bsb-hash sha256:bf5de3f57e5e0a71d2851a00fcb07609d81f80ad67ad1f16900531be74b87a62
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9966,9 +10299,14 @@ create policy product_variant_translations_read on "better_supabase"."product_va
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- Creates a product (product null) or updates one. Returns its id, slug and
--- status.
+-- status. On an update a null argument keeps the column and clear names the
+-- columns to empty; a cleared slug is derived from the title again.
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text);
 drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, jsonb);
-create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text);
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, jsonb);
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[], jsonb);
+create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -9976,7 +10314,8 @@ set search_path = ''
 as $$
 declare
   v_id uuid := save_product.product;
-  v_slug text := coalesce(nullif(save_product.slug, ''), trim(both '-' from regexp_replace(lower(save_product.title), '[^a-z0-9]+', '-', 'g')));
+  v_title text := save_product.title;
+  v_slug text := nullif(save_product.slug, '');
   v_status text;
   v_created boolean := save_product.product is null;
 begin
@@ -9992,6 +10331,18 @@ begin
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
+  if exists (select 1 from unnest(coalesce(save_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
+    raise exception 'clear names only slug, description' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
+  end if;
+  if not v_created then
+    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(save_product.clear, '{}'::text[])) then x."slug" else v_slug end
+    into v_title, v_slug
+    from "better_supabase"."products" x where x."id" = save_product.product and x."tenant_id" = save_product.tenant;
+    if not found then
+      raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+    end if;
+  end if;
+  v_slug := coalesce(v_slug, trim(both '-' from regexp_replace(lower(v_title), '[^a-z0-9]+', '-', 'g')));
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
   end if;
@@ -10000,16 +10351,16 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text, $5::text)', v_hook::oid::regproc)
-        using save_product.tenant, save_product.product, save_product.title, v_slug, save_product.kind;
+        using save_product.tenant, save_product.product, v_title, v_slug, save_product.kind;
     end if;
   end;
   begin
     if v_created then
       insert into "better_supabase"."products" ("tenant_id", "title", "slug", "description", "kind")
-      values (save_product.tenant, save_product.title, v_slug, save_product.description, better_supabase.as_column_type(coalesce(save_product.kind, 'physical'), (null::"better_supabase"."products")."kind"))
+      values (save_product.tenant, v_title, v_slug, save_product.description, better_supabase.as_column_type(coalesce(save_product.kind, 'physical'), (null::"better_supabase"."products")."kind"))
       returning "id", "status" into v_id, v_status;
     else
-      update "better_supabase"."products" x set "title" = save_product.title, "slug" = v_slug, "description" = save_product.description, "kind" = coalesce(better_supabase.as_column_type(save_product.kind, (null::"better_supabase"."products")."kind"), x."kind"), "updated_at" = now()
+      update "better_supabase"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(save_product.clear, '{}'::text[])) then null else coalesce(save_product.description, x."description") end, "kind" = coalesce(better_supabase.as_column_type(save_product.kind, (null::"better_supabase"."products")."kind"), x."kind"), "updated_at" = now()
       where x."id" = save_product.product and x."tenant_id" = save_product.tenant
       returning x."status" into v_status;
       if not found then
@@ -10035,8 +10386,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
 
 -- Moves a product to another status: draft, active or archived.
 create or replace function "better_supabase"."set_product_status"(product uuid, status text)
@@ -10116,9 +10467,12 @@ grant execute on function "better_supabase"."delete_product"(uuid) to authentica
 
 -- Creates a variant (variant null) or updates one. option_values holds one
 -- option value id per product option; no two variants share a combination.
--- fields: the extra columns (options.variantExtraColumns) to set.
+-- On an update a null argument keeps the column and clear names the columns
+-- to empty. fields: the extra columns (options.variantExtraColumns) to set.
+drop function if exists "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean);
 drop function if exists "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, jsonb);
-create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean)
+drop function if exists "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[], jsonb);
+create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -10148,6 +10502,9 @@ begin
     if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
+  end if;
+  if exists (select 1 from unnest(coalesce(save_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
+    raise exception 'clear names only sku, title, barcode, weight' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
   if v_created or save_variant.option_values is not null then
   v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
@@ -10192,7 +10549,7 @@ begin
       values (v_tenant, save_variant.product, save_variant.sku, save_variant.title, save_variant.barcode, save_variant.weight_grams, coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
       returning "id" into v_id;
     else
-      update "better_supabase"."product_variants" x set "sku" = coalesce(save_variant.sku, x."sku"), "title" = coalesce(save_variant.title, x."title"), "barcode" = coalesce(save_variant.barcode, x."barcode"), "weight_grams" = coalesce(save_variant.weight_grams, x."weight_grams"), "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
+      update "better_supabase"."product_variants" x set "sku" = case when 'sku' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
       where x."id" = save_variant.variant and x."product_id" = save_variant.product
       returning x."rank", x."sku" into v_rank, v_sku;
       if not found then
@@ -10224,8 +10581,8 @@ begin
   return jsonb_build_object('id', v_id, 'sku', v_sku, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) from public, anon;
-grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
+grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
 
 -- Sets a variant's rank key among the product's variants.
 create or replace function "better_supabase"."rank_variant"(variant uuid, rank text)
@@ -10287,7 +10644,8 @@ revoke execute on function "better_supabase"."delete_variant"(uuid) from public,
 grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
 
 -- Creates an option (option null) or updates one, with its values in order.
--- Values missing from the list are removed; values a variant uses can't be.
+-- Values missing from the list are removed with the variants that use them;
+-- a variant something still references is archived instead.
 create or replace function "better_supabase"."save_product_option"(product uuid, option uuid, name text, option_values text[])
 returns jsonb
 language plpgsql
@@ -10300,6 +10658,7 @@ declare
   v_last text;
   v_rank text;
   v_value text;
+  v_variant uuid;
   v_new boolean := save_product_option.option is null;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -10338,6 +10697,18 @@ begin
   exception when unique_violation then
     raise exception 'the product has another option with this name' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';
   end;
+  for v_variant in
+    select distinct x."variant_id" from "better_supabase"."product_variant_values" x
+    join "better_supabase"."product_option_values" y on y."id" = x."option_value_id"
+    where y."option_id" = v_id and not (y."value" = any (save_product_option.option_values))
+  loop
+    begin
+      delete from "better_supabase"."product_variants" x where x."id" = v_variant;
+      null;
+    exception when foreign_key_violation then
+      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+    end;
+  end loop;
   begin
     delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (save_product_option.option_values));
   exception when foreign_key_violation then
@@ -10369,6 +10740,47 @@ end;
 $$;
 revoke execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
 grant execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+
+-- Puts a product's options in the given order; the list names each once.
+create or replace function "better_supabase"."reorder_product_options"(product uuid, options uuid[])
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_rank text;
+  v_option uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = reorder_product_options.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if coalesce(cardinality(reorder_product_options.options), 0) <> (select count(*) from "better_supabase"."product_options" x where x."product_id" = reorder_product_options.product)
+    or (select count(distinct y) from unnest(reorder_product_options.options) y) <> cardinality(reorder_product_options.options)
+    or exists (select 1 from unnest(reorder_product_options.options) y where not exists (select 1 from "better_supabase"."product_options" x where x."id" = y and x."product_id" = reorder_product_options.product)) then
+    raise exception 'the list must name each option of the product once' using errcode = '22023', hint = 'CATALOG_OPTION_ORDER_INVALID';
+  end if;
+  foreach v_option in array reorder_product_options.options loop
+    v_rank := case
+    when v_rank is null then 'V'
+    when length(substring(v_rank from '^z*')) = length(v_rank) then v_rank || 'V'
+    else left(v_rank, length(substring(v_rank from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_rank, length(substring(v_rank from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+    update "better_supabase"."product_options" x set "rank" = v_rank where x."id" = v_option;
+  end loop;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."reorder_product_options"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."reorder_product_options"(uuid, uuid[]) to authenticated, service_role;
 
 -- Deletes an option and its values; refused while a variant uses one.
 create or replace function "better_supabase"."delete_product_option"(option uuid)
@@ -11694,7 +12106,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:c3b1e6ccfbdb9ec161860e3040cef46e25e57856a33c038d4c5b8aac282ee16f
+-- @bsb-hash sha256:00b1a9e6fc84739b0ff659f8ff9da616a8a852a2765091c29fc7a6af453265e4
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12185,9 +12597,14 @@ create policy product_variant_translations_read on "better_supabase"."product_va
   using ("org_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- Creates a product (product null) or updates one. Returns its id, slug and
--- status.
+-- status. On an update a null argument keeps the column and clear names the
+-- columns to empty; a cleared slug is derived from the title again.
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text);
 drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, jsonb);
-create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text);
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, jsonb);
+drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[], jsonb);
+create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -12195,7 +12612,8 @@ set search_path = ''
 as $$
 declare
   v_id uuid := save_product.product;
-  v_slug text := coalesce(nullif(save_product.slug, ''), trim(both '-' from regexp_replace(lower(save_product.title), '[^a-z0-9]+', '-', 'g')));
+  v_title text := save_product.title;
+  v_slug text := nullif(save_product.slug, '');
   v_status text;
   v_created boolean := save_product.product is null;
 begin
@@ -12211,6 +12629,18 @@ begin
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
+  if exists (select 1 from unnest(coalesce(save_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
+    raise exception 'clear names only slug, description' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
+  end if;
+  if not v_created then
+    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(save_product.clear, '{}'::text[])) then x."slug" else v_slug end
+    into v_title, v_slug
+    from "better_supabase"."products" x where x."id" = save_product.product and x."org_id" = save_product.tenant;
+    if not found then
+      raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+    end if;
+  end if;
+  v_slug := coalesce(v_slug, trim(both '-' from regexp_replace(lower(v_title), '[^a-z0-9]+', '-', 'g')));
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
   end if;
@@ -12219,16 +12649,16 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text, $5::text)', v_hook::oid::regproc)
-        using save_product.tenant, save_product.product, save_product.title, v_slug, save_product.kind;
+        using save_product.tenant, save_product.product, v_title, v_slug, save_product.kind;
     end if;
   end;
   begin
     if v_created then
       insert into "better_supabase"."products" ("org_id", "title", "slug", "description", "kind")
-      values (save_product.tenant, save_product.title, v_slug, save_product.description, coalesce(save_product.kind, 'physical'))
+      values (save_product.tenant, v_title, v_slug, save_product.description, coalesce(save_product.kind, 'physical'))
       returning "id", "status" into v_id, v_status;
     else
-      update "better_supabase"."products" x set "title" = save_product.title, "slug" = v_slug, "description" = save_product.description, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
+      update "better_supabase"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(save_product.clear, '{}'::text[])) then null else coalesce(save_product.description, x."description") end, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
       where x."id" = save_product.product and x."org_id" = save_product.tenant
       returning x."status" into v_status;
       if not found then
@@ -12254,8 +12684,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
 
 -- Moves a product to another status: draft, active or archived.
 create or replace function "better_supabase"."set_product_status"(product uuid, status text)
@@ -12335,9 +12765,12 @@ grant execute on function "better_supabase"."delete_product"(uuid) to authentica
 
 -- Creates a variant (variant null) or updates one. option_values holds one
 -- option value id per product option; no two variants share a combination.
--- fields: the extra columns (options.variantExtraColumns) to set.
+-- On an update a null argument keeps the column and clear names the columns
+-- to empty. fields: the extra columns (options.variantExtraColumns) to set.
+drop function if exists "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean);
 drop function if exists "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, jsonb);
-create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean)
+drop function if exists "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[], jsonb);
+create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -12367,6 +12800,9 @@ begin
     if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
+  end if;
+  if exists (select 1 from unnest(coalesce(save_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
+    raise exception 'clear names only sku, title, barcode, weight' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
   if v_created or save_variant.option_values is not null then
   v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
@@ -12411,7 +12847,7 @@ begin
       values (v_tenant, save_variant.product, save_variant.sku, save_variant.title, save_variant.barcode, save_variant.weight_grams, coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
       returning "id" into v_id;
     else
-      update "better_supabase"."product_variants" x set "sku" = coalesce(save_variant.sku, x."sku"), "title" = coalesce(save_variant.title, x."title"), "barcode" = coalesce(save_variant.barcode, x."barcode"), "weight_grams" = coalesce(save_variant.weight_grams, x."weight_grams"), "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
+      update "better_supabase"."product_variants" x set "sku" = case when 'sku' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
       where x."id" = save_variant.variant and x."product_id" = save_variant.product
       returning x."rank", x."sku" into v_rank, v_sku;
       if not found then
@@ -12443,8 +12879,8 @@ begin
   return jsonb_build_object('id', v_id, 'sku', v_sku, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) from public, anon;
-grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
+grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
 
 -- Sets a variant's rank key among the product's variants.
 create or replace function "better_supabase"."rank_variant"(variant uuid, rank text)
@@ -12506,7 +12942,8 @@ revoke execute on function "better_supabase"."delete_variant"(uuid) from public,
 grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
 
 -- Creates an option (option null) or updates one, with its values in order.
--- Values missing from the list are removed; values a variant uses can't be.
+-- Values missing from the list are removed with the variants that use them;
+-- a variant something still references is archived instead.
 create or replace function "better_supabase"."save_product_option"(product uuid, option uuid, name text, option_values text[])
 returns jsonb
 language plpgsql
@@ -12519,6 +12956,7 @@ declare
   v_last text;
   v_rank text;
   v_value text;
+  v_variant uuid;
   v_new boolean := save_product_option.option is null;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -12557,6 +12995,18 @@ begin
   exception when unique_violation then
     raise exception 'the product has another option with this name' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';
   end;
+  for v_variant in
+    select distinct x."variant_id" from "better_supabase"."product_variant_values" x
+    join "better_supabase"."product_option_values" y on y."id" = x."option_value_id"
+    where y."option_id" = v_id and not (y."value" = any (save_product_option.option_values))
+  loop
+    begin
+      delete from "better_supabase"."product_variants" x where x."id" = v_variant;
+      null;
+    exception when foreign_key_violation then
+      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+    end;
+  end loop;
   begin
     delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (save_product_option.option_values));
   exception when foreign_key_violation then
@@ -12588,6 +13038,47 @@ end;
 $$;
 revoke execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
 grant execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+
+-- Puts a product's options in the given order; the list names each once.
+create or replace function "better_supabase"."reorder_product_options"(product uuid, options uuid[])
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_rank text;
+  v_option uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."org_id" into v_tenant from "better_supabase"."products" x where x."id" = reorder_product_options.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if coalesce(cardinality(reorder_product_options.options), 0) <> (select count(*) from "better_supabase"."product_options" x where x."product_id" = reorder_product_options.product)
+    or (select count(distinct y) from unnest(reorder_product_options.options) y) <> cardinality(reorder_product_options.options)
+    or exists (select 1 from unnest(reorder_product_options.options) y where not exists (select 1 from "better_supabase"."product_options" x where x."id" = y and x."product_id" = reorder_product_options.product)) then
+    raise exception 'the list must name each option of the product once' using errcode = '22023', hint = 'CATALOG_OPTION_ORDER_INVALID';
+  end if;
+  foreach v_option in array reorder_product_options.options loop
+    v_rank := case
+    when v_rank is null then 'V'
+    when length(substring(v_rank from '^z*')) = length(v_rank) then v_rank || 'V'
+    else left(v_rank, length(substring(v_rank from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_rank, length(substring(v_rank from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end;
+    update "better_supabase"."product_options" x set "rank" = v_rank where x."id" = v_option;
+  end loop;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."reorder_product_options"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."reorder_product_options"(uuid, uuid[]) to authenticated, service_role;
 
 -- Deletes an option and its values; refused while a variant uses one.
 create or replace function "better_supabase"."delete_product_option"(option uuid)
