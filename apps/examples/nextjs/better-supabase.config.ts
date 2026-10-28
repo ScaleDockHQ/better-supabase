@@ -269,6 +269,8 @@ export default defineConfig({
     sso: {},
     approvals: {
       options: {
+        // Organizations tighten these policies with their own (ADR 0116).
+        tenantPolicies: true,
         policies: {
           customer: {
             discount: {
@@ -276,6 +278,13 @@ export default defineConfig({
                 { approvers: { permission: "approvals.manage" }, required: 1 },
               ],
               selfApproval: true,
+            },
+            // A floor that asks for nothing until a tenant policy adds steps.
+            refund: { steps: [] },
+            // The requester confirms; their manager may approve as well.
+            export: {
+              mode: "confirm",
+              steps: [{ approvers: { manager: true } }],
             },
           },
           // Sign-off on one version of a drive file, from the file's menu.

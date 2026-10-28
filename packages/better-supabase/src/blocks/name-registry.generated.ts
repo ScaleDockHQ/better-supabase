@@ -151,14 +151,15 @@ export interface BlockNameRegistry {
   };
   readonly "approvals": {
     readonly tables: {
-      readonly "requests": "id" | "tenant" | "subjectType" | "subjectId" | "action" | "policy" | "step" | "status" | "requestedBy" | "reason" | "payload" | "expiresAt" | "remindedAt" | "decidedAt" | "createdAt";
+      readonly "requests": "id" | "tenant" | "subjectType" | "subjectId" | "action" | "policy" | "step" | "status" | "requestedBy" | "reason" | "payload" | "expiresAt" | "remindedAt" | "decidedAt" | "fingerprint" | "consumedAt" | "createdAt";
       readonly "decisions": "id" | "request" | "tenant" | "step" | "approver" | "decision" | "delegateTo" | "comment" | "createdAt";
+      readonly "policies": "id" | "tenant" | "subjectType" | "action" | "name" | "conditions" | "mode" | "steps" | "selfApproval" | "expiresIn" | "enabled" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "approval_eligible" | "approval_finalize" | "approval_notify" | "approval_policy" | "cancel_approval" | "decide_approval" | "delegate_approval" | "expire_approvals" | "get_approval" | "is_approved" | "list_approvals" | "open_approval" | "remind_approvals" | "request_approval";
+    readonly functions: "approval_effective_policy" | "approval_eligible" | "approval_finalize" | "approval_notify" | "approval_policy" | "approval_requirement" | "cancel_approval" | "consume_approval" | "decide_approval" | "delegate_approval" | "expire_approvals" | "get_approval" | "is_approved" | "list_approvals" | "open_approval" | "remind_approvals" | "request_approval";
     readonly actions: "read" | "request" | "manage";
     readonly hooks: "before_approval_request" | "after_approval_request" | "before_approval_decide" | "after_approval_decide";
     readonly entities: {
-      readonly "approval": "id" | "tenant_id" | "subject_type" | "subject_id" | "action" | "policy" | "step" | "status" | "requested_by" | "reason" | "payload" | "expires_at" | "reminded_at" | "decided_at" | "created_at";
+      readonly "approval": "id" | "tenant_id" | "subject_type" | "subject_id" | "action" | "policy" | "step" | "status" | "requested_by" | "reason" | "payload" | "expires_at" | "reminded_at" | "decided_at" | "fingerprint" | "consumed_at" | "created_at";
     };
     readonly primary: "approval";
   };

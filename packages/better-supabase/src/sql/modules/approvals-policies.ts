@@ -12,7 +12,15 @@ export interface ApprovalApprovers {
   readonly team?: string;
   /** These user ids. */
   readonly users?: readonly string[];
+  /** The requester's manager (the `employees` module). */
+  readonly manager?: boolean;
 }
+
+/**
+ * `authorize`: an approver decides. `confirm`: the requester's own approval
+ * completes the request, and the steps' approvers may approve as well.
+ */
+export type ApprovalMode = "confirm" | "authorize";
 
 export interface ApprovalStep {
   readonly approvers: ApprovalApprovers;
@@ -28,7 +36,9 @@ export type ApprovalRun =
 export interface ApprovalPolicy {
   readonly subjectType: string;
   readonly action: string;
+  /** Empty in a floor that asks for nothing until a tenant policy adds steps. */
   readonly steps: readonly ApprovalStep[];
+  readonly mode: ApprovalMode;
   /** An ISO 8601 duration such as `P7D`. */
   readonly expiresIn?: string;
   readonly selfApproval: boolean;
@@ -51,7 +61,7 @@ const isFields = (value: unknown): value is Fields =>
 function approversOf(value: unknown, where: string): ApprovalApprovers {
   if (!isFields(value)) {
     throw new TypeError(
-      `${where}.approvers must be an object with permission, role, team or users`,
+      `${where}.approvers must be an object with permission, role, team, users or manager`,
     );
   }
 
@@ -80,6 +90,12 @@ function approversOf(value: unknown, where: string): ApprovalApprovers {
     throw new TypeError(`${where}.approvers.users must be a list of user ids`);
   }
 
+  const manager = value["manager"];
+
+  if (manager !== undefined && manager !== true) {
+    throw new TypeError(`${where}.approvers.manager must be true`);
+  }
+
   const permission = text("permission");
   const role = text("role");
   const team = text("team");
@@ -89,6 +105,7 @@ function approversOf(value: unknown, where: string): ApprovalApprovers {
     ...(role === undefined ? {} : { role }),
     ...(team === undefined ? {} : { team }),
     ...(Array.isArray(users) ? { users: users.map(String) } : {}),
+    ...(manager === true ? { manager } : {}),
   };
 
   if (Object.keys(approvers).length === 0) {
@@ -159,12 +176,16 @@ function runOf(value: unknown, where: string): ApprovalRun | undefined {
   );
 }
 
-/** One policy; `where` names it in errors. */
+/**
+ * One policy; `where` names it in errors. A `floor` (an `options.policies`
+ * entry that tenant policies tighten) may have no steps.
+ */
 export function policyOf(
   subjectType: string,
   action: string,
   value: unknown,
   where = `${WHERE}.${subjectType}.${action}`,
+  floor = false,
 ): ApprovalPolicy {
   if (!KEY.test(action)) {
     throw new TypeError(`${where} has an invalid name`);
@@ -176,8 +197,14 @@ export function policyOf(
 
   const steps = value["steps"];
 
-  if (!Array.isArray(steps) || steps.length === 0) {
+  if (!Array.isArray(steps) || (steps.length === 0 && !floor)) {
     throw new TypeError(`${where}.steps must be a non-empty list`);
+  }
+
+  const mode = value["mode"] ?? "authorize";
+
+  if (mode !== "confirm" && mode !== "authorize") {
+    throw new TypeError(`${where}.mode must be "confirm" or "authorize"`);
   }
 
   const expiresIn = value["expiresIn"];
@@ -205,6 +232,7 @@ export function policyOf(
     steps: steps.map((step: unknown, index) =>
       stepOf(step, `${where}.steps.${String(index)}`),
     ),
+    mode,
     selfApproval,
     ...(typeof expiresIn === "string" ? { expiresIn } : {}),
     ...(run === undefined ? {} : { run }),
@@ -237,18 +265,28 @@ export function approvalPolicies(
     }
 
     return Object.entries(actions).map(([action, value]) =>
-      policyOf(subjectType, action, value),
+      policyOf(
+        subjectType,
+        action,
+        value,
+        `${WHERE}.${subjectType}.${action}`,
+        true,
+      ),
     );
   });
 }
 
-/** The snapshot a request stores, so later config changes leave it alone. */
+/**
+ * The snapshot a request stores, so later config changes leave it alone. It
+ * names the mode only for `confirm`; SQL reads a missing mode as `authorize`.
+ */
 export function policySnapshot(policy: ApprovalPolicy): string {
   return JSON.stringify({
     steps: policy.steps,
     selfApproval: policy.selfApproval,
     expiresIn: policy.expiresIn ?? null,
     run: policy.run ?? null,
+    ...(policy.mode === "confirm" ? { mode: policy.mode } : {}),
   });
 }
 
@@ -267,6 +305,40 @@ ${policies
   .join("\n")}
     else null::jsonb
   end`;
+}
+
+/**
+ * Throws when a policy names the requester's manager without the employees
+ * module, or when an `authorize` floor without steps has no tenant policies to
+ * add them.
+ */
+export function validateApprovers(
+  ctx: BlockSqlContext,
+  policies: readonly ApprovalPolicy[],
+  tenantPolicies: boolean,
+): void {
+  for (const policy of policies) {
+    const where = `${WHERE}.${policy.subjectType}.${policy.action}`;
+
+    if (
+      policy.steps.some((step) => step.approvers.manager === true) &&
+      !ctx.installed("employees")
+    ) {
+      throw new TypeError(
+        `${where}: approvers.manager needs the employees module`,
+      );
+    }
+
+    if (
+      policy.steps.length === 0 &&
+      policy.mode === "authorize" &&
+      !tenantPolicies
+    ) {
+      throw new TypeError(
+        `${where}.steps is empty, which needs blocks.approvals.options.tenantPolicies`,
+      );
+    }
+  }
 }
 
 /** Throws when a policy runs a transition or queue whose module is missing. */

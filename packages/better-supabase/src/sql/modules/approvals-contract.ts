@@ -5,6 +5,8 @@ import type {
   BlockSqlNames,
 } from "../context.ts";
 
+import { TENANT_POLICY_TABLES } from "./approvals-tenant.ts";
+
 const PAYLOAD = [
   "organizationId",
   "subjectType",
@@ -15,6 +17,13 @@ const PAYLOAD = [
   "step",
 ] as const;
 
+const POLICY_PAYLOAD = [
+  "organizationId",
+  "id",
+  "subjectType",
+  "action",
+] as const;
+
 const EVENTS: BlockSqlEvents<ApprovalsEvents> = {
   "approval.requested": { subject: "approval-requests", payload: PAYLOAD },
   "approval.approved": { subject: "approval-requests", payload: PAYLOAD },
@@ -22,6 +31,15 @@ const EVENTS: BlockSqlEvents<ApprovalsEvents> = {
   "approval.cancelled": { subject: "approval-requests", payload: PAYLOAD },
   "approval.expired": { subject: "approval-requests", payload: PAYLOAD },
   "approval.delegated": { subject: "approval-requests", payload: PAYLOAD },
+  "approval.consumed": { subject: "approval-requests", payload: PAYLOAD },
+  "approval_policy.saved": {
+    subject: "approval-policies",
+    payload: POLICY_PAYLOAD,
+  },
+  "approval_policy.removed": {
+    subject: "approval-policies",
+    payload: POLICY_PAYLOAD,
+  },
 };
 
 /** The keys the request reads return next to the extra columns. */
@@ -49,7 +67,7 @@ export const APPROVALS_NAMES: BlockSqlNames = {
     "before_approval_decide",
     "after_approval_decide",
   ],
-  options: ["policies", "extraColumns"],
+  options: ["policies", "tenantPolicies", "extraColumns"],
   tables: {
     requests: {
       name: "approval_requests",
@@ -70,6 +88,8 @@ export const APPROVALS_NAMES: BlockSqlNames = {
         expiresAt: "expires_at",
         remindedAt: "reminded_at",
         decidedAt: "decided_at",
+        fingerprint: "fingerprint",
+        consumedAt: "consumed_at",
         createdAt: "created_at",
       },
       optional: [
@@ -80,6 +100,8 @@ export const APPROVALS_NAMES: BlockSqlNames = {
         "expiresAt",
         "remindedAt",
         "decidedAt",
+        "fingerprint",
+        "consumedAt",
       ],
       typed: ["status"],
     },
@@ -101,6 +123,7 @@ export const APPROVALS_NAMES: BlockSqlNames = {
       optional: ["delegateTo", "comment"],
       typed: ["decision"],
     },
+    ...TENANT_POLICY_TABLES,
   },
 };
 
@@ -114,7 +137,7 @@ export function approvalsContract(
   return [
     {
       name: "request_approval",
-      args: ["{id}", "text", "text", "text", "text", "jsonb", ...extra],
+      args: ["{id}", "text", "text", "text", "text", "jsonb", ...extra, "text"],
       returns: "jsonb",
     },
     {

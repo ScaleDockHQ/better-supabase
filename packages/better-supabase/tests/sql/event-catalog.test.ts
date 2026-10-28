@@ -68,6 +68,8 @@ const OPTIONAL = new Set([
   "object.uploaded",
   "pipeline.stage_changed",
   "calendar.updated",
+  "approval_policy.saved",
+  "approval_policy.removed",
 ]);
 
 const declared = (module: string): string[] =>

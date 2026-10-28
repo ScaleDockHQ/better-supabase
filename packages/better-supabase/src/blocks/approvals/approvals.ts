@@ -9,6 +9,7 @@ import type {
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { FilterQuery } from "../../list/filter-query.ts";
 import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
@@ -18,10 +19,12 @@ import {
   extraFieldsArg,
   withFields,
 } from "../../core/block-fields.ts";
+import { sha256Hex } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { subjectRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
+import { isRecord } from "../../core/guards.ts";
 import { AsyncResult, err } from "../../core/result.ts";
 import {
   applyTemporal,
@@ -72,12 +75,20 @@ export type ApprovalStatus =
   | "cancelled"
   | "expired";
 
+/**
+ * `confirm`: the requester may approve their own request, as a second look.
+ * `authorize`: someone else has to decide each step.
+ */
+export type ApprovalMode = "confirm" | "authorize";
+
 /** Who may decide a step. Any match is enough. */
 export interface ApprovalApprovers {
   readonly permission?: string;
   readonly role?: string;
   readonly team?: string;
   readonly users?: readonly string[];
+  /** The requester's manager, through the employees block. */
+  readonly manager?: boolean;
 }
 
 export interface ApprovalStep {
@@ -91,6 +102,7 @@ export interface ApprovalRequest {
   readonly subject: RecordRef;
   readonly action: string;
   readonly status: ApprovalStatus;
+  readonly mode: ApprovalMode;
   /** The current step, from 0. */
   readonly step: number;
   /** The policy's steps when the request was made. */
@@ -98,9 +110,62 @@ export interface ApprovalRequest {
   readonly requestedBy?: string;
   readonly reason?: string;
   readonly payload: Readonly<Record<string, unknown>>;
+  /** The hex SHA-256 `consume` checks, from `approvalFingerprint`. */
+  readonly fingerprint?: string;
   readonly expiresAt?: Temporal.Instant;
   readonly decidedAt?: Temporal.Instant;
+  /** When `consume` used the approval. */
+  readonly consumedAt?: Temporal.Instant;
   readonly createdAt: Temporal.Instant;
+}
+
+/** What a request needs right now, from `requirement`. */
+export interface ApprovalRequirement {
+  readonly mode: ApprovalMode;
+  readonly steps: readonly ApprovalStep[];
+  readonly selfApproval: boolean;
+  /** The request lifetime as a Postgres interval, when one applies. */
+  readonly expiresIn?: string;
+  /** The tenant policies that matched, in order. */
+  readonly policies: readonly string[];
+}
+
+/**
+ * A tenant's approval policy. It tightens the config policy for the same
+ * subject type and action and can never loosen it.
+ */
+export interface ApprovalTenantPolicy {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly subjectType: string;
+  readonly action: string;
+  readonly name: string;
+  /** Applies only to requests whose payload matches; none applies always. */
+  readonly conditions?: FilterQuery;
+  readonly mode: ApprovalMode;
+  /** Added after the steps of the config policy and earlier tenant policies. */
+  readonly steps: readonly ApprovalStep[];
+  readonly selfApproval: boolean;
+  readonly expiresIn?: string;
+  readonly enabled: boolean;
+  readonly createdAt: Temporal.Instant;
+  readonly updatedAt?: Temporal.Instant;
+}
+
+/** A new policy needs `subjectType`, `action` and `name`; `id` changes one. */
+export interface ApprovalPolicyInput {
+  readonly id?: string;
+  readonly subjectType?: string;
+  readonly action?: string;
+  readonly name?: string;
+  /** `null` removes the conditions. */
+  readonly conditions?: FilterQuery | null;
+  readonly mode?: ApprovalMode;
+  readonly steps?: readonly ApprovalStep[];
+  readonly selfApproval?: boolean;
+  /** A Postgres interval such as `3 days`; `null` removes it. */
+  readonly expiresIn?: string | null;
+  readonly enabled?: boolean;
 }
 
 export interface ApprovalDecision {
@@ -124,8 +189,16 @@ export interface ApprovalRequestInput {
   /** An action `options.policies` names for the subject type. */
   readonly action: string;
   readonly reason?: string;
-  /** Passed to the job the final approval enqueues. */
+  /**
+   * Passed to the job the final approval enqueues. Tenant policy conditions
+   * match against it.
+   */
   readonly payload?: Readonly<Record<string, unknown>>;
+  /**
+   * Binds the approval to one exact request: `consume` refuses a different
+   * fingerprint. Build it with `approvalFingerprint`.
+   */
+  readonly fingerprint?: string;
 }
 
 export interface ApprovalListOptions {
@@ -172,6 +245,61 @@ export interface Approvals<F extends object = Record<never, never>> {
   ): AsyncResult<readonly (ApprovalRequest & F)[]>;
   /** Whether the subject's latest request for the action was approved. */
   isApproved(subject: RecordRef, action: string): AsyncResult<boolean>;
+  /**
+   * What a request would need for the subject type and action, with `payload`
+   * as the request payload tenant conditions read; `null` when nothing is
+   * required, so the action can run without a request.
+   */
+  requirement(
+    subjectType: string,
+    action: string,
+    payload?: Readonly<Record<string, unknown>>,
+  ): AsyncResult<ApprovalRequirement | null>;
+  /**
+   * Uses an approved request once, before its action runs. A second call fails
+   * with `APPROVAL_CONSUMED`, and a fingerprint other than the request's with
+   * `APPROVAL_FINGERPRINT_MISMATCH`.
+   */
+  consume(id: string, fingerprint?: string): AsyncResult<ApprovalRequest & F>;
+  /** The tenant's policies (`options.tenantPolicies`). */
+  listPolicies(options?: {
+    readonly subjectType?: string;
+    readonly pageSize?: number;
+  }): AsyncResult<readonly ApprovalTenantPolicy[]>;
+  /** Creates or changes a tenant policy. Needs `approvals.manage`. */
+  savePolicy(input: ApprovalPolicyInput): AsyncResult<ApprovalTenantPolicy>;
+  /** Deletes a tenant policy; `false` when it did not exist. */
+  removePolicy(id: string): AsyncResult<boolean>;
+}
+
+/**
+ * Serializes `value` with object keys sorted and no whitespace. It is stable
+ * for JSON values; `undefined` members are dropped as `JSON.stringify` does.
+ */
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => (item === undefined ? "null" : canonicalJson(item))).join(",")}]`;
+  }
+
+  if (typeof value === "object" && value !== null) {
+    const entries = Object.entries(value)
+      .filter(([, item]) => item !== undefined)
+      .toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`);
+
+    return `{${entries.join(",")}}`;
+  }
+
+  return value === undefined ? "null" : JSON.stringify(value);
+}
+
+/**
+ * The hex SHA-256 of `value` as sorted-key JSON, for `request` and `consume`.
+ * Pass the exact operation the approval covers (for example the subject, the
+ * action and its arguments) so an approval for one change can't run another.
+ */
+export function approvalFingerprint(value: unknown): Promise<string> {
+  return sha256Hex(canonicalJson(value));
 }
 
 const STATUSES: readonly ApprovalStatus[] = [
@@ -229,13 +357,24 @@ function approversOf(value: unknown): ApprovalApprovers {
     ...(Array.isArray(row["users"])
       ? { users: row["users"].map((user) => textOf(user)) }
       : {}),
+    ...(row["manager"] === true ? { manager: true } : {}),
   };
 }
+
+const stepsOf = (value: unknown, fn: string): readonly ApprovalStep[] =>
+  recordsOf(value ?? [], fn).map((step) => ({
+    approvers: approversOf(step["approvers"]),
+    required: Number(step["required"] ?? 1),
+  }));
+
+const modeOf = (value: unknown): ApprovalMode =>
+  value === "confirm" ? "confirm" : "authorize";
 
 function requestOf(value: unknown, fn: string): ApprovalRequest {
   const row = recordOf(value, fn);
   const requestedBy = optionalText(row["requestedBy"]);
   const reason = optionalText(row["reason"]);
+  const fingerprint = optionalText(row["fingerprint"]);
   const payload = row["payload"];
 
   return {
@@ -244,11 +383,9 @@ function requestOf(value: unknown, fn: string): ApprovalRequest {
     subject: subjectRefOf(row["subjectType"], row["subjectId"]),
     action: textOf(row["action"]),
     status: statusOf(row["status"]),
+    mode: modeOf(row["mode"]),
     step: Number(row["step"]),
-    steps: recordsOf(row["steps"] ?? [], fn).map((step) => ({
-      approvers: approversOf(step["approvers"]),
-      required: Number(step["required"]),
-    })),
+    steps: stepsOf(row["steps"], fn),
     payload:
       typeof payload === "object" && payload !== null && !Array.isArray(payload)
         ? recordOf(payload, fn)
@@ -256,8 +393,65 @@ function requestOf(value: unknown, fn: string): ApprovalRequest {
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     ...(requestedBy === undefined ? {} : { requestedBy }),
     ...(reason === undefined ? {} : { reason }),
+    ...(fingerprint === undefined ? {} : { fingerprint }),
     ...instant(row["expiresAt"], "expiresAt"),
     ...instant(row["decidedAt"], "decidedAt"),
+    ...instant(row["consumedAt"], "consumedAt"),
+  };
+}
+
+function requirementOf(value: unknown): ApprovalRequirement | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const row = recordOf(value, "approval_requirement");
+  const expiresIn = optionalText(row["expiresIn"]);
+
+  return {
+    mode: modeOf(row["mode"]),
+    steps: stepsOf(row["steps"], "approval_requirement"),
+    selfApproval: row["selfApproval"] === true,
+    policies: Array.isArray(row["policies"])
+      ? row["policies"].map((id) => textOf(id))
+      : [],
+    ...(expiresIn === undefined ? {} : { expiresIn }),
+  };
+}
+
+/** Save_approval_policy stores only trees `rule_check` accepts. */
+const isFilterGroup = (value: unknown): value is FilterQuery =>
+  isRecord(value) && value["type"] === "group" && Array.isArray(value["rules"]);
+
+function conditionsOf(value: unknown): FilterQuery {
+  if (!isFilterGroup(value)) {
+    throw new TypeError(`approval conditions are ${JSON.stringify(value)}`);
+  }
+
+  return value;
+}
+
+function tenantPolicyOf(value: unknown, fn: string): ApprovalTenantPolicy {
+  const row = recordOf(value, fn);
+  const expiresIn = optionalText(row["expiresIn"]);
+  const conditions = row["conditions"];
+
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["organizationId"]),
+    subjectType: textOf(row["subjectType"]),
+    action: textOf(row["action"]),
+    name: textOf(row["name"]),
+    mode: modeOf(row["mode"]),
+    steps: stepsOf(row["steps"], fn),
+    selfApproval: row["selfApproval"] === true,
+    enabled: row["enabled"] !== false,
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    ...(conditions === null || conditions === undefined
+      ? {}
+      : { conditions: conditionsOf(conditions) }),
+    ...(expiresIn === undefined ? {} : { expiresIn }),
+    ...instant(row["updatedAt"], "updatedAt"),
   };
 }
 
@@ -378,7 +572,7 @@ export function createApprovals<
     );
 
   const client: Approvals<F> = {
-    request: (subject, { action, reason, payload, ...extra }) =>
+    request: (subject, { action, reason, payload, fingerprint, ...extra }) =>
       tenant().andThen((organizationId) =>
         AsyncResult.from(() => extraFieldsArg(fields, extra)).andThen((more) =>
           one("request_approval", {
@@ -389,6 +583,7 @@ export function createApprovals<
             reason: reason ?? null,
             payload: payload ?? {},
             ...more,
+            ...(fingerprint === undefined ? {} : { fingerprint }),
           }),
         ),
       ),
@@ -427,6 +622,53 @@ export function createApprovals<
       call(
         "is_approved",
         { subject_type: subject.type, subject_id: subject.id, action },
+        (value) => value === true,
+      ),
+    requirement: (subjectType, action, payload) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "approval_requirement",
+          {
+            tenant: organizationId,
+            subject_type: subjectType,
+            action,
+            subject: payload ?? {},
+          },
+          requirementOf,
+        ),
+      ),
+    consume: (id, fingerprint) =>
+      one("consume_approval", {
+        request_id: id,
+        fingerprint: fingerprint ?? null,
+      }),
+    listPolicies: (list = {}) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_approval_policies",
+          {
+            tenant: organizationId,
+            subject_type: list.subjectType ?? null,
+            page_size: list.pageSize ?? null,
+          },
+          (value) =>
+            recordsOf(value, "list_approval_policies").map((row) =>
+              tenantPolicyOf(row, "list_approval_policies"),
+            ),
+        ),
+      ),
+    savePolicy: (input) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "save_approval_policy",
+          { tenant: organizationId, policy: input },
+          (value) => tenantPolicyOf(value, "save_approval_policy"),
+        ),
+      ),
+    removePolicy: (id) =>
+      call(
+        "remove_approval_policy",
+        { policy_id: id },
         (value) => value === true,
       ),
   };

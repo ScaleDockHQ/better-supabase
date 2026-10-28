@@ -6803,6 +6803,7 @@
   },
   "./blocks/approvals": {
     "values": [
+      "approvalFingerprint",
       "approvalsBlock",
       "approvalsEvents",
       "createApprovals",
@@ -6814,14 +6815,18 @@
       "ApprovalApprovers",
       "ApprovalDecision",
       "ApprovalListOptions",
+      "ApprovalMode",
+      "ApprovalPolicyInput",
       "ApprovalRequest",
       "ApprovalRequestDetail",
       "ApprovalRequestInput",
+      "ApprovalRequirement",
       "Approvals",
       "ApprovalsEvents",
       "ApprovalsOptions",
       "ApprovalStatus",
       "ApprovalStep",
+      "ApprovalTenantPolicy",
       "BlockTransport"
     ]
   },

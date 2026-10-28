@@ -1,7 +1,7 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:b3df9f84bb7a0e04aac3d6cfb7c2b1568e9d84bc8456abe4facbd487346dfbe0
--- Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
+-- @bsb-hash sha256:417e122e2bdeab2a8dff7896a069b794f9996dc0982cc3fe5501656190da7de8
+-- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -59,6 +59,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_policies";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_policies";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_policies";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_policies";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_policies";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -78,8 +86,12 @@ create table if not exists "better_supabase"."approval_requests" (
   "expires_at" timestamptz,
   "reminded_at" timestamptz,
   "decided_at" timestamptz,
+  "fingerprint" text check ("fingerprint" is null or "fingerprint" ~ '^[0-9a-f]{64}$'),
+  "consumed_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
+alter table "better_supabase"."approval_requests" add column if not exists "fingerprint" text check ("fingerprint" is null or "fingerprint" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."approval_requests" add column if not exists "consumed_at" timestamptz;
 create unique index if not exists "approval_requests_pending_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
 create index if not exists "approval_requests_tenant_idx" on "better_supabase"."approval_requests" ("tenant_id", "status", "created_at" desc);
 alter table "better_supabase"."approval_requests" enable row level security;
@@ -123,6 +135,8 @@ set search_path = ''
 as $$
   select case approval_policy.subject_type || ':' || approval_policy.action
     when 'customer:discount' then '{"steps":[{"approvers":{"permission":"approvals.manage"},"required":1}],"selfApproval":true,"expiresIn":null,"run":null}'::jsonb
+    when 'customer:refund' then '{"steps":[],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb
+    when 'customer:export' then '{"steps":[{"approvers":{"manager":true},"required":1}],"selfApproval":false,"expiresIn":null,"run":null,"mode":"confirm"}'::jsonb
     when 'drive_node:approve' then '{"steps":[{"approvers":{"permission":"approvals.manage"},"required":1}],"selfApproval":true,"expiresIn":null,"run":null}'::jsonb
     when 'eve_tool_call:add_note' then '{"steps":[{"approvers":{"permission":"approvals.manage"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb
     when 'workflow_run:approve' then '{"steps":[{"approvers":{"permission":"approvals.manage"},"required":1}],"selfApproval":true,"expiresIn":null,"run":null}'::jsonb
@@ -151,14 +165,19 @@ begin
   if not found or v_me is null or v_req."status" <> 'pending' then
     return false;
   end if;
-  if v_me = v_req."requested_by" and not coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then
-    return false;
-  end if;
   if exists (
     select 1 from "better_supabase"."approval_decisions" x
     where x."request_id" = v_req."id" and x."step" = v_req."step" and x."approver" = v_me
   ) then
     return false;
+  end if;
+  if v_me = v_req."requested_by" then
+    if v_req."policy" ->> 'mode' = 'confirm' then
+      return true;
+    end if;
+    if not coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then
+      return false;
+    end if;
   end if;
   if v_req."subject_type" = 'ai_tool_approval' then
     return "better_supabase"."ai_tool_approval_approvable"(v_req."subject_id");
@@ -171,6 +190,14 @@ begin
       where m."organization_id" = v_req."tenant_id" and m."user_id" = v_me and m."role" = (select r."id" from "better_supabase"."roles" r where (r."id"::text = (v_approvers ->> 'role')::text or r."key" = (v_approvers ->> 'role')::text) order by (r."id"::text = (v_approvers ->> 'role')::text) desc limit 1)
     ))
     or (v_approvers ->> 'team' is not null and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = v_approvers ->> 'team' and tm."user_id" = v_me))
+    or (coalesce((v_approvers ->> 'manager')::boolean, false) and (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = v_req."tenant_id" and me."user_id" = v_req."requested_by"
+        and mgr."user_id" is not null and mgr."status"::text <> 'offboarded'
+      limit 1) = v_me, false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = v_req."tenant_id" and mm."user_id" = v_me
+    )))
     or exists (
       select 1 from "better_supabase"."approval_decisions" x
       where x."request_id" = v_req."id" and x."step" = v_req."step"
@@ -214,6 +241,12 @@ begin
       union
       select tm."user_id" from "better_supabase"."team_members" tm
       where tm."team_id"::text = v_approvers ->> 'team'
+      union
+      select (select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = v_req."tenant_id" and me."user_id" = v_req."requested_by"
+        and mgr."user_id" is not null and mgr."status"::text <> 'offboarded'
+      limit 1) where coalesce((v_approvers ->> 'manager')::boolean, false)
       union
       select x."delegate_to" from "better_supabase"."approval_decisions" x
       where x."request_id" = v_req."id" and x."step" = v_req."step" and x."decision" = 'delegated'
@@ -350,7 +383,7 @@ begin
         using v_req."id";
     end if;
   end;
-  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at");
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb) from public, anon, authenticated;
@@ -424,16 +457,308 @@ end;
 $$;
 revoke execute on function "better_supabase"."approval_settle"(text, text, text, text, uuid, text) from public, anon, authenticated;
 
+
+create table if not exists "better_supabase"."approval_policies" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "action" text not null,
+  "name" text not null check (length("name") between 1 and 200),
+  "conditions" jsonb,
+  "mode" text not null default 'authorize' check ("mode" in ('confirm', 'authorize')),
+  "steps" jsonb not null default '[]'::jsonb check (jsonb_typeof("steps") = 'array'),
+  "self_approval" boolean not null default false,
+  "expires_in" interval check ("expires_in" is null or "expires_in" > interval '0'),
+  "enabled" boolean not null default true,
+  "created_by" uuid,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+create index if not exists "approval_policies_lookup_idx" on "better_supabase"."approval_policies" ("tenant_id", "subject_type", "action");
+alter table "better_supabase"."approval_policies" enable row level security;
+revoke all on "better_supabase"."approval_policies" from public, anon, authenticated;
+grant select on "better_supabase"."approval_policies" to authenticated;
+grant all on "better_supabase"."approval_policies" to service_role;
+drop policy if exists approval_policies_read on "better_supabase"."approval_policies";
+create policy approval_policies_read on "better_supabase"."approval_policies"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
+
+-- Creates or changes a tenant policy. policy is { id?, subjectType, action,
+-- name, conditions, mode, steps, selfApproval, expiresIn, enabled }; keys
+-- left out keep their value. A tenant policy only adds to the options.policies
+-- floor for its subject type and action, so it can never loosen it.
+create or replace function "better_supabase"."save_approval_policy"(tenant uuid, policy jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_old "better_supabase"."approval_policies"%rowtype;
+  v_row "better_supabase"."approval_policies"%rowtype;
+  v_type text;
+  v_action text;
+  v_conditions jsonb;
+  v_steps jsonb;
+  v_step jsonb;
+  v_fields jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_approval_policy.tenant, 'approvals.manage'), false)) then
+    raise exception 'managing approval policies needs approvals.manage' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  if jsonb_typeof(save_approval_policy.policy) is distinct from 'object' then
+    raise exception 'policy must be an object' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
+  end if;
+  if save_approval_policy.policy ? 'id' then
+    select * into v_old from "better_supabase"."approval_policies" x
+    where x."id" = (save_approval_policy.policy ->> 'id')::uuid and x."tenant_id" = save_approval_policy.tenant
+    for update;
+    if not found then
+      raise exception 'approval policy not found' using errcode = 'P0002', hint = 'APPROVAL_POLICY_NOT_FOUND';
+    end if;
+  end if;
+  v_type := coalesce(save_approval_policy.policy ->> 'subjectType', v_old."subject_type");
+  v_action := coalesce(save_approval_policy.policy ->> 'action', v_old."action");
+  if v_type is null or v_action is null or "better_supabase"."approval_policy"(v_type, v_action) is null then
+    raise exception 'a tenant policy tightens an options.policies entry, and there is none for this subject type and action' using errcode = '22023', hint = 'APPROVAL_POLICY_UNKNOWN';
+  end if;
+  v_conditions := case when save_approval_policy.policy ? 'conditions' then nullif(save_approval_policy.policy -> 'conditions', 'null'::jsonb) else v_old."conditions" end;
+  if v_conditions is not null then
+    v_fields := "better_supabase"."rule_field_map"(v_type);
+    if v_fields = '{}'::jsonb then
+      raise exception 'no rule fields for this subject type; sync them first' using errcode = '22023', hint = 'APPROVAL_FIELDS_MISSING';
+    end if;
+    perform "better_supabase"."rule_check"(v_conditions, v_fields, 1);
+  end if;
+  v_steps := coalesce(save_approval_policy.policy -> 'steps', v_old."steps", '[]'::jsonb);
+  if jsonb_typeof(v_steps) <> 'array' or jsonb_array_length(v_steps) > 20 then
+    raise exception 'steps must be a list of { approvers: { permission, role, team, users, manager }, required } objects' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
+  end if;
+  for v_step in select * from jsonb_array_elements(v_steps) loop
+    if jsonb_typeof(v_step) <> 'object' or jsonb_typeof(v_step -> 'approvers') is distinct from 'object'
+      or not (v_step -> 'approvers' ?| array['permission', 'role', 'team', 'users', 'manager'])
+      or (v_step -> 'approvers' ? 'manager' and v_step -> 'approvers' -> 'manager' <> 'true'::jsonb)
+      or (v_step -> 'approvers' ? 'users' and (jsonb_typeof(v_step -> 'approvers' -> 'users') <> 'array'
+        or exists (select 1 from jsonb_array_elements(v_step -> 'approvers' -> 'users') u
+          where jsonb_typeof(u) <> 'string' or u #>> '{}' !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')))
+      or (v_step ? 'required' and (jsonb_typeof(v_step -> 'required') <> 'number' or (v_step ->> 'required')::numeric < 1
+        or (v_step ->> 'required')::numeric <> trunc((v_step ->> 'required')::numeric))) then
+      raise exception 'steps must be a list of { approvers: { permission, role, team, users, manager }, required } objects' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
+    end if;
+  end loop;
+  if coalesce(save_approval_policy.policy ->> 'mode', v_old."mode"::text, 'authorize') not in ('confirm', 'authorize') then
+    raise exception 'mode must be confirm or authorize' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
+  end if;
+  if v_old."id" is null then
+    insert into "better_supabase"."approval_policies" ("tenant_id", "subject_type", "action", "name", "conditions", "mode", "steps", "self_approval", "expires_in", "enabled", "created_by")
+    values (save_approval_policy.tenant, v_type, v_action, btrim(save_approval_policy.policy ->> 'name'), v_conditions,
+      coalesce(save_approval_policy.policy ->> 'mode', 'authorize'), v_steps,
+      coalesce((save_approval_policy.policy ->> 'selfApproval')::boolean, false), (save_approval_policy.policy ->> 'expiresIn')::interval,
+      coalesce((save_approval_policy.policy ->> 'enabled')::boolean, true), auth.uid())
+    returning * into v_row;
+  else
+    update "better_supabase"."approval_policies" x set
+      "subject_type" = v_type,
+      "action" = v_action,
+      "name" = coalesce(btrim(save_approval_policy.policy ->> 'name'), x."name"),
+      "conditions" = v_conditions,
+      "mode" = coalesce(save_approval_policy.policy ->> 'mode', x."mode"),
+      "steps" = v_steps,
+      "self_approval" = coalesce((save_approval_policy.policy ->> 'selfApproval')::boolean, x."self_approval"),
+      "expires_in" = case when save_approval_policy.policy ? 'expiresIn' then (save_approval_policy.policy ->> 'expiresIn')::interval else x."expires_in" end,
+      "enabled" = coalesce((save_approval_policy.policy ->> 'enabled')::boolean, x."enabled"),
+      "updated_at" = now()
+    where x."id" = v_old."id"
+    returning * into v_row;
+  end if;
+  perform "better_supabase".emit_event('approval_policy.saved', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'subjectType', v_row."subject_type", 'action', v_row."action"), 'approval-policies/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/approvals');
+  perform better_supabase.audit_event(
+    event_type => 'approval_policy.saved',
+    category => 'configuration',
+    target_type => 'approval_policy',
+    record_id => v_row."id"::text,
+    summary => 'saved approval policy ' || v_row."name",
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'subjectType', v_row."subject_type", 'action', v_row."action")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'action', v_row."action", 'name', v_row."name", 'conditions', v_row."conditions", 'mode', v_row."mode", 'steps', v_row."steps", 'selfApproval', v_row."self_approval", 'expiresIn', v_row."expires_in"::text, 'enabled', v_row."enabled", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+exception
+  when invalid_text_representation or invalid_datetime_format or not_null_violation or check_violation then
+    raise exception 'policy has an invalid name, mode, expiry or flag' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
+end;
+$$;
+revoke execute on function "better_supabase"."save_approval_policy"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_approval_policy"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_approval_policy"(policy_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."approval_policies"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."approval_policies" x where x."id" = remove_approval_policy.policy_id;
+  if not found then
+    return false;
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'approvals.manage'), false)) then
+    raise exception 'managing approval policies needs approvals.manage' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."approval_policies" x where x."id" = v_row."id";
+  perform "better_supabase".emit_event('approval_policy.removed', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'subjectType', v_row."subject_type", 'action', v_row."action"), 'approval-policies/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/approvals');
+  perform better_supabase.audit_event(
+    event_type => 'approval_policy.removed',
+    category => 'configuration',
+    target_type => 'approval_policy',
+    record_id => v_row."id"::text,
+    summary => 'removed approval policy ' || v_row."name",
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'subjectType', v_row."subject_type", 'action', v_row."action")
+  );
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_approval_policy"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_approval_policy"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_approval_policies"(tenant uuid, subject_type text default null, page_size integer default 100)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_approval_policies.tenant, 'approvals.read'), false)) then
+    raise exception 'reading approval policies needs approvals.read' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'action', x."action", 'name', x."name", 'conditions', x."conditions", 'mode', x."mode", 'steps', x."steps", 'selfApproval', x."self_approval", 'expiresIn', x."expires_in"::text, 'enabled', x."enabled", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."subject_type", x."action", x."created_at", x."id")
+    from (
+      select * from "better_supabase"."approval_policies" y
+      where y."tenant_id" = list_approval_policies.tenant
+        and (list_approval_policies.subject_type is null or y."subject_type" = list_approval_policies.subject_type)
+      order by y."subject_type", y."action", y."created_at", y."id"
+      limit least(greatest(coalesce(list_approval_policies.page_size, 100), 1), 500)
+    ) x
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_approval_policies"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_approval_policies"(uuid, text, integer) to authenticated, service_role;
+
+-- The policy a request snapshots: the options.policies floor, tightened by
+-- every enabled tenant policy whose conditions match the request payload.
+-- Steps add up, the stricter mode wins, self-approval needs every policy to
+-- allow it and the shortest expiry applies.
+create or replace function "better_supabase"."approval_effective_policy"(tenant uuid, subject_type text, action text, subject jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_floor jsonb := "better_supabase"."approval_policy"(approval_effective_policy.subject_type, approval_effective_policy.action);
+  v_row "better_supabase"."approval_policies"%rowtype;
+  v_steps jsonb;
+  v_level integer;
+  v_self boolean;
+  v_expires interval;
+  v_ids jsonb := '[]'::jsonb;
+  v_fields jsonb;
+begin
+  if v_floor is null then
+    return null;
+  end if;
+  v_steps := coalesce(v_floor -> 'steps', '[]'::jsonb);
+  v_level := case when coalesce(v_floor ->> 'mode', 'authorize') = 'authorize' and jsonb_array_length(v_steps) > 0 then 2 when coalesce(v_floor ->> 'mode', 'authorize') = 'confirm' then 1 else 0 end;
+  v_self := coalesce((v_floor ->> 'selfApproval')::boolean, false);
+  v_expires := (v_floor ->> 'expiresIn')::interval;
+  for v_row in
+    select * from "better_supabase"."approval_policies" x
+    where x."tenant_id" = approval_effective_policy.tenant and x."subject_type" = approval_effective_policy.subject_type
+      and x."action" = approval_effective_policy.action and x."enabled"
+    order by x."created_at", x."id"
+  loop
+    if v_row."conditions" is not null then
+      if v_fields is null then
+        v_fields := "better_supabase"."rule_field_map"(approval_effective_policy.subject_type);
+      end if;
+      if not "better_supabase"."rule_matches"(v_row."conditions", coalesce(approval_effective_policy.subject, '{}'::jsonb), v_fields, 'UTC', now()) then
+        continue;
+      end if;
+    end if;
+    v_steps := v_steps || v_row."steps";
+    v_level := greatest(v_level, case when v_row."mode"::text = 'authorize' and jsonb_array_length(v_row."steps") > 0 then 2 when v_row."mode"::text = 'confirm' then 1 else 0 end);
+    v_self := v_self and v_row."self_approval";
+    v_expires := least(v_expires, v_row."expires_in");
+    v_ids := v_ids || to_jsonb(v_row."id");
+  end loop;
+  return jsonb_build_object(
+    'steps', v_steps, 'selfApproval', v_self, 'expiresIn', v_expires::text, 'run', v_floor -> 'run',
+    'mode', case when v_level = 1 then 'confirm' else 'authorize' end, 'policies', v_ids
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."approval_effective_policy"(uuid, text, text, jsonb) from public, anon, authenticated;
+
+-- What a request for the subject type and action would need right now, with
+-- subject as the request payload the tenant policies' conditions read; null
+-- when nothing is required.
+create or replace function "better_supabase"."approval_requirement"(tenant uuid, subject_type text, action text, subject jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_policy jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', approval_requirement.tenant, 'approvals.request'), false)) then
+    raise exception 'checking an approval requirement needs approvals.request' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  v_policy := "better_supabase"."approval_effective_policy"(approval_requirement.tenant, approval_requirement.subject_type, approval_requirement.action, approval_requirement.subject);
+  if v_policy is null or not (coalesce(v_policy ->> 'mode', 'authorize') = 'confirm' or jsonb_array_length(coalesce(v_policy -> 'steps', '[]'::jsonb)) > 0) then
+    return null;
+  end if;
+  return v_policy || jsonb_build_object('mode', coalesce(v_policy ->> 'mode', 'authorize'));
+end;
+$$;
+revoke execute on function "better_supabase"."approval_requirement"(uuid, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."approval_requirement"(uuid, text, text, jsonb) to authenticated, service_role;
+
+drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb);
 drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb);
-create or replace function "better_supabase"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
+drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text);
+-- fingerprint: the hex SHA-256 of the request's canonical form, which
+-- consume_approval checks before the approved action runs.
+create or replace function "better_supabase"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb, fingerprint text default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_policy jsonb := "better_supabase"."approval_policy"(request_approval.subject_type, request_approval.action);
+  v_policy jsonb := "better_supabase"."approval_effective_policy"(request_approval.tenant, request_approval.subject_type, request_approval.action, coalesce(request_approval.payload, '{}'::jsonb));
+  v_result jsonb;
+  v_req "better_supabase"."approval_requests"%rowtype;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if v_policy is null then
     raise exception 'no approval policy for this subject type and action' using errcode = '22023', hint = 'APPROVAL_POLICY_UNKNOWN';
   end if;
@@ -481,11 +806,76 @@ begin
   end end))) then
     raise exception 'not allowed to request approval for this record' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
   end if;
-  return "better_supabase"."open_approval"(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload);
+  if not (coalesce(v_policy ->> 'mode', 'authorize') = 'confirm' or jsonb_array_length(coalesce(v_policy -> 'steps', '[]'::jsonb)) > 0) then
+    raise exception 'no approval is required for this request' using errcode = '22023', hint = 'APPROVAL_NOT_REQUIRED';
+  end if;
+  if request_approval.fingerprint is not null and request_approval.fingerprint !~ '^[0-9a-f]{64}$' then
+    raise exception 'fingerprint must be a lowercase hex SHA-256' using errcode = '22023', hint = 'APPROVAL_FINGERPRINT_INVALID';
+  end if;
+  v_result := "better_supabase"."open_approval"(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload);
+  if request_approval.fingerprint is not null then
+    update "better_supabase"."approval_requests" x set "fingerprint" = request_approval.fingerprint
+    where x."id" = (v_result ->> 'id')::uuid and x."status" = 'pending';
+  end if;
+  select * into v_req from "better_supabase"."approval_requests" x where x."id" = (v_result ->> 'id')::uuid;
+  if found then
+    return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
+  end if;
+  return v_result;
 end;
 $$;
-revoke execute on function "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, text) to authenticated, service_role;
+
+-- Uses an approved request once, right before the approved action runs. The
+-- fingerprint must match the one the request was filed with, so an approval
+-- never covers a request that changed after it was decided.
+create or replace function "better_supabase"."consume_approval"(request_id uuid, fingerprint text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_req from "better_supabase"."approval_requests" r where r."id" = consume_approval.request_id for update;
+  if not found then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_req."requested_by" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_req."tenant_id", 'approvals.manage'), false)) then
+    raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
+  end if;
+  if v_req."consumed_at" is not null then
+    raise exception 'this approval was already used' using errcode = '22023', hint = 'APPROVAL_CONSUMED';
+  end if;
+  if v_req."status" <> 'approved' then
+    raise exception 'this request is not approved' using errcode = '22023', hint = 'APPROVAL_NOT_APPROVED';
+  end if;
+  if v_req."fingerprint" is distinct from consume_approval.fingerprint then
+    raise exception 'the request changed after it was approved; ask for approval again' using errcode = '22023', hint = 'APPROVAL_FINGERPRINT_MISMATCH';
+  end if;
+  update "better_supabase"."approval_requests" r set "consumed_at" = now()
+    where r."id" = v_req."id" returning * into v_req;
+  perform "better_supabase".emit_event('approval.consumed', jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step"), 'approval-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/approvals');
+  perform better_supabase.audit_event(
+    event_type => 'approval.consumed',
+    category => 'data',
+    target_type => 'approval_request',
+    record_id => v_req."id"::text,
+    summary => 'consumed' || ' ' || v_req."action" || ' on ' || v_req."subject_type" || ' ' || v_req."subject_id",
+    tenant => (v_req."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step")
+  );
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."consume_approval"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."consume_approval"(uuid, text) to authenticated, service_role;
 
 -- Approves or rejects the current step. Enough approvals move the request
 -- to the next step, and the last step runs the policy's action.
@@ -549,7 +939,11 @@ begin
   else
     select count(*) into v_count from "better_supabase"."approval_decisions" x
       where x."request_id" = v_req."id" and x."step" = v_req."step" and x."decision" = 'approved';
-    if v_count >= coalesce((v_req."policy" -> 'steps' -> v_req."step" ->> 'required')::integer, 1) then
+    if v_req."policy" ->> 'mode' = 'confirm' and v_req."requested_by" = auth.uid() then
+      update "better_supabase"."approval_requests" r set "status" = 'approved', "decided_at" = now()
+        where r."id" = v_req."id" returning * into v_req;
+      perform "better_supabase"."approval_finalize"(v_req."id");
+    elsif v_count >= coalesce((v_req."policy" -> 'steps' -> v_req."step" ->> 'required')::integer, 1) then
       if v_req."step" + 1 >= jsonb_array_length(v_req."policy" -> 'steps') then
         update "better_supabase"."approval_requests" r set "status" = 'approved', "decided_at" = now()
           where r."id" = v_req."id" returning * into v_req;
@@ -569,7 +963,7 @@ begin
         using v_req."id", v_req."status";
     end if;
   end;
-  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at");
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."decide_approval"(uuid, text, text) from public, anon;
@@ -624,7 +1018,7 @@ begin
     metadata => jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step")
   );
   perform "better_supabase"."approval_notify"(v_req."id", 'delegated');
-  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at");
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."delegate_approval"(uuid, uuid, text) from public, anon;
@@ -664,7 +1058,7 @@ begin
     tenant => (v_req."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step")
   );
-  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at");
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."cancel_approval"(uuid) from public, anon;
@@ -729,7 +1123,7 @@ begin
   end end))))) then
     raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'createdAt', v_req."created_at") || jsonb_build_object(
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at") || jsonb_build_object(
     'canDecide', "better_supabase"."approval_eligible"(v_req."id"),
     'decisions', coalesce((
       select jsonb_agg(jsonb_build_object('id', x."id", 'step', x."step", 'approver', x."approver", 'decision', x."decision", 'delegateTo', x."delegate_to", 'comment', x."comment", 'createdAt', x."created_at") order by x."created_at", x."id")
@@ -755,7 +1149,7 @@ declare
 begin
   select coalesce(jsonb_agg(t.j order by t.at desc, t.id), '[]'::jsonb) into v_rows
   from (
-    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'action', x."action", 'status', x."status", 'step', x."step", 'steps', x."policy" -> 'steps', 'requestedBy', x."requested_by", 'reason', x."reason", 'payload', x."payload", 'expiresAt', x."expires_at", 'decidedAt', x."decided_at", 'createdAt', x."created_at") as j, x."created_at" as at, x."id" as id
+    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'action', x."action", 'status', x."status", 'step', x."step", 'steps', x."policy" -> 'steps', 'requestedBy', x."requested_by", 'reason', x."reason", 'payload', x."payload", 'expiresAt', x."expires_at", 'decidedAt', x."decided_at", 'mode', coalesce(x."policy" ->> 'mode', 'authorize'), 'fingerprint', x."fingerprint", 'consumedAt', x."consumed_at", 'createdAt', x."created_at") as j, x."created_at" as at, x."id" as id
     from "better_supabase"."approval_requests" x
     where x."tenant_id" = list_approvals.tenant
       and (list_approvals.status is null or x."status" = list_approvals.status)
@@ -985,12 +1379,35 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_dec
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_decisions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."approval_policies";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_policies";
+create policy bsb_tenant_scope_select on "better_supabase"."approval_policies" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_policies";
+create policy bsb_tenant_scope_insert on "better_supabase"."approval_policies" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_policies";
+create policy bsb_tenant_scope_update on "better_supabase"."approval_policies" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_policies";
+create policy bsb_tenant_scope_delete on "better_supabase"."approval_policies" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.approvals.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."request_approval"(uuid, text, text, text, text, jsonb);
 drop function if exists "api"."request_approval"(uuid, text, text, text, text, jsonb, jsonb);
+drop function if exists "api"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -1028,14 +1445,59 @@ as $$ select "better_supabase"."approval_eligible"($1) $$;
 revoke execute on function "api"."approval_eligible"(uuid) from public, anon;
 grant execute on function "api"."approval_eligible"(uuid) to authenticated, service_role;
 
-create or replace function "api"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb)
+create or replace function "api"."save_approval_policy"(tenant uuid, policy jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."request_approval"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."request_approval"(uuid, text, text, text, text, jsonb) from public, anon;
-grant execute on function "api"."request_approval"(uuid, text, text, text, text, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."save_approval_policy"($1, $2) $$;
+revoke execute on function "api"."save_approval_policy"(uuid, jsonb) from public, anon;
+grant execute on function "api"."save_approval_policy"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."remove_approval_policy"(policy_id uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."remove_approval_policy"($1) $$;
+revoke execute on function "api"."remove_approval_policy"(uuid) from public, anon;
+grant execute on function "api"."remove_approval_policy"(uuid) to authenticated, service_role;
+
+create or replace function "api"."list_approval_policies"(tenant uuid, subject_type text default null, page_size integer default 100)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_approval_policies"($1, $2, $3) $$;
+revoke execute on function "api"."list_approval_policies"(uuid, text, integer) from public, anon;
+grant execute on function "api"."list_approval_policies"(uuid, text, integer) to authenticated, service_role;
+
+create or replace function "api"."approval_requirement"(tenant uuid, subject_type text, action text, subject jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."approval_requirement"($1, $2, $3, $4) $$;
+revoke execute on function "api"."approval_requirement"(uuid, text, text, jsonb) from public, anon;
+grant execute on function "api"."approval_requirement"(uuid, text, text, jsonb) to authenticated, service_role;
+
+create or replace function "api"."request_approval"(tenant uuid, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb, fingerprint text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."request_approval"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."request_approval"(uuid, text, text, text, text, jsonb, text) from public, anon;
+grant execute on function "api"."request_approval"(uuid, text, text, text, text, jsonb, text) to authenticated, service_role;
+
+create or replace function "api"."consume_approval"(request_id uuid, fingerprint text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."consume_approval"($1, $2) $$;
+revoke execute on function "api"."consume_approval"(uuid, text) from public, anon;
+grant execute on function "api"."consume_approval"(uuid, text) to authenticated, service_role;
 
 create or replace function "api"."decide_approval"(request_id uuid, decision text, comment text default null)
 returns jsonb

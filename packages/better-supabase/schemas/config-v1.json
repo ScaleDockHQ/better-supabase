@@ -3670,6 +3670,10 @@
             "additionalProperties": false,
             "properties": {
               "policies": {},
+              "tenantPolicies": {
+                "type": "boolean",
+                "default": false
+              },
               "extraColumns": {
                 "type": "object",
                 "additionalProperties": {

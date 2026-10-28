@@ -63,6 +63,7 @@ function fakeApprovals(steps: number) {
         subject,
         action: input.action,
         status: "pending",
+        mode: "authorize",
         step: 0,
         steps: [],
         requestedBy: caller,

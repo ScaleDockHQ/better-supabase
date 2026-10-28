@@ -15,9 +15,11 @@ const schemaFile = (name: string, api: NonNullable<BlockConfig["api"]>) =>
     (file) => file.module === name && file.kind === "schema",
   )!.contents;
 
-// list_roles and set_permission_override exist only under the catalog model.
+// list_roles and set_permission_override exist only under the catalog model,
+// and the approval policy functions only with tenant policies.
 const MODULE_OPTIONS: Readonly<Record<string, Record<string, unknown>>> = {
   permissions: { model: "catalog" },
+  approvals: { options: { tenantPolicies: true } },
 };
 
 /** The schema file, with `billing` for a module that needs its customer column. */

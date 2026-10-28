@@ -25,7 +25,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "api-keys":
     "create_api_key list_api_keys revoke_api_key rotate_api_key verify_api_key",
   approvals:
-    "cancel_approval decide_approval delegate_approval get_approval is_approved list_approvals request_approval",
+    "approval_requirement cancel_approval consume_approval decide_approval delegate_approval get_approval is_approved list_approval_policies list_approvals remove_approval_policy request_approval save_approval_policy",
   assets:
     "archive_asset_location asset_assignment_history asset_locations_at assets_near assign_asset create_asset create_asset_location get_asset get_asset_location list_asset_locations list_assets release_asset set_asset_link update_asset update_asset_location",
   assignment:

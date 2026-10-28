@@ -15,7 +15,6 @@ import {
   SERVICE_CALLER,
   serviceGrant,
   userGrant,
-  writeExtraColumns,
 } from "../shared.ts";
 import {
   subjectCascades,
@@ -30,8 +29,16 @@ import {
 import {
   approvalPolicies,
   policyCase,
+  validateApprovers,
   validateRuns,
 } from "./approvals-policies.ts";
+import {
+  approvalsTenantContract,
+  approvalsTenantSql,
+  managerMatch,
+  managerOf,
+  tenantPoliciesOn,
+} from "./approvals-tenant.ts";
 import { approverCheck } from "./approver.ts";
 import { driveSubjectGuard } from "./drive-kit.ts";
 import { providerMembers } from "./memberships.ts";
@@ -149,6 +156,13 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const manage = ctx.permission("manage", OPERATIONS["approvals.manage"]);
   const policies = approvalPolicies(ctx);
   validateRuns(ctx, policies);
+  validateApprovers(ctx, policies, tenantPoliciesOn(ctx));
+
+  if (tenantPoliciesOn(ctx) && !has("policy")) {
+    throw new TypeError(
+      "blocks.approvals.options.tenantPolicies needs a policy column on the approval requests table",
+    );
+  }
 
   const provider = approverCheck(ctx, layout, {
     kind: { sql: `v_req.${c("subjectType")} || '.' || v_req.${c("action")}` },
@@ -216,9 +230,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const extras = ctx.extraColumns("requests", REQUEST_KEYS);
 
   const json = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'action', ${row}.${c("action")}, 'status', ${row}.${c("status")}, 'step', ${stepOf(row)}, 'steps', ${policyOf(row)} -> 'steps', 'requestedBy', ${row}.${c("requestedBy")}, 'reason', ${or("requests", row, "reason")}, 'payload', ${or("requests", row, "payload")}, 'expiresAt', ${or("requests", row, "expiresAt")}, 'decidedAt', ${or("requests", row, "decidedAt")}, 'createdAt', ${row}.${c("createdAt")}${extraFieldsJson(row, extras)})`;
-
-  const requestArgs = `${ctx.idType}, text, text, text, text, jsonb`;
+    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'action', ${row}.${c("action")}, 'status', ${row}.${c("status")}, 'step', ${stepOf(row)}, 'steps', ${policyOf(row)} -> 'steps', 'requestedBy', ${row}.${c("requestedBy")}, 'reason', ${or("requests", row, "reason")}, 'payload', ${or("requests", row, "payload")}, 'expiresAt', ${or("requests", row, "expiresAt")}, 'decidedAt', ${or("requests", row, "decidedAt")}, 'mode', coalesce(${policyOf(row)} ->> 'mode', 'authorize'), 'fingerprint', ${or("requests", row, "fingerprint")}, 'consumedAt', ${or("requests", row, "consumedAt")}, 'createdAt', ${row}.${c("createdAt")}${extraFieldsJson(row, extras)})`;
 
   const record = (event: string, row: string, audit: boolean): string =>
     ctx.record({
@@ -277,6 +289,19 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       union
       select tm.${teams.col("members", "user")} from ${teams.table("members")} tm
       where tm.${teams.col("members", "team")}::text = v_approvers ->> 'team'`;
+
+  const manager = managerOf(
+    ctx,
+    `v_req.${c("requestedBy")}`,
+    `v_req.${c("tenant")}`,
+  );
+
+  const managerMember =
+    manager === undefined
+      ? ""
+      : `
+      union
+      select ${manager} where coalesce((v_approvers ->> 'manager')::boolean, false)`;
 
   const notFound = fail(
     "APPROVAL_NOT_FOUND",
@@ -387,7 +412,7 @@ ${indent}end if;`;
       select x::uuid from jsonb_array_elements_text(coalesce(v_approvers -> 'users', '[]'::jsonb)) x
       union
       select m.${mu} from ${members.table("memberships")} m
-      where m.${mt} = v_req.${c("tenant")} and m.${mr} = ${approverRole}${teamMembers}${
+      where m.${mt} = v_req.${c("tenant")} and m.${mr} = ${approverRole}${teamMembers}${managerMember}${
         delegation
           ? `
       union
@@ -454,9 +479,9 @@ ${indent}end if;`;
   ${c("subjectId")} text not null,
   ${c("action")} text not null,${column("requests", "policy", (name) => `${name} jsonb not null`)}${column("requests", "step", (name) => `${name} integer not null default 0 check (${name} >= 0)`)}
   ${c("status")} text not null default 'pending' check (${c("status")} in ('pending', 'approved', 'rejected', 'cancelled', 'expired')),
-  ${c("requestedBy")} uuid,${column("requests", "reason", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}${column("requests", "payload", (name) => `${name} jsonb not null default '{}'::jsonb`)}${column("requests", "expiresAt", (name) => `${name} timestamptz`)}${column("requests", "remindedAt", (name) => `${name} timestamptz`)}${column("requests", "decidedAt", (name) => `${name} timestamptz`)}
+  ${c("requestedBy")} uuid,${column("requests", "reason", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}${column("requests", "payload", (name) => `${name} jsonb not null default '{}'::jsonb`)}${column("requests", "expiresAt", (name) => `${name} timestamptz`)}${column("requests", "remindedAt", (name) => `${name} timestamptz`)}${column("requests", "decidedAt", (name) => `${name} timestamptz`)}${column("requests", "fingerprint", (name) => `${name} text check (${name} is null or ${name} ~ '^[0-9a-f]{64}$')`)}${column("requests", "consumedAt", (name) => `${name} timestamptz`)}
   ${c("createdAt")} timestamptz not null default now()
-);
+);${has("fingerprint") ? `\nalter table ${requests} add column if not exists ${c("fingerprint")} text check (${c("fingerprint")} is null or ${c("fingerprint")} ~ '^[0-9a-f]{64}$');` : ""}${has("consumedAt") ? `\nalter table ${requests} add column if not exists ${c("consumedAt")} timestamptz;` : ""}
 create unique index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_pending_idx`)} on ${requests} (${c("subjectType")}, ${c("subjectId")}, ${c("action")}) where ${c("status")} = 'pending';
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_idx`)} on ${requests} (${c("tenant")}, ${c("status")}, ${c("createdAt")} desc);${addExtraColumns(requests, extras)}
 ${lockModuleTable(ctx, "requests", { read: true })}
@@ -515,14 +540,19 @@ begin
   if not found or v_me is null or v_req.${c("status")} <> 'pending' then
     return false;
   end if;
-  if v_me = v_req.${c("requestedBy")} and not coalesce((${policyOf("v_req")} ->> 'selfApproval')::boolean, false) then
-    return false;
-  end if;
   if exists (
     select 1 from ${decisions} x
     where x.${d("request")} = v_req.${c("id")} and x.${d("step")} = ${stepOf("v_req")} and x.${d("approver")} = v_me
   ) then
     return false;
+  end if;
+  if v_me = v_req.${c("requestedBy")} then
+    if ${policyOf("v_req")} ->> 'mode' = 'confirm' then
+      return true;
+    end if;
+    if not coalesce((${policyOf("v_req")} ->> 'selfApproval')::boolean, false) then
+      return false;
+    end if;
   end if;${linkedEligible}
   v_approvers := ${policyOf("v_req")} -> 'steps' -> ${stepOf("v_req")} -> 'approvers';
   return (coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
@@ -532,6 +562,11 @@ begin
       where m.${mt} = v_req.${c("tenant")} and m.${mu} = v_me and m.${mr} = ${approverRole}
     ))
     or (v_approvers ->> 'team' is not null and ${teamMatch("v_me")})${
+      manager === undefined
+        ? ""
+        : `
+    or (coalesce((v_approvers ->> 'manager')::boolean, false) and ${managerMatch(ctx, { requester: `v_req.${c("requestedBy")}`, tenant: `v_req.${c("tenant")}`, user: "v_me" })})`
+    }${
       delegation
         ? `
     or exists (
@@ -669,34 +704,21 @@ $$;
 revoke execute on function ${fn("approval_settle")}(text, text, text, text, uuid, text) from public, anon, authenticated;
 `
 }
-${extraFieldsArg(extras).drop(fn("request_approval"), requestArgs)}
-create or replace function ${fn("request_approval")}(tenant ${ctx.idType}, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb${extraFieldsArg(extras).param})
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_policy jsonb := ${fn("approval_policy")}(request_approval.subject_type, request_approval.action);${extras.length === 0 ? "" : `\n  v_result jsonb;\n  v_req ${requests}%rowtype;`}
-begin
-  if v_policy is null then
-    ${fail("APPROVAL_POLICY_UNKNOWN", "no approval policy for this subject type and action", "22023")}
-  end if;
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "request_approval.tenant", request)} and ${subjectAccess({ type: "request_approval.subject_type", id: "request_approval.subject_id", tenant: "request_approval.tenant" }, "write")})) then
-    ${fail("APPROVAL_FORBIDDEN", "not allowed to request approval for this record")}
-  end if;
-  ${extras.length === 0 ? "return " : "v_result := "}${fn("open_approval")}(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload);${
-    extras.length === 0
-      ? ""
-      : `${writeExtraColumns(requests, extras, "request_approval.fields", `x.${c("id")} = (v_result ->> 'id')::uuid`, "v_req")}
-  if v_req.${c("id")} is not null then
-    return ${json("v_req")};
-  end if;
-  return v_result;`
-  }
-end;
-$$;
-${userGrant(`${fn("request_approval")}(${requestArgs}${extraFieldsArg(extras).type})`)}
+${approvalsTenantSql(ctx, {
+  json,
+  record,
+  notFound,
+  subjectWrite: subjectAccess(
+    {
+      type: "request_approval.subject_type",
+      id: "request_approval.subject_id",
+      tenant: "request_approval.tenant",
+    },
+    "write",
+  ),
+  permissions: { read, request, manage },
+  extras,
+})}
 
 -- Approves or rejects the current step. Enough approvals move the request
 -- to the next step, and the last step runs the policy's action.
@@ -745,7 +767,11 @@ begin
   else
     select count(*) into v_count from ${decisions} x
       where x.${d("request")} = v_req.${c("id")} and x.${d("step")} = ${stepOf("v_req")} and x.${d("decision")} = 'approved';
-    if v_count >= coalesce((${policyOf("v_req")} -> 'steps' -> ${stepOf("v_req")} ->> 'required')::integer, 1) then
+    if ${policyOf("v_req")} ->> 'mode' = 'confirm' and v_req.${c("requestedBy")} = auth.uid() then
+      update ${requests} r set ${c("status")} = 'approved'${decided}
+        where r.${c("id")} = v_req.${c("id")} returning * into v_req;
+      perform ${fn("approval_finalize")}(v_req.${c("id")});
+    elsif v_count >= coalesce((${policyOf("v_req")} -> 'steps' -> ${stepOf("v_req")} ->> 'required')::integer, 1) then
       if ${stepOf("v_req")} + 1 >= jsonb_array_length(${policyOf("v_req")} -> 'steps') then
         update ${requests} r set ${c("status")} = 'approved'${decided}
           where r.${c("id")} = v_req.${c("id")} returning * into v_req;
@@ -1000,9 +1026,12 @@ ${subjectCascades(ctx, subjects, `delete from ${requests} r where r.${c("subject
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
-  return approvalsContract(
-    extraFieldsArg(ctx.extraColumns("requests", REQUEST_KEYS)).contract,
-  );
+  return [
+    ...approvalsContract(
+      extraFieldsArg(ctx.extraColumns("requests", REQUEST_KEYS)).contract,
+    ),
+    ...approvalsTenantContract(ctx),
+  ];
 }
 
 const CONTRIBUTES: BlockContributes = {
@@ -1028,7 +1057,7 @@ export const APPROVALS: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Approvals",
   description:
-    "Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.",
+    "Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.",
   requires: ["memberships", "permissions"],
   integrates: [
     "outbox",
@@ -1038,6 +1067,8 @@ export const APPROVALS: BlockSqlDefinition = {
     "drive",
     "teams",
     "state-machine",
+    "employees",
+    "automations",
   ],
   target: "schema",
   modes: ["managed", "custom"],
