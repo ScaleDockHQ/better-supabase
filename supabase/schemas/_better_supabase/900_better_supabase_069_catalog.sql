@@ -1,6 +1,6 @@
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:d4113e4529659afbb8d67f64b637a9d9ccb17afb4cb2aa3b09f032c64dad3b55
+-- @bsb-hash sha256:542264ac018284f11ebdf42f36b758378c72502a6dca90f9218262fc38337af9
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -521,7 +521,8 @@ create policy product_media_read on "better_supabase"."product_media"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
--- Creates a product (product null) or updates one. Returns its id, slug and status.
+-- Creates a product (product null) or updates one. Returns its id, slug and
+-- status.
 drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, jsonb);
 create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text)
 returns jsonb
@@ -664,6 +665,8 @@ grant execute on function "better_supabase"."delete_product"(uuid) to authentica
 
 -- Creates a variant (variant null) or updates one. option_values holds one
 -- option value id per product option; no two variants share a combination.
+-- fields: the extra columns (options.variantExtraColumns) to set.
+drop function if exists "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, jsonb);
 create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean)
 returns jsonb
 language plpgsql
@@ -1143,7 +1146,9 @@ revoke execute on function "better_supabase"."variant_price"(uuid, text, uuid, t
 grant execute on function "better_supabase"."variant_price"(uuid, text, uuid, timestamptz) to anon, authenticated, service_role;
 
 -- Creates a category (category null) or updates one, under parent (null
--- for the top level). A new category goes after its siblings.
+-- for the top level). A new category goes after its siblings. fields: the
+-- extra columns (options.categoryExtraColumns) to set.
+drop function if exists "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text, jsonb);
 create or replace function "better_supabase"."save_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
 returns jsonb
 language plpgsql
@@ -2421,6 +2426,8 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."save_product"(uuid, uuid, text, text, text, text, jsonb);
+drop function if exists "api"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, jsonb);
+drop function if exists "api"."save_category"(uuid, uuid, uuid, text, text, text, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean

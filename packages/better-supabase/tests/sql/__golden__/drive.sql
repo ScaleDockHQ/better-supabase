@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:13bc5c9e1f5be4f09d5ac46b128110bf482d7c4f798fa34c25840bcc2f9c2174
+-- @bsb-hash sha256:65d994e71d296b63a6b01159925fd9416b32934579fe5bc32c4265b280eede24
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -149,8 +149,8 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_subtree"(uuid) from public, anon, authenticated;
 
--- Whether the node or anything under it is under a legal hold, which purge
--- has to respect.
+-- Whether the node, a folder above it or anything under it is under a legal
+-- hold, which purge has to respect.
 create or replace function "better_supabase"."drive_node_held"(node uuid)
 returns boolean
 language sql
@@ -160,7 +160,8 @@ set search_path = ''
 as $$
   select exists (
     select 1 from "better_supabase"."drive_nodes" h
-    where h."id" in (select s.node_id from "better_supabase"."drive_subtree"(drive_node_held.node) s)
+    where (h."id" in (select s.node_id from "better_supabase"."drive_subtree"(drive_node_held.node) s)
+        or h."id" = any ("better_supabase"."drive_ancestors"(drive_node_held.node)))
       and h."legal_hold_until" is not null and h."legal_hold_until" > now()
   )
 $$;
@@ -1106,7 +1107,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:a3654de64d43bc963766a7db6cb10bc21317bc379ed15ccfe8882ebf931a93a8
+-- @bsb-hash sha256:3c76e50aa0bf9c0c07d8201413081ec723d4e8927d5b5652dfe343b3a1443b26
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1254,8 +1255,8 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_subtree"(uuid) from public, anon, authenticated;
 
--- Whether the node or anything under it is under a legal hold, which purge
--- has to respect.
+-- Whether the node, a folder above it or anything under it is under a legal
+-- hold, which purge has to respect.
 create or replace function "better_supabase"."drive_node_held"(node uuid)
 returns boolean
 language sql
@@ -1265,7 +1266,8 @@ set search_path = ''
 as $$
   select exists (
     select 1 from "better_supabase"."drive_nodes" h
-    where h."id" in (select s.node_id from "better_supabase"."drive_subtree"(drive_node_held.node) s)
+    where (h."id" in (select s.node_id from "better_supabase"."drive_subtree"(drive_node_held.node) s)
+        or h."id" = any ("better_supabase"."drive_ancestors"(drive_node_held.node)))
       and h."legal_hold_until" is not null and h."legal_hold_until" > now()
   )
 $$;
@@ -2281,7 +2283,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:6d99ece4845fa8d4e4db52aab92f1562c23a96e248394ddc461bb87b20ecd468
+-- @bsb-hash sha256:a4fa77c5f8d2d70434ff26afcf88dcf58d16461f87c095339fc7e0e5e92748c3
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2434,8 +2436,8 @@ as $$
 $$;
 revoke execute on function "app_private"."drive_subtree"(uuid) from public, anon, authenticated;
 
--- Whether the node or anything under it is under a legal hold, which purge
--- has to respect.
+-- Whether the node, a folder above it or anything under it is under a legal
+-- hold, which purge has to respect.
 create or replace function "app_private"."drive_node_held"(node uuid)
 returns boolean
 language sql
@@ -2445,7 +2447,8 @@ set search_path = ''
 as $$
   select exists (
     select 1 from "app_private"."drive_nodes" h
-    where h."id" in (select s.node_id from "app_private"."drive_subtree"(drive_node_held.node) s)
+    where (h."id" in (select s.node_id from "app_private"."drive_subtree"(drive_node_held.node) s)
+        or h."id" = any ("app_private"."drive_ancestors"(drive_node_held.node)))
       and h."legal_hold_until" is not null and h."legal_hold_until" > now()
   )
 $$;
@@ -3391,7 +3394,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:9116e52c6c1db13f53f53db63654f0bdb2a1e6c8e5bda27d282edea01289f16b
+-- @bsb-hash sha256:c092ad47fd589a682fc94c80fa102504bf6eae0927e83fbc3bfce0c09372e585
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3539,8 +3542,8 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_subtree"(uuid) from public, anon, authenticated;
 
--- Whether the node or anything under it is under a legal hold, which purge
--- has to respect.
+-- Whether the node, a folder above it or anything under it is under a legal
+-- hold, which purge has to respect.
 create or replace function "better_supabase"."drive_node_held"(node uuid)
 returns boolean
 language sql
@@ -3550,7 +3553,8 @@ set search_path = ''
 as $$
   select exists (
     select 1 from "better_supabase"."drive_nodes" h
-    where h."id" in (select s.node_id from "better_supabase"."drive_subtree"(drive_node_held.node) s)
+    where (h."id" in (select s.node_id from "better_supabase"."drive_subtree"(drive_node_held.node) s)
+        or h."id" = any ("better_supabase"."drive_ancestors"(drive_node_held.node)))
       and h."legal_hold_until" is not null and h."legal_hold_until" > now()
   )
 $$;
@@ -4680,7 +4684,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:a0cff59b25dd83309e916d6ffae683b3faa2e51fe7581c0344b22c4dc9b1aaf7
+-- @bsb-hash sha256:a926ef6b0b595b37f0322c1dae27a19979adc61dc02b049997dcf37b21827025
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4770,8 +4774,8 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_subtree"(uuid) from public, anon, authenticated;
 
--- Whether the node or anything under it is under a legal hold, which purge
--- has to respect.
+-- Whether the node, a folder above it or anything under it is under a legal
+-- hold, which purge has to respect.
 create or replace function "better_supabase"."drive_node_held"(node uuid)
 returns boolean
 language sql
@@ -4781,7 +4785,8 @@ set search_path = ''
 as $$
   select exists (
     select 1 from "better_supabase"."drive_nodes" h
-    where h."id" in (select s.node_id from "better_supabase"."drive_subtree"(drive_node_held.node) s)
+    where (h."id" in (select s.node_id from "better_supabase"."drive_subtree"(drive_node_held.node) s)
+        or h."id" = any ("better_supabase"."drive_ancestors"(drive_node_held.node)))
       and h."legal_hold_until" is not null and h."legal_hold_until" > now()
   )
 $$;
@@ -5732,7 +5737,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:a18d08ceedf90c5cb252e78dec3f6a1a1f03fa4b2158bb2e8d94035adb5cc581
+-- @bsb-hash sha256:68374a97b90ee7909ccb44b2bfd6acc6e438ae023acf981598b51557d2543427
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5880,8 +5885,8 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_subtree"(uuid) from public, anon, authenticated;
 
--- Whether the node or anything under it is under a legal hold, which purge
--- has to respect.
+-- Whether the node, a folder above it or anything under it is under a legal
+-- hold, which purge has to respect.
 create or replace function "better_supabase"."drive_node_held"(node uuid)
 returns boolean
 language sql
@@ -5891,7 +5896,8 @@ set search_path = ''
 as $$
   select exists (
     select 1 from "better_supabase"."drive_nodes" h
-    where h."id" in (select s.node_id from "better_supabase"."drive_subtree"(drive_node_held.node) s)
+    where (h."id" in (select s.node_id from "better_supabase"."drive_subtree"(drive_node_held.node) s)
+        or h."id" = any ("better_supabase"."drive_ancestors"(drive_node_held.node)))
       and h."legal_hold_until" is not null and h."legal_hold_until" > now()
   )
 $$;

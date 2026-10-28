@@ -78,6 +78,7 @@ const NAMES: BlockSqlNames = {
     "readAll",
     "extraColumns",
     "lineExtraColumns",
+    "lineRates",
   ],
   tables: {
     deals: {

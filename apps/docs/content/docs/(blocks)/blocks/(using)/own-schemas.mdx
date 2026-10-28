@@ -349,8 +349,8 @@ may be your own enum or domain.
   - `better_supabase.lease_agreements`: `id`, `tenant_id`, `unit_id`, `party_type`, `party_id`, `title`, `status`, `starts_on`, `ends_on`, `rent`, `currency`, `frequency`, `deposit`, `deposit_hold_id`, `terminated_on`, `created_by`, `created_at`, `updated_at`; typed: `status`, `frequency`
   - `better_supabase.lease_charges`: `id`, `tenant_id`, `lease_id`, `period_start`, `period_end`, `amount`, `currency`, `transaction_id`
 - `leave`
-  - `better_supabase.leave_types`: `id`, `tenant_id`, `key`, `name`, `unit`, `paid`, `tracked`, `archived_at`, `created_at`, `updated_at`; typed: `unit`
-  - `better_supabase.leave_requests`: `id`, `tenant_id`, `user_id`, `type_id`, `starts_on`, `ends_on`, `partial`, `amount`, `approved_at`, `cancelled_at`, `created_at`, `updated_at`; typed: `partial`
+  - `better_supabase.leave_types`: `id`, `tenant_id`, `name`, `unit`, `paid`, `tracked`, `archived_at`, `created_at`, `updated_at`; typed: `unit`
+  - `better_supabase.leave_requests`: `id`, `tenant_id`, `user_id`, `type_id`, `starts_on`, `ends_on`, `amount`, `approved_at`, `cancelled_at`, `created_at`, `updated_at`; typed: `partial`
 - `ledger`
   - `better_supabase.ledger_accounts`: `id`, `tenant_id`, `kind`, `code`, `name`, `unit`, `scale`, `holder_type`, `holder_id`, `owner_id`, `allow_negative`, `read_permission`, `managed_by`, `metadata`, `closed_at`, `created_at`, `updated_at`; typed: `kind`
   - `better_supabase.ledger_transactions`: `id`, `tenant_id`, `kind`, `reference_type`, `reference_id`, `idempotency_key`, `reverses`, `metadata`, `effective_at`, `actor_id`, `created_at`

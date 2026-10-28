@@ -118,6 +118,16 @@ Every invoice a read returns has `balance` and `overdue` (open and past its due 
 
 `charge(invoiceId, { amount, description? })` adds an amount on top of an issued invoice's total, such as collection costs, statutory interest or a late fee, in the invoice's currency. Charges live in the `invoice_charges` table (`tables.charges`, which can be your own table or `null`), raise the balance and the aging, and come back as `charges` and `chargedTotal` on every read. A paid invoice with a new charge is `partially_paid` again until the charge is paid. Each charge records `invoice.charged`.
 
+Your own charges table can carry columns the block doesn't know, such as a `kind not null` column. List them in `options.chargeExtraColumns` (`{ kind: "text not null" }`) and pass them as `charge(invoiceId, { amount, fields: { kind: "collection" } })`; reads return them under each charge's `fields`.
+
+### Line rates as percentages
+
+Lines carry `discountBps` and `taxRateBps` in basis points (2100 is 21%). When your own line table keeps percentages, such as `vat_rate numeric(5, 2)`, map the columns and set `options.lineRates: "percent"`: the block writes `taxRateBps / 100` and reads the column times 100, so the client still sees basis points. The option needs your own line table; quotes and deals take it too.
+
+### Staff reads and portal reads
+
+`permissions.read` is the key a member needs to read every invoice of the organization, and the block checks it through the authorization provider's SQL functions, so the provider has to mark it `sqlComplete: true`. When your read permission carries a row condition, such as a portal user who may read only their own customer's invoices, give the block a separate staff key (`permissions: { read: "invoice.read_all" }`) and let portal users in through [guests](/docs/blocks/guests): the read policy also admits a guest granted the invoice, and with a provider that answers `portalSubjects`, a portal party of the invoice's company or contact.
+
 ### Totals the app keeps
 
 By default the block recounts an invoice's totals from its lines, rounding each line once. When the app computes them itself, for example VAT per rate on the summed lines or a document discount, set `options.totals: "app"`. The block then installs no totals trigger, never writes `subtotal`, `taxTotal` or `total`, and reads what they hold for the balance, credits, events and aging. `listTotal` and `discountTotal` can map to `null` then; reads fill them from the subtotal and zero.

@@ -4031,6 +4031,18 @@
                   "type": "string"
                 }
               },
+              "variantExtraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "categoryExtraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "locales": {
                 "type": "array",
                 "items": {
@@ -4383,6 +4395,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "lineRates": {
+                "type": "string",
+                "default": "bps"
               }
             }
           }
@@ -5027,6 +5043,16 @@
                 }
               },
               "lineExtraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "lineRates": {
+                "type": "string",
+                "default": "bps"
+              },
+              "chargeExtraColumns": {
                 "type": "object",
                 "additionalProperties": {
                   "type": "string"
@@ -5816,6 +5842,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "lineRates": {
+                "type": "string",
+                "default": "bps"
               }
             }
           }
@@ -6473,6 +6503,12 @@
               "timers": {
                 "type": "string",
                 "default": "one"
+              },
+              "lockedColumns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             }
           }

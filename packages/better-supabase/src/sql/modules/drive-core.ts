@@ -116,8 +116,8 @@ ${subtree}
 $$;
 revoke execute on function ${fn("drive_subtree")}(uuid) from public, anon, authenticated;
 
--- Whether the node or anything under it is under a legal hold, which purge
--- has to respect.
+-- Whether the node, a folder above it or anything under it is under a legal
+-- hold, which purge has to respect.
 create or replace function ${fn("drive_node_held")}(node uuid)
 returns boolean
 language sql
@@ -127,7 +127,8 @@ set search_path = ''
 as $$
   select exists (
     select 1 from ${T} h
-    where h.${n("id")} in (select s.node_id from ${fn("drive_subtree")}(drive_node_held.node) s)
+    where (h.${n("id")} in (select s.node_id from ${fn("drive_subtree")}(drive_node_held.node) s)
+        or h.${n("id")} = any (${fn("drive_ancestors")}(drive_node_held.node)))
       and ${held("h")}
   )
 $$;
@@ -509,7 +510,7 @@ revoke execute on function ${fn("drive_check_parent")}(${ctx.idType}, uuid, uuid
 drop function if exists ${fn("drive_insert_node")}(${ctx.idType}, uuid, uuid, text, text, text, jsonb);
 drop function if exists ${fn("drive_insert_node")}(${ctx.idType}, uuid, text, text, text, jsonb);
 -- Inserts a node after its siblings. Extra columns come from fields, or
--- from the parent. At the root, the creator gets ${roles.top}.
+-- from the parent.${nodeRole === undefined ? ` At the root, the creator gets ${roles.top}.` : ""}
 create or replace function ${fn("drive_insert_node")}(tenant ${ctx.idType}, drive uuid, parent uuid, kind text, name text, conflict text, fields jsonb)
 returns ${T}
 language plpgsql
@@ -550,10 +551,14 @@ begin
   insert into ${T} (${insertColumns.join(", ")})
   values (${insertValues.join(", ")})
   returning * into v_node;
-  if drive_insert_node.parent is null and auth.uid() is not null then
+${
+  nodeRole === undefined
+    ? `  if drive_insert_node.parent is null and auth.uid() is not null then
     ${directGrant("v_node", sqlString(roles.top), "auth.uid()")}
   end if;
-  ${record("drive.node_created", "v_node", `, 'kind', v_node.${n("kind")}, 'name', v_node.${n("name")}, 'parentId', v_node.${n("parent")}`, dataAudit("v_node", "created"))}
+`
+    : ""
+}  ${record("drive.node_created", "v_node", `, 'kind', v_node.${n("kind")}, 'name', v_node.${n("name")}, 'parentId', v_node.${n("parent")}`, dataAudit("v_node", "created"))}
   ${ctx.hook("after_drive_node_create", [["uuid", `v_node.${n("id")}`]])}
   return v_node;
 end;

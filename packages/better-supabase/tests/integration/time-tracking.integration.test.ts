@@ -213,9 +213,16 @@ describe.skipIf(!live)("time-tracking", () => {
       expect(approved[0]?.approvedAt).toBeDefined();
 
       await s.as(ada);
-      expect(await time.update(logged.id, { note: "late" }).then(hint)).toBe(
-        "TIME_PERIOD_LOCKED",
-      );
+      expect(
+        await time
+          .update(logged.id, { startedAt: at("2026-10-06T07:00:00Z") })
+          .then(hint),
+      ).toBe("TIME_PERIOD_LOCKED");
+      expect(
+        await time
+          .update(logged.id, { note: "late", billable: false })
+          .orThrow(),
+      ).toMatchObject({ note: "late", billable: false });
       expect(await time.submit(WEEK).then(hint)).toBe("TIMESHEET_APPROVED");
       expect(await time.reopen(again.id!).then(hint)).toBe("TIME_FORBIDDEN");
       expect(await time.timesheets({ userId: owner.id }).then(hint)).toBe(

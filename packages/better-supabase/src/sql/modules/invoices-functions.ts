@@ -11,7 +11,14 @@ import {
 } from "../line-items-sql.ts";
 import { int8Text } from "../money-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
-import { fail, userGrant, writeExtraColumns } from "../shared.ts";
+import {
+  extraFieldsArg,
+  extraFieldsJson,
+  fail,
+  insertExtraColumns,
+  userGrant,
+  writeExtraColumns,
+} from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { invoiceLedger, paymentKey } from "./invoices-ledger.ts";
 import { createdFromLink } from "./quotes-functions.ts";
@@ -33,11 +40,24 @@ export interface InvoiceNames {
   /** `options.extraColumns`, which `create_invoice` writes by name. */
   readonly extras: readonly ExtraColumn[];
   readonly lineExtras: readonly ExtraColumn[];
+  /**
+   * `options.chargeExtraColumns`, which `add_invoice_charge` writes from
+   * `fields`.
+   */
+  readonly chargeExtras: readonly ExtraColumn[];
   /** `options.totals: "app"`: the app keeps the totals, the block reads them. */
   readonly appTotals: boolean;
 }
 
 type Party = "company" | "contact" | "origin";
+
+/** `options.chargeExtraColumns`: app columns of the charges table. */
+export const chargeExtraColumns = (
+  ctx: BlockSqlContext,
+): readonly ExtraColumn[] =>
+  ctx.hasTable("charges")
+    ? ctx.extraColumns("charges", ["fields"], "chargeExtraColumns")
+    : [];
 
 /**
  * How the invoices table holds a company, contact or origin: a type and an id
@@ -191,7 +211,7 @@ export function invoiceFunctions(
     charges
       ? `,
       'charged_total', ${charged(alias)}::text,
-      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y.${ch("id")}, 'amount', y.${ch("amount")}::text, 'description', ${ctx.has("charges", "description") ? `y.${ch("description")}` : "null"}${ctx.has("charges", "createdAt") ? `, 'createdAt', y.${ch("createdAt")}` : ""})${ctx.has("charges", "createdAt") ? ` order by y.${ch("createdAt")}` : ""}) from ${t("charges")} y where y.${ch("invoice")} = ${alias}.${i("id")}), '[]'::jsonb)`
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y.${ch("id")}, 'amount', y.${ch("amount")}::text, 'description', ${ctx.has("charges", "description") ? `y.${ch("description")}` : "null"}${ctx.has("charges", "createdAt") ? `, 'createdAt', y.${ch("createdAt")}` : ""}${extraFieldsJson("y", n.chargeExtras)})${ctx.has("charges", "createdAt") ? ` order by y.${ch("createdAt")}` : ""}) from ${t("charges")} y where y.${ch("invoice")} = ${alias}.${i("id")}), '[]'::jsonb)`
       : "";
 
   const row = (alias: string): string =>
@@ -381,12 +401,22 @@ ${userGrant(`${fn("invoice_from_quote")}(uuid, integer)`)}
     ...(ctx.has("charges", "createdBy") ? ["auth.uid()"] : []),
   ];
 
+  const chargeFields = extraFieldsArg(n.chargeExtras);
+
+  const chargeExtras = insertExtraColumns(
+    t("charges"),
+    n.chargeExtras,
+    "coalesce(add_invoice_charge.fields, '{}'::jsonb)",
+  );
+
   const addCharge = charges
     ? `
+${chargeFields.drop(fn("add_invoice_charge"), "uuid, bigint, text, text")}
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
--- a paid invoice is open again until the charge is paid too.
-create or replace function ${fn("add_invoice_charge")}(invoice uuid, amount bigint, currency text, description text)
+-- a paid invoice is open again until the charge is paid too. fields: the
+-- charge's extra columns (options.chargeExtraColumns).
+create or replace function ${fn("add_invoice_charge")}(invoice uuid, amount bigint, currency text, description text${chargeFields.param})
 returns jsonb
 language plpgsql
 security definer
@@ -409,14 +439,14 @@ begin
   if upper(add_invoice_charge.currency) is distinct from v_row.${i("currency")} then
     ${fail("INVOICE_CURRENCY_MISMATCH", "a charge must be in the invoice's currency", "22023")}
   end if;
-  insert into ${t("charges")} (${chargeColumns.join(", ")})
-  values (${chargeValues.join(", ")})
+  insert into ${t("charges")} (${chargeColumns.join(", ")}${chargeExtras.columns})
+  values (${chargeValues.join(", ")}${chargeExtras.values})
   returning ${ch("id")} into v_charge;${settle("v_row")}
   ${record("invoice.charged", "v_row", `, 'chargeId', v_charge, 'amount', add_invoice_charge.amount::text, 'balance', ${balance("v_row")}::text`, true)}
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${fn("add_invoice_charge")}(uuid, bigint, text, text)`)}
+${userGrant(`${fn("add_invoice_charge")}(uuid, bigint, text, text${chargeFields.type})`)}
 `
     : "";
 

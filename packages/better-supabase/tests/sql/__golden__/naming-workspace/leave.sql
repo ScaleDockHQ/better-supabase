@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:24d54feed380523c86aca846f53235850cafa110e61646c67673703badb1cd51
+-- @bsb-hash sha256:f909bea90cb65b98c112250d0d99163fba4cd6040b82c4013fbc795a21ce5de3
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -444,7 +444,8 @@ $$;
 revoke execute on function "better_supabase"."leave_working_days"(date, date) from public, anon;
 grant execute on function "better_supabase"."leave_working_days"(date, date) to authenticated, service_role;
 
--- Creates or updates a leave type by key.
+-- Creates or updates a leave type by key. Without a key column, key is the
+-- id of the type to update, and any other key creates one.
 create or replace function "better_supabase"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null)
 returns jsonb
 language plpgsql

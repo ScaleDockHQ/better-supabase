@@ -12,6 +12,17 @@ export type InvoicesSqlOptions = {
   readonly extraColumns?: ExtraColumns;
   readonly lineExtraColumns?: ExtraColumns;
   /**
+   * `"percent"` when your own line table keeps discount and tax rates as
+   * percentages, such as `vat_rate numeric(5, 2)`: the block converts them from
+   * and to basis points. Default `"bps"`.
+   */
+  readonly lineRates?: "bps" | "percent";
+  /**
+   * App columns of the charges table, such as a `not null` kind, which
+   * `charge()` sets from `fields`.
+   */
+  readonly chargeExtraColumns?: ExtraColumns;
+  /**
    * `"app"` when the app keeps the totals columns itself, such as with VAT per
    * rate: the block never recounts or writes them and reads what they hold.
    */
@@ -27,5 +38,7 @@ export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
     termsDays: option.number({ default: 30 }),
     extraColumns: option.extraColumns(),
     lineExtraColumns: option.extraColumns(),
+    lineRates: option.string<"bps" | "percent">({ default: "bps" }),
+    chargeExtraColumns: option.extraColumns(),
     totals: option.string<"block" | "app">({ default: "block" }),
   });

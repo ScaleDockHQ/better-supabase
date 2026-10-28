@@ -89,7 +89,7 @@ const approvals = createApprovals({ transport });
 await approvals.approve(sheet.approvalId!).orThrow();
 ```
 
-A week is locked while its request is pending and once it is approved: adding, changing or deleting an entry that starts in it fails with `TIME_PERIOD_LOCKED`, also for direct table writes. A rejection unlocks it. `reopen(timesheetId)` unlocks an approved week (`TIMESHEET_NOT_APPROVED` otherwise) and needs `time_tracking.manage`. `timesheets()` lists the caller's timesheets, newest week first, filtered by `status` and paged with `before`.
+A week is locked while its request is pending and once it is approved: adding or deleting an entry that starts in it, or changing the columns that make up its logged time, fails with `TIME_PERIOD_LOCKED`, also for direct table writes. Those columns are the start, the end or duration, the subject, the owner and the rate, so the billable flag, the note and columns of your own (a timesheet or invoice line link) stay writable. `options.lockedColumns` lists them instead, as logical names such as `startedAt` or your table's own column names; `[]` locks no column. A rejection unlocks it. `reopen(timesheetId)` unlocks an approved week (`TIMESHEET_NOT_APPROVED` otherwise) and needs `time_tracking.manage`. `timesheets()` lists the caller's timesheets, newest week first, filtered by `status` and paged with `before`.
 
 ## Configure
 

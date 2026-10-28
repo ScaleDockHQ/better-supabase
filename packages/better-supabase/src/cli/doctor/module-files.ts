@@ -12,7 +12,8 @@ import {
   migrationModules,
   MODULES_SUFFIX,
 } from "../sql/module-migration.ts";
-import { accessModule, entitlementsModule } from "./authorization.ts";
+import { accessModule } from "./app-tables.ts";
+import { entitlementsModule } from "./authorization.ts";
 import { permissionCatalogKeys, workflowOf } from "./shared.ts";
 
 export interface BlockSqlFileState {

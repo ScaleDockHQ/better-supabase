@@ -23,7 +23,12 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
-import { leaveFeed, leaveFeedSubject } from "./leave-feed.ts";
+import {
+  leaveFeed,
+  leaveFeedSubject,
+  leavePartial,
+  leaveTypeKey,
+} from "./leave-feed.ts";
 import { leaveLedgerFunctions, leaveLedgerUpgrade } from "./leave-ledger.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { OPERATIONS, moduleOperations } from "./permissions-model.ts";
@@ -100,7 +105,7 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["allowance", "carryoverMax", "color"],
+      optional: ["key", "allowance", "carryoverMax", "color"],
       typed: ["unit"],
     },
     requests: {
@@ -128,6 +133,7 @@ const NAMES: BlockSqlNames = {
         decisionNote: "decision_note",
       },
       optional: [
+        "partial",
         "note",
         "cancelledBy",
         "approval",
@@ -322,16 +328,46 @@ function build(ctx: BlockSqlContext): string {
     .map(([logical]) => `${ty(logical)} = excluded.${ty(logical)}`)
     .join(", ");
 
+  const unitArg = ctx.cast(
+    "types",
+    "unit",
+    "coalesce(save_leave_type.unit, 'days')",
+  );
+
+  // save_leave_type's write: an upsert by key, or by id without a key column.
+  const typeUpsert = ctx.has("types", "key")
+    ? `  insert into ${types} (${ty("tenant")}, ${ty("key")}, ${ty("name")}, ${ty("unit")}, ${ty("paid")}, ${ty("tracked")}${typeSettings.map(([logical]) => `, ${ty(logical)}`).join("")})
+  values (save_leave_type.tenant, save_leave_type.key, save_leave_type.name, ${unitArg}, coalesce(save_leave_type.paid, true), coalesce(save_leave_type.tracked, true)${typeSettings.map(([, arg]) => `, ${arg}`).join("")})
+  on conflict (${ty("tenant")}, ${ty("key")}) do update
+    set ${ty("name")} = excluded.${ty("name")}, ${ty("unit")} = excluded.${ty("unit")}, ${ty("paid")} = excluded.${ty("paid")},
+      ${ty("tracked")} = excluded.${ty("tracked")}${ctx.has("types", "allowance") ? `, ${ty("allowance")} = excluded.${ty("allowance")}` : ""},
+      ${settingsLine === "" ? "" : `${settingsLine},\n      `}${ty("archivedAt")} = null, ${ty("updatedAt")} = now()
+  returning * into v_row;`
+    : `  select * into v_row from ${types} x
+    where x.${ty("tenant")} = save_leave_type.tenant and x.${ty("id")}::text = save_leave_type.key
+    for update;
+  if found then
+    update ${types} x
+      set ${ty("name")} = save_leave_type.name, ${ty("unit")} = ${unitArg}, ${ty("paid")} = coalesce(save_leave_type.paid, true),
+        ${ty("tracked")} = coalesce(save_leave_type.tracked, true)${typeSettings.map(([logical, arg]) => `, ${ty(logical)} = ${arg}`).join("")}, ${ty("archivedAt")} = null, ${ty("updatedAt")} = now()
+      where x.${ty("id")} = v_row.${ty("id")}
+      returning * into v_row;
+  else
+    insert into ${types} (${ty("tenant")}, ${ty("name")}, ${ty("unit")}, ${ty("paid")}, ${ty("tracked")}${typeSettings.map(([logical]) => `, ${ty(logical)}`).join("")})
+    values (save_leave_type.tenant, save_leave_type.name, ${unitArg}, coalesce(save_leave_type.paid, true), coalesce(save_leave_type.tracked, true)${typeSettings.map(([, arg]) => `, ${arg}`).join("")})
+    returning * into v_row;
+  end if;`;
+
   const status = (row: string, approval: string): string =>
     approvals === undefined
       ? `case when ${row}.${q("cancelledAt")} is not null then 'cancelled' when ${row}.${q("approvedAt")} is not null then 'approved'${rejections ? ` when ${row}.${q("rejectedAt")} is not null then 'rejected'` : ""} else 'pending' end`
       : `case when ${row}.${q("cancelledAt")} is not null then 'cancelled' when ${row}.${q("approvedAt")} is not null then 'approved' when ${approval}.${a("status")} in ('rejected', 'expired') then 'rejected' when ${approval}.${a("status")} = 'cancelled' then 'cancelled' else 'pending' end`;
 
   const typeJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${ty("id")}, 'organizationId', ${row}.${ty("tenant")}, 'key', ${row}.${ty("key")}, 'name', ${row}.${ty("name")}, 'unit', ${row}.${ty("unit")}, 'paid', ${row}.${ty("paid")}, 'tracked', ${row}.${ty("tracked")}, 'allowance', ${or("types", row, "allowance")}::text, 'carryoverMax', ${or("types", row, "carryoverMax")}::text, 'color', ${or("types", row, "color")}, 'archivedAt', ${row}.${ty("archivedAt")}, 'createdAt', ${row}.${ty("createdAt")}, 'updatedAt', ${row}.${ty("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${ty("id")}, 'organizationId', ${row}.${ty("tenant")}, 'key', ${leaveTypeKey(ctx, row)}, 'name', ${row}.${ty("name")}, 'unit', ${row}.${ty("unit")}, 'paid', ${row}.${ty("paid")}, 'tracked', ${row}.${ty("tracked")}, 'allowance', ${or("types", row, "allowance")}::text, 'carryoverMax', ${or("types", row, "carryoverMax")}::text, 'color', ${or("types", row, "color")}, 'archivedAt', ${row}.${ty("archivedAt")}, 'createdAt', ${row}.${ty("createdAt")}, 'updatedAt', ${row}.${ty("updatedAt")})`;
 
   const requestJson = (row: string, approval: string): string =>
-    `jsonb_build_object('id', ${row}.${q("id")}, 'organizationId', ${row}.${q("tenant")}, 'userId', ${row}.${q("user")}, 'typeId', ${row}.${q("type")}, 'startsOn', ${row}.${q("startsOn")}, 'endsOn', ${row}.${q("endsOn")}, 'partial', ${row}.${q("partial")}, 'amount', ${row}.${q("amount")}::text, 'note', ${or("requests", row, "note")}, 'status', ${status(row, approval)}, 'approvalId', ${or("requests", row, "approval")}, 'approvedAt', ${row}.${q("approvedAt")}, 'cancelledAt', ${row}.${q("cancelledAt")}, 'createdAt', ${row}.${q("createdAt")}, 'updatedAt', ${row}.${q("updatedAt")}${extraFieldsJson(row, extras)})`;
+    `jsonb_build_object('id', ${row}.${q("id")}, 'organizationId', ${row}.${q("tenant")}, 'userId', ${row}.${q("user")}, 'typeId', ${row}.${q("type")}, 'startsOn', ${row}.${q("startsOn")}, 'endsOn', ${row}.${q("endsOn")}, 'partial', ${leavePartial(ctx, row)}, 'amount', ${row}.${q("amount")}::text, 'note', ${or("requests", row, "note")}, 'status', ${status(row, approval)}, 'approvalId', ${or("requests", row, "approval")}, 'approvedAt', ${row}.${q("approvedAt")}, 'cancelledAt', ${row}.${q("cancelledAt")}, 'createdAt', ${row}.${q("createdAt")}, 'updatedAt', ${row}.${q("updatedAt")}${extraFieldsJson(row, extras)})`;
 
   const requestRecord = (type: string, row: string, summary: string): string =>
     ctx.record({
@@ -420,7 +456,7 @@ ${userGrant(`${fn("decide_leave_request")}(uuid, boolean, text)`)}
     ? `create table if not exists ${types} (
   ${ty("id")} uuid primary key default gen_random_uuid(),
   ${ty("tenant")} ${idType} not null,
-  ${ty("key")} text not null check (${ty("key")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
+${column("types", "key", (name) => `${name} text not null check (${name} ~ '^[a-z][a-z0-9_-]{0,62}$')`).slice(1)}
   ${ty("name")} text not null check (length(${ty("name")}) between 1 and 100),
   ${ty("unit")} text not null default 'days' check (${ty("unit")} in ('days', 'hours')),
   ${ty("paid")} boolean not null default true,
@@ -429,9 +465,13 @@ ${userGrant(`${fn("decide_leave_request")}(uuid, boolean, text)`)}
   ${ty("archivedAt")} timestamptz,
   ${ty("createdAt")} timestamptz not null default now(),
   ${ty("updatedAt")} timestamptz not null default now(),
-  unique (${ty("tenant")}, ${ty("key")}),
-  unique (${ty("tenant")}, ${ty("id")})
-);${appUniqueIndex(ctx, "types", ["tenant", "key"])}${appUniqueIndex(ctx, "types", ["tenant", "id"])}
+${
+  ctx.has("types", "key")
+    ? `  unique (${ty("tenant")}, ${ty("key")}),
+`
+    : ""
+}  unique (${ty("tenant")}, ${ty("id")})
+);${ctx.has("types", "key") ? appUniqueIndex(ctx, "types", ["tenant", "key"]) : ""}${appUniqueIndex(ctx, "types", ["tenant", "id"])}
 ${lockModuleTable(ctx, "types", { read: true })}
 ${renderPolicy(makePolicy({ table: types, name: ctx.naming.rename("leave_types_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(ty("tenant"), request)} or ${ctx.scope.check(ty("tenant"), read)}` }), { drop: true, target: types })}
 
@@ -442,7 +482,7 @@ create table if not exists ${requests} (
   ${q("type")} uuid not null,
   ${q("startsOn")} date not null,
   ${q("endsOn")} date not null,
-  ${q("partial")} text not null default 'full' check (${q("partial")} in ('full', 'morning', 'afternoon', 'hours')),
+${column("requests", "partial", (name) => `${name} text not null default 'full' check (${name} in ('full', 'morning', 'afternoon', 'hours'))`).slice(1)}
   -- Working days, or hours for an hours type, that the request books.
   ${q("amount")} numeric(8, 2) not null check (${q("amount")} > 0),${column("requests", "note", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}
 ${approvals === undefined ? "" : `  ${q("approval")} uuid references ${ar} (${a("id")}) on delete set null,\n`}  ${q("approvedAt")} timestamptz,${statusMode ? `${column("requests", "rejectedAt", (name) => `${name} timestamptz`)}${column("requests", "decidedBy", (name) => `${name} uuid`)}${column("requests", "decisionNote", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}` : ""}
@@ -491,7 +531,8 @@ as $$
 $$;
 ${userGrant(`${fn("leave_working_days")}(date, date)`)}
 
--- Creates or updates a leave type by key.
+-- Creates or updates a leave type by key. Without a key column, key is the
+-- id of the type to update, and any other key creates one.
 create or replace function ${fn("save_leave_type")}(tenant ${idType}, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null)
 returns jsonb
 language plpgsql
@@ -505,13 +546,7 @@ begin
   if not (${SERVICE_CALLER} or ${ctx.can("tenant", "save_leave_type.tenant", manage)}) then
     ${forbidden("not allowed to manage leave types")}
   end if;${typeUnsupported("allowance", "save_leave_type.allowance", "allowance")}${typeUnsupported("carryoverMax", "save_leave_type.carryover_max", "carryover")}${typeUnsupported("color", "save_leave_type.color", "color")}
-  insert into ${types} (${ty("tenant")}, ${ty("key")}, ${ty("name")}, ${ty("unit")}, ${ty("paid")}, ${ty("tracked")}${typeSettings.map(([logical]) => `, ${ty(logical)}`).join("")})
-  values (save_leave_type.tenant, save_leave_type.key, save_leave_type.name, ${ctx.cast("types", "unit", "coalesce(save_leave_type.unit, 'days')")}, coalesce(save_leave_type.paid, true), coalesce(save_leave_type.tracked, true)${typeSettings.map(([, arg]) => `, ${arg}`).join("")})
-  on conflict (${ty("tenant")}, ${ty("key")}) do update
-    set ${ty("name")} = excluded.${ty("name")}, ${ty("unit")} = excluded.${ty("unit")}, ${ty("paid")} = excluded.${ty("paid")},
-      ${ty("tracked")} = excluded.${ty("tracked")}${ctx.has("types", "allowance") ? `, ${ty("allowance")} = excluded.${ty("allowance")}` : ""},
-      ${settingsLine === "" ? "" : `${settingsLine},\n      `}${ty("archivedAt")} = null, ${ty("updatedAt")} = now()
-  returning * into v_row;
+${typeUpsert}
   return ${typeJson("v_row")};
 end;
 $$;
@@ -604,7 +639,14 @@ begin
     end if;
     if v_partial in ('morning', 'afternoon') and request_leave.starts_on <> request_leave.ends_on then
       ${invalid("a half day starts and ends on the same date")}
-    end if;
+    end if;${
+      ctx.has("requests", "partial")
+        ? ""
+        : `
+    if v_partial <> 'full' then
+      ${fail("LEAVE_PARTIAL_UNSUPPORTED", "this leave requests table has no partial column, so a request takes whole days", "22023")}
+    end if;`
+    }
     v_amount := ${fn("leave_working_days")}(request_leave.starts_on, request_leave.ends_on)
       * case when v_partial = 'full' then 1 else 0.5 end;
   end if;
@@ -624,9 +666,13 @@ begin
     where r.${q("tenant")} = request_leave.tenant and r.${q("user")} = v_me
       and r.${q("cancelledAt")} is null and (r.${q("approvedAt")} is not null or ${approvals === undefined ? `(${pendingIn("r", "p")})` : `p.${a("status")} = 'pending'`})
       and daterange(r.${q("startsOn")}, r.${q("endsOn")}, '[]') && daterange(request_leave.starts_on, request_leave.ends_on, '[]')
-      and not (r.${q("partial")} = 'morning' and v_partial = 'afternoon')
+${
+  ctx.has("requests", "partial")
+    ? `      and not (r.${q("partial")} = 'morning' and v_partial = 'afternoon')
       and not (r.${q("partial")} = 'afternoon' and v_partial = 'morning')
-  ) then
+`
+    : ""
+}  ) then
     ${fail("LEAVE_OVERLAP", "this overlaps another leave request", "23P01")}
   end if;${balanceCheck}
   ${ctx.hook("before_leave_request", [
@@ -636,8 +682,8 @@ begin
     ["date", "request_leave.ends_on"],
     ["numeric", "v_amount"],
   ])}
-  insert into ${requests} (${q("tenant")}, ${q("user")}, ${q("type")}, ${q("startsOn")}, ${q("endsOn")}, ${q("partial")}, ${q("amount")}${also("requests", "note")})
-  values (request_leave.tenant, v_me, v_type.${ty("id")}, request_leave.starts_on, request_leave.ends_on, ${ctx.cast("requests", "partial", "v_partial")}, v_amount${alsoValue("requests", "note", "nullif(trim(request_leave.note), '')")})
+  insert into ${requests} (${q("tenant")}, ${q("user")}, ${q("type")}, ${q("startsOn")}, ${q("endsOn")}${also("requests", "partial")}, ${q("amount")}${also("requests", "note")})
+  values (request_leave.tenant, v_me, v_type.${ty("id")}, request_leave.starts_on, request_leave.ends_on${ctx.has("requests", "partial") ? `, ${ctx.cast("requests", "partial", "v_partial")}` : ""}, v_amount${alsoValue("requests", "note", "nullif(trim(request_leave.note), '')")})
   returning * into v_row;${writeExtraColumns(requests, extras, "request_leave.fields", `x.${q("id")} = v_row.${q("id")}`, "v_row")}${
     approvals === undefined
       ? ""

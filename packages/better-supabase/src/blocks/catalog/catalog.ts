@@ -17,7 +17,11 @@ import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
-import { optionalAmountText, optionalMoneyOf } from "../money-codec.ts";
+import {
+  amountText,
+  optionalAmountText,
+  optionalMoneyOf,
+} from "../money-codec.ts";
 import {
   applyTemporal,
   blockCall,
@@ -67,6 +71,13 @@ export interface ProductInput {
   readonly description?: string;
   /** Default `physical`. */
   readonly kind?: ProductKind;
+  /**
+   * The product's own price and currency, when your products table maps `price`
+   * and `currency`. Left out, the columns keep their value.
+   */
+  readonly price?: Money;
+  /** When your products table maps `trackInventory`. */
+  readonly trackInventory?: boolean;
 }
 
 export interface SavedProduct {
@@ -109,6 +120,8 @@ export interface VariantInput {
   readonly trackInventory?: boolean;
   /** Whether it sells with no stock available. Default `false`. */
   readonly allowBackorder?: boolean;
+  /** The extra columns (`options.variantExtraColumns`) by name. */
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 export interface SavedVariant {
@@ -116,6 +129,8 @@ export interface SavedVariant {
   readonly sku: string;
   /** Its rank key among the product's variants. */
   readonly rank: string;
+  /** The extra columns, with `options.variantExtraColumns`. */
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 export interface PriceListInput {
@@ -164,12 +179,16 @@ export interface CategoryInput {
   readonly name: string;
   readonly slug?: string;
   readonly description?: string;
+  /** The extra columns (`options.categoryExtraColumns`) by name. */
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 export interface SavedCategory {
   readonly id: string;
   readonly slug: string;
   readonly rank: string;
+  /** The extra columns, with `options.categoryExtraColumns`. */
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 interface CollectionBase {
@@ -472,6 +491,7 @@ function variantOf(value: unknown): SavedVariant {
     id: textOf(row["id"]),
     sku: textOf(row["sku"]),
     rank: textOf(row["rank"]),
+    ...(isRecord(row["fields"]) ? { fields: row["fields"] } : {}),
   };
 }
 
@@ -591,6 +611,7 @@ function variantArgs(
     weight_grams: input.weightGrams ?? null,
     track_inventory: input.trackInventory ?? null,
     allow_backorder: input.allowBackorder ?? null,
+    fields: input.fields,
   };
 }
 
@@ -610,7 +631,15 @@ export function createCatalog<
   const saveProduct = (
     organizationId: string,
     productId: string | null,
-    { title, slug, description, kind, ...extra }: ProductInput,
+    {
+      title,
+      slug,
+      description,
+      kind,
+      price,
+      trackInventory,
+      ...extra
+    }: ProductInput,
   ): AsyncResult<SavedProduct & F> =>
     AsyncResult.from(() => extraFieldsArg(fields, extra))
       .andThen((more) =>
@@ -623,6 +652,9 @@ export function createCatalog<
             slug: slug ?? null,
             description: description ?? null,
             kind: kind ?? null,
+            price: price === undefined ? undefined : amountText(price),
+            currency: price?.currency,
+            track_inventory: trackInventory,
             ...more,
           },
           (value) => value,
@@ -777,6 +809,7 @@ export function createCatalog<
           name: input.name,
           slug: input.slug ?? null,
           description: input.description ?? null,
+          fields: input.fields,
         },
         (value) => {
           const row = recordOf(value, "save_category");
@@ -785,6 +818,7 @@ export function createCatalog<
             id: textOf(row["id"]),
             slug: textOf(row["slug"]),
             rank: textOf(row["rank"]),
+            ...(isRecord(row["fields"]) ? { fields: row["fields"] } : {}),
           };
         },
       ),

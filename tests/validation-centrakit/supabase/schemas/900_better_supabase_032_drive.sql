@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:cdd2b1c47247a0a4a7769e1ab1245e5af5f47e2bb8b70af58c98ba2fb298394a
+-- @bsb-hash sha256:63ba23f5d1ebf9583ab2edf27e93416cd49026968a7ea5e71a81fc4fdb724085
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,8 +98,8 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_subtree"(uuid) from public, anon, authenticated;
 
--- Whether the node or anything under it is under a legal hold, which purge
--- has to respect.
+-- Whether the node, a folder above it or anything under it is under a legal
+-- hold, which purge has to respect.
 create or replace function "better_supabase"."drive_node_held"(node uuid)
 returns boolean
 language sql
@@ -109,7 +109,8 @@ set search_path = ''
 as $$
   select exists (
     select 1 from "centrakit"."file_node" h
-    where h."id" in (select s.node_id from "better_supabase"."drive_subtree"(drive_node_held.node) s)
+    where (h."id" in (select s.node_id from "better_supabase"."drive_subtree"(drive_node_held.node) s)
+        or h."id" = any ("better_supabase"."drive_ancestors"(drive_node_held.node)))
       and false
   )
 $$;

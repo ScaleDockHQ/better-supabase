@@ -898,6 +898,21 @@ describe.skipIf(!live)("drive", () => {
       expect(
         (await s.value<DriveNodeRow>("drive_it.drive_get($1)", [docs.id])).held,
       ).toBe(false);
+
+      await s.value("drive_it.drive_hold($1, now() + interval '1 day')", [
+        docs.id,
+      ]);
+      expect(
+        (await s.value<DriveNodeRow>("drive_it.drive_get($1)", [specs.id]))
+          .held,
+      ).toBe(true);
+      expect(await s.hint("select drive_it.drive_trash($1)", [specs.id])).toBe(
+        "DRIVE_HELD",
+      );
+      expect(await s.hint("select drive_it.drive_delete($1)", [specs.id])).toBe(
+        "DRIVE_HELD",
+      );
+      await s.value("drive_it.drive_release_hold($1)", [docs.id]);
       expect(
         await s.value<DriveRow>("drive_it.drive_rename_drive($1, 'Team A')", [
           team.id,

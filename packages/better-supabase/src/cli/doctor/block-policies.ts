@@ -1,7 +1,7 @@
 import type { DoctorContext } from "./rules.ts";
 
 import { adoptedTables } from "../../sql/index.ts";
-import { appTablesOf } from "./app-tables.ts";
+import { adoptionContext, appTablesOf } from "./app-tables.ts";
 
 /** The prefix the render pass gives block policies on the app's tables. */
 export const BLOCK_PREFIX = "bsb_";
@@ -9,9 +9,11 @@ export const BLOCK_PREFIX = "bsb_";
 /** The app tables (`schema.table`) that blocks run over. */
 export function blockTargets(context: DoctorContext): ReadonlySet<string> {
   return new Set(
-    adoptedTables(context.config.blocks, appTablesOf(context), {
-      subjects: context.config.subjects,
-    }).map((table) => `${table.schema}.${table.table}`),
+    adoptedTables(
+      context.config.blocks,
+      appTablesOf(context),
+      adoptionContext(context),
+    ).map((table) => `${table.schema}.${table.table}`),
   );
 }
 

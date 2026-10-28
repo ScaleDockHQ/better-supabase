@@ -381,6 +381,18 @@ describe("drive module", () => {
     );
     expect(core).toContain(`"public"."file_node_role"(x."id", auth.uid())`);
     expect(core).toContain(`"public"."file_drive_role"(d."id", auth.uid())`);
+    expect(core).not.toContain(
+      "if drive_insert_node.parent is null and auth.uid() is not null then",
+    );
+    expect(sqlOf(["drive"], "drive")).toContain(
+      "if drive_insert_node.parent is null and auth.uid() is not null then",
+    );
+  });
+
+  it("holds a node under a held folder", () => {
+    expect(sqlOf(["drive"], "drive")).toContain(
+      `or h."id" = any ("better_supabase"."drive_ancestors"(drive_node_held.node)))`,
+    );
   });
 
   it("maps the provider's row grants to node and drive roles", () => {

@@ -8313,6 +8313,14 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "service"
                 ],
                 "optional": true
+              },
+              "price": {
+                "kind": "custom",
+                "optional": true
+              },
+              "trackInventory": {
+                "kind": "boolean",
+                "optional": true
               }
             },
             "jsonSchema": {
@@ -8340,6 +8348,30 @@ export const PRESET_CATALOG: PresetCatalog = {
                     "digital",
                     "service"
                   ]
+                },
+                "price": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "trackInventory": {
+                  "type": "boolean"
                 }
               },
               "required": [

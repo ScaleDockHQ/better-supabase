@@ -41,6 +41,29 @@ describe("time-tracking module", () => {
     );
   });
 
+  it("locks only the columns that change logged time, or options.lockedColumns", () => {
+    expect(sqlOf(BASE)).toContain(
+      `if tg_op = 'UPDATE' and (new."started_at", new."ended_at", new."subject_type", new."subject_id", new."user_id", new."rate", new."rate_currency") is not distinct from (old."started_at", old."ended_at", old."subject_type", old."subject_id", old."user_id", old."rate", old."rate_currency") then`,
+    );
+
+    const options = (lockedColumns: unknown): Layout => ({
+      modules: { "time-tracking": { options: { lockedColumns } } },
+    });
+
+    expect(
+      sqlOf(BASE, options(["startedAt", "billable", "invoice_line_id"])),
+    ).toContain(
+      `(new."started_at", new."billable", new."invoice_line_id") is not distinct from (old."started_at", old."billable", old."invoice_line_id")`,
+    );
+    expect(sqlOf(BASE, options([]))).toContain(
+      "if tg_op = 'UPDATE' and true then",
+    );
+
+    for (const bad of ["startedAt", ["Bad Name"], [1]]) {
+      expect(() => sqlOf(BASE, options(bad))).toThrow(/lockedColumns/);
+    }
+  });
+
   it("starts weeks in options.timeZone", () => {
     expect(sqlOf(BASE)).toContain(`at time zone 'UTC'`);
     expect(

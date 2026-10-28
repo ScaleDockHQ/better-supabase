@@ -27,10 +27,15 @@ import {
   keptUpdatedAtTriggers,
   widenedAppTablePolicies,
 } from "./app-table-policies.ts";
-import { appTablesOf, appViewsOf } from "./app-tables.ts";
+import {
+  accessModule,
+  adoptionContext,
+  appTablesOf,
+  appViewsOf,
+} from "./app-tables.ts";
 import { attachmentSubjectsOnDefaults } from "./attachment-subjects.ts";
 import { globs, moduleOwned, unauditedTables } from "./audit-coverage.ts";
-import { accessModule, entitlementsModule } from "./authorization.ts";
+import { entitlementsModule } from "./authorization.ts";
 import { onUnknownRecordTypes } from "./block-on.ts";
 import { configuredHooks, hookClaims, signatureOf } from "./hooks.ts";
 import { literal } from "./live.ts";
@@ -211,7 +216,7 @@ async function missingAdoptedColumns(
 
   const tables = adoptedTables(context.config.blocks, appTablesOf(context), {
     ...appViewsOf(context),
-    subjects: context.config.subjects,
+    ...adoptionContext(context),
   });
 
   if (tables.length === 0) {

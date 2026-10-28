@@ -142,6 +142,7 @@ export async function moduleLayoutFor(
     config.schemas,
     own.ownTables,
     config.subjects,
+    input.accessProvider,
   );
 
   if (adopted.length > 0) {

@@ -121,9 +121,25 @@ create table public.item_variants (
   allow_backorder boolean not null default false,
   position integer not null default 0,
   selling_price_cents bigint,
+  manufacturer_part_number text,
+  purchase_price_cents bigint,
+  is_default boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (org_id, sku)
+);
+create table public.item_categories (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null,
+  parent_id uuid references public.item_categories (id),
+  name text not null,
+  slug text not null,
+  description text,
+  icon text not null default 'Package',
+  position integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (org_id, slug)
 );
 create table public.item_options (
   id uuid primary key default gen_random_uuid(),
@@ -152,6 +168,7 @@ create table public.item_option_values (
               variants: "public.item_variants",
               options: "public.item_options",
               optionValues: "public.item_option_values",
+              categories: "public.item_categories",
               prices: null,
               priceLists: null,
             },
@@ -179,8 +196,17 @@ create table public.item_option_values (
                 rank: "position",
               },
               optionValues: { tenant: "org_id", rank: "position" },
+              categories: { tenant: "org_id", rank: "position" },
             },
-            options: { rankType: "integer" },
+            options: {
+              rankType: "integer",
+              variantExtraColumns: {
+                manufacturer_part_number: "text",
+                purchase_price_cents: "bigint",
+                is_default: "boolean not null default false",
+              },
+              categoryExtraColumns: { icon: "text not null default 'Package'" },
+            },
           },
         },
         ownTables: {
@@ -188,6 +214,7 @@ create table public.item_option_values (
           "public.item_variants": "app.sql",
           "public.item_options": "app.sql",
           "public.item_option_values": "app.sql",
+          "public.item_categories": "app.sql",
         },
       });
 
@@ -210,16 +237,42 @@ declare
   v_small uuid;
   v_large uuid;
   v_price jsonb;
+  v_variant jsonb;
+  v_category jsonb;
 begin
   ${SERVICE}
-  v_product := (better_supabase.save_product('${TENANT}', null, 'Shirt', null, null, 'physical') ->> 'id')::uuid;
-  update public.items set default_price_cents = 990 where id = v_product;
+  v_product := (better_supabase.save_product('${TENANT}', null, 'Shirt', null, null, 'physical', 990, 'usd', false) ->> 'id')::uuid;
+  if (select row(default_price_cents, currency, track_inventory)::text from public.items where id = v_product) <> '(990,USD,f)' then
+    raise exception 'product settings %', (select row_to_json(i) from public.items i where id = v_product);
+  end if;
+  perform better_supabase.save_product('${TENANT}', v_product, 'Shirt', null, null, null, null, 'eur', null);
+  if (select row(default_price_cents, currency, track_inventory)::text from public.items where id = v_product) <> '(990,EUR,f)' then
+    raise exception 'kept settings %', (select row_to_json(i) from public.items i where id = v_product);
+  end if;
+  v_category := better_supabase.save_category('${TENANT}', null, null, 'Shirts', null, null, '{"icon": "Shirt"}');
+  if v_category -> 'fields' ->> 'icon' <> 'Shirt' or (select icon from public.item_categories) <> 'Shirt' then
+    raise exception 'category %', v_category;
+  end if;
+  perform better_supabase.save_category('${TENANT}', (v_category ->> 'id')::uuid, null, 'Tops', null, null, null);
+  if (select icon from public.item_categories) <> 'Shirt' then
+    raise exception 'kept icon %', (select icon from public.item_categories);
+  end if;
   v_option := better_supabase.save_product_option(v_product, null, 'Size', array['S', 'L']);
   if (select position from public.item_options where item_id = v_product) <> 1
     or (select array_agg(position order by value desc) from public.item_option_values) <> array[1, 2] then
     raise exception 'option ranks %', v_option;
   end if;
-  v_small := (better_supabase.save_variant(v_product, null, 'SHIRT-S', array[(v_option -> 'values' -> 0 ->> 'id')::uuid], null, null, null, null, null) ->> 'id')::uuid;
+  v_variant := better_supabase.save_variant(v_product, null, 'SHIRT-S', array[(v_option -> 'values' -> 0 ->> 'id')::uuid], null, null, null, null, null,
+    '{"manufacturer_part_number": "MPN-1", "purchase_price_cents": 400, "is_default": true}');
+  v_small := (v_variant ->> 'id')::uuid;
+  if v_variant -> 'fields' ->> 'manufacturer_part_number' <> 'MPN-1'
+    or (select row(purchase_price_cents, is_default)::text from public.item_variants where id = v_small) <> '(400,t)' then
+    raise exception 'variant fields %', v_variant;
+  end if;
+  perform better_supabase.save_variant(v_product, v_small, 'SHIRT-S', array[(v_option -> 'values' -> 0 ->> 'id')::uuid], null, null, null, null, null, '{"is_default": false}');
+  if (select row(manufacturer_part_number, is_default)::text from public.item_variants where id = v_small) <> '(MPN-1,f)' then
+    raise exception 'variant update %', (select row_to_json(v) from public.item_variants v where id = v_small);
+  end if;
   v_large := (better_supabase.save_variant(v_product, null, 'SHIRT-L', array[(v_option -> 'values' -> 1 ->> 'id')::uuid], null, null, null, null, null) ->> 'id')::uuid;
   if (select position from public.item_variants where id = v_large) <> 2 then
     raise exception 'variant rank %', (select position from public.item_variants where id = v_large);

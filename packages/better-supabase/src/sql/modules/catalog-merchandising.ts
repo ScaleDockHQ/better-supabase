@@ -1,8 +1,21 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { Names } from "./catalog-functions.ts";
 
-import { fail, userGrant } from "../shared.ts";
-import { SLUG, amountOf, catalogRank, guard } from "./catalog-functions.ts";
+import {
+  columnsObject,
+  extraFieldsArg,
+  fail,
+  insertExtraColumns,
+  userGrant,
+  writeExtraColumns,
+} from "../shared.ts";
+import {
+  SLUG,
+  amountOf,
+  catalogRank,
+  categoryExtras,
+  guard,
+} from "./catalog-functions.ts";
 
 /**
  * The price functions when the catalog has no prices table: a variant's price
@@ -458,10 +471,22 @@ ${userGrant(`${fn("set_product_categories")}(uuid, uuid[])`)}
     ${fail("CATALOG_CATEGORY_CYCLE", "a category can't sit under itself", "22023")}
   end if;`;
 
+  const extras = categoryExtras(ctx);
+  const extraArg = extraFieldsArg(extras);
+  const categoryArgs = `${ctx.idType}, uuid, uuid, text, text, text`;
+
+  const inserted = insertExtraColumns(
+    categories,
+    extras,
+    "coalesce(save_category.fields, '{}'::jsonb)",
+  );
+
   return `
 -- Creates a category (category null) or updates one, under parent (null
--- for the top level). A new category goes after its siblings.
-create or replace function ${fn("save_category")}(tenant ${ctx.idType}, category uuid, parent uuid, name text, slug text, description text)
+-- for the top level). A new category goes after its siblings. fields: the
+-- extra columns (options.categoryExtraColumns) to set.
+${extraArg.drop(fn("save_category"), categoryArgs)}
+create or replace function ${fn("save_category")}(tenant ${ctx.idType}, category uuid, parent uuid, name text, slug text, description text${extraArg.param})
 returns jsonb
 language plpgsql
 security definer
@@ -486,8 +511,8 @@ begin
       select max(${rank.order(`x.${k("rank")}`)}) into v_last from ${categories} x
       where x.${k("tenant")} = save_category.tenant and x.${k("parent")} is not distinct from save_category.parent;
       v_rank := ${rank.after("v_last")};
-      insert into ${categories} (${k("tenant")}, ${k("parent")}, ${k("name")}, ${k("slug")}, ${k("description")}, ${k("rank")})
-      values (save_category.tenant, save_category.parent, save_category.name, v_slug, save_category.description, ${rank.write("v_rank")})
+      insert into ${categories} (${k("tenant")}, ${k("parent")}, ${k("name")}, ${k("slug")}, ${k("description")}, ${k("rank")}${inserted.columns})
+      values (save_category.tenant, save_category.parent, save_category.name, v_slug, save_category.description, ${rank.write("v_rank")}${inserted.values})
       returning ${k("id")} into v_id;
     else
       update ${categories} x set ${k("parent")} = save_category.parent, ${k("name")} = save_category.name, ${k("slug")} = v_slug,
@@ -496,15 +521,22 @@ begin
       returning x.${k("rank")} into v_rank;
       if not found then
         ${fail("CATALOG_CATEGORY_NOT_FOUND", "category not found", "P0002")}
-      end if;
+      end if;${writeExtraColumns(categories, extras, "save_category.fields", `x.${k("id")} = v_id`)}
     end if;
   exception when unique_violation then
     ${fail("CATALOG_SLUG_TAKEN", "another category has this slug", "23505")}
   end;
-  return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
+  return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank)${
+    extras.length === 0
+      ? ""
+      : ` || (select jsonb_build_object('fields', ${columnsObject(
+          "x",
+          extras.map((extra) => extra.name),
+        )}) from ${categories} x where x.${k("id")} = v_id)`
+  };
 end;
 $$;
-${userGrant(`${fn("save_category")}(${ctx.idType}, uuid, uuid, text, text, text)`)}
+${userGrant(`${fn("save_category")}(${categoryArgs}${extraArg.type})`)}
 
 -- Moves a category under parent (null for the top level) at rank, a key
 -- from rankBetween over its new siblings' keys.

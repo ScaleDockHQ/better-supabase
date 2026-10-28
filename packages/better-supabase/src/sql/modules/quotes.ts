@@ -71,6 +71,7 @@ const NAMES: BlockSqlNames = {
     "validDays",
     "extraColumns",
     "lineExtraColumns",
+    "lineRates",
   ],
   tables: {
     quotes: {

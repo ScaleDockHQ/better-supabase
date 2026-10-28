@@ -161,7 +161,11 @@ function contextOf(
   layout: BlockSqlLayout & { readonly modules: AnyBlocksConfig },
 ): BlockSqlContext | undefined {
   try {
-    return moduleContext(name, layout, Object.keys(layout.modules));
+    const ctx = moduleContext(name, layout, Object.keys(layout.modules));
+
+    unusedColumns(name, ctx);
+
+    return ctx;
   } catch {
     return undefined;
   }
@@ -175,7 +179,10 @@ function contextOf(
 export function adoptedTables(
   modules: AnyBlocksConfig,
   ownTables?: Readonly<Record<string, string>>,
-  views: Pick<BlockSqlLayout, "ownViews" | "ownColumns" | "subjects"> = {},
+  views: Pick<
+    BlockSqlLayout,
+    "ownViews" | "ownColumns" | "subjects" | "accessProvider"
+  > = {},
 ): readonly AdoptedTable[] {
   const tables: AdoptedTable[] = [];
 
@@ -289,9 +296,14 @@ export function adoptedColumnProblems(
   schemas: readonly string[],
   ownTables?: Readonly<Record<string, string>>,
   subjects?: BlockSqlLayout["subjects"],
+  accessProvider?: BlockSqlLayout["accessProvider"],
 ): readonly string[] {
   const declared = declaredTableColumns(files, schemas);
-  const context = subjects === undefined ? {} : { subjects };
+
+  const context = {
+    ...(subjects === undefined ? {} : { subjects }),
+    ...(accessProvider === undefined ? {} : { accessProvider }),
+  };
 
   const problems = adoptedTables(modules, ownTables, context).flatMap(
     (table) => {
@@ -324,7 +336,7 @@ function enumColumnProblems(
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
   ownTables: Readonly<Record<string, string>> | undefined,
-  context: Pick<BlockSqlLayout, "subjects">,
+  context: Pick<BlockSqlLayout, "subjects" | "accessProvider">,
 ): readonly string[] {
   const enums = declaredEnums(files);
 
