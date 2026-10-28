@@ -50,7 +50,7 @@ function renamePolicies(text: string): {
 export const CODEMOD_0_35: Codemod = {
   name: "0.35",
   description:
-    'Rewrites refresh: "navigation" to refresh: true and verifySession: "navigation" to verifySession: "document", and lists for review the lines that use onExpiredPrefetch, shouldRefresh, clearSessionCookies (now async) and the removed cookie codec (writeSession, refreshSession, AUTH_CACHE_HEADERS, pruneSessionChunks, sessionEncoding, clearSessionAtScopes)',
+    'Rewrites refresh: "navigation" to refresh: true and verifySession: "navigation" to verifySession: "document", and lists for review the lines that use onExpiredPrefetch, shouldRefresh, clearSessionCookies (now async), the removed cookie codec (writeSession, refreshSession, AUTH_CACHE_HEADERS, pruneSessionChunks, sessionEncoding, clearSessionAtScopes), sessionStale, life.min and life.max, and contextFromSession with a token',
   review: [
     {
       pattern: /\bonExpiredPrefetch\b/,
@@ -73,6 +73,21 @@ export const CODEMOD_0_35: Codemod = {
         /\b(?:writeSession|refreshSession|AUTH_CACHE_HEADERS|pruneSessionChunks|sessionEncoding|clearSessionAtScopes|DEFAULT_SESSION_ENCODING)\b/,
       message:
         "The cookie codec exports are gone from `better-supabase/server` and `better-supabase/ssr`: let `resolveAuth` refresh and `clearSessionCookies` clear, or use `createServerClient` from `@supabase/ssr` directly",
+    },
+    {
+      pattern: /\b(?:sessionStale|SessionStaleOptions)\b/,
+      message:
+        "`sessionStale` is gone: `bsb.cached()` sets `stale` to 300 seconds, so call it in the scope instead of `cacheLife({ stale: sessionStale(session) })`, and pass `life: { capToToken: true }` to keep the old cap at the token's lifetime",
+    },
+    {
+      pattern: /\blife\s*:\s*\{[^}]*\b(?:min|max)\s*:/,
+      message:
+        "`life.min` and `life.max` are gone: `life.stale` sets the stale time (default 300), and `capToToken: true` caps it at the token's lifetime",
+    },
+    {
+      pattern: /\bcontextFromSession\([^)]*\{\s*token\b/,
+      message:
+        "`contextFromSession(session, { token })` is gone: pass the `SessionSnapshot` from `bsb.getClaims()`, which builds the context without verifying again",
     },
   ],
   source: renamePolicies,

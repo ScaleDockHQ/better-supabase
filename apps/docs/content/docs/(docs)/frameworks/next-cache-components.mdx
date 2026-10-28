@@ -100,26 +100,25 @@ Components.
 
 ```ts title="src/features/user/user-queries.ts"
 import "server-only";
-import { type AuthSession, sessionStale } from "better-supabase/next";
-import { cacheLife } from "next/cache";
+import type { AuthSession } from "better-supabase/next";
 import { bsb } from "@/lib/supabase/server";
 
 export async function getSession(): Promise<AuthSession> {
   "use cache: private";
-  const session = await bsb.claims();
-  cacheLife({ stale: sessionStale(session) });
+  const { session } = await bsb.cached();
   return session;
 }
 ```
 
-`sessionStale(session, { min: 30, max: 300 })` returns `max`, but never
-more than the seconds left on the token, so a signed-in view is not reused
-after its token expired. With fewer than `min` seconds left it returns 0.
-A signed-out view that a refresh or a sign-in would change also gets 0: an
-`anon` session whose cookie is `expired` or `refresh_failed` (prefetches
-never refresh), and an `invalid` one (for example when the JWKS was
-unreachable). Without a session cookie (`none` with reason `none`) it
-returns `max`. `stale` decides where the result can be reused:
+`bsb.cached()` sets `stale` to 300 seconds, so the session rides in the
+route's App Shell. The token's lifetime does not cap it: the proxy refreshes
+the cookie on every request, prefetches included, and `bsb.evictSession()`
+drops the user's entries on sign-out. A signed-out view that a refresh or a
+sign-in would change gets 0: an `anon` session whose cookie is `expired` or
+`refresh_failed`, and an `invalid` one (for example when the JWKS was
+unreachable). `life: { capToToken: true }` brings back the old cap at the
+seconds left on the token, and 0 with fewer than 30 left. `stale` decides
+where the result can be reused:
 
 | `stale`       | Effect                                                        |
 | ------------- | ------------------------------------------------------------- |
@@ -363,9 +362,10 @@ export async function getCustomers() {
 function: the directive has to be in app code, and Next.js keys the entry on
 that function's arguments. It:
 
-- calls `cacheLife({ stale: sessionStale(session) })`. Pass
-  `{ life: { min, max, revalidate, expire } }` to change it, and
-  `life.stale` to cap it: the entry then goes stale at the smaller of the two;
+- calls `cacheLife({ stale: 300 })`. Pass
+  `{ life: { stale, revalidate, expire, capToToken } }` to change it. In
+  development a `stale` below 300 seconds logs a warning once, since the
+  entry then leaves the App Shell, and below 30 that it leaves the prerender;
 - tags the entry `bsb:session:<user id>`, so `bsb.evictSession(userId)`
   drops every cached view of that user, for example after an admin changes
   their role. `tags` adds more tags to the entry, and
@@ -390,10 +390,8 @@ that function's arguments. It:
 
 When a scope calls `cacheLife` more than once, Next.js combines the calls
 field by field and keeps the smallest `stale` and the smallest `revalidate`.
-A profile of your own next to `bsb.cached()` can make the entry shorter,
-but it can never keep it past what the token allows.
-
-Take a 15-minute profile in a project whose access tokens last 900 seconds:
+A profile of your own next to `bsb.cached()` can make the entry shorter
+than 300 seconds, but not longer:
 
 ```ts title="src/features/customers/customer-queries.ts"
 import { cacheLife } from "next/cache";
@@ -406,25 +404,103 @@ export async function getCustomer(id: string) {
 }
 ```
 
-`bsb.cached()` adds `stale: sessionStale(session)`, which is the seconds
-left on the token capped at `max` (300 by default). On a fresh token the
-entry goes stale after 300 seconds, not 900. With
-`bsb.cached({ life: { max: 900 } })` it goes stale when the token expires:
-600 seconds for a token issued 300 seconds ago. With fewer than 30 seconds
-left the stale time is 0, so the entry is not reused. Your profile's
-`revalidate` and `expire` still apply, since `bsb.cached()` only sets them
-when you pass them in `life`.
-
-Prefer `life` on `bsb.cached()` over a second `cacheLife` call, so one call
-holds the whole lifetime:
+The entry goes stale after 300 seconds, the smaller `stale`. Prefer `life` on
+`bsb.cached()` over a second `cacheLife` call, so one call holds the whole
+lifetime:
 
 ```ts
 const { db } = await bsb.cached({
   tables: ["customers"],
   id,
-  life: { max: 900, revalidate: 900, expire: 3600 },
+  life: { stale: 900, revalidate: 900, expire: 3600 },
 });
 ```
+
+### Remote scope
+
+`'use cache: remote'` keeps an entry on the server, shared across instances,
+instead of in the browser. Use it for user-scoped data that is expensive to
+read and fine to reuse across devices. A remote scope can't read cookies or
+headers, so the caller hands its verified session over: wrap the function in
+`bsb.remote()`, take the key it passes as the first argument, and give that
+key to `bsb.cached()`:
+
+```ts title="src/features/inbox/inbox-queries.ts"
+import type { RemoteCacheKey } from "better-supabase/next";
+import { bsb } from "@/lib/supabase/server";
+
+export const getInbox = bsb.remote(
+  async (key: RemoteCacheKey, folder: string) => {
+    "use cache: remote";
+    const { db } = await bsb.cached({
+      scope: "remote",
+      key,
+      tables: ["messages"],
+    });
+    return db.messages.list({ where: { folder } }).orThrow();
+  },
+);
+```
+
+The key holds the user id, the Auth session id, the tenant and the
+authorization version, never the token, so Next.js keys the entry on them.
+The token reaches the scope through process memory for the length of the
+call only. `share: "user"` drops the session id so one entry serves all of
+the user's devices; `share: { key: (snapshot) => string }` names one key for
+data that is the same for every caller who gets it, and the first caller's
+token reads it. `tenant: (...args) => string` scopes the key to a tenant from
+the arguments. Support sessions never hand their token over: their remote
+calls get an `invalid` context. Remote entries default to `revalidate` 300
+and `expire` 3600 seconds.
+
+On Vercel the remote handler is shared. Elsewhere set `remoteCacheHandler`
+in `createNextConfig()` (or `cacheHandlers.remote`), or each instance keeps
+its own copy; doctor reports that as [BS608](/docs/cli/doctor#bs608).
+
+### One database call per page
+
+`bsb.bootstrap()` reads the session check, the authorization version and the
+page's data in one query. Name your function in the sessions block, which
+generates a `better_supabase.bootstrap_<name>(args jsonb)` wrapper that runs
+it as the caller:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  sessions: { options: { bootstrap: { home: "app.home_data" } } },
+},
+```
+
+```ts title="src/features/home/home-queries.ts"
+export async function getHome(organizationId: string) {
+  "use cache: private";
+  return bsb.bootstrap<HomeData>({
+    rpc: "home",
+    tenant: organizationId,
+    redirect: "/sign-in",
+  });
+}
+```
+
+`app.home_data(args jsonb)` receives `args` plus the tenant. The result is
+plain data (`session`, `sessionActive`, `authzVersion`, `tenant`, `data`), so
+it can cross into Client Components. When the Auth session ended,
+`sessionActive` is false, the entry is not kept, the user's tags are evicted,
+and with `redirect` the caller goes to `/sign-in?reason=session_not_found`.
+Calls with the same arguments share one query per request. Since the wrapper
+checks the session, the proxy can skip its own Auth call:
+`proxy({ verifySession: "bootstrap" })`. `bsb.bootstrap()` takes
+`scope: "remote"` and `key` like `bsb.cached()`.
+
+`bsb.getAccess(boot)` turns the result into the caller's `context`,
+`session`, `tenant`, `authzVersion` and `can(permission)`, without verifying
+the token again.
+
+### Root params
+
+With `rootParams: { locale, brand, tenant }` from `next/root-params` in
+`createNext()`, `bsb.locale()`, `bsb.brand()` and `bsb.tenant()` read them,
+and contexts fall back to the `tenant` root param when `tenant` resolves
+none. Outside the root layout's segment they return `undefined`.
 
 ### Permission snapshots
 
@@ -483,11 +559,9 @@ The user's token keeps the old memberships until it refreshes. Policies that
 read the membership tables instead of the token see the change
 immediately.
 
-Outside a request, `bsb.contextFromSession(session, { token })` builds the same
-context from a session you already have. The token is verified again, and a
-token for another user gives an `invalid` context. A token that fails to
-verify (expired, or the JWKS unreachable) gives the `invalid` context with
-that error.
+Outside a request, `bsb.contextFromSession(snapshot)` builds the same
+context from a `SessionSnapshot` you already have (`bsb.getClaims()`),
+without verifying the token again. `null` gives the signed-out context.
 
 ### What one scope costs
 
@@ -527,7 +601,10 @@ session for the next render and return a checked `redirectTo`, so the action
 ends with `redirect(redirectTo)` and no `router.refresh()`.
 
 `safeRedirectPath(next, fallback)` from `better-supabase/server` is the same
-check for your own flows.
+check for your own flows. `postAuthPath(source, fallback)` from
+`better-supabase/next` reads `?next=` from a `Request`, `URLSearchParams` or
+a page's `searchParams` and runs that check:
+`redirect(postAuthPath(await searchParams, "/"))`.
 
 When the browser client signs in or out instead, it writes the session cookie, and the router cache still
 holds the old private session. Call a Server Action that runs `refresh()`
@@ -600,7 +677,7 @@ turns an instant navigation into a spinner.
 - **Stage 1** can't read the request. `bsb.admin()` bypasses RLS, so only
   use it for data every visitor may see, and tag the entry with
   `bsb.tags()` so mutations revalidate it.
-- **Stage 2** runs once and is reused until `sessionStale` expires or
+- **Stage 2** runs once and is reused until its `stale` time passes or
   `bsb.evictSession()` drops it. Keep it small: the menu, the
   session, a few counts. Pass the `db` from `bsb.cached()` to
   `bsb.liveCount` here; without it, `liveCount` reads the request and

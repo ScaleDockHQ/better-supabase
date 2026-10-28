@@ -1155,6 +1155,73 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("bootstrap wrappers return the session, the authz version and the data in one call", async () => {
+    const name = `home_${RUN}`;
+    const wrapper = `better_supabase.bootstrap_${name}`;
+    const fn = `public.bsb_home_${RUN}`;
+
+    const user = await pool.query<{ id: string }>(
+      `insert into auth.users (id, instance_id, aud, role, email) values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $1) returning id`,
+      [`bootstrap-${RUN}@example.com`],
+    );
+
+    const sub = user.rows[0]!.id;
+    const session = crypto.randomUUID();
+
+    try {
+      await pool.query(
+        `insert into auth.sessions (id, user_id, created_at, updated_at) values ($1, $2, now(), now())`,
+        [session, sub],
+      );
+      await pool.query(
+        `create function ${fn}(args jsonb) returns jsonb language sql stable
+         as $$ select jsonb_build_object('who', auth.uid(), 'page', args ->> 'page') $$;
+         grant execute on function ${fn}(jsonb) to authenticated;`,
+      );
+
+      const [file] = renderBlocks(["sessions"], {
+        modules: { sessions: { options: { bootstrap: { [name]: fn } } } },
+      });
+
+      await pool.query(file!.contents);
+
+      const call = async (claims: Record<string, unknown>) => {
+        const [row] = await postgres
+          .asUser({ sub, role: "authenticated", ...claims })
+          .queryRaw<{ out: Record<string, unknown> }>(
+            `select ${wrapper}('{"page":"inbox","tenant":"acme"}'::jsonb) as out`,
+          );
+
+        return row!.out;
+      };
+
+      expect(await call({ session_id: session, authz_ver: 7 })).toEqual({
+        session_active: true,
+        authz_version: 7,
+        tenant: "acme",
+        data: { who: sub, page: "inbox" },
+      });
+
+      await pool.query("delete from auth.sessions where id = $1", [session]);
+      expect(await call({ session_id: session, authz_ver: 7 })).toEqual({
+        session_active: false,
+        authz_version: 7,
+        tenant: "acme",
+        data: null,
+      });
+
+      await expect(
+        postgres
+          .asUser({ sub, role: "anon" })
+          .queryRaw(`select ${wrapper}('{}'::jsonb)`),
+      ).rejects.toMatchObject({ code: "42501" });
+    } finally {
+      await pool.query(`drop function if exists ${wrapper}(jsonb)`);
+      await pool.query(`drop function if exists ${fn}(jsonb)`);
+      await pool.query("delete from auth.users where id = $1", [sub]);
+    }
+  });
+
   it("puts memberships and Stripe features in separate claims and RLS", async () => {
     const billing = `bsb_billing_${RUN}`;
     const hook = `public.bsb_hook_${RUN}`;

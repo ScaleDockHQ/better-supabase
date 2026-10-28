@@ -176,6 +176,17 @@ describe("proxy fast path", () => {
     expect(auth).toHaveBeenCalledOnce();
   });
 
+  it("leaves the ended-session check to bsb.bootstrap() with verifySession bootstrap", async () => {
+    auth.mockImplementation(async () => Response.json({ id: USER }));
+
+    const { auth: state } = await run(page(await expiring(3600)), {
+      verifySession: "bootstrap",
+    });
+
+    expect(auth).not.toHaveBeenCalled();
+    expect(state).toMatchObject({ kind: "user", user: { id: USER } });
+  });
+
   it("reports each phase that ran in Server-Timing", async () => {
     const { response } = await run(page(await expiring(20, "r-timing")), {
       serverTiming: true,

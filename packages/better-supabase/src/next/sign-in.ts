@@ -60,6 +60,41 @@ interface CookieJar {
 /** How long the PKCE verifier cookie lives, in seconds. */
 const VERIFIER_MAX_AGE = 600;
 
+/**
+ * Where to send the user after signing in: the `next` value of the search
+ * params (a `URLSearchParams`, a page's `searchParams` object or a request)
+ * when it is a same-origin path, else `fallback`.
+ *
+ * ```ts
+ * redirect(postAuthPath(await searchParams, "/dashboard"));
+ * ```
+ */
+export function postAuthPath(
+  source:
+    | Request
+    | URLSearchParams
+    | Readonly<Record<string, string | readonly string[] | undefined>>,
+  fallback: string,
+): string {
+  if (source instanceof Request) {
+    return safeRedirectPath(
+      new URL(source.url).searchParams.get("next"),
+      fallback,
+    );
+  }
+
+  if (source instanceof URLSearchParams) {
+    return safeRedirectPath(source.get("next"), fallback);
+  }
+
+  const next = source["next"];
+
+  return safeRedirectPath(
+    typeof next === "string" ? next : next?.[0],
+    fallback,
+  );
+}
+
 export interface AuthFlowDeps<C, P> {
   /** Read on each call: the env may load after `createNext`. */
   readonly env: () => {

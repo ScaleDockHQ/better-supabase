@@ -128,6 +128,18 @@ Doctor reports every RLS table in `schemas` without a restrictive
 `session_active()` policy as [BS320](/docs/cli/doctor#bs320), skipping the
 `exclude` globs and the tables SQL modules own.
 
+`options.bootstrap` maps names to your own functions, each taking one
+`jsonb` argument, and generates a `better_supabase.bootstrap_<name>(args
+jsonb)` wrapper per entry. The wrapper runs as the caller, checks
+`session_active()` first, and returns the session flag, the token's
+`authz_ver` and your function's result in one `jsonb`, which
+[`bsb.bootstrap()`](/docs/frameworks/next-cache-components#one-database-call-per-page)
+reads with one query per page:
+
+```ts title="better-supabase.config.ts"
+sessions: { options: { bootstrap: { home: "app.home_data" } } },
+```
+
 ## Suspending an account
 
 Banning a user in Supabase Auth refuses sign-in and refresh, but the user's

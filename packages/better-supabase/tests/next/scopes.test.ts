@@ -6,7 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
-import { createNext, sessionStale, sessionTag } from "../../src/next/index.ts";
+import { cachedLife } from "../../src/next/cache.ts";
+import { createNext, sessionTag } from "../../src/next/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -79,7 +80,6 @@ const env = {
 };
 
 const USER = "11111111-1111-4111-8111-111111111111";
-const OTHER = "22222222-2222-4222-8222-222222222222";
 const signer = await createTestSigner();
 
 describe("private-cache scopes", () => {
@@ -127,24 +127,22 @@ describe("private-cache scopes", () => {
     expect(mocks.clients).toBe(1);
   });
 
-  it("caches per session with a stale time from the token", async () => {
-    const exp = Math.floor(Date.now() / 1000) + 120;
+  it("caches per session with the App Shell floor, not the token's lifetime", async () => {
     const token = await signer.sign({ sub: USER, expiresIn: 120 });
     mocks.headers = new Headers({ authorization: `Bearer ${token}` });
     const ctx = await bsb.cached({ life: { expire: 3600 } });
     expect(ctx.session).toMatchObject({ kind: "user", user: { id: USER } });
     expect(ctx.auth.kind).toBe("user");
-
-    const [life] = mocks.cacheLife.mock.calls[0]! as [
-      { stale: number; expire: number },
-    ];
-
-    expect(life.expire).toBe(3600);
-    expect(life.stale).toBeGreaterThanOrEqual(
-      exp - Math.floor(Date.now() / 1000) - 1,
-    );
-    expect(life.stale).toBeLessThanOrEqual(120);
+    expect(mocks.cacheLife).toHaveBeenLastCalledWith({
+      stale: 300,
+      expire: 3600,
+    });
     expect(mocks.cacheTag).toHaveBeenCalledWith(sessionTag(USER));
+
+    await bsb.cached({ life: { capToToken: true } });
+    const [life] = mocks.cacheLife.mock.lastCall! as [{ stale: number }];
+    expect(life.stale).toBeGreaterThan(100);
+    expect(life.stale).toBeLessThanOrEqual(120);
 
     await bsb.evictSession(USER);
     expect(mocks.updateTag).toHaveBeenCalledWith(`bsb:session:${USER}`);
@@ -158,9 +156,8 @@ describe("private-cache scopes", () => {
     expect(mocks.cacheLife).toHaveBeenLastCalledWith({ stale: 45 });
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(sessionTag(USER), ...tags);
 
-    // A ceiling above the session's stale time leaves it alone.
     await bsb.cached({ life: { stale: 900 } });
-    expect(mocks.cacheLife).toHaveBeenLastCalledWith({ stale: 300 });
+    expect(mocks.cacheLife).toHaveBeenLastCalledWith({ stale: 900 });
 
     mocks.headers = new Headers();
     await bsb.cached({ tags: ["public:pricing"] });
@@ -177,61 +174,19 @@ describe("private-cache scopes", () => {
     ]);
   });
 
-  it("builds a context from a session and its token", async () => {
-    const token = await signer.sign({ sub: USER });
+  it("builds a context from a snapshot without verifying again", async () => {
+    mocks.headers = new Headers({
+      authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+    });
+    const snapshot = await bsb.getClaims();
+    expect(snapshot?.userId).toBe(USER);
+    const verified = mocks.verifications;
 
-    const session = {
-      kind: "user",
-      user: { id: USER },
-      claims: { sub: USER },
-      expiresAt: null,
-    } as never;
-
-    const ctx = await bsb.contextFromSession(session, { token });
+    const ctx = await bsb.contextFromSession(snapshot);
     expect(ctx.auth).toMatchObject({ kind: "user", user: { id: USER } });
+    expect(mocks.verifications).toBe(verified);
 
-    const foreign = await bsb.contextFromSession(session, {
-      token: await signer.sign({ sub: OTHER }),
-    });
-
-    expect(foreign.auth).toMatchObject({
-      kind: "invalid",
-      error: { kind: "unauthorized" },
-    });
-
-    const anon = await bsb.contextFromSession(
-      { kind: "none", reason: "none" },
-      { token: null },
-    );
-
-    expect(anon.auth.kind).toBe("none");
-
-    const service = await bsb.contextFromSession(
-      { kind: "secret", keyName: "cron" },
-      { token: null },
-    );
-
-    expect(service.auth).toMatchObject({
-      kind: "invalid",
-      error: { kind: "unauthorized" },
-    });
-  });
-
-  it("keeps the verification error of an expired token", async () => {
-    const token = await signer.sign({ sub: USER, expiresIn: -60 });
-
-    const session = {
-      kind: "user",
-      user: { id: USER },
-      claims: { sub: USER },
-      expiresAt: null,
-    } as never;
-
-    const ctx = await bsb.contextFromSession(session, { token });
-    expect(ctx.auth.kind).toBe("invalid");
-    expect(
-      ctx.auth.kind === "invalid" ? ctx.auth.error.message : undefined,
-    ).not.toMatch(/does not belong/);
+    expect((await bsb.contextFromSession(null)).auth.kind).toBe("none");
   });
 
   it("drops the cached session after deleting the account", async () => {
@@ -415,41 +370,81 @@ describe("explicit tenants", () => {
   });
 });
 
-describe("sessionStale", () => {
+describe("cachedLife", () => {
   const now = 1_000_000_000_000;
 
   const user = (expiresAt: number | null) =>
     ({ kind: "user", expiresAt }) as never;
 
-  it("stays within min and max and never outlives the token", () => {
-    expect(sessionStale({ kind: "none", reason: "none" })).toBe(300);
-    expect(sessionStale(user(null))).toBe(300);
-    expect(sessionStale(user(now / 1000 + 3600), {}, now)).toBe(300);
-    expect(sessionStale(user(now / 1000 + 90), {}, now)).toBe(90);
-    expect(sessionStale(user(now / 1000 + 90), { min: 10, max: 60 }, now)).toBe(
-      60,
-    );
-  });
-
-  it("keeps a view of a token in its last seconds out of prefetches", () => {
-    expect(sessionStale(user(now / 1000 + 5), {}, now)).toBe(0);
-    expect(sessionStale(user(now / 1000 - 5), {}, now)).toBe(0);
-    expect(sessionStale(user(now / 1000 + 45), { min: 10 }, now)).toBe(45);
-    // The client router keeps an entry for 30 seconds, so `min` never goes lower.
-    expect(sessionStale(user(now / 1000 + 20), { min: 10 }, now)).toBe(0);
-  });
-
-  it("keeps a signed-out view that a refresh or sign-in would change out of the App Shell", () => {
-    expect(sessionStale({ kind: "none", reason: "expired" })).toBe(0);
-    expect(sessionStale({ kind: "none", reason: "refresh_failed" })).toBe(0);
+  it("floors stale at 300 seconds and leaves the token out unless asked", () => {
+    expect(cachedLife({ kind: "none", reason: "none" }, "private")).toEqual({
+      stale: 300,
+    });
+    expect(cachedLife(user(now / 1000 + 90), "private", {}, { now })).toEqual({
+      stale: 300,
+    });
     expect(
-      sessionStale({
-        kind: "invalid",
-        reason: "token",
-        error: dbError("network", "JWKS unreachable"),
-      }),
-    ).toBe(0);
-    expect(sessionStale({ kind: "none", reason: "signed_out" })).toBe(300);
-    expect(sessionStale({ kind: "secret", keyName: "cron" })).toBe(300);
+      cachedLife(user(now / 1000 + 90), "private", { stale: 900 }, { now }),
+    ).toEqual({ stale: 900 });
+  });
+
+  it("caps stale to the token with capToToken, and drops its last 30 seconds", () => {
+    const capped = { capToToken: true } as const;
+    expect(
+      cachedLife(user(now / 1000 + 90), "private", capped, { now }),
+    ).toEqual({ stale: 90 });
+    expect(
+      cachedLife(user(now / 1000 + 20), "private", capped, { now }),
+    ).toEqual({ stale: 0 });
+    expect(cachedLife(user(null), "private", capped, { now })).toEqual({
+      stale: 300,
+    });
+  });
+
+  it("keeps a view a refresh or sign-in would change out of the App Shell", () => {
+    expect(cachedLife({ kind: "none", reason: "expired" }, "private")).toEqual({
+      stale: 0,
+    });
+    expect(
+      cachedLife({ kind: "none", reason: "refresh_failed" }, "private"),
+    ).toEqual({ stale: 0 });
+    expect(
+      cachedLife(
+        {
+          kind: "invalid",
+          reason: "token",
+          error: dbError("network", "JWKS unreachable"),
+        },
+        "private",
+      ),
+    ).toEqual({ stale: 0 });
+    expect(cachedLife({ kind: "secret", keyName: "cron" }, "private")).toEqual({
+      stale: 300,
+    });
+  });
+
+  it("gives remote entries a revalidate and an expire", () => {
+    expect(cachedLife(user(null), "remote")).toEqual({
+      stale: 300,
+      revalidate: 300,
+      expire: 3600,
+    });
+    expect(cachedLife(user(null), "remote", { expire: 600 })).toEqual({
+      stale: 300,
+      revalidate: 300,
+      expire: 600,
+    });
+  });
+
+  it("warns once in development when stale leaves the App Shell or the prerender", () => {
+    const warn = vi.fn<(message: string) => void>();
+    cachedLife(user(null), "private", { stale: 120 }, { warn });
+    cachedLife(user(null), "private", { stale: 120 }, { warn });
+    cachedLife(user(null), "private", { stale: 10 }, { warn });
+    cachedLife(user(null), "private", { stale: 300 }, { warn });
+    expect(warn.mock.calls).toEqual([
+      [expect.stringMatching(/below 300 seconds/)],
+      [expect.stringMatching(/below 30 seconds/)],
+    ]);
   });
 });
