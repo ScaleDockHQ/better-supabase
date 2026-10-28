@@ -57,7 +57,14 @@ export function planReminderDeliveries(
       dtstart: item.dtstart,
       ...(item.rrule === undefined ? {} : { rrule: item.rrule }),
       ...(item.columns === undefined ? {} : { columns: item.columns }),
-      limit: 366,
+      // The occurrences whose run time falls in the window; `until` is
+      // exclusive there, so one more minute keeps an occurrence at the edge.
+      window: {
+        from: window.from.toInstant().add({ minutes: item.offsetMinutes }),
+        until: window.until
+          .toInstant()
+          .add({ minutes: item.offsetMinutes + 1 }),
+      },
     });
 
     for (const occurrence of occurrences) {

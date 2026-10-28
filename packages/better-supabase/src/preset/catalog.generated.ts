@@ -1636,7 +1636,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "subjectId": "subject_id",
               "user": "user_id",
               "method": "method",
-              "offsetMinutes": "offset_minutes"
+              "offsetMinutes": "offset_minutes",
+              "remindAt": "remind_at"
             }
           }
         },
@@ -7876,6 +7877,12 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "description": "On an out-of-office or focus-time block: decline the invitations it covers."
               },
+              "alarms": {
+                "kind": "custom",
+                "optional": true,
+                "array": true,
+                "description": "Replaces the event's alarms."
+              },
               "uid": {
                 "kind": "string",
                 "optional": true,
@@ -7991,6 +7998,63 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "autoDecline": {
                   "type": "boolean",
                   "description": "On an out-of-office or focus-time block: decline the invitations it covers."
+                },
+                "alarms": {
+                  "type": "array",
+                  "items": {
+                    "title": "CalendarAlarm",
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "action": {
+                        "type": "string",
+                        "enum": [
+                          "display",
+                          "email",
+                          "audio"
+                        ]
+                      },
+                      "triggerMinutes": {
+                        "type": "integer",
+                        "minimum": -525600,
+                        "maximum": 525600,
+                        "description": "Minutes from the start (or end), RFC 5545 sign: -15 fires 15 minutes before."
+                      },
+                      "related": {
+                        "type": "string",
+                        "enum": [
+                          "start",
+                          "end"
+                        ]
+                      },
+                      "triggerAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "An absolute trigger, instead of triggerMinutes."
+                      },
+                      "repeat": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "repeatMinutes": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "summary": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Replaces the event's alarms."
                 },
                 "uid": {
                   "type": "string",
@@ -8106,6 +8170,12 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "description": "On an out-of-office or focus-time block: decline the invitations it covers."
               },
+              "alarms": {
+                "kind": "custom",
+                "optional": true,
+                "array": true,
+                "description": "Replaces the event's alarms."
+              },
               "uid": {
                 "kind": "string",
                 "optional": true,
@@ -8221,6 +8291,63 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "autoDecline": {
                   "type": "boolean",
                   "description": "On an out-of-office or focus-time block: decline the invitations it covers."
+                },
+                "alarms": {
+                  "type": "array",
+                  "items": {
+                    "title": "CalendarAlarm",
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "action": {
+                        "type": "string",
+                        "enum": [
+                          "display",
+                          "email",
+                          "audio"
+                        ]
+                      },
+                      "triggerMinutes": {
+                        "type": "integer",
+                        "minimum": -525600,
+                        "maximum": 525600,
+                        "description": "Minutes from the start (or end), RFC 5545 sign: -15 fires 15 minutes before."
+                      },
+                      "related": {
+                        "type": "string",
+                        "enum": [
+                          "start",
+                          "end"
+                        ]
+                      },
+                      "triggerAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "An absolute trigger, instead of triggerMinutes."
+                      },
+                      "repeat": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "repeatMinutes": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "summary": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Replaces the event's alarms."
                 },
                 "uid": {
                   "type": "string",
@@ -17026,7 +17153,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "reminder.sent"
         ]
-      }
+      },
+      "schedules": [
+        {
+          "name": "schedule",
+          "cron": "*/5 * * * *",
+          "runs": "schedule()",
+          "description": "Enqueues a reminders.deliver job for each reminder due in the next day."
+        }
+      ]
     },
     {
       "name": "reserved-slugs",

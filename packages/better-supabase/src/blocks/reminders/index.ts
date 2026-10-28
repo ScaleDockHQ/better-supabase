@@ -11,7 +11,13 @@ export {
 export {
   REMINDER_DELIVERY_QUEUE,
   createReminders,
+  reminderJobSchema,
   type ReminderEntry,
+  type ReminderJobPayload,
+  type ReminderJobs,
+  type ReminderScheduleOptions,
+  type ReminderScheduleResult,
+  type ReminderWhen,
   type Reminders,
   type SavedReminder,
   type RemindersOptions,

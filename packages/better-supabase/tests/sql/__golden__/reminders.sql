@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:2dd52893f13ca604f82ee17eea9a5557be6fbc1554025d8f9162a31c109fff53
+-- @bsb-hash sha256:bf40715ae960153b194cdc1a0d471ae8c542d91bff461147f85cc86287a85e10
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -88,6 +88,7 @@ create table if not exists "better_supabase"."reminders" (
   "method" text not null default 'notification',
   "offset_minutes" integer not null default 0
 );
+alter table "better_supabase"."reminders" add column if not exists "remind_at" timestamptz;
 alter table "better_supabase"."reminders" enable row level security;
 revoke all on "better_supabase"."reminders" from public, anon, authenticated;
 grant select on "better_supabase"."reminders" to authenticated;
@@ -124,8 +125,10 @@ revoke all on "better_supabase"."reminder_deliveries" from public, anon, authent
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
 
+drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb);
+drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer);
 drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
-create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)
+create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -140,14 +143,14 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_reminder.tenant, 'reminders.manage'), false)) then
     raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
   end if;
-  insert into "better_supabase"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes")
-  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0))
+  insert into "better_supabase"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes", "remind_at")
+  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0), save_reminder.remind_at)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) from public, anon;
-grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
 -- The caller's reminders on one subject, the earliest first.
 create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
@@ -165,7 +168,8 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object(
       'id', r."id",
       'method', r."method",
-      'offsetMinutes', r."offset_minutes"
+      'offsetMinutes', r."offset_minutes",
+      'remindAt', r."remind_at"
     ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
     from "better_supabase"."reminders" r
     where r."tenant_id" = list_my_reminders.tenant
@@ -241,7 +245,10 @@ $$;
 revoke execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamptz) from public, anon, authenticated;
 grant execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamptz) to service_role;
 
-create or replace function "better_supabase"."list_reminder_schedule"()
+-- Every reminder's schedule: its subject's rule, its own time, or the
+-- subject's `at` column. Delivery dedupes on (reminder, occurrence).
+drop function if exists "better_supabase"."list_reminder_schedule"();
+create function "better_supabase"."list_reminder_schedule"()
 returns table (
   reminder uuid,
   dtstart timestamptz,
@@ -250,7 +257,8 @@ returns table (
   offset_minutes integer,
   tenant uuid,
   subject_type text,
-  subject_id text
+  subject_id text,
+  user_id uuid
 )
 language sql
 stable
@@ -264,12 +272,20 @@ as $$
     r."offset_minutes",
     r."tenant_id",
     r."subject_type",
-    r."subject_id"
+    r."subject_id",
+    r."user_id"
   from "better_supabase"."reminders" r
   join "better_supabase"."recurrence_rules" u
     on u."tenant_id" = r."tenant_id"
    and u."subject_type" = r."subject_type"
-   and u."subject_id" = r."subject_id";
+   and u."subject_id" = r."subject_id"
+  where r."remind_at" is null
+  union all
+  select r."id", r."remind_at", 'UTC'::text, 'FREQ=DAILY;COUNT=1'::text, 0,
+    r."tenant_id", r."subject_type",
+    r."subject_id", r."user_id"
+  from "better_supabase"."reminders" r
+  where r."remind_at" is not null;
 $$;
 revoke execute on function "better_supabase"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "better_supabase"."list_reminder_schedule"() to service_role;
@@ -356,7 +372,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:b0454974dc6efdb97a393214548b9743d14f246b6efa15c16ebf8cc591fa4906
+-- @bsb-hash sha256:00e6b06bc8d98b565ae9b09c2de0d85616651ef5596a00bcbeaf91d27b335676
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -443,6 +459,7 @@ create table if not exists "better_supabase"."reminders" (
   "method" text not null default 'notification',
   "offset_minutes" integer not null default 0
 );
+alter table "better_supabase"."reminders" add column if not exists "remind_at" timestamptz;
 alter table "better_supabase"."reminders" enable row level security;
 revoke all on "better_supabase"."reminders" from public, anon, authenticated;
 grant select on "better_supabase"."reminders" to authenticated;
@@ -479,8 +496,10 @@ revoke all on "better_supabase"."reminder_deliveries" from public, anon, authent
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
 
+drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb);
+drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer);
 drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
-create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)
+create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -495,14 +514,14 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_reminder.tenant, 'reminders.manage'), false)) then
     raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
   end if;
-  insert into "better_supabase"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes")
-  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0))
+  insert into "better_supabase"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes", "remind_at")
+  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0), save_reminder.remind_at)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) from public, anon;
-grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
 -- The caller's reminders on one subject, the earliest first.
 create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
@@ -520,7 +539,8 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object(
       'id', r."id",
       'method', r."method",
-      'offsetMinutes', r."offset_minutes"
+      'offsetMinutes', r."offset_minutes",
+      'remindAt', r."remind_at"
     ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
     from "better_supabase"."reminders" r
     where r."tenant_id" = list_my_reminders.tenant
@@ -596,7 +616,10 @@ $$;
 revoke execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamptz) from public, anon, authenticated;
 grant execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamptz) to service_role;
 
-create or replace function "better_supabase"."list_reminder_schedule"()
+-- Every reminder's schedule: its subject's rule, its own time, or the
+-- subject's `at` column. Delivery dedupes on (reminder, occurrence).
+drop function if exists "better_supabase"."list_reminder_schedule"();
+create function "better_supabase"."list_reminder_schedule"()
 returns table (
   reminder uuid,
   dtstart timestamptz,
@@ -605,7 +628,8 @@ returns table (
   offset_minutes integer,
   tenant uuid,
   subject_type text,
-  subject_id text
+  subject_id text,
+  user_id uuid
 )
 language sql
 stable
@@ -619,12 +643,20 @@ as $$
     r."offset_minutes",
     r."tenant_id",
     r."subject_type",
-    r."subject_id"
+    r."subject_id",
+    r."user_id"
   from "better_supabase"."reminders" r
   join "better_supabase"."recurrence_rules" u
     on u."tenant_id" = r."tenant_id"
    and u."subject_type" = r."subject_type"
-   and u."subject_id" = r."subject_id";
+   and u."subject_id" = r."subject_id"
+  where r."remind_at" is null
+  union all
+  select r."id", r."remind_at", 'UTC'::text, 'FREQ=DAILY;COUNT=1'::text, 0,
+    r."tenant_id", r."subject_type",
+    r."subject_id", r."user_id"
+  from "better_supabase"."reminders" r
+  where r."remind_at" is not null;
 $$;
 revoke execute on function "better_supabase"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "better_supabase"."list_reminder_schedule"() to service_role;
@@ -711,7 +743,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:cc61e3e17c7a1165bfb13f62e410e0338a0d9e1b443e8b40a36c1e364427775a
+-- @bsb-hash sha256:7e337ee5de0c7c221fa4c045a5aa003935710f8a38c73e5ef2766a90b8d06028
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -803,6 +835,7 @@ create table if not exists "app_private"."reminders" (
   "method" text not null default 'notification',
   "offset_minutes" integer not null default 0
 );
+alter table "app_private"."reminders" add column if not exists "remind_at" timestamptz;
 alter table "app_private"."reminders" enable row level security;
 revoke all on "app_private"."reminders" from public, anon, authenticated;
 grant select on "app_private"."reminders" to authenticated;
@@ -839,8 +872,10 @@ revoke all on "app_private"."reminder_deliveries" from public, anon, authenticat
 grant select on "app_private"."reminder_deliveries" to authenticated;
 grant all on "app_private"."reminder_deliveries" to service_role;
 
+drop function if exists "app_private"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb);
+drop function if exists "app_private"."save_reminder"(uuid, text, text, integer);
 drop function if exists "app_private"."save_reminder"(uuid, text, text, integer, jsonb);
-create or replace function "app_private"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)
+create or replace function "app_private"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -855,14 +890,14 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_reminder.tenant, 'reminders.manage'), false)) then
     raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
   end if;
-  insert into "app_private"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes")
-  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0))
+  insert into "app_private"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes", "remind_at")
+  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0), save_reminder.remind_at)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "app_private"."save_reminder"(uuid, text, text, integer) from public, anon;
-grant execute on function "app_private"."save_reminder"(uuid, text, text, integer) to authenticated, service_role;
+revoke execute on function "app_private"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
+grant execute on function "app_private"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
 -- The caller's reminders on one subject, the earliest first.
 create or replace function "app_private"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
@@ -880,7 +915,8 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object(
       'id', r."id",
       'method', r."method",
-      'offsetMinutes', r."offset_minutes"
+      'offsetMinutes', r."offset_minutes",
+      'remindAt', r."remind_at"
     ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
     from "app_private"."reminders" r
     where r."tenant_id" = list_my_reminders.tenant
@@ -956,7 +992,10 @@ $$;
 revoke execute on function "app_private"."mark_reminder_sent"(uuid, timestamptz) from public, anon, authenticated;
 grant execute on function "app_private"."mark_reminder_sent"(uuid, timestamptz) to service_role;
 
-create or replace function "app_private"."list_reminder_schedule"()
+-- Every reminder's schedule: its subject's rule, its own time, or the
+-- subject's `at` column. Delivery dedupes on (reminder, occurrence).
+drop function if exists "app_private"."list_reminder_schedule"();
+create function "app_private"."list_reminder_schedule"()
 returns table (
   reminder uuid,
   dtstart timestamptz,
@@ -965,7 +1004,8 @@ returns table (
   offset_minutes integer,
   tenant uuid,
   subject_type text,
-  subject_id text
+  subject_id text,
+  user_id uuid
 )
 language sql
 stable
@@ -979,12 +1019,20 @@ as $$
     r."offset_minutes",
     r."tenant_id",
     r."subject_type",
-    r."subject_id"
+    r."subject_id",
+    r."user_id"
   from "app_private"."reminders" r
   join "app_private"."recurrence_rules" u
     on u."tenant_id" = r."tenant_id"
    and u."subject_type" = r."subject_type"
-   and u."subject_id" = r."subject_id";
+   and u."subject_id" = r."subject_id"
+  where r."remind_at" is null
+  union all
+  select r."id", r."remind_at", 'UTC'::text, 'FREQ=DAILY;COUNT=1'::text, 0,
+    r."tenant_id", r."subject_type",
+    r."subject_id", r."user_id"
+  from "app_private"."reminders" r
+  where r."remind_at" is not null;
 $$;
 revoke execute on function "app_private"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "app_private"."list_reminder_schedule"() to service_role;
@@ -1071,7 +1119,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:01c64265a0b155daa5cf7c5f957ef8e2b21c91ee8145cbde84a4cb93deafd46c
+-- @bsb-hash sha256:526a4af217c3f3b384a423bf3b0bd5bf37bc325d950c97b338365fcf929b525b
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1158,6 +1206,7 @@ create table if not exists "better_supabase"."reminders" (
   "method" text not null default 'notification',
   "offset_minutes" integer not null default 0
 );
+alter table "better_supabase"."reminders" add column if not exists "remind_at" timestamptz;
 alter table "better_supabase"."reminders" enable row level security;
 revoke all on "better_supabase"."reminders" from public, anon, authenticated;
 grant select on "better_supabase"."reminders" to authenticated;
@@ -1194,8 +1243,10 @@ revoke all on "better_supabase"."reminder_deliveries" from public, anon, authent
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
 
+drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb);
+drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer);
 drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
-create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)
+create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1210,14 +1261,14 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_reminder.tenant, 'reminders.manage'), false)) then
     raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
   end if;
-  insert into "better_supabase"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes")
-  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0))
+  insert into "better_supabase"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes", "remind_at")
+  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0), save_reminder.remind_at)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) from public, anon;
-grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
 -- The caller's reminders on one subject, the earliest first.
 create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
@@ -1235,7 +1286,8 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object(
       'id', r."id",
       'method', r."method",
-      'offsetMinutes', r."offset_minutes"
+      'offsetMinutes', r."offset_minutes",
+      'remindAt', r."remind_at"
     ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
     from "better_supabase"."reminders" r
     where r."tenant_id" = list_my_reminders.tenant
@@ -1311,7 +1363,10 @@ $$;
 revoke execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamptz) from public, anon, authenticated;
 grant execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamptz) to service_role;
 
-create or replace function "better_supabase"."list_reminder_schedule"()
+-- Every reminder's schedule: its subject's rule, its own time, or the
+-- subject's `at` column. Delivery dedupes on (reminder, occurrence).
+drop function if exists "better_supabase"."list_reminder_schedule"();
+create function "better_supabase"."list_reminder_schedule"()
 returns table (
   reminder uuid,
   dtstart timestamptz,
@@ -1320,7 +1375,8 @@ returns table (
   offset_minutes integer,
   tenant uuid,
   subject_type text,
-  subject_id text
+  subject_id text,
+  user_id uuid
 )
 language sql
 stable
@@ -1334,12 +1390,20 @@ as $$
     r."offset_minutes",
     r."tenant_id",
     r."subject_type",
-    r."subject_id"
+    r."subject_id",
+    r."user_id"
   from "better_supabase"."reminders" r
   join "better_supabase"."recurrence_rules" u
     on u."tenant_id" = r."tenant_id"
    and u."subject_type" = r."subject_type"
-   and u."subject_id" = r."subject_id";
+   and u."subject_id" = r."subject_id"
+  where r."remind_at" is null
+  union all
+  select r."id", r."remind_at", 'UTC'::text, 'FREQ=DAILY;COUNT=1'::text, 0,
+    r."tenant_id", r."subject_type",
+    r."subject_id", r."user_id"
+  from "better_supabase"."reminders" r
+  where r."remind_at" is not null;
 $$;
 revoke execute on function "better_supabase"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "better_supabase"."list_reminder_schedule"() to service_role;
@@ -1400,7 +1464,10 @@ create policy bsb_tenant_scope_delete on "better_supabase"."reminders" as restri
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb);
+drop function if exists "api"."save_reminder"(uuid, text, text, integer);
 drop function if exists "api"."save_reminder"(uuid, text, text, integer, jsonb);
+drop function if exists "api"."list_reminder_schedule"();
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -1420,14 +1487,14 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
-create or replace function "api"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)
+create or replace function "api"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_reminder"($1, $2, $3, $4) $$;
-revoke execute on function "api"."save_reminder"(uuid, text, text, integer) from public, anon;
-grant execute on function "api"."save_reminder"(uuid, text, text, integer) to authenticated, service_role;
+as $$ select "better_supabase"."save_reminder"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
+grant execute on function "api"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
 create or replace function "api"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
@@ -1465,7 +1532,8 @@ returns table (
   offset_minutes integer,
   tenant uuid,
   subject_type text,
-  subject_id text
+  subject_id text,
+  user_id uuid
 )
 language sql
 security invoker
@@ -1504,7 +1572,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:68b5ca316d21d0eae8fe8110d1bf69c8ea68c1ae59f6b51a4c7f9826bdda021c
+-- @bsb-hash sha256:3c60930828da780d3c3a9f4b4e5f22fc9ee8cd5dd4d891a36c8e4935f5a02097
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1587,6 +1655,7 @@ alter table "better_supabase"."reminders" add column if not exists "subject_id" 
 alter table "better_supabase"."reminders" add column if not exists "user_id" uuid;
 alter table "better_supabase"."reminders" add column if not exists "method" text not null default 'notification';
 alter table "better_supabase"."reminders" add column if not exists "offset_minutes" integer not null default 0;
+alter table "better_supabase"."reminders" add column if not exists "remind_at" timestamptz;
 alter table "better_supabase"."reminders" enable row level security;
 grant select on "better_supabase"."reminders" to authenticated;
 grant all on "better_supabase"."reminders" to service_role;
@@ -1616,8 +1685,10 @@ alter table "better_supabase"."reminder_deliveries" enable row level security;
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
 
+drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb);
+drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer);
 drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
-create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)
+create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1632,14 +1703,14 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_reminder.tenant, 'reminders.manage'), false)) then
     raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
   end if;
-  insert into "better_supabase"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes")
-  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0))
+  insert into "better_supabase"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes", "remind_at")
+  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0), save_reminder.remind_at)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) from public, anon;
-grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
 -- The caller's reminders on one subject, the earliest first.
 create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
@@ -1657,7 +1728,8 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object(
       'id', r."id",
       'method', r."method",
-      'offsetMinutes', r."offset_minutes"
+      'offsetMinutes', r."offset_minutes",
+      'remindAt', r."remind_at"
     ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
     from "better_supabase"."reminders" r
     where r."tenant_id" = list_my_reminders.tenant
@@ -1733,7 +1805,10 @@ $$;
 revoke execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamptz) from public, anon, authenticated;
 grant execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamptz) to service_role;
 
-create or replace function "better_supabase"."list_reminder_schedule"()
+-- Every reminder's schedule: its subject's rule, its own time, or the
+-- subject's `at` column. Delivery dedupes on (reminder, occurrence).
+drop function if exists "better_supabase"."list_reminder_schedule"();
+create function "better_supabase"."list_reminder_schedule"()
 returns table (
   reminder uuid,
   dtstart timestamptz,
@@ -1742,7 +1817,8 @@ returns table (
   offset_minutes integer,
   tenant uuid,
   subject_type text,
-  subject_id text
+  subject_id text,
+  user_id uuid
 )
 language sql
 stable
@@ -1756,12 +1832,20 @@ as $$
     r."offset_minutes",
     r."tenant_id",
     r."subject_type",
-    r."subject_id"
+    r."subject_id",
+    r."user_id"
   from "better_supabase"."reminders" r
   join "better_supabase"."recurrence_rules" u
     on u."tenant_id" = r."tenant_id"
    and u."subject_type" = r."subject_type"
-   and u."subject_id" = r."subject_id";
+   and u."subject_id" = r."subject_id"
+  where r."remind_at" is null
+  union all
+  select r."id", r."remind_at", 'UTC'::text, 'FREQ=DAILY;COUNT=1'::text, 0,
+    r."tenant_id", r."subject_type",
+    r."subject_id", r."user_id"
+  from "better_supabase"."reminders" r
+  where r."remind_at" is not null;
 $$;
 revoke execute on function "better_supabase"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "better_supabase"."list_reminder_schedule"() to service_role;
@@ -1848,7 +1932,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:26c802f72b25d399ae5a4088af915e3645e9e90c027bde83a0ea5efbbe0eba25
+-- @bsb-hash sha256:a82840b29fdfdae884c0b51424c9760fd2ea090c4091ed1bedeb43ceee328307
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1935,6 +2019,7 @@ create table if not exists "better_supabase"."reminders" (
   "method" text not null default 'notification',
   "offset_minutes" integer not null default 0
 );
+alter table "better_supabase"."reminders" add column if not exists "remind_at" timestamptz;
 alter table "better_supabase"."reminders" enable row level security;
 revoke all on "better_supabase"."reminders" from public, anon, authenticated;
 grant select on "better_supabase"."reminders" to authenticated;
@@ -1971,8 +2056,10 @@ revoke all on "better_supabase"."reminder_deliveries" from public, anon, authent
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
 
+drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb);
+drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer);
 drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
-create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)
+create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1987,14 +2074,14 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_reminder.tenant, 'reminders.manage'), false)) then
     raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
   end if;
-  insert into "better_supabase"."reminders" ("org_id", "subject_type", "subject_id", "user_id", "offset_minutes")
-  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0))
+  insert into "better_supabase"."reminders" ("org_id", "subject_type", "subject_id", "user_id", "offset_minutes", "remind_at")
+  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0), save_reminder.remind_at)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) from public, anon;
-grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
 -- The caller's reminders on one subject, the earliest first.
 create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
@@ -2012,7 +2099,8 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object(
       'id', r."id",
       'method', r."method",
-      'offsetMinutes', r."offset_minutes"
+      'offsetMinutes', r."offset_minutes",
+      'remindAt', r."remind_at"
     ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
     from "better_supabase"."reminders" r
     where r."org_id" = list_my_reminders.tenant
@@ -2088,7 +2176,10 @@ $$;
 revoke execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamptz) from public, anon, authenticated;
 grant execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamptz) to service_role;
 
-create or replace function "better_supabase"."list_reminder_schedule"()
+-- Every reminder's schedule: its subject's rule, its own time, or the
+-- subject's `at` column. Delivery dedupes on (reminder, occurrence).
+drop function if exists "better_supabase"."list_reminder_schedule"();
+create function "better_supabase"."list_reminder_schedule"()
 returns table (
   reminder uuid,
   dtstart timestamptz,
@@ -2097,7 +2188,8 @@ returns table (
   offset_minutes integer,
   tenant uuid,
   subject_type text,
-  subject_id text
+  subject_id text,
+  user_id uuid
 )
 language sql
 stable
@@ -2111,12 +2203,20 @@ as $$
     r."offset_minutes",
     r."org_id",
     r."subject_type",
-    r."subject_id"
+    r."subject_id",
+    r."user_id"
   from "better_supabase"."reminders" r
   join "better_supabase"."recurrence_rules" u
     on u."org_id" = r."org_id"
    and u."subject_type" = r."subject_type"
-   and u."subject_id" = r."subject_id";
+   and u."subject_id" = r."subject_id"
+  where r."remind_at" is null
+  union all
+  select r."id", r."remind_at", 'UTC'::text, 'FREQ=DAILY;COUNT=1'::text, 0,
+    r."org_id", r."subject_type",
+    r."subject_id", r."user_id"
+  from "better_supabase"."reminders" r
+  where r."remind_at" is not null;
 $$;
 revoke execute on function "better_supabase"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "better_supabase"."list_reminder_schedule"() to service_role;
