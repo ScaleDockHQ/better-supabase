@@ -19,4 +19,13 @@ export const templatesBlock: BlockOf<
   create: createTemplates,
   category: "content",
   recipes: ["templates-gallery"],
+  schedules: [
+    {
+      name: "recurring",
+      cron: "*/5 * * * *",
+      runs: "recurring.schedule()",
+      description:
+        "Enqueues a templates.recur job for each recurring template occurrence due in the next day.",
+    },
+  ],
 });

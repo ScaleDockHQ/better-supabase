@@ -1,10 +1,4 @@
-import type { TemplatesEvents } from "../../blocks/templates/events.ts";
-import type {
-  BlockSqlContext,
-  BlockSqlContractFunction,
-  BlockSqlEvents,
-  BlockSqlNames,
-} from "../context.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
@@ -22,126 +16,18 @@ import {
 } from "../shared.ts";
 import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
 import { OPERATIONS } from "./permissions-model.ts";
+import { brandOf, brandParts } from "./templates-brands.ts";
+import {
+  KEY_PATTERN,
+  LANGUAGE_PATTERN,
+  MAX_BODY_BYTES,
+  MAX_SETTINGS_BYTES,
+  NAMES,
+  RESERVED,
+  TYPE_PATTERN,
+} from "./templates-names.ts";
+import { recurringContract, recurringParts } from "./templates-recurring.ts";
 import { workflowParts } from "./templates-workflows.ts";
-
-const EVENTS: BlockSqlEvents<TemplatesEvents> = {
-  "template.published": {
-    subject: "templates",
-    payload: ["organizationId", "id", "versionId", "version", "type"],
-  },
-  "template.applied": {
-    subject: "template-applications",
-    payload: [
-      "organizationId",
-      "subjectType",
-      "subjectId",
-      "id",
-      "templateId",
-      "versionId",
-    ],
-  },
-};
-
-const NAMES: BlockSqlNames = {
-  entities: {
-    template: { table: "templates", singular: "template", primary: true },
-  },
-  events: EVENTS,
-  hooks: [
-    "before_template_save",
-    "after_template_save",
-    "before_template_apply",
-    "after_template_apply",
-  ],
-  options: ["extraColumns"],
-  tables: {
-    templates: {
-      name: "templates",
-      app: {},
-      lifecycle: { tenant: "tenant", export: true },
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        scope: "scope",
-        key: "key",
-        type: "type",
-        name: "name",
-        language: "language",
-        isDefault: "is_default",
-        settings: "settings",
-        forkedFrom: "forked_from",
-        forkedFromVersion: "forked_from_version",
-        createdBy: "created_by",
-        createdAt: "created_at",
-        updatedAt: "updated_at",
-      },
-      optional: [
-        "scope",
-        "key",
-        "isDefault",
-        "settings",
-        "forkedFrom",
-        "forkedFromVersion",
-        "createdBy",
-      ],
-      typed: ["scope"],
-    },
-    versions: {
-      name: "template_versions",
-      app: {},
-      columns: {
-        id: "id",
-        template: "template_id",
-        version: "version",
-        body: "body",
-        hash: "hash",
-        publishedAt: "published_at",
-        createdBy: "created_by",
-        createdAt: "created_at",
-      },
-      optional: ["createdBy"],
-    },
-    applications: {
-      name: "template_applications",
-      app: {},
-      lifecycle: { tenant: "tenant", export: true },
-      columns: {
-        id: "id",
-        template: "template_id",
-        version: "version_id",
-        tenant: "tenant_id",
-        subjectType: "subject_type",
-        subjectId: "subject_id",
-        appliedBy: "applied_by",
-        appliedAt: "applied_at",
-      },
-      optional: ["appliedBy"],
-    },
-    workflows: {
-      name: "template_workflows",
-      app: {},
-      optional: ["enabled", "createdBy", "createdAt"],
-      columns: {
-        id: "id",
-        template: "template_id",
-        definition: "definition_id",
-        inputs: "inputs",
-        enabled: "enabled",
-        createdBy: "created_by",
-        createdAt: "created_at",
-      },
-    },
-  },
-};
-
-/** The keys the template reads return next to the extra columns. */
-const RESERVED = ["fields"] as const;
-
-const TYPE_PATTERN = "'^[a-z][a-z0-9_.-]{0,63}$'";
-const KEY_PATTERN = "'^[a-z0-9][a-z0-9_.-]{0,99}$'";
-const LANGUAGE_PATTERN = "'^[a-z]{2,3}(-[A-Za-z0-9]{1,8})*$'";
-const MAX_BODY_BYTES = 1_048_576;
-const MAX_SETTINGS_BYTES = 65_536;
 
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
@@ -215,6 +101,13 @@ function build(ctx: BlockSqlContext): string {
   const manage = ctx.permission("manage", OPERATIONS["templates.manage"]);
   const extras = ctx.extraColumns("templates", RESERVED);
   const extra = extraFieldsArg(extras);
+  const brand = brandOf(ctx);
+  const brands = brandParts(ctx, brand, read);
+
+  // Whether the template at prefix is visible in tenant: a system starter,
+  // the tenant's own, or a starter of the tenant's brand.
+  const visibleIn = (prefix: string, tenant: string): string =>
+    `(${system(prefix)} or ${prefix}${ct("tenant")} = ${tenant}${brands.visible(prefix, tenant)})`;
 
   const builder = ctx.installed("workflow-editor")
     ? ctx.of("workflow-editor")
@@ -228,7 +121,7 @@ function build(ctx: BlockSqlContext): string {
     `(${SERVICE_CALLER} or (${tenant} is not null and ${ctx.scope.can(tenant, manage)}))`;
 
   const readable = `${ct("tenant")} in (select ${ctx.scope.ids(read)})
-    or (${system("")} and exists (select ${ctx.scope.ids(read)}))`;
+    or (${system("")} and exists (select ${ctx.scope.ids(read)}))${brands.readable}`;
 
   // The template's newest published version.
   const published = (template: string): string =>
@@ -239,7 +132,12 @@ function build(ctx: BlockSqlContext): string {
       `jsonb_build_object(
     'id', ${alias}.${ct("id")},
     'tenant', ${alias}.${ct("tenant")},
-    'scope', ${has("templates", "scope") ? `${alias}.${ct("scope")}` : `case when ${alias}.${ct("tenant")} is null then 'system' else 'tenant' end`},
+    'scope', ${has("templates", "scope") ? `${alias}.${ct("scope")}` : `case when ${alias}.${ct("tenant")} is null then 'system' else 'tenant' end`},${
+      brand === undefined
+        ? ""
+        : `
+    'brand', ${alias}.${ct("brand")},`
+    }
     'key', ${or("templates", alias, "key")},
     'type', ${alias}.${ct("type")},
     'name', ${alias}.${ct("name")},
@@ -318,7 +216,17 @@ function build(ctx: BlockSqlContext): string {
 
   const starter = insert("templates", [
     ["tenant", "null"],
-    ["scope", "'system'"],
+    [
+      "scope",
+      brand === undefined
+        ? "'system'"
+        : ctx.cast(
+            "templates",
+            "scope",
+            `case when ${brands.starter} is null then 'system' else 'brand' end`,
+          ),
+    ],
+    ...(brand === undefined ? [] : [["brand", brands.starter] as const]),
     ["key", "v_starter ->> 'key'"],
     ["type", "v_starter ->> 'type'"],
     ["name", "v_starter ->> 'name'"],
@@ -333,7 +241,14 @@ function build(ctx: BlockSqlContext): string {
     if coalesce(v_starter ->> 'key', '') !~ ${KEY_PATTERN} or not (v_starter ? 'body') then
       ${fail("TEMPLATE_INVALID", "Each starter needs a key and a body", "22023")}
     end if;
-    select * into v_row from ${t} x where x.${ct("tenant")} is null and x.${ct("key")} = v_starter ->> 'key' for update;
+${
+  brand === undefined
+    ? `    if v_starter ? 'brand' then
+      ${unsupported("brand")}
+    end if;
+`
+    : ""
+}    select * into v_row from ${t} x where x.${ct("tenant")} is null${brand === undefined ? "" : ` and x.${ct("brand")} is not distinct from ${brands.starter}`} and x.${ct("key")} = v_starter ->> 'key' for update;
     if not found then
       insert into ${t} (${starter.columns})
       values (${starter.values.slice(0, split).join(", ")},
@@ -374,6 +289,14 @@ ${also("templates", "settings", () => `        ${ct("settings")} = coalesce(v_st
   return v_count;
 `;
 
+  // The tenant's own first, then its brand's starters, then the system ones.
+  const listOrder =
+    brand === undefined
+      ? has("templates", "scope")
+        ? `${asText(ctx, "templates", `x.${ct("scope")}`)} desc`
+        : `x.${ct("tenant")} is null`
+      : `case x.${ct("scope")}::text when 'tenant' then 0 when 'brand' then 1 else 2 end`;
+
   const workflows =
     builder === undefined
       ? undefined
@@ -384,7 +307,7 @@ create extension if not exists pgcrypto with schema extensions;
 
 -- Templates of a type (an invoice, a project, an email): a tenant's own, or
 -- a system starter (no tenant) that sync_templates keeps by key and tenants
--- fork. forked_from: the template and version a fork copied.
+-- fork, or with options.brand a starter of one brand. forked_from: the template and version a fork copied.
 create table if not exists ${t} (
   ${ct("id")} uuid primary key default gen_random_uuid(),
   ${ct("tenant")} ${id},
@@ -403,8 +326,8 @@ ${column("templates", "isDefault", () => "boolean not null default false")}${col
     () => `,
   constraint ${ctx.naming.rename("templates_system_check")} check ((${ct("scope")} = 'system') = (${ct("tenant")} is null))`,
   )}
-);${addExtraColumns(t, extras)}
-${also("templates", "key", () => `create unique index if not exists ${ctx.naming.rename("templates_key_idx")} on ${t} (${ct("tenant")}, ${ct("key")}) nulls not distinct where ${ct("key")} is not null;\n`)}${also("templates", "isDefault", () => `create unique index if not exists ${ctx.naming.rename("templates_default_idx")} on ${t} (${ct("tenant")}, ${ct("type")}, ${ct("language")}) nulls not distinct where ${ct("isDefault")};\n`)}create index if not exists ${ctx.naming.rename("templates_type_idx")} on ${t} (${ct("tenant")}, ${ct("type")});
+);${addExtraColumns(t, extras)}${brands.ddl}
+${also("templates", "key", () => `create unique index if not exists ${brands.index("key")} on ${t} (${brands.keyColumns}, ${ct("key")}) nulls not distinct where ${ct("key")} is not null;\n`)}${also("templates", "isDefault", () => `create unique index if not exists ${brands.index("default")} on ${t} (${brands.keyColumns}, ${ct("type")}, ${ct("language")}) nulls not distinct where ${ct("isDefault")};\n`)}create index if not exists ${ctx.naming.rename("templates_type_idx")} on ${t} (${ct("tenant")}, ${ct("type")});
 ${also("templates", "forkedFrom", () => `create index if not exists ${ctx.naming.rename("templates_forked_from_idx")} on ${t} (${ct("forkedFrom")}) where ${ct("forkedFrom")} is not null;\n`)}${also("templates", "createdBy", () => `create index if not exists ${ctx.naming.rename("templates_created_by_idx")} on ${t} (${ct("createdBy")});\n`)}${lockModuleTable(ctx, "templates", { read: true })}
 ${renderPolicy(makePolicy({ table: t, name: ctx.naming.rename("templates_read"), command: "select", roles: ["authenticated"], using: readable }), { drop: true, target: t })}
 
@@ -531,9 +454,9 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(${templateJson("x")}
-    order by ${also("templates", "isDefault", () => `x.${ct("isDefault")} desc, `)}${has("templates", "scope") ? `${asText(ctx, "templates", `x.${ct("scope")}`)} desc` : `x.${ct("tenant")} is null`}, x.${ct("name")}, x.${ct("id")}), '[]'::jsonb)
+    order by ${also("templates", "isDefault", () => `x.${ct("isDefault")} desc, `)}${listOrder}, x.${ct("name")}, x.${ct("id")}), '[]'::jsonb)
   from ${t} x
-  where (x.${ct("tenant")} = templates_list.tenant or ${system("x.")})
+  where ${visibleIn("x.", "templates_list.tenant")}
     and (templates_list.type is null or x.${ct("type")} = templates_list.type)
     and (templates_list.language is null or x.${ct("language")} = templates_list.language)
 $$;
@@ -709,7 +632,12 @@ ${
   has("templates", "isDefault")
     ? `  if set_default_template.on_default then
     update ${t} x set ${ct("isDefault")} = false, ${ct("updatedAt")} = now()
-    where x.${ct("tenant")} is not distinct from v_row.${ct("tenant")}
+    where x.${ct("tenant")} is not distinct from v_row.${ct("tenant")}${
+      brand === undefined
+        ? ""
+        : `
+      and x.${ct("brand")} is not distinct from v_row.${ct("brand")}`
+    }
       and x.${ct("type")} = v_row.${ct("type")} and x.${ct("language")} = v_row.${ct("language")}
       and x.${ct("isDefault")} and x.${ct("id")} <> v_row.${ct("id")};
   end if;
@@ -738,7 +666,7 @@ declare
   v_row ${t}%rowtype;
 begin
   select * into v_src from ${t} x where x.${ct("id")} = fork_template.source;
-  if not found or not (${system("v_src.")} or v_src.${ct("tenant")} is not distinct from fork_template.tenant) then
+  if not found or not ${visibleIn("v_src.", "fork_template.tenant")} then
     ${fail("TEMPLATE_NOT_FOUND", "No such template", "P0002")}
   end if;
   if fork_template.tenant is null or not ${mayManage("fork_template.tenant")} then
@@ -809,7 +737,7 @@ begin
     ${fail("TEMPLATE_FORBIDDEN", "You may not apply templates here")}
   end if;
   select * into v_tpl from ${t} x where x.${ct("id")} = template_apply_target.template_id;
-  if not found or not (${system("v_tpl.")} or v_tpl.${ct("tenant")} = template_apply_target.tenant) then
+  if not found or not ${visibleIn("v_tpl.", "template_apply_target.tenant")} then
     ${fail("TEMPLATE_NOT_FOUND", "No such template", "P0002")}
   end if;
   select * into v_version from ${ver} y
@@ -848,7 +776,7 @@ begin
     ${fail("TEMPLATE_FORBIDDEN", "You may not apply templates here")}
   end if;
   select * into v_tpl from ${t} x where x.${ct("id")} = record_template_application.template_id;
-  if not found or not (${system("v_tpl.")} or v_tpl.${ct("tenant")} = record_template_application.tenant) then
+  if not found or not ${visibleIn("v_tpl.", "record_template_application.tenant")} then
     ${fail("TEMPLATE_NOT_FOUND", "No such template", "P0002")}
   end if;
   if not exists (select 1 from ${ver} y where y.${cv("id")} = record_template_application.version_id
@@ -905,7 +833,7 @@ as $$
   ) r
 $$;
 ${userGrant(`${fn("template_applications_list")}(${id}, uuid, text, text)`)}
-${workflows?.functions ?? ""}`;
+${workflows?.functions ?? ""}${recurringParts(ctx, { read, mayManage, visible: brands.visible, system })}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -966,6 +894,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
           { name: "template_workflows_list", args: ["uuid"], returns: "jsonb" },
         ]
       : []),
+    ...recurringContract(ctx),
   ];
 }
 
@@ -976,7 +905,14 @@ export const TEMPLATES: BlockSqlDefinition = {
   description:
     "Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "audit", "workflow-editor", "jsonb-schemas"],
+  integrates: [
+    "outbox",
+    "audit",
+    "workflow-editor",
+    "jsonb-schemas",
+    "reminders",
+  ],
+  internal: ["template_brand"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

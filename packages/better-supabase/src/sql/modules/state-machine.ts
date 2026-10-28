@@ -21,6 +21,14 @@ import {
   SERVICE_CALLER,
   userGrant,
 } from "../shared.ts";
+import {
+  LIFECYCLE_INTERNAL,
+  lifecycleWorkflowSql,
+  WORKFLOW_DECLARE,
+  workflowCheck,
+  workflowInsert,
+  workflowState,
+} from "./state-machine-lifecycle.ts";
 import { ACTOR_FIELDS, machines } from "./state-machine-options.ts";
 
 const SUBJECT = ["organizationId", "subjectType", "subjectId"] as const;
@@ -101,9 +109,11 @@ const NAMES: BlockSqlNames = {
         pausedUntil: "paused_until",
         pauseReason: "pause_reason",
         pausedBy: "paused_by_user_id",
+        workflowVersion: "workflow_version_id",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["workflowVersion"],
     },
   },
 };
@@ -413,8 +423,24 @@ function trigger(ctx: BlockSqlContext, item: Machine): string {
   v_flags text[];
   v_until timestamptz;
   v_paused boolean;
-`
+${item.workflow === undefined ? "" : WORKFLOW_DECLARE}`
     : "";
+
+  const insert =
+    item.workflow === undefined
+      ? `if new.${sqlIdent(item.column)} is null then
+      new.${sqlIdent(item.column)} := ${sqlString(item.initial)};
+    end if;
+    ${stageWrite(ctx, item, "open")}
+    ${lifecycleInsert(ctx, item)}`
+      : workflowInsert(ctx, item, stageWrite(ctx, item, "open"));
+
+  const check =
+    item.workflow === undefined
+      ? `if not (case old.${sqlIdent(item.column)}::text ${allowed} else false end) then
+    ${fail("STATE_TRANSITION_INVALID", "that status change is not allowed", "22023")}
+  end if;`
+      : workflowCheck(ctx, item);
 
   return `
 create or replace function better_supabase.bsb_transition_${item.name}()
@@ -425,19 +451,13 @@ set search_path = ''
 as $$
 ${declare}begin
   if tg_op = 'INSERT' then
-    if new.${sqlIdent(item.column)} is null then
-      new.${sqlIdent(item.column)} := ${sqlString(item.initial)};
-    end if;
-    ${stageWrite(ctx, item, "open")}
-    ${lifecycleInsert(ctx, item)}
+    ${insert}
     return new;
   end if;
   if new.${sqlIdent(item.column)} is not distinct from old.${sqlIdent(item.column)} then${lifecycleOps(ctx, item)}
     return new;
   end if;
-  if not (case old.${sqlIdent(item.column)}::text ${allowed} else false end) then
-    ${fail("STATE_TRANSITION_INVALID", "that status change is not allowed", "22023")}
-  end if;${approvalGate(ctx, item)}${pauseGate(ctx, item)}
+  ${check}${approvalGate(ctx, item)}${pauseGate(ctx, item)}
   ${write}
   ${stageWrite(ctx, item, "advance")}
   ${ctx.record({
@@ -635,12 +655,16 @@ function readers(ctx: BlockSqlContext, list: readonly Machine[]): string {
 
   const state = (item: Machine): string => {
     const steps = item.order.length;
-    const order = steps === 0 ? "null::text[]" : textArray(item.order);
+    const graph = workflowState(ctx, item);
+
+    const order =
+      graph?.order ?? (steps === 0 ? "null::text[]" : textArray(item.order));
 
     const progress =
-      steps === 0
+      graph?.progress ??
+      (steps === 0
         ? "null"
-        : `case when v_step is null then null when ${String(steps)} = 1 then 1 else round((v_step - 1)::numeric / ${String(steps - 1)}, 4) end`;
+        : `case when v_step is null then null when ${String(steps)} = 1 then 1 else round((v_step - 1)::numeric / ${String(steps - 1)}, 4) end`);
 
     const l = (column: string): string =>
       `v_life.${ctx.col("lifecycles", column)}`;
@@ -655,7 +679,7 @@ function readers(ctx: BlockSqlContext, list: readonly Machine[]): string {
       ? `'version', ${l("version")}, 'flags', to_jsonb(coalesce(${l("flags")}, '{}')),
         'paused', v_paused, 'pausedAt', case when v_paused then ${l("pausedAt")} end,
         'pausedUntil', case when v_paused then ${l("pausedUntil")} end,
-        'pauseReason', case when v_paused then ${l("pauseReason")} end`
+        'pauseReason', case when v_paused then ${l("pauseReason")} end${graph?.json ?? ""}`
       : `'version', null, 'flags', '[]'::jsonb, 'paused', false, 'pausedAt', null, 'pausedUntil', null, 'pauseReason', null`;
 
     return `      select s.${sqlIdent(item.column)}::text, s.${sqlIdent(item.tenantColumn)}::text into v_status, v_tenant
@@ -663,11 +687,11 @@ function readers(ctx: BlockSqlContext, list: readonly Machine[]): string {
       if not found then
         ${NOT_FOUND}
       end if;
-${life}
+${life}${graph?.load ?? ""}
       v_step := array_position(${order}, v_status);
       return jsonb_build_object(
         'organizationId', v_tenant, 'subjectType', ${sqlString(item.name)}, 'subjectId', status_state.subject_id,
-        'status', v_status, 'order', to_jsonb(${order}), 'step', v_step, 'steps', ${steps === 0 ? "null" : String(steps)}, 'progress', ${progress},
+        'status', v_status, 'order', to_jsonb(${order}), 'step', v_step, 'steps', ${graph?.steps ?? (steps === 0 ? "null" : String(steps))}, 'progress', ${progress},
         ${lifeJson});`;
   };
 
@@ -742,6 +766,10 @@ ${life}
     ? `\n  v_life ${ctx.table("lifecycles")}%rowtype;`
     : "";
 
+  const orderVar = list.some((item) => item.workflow !== undefined)
+    ? "\n  v_order text[];"
+    : "";
+
   return `
 -- The record's status, progress through options.machines.<name>.order and,
 -- with lifecycle: true, its flags, pause and pinned version. It runs as the
@@ -757,7 +785,7 @@ declare
   v_status text;
   v_tenant text;
   v_step integer;
-  v_paused boolean := false;${lifeVar}
+  v_paused boolean := false;${lifeVar}${orderVar}
 begin
   ${byMachine(list, "status_state.subject_type", state)}
 end;
@@ -825,7 +853,7 @@ function build(ctx: BlockSqlContext): string {
   );
 
   return `${schemaPreamble(ctx)}
-${tables(ctx, list)}
+${tables(ctx, list)}${lifecycleWorkflowSql(ctx, list)}
 ${list.map((item) => trigger(ctx, item)).join("\n")}
 
 drop function if exists ${ctx.fn("transition")}(text, text, text, text);
@@ -972,7 +1000,8 @@ export const STATE_MACHINE: BlockSqlDefinition = {
   description:
     "Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "audit", "approvals"],
+  integrates: ["outbox", "audit", "approvals", "workflow-editor"],
+  internal: [LIFECYCLE_INTERNAL],
   target: "schema",
   modes: ["managed", "custom"],
   version: 3,

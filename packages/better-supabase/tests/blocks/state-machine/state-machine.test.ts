@@ -90,6 +90,8 @@ describe("state machine block", () => {
         steps: 3,
         progress: 0.5,
         version: 2,
+        workflow: "deal-stages",
+        workflowVersionId: "wv1",
         flags: ["urgent"],
         paused: true,
         pausedAt: "2026-10-01T00:00:00Z",
@@ -111,6 +113,8 @@ describe("state machine block", () => {
       steps: 3,
       progress: 0.5,
       version: 2,
+      workflow: "deal-stages",
+      workflowVersionId: "wv1",
       flags: ["urgent"],
       paused: true,
       pausedUntil: undefined,
@@ -143,6 +147,7 @@ describe("state machine block", () => {
     expect(state.step).toBeUndefined();
     expect(state.progress).toBeUndefined();
     expect(state.version).toBeUndefined();
+    expect(state.workflowVersionId).toBeUndefined();
     expect(state.paused).toBe(false);
   });
 

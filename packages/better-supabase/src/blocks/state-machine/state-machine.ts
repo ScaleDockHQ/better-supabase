@@ -47,6 +47,13 @@ export interface StatusState {
    * paused or flagged since.
    */
   readonly version: number | undefined;
+  /** The workflow slug of a machine with `workflow`; `undefined` otherwise. */
+  readonly workflow: string | undefined;
+  /**
+   * The `workflow_versions` row the record runs on, pinned when it was created.
+   * A later published version applies to new records only.
+   */
+  readonly workflowVersionId: string | undefined;
   readonly flags: readonly string[];
   /** True while a pause holds: no end, or an end still in the future. */
   readonly paused: boolean;
@@ -161,6 +168,8 @@ function stateOf(value: unknown): StatusState {
     steps: optionalNumber(row["steps"]),
     progress: optionalNumber(row["progress"]),
     version: optionalNumber(row["version"]),
+    workflow: optionalText(row["workflow"]),
+    workflowVersionId: optionalText(row["workflowVersionId"]),
     flags: stringsOf(row["flags"]),
     paused: row["paused"] === true,
     pausedAt: optionalInstant(row["pausedAt"]),

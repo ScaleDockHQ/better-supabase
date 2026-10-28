@@ -131,6 +131,50 @@ describe("createTimeline", () => {
     });
   });
 
+  it("reads transition and message entries", async () => {
+    const row = {
+      organization_id: "org-1",
+      actor_id: ADA,
+      subject_type: "deal",
+      subject_id: "d1",
+      occurred_at: "2026-10-06T10:00:00Z",
+    };
+
+    const fake = fakeTransport({
+      list_activity: [
+        {
+          ...row,
+          id: "h1",
+          source: "transition",
+          type: "status.changed",
+          summary: null,
+          data: { from: "lead", to: "won" },
+        },
+        {
+          ...row,
+          id: "m1",
+          source: "message",
+          type: "message.text",
+          summary: "Signed",
+          data: { conversationId: "c1" },
+        },
+      ],
+    });
+
+    const history = await createTimeline({
+      transport: fake.transport,
+      tenant: "org-1",
+    })
+      .list({ type: "deal", id: "d1" }, { sources: ["transition", "message"] })
+      .orThrow();
+
+    expect(history.map((entry) => entry.source)).toEqual([
+      "transition",
+      "message",
+    ]);
+    expect(history[0]?.data).toEqual({ from: "lead", to: "won" });
+  });
+
   it("fails without a tenant", async () => {
     const fake = fakeTransport({});
     expect(

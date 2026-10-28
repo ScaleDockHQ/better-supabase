@@ -5,6 +5,7 @@ import { pageSize, SERVICE_CALLER } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { hasColumn } from "./audit-columns.ts";
 import { moduleOperations, OPERATIONS } from "./permissions-model.ts";
+import { machines } from "./state-machine-options.ts";
 
 export interface ActivityReads {
   /** The activity_subject_readable function, before the read policy. */
@@ -20,8 +21,8 @@ export interface ActivityReads {
   /** The audit log entries on the subject's row, unioned into the timeline. */
   readonly auditBranch: string;
   /**
-   * The subject's workflow runs and notification deliveries, unioned into the
-   * timeline.
+   * The subject's workflow runs, notification deliveries, status transitions
+   * and messages, unioned into the timeline.
    */
   readonly sourceBranches: string;
   /** Activity_subject_deliveries, or the statement that drops it. */
@@ -30,7 +31,13 @@ export interface ActivityReads {
   readonly sources: readonly ActivitySourceName[];
 }
 
-export type ActivitySourceName = "event" | "audit" | "delivery" | "run";
+export type ActivitySourceName =
+  | "event"
+  | "audit"
+  | "delivery"
+  | "run"
+  | "transition"
+  | "message";
 
 const DELIVERIES_SIGNATURE = (ctx: BlockSqlContext): string =>
   `${ctx.fn("activity_subject_deliveries")}(${ctx.idType}, text, text, timestamptz, integer)`;
@@ -79,6 +86,8 @@ export function activityReads(ctx: BlockSqlContext): ActivityReads {
     hasColumn(audit, "log", "record");
 
   const runs = runBranch(ctx, types);
+  const transitions = transitionBranch(ctx, types);
+  const messages = messageBranch(ctx, types);
   const deliveries = deliveryHelper(ctx, types);
 
   return {
@@ -118,7 +127,7 @@ ${registry.map((subject) => `      when ${sqlString(subject.type)} then ${sqlStr
   end if;`
       : "",
     auditBranch: auditOn ? auditBranch(ctx, audit) : "",
-    sourceBranches: `${runs}${
+    sourceBranches: `${runs}${transitions}${messages}${
       deliveries === undefined
         ? ""
         : `
@@ -135,6 +144,8 @@ ${registry.map((subject) => `      when ${sqlString(subject.type)} then ${sqlStr
       ...(auditOn ? (["audit"] as const) : []),
       ...(deliveries === undefined ? [] : (["delivery"] as const)),
       ...(runs === "" ? [] : (["run"] as const)),
+      ...(transitions === "" ? [] : (["transition"] as const)),
+      ...(messages === "" ? [] : (["message"] as const)),
     ],
   };
 }
@@ -222,6 +233,132 @@ function runBranch(ctx: BlockSqlContext, types: string): string {
       and ${r("subjectId")} = list_activity.subject_id
       and (list_activity.before is null or ${r("createdAt")} < list_activity.before)
     order by ${r("createdAt")} desc, ${r("id")} desc
+    limit v_limit)`;
+}
+
+/**
+ * The subject's status changes from the state-machine's `status_history`, for
+ * the machines that write it (a machine with its own `history` table is
+ * skipped). As the caller, so the history's read policy applies.
+ */
+function transitionBranch(ctx: BlockSqlContext, types: string): string {
+  if (ctx.scope.kind !== "tenant" || !ctx.installed("state-machine")) {
+    return "";
+  }
+
+  const sm = ctx.of("state-machine");
+
+  if (sm.mode === "custom") {
+    return "";
+  }
+
+  const names = machines(sm)
+    .filter((item) => item.history === undefined)
+    .map((item) => item.name);
+
+  if (names.length === 0) {
+    return "";
+  }
+
+  const h = (logical: string): string => `h.${sm.col("history", logical)}`;
+
+  const data = [
+    `'from', ${h("fromStatus")}::text`,
+    `'to', ${h("toStatus")}::text`,
+    `'reason', ${h("reason")}`,
+  ];
+
+  const values = {
+    id: `${h("id")}::text`,
+    tenant: h("tenant"),
+    event: "null::text",
+    type: "'status.changed'",
+    actor: h("actor"),
+    subjectType: "list_activity.subject_type",
+    subjectId: "list_activity.subject_id",
+    summary: "null::text",
+    data: `jsonb_strip_nulls(jsonb_build_object(${data.join(", ")}))`,
+    occurredAt: h("createdAt"),
+  };
+
+  return `
+    union all
+    (select jsonb_build_object(${entry(ctx, values, "transition")}) as entry,
+      ${h("createdAt")} as at, ${h("id")}::text as id
+    from ${sm.table("history")} h
+    where list_activity.subject_id is not null
+      and list_activity.subject_type = any (${types})
+      and list_activity.subject_type = any (${sqlString(`{${names.join(",")}}`)}::text[])
+      and (list_activity.sources is null or 'transition' = any (list_activity.sources))
+      and ${h("tenant")} = list_activity.tenant
+      and ${h("subjectType")} = list_activity.subject_type
+      and ${h("subjectId")} = list_activity.subject_id
+      and (list_activity.before is null or ${h("createdAt")} < list_activity.before)
+    order by ${h("createdAt")} desc, ${h("id")} desc
+    limit v_limit)`;
+}
+
+/**
+ * The sent messages of the subject's conversation in messaging. As the caller,
+ * so the conversation's access decides which the caller sees.
+ */
+function messageBranch(ctx: BlockSqlContext, types: string): string {
+  if (ctx.scope.kind !== "tenant" || !ctx.installed("messaging")) {
+    return "";
+  }
+
+  const ms = ctx.of("messaging");
+
+  const ready =
+    ms.mode !== "custom" &&
+    ms.has("conversations", "subjectType") &&
+    ms.has("conversations", "subjectId");
+
+  if (!ready) {
+    return "";
+  }
+
+  const m = (logical: string): string => `m.${ms.col("messages", logical)}`;
+
+  const c = (logical: string): string =>
+    `c.${ms.col("conversations", logical)}`;
+
+  const data = [
+    `'messageId', ${m("id")}`,
+    `'conversationId', ${m("conversation")}`,
+    `'threadId', ${m("thread")}`,
+    `'kind', ${m("kind")}::text`,
+  ];
+
+  const values = {
+    id: `${m("id")}::text`,
+    tenant: m("tenant"),
+    event: "null::text",
+    type: `'message.' || ${m("kind")}::text`,
+    actor: m("author"),
+    subjectType: "list_activity.subject_type",
+    subjectId: "list_activity.subject_id",
+    summary: `left(${m("body")}, 280)`,
+    data: `jsonb_strip_nulls(jsonb_build_object(${data.join(", ")}))`,
+    occurredAt: m("sentAt"),
+  };
+
+  return `
+    union all
+    (select jsonb_build_object(${entry(ctx, values, "message")}) as entry,
+      ${m("sentAt")} as at, ${m("id")}::text as id
+    from ${ms.table("messages")} m
+    join ${ms.table("conversations")} c on ${c("id")} = ${m("conversation")}
+    where list_activity.subject_id is not null
+      and list_activity.subject_type = any (${types})
+      and (list_activity.sources is null or 'message' = any (list_activity.sources))
+      and ${c("tenant")} = list_activity.tenant
+      and ${c("subjectType")} = list_activity.subject_type
+      and ${c("subjectId")} = list_activity.subject_id
+      and ${m("sentAt")} is not null
+      and ${m("deletedAt")} is null
+      and (list_activity.before is null or ${m("sentAt")} < list_activity.before)
+    order by ${m("sentAt")} desc, ${m("id")} desc
     limit v_limit)`;
 }
 
