@@ -1,5 +1,180 @@
 # better-supabase
 
+## 0.36.0
+
+### Minor Changes
+
+- [#495](https://github.com/ScaleDockHQ/better-supabase/pull/495) [`84b8906`](https://github.com/ScaleDockHQ/better-supabase/commit/84b8906198bcdc377fb84a0826c2b31c994b7568) Thanks [@mick340](https://github.com/mick340)! - Leave, expenses, the drive, the catalog, invoices and calendar feeds run over more of an app's own tables.
+  
+  - Leave: `options.owner: "employee"` keys requests and balances by an employee of the employees block, so an employee without an account has leave too. The client takes `employeeId` on `request`, `list`, `balances`, `ledger` and `adjust`, and `employeeIds` on `accrue`. Reads return `employeeId`, and `userId` is now optional on requests, balances, ledger entries and feed entries.
+  - Leave: mapped `columns.requests.startPart` and `endPart` book half a day at either end of a request (`startPart` and `endPart` on `request`), combined with hours for an hours type, and overlaps are checked by half day.
+  - Leave: `tables.balances` maps the app's table of signed amounts (with an optional `expiresOn`) instead of the ledger block. The block sums it, adds taken and adjustment rows, and deletes the taken row when approved leave is cancelled. `adjust` takes `expiresOn`.
+  - Expenses: mapping `tables.reports` and `tables.lines` to `null` keeps each expense as one row of `tables.expenses`, without the approvals block or the ledger. The client adds `createExpense`, `updateExpense`, `submitExpense`, `decideExpense`, `reimburseExpense`, `getExpense` and `listExpenses`, and `options.owner: "employee"` keys expenses by employee. Report mode is unchanged.
+  - Drive: node kind and source, node and drive grant roles, drive kind, and connection provider and status may be enums in the app's tables.
+  - `add --adopt` and `apply --adopt` render the proposal with the authorization provider, so calendar `accessFunctions` in the `{ rows, key }` form and drive `roleFunctions` in the `{ rows, roles }` form no longer fail with the `rowsWith` error.
+  - Catalog: `updateProduct` with `price: null` clears the price (`save_product` takes `clear`). `setProductStatus` writes the canonical app value of a label even when another mapped value reads as it, accepts an app value itself, and moves an archived product back to `active` when there is no draft status. A product with variants can gain an option, each variant taking its first value. `updateVariant` keeps what it isn't given, and `sku` is optional. `permissions.create`, `update` and `delete` name separate keys for products, options and variants.
+  - Invoices: `issue(id, issuedOn, { dueOn })` sets the due date, and `termsDays: null` leaves none. `removeCharge(chargeId)` removes a charge. `writeOff(id, reason)` keeps the reason in a mapped `writeOffReason` column. `reversePayment(paymentId, reason)` posts the opposite ledger transaction for a payment recorded by hand and refuses one whose method is in `options.providerPaymentMethods` (default `stripe` and `order`). A credit note is now capped at the invoice's total and charges less earlier credits instead of the open balance, so a paid invoice can be credited and refunded.
+  - Calendar: `calendar_feed` returns the link's creator as `createdBy`, and the feed writes the creator's reminders as VALARMs.
+
+- [#503](https://github.com/ScaleDockHQ/better-supabase/pull/503) [`23e6c3d`](https://github.com/ScaleDockHQ/better-supabase/commit/23e6c3d9e81282ff6b733e0dee09a323fe79658b) Thanks [@mick340](https://github.com/mick340)! - Calendar feed data, extra columns in inserts, catalog patches and option removal, payment notes, leave edits and team feeds, and more of standalone expenses.
+  
+  - Calendar: `feedData(token)` and `userFeedData(token)` return the parsed feed (the calendar with its colour, the organization with the organizations block, the link's creator, and the events with reminders, attendees and extra columns) for an app that writes the iCalendar itself. `feed` and `userFeed` serialize the same data with `toIcs`. `calendar_feed` and `calendar_user_feed` return `color` and `organization`.
+  - Extra columns are written in the insert itself instead of an update after it, so a `not null` column without a default or a check across columns holds from the first write: catalog products, standalone expenses, expense reports, leave requests, calendar events, time entries, invoices, quotes and flags.
+  - Catalog: `updateProduct` and `updateVariant` patch. A key left out keeps its value; `null` clears a product's `description`, derives its `slug` from the title again, and clears a variant's `sku`, `title`, `barcode` or `weightGrams`. `save_product` always takes `clear`, and `save_variant` takes `clear` before `fields`, so a positional `fields` argument moves one place. `reorderOptions(productId, optionIds)` orders a product's options. A value `saveOption` leaves out is removed with the variants that use it; a variant still referenced (a foreign key, stock movements or `options.variantInUse`) is archived through a mapped `columns.variants.status` instead. Removing them needs the update permission.
+  - Invoices: `recordPayment` takes a `note`, and each payment returns `note` and `recordedBy`. `record_invoice_payment` takes `note` as its last argument.
+  - Leave: `update(requestId, change)` changes a pending request (which goes back to approval) or, for a manager, approved leave, which is booked again. `split(requestId, { gapStarts, gapEnds })` takes a gap out of approved leave. A type with `autoApprove` (the block's table, or a mapped `columns.types.autoApprove`) is approved when it is requested; `saveType` takes `autoApprove`. `options.feed` takes `teams` (a `leave_team_feed` link per team), `names`, `hideTypes` and `fields`, and feed entries carry `startPart` and `endPart`. New events `leave.updated` and `leave.split`.
+  - Expenses without reports: `updateExpense` takes `fields` and clears `categoryId`, `description` or `merchant` with `null`. `withdrawExpense` moves a submitted expense back to draft and `deleteExpense` deletes a draft. `options.companyExpenses` lets `createExpense({ company: true })` record an expense without a member or employee. New events `expense.withdrawn` and `expense.deleted`.
+
+- [#506](https://github.com/ScaleDockHQ/better-supabase/pull/506) [`ead6184`](https://github.com/ScaleDockHQ/better-supabase/commit/ead61841100e6814aa1788216eb37f303550f16c) Thanks [@martijn00](https://github.com/martijn00)! - The `ai-chat` block runs without a tenant, shares chats with participants, can store a linear list of native AI SDK parts keyed by uuid, and takes extra columns on every table (ADR 0122). `better-supabase upgrade` moves the module to version 5.
+  
+  - `blocks["ai-chat"].options.tenant: false` lets chats and projects live outside a tenant: `chats.create(null, input)` and `projects.create(null, input)`. Such a chat stays private to its owner and its participants, and the AI SDK adapter skips the quota and the `org:` gateway tag for it.
+  - `participants.add(chatId, userId, { role })`, `remove` and `list` share a chat with viewers and editors, stored in the new `ai_chat_participants` table. In a tenant chat a participant must be able to read the tenant's chats and counts only while a member. `chats.list` returns the chats the caller owns or takes part in, and user messages record their writer (`authorId`).
+  - `blocks["ai-chat"].options.messages: { key: "uuid", tree: false, parts: "native" }` keys messages by uuid, keeps one list per chat instead of a tree, and stores the SDK's own parts. Choose it before installing; a uuid key needs uuid message ids (`AI_MESSAGE_INVALID` otherwise), and `switchBranch` on a linear chat fails with `AI_CHAT_LINEAR`.
+  - Every ai-chat table takes extra columns: `projectExtraColumns`, `participantExtraColumns`, `messageExtraColumns`, `moderationExtraColumns` and one key per other table. `appendUser`, `saveAssistant`, `projects.create`, `projects.update`, `participants.add` and `moderation.record` take `fields` for them.
+  
+  Breaking changes:
+  
+  | 0.34                                                              | 0.35                                                |
+  | ----------------------------------------------------------------- | --------------------------------------------------- |
+  | `organizationId: string` on chats, projects and moderation events | `organizationId: string \| undefined`               |
+  | `AssistantContext.organizationId: string`                         | `AssistantContext.organizationId: string \| null`   |
+  | `chats.create(organizationId: string, ...)`                       | `chats.create(organizationId: string \| null, ...)` |
+  | `projects.list(organizationId: string)`                           | `projects.list(organizationId: string \| null)`     |
+  | private chats: readable by the owner only                         | readable by the owner and the chat's participants   |
+
+- [#501](https://github.com/ScaleDockHQ/better-supabase/pull/501) [`291f8c2`](https://github.com/ScaleDockHQ/better-supabase/commit/291f8c23699bb1ce7af5ad4921268151945d61b6) Thanks [@martijn00](https://github.com/martijn00)! - Approvals: tenant policies, confirm or authorize modes, manager approvers and single-use approvals.
+  
+  - `blocks.approvals.options.tenantPolicies: true` adds an `approval_policies` table per organization. A tenant policy tightens the configured policy for the same subject type and action: its steps run after the configured ones, the stricter mode wins, `selfApproval` holds only when every policy allows it and the shortest expiry wins. `conditions` is a rules filter tree over the subject type's rule fields, matched against the request payload (needs the automations block). The client adds `listPolicies`, `savePolicy` and `removePolicy`, and the module records `approval_policy.saved` and `approval_policy.removed`.
+  - A configured policy with `steps: []` asks for nothing until a tenant policy adds a step or a mode; it needs `tenantPolicies`.
+  - A policy's `mode` is `"authorize"` (the default) or `"confirm"`, where the requester may approve their own request and that approval finishes it. Requests return `mode`.
+  - `steps[].approvers.manager: true` lets the requester's manager from the employees block decide the step.
+  - `requirement(subjectType, action, payload)` returns what a request would need, or `null` when nothing is required; `request` then fails with `APPROVAL_NOT_REQUIRED`.
+  - `request(subject, { fingerprint })` binds the approval to an operation, and `consume(id, fingerprint)` uses an approved request once (`APPROVAL_CONSUMED`, `APPROVAL_NOT_APPROVED`, `APPROVAL_FINGERPRINT_MISMATCH`), recording `approval.consumed`. `approvalFingerprint(value)` builds the fingerprint as the SHA-256 of sorted-key JSON. Requests return `fingerprint` and `consumedAt`.
+  - The SQL `request_approval` takes a trailing `fingerprint` argument, so calls with positional arguments keep working. In managed mode, run `better-supabase upgrade` and generate a migration to add the `fingerprint` and `consumed_at` columns; over your own table, map `fingerprint` and `consumedAt` to use fingerprints and `consume`.
+
+- [#491](https://github.com/ScaleDockHQ/better-supabase/pull/491) [`9454fce`](https://github.com/ScaleDockHQ/better-supabase/commit/9454fceafd6f97626e2c8982a6ed2f226156a48e) Thanks [@martijn00](https://github.com/martijn00)! - The proxy and every adapter's middleware refresh sessions through `createServerClient` from `@supabase/ssr`, on every request they match, prefetches included. Parallel requests with the same refresh token share one call to Auth. Run `better-supabase codemod 0.35` to rewrite the options and list the rest for review.
+  
+  Breaking changes:
+  
+  - `refresh: "navigation"` is gone. Refresh is `true` by default, or a function of the request. `verifySession: "navigation"` is now `verifySession: "document"`, and checks document loads only (`isDocumentLoad` from `better-supabase/server`).
+  - `onExpiredPrefetch` is removed from `bsb.proxy()`: a prefetch now refreshes, so it never reaches `protect` with an expired session.
+  - `shouldRefresh` is removed from `better-supabase/next` and `better-supabase/server`. `shouldCheckSession` stays in `better-supabase/next` only.
+  - `clearSessionCookies` returns a promise. Await it before returning the response.
+  - The cookie writers are removed from `better-supabase/ssr` and `better-supabase/server`: `writeSession`, `refreshSession`, `pruneSessionChunks`, `sessionEncoding`, `clearSessionAtScopes`, `AUTH_CACHE_HEADERS` and their types. `@supabase/ssr` writes the cookies and their cache headers; `readSession` and `parseCookies` stay.
+  
+  Other changes:
+  
+  - A token whose `iss` names another project is rejected with `INVALID_ISSUER`. Set `auth.issuer` to enforce an exact issuer, or `false` to skip the check.
+  - The JWKS is fetched with `auth.fetch` and cached once per process, so every module graph (proxy, render, route handlers) shares one copy.
+  - When Auth can't be reached, a refresh fails within `timeoutMs` without auth-js's retries and keeps the cookies as they are.
+  - A response that `after` returns in `bsb.proxy()` keeps the refreshed session cookies and cache headers.
+
+- [#496](https://github.com/ScaleDockHQ/better-supabase/pull/496) [`c5de73a`](https://github.com/ScaleDockHQ/better-supabase/commit/c5de73a333d20c009a2a90a912d73279fbd59d2b) Thanks [@martijn00](https://github.com/martijn00)! - Open pages pick up a role or grant change without waiting for the token to rotate. Run `better-supabase codemod 0.35` to rename the `SessionProvider` prop and list the lines to review.
+  
+  - `blocks.sessions.options.authzVersions` adds `better_supabase.user_authz_versions`, the `bump_authz_version()` trigger function (it reads the user column from its argument, default `user_id`), `bump_authz_versions(uuid[])`, `authz_version(uid)` for the access token hook, and a broadcast on `AUTHZ_TOPIC` for servers and on the private `authz:<uid>` topic, which only that user may read.
+  - `SessionProvider` holds the session in a store. With `client` (a browser Supabase client) it listens on `authz:<uid>`: the visible tab refreshes the token and calls `onAuthzChange`, then tells the other tabs over the `better-supabase:session` `BroadcastChannel`, and they call `onAuthzChange` without a second refresh.
+  - `bsb.refreshSessionCache()` is a Server Action that drops the caller's own `bsb.cached()` entries; re-export it from a `"use server"` file and call it from `onAuthzChange`.
+  - `AuthorizationHooks.sessionTags(userId)` adds a provider's own cache tags to `bsb.cached()` entries, and `evictSession`, sign-out and `refreshSessionCache` clear them. The hook is optional, so `apiVersion: 1` stays.
+  - `subscribeAuthzVersions` defaults `topic`, `event` and `userIdKey` to what `authzVersions` sends, and a per-user `authz:<uid>` topic evicts that user. `AUTHZ_TOPIC`, `AUTHZ_EVENT` and `authzUserTopic` are exported from `better-supabase/server`.
+  
+  Breaking changes:
+  
+  - `SessionProvider` takes `session` instead of `sessionPromise`. It accepts a resolved `AuthSession` or a promise.
+  - `sessionStatusRoute` defaults to `verifySession: false`: it reads the verified claims only. Pass `verifySession: true` to ask Auth on every check.
+
+- [#508](https://github.com/ScaleDockHQ/better-supabase/pull/508) [`c897ef1`](https://github.com/ScaleDockHQ/better-supabase/commit/c897ef1176eba7a4acd709d05e15ce4a09b036b5) Thanks [@martijn00](https://github.com/martijn00)! - Status history records who made a change, memory scopes to records and expires, knowledge gets collections and system documents, the inbox keeps reply drafts, and workflows take the app's own node kinds and a default lifecycle workflow (ADRs 0123 to 0126).
+  
+  - State machine: `transition(subject, to, { reason, actor })` records the actor's `name`, `email`, `ip` and `userAgent` in `status_history` (`actor_name`, `actor_email`, `ip`, `user_agent`), and `history()` returns them. An app history table maps them with `history.actorName`, `actorEmail`, `ip` and `userAgent`. `history: "app"` leaves the history to the app: the block checks edges and records `status.changed` but writes no history, and `history()` fails with `STATE_HISTORY_APP`.
+  - Memory: `{ scope: "record", subject }` keeps facts about one record that every member reads and admins change. `archival.upsert` and `saveExtracted` take `category`, `confidence` (weighs search scores) and `expiresAt`. Searches count `useCount` and `lastUsedAt`. `archival.restore(id)` undoes a forget, and `archival.purge({ retentionDays, batch })` (service role) removes deleted and expired facts.
+  - Knowledge: `knowledge.collections` creates collections with a visibility (`automatic`, `restricted`, `disabled`) and a priority, and grants restricted ones to users or teams. Documents take `collectionId`; `documents.list` and `search` filter by collection, and search ranks higher priority collections first. `documents.create(null, ...)` and `ingest.text(null, ...)` (service role) create system documents every organization reads.
+  - Inbox: `inbox.drafts` keeps a staff member's reply draft per conversation (`upsert`, `list`, `send`, `discard`), and `suggest` (service role) files an AI draft every staff member who can reply sees.
+  - Workflow editor: `defineNodeKind` defines the app's own node kinds (`apiVersion: 1`), `createWorkflowEditor({ nodes })` and `nodeKinds.sync()` register them in `workflow_node_kinds`, and `nodeKinds.list()` returns them. `executeGraph` runs custom nodes through `runtime.node`, and `graphStarter({ nodeKinds, nodes })` binds one step per kind. Definitions take a `purpose` (`automation` or `lifecycle`) and `isDefault`; `definitions.setPurpose` sets them and `definitions.resolve(tenant, { subjectType })` returns the default lifecycle workflow's published version.
+  
+  Run `better-supabase upgrade` and generate a migration: state-machine moves to version 3, memory to 3, knowledge to 3, inbox to 6 and workflow-editor to 4. `better-supabase codemod 0.35` rewrites the call sites marked below.
+  
+  Breaking changes:
+  
+  - `transition(subject, to, reason)` takes `{ reason, actor }` as its third argument; the codemod rewrites a string literal reason and lists the rest. The SQL `transition` takes a trailing `actor jsonb`.
+  - `memory.archival.forget` soft deletes: the fact leaves lists and searches but stays until `purge` removes it. Schedule `purge`.
+  - `KnowledgeDocument.organizationId` and `ownerId` are `string | undefined`, undefined for a system document.
+  - `validateGraph(graph, steps)` is `validateGraph(graph, { steps, nodes })`; the codemod rewrites it. `WorkflowNodeKind` accepts any kind name, so a map over every kind keys by the new `WorkflowBuiltinNodeKind` and falls back for custom kinds. A graph with a kind that is neither built in nor registered fails `validate_workflow_graph`.
+  - `WorkflowDefinition` has `purpose` and `isDefault`.
+
+- [#499](https://github.com/ScaleDockHQ/better-supabase/pull/499) [`d683ce1`](https://github.com/ScaleDockHQ/better-supabase/commit/d683ce18d164f6ccf2f00acd07374772b52c1be7) Thanks [@martijn00](https://github.com/martijn00)! - Calendar events keep their alarms, and reminders work on any subject.
+  
+  - Calendar: a new `calendar_event_alarms` table holds each event's `VALARM`s in the feed's reminder shape (a `method`, an `offsetMinutes` before the event or an absolute `at`, a repeat, and an optional `user` for a member's own alarm). `upsert` takes `alarms`, reads return them, `importIcs` reads them and `exportIcs` and the feeds write them. Map `tables.alarms` to your own table or set it to `null`.
+  - Calendar: `options.feed.reminders` is replaced by `tables.alarms`. Map your alarm table there, with its columns under `columns.alarms`; the table needs a tenant column. The feed's `reminders` now carry the event's alarms and the link creator's reminders together; `CalendarAlarm` extends `CalendarReminder`.
+  - Reminders: `upsert(subject, { at })` sets a one-time reminder (a new `remind_at` column), and `on.<type>.at` names a subject's time column, such as a task's `due_at`, for subjects without a recurrence rule.
+  - Reminders: `schedule()` enqueues one `reminders.deliver` job per occurrence due in the next day on the new `jobs` option, once per reminder and occurrence. The block declares it as the `reminders.schedule` timer, and `reminderJobSchema` types the delivery queue.
+  - `save_reminder` now refuses a subject of a registered type that doesn't exist in the organization or that the caller can't read (`REMINDER_SUBJECT_NOT_FOUND`), and with `on` set, a type `on` doesn't list (`REMINDER_SUBJECT_UNSUPPORTED`). Run `better-supabase upgrade` and generate a migration.
+
+- [#502](https://github.com/ScaleDockHQ/better-supabase/pull/502) [`708fe67`](https://github.com/ScaleDockHQ/better-supabase/commit/708fe67da19384421123c89955920630629010dd) Thanks [@martijn00](https://github.com/martijn00)! - The server builds its Supabase clients with `createContextClient` and `createAdminClient` from `@supabase/server`, and keeps one memo of verified tokens. A user's client sends the token to PostgREST, Storage and Realtime (through `realtime.accessToken`). The secret-key client is created on first use and shared. Run `better-supabase codemod 0.35` to rename the calls and list the rest for review.
+  
+  Breaking changes:
+  
+  | 0.34                                     | 0.35                                                   |
+  | ---------------------------------------- | ------------------------------------------------------ |
+  | `bsb.supabaseFor(auth, headers?)`        | `bsb.contextClient(auth, headers?)`                    |
+  | `sessions: false` skips the session memo | `sessions: false` verifies every token on every call   |
+  | `accessTokenResolver` remembers tokens   | it verifies each request; put it behind `createServer` |
+  
+  - The 256-entry verified-token memos inside `resolveAuth` and `accessTokenResolver` are removed. `createServer` passes its session memo to the resolver, so the proxy, `bsb.context()`, `getClaims()` and `bsb.snapshot()` verify a token once while it is valid, and `bsb.sessions.evict(userId)` reaches every path.
+  
+  Other changes:
+  
+  - The memo is keyed by the token instead of its SHA-256, which keeps a hit at about 14 us under load.
+  - Loaders of one request share one `bsb.snapshot(request)` resolution.
+
+- [#498](https://github.com/ScaleDockHQ/better-supabase/pull/498) [`c875b9d`](https://github.com/ScaleDockHQ/better-supabase/commit/c875b9db189bfadda79664f5d5a101229fe07dc0) Thanks [@martijn00](https://github.com/martijn00)! - Doctor adds three checks.
+  
+  - BS351 warns when app code writes a block's table directly with `.from("x").insert()`, `.update()`, `.upsert()` or `.delete()`, which skips the block's functions. Write through the API `createBlocks` returns.
+  - BS352 warns when one of your tables keeps a plain `credentials`, `token` or `secret` column while `field-encryption` or the `credentials` module is installed. Mark the column `encrypted: true`, or store it in Vault and keep a `credential_ref`.
+  - BS607 warns when the installed `better-supabase` is not the version your lockfile resolves, or when a block file or a `better_supabase.blocks` row records a block version newer than the installed release ships.
+
+- [#505](https://github.com/ScaleDockHQ/better-supabase/pull/505) [`d723d48`](https://github.com/ScaleDockHQ/better-supabase/commit/d723d480a50f2b2c7854011fa164267429a40fee) Thanks [@martijn00](https://github.com/martijn00)! - Enrollment program steps take an `assignee` (`{ role }` or `{ userId }`) and a `due` date (`{ days, from: "start" | "end" }`). Enrollments gain `startsAt` and `endsAt`, set through `enroll(program, subject, dates)` or the new `setDates`, and each scheduled step gets an open `enrollment_steps` row with its rendered `due_at`. `openSteps()` lists the open steps by due date, an assigned user can complete their step, and an enrollment's `schedule` lists its scheduled steps. Run `better-supabase upgrade` and `db diff` to add the columns; rows in `enrollment_steps` with a null `completed_at` are open steps, so filter on `completed_at` in your own queries over the table.
+
+- [#493](https://github.com/ScaleDockHQ/better-supabase/pull/493) [`a1bc4e4`](https://github.com/ScaleDockHQ/better-supabase/commit/a1bc4e453310f1a4fe153a12dfaf8b96e3e8d9c4) Thanks [@martijn00](https://github.com/martijn00)! - `toNextRoute(entries, handler)` and `toNextAction(entries, action)` from `better-supabase/next` run `@supabase/middleware` entries (`withRequiredClaims`, `withSupabaseClient`, `withCors`) around a Next.js route handler or Server Action. A route handler returns a `Response` or a value and gets the route `params`. An action reads the request from `headers()`, writes the entries' cookies through `cookies().set`, and throws `NextActionRejected` when an entry answers first.
+
+- [#494](https://github.com/ScaleDockHQ/better-supabase/pull/494) [`40a0296`](https://github.com/ScaleDockHQ/better-supabase/commit/40a0296ce605e71ebf881dace11ed78dce660aea) Thanks [@martijn00](https://github.com/martijn00)! - Pages can read the session, the authorization version and their data in one database call, and keep it in the App Shell. Run `better-supabase codemod 0.35` to list the lines to review.
+  
+  - `bsb.cached()` sets `stale` to 300 seconds, so private entries ride in the App Shell. The token's lifetime no longer caps it, since the proxy refreshes every request; `life: { capToToken: true }` brings the cap back. In development a `stale` below 300 seconds warns once.
+  - `bsb.remote(fn, { share, tenant })` and `bsb.cached({ scope: "remote", key })` read user-scoped data in `"use cache: remote"`. The key carries the user, Auth session, tenant and authorization version, never the token. Support sessions get no remote token. Remote entries default to `revalidate` 300 and `expire` 3600.
+  - `bsb.bootstrap({ rpc, args, tenant, redirect })` calls the `better_supabase.bootstrap_<rpc>` wrapper that `blocks.sessions.options.bootstrap` generates. It checks `session_active()`, returns the token's `authz_ver` and the app function's data, seeds the authorization version cache, and calls once per request for the same arguments. An ended session is not cached, its tags are evicted, and with `redirect` the caller goes to `?reason=session_not_found`.
+  - `bsb.bootstrap()` calls the wrappers where the sessions block puts them: `gen` records its API schema (`blocks.sessions.api`, then `sql.api`) or its own `schema` in the schema metadata, and `bootstrapSchema` or the call's `schema` still override it.
+  - `proxy({ verifySession: "bootstrap" })` skips the proxy's Auth call for apps whose pages check the session in `bsb.bootstrap()`.
+  - `bsb.getAccess(source?)` returns the caller's context, session, tenant, authorization version and `can(permission)` from the request, a `SessionSnapshot` or a bootstrap result.
+  - `createNext({ rootParams: { locale, brand, tenant } })` adds `bsb.locale()`, `bsb.brand()` and `bsb.tenant()`, and contexts fall back to the `tenant` root param.
+  - `postAuthPath(source, fallback)` reads a safe `?next=` path from a request, search params or page props.
+  - `AuthzVersionCache` gains an optional `seed(userId, version)`.
+  - Doctor BS608 warns when a remote cache scope runs outside Vercel without `cacheHandlers.remote`.
+  
+  Breaking changes:
+  
+  - `sessionStale` and `SessionStaleOptions` are removed from `better-supabase/next`. Call `bsb.cached()` in the scope instead of `cacheLife({ stale: sessionStale(session) })`.
+  - `life.min` and `life.max` are removed from `bsb.cached()`. Use `life.stale` and `capToToken`.
+  - `bsb.contextFromSession(session, { token })` is removed. Pass the `SessionSnapshot` from `bsb.getClaims()`; the context is built without verifying the token again.
+
+- [#504](https://github.com/ScaleDockHQ/better-supabase/pull/504) [`a9e3127`](https://github.com/ScaleDockHQ/better-supabase/commit/a9e3127b56a8f1d1da2a6b9ac3e70e44684192c8) Thanks [@martijn00](https://github.com/martijn00)! - Quotes publish versions and price like European offers: VAT-inclusive prices, document discounts, deposits, sections and optional lines, and tax per rate (ADR 0120).
+  
+  - Each `send` publishes the quote to `quote_versions`, a snapshot that never changes. `versions(quoteId)` lists them and `version(quoteId, revision)` returns the quote as it was sent.
+  - `pricesIncludeTax`, `discountBps`, `discountAmount` and `depositBps` on `create` and `update`. The database spreads the document discount over the tax rates and writes `quote.taxLines` (net, tax, gross and discount per rate), which add up exactly to the totals. `quote.pricing.depositDue` is the deposit asked.
+  - Lines take a `section` and can be `optional`. The customer picks optional lines when they accept (`selected` on `respond`, `decide` and `portalRespond`).
+  - `portalView` and `portalRespond` let a signed-in guest read and answer a quote shared with them, with no token. Answers record the user id, IP address and user agent (`decidedUserId`, `decidedIp`, `decidedUserAgent`).
+  - Invoices take `pricesIncludeTax`, and `fromQuote` invoices the lines the customer accepted with one `Discount` line per tax rate, so the invoice totals match the quote.
+  
+  Breaking changes:
+  
+  - `revise` keeps the same quote at the next revision instead of creating a new one, and refuses an accepted quote (`QUOTE_ACCEPTED`). `Quote.supersedesId`, the `supersedes_id` column and `QUOTE_ALREADY_REVISED` are removed; the migration drops the column.
+  - The `quote.revised` event carries `revision` instead of `revisionId`; `quote.sent` and `quote.accepted` carry `revision` too.
+  - `PublicQuote` returns `totals`, `pricing` and `taxLines` instead of top-level `subtotal`, `discountTotal`, `taxTotal` and `total`. `respond` resolves to `{ status, identifier, revision }`.
+  - `decide_quote` and `respond_to_quote` take a trailing `selected jsonb` argument; SQL callers that named the old signatures must use the new ones.
+
+### Patch Changes
+
+- [#500](https://github.com/ScaleDockHQ/better-supabase/pull/500) [`825769d`](https://github.com/ScaleDockHQ/better-supabase/commit/825769d8ee54a8c1112649f1f15764a80679eaf0) Thanks [@martijn00](https://github.com/martijn00)! - The `better-supabase-auth` skill covers the 0.35 session APIs: `bsb.bootstrap()`, `bsb.getAccess()`, the remote scope, the 300-second stale time of `bsb.cached()`, the `SessionProvider` `session` prop and `authzVersions` for open pages.
+
+- [#507](https://github.com/ScaleDockHQ/better-supabase/pull/507) [`f8c9674`](https://github.com/ScaleDockHQ/better-supabase/commit/f8c9674a3999da29f1e10eb90769ef84d95a2705) Thanks [@martijn00](https://github.com/martijn00)! - `dev stack prune` passes `--yes` to `supabase stack destroy` once it has the user's consent, so the destroy no longer fails with `ExperimentalStackDestroyError`. A `--confirm` token now ignores the presentation flags `--yes`, `--json`, `--color`, `--debug` and `--agent`, so adding one of them to the run the user agreed to keeps the token valid.
+
 ## 0.35.0
 
 ### Minor Changes
