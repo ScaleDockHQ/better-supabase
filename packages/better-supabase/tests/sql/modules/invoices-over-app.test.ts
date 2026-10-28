@@ -676,6 +676,94 @@ $$;`;
     expect(stack.url).not.toBe("");
   });
 
+  it("checks finer keys per action and falls back to write and manage", async () => {
+    const member = "55555555-5555-4555-8555-555555555555";
+
+    const asMember = `perform set_config('request.jwt.claims', '{"sub":"${member}","role":"authenticated"}', true);
+  perform set_config('request.jwt.claim.sub', '${member}', true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);`;
+
+    const refused = (call: string): string => `begin
+    perform ${call};
+    raise exception 'allowed: ${call.replaceAll("'", "''")}';
+  exception when others then
+    if sqlerrm like 'allowed: %' then
+      raise;
+    end if;
+  end;`;
+
+    await expect(
+      run(
+        `create table public.denied (permission text primary key);
+insert into public.denied values ('invoice.send'), ('invoice.pay'), ('invoice.cancel');
+create or replace function better_supabase.can(scope text, scope_id uuid, permission text)
+returns boolean language sql stable as $$ select not exists (select 1 from public.denied d where d.permission = can.permission) $$;
+do $$
+declare
+  v_id uuid;
+begin
+  ${asMember}
+  v_id := (better_supabase.create_invoice('${TENANT}', '{"title": "Draft", "currency": "EUR"}'::jsonb,
+    '[{"description": "Work", "quantity": 1, "unitAmount": "1000"}]'::jsonb) ->> 'id')::uuid;
+  perform better_supabase.set_invoice_lines(v_id, '[{"description": "Work", "quantity": 2, "unitAmount": "1000"}]'::jsonb);
+  ${refused("better_supabase.issue_invoice(v_id, current_date)")}
+  ${SERVICE}
+  perform better_supabase.issue_invoice(v_id, current_date);
+  ${asMember}
+  ${refused("better_supabase.record_invoice_payment(v_id, 500, 'EUR', now(), 'bank', 'tx-1')")}
+  ${refused("better_supabase.write_off_invoice(v_id, 'lost')")}
+  perform better_supabase.void_invoice(v_id, 'sent twice');
+  if (select state from public.bills where id = v_id) <> 'void' then
+    raise exception 'void with the write key missed';
+  end if;
+end;
+$$;`,
+        {
+          invoices: {
+            ...BLOCKS["invoices"],
+            permissions: {
+              read: "invoice.read",
+              write: "invoice.update",
+              manage: "invoice.cancel",
+              issue: "invoice.send",
+              payment: "invoice.pay",
+              void: "invoice.update",
+            },
+          },
+        },
+      ),
+    ).resolves.toBeUndefined();
+
+    const sql = renderBlocks(["invoices"], { modules: {} })
+      .filter((file) => file.module === "invoices")
+      .map((file) => file.contents)
+      .join("\n");
+
+    const body = (name: string): string => {
+      const start = sql.indexOf(`function "better_supabase"."${name}"(`);
+
+      return sql.slice(start, sql.indexOf("$$;", start));
+    };
+
+    for (const name of [
+      "create_invoice",
+      "issue_invoice",
+      "record_invoice_payment",
+      "credit_invoice",
+      "add_invoice_charge",
+    ]) {
+      expect(body(name)).toContain("'invoices.write'");
+    }
+
+    for (const name of [
+      "void_invoice",
+      "write_off_invoice",
+      "reverse_invoice_payment",
+    ]) {
+      expect(body(name)).toContain("'invoices.manage'");
+    }
+  });
+
   it("leaves the totals trigger out when the app owns the totals", () => {
     const sql = renderBlocks(["invoices"], {
       modules: { invoices: { options: { totals: "app" } } },

@@ -30,6 +30,15 @@ export interface InvoiceNames {
   readonly read: string;
   readonly write: string;
   readonly manage: string;
+  readonly create: string;
+  readonly update: string;
+  readonly issue: string;
+  readonly payment: string;
+  readonly credit: string;
+  readonly charge: string;
+  readonly void: string;
+  readonly writeOff: string;
+  readonly reverse: string;
   readonly company: string;
   readonly contact: string;
   readonly prefix: string;
@@ -386,7 +395,7 @@ declare
   v_lines jsonb;
 begin
   select * into v_quote from ${quotes.table("quotes")} x where x.${q("id")} = invoice_from_quote.quote;
-  if v_quote.${q("id")} is null or not (${n.service} or ${ctx.scope.can(`v_quote.${q("tenant")}`, n.write)}) then
+  if v_quote.${q("id")} is null or not (${n.service} or ${ctx.scope.can(`v_quote.${q("tenant")}`, n.create)}) then
     ${fail("INVOICE_ORIGIN_NOT_FOUND", "no such quote you can invoice", "P0002")}
   end if;
   if ${quotes.is("quotes", "status", `v_quote.${q("status")}`, ["accepted"], true)} then
@@ -455,7 +464,7 @@ declare
   v_row ${t("invoices")};
   v_charge uuid;
 begin
-  select * into v_row from ${t("invoices")} x where x.${i("id")} = add_invoice_charge.invoice and ${can("x", n.write)} for update;
+  select * into v_row from ${t("invoices")} x where x.${i("id")} = add_invoice_charge.invoice and ${can("x", n.charge)} for update;
   if v_row.${i("id")} is null then
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
   end if;
@@ -488,7 +497,7 @@ declare
   v_amount bigint;
 begin
   select x.* into v_row from ${t("invoices")} x join ${t("charges")} c on c.${ch("invoice")} = x.${i("id")}
-  where c.${ch("id")} = remove_invoice_charge.charge and ${can("x", n.write)}
+  where c.${ch("id")} = remove_invoice_charge.charge and ${can("x", n.charge)}
   for update of x;
   if v_row.${i("id")} is null then
     ${fail("INVOICE_CHARGE_NOT_FOUND", "no such charge on an invoice you can edit", "P0002")}
@@ -526,7 +535,7 @@ declare
   v_contact_type text := coalesce(create_invoice.attrs -> 'contact' ->> 'type', ${sqlString(n.contact)});
   v_contact_id text := create_invoice.attrs -> 'contact' ->> 'id';
 begin
-  if not (${n.service} or ${ctx.scope.can("create_invoice.tenant", n.write)}) then
+  if not (${n.service} or ${ctx.scope.can("create_invoice.tenant", n.create)}) then
     ${fail("INVOICE_FORBIDDEN", "not allowed to change invoices")}
   end if;
   if nullif(trim(create_invoice.attrs ->> 'title'), '') is null then
@@ -613,7 +622,7 @@ ${lineItemsSql(
   },
   {
     setter: "set_invoice_lines",
-    guard: `if not exists (select 1 from ${t("invoices")} x where x.${i("id")} = v_parent and ${can("x", n.write)}) then
+    guard: `if not exists (select 1 from ${t("invoices")} x where x.${i("id")} = v_parent and ${can("x", n.update)}) then
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
   end if;`,
   },
@@ -635,7 +644,7 @@ declare
   v_identifier text;
   v_issued_on date := coalesce(issue_invoice.issued_on, current_date);
 begin
-  select * into v_row from ${t("invoices")} x where x.${i("id")} = issue_invoice.invoice and ${can("x", n.write)} for update;
+  select * into v_row from ${t("invoices")} x where x.${i("id")} = issue_invoice.invoice and ${can("x", n.issue)} for update;
   if v_row.${i("id")} is null then
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
   end if;
@@ -698,7 +707,7 @@ declare
   v_reference text;
   v_was text;
 begin
-  select * into v_row from ${t("invoices")} x where x.${i("id")} = record_invoice_payment.invoice and ${can("x", n.write)} for update;
+  select * into v_row from ${t("invoices")} x where x.${i("id")} = record_invoice_payment.invoice and ${can("x", n.payment)} for update;
   if v_row.${i("id")} is null then
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
   end if;
@@ -753,7 +762,7 @@ declare
   v_original ${t("invoices")};
   v_row ${t("invoices")};
 begin
-  select * into v_original from ${t("invoices")} x where x.${i("id")} = credit_invoice.invoice and ${can("x", n.write)};
+  select * into v_original from ${t("invoices")} x where x.${i("id")} = credit_invoice.invoice and ${can("x", n.credit)};
   if v_original.${i("id")} is null then
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
   end if;
@@ -831,7 +840,7 @@ as $$
 declare
   v_row ${t("invoices")};
 begin
-  select * into v_row from ${t("invoices")} x where x.${i("id")} = void_invoice.invoice and ${can("x", n.manage)} for update;
+  select * into v_row from ${t("invoices")} x where x.${i("id")} = void_invoice.invoice and ${can("x", n.void)} for update;
   if v_row.${i("id")} is null then
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can manage", "P0002")}
   end if;
@@ -859,7 +868,7 @@ declare
   v_row ${t("invoices")};
 begin
   update ${t("invoices")} x set ${i("status")} = ${ctx.value("invoices", "status", "uncollectible")}, ${writeOffReason ? `${i("writeOffReason")} = nullif(trim(write_off_invoice.reason), ''), ` : ""}${i("updatedAt")} = now()
-  where x.${i("id")} = write_off_invoice.invoice and ${can("x", n.manage)} and ${st(`x.${i("status")}`, ["issued", "partially_paid"])}
+  where x.${i("id")} = write_off_invoice.invoice and ${can("x", n.writeOff)} and ${st(`x.${i("status")}`, ["issued", "partially_paid"])}
   returning * into v_row;
   if v_row.${i("id")} is null then
     ${fail("INVOICE_NOT_OPEN", "only an open invoice you can manage is written off", "55000")}
@@ -884,7 +893,7 @@ declare
 begin
   select y.${ledger.tx("metadata")} into v_meta from ${ledger.transactions} y
   where y.${ledger.tx("id")} = reverse_invoice_payment.payment and y.${ledger.tx("referenceType")} = 'invoices';
-  select * into v_row from ${t("invoices")} x where x.${i("id")} = (v_meta ->> 'invoiceId')::uuid and ${can("x", n.manage)} for update;
+  select * into v_row from ${t("invoices")} x where x.${i("id")} = (v_meta ->> 'invoiceId')::uuid and ${can("x", n.reverse)} for update;
   if v_meta is null or v_row.${i("id")} is null then
     ${fail("INVOICE_PAYMENT_NOT_FOUND", "no such payment on an invoice you can manage", "P0002")}
   end if;

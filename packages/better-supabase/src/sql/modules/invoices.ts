@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { InvoiceNames } from "./invoices-functions.ts";
 
+import { sqlString } from "../../core/template.ts";
 import { guestOr } from "../guest-sql.ts";
 import {
   lineExtraColumns,
@@ -330,6 +331,11 @@ function build(ctx: BlockSqlContext): string {
     );
   }
 
+  const finer = (action: string, base: "write" | "manage"): string =>
+    sqlString(
+      ctx.config.permissions[action] ?? ctx.permissionKey(base, keys[base]),
+    );
+
   const n: InvoiceNames = {
     fn: (name) => ctx.fn(name),
     t: (table) => ctx.table(table),
@@ -337,6 +343,15 @@ function build(ctx: BlockSqlContext): string {
     read: ctx.permission("read", keys.read),
     write: ctx.permission("write", keys.write),
     manage: ctx.permission("manage", keys.manage),
+    create: finer("create", "write"),
+    update: finer("update", "write"),
+    issue: finer("issue", "write"),
+    payment: finer("payment", "write"),
+    credit: finer("credit", "write"),
+    charge: finer("charge", "write"),
+    void: finer("void", "manage"),
+    writeOff: finer("writeOff", "manage"),
+    reverse: finer("reverse", "manage"),
     company: ctx.text("company", "company"),
     contact: ctx.text("contact", "person"),
     prefix: ctx.text("prefix", "INV-"),
