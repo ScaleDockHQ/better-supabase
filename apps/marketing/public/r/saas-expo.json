@@ -4,7 +4,7 @@
   "title": "SaaS glue (Expo)",
   "description": "The glue for the saas preset on Expo: block clients, onboarding, the organization hook, push registration and the Expo config.",
   "dependencies": [
-    "better-supabase@^0.34.0"
+    "better-supabase@^0.35.0"
   ],
   "registryDependencies": [
     "@better-supabase/blocks",
