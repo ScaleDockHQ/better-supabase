@@ -9,6 +9,7 @@ import {
   columnsObject,
   extraFieldsArg,
   fail,
+  insertExtraColumns,
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
@@ -26,6 +27,55 @@ const STATUS_EDGES: Readonly<Record<string, readonly string[]>> = {
 /** `options.extraColumns`, which the products table gets. */
 export const productExtras = (ctx: BlockSqlContext): readonly ExtraColumn[] =>
   ctx.extraColumns("products", ["id", "slug", "status", "fields"]);
+
+/** `options.variantExtraColumns`, which `save_variant` writes from `fields`. */
+export const variantExtras = (ctx: BlockSqlContext): readonly ExtraColumn[] =>
+  ctx.extraColumns(
+    "variants",
+    ["id", "sku", "rank", "fields"],
+    "variantExtraColumns",
+  );
+
+/** `options.categoryExtraColumns`, which `save_category` writes from `fields`. */
+export const categoryExtras = (ctx: BlockSqlContext): readonly ExtraColumn[] =>
+  ctx.hasTable("categories")
+    ? ctx.extraColumns(
+        "categories",
+        ["id", "slug", "rank", "fields"],
+        "categoryExtraColumns",
+      )
+    : [];
+
+/**
+ * The product columns `save_product` sets: without a prices table, the
+ * product's price in minor units and its currency, and whether inventory counts
+ * stock when variants don't say. Each is a parameter with a null default that
+ * leaves the column as it is.
+ */
+export function productSettings(
+  ctx: BlockSqlContext,
+): readonly (readonly [string, string, string])[] {
+  const onVariant = !ctx.hasTable("prices");
+
+  const settings = [
+    ["price", "price", "bigint", onVariant],
+    ["currency", "currency", "text", onVariant],
+    [
+      "trackInventory",
+      "track_inventory",
+      "boolean",
+      !ctx.has("variants", "trackInventory"),
+    ],
+  ] as const;
+
+  return settings
+    .filter(([logical, , , used]) => used && ctx.has("products", logical))
+    .map(([logical, param, type]) => [logical, param, type] as const);
+}
+
+/** `save_product`'s argument types after `kind`, without the extra fields. */
+export const productSettingTypes = (ctx: BlockSqlContext): readonly string[] =>
+  productSettings(ctx).map(([, , type]) => type);
 
 export function storefrontOption(ctx: BlockSqlContext): boolean {
   const value = ctx.text("storefront", "private");
@@ -120,7 +170,32 @@ export function productFunctions(ctx: BlockSqlContext, names: Names): string {
   const kind = ctx.has("products", "kind");
   const governed = machineGoverns(ctx);
   const extras = productExtras(ctx);
-  const saveArgs = `${ctx.idType}, uuid, text, text, text, text`;
+  const settings = productSettings(ctx);
+  const baseArgs = `${ctx.idType}, uuid, text, text, text, text`;
+  const saveArgs = [baseArgs, ...productSettingTypes(ctx)].join(", ");
+
+  const settingParams = settings
+    .map(([, param, type]) => `, ${param} ${type} default null`)
+    .join("");
+
+  const settingWrite =
+    settings.length === 0
+      ? ""
+      : `
+  update ${products} x set ${settings
+    .map(
+      ([logical, param]) =>
+        `${p(logical)} = coalesce(${logical === "currency" ? `upper(save_product.${param})` : `save_product.${param}`}, x.${p(logical)})`,
+    )
+    .join(", ")}
+  where x.${p("id")} = v_id;`;
+
+  const staleDrops =
+    settings.length === 0
+      ? ""
+      : `drop function if exists ${fn("save_product")}(${baseArgs});
+drop function if exists ${fn("save_product")}(${baseArgs}, jsonb);
+`;
 
   const edges = Object.entries(STATUS_EDGES)
     .map(
@@ -142,9 +217,10 @@ export function productFunctions(ctx: BlockSqlContext, names: Names): string {
   end if;`;
 
   return `
--- Creates a product (product null) or updates one. Returns its id, slug and status.
-${extraFieldsArg(extras).drop(fn("save_product"), saveArgs)}
-create or replace function ${fn("save_product")}(tenant ${ctx.idType}, product uuid, title text, slug text, description text, kind text${extraFieldsArg(extras).param})
+-- Creates a product (product null) or updates one. Returns its id, slug and
+-- status.${settings.length === 0 ? "" : " A null price, currency or track_inventory keeps the column."}
+${staleDrops}${extraFieldsArg(extras).drop(fn("save_product"), saveArgs)}
+create or replace function ${fn("save_product")}(tenant ${ctx.idType}, product uuid, title text, slug text, description text, kind text${settingParams}${extraFieldsArg(extras).param})
 returns jsonb
 language plpgsql
 security definer
@@ -182,7 +258,7 @@ begin
     end if;
   exception when unique_violation then
     ${fail("CATALOG_SLUG_TAKEN", "another product has this slug", "23505")}
-  end;${writeExtraColumns(products, extras, "save_product.fields", `x.${p("id")} = v_id`)}
+  end;${settingWrite}${writeExtraColumns(products, extras, "save_product.fields", `x.${p("id")} = v_id`)}
   if v_created then
     ${ctx.record({
       type: "product.created",
@@ -415,6 +491,17 @@ function variantFunctions(
   const p = (column: string): string => ctx.col("products", column);
   const v = (column: string): string => ctx.col("variants", column);
   const optional = (column: string): boolean => ctx.has("variants", column);
+  const extras = variantExtras(ctx);
+  const extraArg = extraFieldsArg(extras);
+
+  const variantArgs =
+    "uuid, uuid, text, uuid[], text, text, integer, boolean, boolean";
+
+  const inserted = insertExtraColumns(
+    variants,
+    extras,
+    "coalesce(save_variant.fields, '{}'::jsonb)",
+  );
 
   const tracking = optional("trackInventory")
     ? ""
@@ -496,7 +583,9 @@ function variantFunctions(
   return `
 -- Creates a variant (variant null) or updates one. option_values holds one
 -- option value id per product option; no two variants share a combination.
-create or replace function ${fn("save_variant")}(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean)
+-- fields: the extra columns (options.variantExtraColumns) to set.
+${extraArg.drop(fn("save_variant"), variantArgs)}
+create or replace function ${fn("save_variant")}(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean${extraArg.param})
 returns jsonb
 language plpgsql
 security definer
@@ -526,8 +615,8 @@ ${valueChecks.check}
     if v_created then
       select max(${rank.order(`x.${v("rank")}`)}) into v_last from ${variants} x where x.${v("product")} = save_variant.product;
       v_rank := ${rank.after("v_last")};
-      insert into ${variants} (${v("tenant")}, ${v("product")}, ${columns.map(([column]) => v(column)).join(", ")}, ${v("rank")})
-      values (v_tenant, save_variant.product, ${columns.map(([, value]) => value).join(", ")}, ${rank.write("v_rank")})
+      insert into ${variants} (${v("tenant")}, ${v("product")}, ${columns.map(([column]) => v(column)).join(", ")}, ${v("rank")}${inserted.columns})
+      values (v_tenant, save_variant.product, ${columns.map(([, value]) => value).join(", ")}, ${rank.write("v_rank")}${inserted.values})
       returning ${v("id")} into v_id;
     else
       update ${variants} x set ${columns.map(([column, value]) => `${v(column)} = ${value}`).join(", ")}, ${v("updatedAt")} = now()
@@ -535,7 +624,7 @@ ${valueChecks.check}
       returning x.${v("rank")} into v_rank;
       if not found then
         ${fail("CATALOG_VARIANT_NOT_FOUND", "variant not found", "P0002")}
-      end if;
+      end if;${writeExtraColumns(variants, extras, "save_variant.fields", `x.${v("id")} = v_id`).replaceAll("\n  ", "\n      ")}
     end if;
   exception when unique_violation then
     ${fail("CATALOG_SKU_TAKEN", "another variant has this SKU", "23505")}
@@ -562,10 +651,17 @@ ${valueChecks.write}
     ["uuid", "v_id"],
     ["boolean", "v_created"],
   ])}
-  return jsonb_build_object('id', v_id, 'sku', save_variant.sku, 'rank', v_rank);
+  return jsonb_build_object('id', v_id, 'sku', save_variant.sku, 'rank', v_rank)${
+    extras.length === 0
+      ? ""
+      : ` || (select jsonb_build_object('fields', ${columnsObject(
+          "x",
+          extras.map((extra) => extra.name),
+        )}) from ${variants} x where x.${v("id")} = v_id)`
+  };
 end;
 $$;
-${userGrant(`${fn("save_variant")}(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean)`)}
+${userGrant(`${fn("save_variant")}(${variantArgs}${extraArg.type})`)}
 
 -- Sets a variant's rank key among the product's variants.
 create or replace function ${fn("rank_variant")}(variant uuid, rank text)

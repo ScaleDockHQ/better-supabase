@@ -26,9 +26,12 @@ import {
 import {
   SLUG,
   catalogRank,
+  categoryExtras,
   optionFunctions,
   productExtras,
   productFunctions,
+  productSettingTypes,
+  variantExtras,
   storefrontOption,
 } from "./catalog-functions.ts";
 import {
@@ -123,7 +126,14 @@ const NAMES: BlockSqlNames = {
     "before_price_set",
     "after_price_set",
   ],
-  options: ["storefront", "extraColumns", "locales", "rankType"],
+  options: [
+    "storefront",
+    "extraColumns",
+    "variantExtraColumns",
+    "categoryExtraColumns",
+    "locales",
+    "rankType",
+  ],
   tables: {
     products: {
       name: "products",
@@ -495,7 +505,7 @@ create table if not exists ${t("variants")} (
   ${c("variants", "updatedAt")} timestamptz not null default now(),
   unique (${c("variants", "tenant")}, ${c("variants", "sku")})
 );
-create index if not exists ${ctx.naming.rename("product_variants_product_idx")} on ${t("variants")} (${c("variants", "product")});
+create index if not exists ${ctx.naming.rename("product_variants_product_idx")} on ${t("variants")} (${c("variants", "product")});${addExtraColumns(t("variants"), variantExtras(ctx))}
 ${lockTable(t("variants"), { read: true })}
 ${read("variants")}
 
@@ -550,7 +560,7 @@ create table if not exists ${t("categories")} (
   ${c("categories", "updatedAt")} timestamptz not null default now(),
   unique (${c("categories", "tenant")}, ${c("categories", "slug")})
 );
-create index if not exists ${ctx.naming.rename("categories_parent_idx")} on ${t("categories")} (${c("categories", "parent")});
+create index if not exists ${ctx.naming.rename("categories_parent_idx")} on ${t("categories")} (${c("categories", "parent")});${addExtraColumns(t("categories"), categoryExtras(ctx))}
 ${lockTable(t("categories"), { read: true })}
 ${read("categories")}
 
@@ -720,6 +730,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         "text",
         "text",
         "text",
+        ...productSettingTypes(ctx),
         ...extraFieldsArg(productExtras(ctx)).contract,
       ],
       returns: "jsonb",
@@ -748,6 +759,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         "integer",
         "boolean",
         "boolean",
+        ...extraFieldsArg(variantExtras(ctx)).contract,
       ],
       returns: "jsonb",
     },
@@ -786,7 +798,15 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       ? [
           {
             name: "save_category",
-            args: ["{id}", "uuid", "uuid", "text", "text", "text"],
+            args: [
+              "{id}",
+              "uuid",
+              "uuid",
+              "text",
+              "text",
+              "text",
+              ...extraFieldsArg(categoryExtras(ctx)).contract,
+            ],
             returns: "jsonb",
           },
           {

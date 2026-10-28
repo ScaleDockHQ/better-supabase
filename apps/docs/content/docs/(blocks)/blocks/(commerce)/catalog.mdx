@@ -74,6 +74,12 @@ else fails with `CATALOG_TRANSITION_INVALID`. When a
 table's `status` column, the machine owns the transitions instead, so you can
 add a `review` state.
 
+Over your own products table with other statuses, map the block's three
+through `values.products.status`. An app with `active`, `discontinued` and
+`archived` and no draft maps `{ draft: null, archived: ["archived",
+"discontinued"] }`: `setProductStatus(id, "archived")` writes `archived`, a
+discontinued product reads as `archived`, and a move to `draft` is refused.
+
 ## Options and variants
 
 ```ts
@@ -165,6 +171,30 @@ catalog: {
   },
   options: { rankType: "integer" },
 }
+```
+
+`createProduct` and `updateProduct` then take the product's own `price` (a
+`Money`, which sets both the price and the currency column) and
+`trackInventory` when variants map `trackInventory` to `null`. A field you
+leave out keeps the column's value.
+
+### Variant and category columns of your own
+
+`options.variantExtraColumns` and `options.categoryExtraColumns` list columns
+of the variants and categories tables the block doesn't know, such as a
+manufacturer part number, a purchase cost, a default flag or a category icon.
+`createVariant`, `updateVariant` and `saveCategory` take them as `fields`,
+write them, and return them under `fields`:
+
+```ts
+catalog: {
+  options: {
+    variantExtraColumns: { manufacturer_part_number: "text", purchase_price_cents: "bigint", is_default: "boolean not null default false" },
+    categoryExtraColumns: { icon: "text not null default 'Package01Icon'" },
+  },
+}
+
+await catalog.createVariant(productId, { sku: "TEE-S", fields: { is_default: true } }).orThrow();
 ```
 
 ## Categories and collections

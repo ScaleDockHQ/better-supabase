@@ -65,6 +65,40 @@ describe("catalog block", () => {
     ]);
   });
 
+  it("sends a product's own price and tracking, and variant and category fields", async () => {
+    const { calls, transport } = recorder(
+      { id: "p1", slug: "shirt", status: "active" },
+      { id: "x1", sku: "S", rank: "V", fields: { is_default: true } },
+      { id: "c1", slug: "shirts", rank: "V", fields: { icon: "Shirt" } },
+    );
+
+    const catalog = createCatalog({ transport });
+    await catalog
+      .createProduct("org", {
+        title: "Shirt",
+        price: money(990n, "EUR"),
+        trackInventory: false,
+      })
+      .orThrow();
+    expect(
+      await catalog
+        .createVariant("p1", { sku: "S", fields: { is_default: true } })
+        .orThrow(),
+    ).toEqual({ id: "x1", sku: "S", rank: "V", fields: { is_default: true } });
+    expect(
+      await catalog
+        .saveCategory("org", { name: "Shirts", fields: { icon: "Shirt" } })
+        .orThrow(),
+    ).toMatchObject({ fields: { icon: "Shirt" } });
+    expect(calls[0]?.args).toMatchObject({
+      price: "990",
+      currency: "EUR",
+      track_inventory: false,
+    });
+    expect(calls[1]?.args).toMatchObject({ fields: { is_default: true } });
+    expect(calls[2]?.args).toMatchObject({ fields: { icon: "Shirt" } });
+  });
+
   it("refuses a status the database doesn't know", async () => {
     const { transport } = recorder({ status: "live", from: "draft" });
 

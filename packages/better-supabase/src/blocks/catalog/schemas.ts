@@ -1,7 +1,7 @@
 import type { EntitySchema } from "../entity-schema.ts";
 import type { ProductInput } from "./catalog.ts";
 
-import { entitySchema } from "../entity-schema.ts";
+import { entitySchema, moneyField } from "../entity-schema.ts";
 import { PRODUCT_KINDS } from "./catalog.ts";
 
 /**
@@ -21,5 +21,7 @@ export const productInputSchema: EntitySchema<ProductInput> =
       },
       description: { kind: "string", optional: true },
       kind: { kind: "enum", values: PRODUCT_KINDS, optional: true },
+      price: { ...moneyField, optional: true },
+      trackInventory: { kind: "boolean", optional: true },
     },
   });

@@ -4031,6 +4031,18 @@
                   "type": "string"
                 }
               },
+              "variantExtraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "categoryExtraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "locales": {
                 "type": "array",
                 "items": {
