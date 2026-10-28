@@ -16,8 +16,9 @@ import {
   totalColumnsSql,
 } from "../line-items-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, schemaPreamble } from "../shared.ts";
+import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import {
+  chargeExtraColumns,
   invoiceFunctions,
   invoiceParty,
   partyTypeSql,
@@ -87,6 +88,8 @@ const NAMES: BlockSqlNames = {
     "termsDays",
     "extraColumns",
     "lineExtraColumns",
+    "lineRates",
+    "chargeExtraColumns",
     "totals",
   ],
   tables: {
@@ -198,7 +201,7 @@ function tables(ctx: BlockSqlContext, n: InvoiceNames): string {
 create table if not exists ${t("charges")} (
   ${chargeColumns.join(",\n  ")}
 );
-create index if not exists ${ctx.naming.rename("invoice_charges_invoice_idx")} on ${t("charges")} (${ch("invoice")});
+create index if not exists ${ctx.naming.rename("invoice_charges_invoice_idx")} on ${t("charges")} (${ch("invoice")});${addExtraColumns(t("charges"), chargeExtraColumns(ctx))}
 ${lockModuleTable(ctx, "charges", { read: true })}
 ${renderPolicy(
   makePolicy({
@@ -331,6 +334,7 @@ function build(ctx: BlockSqlContext): string {
       "charged_total",
     ]),
     lineExtras: lineExtraColumns(ctx),
+    chargeExtras: chargeExtraColumns(ctx),
     appTotals: invoiceTotals(ctx) === "app",
   };
 
@@ -365,7 +369,13 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       ? [
           {
             name: "add_invoice_charge",
-            args: ["uuid", "bigint", "text", "text"],
+            args: [
+              "uuid",
+              "bigint",
+              "text",
+              "text",
+              ...extraFieldsArg(chargeExtraColumns(ctx)).contract,
+            ],
             returns: "jsonb",
           },
         ]

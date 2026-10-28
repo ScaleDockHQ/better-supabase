@@ -11,6 +11,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { isRecord } from "../../core/guards.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   amountsError,
@@ -70,6 +71,8 @@ export interface InvoiceCharge {
   readonly amount: Money;
   readonly description?: string;
   readonly createdAt?: Temporal.Instant;
+  /** The charge's extra columns (`options.chargeExtraColumns`). */
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 /** An invoice. `F` types the extra columns the `fields` schema describes. */
@@ -176,7 +179,12 @@ export interface Invoices<F extends object = Record<never, never>> {
    */
   charge(
     invoiceId: string,
-    charge: { readonly amount: Money; readonly description?: string },
+    charge: {
+      readonly amount: Money;
+      readonly description?: string;
+      /** The charge's extra columns (`options.chargeExtraColumns`) by name. */
+      readonly fields?: Readonly<Record<string, unknown>>;
+    },
   ): AsyncResult<Invoice<F>>;
   aging(
     organizationId: string,
@@ -301,6 +309,7 @@ function invoiceOf(value: unknown): Invoice {
               ),
               description: optionalText(charge["description"]),
               createdAt: optionalInstant(charge["createdAt"]),
+              fields: isRecord(charge["fields"]) ? charge["fields"] : undefined,
             }),
           ),
     paidAt: optionalInstant(row["paid_at"]),
@@ -432,6 +441,7 @@ export function createInvoices<
         amount: amountText(charge.amount),
         currency: charge.amount.currency,
         description: charge.description ?? null,
+        fields: charge.fields,
       }),
     aging: (organizationId, currency, asOf) =>
       amountsError(currency, []) === undefined

@@ -351,13 +351,18 @@ describe("invoices block, currencies", () => {
             amount: "4000",
             description: "Collection costs",
             createdAt: "2026-11-20T09:00:00Z",
+            fields: { kind: "collection" },
           },
         ],
       }),
     });
 
     const invoice = await createInvoices({ transport: t })
-      .charge("i1", { amount: eur(4000n), description: "Collection costs" })
+      .charge("i1", {
+        amount: eur(4000n),
+        description: "Collection costs",
+        fields: { kind: "collection" },
+      })
       .orThrow();
 
     expect(t.calls[0]).toEqual([
@@ -367,6 +372,7 @@ describe("invoices block, currencies", () => {
         amount: "4000",
         currency: "EUR",
         description: "Collection costs",
+        fields: { kind: "collection" },
       },
     ]);
     expect(invoice.chargedTotal).toEqual(eur(4000n));
@@ -374,6 +380,7 @@ describe("invoices block, currencies", () => {
       id: "ch1",
       amount: eur(4000n),
       description: "Collection costs",
+      fields: { kind: "collection" },
     });
     expect(invoice.fields).not.toHaveProperty("charges");
   });

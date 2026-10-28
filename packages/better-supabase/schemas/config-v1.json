@@ -4383,6 +4383,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "lineRates": {
+                "type": "string",
+                "default": "bps"
               }
             }
           }
@@ -5027,6 +5031,16 @@
                 }
               },
               "lineExtraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "lineRates": {
+                "type": "string",
+                "default": "bps"
+              },
+              "chargeExtraColumns": {
                 "type": "object",
                 "additionalProperties": {
                   "type": "string"
@@ -5816,6 +5830,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "lineRates": {
+                "type": "string",
+                "default": "bps"
               }
             }
           }

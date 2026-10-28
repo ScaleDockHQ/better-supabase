@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:708bcc34bc4d4c747a254c91ef7b2cab018217d93e95b6dc6db3188e4d5dc462
+-- @bsb-hash sha256:90bd8c3d6bcc323cf8f0b6752cc85c973fb8708db99239618ff8b7020c4d2554
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -701,9 +701,11 @@ $$;
 revoke execute on function "better_supabase"."write_off_invoice"(uuid) from public, anon;
 grant execute on function "better_supabase"."write_off_invoice"(uuid) to authenticated, service_role;
 
+drop function if exists "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb);
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
--- a paid invoice is open again until the charge is paid too.
+-- a paid invoice is open again until the charge is paid too. fields: the
+-- charge's extra columns (options.chargeExtraColumns).
 create or replace function "better_supabase"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text)
 returns jsonb
 language plpgsql
@@ -900,7 +902,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:2c2a749d546891a4956e86e73fb9fe3029a39603932e4788e1a74bfe1f0e8cd3
+-- @bsb-hash sha256:2ac03be2fca066b8adf4786802b75ba765be38dc9e792e080b1fd8a62f9e0d9b
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1625,9 +1627,11 @@ $$;
 revoke execute on function "better_supabase"."write_off_invoice"(uuid) from public, anon;
 grant execute on function "better_supabase"."write_off_invoice"(uuid) to authenticated, service_role;
 
+drop function if exists "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb);
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
--- a paid invoice is open again until the charge is paid too.
+-- a paid invoice is open again until the charge is paid too. fields: the
+-- charge's extra columns (options.chargeExtraColumns).
 create or replace function "better_supabase"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text)
 returns jsonb
 language plpgsql
@@ -1902,7 +1906,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:db40d682ed07b9aa262c48225a9b4e86ce579fbaffe4dd3d1872b1134dba1df4
+-- @bsb-hash sha256:dc3c227535df97b4f35a45119668a54ba3de162908ab3967b073517897383f06
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2607,9 +2611,11 @@ $$;
 revoke execute on function "app_private"."write_off_invoice"(uuid) from public, anon;
 grant execute on function "app_private"."write_off_invoice"(uuid) to authenticated, service_role;
 
+drop function if exists "app_private"."add_invoice_charge"(uuid, bigint, text, text, jsonb);
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
--- a paid invoice is open again until the charge is paid too.
+-- a paid invoice is open again until the charge is paid too. fields: the
+-- charge's extra columns (options.chargeExtraColumns).
 create or replace function "app_private"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text)
 returns jsonb
 language plpgsql
@@ -2806,7 +2812,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:62f82a3dc0fe0fc1448b8ff57372d7f08169234fcde9c43dcb9cd64239367309
+-- @bsb-hash sha256:915e1c163b310cd2250076d83f74338af70aa359b845a3efa5b451a04f2df43f
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3506,9 +3512,11 @@ $$;
 revoke execute on function "better_supabase"."write_off_invoice"(uuid) from public, anon;
 grant execute on function "better_supabase"."write_off_invoice"(uuid) to authenticated, service_role;
 
+drop function if exists "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb);
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
--- a paid invoice is open again until the charge is paid too.
+-- a paid invoice is open again until the charge is paid too. fields: the
+-- charge's extra columns (options.chargeExtraColumns).
 create or replace function "better_supabase"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text)
 returns jsonb
 language plpgsql
@@ -3680,6 +3688,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
+drop function if exists "api"."add_invoice_charge"(uuid, bigint, text, text, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -3810,7 +3819,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:6e950a7e0aea045a1f741c6c295b6c0394734723e1541296e6bd9e93531f17af
+-- @bsb-hash sha256:58f731882c70e0c70d860de5373bc798fa683e4bb110e6b7aad77ec8a1f0155e
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4517,9 +4526,11 @@ $$;
 revoke execute on function "better_supabase"."write_off_invoice"(uuid) from public, anon;
 grant execute on function "better_supabase"."write_off_invoice"(uuid) to authenticated, service_role;
 
+drop function if exists "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb);
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
--- a paid invoice is open again until the charge is paid too.
+-- a paid invoice is open again until the charge is paid too. fields: the
+-- charge's extra columns (options.chargeExtraColumns).
 create or replace function "better_supabase"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text)
 returns jsonb
 language plpgsql
@@ -4716,7 +4727,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:608aa1eeb6c18d9995c5a9e27aa455ebd80cda5b1404d6bda4c186dd28ec77d0
+-- @bsb-hash sha256:cec9f9b2499a6866e093ce376e91e2dc940c9a0460c4f0de550fe4476f16b15f
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5416,9 +5427,11 @@ $$;
 revoke execute on function "better_supabase"."write_off_invoice"(uuid) from public, anon;
 grant execute on function "better_supabase"."write_off_invoice"(uuid) to authenticated, service_role;
 
+drop function if exists "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb);
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
--- a paid invoice is open again until the charge is paid too.
+-- a paid invoice is open again until the charge is paid too. fields: the
+-- charge's extra columns (options.chargeExtraColumns).
 create or replace function "better_supabase"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text)
 returns jsonb
 language plpgsql

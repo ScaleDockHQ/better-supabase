@@ -76,8 +76,9 @@ async function run(
   check: string,
   modules: AnyBlocksConfig = BLOCKS,
   app: string = APP,
+  ownTables: Readonly<Record<string, string>> = OWN_TABLES,
 ): Promise<void> {
-  const files = renderBlocks(["invoices"], { modules, ownTables: OWN_TABLES });
+  const files = renderBlocks(["invoices"], { modules, ownTables });
 
   await using stack = await liteStack({
     driver: "pglite",
@@ -144,6 +145,72 @@ begin
 end;
 $$;`),
     ).resolves.toBeUndefined();
+  });
+
+  it("keeps line rates as percentages in the app's line table", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_invoice jsonb;
+  v_id uuid;
+begin
+  ${SERVICE}
+  v_invoice := better_supabase.create_invoice('${TENANT}', '{"title": "Repair", "currency": "EUR"}'::jsonb,
+    '[{"description": "Part", "quantity": 1, "unitAmount": "10000", "taxRateBps": 2100, "discountBps": 1050}]'::jsonb);
+  v_id := (v_invoice ->> 'id')::uuid;
+  if (select vat_rate from public.bill_lines where bill_id = v_id) <> 21.00
+    or (select discount_rate from public.bill_lines where bill_id = v_id) <> 10.50 then
+    raise exception 'stored %', (select row_to_json(l) from public.bill_lines l where bill_id = v_id);
+  end if;
+  if (v_invoice -> 'lines' -> 0 ->> 'taxRateBps')::integer <> 2100
+    or (v_invoice -> 'lines' -> 0 ->> 'discountBps')::integer <> 1050
+    or (v_invoice ->> 'total')::bigint <> 10830 then
+    raise exception 'read %', v_invoice;
+  end if;
+end;
+$$;`,
+        {
+          invoices: {
+            ...BLOCKS["invoices"],
+            tables: { invoices: "public.bills", lines: "public.bill_lines" },
+            columns: {
+              ...BLOCKS["invoices"]?.columns,
+              lines: {
+                tenant: "org_id",
+                parent: "bill_id",
+                taxRateBps: "vat_rate",
+                discountBps: "discount_rate",
+                productType: null,
+                productId: null,
+                taxCode: null,
+                createdAt: null,
+              },
+            },
+            options: { lineRates: "percent" },
+          },
+        },
+        `${APP}
+create table public.bill_lines (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null,
+  bill_id uuid not null references public.bills (id) on delete cascade,
+  description text not null,
+  quantity numeric not null default 1,
+  unit_amount bigint not null,
+  vat_rate numeric(5, 2) not null default 0,
+  discount_rate numeric(5, 2) not null default 0,
+  position integer not null default 0
+);
+`,
+        { ...OWN_TABLES, "public.bill_lines": "app.sql" },
+      ),
+    ).resolves.toBeUndefined();
+    expect(() =>
+      renderBlocks(["invoices"], {
+        modules: { invoices: { options: { lineRates: "percent" } } },
+      }),
+    ).toThrow(/lineRates/);
   });
 
   it("refuses a note the app's table has no column for", async () => {
@@ -260,6 +327,7 @@ create table public.invoice_charges (
   invoice_id uuid not null references public.invoices (id) on delete cascade,
   amount_cents bigint not null check (amount_cents > 0),
   reason text,
+  kind text not null check (kind in ('collection', 'interest')),
   created_at timestamptz not null default now()
 );
 -- The app's own totals: VAT per rate on the summed lines, rounded once.
@@ -344,6 +412,7 @@ create trigger invoice_lines_totals after insert or update or delete on public.i
           company: "customer",
           contact: "customer_contact",
           totals: "app",
+          chargeExtraColumns: { kind: "text not null" },
         },
       },
       numbering: {
@@ -407,8 +476,9 @@ begin
   if v_invoice ->> 'identifier' <> '2025-1' then
     raise exception 'numbered %', v_invoice;
   end if;
-  v_invoice := better_supabase.add_invoice_charge(v_id, 4000, 'EUR', 'Collection costs');
-  if (v_invoice ->> 'balance')::bigint <> 6427 or (v_invoice ->> 'charged_total')::bigint <> 4000 then
+  v_invoice := better_supabase.add_invoice_charge(v_id, 4000, 'EUR', 'Collection costs', '{"kind": "collection"}');
+  if (v_invoice ->> 'balance')::bigint <> 6427 or (v_invoice ->> 'charged_total')::bigint <> 4000
+    or v_invoice -> 'charges' -> 0 -> 'fields' ->> 'kind' <> 'collection' then
     raise exception 'charged %', v_invoice;
   end if;
   v_invoice := better_supabase.record_invoice_payment(v_id, 2427, 'EUR', now(), 'bank', 'tx-1');

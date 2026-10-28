@@ -90,9 +90,41 @@ export function lineColumn(
   alias: string,
   column: string,
 ): string {
-  return ctx.has(lines, column)
-    ? `${alias}.${ctx.col(lines, column)}`
-    : (LINE_DEFAULTS[column] ?? "null");
+  if (!ctx.has(lines, column)) {
+    return LINE_DEFAULTS[column] ?? "null";
+  }
+
+  return RATE_COLUMNS.has(column) && percentRates(ctx, lines)
+    ? `round(${alias}.${ctx.col(lines, column)} * 100)::integer`
+    : `${alias}.${ctx.col(lines, column)}`;
+}
+
+const RATE_COLUMNS: ReadonlySet<string> = new Set([
+  "discountBps",
+  "taxRateBps",
+]);
+
+/**
+ * `options.lineRates: "percent"`: the app's line table keeps discount and tax
+ * rates as percentages, such as `numeric(5, 2)`, which the block reads and
+ * writes as basis points.
+ */
+function percentRates(ctx: BlockSqlContext, lines: string): boolean {
+  const raw = ctx.option("lineRates") ?? "bps";
+
+  if (raw !== "bps" && raw !== "percent") {
+    throw new TypeError(
+      `blocks.${ctx.module}.options.lineRates must be "bps" or "percent"`,
+    );
+  }
+
+  if (raw === "percent" && ctx.owns(lines)) {
+    throw new TypeError(
+      `blocks.${ctx.module}.options.lineRates: "percent" needs your own line table, mapped in tables.${lines}`,
+    );
+  }
+
+  return raw === "percent";
 }
 
 /** The columns a copy of lines writes, of the ones line table `lines` has. */
@@ -233,7 +265,11 @@ export function lineItemsSql(
     .filter(([column]) => has(column))
     .map(([column, value]): readonly [string, string] => [
       column,
-      column === "productType" ? ctx.cast(items.lines, column, value) : value,
+      column === "productType"
+        ? ctx.cast(items.lines, column, value)
+        : RATE_COLUMNS.has(column) && percentRates(ctx, items.lines)
+          ? `(${value} / 100.0)`
+          : value,
     ]);
 
   const extras = items.extras ?? [];

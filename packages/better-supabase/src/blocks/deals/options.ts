@@ -12,6 +12,12 @@ export type DealsSqlOptions = {
   readonly readAll?: boolean;
   readonly extraColumns?: ExtraColumns;
   readonly lineExtraColumns?: ExtraColumns;
+  /**
+   * `"percent"` when your own line table keeps discount and tax rates as
+   * percentages, such as `vat_rate numeric(5, 2)`: the block converts them from
+   * and to basis points. Default `"bps"`.
+   */
+  readonly lineRates?: "bps" | "percent";
 };
 
 export const dealsSqlOptions: BlockOptionsSchema<DealsSqlOptions> =
@@ -24,4 +30,5 @@ export const dealsSqlOptions: BlockOptionsSchema<DealsSqlOptions> =
     readAll: option.boolean({ default: true }),
     extraColumns: option.extraColumns(),
     lineExtraColumns: option.extraColumns(),
+    lineRates: option.string<"bps" | "percent">({ default: "bps" }),
   });
