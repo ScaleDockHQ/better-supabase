@@ -56,10 +56,101 @@ function sessionPolicies(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 ${statements.join("\n")}`;
 }
 
+const WHERE = "blocks['sessions'].options.bootstrap";
+
+const BOOTSTRAP_NAME = /^[a-z][a-z0-9_]*$/;
+
+const FUNCTION_NAME = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/;
+
+/** `blocks['sessions'].options.bootstrap`: wrapper name to `schema.function`. */
+function bootstrapFunctions(
+  ctx: BlockSqlContext,
+): readonly (readonly [string, string])[] {
+  const raw = ctx.option("bootstrap");
+
+  if (raw === undefined) {
+    return [];
+  }
+
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new TypeError(
+      `${WHERE} must map names to functions, e.g. { home: "app.home_data" }`,
+    );
+  }
+
+  return Object.entries(raw).map(([name, fn]) => {
+    if (!BOOTSTRAP_NAME.test(name)) {
+      throw new TypeError(
+        `${WHERE}.${name} must be a lowercase name (letters, digits, _)`,
+      );
+    }
+
+    if (typeof fn !== "string" || !FUNCTION_NAME.test(fn)) {
+      throw new TypeError(
+        `${WHERE}.${name} must name a function as schema.function, e.g. "app.home_data"`,
+      );
+    }
+
+    return [name, fn] as const;
+  });
+}
+
+/**
+ * One wrapper per `bootstrap` entry: the session check, the authorization
+ * version and the app function's data in one jsonb, so a page's first query
+ * carries all three. It runs as the caller, so the app function's policies
+ * apply.
+ */
+function bootstrapWrappers(ctx: BlockSqlContext): string {
+  const functions = bootstrapFunctions(ctx);
+
+  if (functions.length === 0) {
+    return "";
+  }
+
+  const wrappers = functions.map(([name, fn]) => {
+    const wrapper = `better_supabase.bootstrap_${name}`;
+
+    return `create or replace function ${wrapper}(args jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if not (select better_supabase.session_active()) then
+    return jsonb_build_object(
+      'session_active', false,
+      'authz_version', auth.jwt() -> 'authz_ver',
+      'tenant', args ->> 'tenant',
+      'data', null
+    );
+  end if;
+  return jsonb_build_object(
+    'session_active', true,
+    'authz_version', auth.jwt() -> 'authz_ver',
+    'tenant', args ->> 'tenant',
+    'data', to_jsonb(${fn}(args))
+  );
+end;
+$$;
+
+revoke execute on function ${wrapper}(jsonb) from public, anon;
+grant execute on function ${wrapper}(jsonb) to authenticated;`;
+  });
+
+  return `
+
+-- blocks['sessions'].options.bootstrap: bsb.bootstrap({ rpc }) calls these.
+-- Each checks the session and returns the caller's authorization version
+-- with the app function's data, so a cache miss is one query.
+${wrappers.join("\n\n")}`;
+}
+
 export const SESSIONS: BlockSqlDefinition = {
   internal: ["session_active"],
   name: "sessions",
-  names: { tables: {}, options: ["exclude", "policies"] },
+  names: { tables: {}, options: ["bootstrap", "exclude", "policies"] },
   title: "Session revocation",
   description:
     "session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.",
@@ -173,5 +264,5 @@ grant execute on function better_supabase.end_my_session(uuid) to authenticated;
 -- create policy session_required on public.invoices as restrictive
 --   for all to authenticated
 --   using ((select better_supabase.session_active()))
---   with check ((select better_supabase.session_active()));${sessionPolicies(ctx, layout)}`,
+--   with check ((select better_supabase.session_active()));${sessionPolicies(ctx, layout)}${bootstrapWrappers(ctx)}`,
 };

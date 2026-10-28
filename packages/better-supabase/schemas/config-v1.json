@@ -6164,6 +6164,7 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "bootstrap": {},
               "exclude": {
                 "type": "array",
                 "items": {
