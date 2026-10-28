@@ -5,18 +5,18 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { DriveRoleHook } from "./drive-roles.ts";
 
-import { isRecord } from "../../core/guards.ts";
-import { sqlIdent, sqlString } from "../../core/template.ts";
+import { sqlString } from "../../core/template.ts";
 import { rankAfter } from "../rank-sql.ts";
 import { activeMembership, columnsObject, fail } from "../shared.ts";
+import { driveRoleFunctions } from "./drive-roles.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 import { trashTypes } from "./trash.ts";
 
 const SUBJECT_TYPE = /^[a-z][a-z0-9_]{0,62}$/;
 const ROLE = /^[a-z][a-z0-9_]{0,30}$/;
 const SOURCE = /^[a-z][a-z0-9-]{0,30}$/;
-const QUALIFIED = /^[A-Za-z_][\w$]*\.[A-Za-z_][\w$]*$/;
 export const CONFLICTS = ["fail", "rename", "replace"] as const;
 
 /**
@@ -322,43 +322,6 @@ function driveRoles(ctx: BlockSqlContext): DriveRoles {
   };
 }
 
-export interface DriveRoleFunctions {
-  readonly node: string | undefined;
-  readonly drive: string | undefined;
-}
-
-/** `options.roleFunctions`: app functions that return the caller's role. */
-function driveRoleFunctions(ctx: BlockSqlContext): DriveRoleFunctions {
-  const where = "blocks.drive.options.roleFunctions";
-  const raw = ctx.option("roleFunctions");
-
-  if (raw === undefined) {
-    return { node: undefined, drive: undefined };
-  }
-
-  if (!isRecord(raw)) {
-    throw new TypeError(`${where} takes { node, drive } function names`);
-  }
-
-  const parse = (key: "node" | "drive"): string | undefined => {
-    const value = raw[key];
-
-    if (value === undefined) {
-      return undefined;
-    }
-
-    if (typeof value !== "string" || !QUALIFIED.test(value)) {
-      throw new TypeError(
-        `${where}.${key} must be a schema-qualified function name, such as public.file_node_role`,
-      );
-    }
-
-    return value.split(".").map(sqlIdent).join(".");
-  };
-
-  return { node: parse("node"), drive: parse("drive") };
-}
-
 /** Tags with a link table per tenant, which drive labels sit on. */
 export function labelTags(ctx: BlockSqlContext): BlockSqlContext | undefined {
   if (!ctx.installed("tags")) {
@@ -498,8 +461,8 @@ export interface DriveKit {
   ) => string;
   readonly drivePrincipalType: (grant: string) => string;
   readonly drivePrincipalId: (grant: string) => string;
-  readonly nodeRole: string | undefined;
-  readonly driveRole: string | undefined;
+  readonly nodeRole: DriveRoleHook | undefined;
+  readonly driveRole: DriveRoleHook | undefined;
   readonly readPolicy: boolean;
   readonly sourceColumn: boolean;
   readonly externalColumn: boolean;
@@ -660,7 +623,7 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
       ? "('user', 'team')"
       : "('user')";
 
-  const roleFunctions = driveRoleFunctions(ctx);
+  const roleFunctions = driveRoleFunctions(ctx, driveRoles(ctx).all);
 
   if (roleFunctions.drive !== undefined && !drives) {
     throw new TypeError(

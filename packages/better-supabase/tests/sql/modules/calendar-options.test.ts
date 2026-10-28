@@ -93,7 +93,7 @@ describe("calendar options", () => {
     expect(sql).toContain("calendar_event_rules");
   });
 
-  it("checks calendar access through the provider's row grants for the given user", () => {
+  it("checks calendar access through the provider's row grants, for the caller or the user a feed names", () => {
     const provider: BlockSqlAccessProvider = {
       ...moduleProvider,
       functions: {
@@ -130,7 +130,13 @@ describe("calendar options", () => {
     const sql = render(provider);
 
     expect(sql).toContain(
-      "calendar_access.calendar_id::text in (select r.id::text from authz.rows_agenda_calendar_for(calendar_access.user_id, 'agendaCalendar.read', array[calendar_access.calendar_id::text]) as r(id))",
+      "(case when calendar_access_for.user_id = auth.uid() then calendar_access_for.calendar_id::text in (select r.id::text from authz.rows_agenda_calendar('agendaCalendar.read', array[calendar_access_for.calendar_id::text]) as r(id)) when calendar_access_for.user_id is not null then calendar_access_for.calendar_id::text in (select r.id::text from authz.rows_agenda_calendar_for(calendar_access_for.user_id, 'agendaCalendar.read', array[calendar_access_for.calendar_id::text]) as r(id)) else false end)",
+    );
+    expect(sql).toContain(
+      'revoke execute on function "better_supabase"."calendar_access_for"(uuid, uuid, text) from public, anon, authenticated;',
+    );
+    expect(sql).toContain(
+      "when calendar_access.user_id is distinct from auth.uid() and auth.role() is distinct from 'service_role' then false",
     );
     expect(sql).toContain("'agendaCalendar.update'");
     expect(sql).toContain("'agendaCalendar.share'");
@@ -139,7 +145,7 @@ describe("calendar options", () => {
     const own = render({ ...provider, functions: callerOnly });
 
     expect(own).toContain(
-      "calendar_access.user_id = auth.uid() and calendar_access.calendar_id::text in (select r.id::text from authz.rows_agenda_calendar('agendaCalendar.read', array[calendar_access.calendar_id::text]) as r(id))",
+      "calendar_access_for.user_id = auth.uid() and calendar_access_for.calendar_id::text in (select r.id::text from authz.rows_agenda_calendar('agendaCalendar.read', array[calendar_access_for.calendar_id::text]) as r(id))",
     );
     expect(() =>
       sqlOf({

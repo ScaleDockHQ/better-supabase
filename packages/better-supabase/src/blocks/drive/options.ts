@@ -7,9 +7,13 @@ import { blockOptions, option } from "../options.ts";
  * `schema.name(id uuid, user uuid)` returns one of `options.roles`, or null.
  * With one set, the block calls it instead of its own grants for that level.
  */
+export type DriveRoleHook =
+  | string
+  | { readonly rows: string; readonly roles: Readonly<Record<string, string>> };
+
 export type DriveRoleFunctions = {
-  readonly node?: string;
-  readonly drive?: string;
+  readonly node?: DriveRoleHook;
+  readonly drive?: DriveRoleHook;
 };
 
 /** `blocks.drive.options`. */

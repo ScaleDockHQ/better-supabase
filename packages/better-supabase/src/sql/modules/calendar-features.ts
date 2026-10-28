@@ -1,9 +1,9 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { fillTemplate } from "../../core/access-sql.ts";
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy, renderPolicy } from "../policy.ts";
+import { isResourceName, providerRowCheck } from "../provider-rows.ts";
 import { fail, lockTable, userGrant } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -24,12 +24,12 @@ export interface CalendarFeatures {
 export type AccessHook = (calendar: string, user: string) => string;
 
 const QUALIFIED = /^[A-Za-z_][\w$]*\.[A-Za-z_][\w$]*$/;
-const RESOURCE = /^[a-z_][a-z0-9_]{0,62}$/;
 
 /**
  * `accessFunctions.read` or `write`: an app function `(calendar_id, user_id)`,
  * or `{ rows, key }`, the authorization provider's per-row grants of `key` on
- * resource `rows`, through `rowsWithFor` (or `rowsWith` for the caller only).
+ * resource `rows`, through `rowsWith` for the caller and `rowsWithFor` for
+ * anyone else.
  */
 function appFunction(
   ctx: BlockSqlContext,
@@ -46,8 +46,7 @@ function appFunction(
     const { rows, key: permission } = value;
 
     if (
-      typeof rows !== "string" ||
-      !RESOURCE.test(rows) ||
+      !isResourceName(rows) ||
       typeof permission !== "string" ||
       permission === ""
     ) {
@@ -56,38 +55,7 @@ function appFunction(
       );
     }
 
-    if (ctx.providerRowsWith === undefined) {
-      throw new TypeError(
-        `${where}.rows needs blocks.permissions.model "provider" and an authorization provider with functions.rowsWith`,
-      );
-    }
-
-    const forUser = ctx.providerRowsWithFor;
-    const rowsWith = ctx.providerRowsWith;
-
-    return (calendar, user) => {
-      const ids = `array[${calendar}::text]`;
-
-      const set =
-        forUser === undefined
-          ? fillTemplate(`authorization.functions.rowsWith`, rowsWith, {
-              resource: rows,
-              permission: sqlString(permission),
-              ids,
-            })
-          : fillTemplate(`authorization.functions.rowsWithFor`, forUser, {
-              user,
-              resource: rows,
-              permission: sqlString(permission),
-              ids,
-            });
-
-      const member = `${calendar}::text in (select r.id::text from ${set} as r(id))`;
-
-      return forUser === undefined
-        ? `(${user} = auth.uid() and ${member})`
-        : `(${member})`;
-    };
+    return providerRowCheck(ctx, where, rows, permission);
   }
 
   if (typeof value !== "string" || !QUALIFIED.test(value)) {
@@ -318,6 +286,19 @@ export const accessCall = (
   user = "auth.uid()",
 ): string => `${ctx.fn("calendar_access")}(${calendar}, ${user}, '${action}')`;
 
+export const accessForCall = (
+  ctx: BlockSqlContext,
+  calendar: string,
+  user: string,
+): string => `${ctx.fn("calendar_access_for")}(${calendar}, ${user}, 'read')`;
+
+export const eventAccessForCall = (
+  ctx: BlockSqlContext,
+  event: string,
+  user: string,
+): string =>
+  `${ctx.fn("calendar_event_access_for")}(${event}, ${user}, 'read')`;
+
 export const eventAccessCall = (
   ctx: BlockSqlContext,
   event: string,
@@ -325,6 +306,25 @@ export const eventAccessCall = (
   user = "auth.uid()",
 ): string =>
   `${ctx.fn("calendar_event_access")}(${event}, ${user}, '${action}')`;
+
+const internalGrant = (signature: string): string =>
+  `revoke execute on function ${signature} from public, anon, authenticated;`;
+
+const callerOnly = (ctx: BlockSqlContext, name: string, id: string): string => `
+-- ${name}_for for the caller; another user's access is not theirs to see.
+create or replace function ${ctx.fn(name)}(${id} uuid, user_id uuid, action text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case
+    when ${name}.user_id is distinct from auth.uid() and auth.role() is distinct from 'service_role' then false
+    else ${ctx.fn(`${name}_for`)}(${name}.${id}, ${name}.user_id, ${name}.action)
+  end
+$$;
+${userGrant(`${ctx.fn(name)}(uuid, uuid, text)`)}`;
 
 export function accessFunctions(ctx: BlockSqlContext): string {
   const features = calendarFeatures(ctx);
@@ -341,7 +341,7 @@ export function accessFunctions(ctx: BlockSqlContext): string {
   const events = ctx.table("events");
   const k = (column: string) => `k.${ctx.col("calendars", column)}`;
   const e = (column: string) => `e.${ctx.col("events", column)}`;
-  const user = "calendar_access.user_id";
+  const user = "calendar_access_for.user_id";
   const can = (key: string) => ctx.scope.canUser(user, "v_tenant", key);
 
   const grant = features.grants
@@ -349,7 +349,7 @@ export function accessFunctions(ctx: BlockSqlContext): string {
   select case when bool_or(${ctx.is("grants", "role", `g.${ctx.col("grants", "role")}`, ["editor"])}) then 'editor' else 'viewer' end
     into v_grant
   from ${ctx.table("grants")} g
-  where g.${ctx.col("grants", "calendar")} = calendar_access.calendar_id
+  where g.${ctx.col("grants", "calendar")} = calendar_access_for.calendar_id
     and g.${ctx.col("grants", "user")} = ${user}
   having count(*) > 0;`
     : "";
@@ -358,8 +358,8 @@ export function accessFunctions(ctx: BlockSqlContext): string {
     fn === undefined
       ? ""
       : `
-  if calendar_access.action in (${actions}) then
-    return coalesce(${fn("calendar_access.calendar_id", user)}, false);
+  if calendar_access_for.action in (${actions}) then
+    return coalesce(${fn("calendar_access_for.calendar_id", user)}, false);
   end if;`;
 
   const owner = eventOwner(ctx);
@@ -367,8 +367,10 @@ export function accessFunctions(ctx: BlockSqlContext): string {
   return `
 -- Whether user_id may read, write or manage a calendar, or see its private
 -- events: its owner may do all of it; an editor grant writes and sees private
--- events; on a shared calendar the tenant's keys decide.
-create or replace function ${ctx.fn("calendar_access")}(calendar_id uuid, user_id uuid, action text)
+-- events; on a shared calendar the tenant's keys decide. It answers for any
+-- user, so only the block's own functions call it; calendar_access answers
+-- for the caller.
+create or replace function ${ctx.fn("calendar_access_for")}(calendar_id uuid, user_id uuid, action text)
 returns boolean
 language plpgsql
 stable
@@ -388,14 +390,14 @@ begin
   select ${k("tenant")}, ${ownedBy(ctx, "k.", user)}, ${privateCalendar(ctx, "k.")}
     into v_tenant, v_owner, v_private
   from ${calendars} k
-  where ${k("id")} = calendar_access.calendar_id;
+  where ${k("id")} = calendar_access_for.calendar_id;
   if not found or not ${can(read)} then
     return false;
   end if;${custom(features.readFn, "'read'")}${custom(features.writeFn, "'write', 'manage', 'private'")}${custom(features.shareFn ?? features.writeFn, "'share'")}
   if v_owner then
     return true;
   end if;${grant}
-  return case calendar_access.action
+  return case calendar_access_for.action
     when 'read' then not v_private or v_grant is not null
     when 'write' then coalesce(v_grant = 'editor', false) or (not v_private and ${can(write)})
     when 'manage' then not v_private and ${can(manage)}
@@ -405,11 +407,12 @@ begin
   end;
 end;
 $$;
-${userGrant(`${ctx.fn("calendar_access")}(uuid, uuid, text)`)}
+${internalGrant(`${ctx.fn("calendar_access_for")}(uuid, uuid, text)`)}
+${callerOnly(ctx, "calendar_access", "calendar_id")}
 
 -- Whether user_id may read or write one event: the calendar's access, and for
 -- a private event its owner or someone who sees the calendar's private events.
-create or replace function ${ctx.fn("calendar_event_access")}(event_id uuid, user_id uuid, action text)
+create or replace function ${ctx.fn("calendar_event_access_for")}(event_id uuid, user_id uuid, action text)
 returns boolean
 language plpgsql
 stable
@@ -422,20 +425,21 @@ declare
   v_private boolean;
   v_mine boolean;
 begin
-  if calendar_event_access.user_id is null then
+  if calendar_event_access_for.user_id is null then
     return auth.role() = 'service_role';
   end if;
-  select ${e("calendar")}, ${privateEvent(ctx, "e.")}, ${owner === undefined ? "false" : `coalesce(e.${owner} = calendar_event_access.user_id, false)`}
+  select ${e("calendar")}, ${privateEvent(ctx, "e.")}, ${owner === undefined ? "false" : `coalesce(e.${owner} = calendar_event_access_for.user_id, false)`}
     into v_calendar, v_private, v_mine
   from ${events} e
-  where ${e("id")} = calendar_event_access.event_id;
-  if not found or not ${ctx.fn("calendar_access")}(v_calendar, calendar_event_access.user_id, case when calendar_event_access.action = 'write' then 'write' else 'read' end) then
+  where ${e("id")} = calendar_event_access_for.event_id;
+  if not found or not ${ctx.fn("calendar_access_for")}(v_calendar, calendar_event_access_for.user_id, case when calendar_event_access_for.action = 'write' then 'write' else 'read' end) then
     return false;
   end if;
-  return not v_private or v_mine or ${ctx.fn("calendar_access")}(v_calendar, calendar_event_access.user_id, 'private');
+  return not v_private or v_mine or ${ctx.fn("calendar_access_for")}(v_calendar, calendar_event_access_for.user_id, 'private');
 end;
 $$;
-${userGrant(`${ctx.fn("calendar_event_access")}(uuid, uuid, text)`)}
+${internalGrant(`${ctx.fn("calendar_event_access_for")}(uuid, uuid, text)`)}
+${callerOnly(ctx, "calendar_event_access", "event_id")}
 `;
 }
 
