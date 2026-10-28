@@ -209,7 +209,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0092: posts keep boards and posts; votes, replies and moderation stay in their blocks.
 - 0093: blocks install as named instances behind one data contract; plugins, sections and preset codes go (supersedes 0064).
 - 0094: supported adapters (Next.js, Hono, Expo, SvelteKit, TanStack Start, React Router) get the full test matrix; the rest are community adapters with a smoke test.
-- 0095: one token verification per request across cache scopes, through a session memo keyed by the token hash.
+- 0095: one token verification per request across cache scopes, through a session memo keyed by the token.
 - 0096: authorization libraries pass a version cache to `createServer`; `subscribeAuthzVersions` evicts users on a Realtime broadcast, and `SessionProvider` refreshes on the user's `authz:<uid>` topic.
 - 0097: `gen.contentMapper` serves the schema types through a TypeScript 7.1 content mapper; the `ts71` catalog pins the beta for tests only.
 - 0098: blocks detect the app's tables per table (`ownTables`) and run over them; every block table is adoptable except the `workflow-sdk` world; `ownership: "adopt"` is removed (breaking).
@@ -230,7 +230,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0113: eve tools run as the user through `forContext` with delegated scopes; approvals block approvals and queue schedules drive them.
 - 0114: Authorization libraries get a typed, additive contract: `claims` and `contract` subpaths, request intent and source, typed `versions`, approval ids, `blockTables`.
 - 0115: A page reads its user data in one `bsb.bootstrap` call, private or remote, from a generated `bootstrap_<rpc>` wrapper.
-- 0116: One JWKS per process on `globalThis`; the verified-token memos stay until a benchmark retires them.
+- 0116: One JWKS per process on `globalThis`; one verified-token memo per server; clients on `createContextClient` and `createAdminClient`.
 - 0117: Sessions refresh through `@supabase/ssr` on every request; a coalescing fetch makes one Auth call per refresh token.
 
 ## Pre-release pins

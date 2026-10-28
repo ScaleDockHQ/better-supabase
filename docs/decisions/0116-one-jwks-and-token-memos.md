@@ -1,4 +1,4 @@
-# 0116: Fetch one JWKS per process; keep the verified-token memos until a benchmark retires them
+# 0116: Fetch one JWKS per process; keep one verified-token memo; build clients with createContextClient and createAdminClient
 
 - Status: accepted
 - Date: 2026-10-28
@@ -35,13 +35,45 @@ rejected as `INVALID_ISSUER`. HS256 stays only for a token without a `kid`
 and an explicit `jwtSecret` (Supabase Lite); every other token goes through
 `verifyCredentials`.
 
-The memos stay. The session memo is the one a page relies on: keyed by the
-token's SHA-256, holding the in-flight promise. The resolver's memo is keyed
-by the verifier's configuration (key set, project URL, audience, issuer,
-secret) and skips the signature check for a token verified before. Removing
-it waits for a benchmark showing that a warm verification against the shared
-key set costs little next to a memo hit; the before and after numbers go in
-that commit.
+There is one verified-token memo per server. `createServer` owns it (the
+session memo of ADR 0095, a bounded LRU of 1000 entries) and passes it to
+`resolveAuth` as `memo`. The resolver looks a bearer or cookie token up in it
+before verifying, so the proxy, every context, `getClaims()` and
+`bsb.snapshot()` share one verification per token. The 256-entry memos in
+`auth/resolve.ts` (keyed by the verifier's configuration) and in
+`auth/access-token.ts` are removed, with the `checkedFor` layer behind them;
+`clearVerifiedTokens()` became `clearKeyCaches()`. Without a memo (a bare
+`resolveAuth` call, or `sessions: false`) every call verifies.
+
+The memo is keyed by the token itself, not its SHA-256. The stored value
+already holds the token, so the key costs no memory, and an awaited
+`crypto.subtle.digest` on every lookup made a hit five times slower under
+load. Failures and tokens without `exp` are never stored, and a hit answers
+with the caller's token source (`cookie` or `bearer`).
+
+The benchmark gated this step (`tests/server/context.bench.ts`, medians of
+seven alternating runs on the same machine):
+
+| Path                               | Before          | After            |
+| ---------------------------------- | --------------- | ---------------- |
+| first verification of a bearer     | 116.6 us        | 116.1 us         |
+| memo hit                           | 14.8 us         | 14.1 us          |
+| warm verification without a memo   | none            | 108.5 us         |
+| same request again                 | 0.2 us          | 0.2 us           |
+| islands render, first and repeated | 1.5 ms, 0.13 ms | 1.49 ms, 0.12 ms |
+
+A warm verification against the shared key set still costs about eight memo
+hits, so one memo stays; the extra layers under it bought nothing.
+
+The server's clients are built with `createContextClient` (the user and anon
+clients) and `createAdminClient` (the secret-key client) from
+`@supabase/server/core`, with the keys passed inline so neither reads process
+env. The admin client is created on first use behind a lazy Proxy, in the
+style of `withSupabaseAdminClient`, and shared. A user client also passes its
+token to Realtime through `realtime.accessToken`, which ignores the
+`Authorization` header. Repository queries keep the bare `PostgrestClient`
+fast path. `server.supabaseFor(auth, headers?)` is renamed
+`server.contextClient(auth, headers?)`, and the 0.35 codemod rewrites the calls.
 
 ## Alternatives considered
 
@@ -50,13 +82,20 @@ that commit.
 - One cache per module graph: the proxy and the render would each fetch on a
   cold start.
 - Dropping HS256: Supabase Lite projects couldn't sign in.
-- Removing the resolver memo without numbers: it is on the path of every
-  island that doesn't go through the session memo.
+- Removing every memo: a warm verification costs about eight memo hits, and
+  each island and route handler would pay it.
+- Keeping the resolver and access-token memos: they repeated the session
+  memo's work with their own bounds and eviction, and `evictSession` didn't
+  reach them.
+- Keying by the token's SHA-256: an awaited digest per lookup, for no memory
+  saving.
 
 ## Consequences
 
 A cold start fetches the key set once across the proxy, the render and every
 verifier in the process. A key rotation is picked up within 30 seconds of the
 first token with the new `kid`. A token from another project fails without an
-`issuer` setting. The memo layering stays one level deeper than planned until
-the benchmark lands.
+`issuer` setting. `evictSession` and `sessions.clear()` reach every verified
+token, since there is only one memo. `sessions: false` now turns off token
+reuse entirely, and an `accessTokenResolver` used without `createServer`
+verifies on every request.

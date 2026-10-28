@@ -77,4 +77,24 @@ export const GET = sessionStatusRoute(bsb);
 `);
     expect(result.review.map((line) => line.line)).toEqual([2]);
   });
+
+  it("renames supabaseFor calls to contextClient and flags the rest", () => {
+    const source = `const client = server.supabaseFor(ctx.auth);
+const label = "server.supabaseFor(auth)";
+const { supabaseFor } = server;
+export const server = createServer({ sessions: false });
+`;
+
+    const result = applyCodemod(v035, source, "src/server.ts");
+
+    expect(result.text).toBe(`const client = server.contextClient(ctx.auth);
+const label = "server.supabaseFor(auth)";
+const { supabaseFor } = server;
+export const server = createServer({ sessions: false });
+`);
+    expect(result.review.map((line) => line.message)).toEqual([
+      expect.stringContaining("now `contextClient`"),
+      expect.stringContaining("verifies its token again"),
+    ]);
+  });
 });

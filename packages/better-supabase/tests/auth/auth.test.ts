@@ -2,7 +2,10 @@ import { createServerClient } from "@supabase/ssr";
 import * as v from "valibot";
 import { describe, expect, it, vi } from "vitest";
 
-import type { ResolveAuthOptions } from "../../src/auth/resolve.ts";
+import type {
+  ResolveAuthOptions,
+  VerifiedUser,
+} from "../../src/auth/resolve.ts";
 import type { StoredSession } from "../../src/auth/session.ts";
 
 import { authContext } from "../../src/auth/context.ts";
@@ -14,6 +17,7 @@ import {
   sessionCookieName,
   writeSession,
 } from "../../src/auth/session.ts";
+import { sessionMemo } from "../../src/auth/snapshot.ts";
 import { toSession } from "../../src/auth/view.ts";
 import { dbError } from "../../src/core/errors.ts";
 import {
@@ -593,7 +597,7 @@ describe("resolveAuth", async () => {
       }
     });
 
-    it("runs the schemas once per token and schema pair", async () => {
+    it("runs the schemas once per token with a verified-token memo", async () => {
       const token = await signer.sign({ sub: USER, tenant_id: TENANT });
 
       const counted = (schema: typeof claims) => {
@@ -609,11 +613,13 @@ describe("resolveAuth", async () => {
       };
 
       const first = counted(claims);
+      const memo = sessionMemo<VerifiedUser>((user) => user.expiresAt);
 
       for (let i = 0; i < 3; i += 1) {
         const { auth } = await resolveAuth(bearer(token), {
           ...options,
           claims: first.schema,
+          memo,
         });
 
         expect(auth).toMatchObject({ kind: "user", source: "bearer" });
@@ -622,7 +628,8 @@ describe("resolveAuth", async () => {
       expect(first.validate).toHaveBeenCalledOnce();
       const second = counted(claims);
       await resolveAuth(bearer(token), { ...options, claims: second.schema });
-      expect(second.validate).toHaveBeenCalledOnce();
+      await resolveAuth(bearer(token), { ...options, claims: second.schema });
+      expect(second.validate).toHaveBeenCalledTimes(2);
     });
 
     it("never refreshes a cookie session whose claims fail", async () => {

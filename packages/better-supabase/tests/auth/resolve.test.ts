@@ -3,12 +3,16 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type * as Resolve from "../../src/auth/resolve.ts";
-import type { ResolveAuthOptions } from "../../src/auth/resolve.ts";
+import type {
+  ResolveAuthOptions,
+  VerifiedUser,
+} from "../../src/auth/resolve.ts";
 import type { StoredSession } from "../../src/auth/session.ts";
 
 import { authContext } from "../../src/auth/context.ts";
-import { clearVerifiedTokens, resolveAuth } from "../../src/auth/resolve.ts";
+import { clearKeyCaches, resolveAuth } from "../../src/auth/resolve.ts";
 import { writeSession } from "../../src/auth/session.ts";
+import { sessionMemo } from "../../src/auth/snapshot.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
@@ -28,7 +32,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** A local JWKS object; the memo is keyed by its identity. */
+/** A local JWKS object, emptied to prove a memo hit. */
 function keys(): { keys: JsonWebKey[] } {
   return { keys: [...signer.jwks.keys] };
 }
@@ -62,88 +66,105 @@ const exp = (token: string): number =>
     atob(token.split(".")[1]!.replaceAll("-", "+").replaceAll("_", "/")),
   ).exp as number;
 
-describe("verified token memo", () => {
-  it("reuses a verified token until it expires", async () => {
+describe("verified-token memo", () => {
+  it("reuses a token the memo verified until it expires", async () => {
+    let now = Date.now();
     const jwks = keys();
-    const options: ResolveAuthOptions = { env, jwks };
+
+    const memo = sessionMemo<VerifiedUser>((user) => user.expiresAt, {
+      now: () => now,
+    });
+
+    const options: ResolveAuthOptions = { env, jwks, memo };
     const token = await signer.sign({ sub: USER });
     expect((await resolveAuth(bearer(token), options)).auth.kind).toBe("user");
 
     // With the keys gone only a memo hit still verifies.
     jwks.keys.length = 0;
     expect((await resolveAuth(bearer(token), options)).auth.kind).toBe("user");
-    const later = { ...options, now: () => (exp(token) + 1) * 1000 };
-    expect((await resolveAuth(bearer(token), later)).auth).toMatchObject({
-      kind: "invalid",
-      reason: "token",
-    });
-  });
+    expect(memo.stats()).toMatchObject({ hits: 1, misses: 1, size: 1 });
 
-  it("keys a local JWKS memo by audience and issuer too", async () => {
-    const jwks = keys();
-    const token = await signer.sign({ sub: USER });
-    expect((await resolveAuth(bearer(token), { env, jwks })).auth.kind).toBe(
-      "user",
-    );
+    now = (exp(token) + 1) * 1000;
     expect(
-      (await resolveAuth(bearer(token), { env, jwks, audience: "mcp" })).auth,
+      (await resolveAuth(bearer(token), { ...options, now: () => now })).auth,
     ).toMatchObject({ kind: "invalid", reason: "token" });
-    expect(
-      (
-        await resolveAuth(bearer(token), {
-          env,
-          jwks,
-          issuer: ["https://other.test"],
-        })
-      ).auth.kind,
-    ).toBe("invalid");
   });
 
-  it("forgets every token on clearVerifiedTokens", async () => {
+  it("verifies every call without a memo", async () => {
     const jwks = keys();
     const options: ResolveAuthOptions = { env, jwks };
     const token = await signer.sign({ sub: USER });
     await resolveAuth(bearer(token), options);
     jwks.keys.length = 0;
-    clearVerifiedTokens();
     expect((await resolveAuth(bearer(token), options)).auth.kind).toBe(
       "invalid",
     );
   });
 
-  it("evicts the oldest token past 256 entries", async () => {
-    const jwks = keys();
-    const options: ResolveAuthOptions = { env, jwks };
+  it("answers a memo hit with the caller's token source", async () => {
+    const memo = sessionMemo<VerifiedUser>((user) => user.expiresAt);
+    const options: ResolveAuthOptions = { env, jwks: keys(), memo };
+    const token = await signer.sign({ sub: USER });
+    expect((await resolveAuth(bearer(token), options)).auth).toMatchObject({
+      source: "bearer",
+    });
 
-    const tokens = await Promise.all(
-      Array.from({ length: 257 }, (_, index) =>
-        signer.sign({ sub: USER, n: index }),
+    const fromCookie = await resolveAuth(
+      cookieRequest(
+        sessionCookie({
+          access_token: token,
+          refresh_token: "r-memo",
+          expires_at: exp(token),
+          token_type: "bearer",
+          user: { id: USER },
+        }),
       ),
+      options,
     );
 
-    for (const token of tokens) {
-      await resolveAuth(bearer(token), options);
-    }
-
-    jwks.keys.length = 0;
-    expect((await resolveAuth(bearer(tokens[0]!), options)).auth.kind).toBe(
-      "invalid",
-    );
-    expect((await resolveAuth(bearer(tokens[256]!), options)).auth.kind).toBe(
-      "user",
-    );
+    expect(fromCookie.auth).toMatchObject({ kind: "user", source: "cookie" });
+    expect(memo.stats().hits).toBe(1);
   });
 
-  it("never remembers a token without exp", async () => {
+  it("never remembers a failure or a token without exp", async () => {
+    const memo = sessionMemo<VerifiedUser>((user) => user.expiresAt);
     const jwks = keys();
-    const options: ResolveAuthOptions = { env, jwks };
-    const token = await signer.sign({ sub: USER, exp: undefined });
-    const first = await resolveAuth(bearer(token), options);
-    expect(first.auth).toMatchObject({ kind: "user", expiresAt: null });
-    jwks.keys.length = 0;
-    expect((await resolveAuth(bearer(token), options)).auth.kind).toBe(
-      "invalid",
+    const options: ResolveAuthOptions = { env, jwks, memo };
+    const noExp = await signer.sign({ sub: USER, exp: undefined });
+    expect((await resolveAuth(bearer(noExp), options)).auth).toMatchObject({
+      kind: "user",
+      expiresAt: null,
+    });
+
+    const forged = `${await signer.sign({ sub: USER })}x`;
+
+    const [first, second] = await Promise.all([
+      resolveAuth(bearer(forged), options),
+      resolveAuth(bearer(forged), options),
+    ]);
+
+    expect(first.auth.kind).toBe("invalid");
+    expect(second.auth.kind).toBe("invalid");
+    expect(memo.stats().size).toBe(0);
+  });
+
+  it("forgets the cached keys on clearKeyCaches", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json(signer.jwks),
     );
+
+    const options: ResolveAuthOptions = {
+      env: { ...env, jwksUrl: new URL(`${PROJECT_URL}/clear/jwks.json`) },
+      fetch,
+    };
+
+    const token = await signer.sign({ sub: USER });
+    await resolveAuth(bearer(token), options);
+    await resolveAuth(bearer(token), options);
+    expect(fetch).toHaveBeenCalledOnce();
+    clearKeyCaches();
+    await resolveAuth(bearer(token), options);
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it("fetches a remote JWKS, keyed by URL, audience and issuer", async () => {
@@ -667,7 +688,7 @@ describe("issuer", () => {
 
 describe("shared JWKS", () => {
   it("fetches the JWKS once for resolvers in separate module graphs", async () => {
-    clearVerifiedTokens();
+    clearKeyCaches();
 
     const fetch = vi.fn<typeof globalThis.fetch>(async () =>
       Response.json(signer.jwks),

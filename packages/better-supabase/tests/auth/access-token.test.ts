@@ -300,28 +300,25 @@ describe("accessTokenResolver", () => {
     expect(await resolver.resolve(request("e30x.e30.sig"))).toBeUndefined();
   });
 
-  it("reuses a verified token until it expires and bounds the memo", async () => {
+  it("verifies the token again on every request", async () => {
     const { jwks, sign } = await issuer();
+    let current = now();
 
     const resolver = accessTokenResolver({
       jwks,
       issuer: ISSUER,
       audience: AUDIENCE,
-      now,
+      now: () => current,
     });
 
     const token = await sign();
-
     const first = await resolver.resolve(request(token));
     expect(await resolver.resolve(request(token))).toEqual(first);
 
-    for (let index = 0; index < 257; index += 1) {
-      await resolver.resolve(
-        request(await sign({ jti: `jti-${String(index)}` })),
-      );
-    }
-
-    expect(await resolver.resolve(request(token))).toEqual(first);
+    current += 2 * 3600 * 1000;
+    expect(await resolver.resolve(request(token))).toMatchObject({
+      kind: "invalid",
+    });
   });
 
   it("fails closed when the key set can't be loaded", async () => {

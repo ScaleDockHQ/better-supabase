@@ -41,6 +41,36 @@ process, so the proxy, the render and the route handlers share one copy. When
 Auth can't be reached, a refresh fails within `timeoutMs` and keeps the
 cookies as they are.
 
+## Server clients and the token memo
+
+The server builds its Supabase clients with `createContextClient` and
+`createAdminClient` from `@supabase/server`. A user's client sends the token
+to PostgREST, Storage and Realtime; the secret-key client is created on first
+use and shared. `bsb.supabaseFor(auth, headers?)` is now
+`bsb.contextClient(auth, headers?)`, and the codemod renames the calls:
+
+```ts
+// 0.34
+const supabase = bsb.supabaseFor(auth);
+
+// 0.35
+const supabase = bsb.contextClient(auth);
+```
+
+Each server keeps one memo of verified tokens. The proxy, `bsb.context()`,
+`getClaims()` and `bsb.snapshot()` look tokens up in it, so a token is
+verified once while it is valid, and `bsb.sessions.evict(userId)` reaches
+every path. The memos inside `resolveAuth` and `accessTokenResolver` are
+gone: called on their own, without `createServer`, they verify every token.
+`sessions: false` now turns off all reuse, so each request verifies again
+(about 0.1 ms); the codemod lists it for review.
+
+| 0.34                                     | 0.35                                                   |
+| ---------------------------------------- | ------------------------------------------------------ |
+| `bsb.supabaseFor(auth, headers?)`        | `bsb.contextClient(auth, headers?)`                    |
+| `sessions: false` skips the session memo | `sessions: false` verifies every token on every call   |
+| `accessTokenResolver` remembers tokens   | it verifies each request; put it behind `createServer` |
+
 ## Cache scopes
 
 `bsb.cached()` sets `stale` to 300 seconds, so private entries ride in the

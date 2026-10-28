@@ -1,5 +1,4 @@
 import type * as ServerCore from "@supabase/server/core";
-import type * as SupabaseJs from "@supabase/supabase-js";
 
 import * as v from "valibot";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -55,18 +54,12 @@ vi.mock("@supabase/server/core", async (original) => {
 
       return actual.verifyCredentials(...args);
     },
-  };
-});
-
-vi.mock("@supabase/supabase-js", async (original) => {
-  const actual = await original<typeof SupabaseJs>();
-
-  return {
-    ...actual,
-    createClient: (...args: Parameters<typeof actual.createClient>) => {
+    createContextClient: (
+      ...args: Parameters<typeof actual.createContextClient>
+    ) => {
       mocks.clients += 1;
 
-      return actual.createClient(...args);
+      return actual.createContextClient(...args);
     },
   };
 });

@@ -129,9 +129,9 @@ export interface SessionMemoStats {
 }
 
 /**
- * Verified sessions by a SHA-256 of the access token. Every `use cache` scope
- * of a request resolves the same token; the first one verifies it and the
- * others await the same promise.
+ * Verified sessions by their access token. Every `use cache` scope of a request
+ * resolves the same token; the first one verifies it and the others await the
+ * same promise.
  */
 export interface SessionMemo<T> {
   /**
@@ -152,19 +152,6 @@ interface Entry<T> {
   readonly promise: Promise<T | null>;
   value?: T;
   until: number;
-}
-
-const encoder = new TextEncoder();
-
-async function tokenKey(token: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(token));
-  let hex = "";
-
-  for (const byte of new Uint8Array(digest)) {
-    hex += byte.toString(16).padStart(2, "0");
-  }
-
-  return hex;
 }
 
 /**
@@ -206,15 +193,14 @@ export function sessionMemo<T>(
   };
 
   return {
-    async get(token, load) {
-      const key = await tokenKey(token);
+    get(token, load) {
       const now = clock();
-      const known = entries.get(key);
+      const known = entries.get(token);
 
       if (known && known.until > now) {
         hits += 1;
         // Refresh the entry's place in the LRU order.
-        store(key, known);
+        store(token, known);
 
         return known.promise;
       }
@@ -225,8 +211,8 @@ export function sessionMemo<T>(
         promise: load().then(
           (value) => {
             if (value === null) {
-              if (entries.get(key) === entry) {
-                entries.delete(key);
+              if (entries.get(token) === entry) {
+                entries.delete(token);
               }
             } else {
               entry.value = value;
@@ -239,8 +225,8 @@ export function sessionMemo<T>(
             return value;
           },
           (cause: unknown) => {
-            if (entries.get(key) === entry) {
-              entries.delete(key);
+            if (entries.get(token) === entry) {
+              entries.delete(token);
             }
 
             throw cause;
@@ -249,15 +235,16 @@ export function sessionMemo<T>(
         until: now + ttlMs,
       };
 
-      store(key, entry);
+      store(token, entry);
 
       return entry.promise;
     },
 
-    async seed(token, value) {
-      const key = await tokenKey(token);
+    seed(token, value) {
       const until = untilFor(clock(), expiresAt(value));
-      store(key, { promise: Promise.resolve(value), value, until });
+      store(token, { promise: Promise.resolve(value), value, until });
+
+      return Promise.resolve();
     },
 
     evict(match) {

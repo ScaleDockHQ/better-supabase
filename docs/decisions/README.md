@@ -98,7 +98,7 @@ add one, and link it from the code or config it explains.
 | [0092](0092-posts-on-shared-primitives.md)                | Posts keep only boards and posts; votes, replies and moderation stay in reactions, comments and moderation                                         |
 | [0093](0093-block-instances-and-one-data-contract.md)     | Blocks install as named instances behind one data contract; plugins, sections, preset codes and duplicate layers go (supersedes 0064)              |
 | [0094](0094-supported-and-community-adapters.md)          | Supported adapters get the full test matrix; community adapters keep shipping with a smoke test and a docs note                                    |
-| [0095](0095-session-snapshot-memo.md)                     | One token verification per request across cache scopes, through a session memo keyed by the token hash                                             |
+| [0095](0095-session-snapshot-memo.md)                     | One token verification per request across cache scopes, through a session memo keyed by the token                                                  |
 | [0096](0096-authorization-version-cache.md)               | Authorization libraries pass a version cache to `createServer`; a Realtime subscriber evicts users, and the browser refreshes on `authz:<uid>`     |
 | [0097](0097-typescript-content-mapper.md)                 | `gen.contentMapper` serves the schema types through a TypeScript 7.1 content mapper; the `ts71` catalog pins the beta for tests only               |
 | [0098](0098-per-table-adoption.md)                        | Blocks detect the app's tables per table and run over them; `ownership: "adopt"` is removed                                                        |
@@ -119,5 +119,5 @@ add one, and link it from the code or config it explains.
 | [0113](0113-eve-tools-approvals-schedules.md)             | eve tools run as the user through `forContext`; the approvals block approves them and queue schedules start them                                   |
 | [0114](0114-typed-authorization-library-contract.md)      | Authorization libraries get a typed, additive contract: claims and contract subpaths, request intent and source, typed versions, approval ids      |
 | [0115](0115-bootstrap-call.md)                            | A page reads its user data in one `bsb.bootstrap` call, in a private or remote cache scope                                                         |
-| [0116](0116-one-jwks-and-token-memos.md)                  | One JWKS per process on `globalThis`; the verified-token memos stay until a benchmark retires them                                                 |
+| [0116](0116-one-jwks-and-token-memos.md)                  | One JWKS per process on `globalThis`; one verified-token memo per server; clients on `createContextClient` and `createAdminClient`                 |
 | [0117](0117-proxy-on-supabase-ssr.md)                     | Sessions refresh through `@supabase/ssr` on every request, with one Auth call per refresh token                                                    |

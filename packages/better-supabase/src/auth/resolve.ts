@@ -20,6 +20,7 @@ import type {
   SessionEncoding,
   StoredSession,
 } from "./session.ts";
+import type { SessionMemo } from "./snapshot.ts";
 import type { CookieRefresh } from "./ssr-client.ts";
 
 import { decodeJwtHeader, decodeJwtPayload } from "../core/base64.ts";
@@ -230,7 +231,20 @@ export interface ResolveAuthOptions {
   readonly fetch?: typeof fetch;
   /** Epoch milliseconds, the unit JWT `exp` and `iat` math needs. */
   readonly now?: () => number;
+  /**
+   * The verified-token memo (ADR 0095): a token it holds skips the signature
+   * and schema checks. A hit skips the audience, issuer and schema checks too,
+   * so one memo serves one verifier configuration; `createServer` owns one per
+   * server. Without it every call verifies.
+   */
+  readonly memo?: SessionMemo<VerifiedUser>;
 }
+
+/** A verified user, as the verified-token memo stores it. */
+export type VerifiedUser<C = unknown, P = unknown> = Extract<
+  AuthState<C, P>,
+  { readonly kind: "user" }
+>;
 
 export type ResolvePhase = "parse" | "verify" | "refresh" | "ended";
 
@@ -367,197 +381,25 @@ function serverEnv(options: ResolveAuthOptions, jwks: InlineJwks): SupabaseEnv {
   };
 }
 
-type VerifiedUser = Omit<
-  Extract<AuthState, { kind: "user" }>,
-  "source" | "profile"
->;
-
-const MEMO_SIZE = 256;
-const memoByUrl = new Map<string, Map<string, VerifiedUser>>();
-let memoByJwks = new WeakMap<object, Map<string, Map<string, VerifiedUser>>>();
-
-/** The most JWT secrets remembered at once; the oldest goes first. */
-const SECRET_IDS_SIZE = 64;
-
 /**
- * A number per JWT secret, so memo keys tell secrets apart. Bounded, and never
- * reuses a number.
+ * Forgets every cached key set: the JWKS registry and the imported HS256
+ * secrets. For benchmarks and tests.
  */
-const secretIds = new Map<string, number>();
-let nextSecretId = 1;
-
-function secretId(secret: string | undefined): number | null {
-  if (secret === undefined) {
-    return null;
-  }
-
-  let id = secretIds.get(secret);
-
-  if (id === undefined) {
-    id = nextSecretId;
-    nextSecretId += 1;
-    secretIds.set(secret, id);
-
-    if (secretIds.size > SECRET_IDS_SIZE) {
-      const oldest = secretIds.keys().next();
-
-      if (!oldest.done) {
-        secretIds.delete(oldest.value);
-      }
-    }
-  }
-
-  return id;
-}
-
-/**
- * Tokens that already verified, until they expire. Every private-cache scope
- * and island resolves the same token again; this skips the signature check. A
- * hit skips the audience and issuer checks too, so both are part of the key.
- */
-function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
-  const jwks = jwksOf(options);
-  const inline = !(jwks instanceof URL);
-
-  const key = JSON.stringify([
-    inline ? null : String(jwks),
-    options.env.url,
-    options.audience ?? null,
-    options.issuer ?? null,
-    secretId(options.jwtSecret),
-  ]);
-
-  if (inline) {
-    let byKey = memoByJwks.get(jwks);
-
-    if (!byKey) {
-      memoByJwks.set(
-        jwks,
-        (byKey = new Map<string, Map<string, VerifiedUser>>()),
-      );
-    }
-
-    let memo = byKey.get(key);
-
-    if (!memo) {
-      byKey.set(key, (memo = new Map<string, VerifiedUser>()));
-    }
-
-    return memo;
-  }
-
-  let memo = memoByUrl.get(key);
-
-  if (!memo) {
-    memoByUrl.set(key, (memo = new Map<string, VerifiedUser>()));
-  }
-
-  return memo;
-}
-
-/**
- * Forgets every verified token and every cached key set. For benchmarks and
- * tests.
- */
-export function clearVerifiedTokens(): void {
-  memoByUrl.clear();
-  memoByJwks = new WeakMap();
-  secretIds.clear();
+export function clearKeyCaches(): void {
   clearHs256Keys();
   clearJwksCache();
 }
 
-function remembered(
-  memo: Map<string, VerifiedUser>,
-  token: string,
-  now: number,
-): VerifiedUser | undefined {
-  const hit = memo.get(token);
-
-  if (!hit) {
-    return undefined;
-  }
-
-  memo.delete(token);
-
-  if (hit.expiresAt === null || hit.expiresAt <= now) {
-    return undefined;
-  }
-
-  memo.set(token, hit);
-
-  return hit;
-}
-
-type CheckedState = DistributiveOmit<AuthState, "source">;
-
-type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
-  ? Omit<T, K>
-  : never;
-
-const NO_SCHEMA = {};
-
-const checkedByMemo = new WeakMap<
-  object,
-  WeakMap<object, WeakMap<object, Map<string, CheckedState>>>
->();
-
-/**
- * Tokens that already passed (or failed) the claims and `userMetadata` schemas,
- * per verification memo and schema pair, so a memo hit skips validation too.
- */
-function checkedFor(
-  memo: object,
+async function verifyAndCheck(
+  credentials: { token: string | null; apikey: string | null },
+  modes: AuthModeWithKey[],
   options: ResolveAuthOptions,
-): Map<string, CheckedState> {
-  const claims = options.claims ?? NO_SCHEMA;
-  const metadata = options.userMetadata ?? NO_SCHEMA;
-  let byClaims = checkedByMemo.get(memo);
-
-  if (!byClaims) {
-    checkedByMemo.set(memo, (byClaims = new WeakMap()));
-  }
-
-  let byMetadata = byClaims.get(claims);
-
-  if (!byMetadata) {
-    byClaims.set(claims, (byMetadata = new WeakMap()));
-  }
-
-  let checked = byMetadata.get(metadata);
-
-  if (!checked) {
-    byMetadata.set(metadata, (checked = new Map<string, CheckedState>()));
-  }
-
-  return checked;
-}
-
-function withoutSource(state: AuthState): CheckedState {
-  if (state.kind !== "user") {
-    return state;
-  }
-
-  const { source: _source, ...rest } = state;
-
-  return rest;
-}
-
-function remember<T>(
-  memo: Map<string, T>,
-  token: string,
-  user: T,
-  expiresAt: number | null,
-): void {
-  if (expiresAt === null) {
-    return;
-  }
-
-  memo.set(token, user);
-
-  if (memo.size > MEMO_SIZE) {
-    memo.delete(memo.keys().next().value!);
-  }
+  source: "bearer" | "cookie",
+): Promise<AuthState> {
+  return checkUser(
+    await verifyOnce(credentials, modes, options, source),
+    options,
+  );
 }
 
 async function verify(
@@ -567,56 +409,33 @@ async function verify(
   source: "bearer" | "cookie",
 ): Promise<AuthState> {
   const token = modes.length === 1 && modes[0] === "user" && credentials.token;
-  const memo = token ? memoFor(options) : undefined;
+  const { memo } = options;
 
-  if (token && memo) {
-    const now = Math.floor((options.now ?? Date.now)() / 1000);
-    const hit = remembered(memo, token, now);
+  if (!token || !memo) {
+    return verifyAndCheck(credentials, modes, options, source);
+  }
 
-    if (hit) {
-      const checked = checkedFor(memo, options);
-      const known = checked.get(token);
+  let unstored: AuthState | undefined;
 
-      if (known) {
-        return known.kind === "user" ? { ...known, source } : known;
-      }
+  const found = await memo.get(token, async () => {
+    const state = await verifyAndCheck(credentials, modes, options, source);
 
-      const state = await checkUser({ ...hit, source }, options);
-      remember(checked, token, withoutSource(state), hit.expiresAt);
-
+    if (state.kind === "user" && state.expiresAt !== null) {
       return state;
     }
+
+    unstored = state;
+
+    return null;
+  });
+
+  if (found) {
+    return found.source === source ? found : { ...found, source };
   }
 
-  const state = await verifyOnce(credentials, modes, options, source);
-
-  if (token && memo && state.kind === "user") {
-    remember(
-      memo,
-      token,
-      {
-        kind: "user",
-        token: state.token,
-        claims: state.claims,
-        user: state.user,
-        expiresAt: state.expiresAt,
-      },
-      state.expiresAt,
-    );
-  }
-
-  const checked = await checkUser(state, options);
-
-  if (token && memo && state.kind === "user") {
-    remember(
-      checkedFor(memo, options),
-      token,
-      withoutSource(checked),
-      state.expiresAt,
-    );
-  }
-
-  return checked;
+  // Failures and tokens without `exp` aren't stored; a caller that shared
+  // another's failed load verifies for itself.
+  return unstored ?? verifyAndCheck(credentials, modes, options, source);
 }
 
 /** Validates a user's claims against `options.claims`, keeping every JWT claim. */

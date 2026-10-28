@@ -2,7 +2,7 @@
  * Twelve islands in one render, each its own private-cache scope. Run with
  * `pnpm --filter better-supabase bench`.
  */
-import { clearVerifiedTokens } from "../../src/auth/resolve.ts";
+import { clearKeyCaches } from "../../src/auth/resolve.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { createServer } from "../../src/server/server.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
@@ -37,7 +37,8 @@ const readsData = (island: number): boolean => island % 3 === 0;
 
 async function before(): Promise<void> {
   for (let island = 0; island < ISLANDS; island += 1) {
-    clearVerifiedTokens();
+    clearKeyCaches();
+    server.sessions.clear();
     const ctx = await server.context(request());
     void ctx.supabase;
     void ctx.db;

@@ -72,9 +72,9 @@ without new evidence.
 - **`actingAs` mints `service_role` sessions.** By design: it trusts its
   caller like `admin()`, and the docs say to call it only after the
   signature check and the lookup (`guides/without-a-session.mdx`).
-- **The auth memo grows without bound.** `secretIds` holds 64 entries with
-  eviction, and `clearVerifiedTokens()` clears the URL, JWKS, secret and
-  HS256 caches (`src/auth/resolve.ts`).
+- **The auth memo grows without bound.** There is one verified-token memo per
+  server, a 1000-entry LRU (`sessionMemo`, ADR 0116), and `clearKeyCaches()`
+  clears the JWKS and HS256 key caches (`src/auth/resolve.ts`).
 - **No statement timeout on the direct path.** `createPostgres` takes a
   per-role or single `statementTimeout` and `idleInTransactionTimeout`, and
   `SessionOptions.statementTimeout` overrides it per call.

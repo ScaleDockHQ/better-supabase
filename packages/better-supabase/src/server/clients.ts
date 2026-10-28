@@ -1,9 +1,10 @@
 import type {
-  createClient as createClientType,
   SupabaseClient,
+  SupabaseClientOptions,
 } from "@supabase/supabase-js";
 
 import { PostgrestClient } from "@supabase/postgrest-js";
+import { createAdminClient, createContextClient } from "@supabase/server/core";
 
 import type { AuthState } from "../auth/resolve.ts";
 import type {
@@ -14,31 +15,61 @@ import type { BetterSupabaseEnv } from "../env/index.ts";
 import type { LiteBackend } from "./lite.ts";
 import type { ServerOptions } from "./server-types.ts";
 
-const STATELESS = {
-  persistSession: false,
-  autoRefreshToken: false,
-  detectSessionInUrl: false,
-} as const;
-
 /**
- * What the server's Supabase clients are built from; `createClient` is
- * injectable for tests.
+ * Clients never verify a token; a key set here keeps `@supabase/server` from
+ * reading the JWKS variables on every client it builds.
  */
+const NO_KEYS = Object.freeze({ keys: [] });
+
+/** What the server's Supabase clients are built from. */
 export interface ClientsInput {
   readonly options: ServerOptions;
   readonly env: () => BetterSupabaseEnv;
   readonly definitionExecutor: PostgrestExecutorOptions;
   readonly lite: LiteBackend | undefined;
-  readonly createClient: typeof createClientType;
 }
 
 /**
- * The Supabase and PostgREST clients of one server: shared service and anon
- * clients, per-request user clients.
+ * A client built on its first property read, `in` check or key enumeration,
+ * like the one `withSupabaseAdminClient` puts on its context. Methods are bound
+ * to the built client, so its private fields stay reachable.
+ */
+export function lazyClient<T extends object>(build: () => T): T {
+  let client: T | undefined;
+  const instance = (): T => (client ??= build());
+
+  // SAFETY: every trap answers from the built client, so the proxy is a T.
+  return new Proxy({} as T, {
+    get: (_target, property) => {
+      const target = instance();
+      // SAFETY: the proxy only forwards reads of the built client's members.
+      const value: unknown = target[property as keyof T];
+
+      if (typeof value !== "function") {
+        return value;
+      }
+
+      const bound: unknown = value.bind(target);
+
+      return bound;
+    },
+    set: (_target, property, value) => Reflect.set(instance(), property, value),
+    has: (_target, property) => Reflect.has(instance(), property),
+    getPrototypeOf: () => Reflect.getPrototypeOf(instance()),
+    ownKeys: () => Reflect.ownKeys(instance()),
+    getOwnPropertyDescriptor: (_target, property) =>
+      Reflect.getOwnPropertyDescriptor(instance(), property),
+  });
+}
+
+/**
+ * The Supabase and PostgREST clients of one server: a shared admin client and
+ * anon client for the primary, per-request context clients for users.
+ * supabase-js clients come from `createContextClient` and `createAdminClient`
+ * (`@supabase/server/core`); queries skip them for a bare `PostgrestClient`.
  */
 export function createClients(input: ClientsInput): Clients {
-  const { options, env, definitionExecutor, lite, createClient } = input;
-  let adminClient: SupabaseClient | undefined;
+  const { options, env, definitionExecutor, lite } = input;
   let anonClient: SupabaseClient | undefined;
 
   const secretKey = (): string => {
@@ -66,11 +97,6 @@ export function createClients(input: ClientsInput): Clients {
 
   const dbOptions = Object.keys(db).length > 0 ? { db } : {};
 
-  const sharedGlobal = {
-    ...(customFetch ? { global: customFetch } : {}),
-    ...dbOptions,
-  };
-
   /**
    * Postgrest-js options a bare `PostgrestClient` takes; `timeout` is the
    * executor's.
@@ -94,13 +120,55 @@ export function createClients(input: ClientsInput): Clients {
   const tunedExecutor =
     options.db !== undefined || rpcUnavailable !== undefined;
 
-  const serviceClient = (): SupabaseClient => {
-    adminClient ??= createClient(env().url, secretKey(), {
-      auth: STATELESS,
-      ...sharedGlobal,
+  /** Supabase-js options shared by every client, plus request headers. */
+  const supabaseOptions = (
+    headers: Readonly<Record<string, string>>,
+    token?: string,
+  ): SupabaseClientOptions<string> => ({
+    ...(customFetch || Object.keys(headers).length > 0
+      ? { global: { headers: { ...headers }, ...customFetch } }
+      : {}),
+    // Realtime reads the token through this callback, not the headers.
+    ...(token === undefined
+      ? {}
+      : { realtime: { accessToken: () => Promise.resolve(token) } }),
+    ...dbOptions,
+  });
+
+  const contextClientAt = (
+    url: string,
+    headers: Readonly<Record<string, string>>,
+    token?: string,
+  ): SupabaseClient =>
+    createContextClient({
+      ...(token === undefined ? {} : { auth: { token } }),
+      env: {
+        url,
+        publishableKeys: { default: env().publishableKey },
+        jwks: NO_KEYS,
+      },
+      supabaseOptions: supabaseOptions(headers, token),
     });
 
-    return adminClient;
+  const adminClientAt = (
+    url: string,
+    headers: Readonly<Record<string, string>>,
+  ): SupabaseClient =>
+    createAdminClient({
+      env: { url, secretKeys: { default: secretKey() }, jwks: NO_KEYS },
+      supabaseOptions: supabaseOptions(headers),
+    });
+
+  const sharedAdmin = lazyClient(() => adminClientAt(env().url, {}));
+
+  /**
+   * The shared admin client, built on first use. The key is checked now, so a
+   * missing `SUPABASE_SECRET_KEY` throws where the client is asked for.
+   */
+  const serviceClient = (): SupabaseClient => {
+    secretKey();
+
+    return sharedAdmin;
   };
 
   const readUrl = (): string | undefined =>
@@ -114,50 +182,30 @@ export function createClients(input: ClientsInput): Clients {
     );
   };
 
-  /** Clients for the primary share the service and anon clients; others don't. */
+  /** Clients for the primary share the admin and anon clients; others don't. */
   const supabaseAt = (
     url: string,
     auth: AuthState,
     headers: Readonly<Record<string, string>> = {},
   ): SupabaseClient => {
-    const custom = Object.keys(headers).length > 0;
-
-    const global = custom
-      ? { global: { headers, ...customFetch }, ...dbOptions }
-      : sharedGlobal;
-
-    const shared = !custom && url === env().url;
+    const shared = Object.keys(headers).length === 0 && url === env().url;
 
     switch (auth.kind) {
       case "user": {
-        // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
-        return createClient(url, env().publishableKey, {
-          accessToken: () => Promise.resolve(auth.token),
-          ...global,
-        });
+        return contextClientAt(url, headers, auth.token);
       }
 
       case "secret": {
-        // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
-        return shared
-          ? serviceClient()
-          : createClient(url, secretKey(), { auth: STATELESS, ...global });
+        return shared ? serviceClient() : adminClientAt(url, headers);
       }
 
       case "none":
       case "invalid": {
         if (!shared) {
-          // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
-          return createClient(url, env().publishableKey, {
-            auth: STATELESS,
-            ...global,
-          });
+          return contextClientAt(url, headers);
         }
 
-        anonClient ??= createClient(url, env().publishableKey, {
-          auth: STATELESS,
-          ...sharedGlobal,
-        });
+        anonClient ??= contextClientAt(url, headers);
 
         return anonClient;
       }
@@ -174,7 +222,7 @@ export function createClients(input: ClientsInput): Clients {
     }
   };
 
-  const supabaseFor = (
+  const contextClient = (
     auth: AuthState,
     headers: Readonly<Record<string, string>> = {},
   ): SupabaseClient => supabaseAt(env().url, auth, headers);
@@ -248,7 +296,7 @@ export function createClients(input: ClientsInput): Clients {
     serviceClient,
     readUrl,
     apiKeyClient,
-    supabaseFor,
+    contextClient,
     restAt,
   };
 }
@@ -259,7 +307,7 @@ export interface Clients {
   readonly serviceClient: () => SupabaseClient;
   readonly readUrl: () => string | undefined;
   readonly apiKeyClient: () => never;
-  readonly supabaseFor: (
+  readonly contextClient: (
     auth: AuthState,
     headers?: Readonly<Record<string, string>>,
   ) => SupabaseClient;
