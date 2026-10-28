@@ -32,6 +32,7 @@ export interface InvoiceLedger {
     paidAt: string,
     method: string,
     reference: string,
+    note: string,
   ) => string;
   readonly reverse: (alias: string, payment: string, reason: string) => string;
   /** Sum of payments in one currency an organization received in a window. */
@@ -74,17 +75,17 @@ export function invoiceLedger(ctx: BlockSqlContext): InvoiceLedger {
     paidTotal: (alias) =>
       `coalesce(-(select sum(e.${le("amount")}) from ${entries} e where e.${le("account")} = ${receivableOf(alias)}), 0)`,
     payments: (alias) =>
-      `coalesce((select jsonb_agg(jsonb_build_object('id', y.${tx("id")}, 'amount', (-e.${le("amount")})::text, 'paidAt', y.${tx("effectiveAt")}, 'method', y.${tx("metadata")} ->> 'method', 'reference', y.${tx("metadata")} ->> 'reference') order by y.${tx("effectiveAt")}, y.${tx("createdAt")})
+      `coalesce((select jsonb_agg(jsonb_build_object('id', y.${tx("id")}, 'amount', (-e.${le("amount")})::text, 'paidAt', y.${tx("effectiveAt")}, 'method', y.${tx("metadata")} ->> 'method', 'reference', y.${tx("metadata")} ->> 'reference', 'note', y.${tx("metadata")} ->> 'note', 'recordedBy', y.${tx("actor")}) order by y.${tx("effectiveAt")}, y.${tx("createdAt")})
         from ${entries} e join ${transactions} y on y.${tx("id")} = e.${le("transaction")}
         where e.${le("account")} = ${receivableOf(alias)}), '[]'::jsonb)`,
-    post: (alias, amount, paidAt, method, reference) =>
+    post: (alias, amount, paidAt, method, reference, note) =>
       `${ledger.fn("ledger_post")}(${alias}.${i("tenant")}, case when ${amount} < 0 then 'invoice.refund' else 'invoice.payment' end,
     jsonb_build_array(
       jsonb_build_object('account', ${accountFor(alias, "receivable", `'Receivable ' || coalesce(${alias}.${i("identifier")}, ${alias}.${i("id")}::text)`)}, 'amount', -${amount}),
       jsonb_build_object('account', ${accountFor(alias, "cash", `'Invoice payments ' || ${alias}.${i("currency")}`)}, 'amount', ${amount})),
     'invoices', ${alias}.${i("id")}::text, null,
     case when ${reference} is not null then ${paymentKey(reference)} end, ${paidAt},
-    jsonb_strip_nulls(jsonb_build_object('invoiceId', ${alias}.${i("id")}, 'method', ${method}, 'reference', ${reference})))`,
+    jsonb_strip_nulls(jsonb_build_object('invoiceId', ${alias}.${i("id")}, 'method', ${method}, 'reference', ${reference}, 'note', ${note})))`,
     reverse: (alias, payment, reason) =>
       `${ledger.fn("ledger_post")}(${alias}.${i("tenant")}, 'invoice.payment_reversal',
     (select jsonb_agg(jsonb_build_object('account', e.${le("account")}, 'amount', (-e.${le("amount")})::text) order by e.${le("createdAt")}, e.${le("id")})
