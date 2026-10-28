@@ -138,7 +138,13 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
         "better_supabase.save_product_option($1, null, 'Fit', array['Slim'])",
         [product.id],
       ),
-    ).toBe("CATALOG_OPTION_HAS_VARIANTS");
+    ).toBe("no error");
+    expect(
+      await session.hint(
+        "better_supabase.save_variant($1, $2, null, $3::uuid[], null, null, null, null, null)",
+        [product.id, variant.id, [small!.id, red!.id]],
+      ),
+    ).toBe("CATALOG_VARIANT_OPTIONS");
   });
 
   it("moves products through draft, active and archived", async () => {

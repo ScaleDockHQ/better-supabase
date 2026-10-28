@@ -283,7 +283,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
         hint(
           await invoices
             .credit(issuedFinal.id, {
-              lines: [{ description: "x", unitAmount: eur(300_001n) }],
+              lines: [{ description: "x", unitAmount: eur(100_000_000n) }],
             })
             .then(async (r) => (r.ok ? invoices.issue(r.data.id) : r)),
         ),
