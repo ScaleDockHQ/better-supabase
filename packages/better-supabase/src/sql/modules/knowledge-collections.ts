@@ -122,6 +122,7 @@ create table if not exists ${collections} (
   ${k("updatedAt")} timestamptz not null default now()
 );
 create unique index if not exists ${ctx.naming.rename("knowledge_collections_name_key")} on ${collections} (${k("tenant")}, ${k("name")}) nulls not distinct;
+create index if not exists ${ctx.naming.rename("knowledge_collections_created_by_idx")} on ${collections} (${k("createdBy")});
 alter table ${collections} enable row level security;
 ${revokeTable(collections)}
 grant select on ${collections} to authenticated;

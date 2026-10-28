@@ -1,6 +1,6 @@
 -- better-supabase module: inbox
 -- @bsb-block inbox@6 managed
--- @bsb-hash sha256:fac4785327aa93a86c9b682aea1d6d9c2e066e003d5206a0516689c4863c1d00
+-- @bsb-hash sha256:3bff1fc2a792cb5e88ed4180f7182a87ffb54d0faa59b12c15628cf1b6bdc4ad
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -449,7 +449,7 @@ create table if not exists "better_supabase"."inbox_drafts" (
   constraint inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
 );
 create unique index if not exists inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
-create index if not exists inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id") where "status" = 'draft';
+create index if not exists inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");
 create index if not exists inbox_drafts_author_idx on "better_supabase"."inbox_drafts" ("author_id");
 alter table "better_supabase"."inbox_drafts" add column if not exists "updated_at" timestamptz not null default now();
 drop trigger if exists bsb_updated_at on "better_supabase"."inbox_drafts";

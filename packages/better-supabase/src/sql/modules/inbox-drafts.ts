@@ -40,7 +40,7 @@ create table if not exists ${table} (
   constraint ${q.ctx.naming.rename("inbox_drafts_author_check")} check (${dr("source")} = 'ai' or ${dr("author")} is not null)
 );
 create unique index if not exists ${q.ctx.naming.rename("inbox_drafts_open_key")} on ${table} (${dr("conversation")}, ${dr("author")}) where ${dr("source")} = 'user' and ${dr("status")} = 'draft';
-create index if not exists ${q.ctx.naming.rename("inbox_drafts_conversation_idx")} on ${table} (${dr("conversation")}) where ${dr("status")} = 'draft';
+create index if not exists ${q.ctx.naming.rename("inbox_drafts_conversation_idx")} on ${table} (${dr("conversation")});
 create index if not exists ${q.ctx.naming.rename("inbox_drafts_author_idx")} on ${table} (${dr("author")});
 ${updatedAt(table, dr("updatedAt"))}
 ${lockTable(table, { read: true })}

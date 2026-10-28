@@ -1,6 +1,6 @@
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@3 managed
--- @bsb-hash sha256:95c9762512b7aebec369a5a611e0f7fc90c88bb3af427421cbe89fa91e3df20e
+-- @bsb-hash sha256:0e9ee9bd925f6e2959102582a1c6c61ea5eda823a5f519e92100332ccdbf862e
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -78,6 +78,7 @@ create table if not exists "better_supabase"."knowledge_collections" (
   "updated_at" timestamptz not null default now()
 );
 create unique index if not exists knowledge_collections_name_key on "better_supabase"."knowledge_collections" ("organization_id", "name") nulls not distinct;
+create index if not exists knowledge_collections_created_by_idx on "better_supabase"."knowledge_collections" ("created_by");
 alter table "better_supabase"."knowledge_collections" enable row level security;
 revoke all on "better_supabase"."knowledge_collections" from public, anon, authenticated;
 grant select on "better_supabase"."knowledge_collections" to authenticated;

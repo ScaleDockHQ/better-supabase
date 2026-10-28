@@ -2568,13 +2568,15 @@ ALTER TABLE "better_supabase"."workflow_definitions" ADD CONSTRAINT "workflow_de
 
 CREATE INDEX inbox_drafts_author_idx ON better_supabase.inbox_drafts USING btree (author_id);
 
-CREATE INDEX inbox_drafts_conversation_idx ON better_supabase.inbox_drafts USING btree (conversation_id) WHERE (status = 'draft'::text);
+CREATE INDEX inbox_drafts_conversation_idx ON better_supabase.inbox_drafts USING btree (conversation_id);
 
 CREATE UNIQUE INDEX inbox_drafts_open_key ON better_supabase.inbox_drafts USING btree (conversation_id, author_id) WHERE ((source = 'user'::text) AND (status = 'draft'::text));
 
 CREATE UNIQUE INDEX knowledge_collection_grants_key ON better_supabase.knowledge_collection_grants USING btree (collection_id, user_id, team_id) NULLS NOT DISTINCT;
 
 CREATE INDEX knowledge_collection_grants_user_idx ON better_supabase.knowledge_collection_grants USING btree (user_id) WHERE (user_id IS NOT NULL);
+
+CREATE INDEX knowledge_collections_created_by_idx ON better_supabase.knowledge_collections USING btree (created_by);
 
 CREATE UNIQUE INDEX knowledge_collections_name_key ON better_supabase.knowledge_collections USING btree (organization_id, name) NULLS NOT DISTINCT;
 
