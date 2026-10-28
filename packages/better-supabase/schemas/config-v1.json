@@ -5065,6 +5065,13 @@
               "totals": {
                 "type": "string",
                 "default": "block"
+              },
+              "providerPaymentMethods": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["stripe", "order"]
               }
             }
           }

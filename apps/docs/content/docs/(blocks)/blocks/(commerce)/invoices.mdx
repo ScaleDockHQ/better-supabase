@@ -87,7 +87,7 @@ await invoices.create(organizationId, {
 
 ## Issue and number
 
-A draft has no number. `issue(invoiceId, issuedOn?)` gives it the next number of its kind (`INV-1`, credit notes `CN-1`, or the formats of `invoice` and `credit_note` entities in [numbering](/docs/blocks/numbering)), sets the issue date and a due date `termsDays` later (`options.termsDays`, default 30), and freezes its lines. Numbers are taken only on issue, so a voided draft leaves no gap. An issued invoice voided by mistake keeps its number.
+A draft has no number. `issue(invoiceId, issuedOn?)` gives it the next number of its kind (`INV-1`, credit notes `CN-1`, or the formats of `invoice` and `credit_note` entities in [numbering](/docs/blocks/numbering)), sets the issue date (today by default) and a due date `termsDays` later (`options.termsDays`, default 30), and freezes its lines. `issue(invoiceId, issuedOn, { dueOn })` sets the due date itself, on or after the issue date (`INVOICE_DUE_INVALID`), and an invoice created with `termsDays: null` (over your own table with a nullable terms column) has no due date. The number is taken in the same transaction that issues the invoice, so an issue that fails takes none. Numbers are taken only on issue, so a voided draft leaves no gap. An issued invoice voided by mistake keeps its number.
 
 The number belongs to the period of the issue date, so a numbering format with a year (`{yyyy}-{n}`) numbers an invoice issued on 31 December in that year's sequence, even when it is issued in January.
 
@@ -97,11 +97,11 @@ Amounts are `Money` values from [commerce](/docs/concepts/commerce): lines, tota
 
 The balance is the total minus credits minus payments. `recordPayment` adds a payment (a negative amount is a refund, which can't exceed what was paid: `INVOICE_REFUND_TOO_LARGE`) and moves the invoice to `partially_paid` or `paid`. A `reference`, such as a bank transaction or a payment provider id, is unique per organization, so a webhook that delivers the same payment twice records it once.
 
-Payments live on the [ledger](/docs/blocks/ledger). Each invoice has a receivable account (code `invoice:<id>`) and each currency a cash account (`invoices:cash:<currency>`); a payment is a transaction of kind `invoice.payment` (or `invoice.refund`) that moves the amount from the receivable to cash, and its `paymentId` is the transaction id. The ledger client's `holderAccounts({ type: "invoices", id })` reads an invoice's receivable account with its entries.
+Payments live on the [ledger](/docs/blocks/ledger). Each invoice has a receivable account (code `invoice:<id>`) and each currency a cash account (`invoices:cash:<currency>`); a payment is a transaction of kind `invoice.payment` (or `invoice.refund`) that moves the amount from the receivable to cash, and its `paymentId` is the transaction id. `reversePayment(paymentId, reason?)` reverses a payment recorded by hand, such as a bounced transfer: it posts the opposite transaction (kind `invoice.payment_reversal`, pointing at the payment) and keeps the original, so the invoice is open again. A payment is reversed once (`INVOICE_PAYMENT_REVERSED`). A payment whose method is in `options.providerPaymentMethods` (default `stripe` and `order`) is refunded through its provider instead (`INVOICE_PAYMENT_PROVIDER`). Needs `invoices.manage`. The ledger client's `holderAccounts({ type: "invoices", id })` reads an invoice's receivable account with its entries.
 
-`credit(invoiceId, { lines? })` makes a draft credit note for the whole invoice, or for the given lines; issuing it reduces the original's balance and can settle it. A credit note can't exceed what is still owed (`INVOICE_CREDIT_TOO_LARGE`).
+`credit(invoiceId, { lines? })` makes a draft credit note for the whole invoice, or for the given lines; issuing it reduces the original's balance and can settle it. A credit note can't exceed the invoice's total and charges less its earlier credits (`INVOICE_CREDIT_TOO_LARGE`), so a paid invoice can still be credited: issue the credit note, then record the refund as a negative payment. An issued credit note can't change.
 
-`void(invoiceId, reason)` voids a draft, or an issued invoice without payments or credits. `writeOff(invoiceId)` marks an open invoice uncollectible. Both are written to the audit log.
+`void(invoiceId, reason)` voids a draft, or an issued invoice without payments or credits. `writeOff(invoiceId, reason?)` marks an open invoice uncollectible; over your own table, `columns.invoices.writeOffReason` keeps the reason, and `invoice.uncollected` carries it. Both are written to the audit log.
 
 | Status           | Meaning                            |
 | ---------------- | ---------------------------------- |
@@ -116,7 +116,7 @@ Every invoice a read returns has `balance` and `overdue` (open and past its due 
 
 ### Charges
 
-`charge(invoiceId, { amount, description? })` adds an amount on top of an issued invoice's total, such as collection costs, statutory interest or a late fee, in the invoice's currency. Charges live in the `invoice_charges` table (`tables.charges`, which can be your own table or `null`), raise the balance and the aging, and come back as `charges` and `chargedTotal` on every read. A paid invoice with a new charge is `partially_paid` again until the charge is paid. Each charge records `invoice.charged`.
+`charge(invoiceId, { amount, description? })` adds an amount on top of an issued invoice's total, such as collection costs, statutory interest or a late fee, in the invoice's currency. Charges live in the `invoice_charges` table (`tables.charges`, which can be your own table or `null`), raise the balance and the aging, and come back as `charges` and `chargedTotal` on every read. A paid invoice with a new charge is `partially_paid` again until the charge is paid. Each charge records `invoice.charged`. `removeCharge(chargeId)` deletes a charge added by mistake from an issued invoice, settles the balance again and records `invoice.charge_removed`.
 
 Your own charges table can carry columns the block doesn't know, such as a `kind not null` column. List them in `options.chargeExtraColumns` (`{ kind: "text not null" }`) and pass them as `charge(invoiceId, { amount, fields: { kind: "collection" } })`; reads return them under each charge's `fields`.
 
@@ -178,6 +178,8 @@ The quote must be accepted (`INVOICE_QUOTE_NOT_ACCEPTED`). A deposit invoice has
 | `invoice.created`, `invoice.issued`, `invoice.paid`, `invoice.voided`, `invoice.uncollected` | `organizationId`, `invoiceId`, `subjectType`, `subjectId`, `identifier`, and `total`, `currency`, `dueOn`, `reason` or `balance` |
 | `invoice.payment_recorded`                                                                   | the same, with `paymentId`, `amount` and `balance`                                                                               |
 | `invoice.credited`                                                                           | the same, with `creditNoteId` and `amount`                                                                                       |
+| `invoice.payment_reversed`                                                                   | the same, with `paymentId`, `reversalId`, `amount`, `balance` and `reason`                                                       |
+| `invoice.charged`, `invoice.charge_removed`                                                  | the same, with `chargeId`, `amount` and `balance`                                                                                |
 
 Send dunning reminders from `invoice.issued` with a [workflow](/docs/blocks/workflows) that waits until the due date and checks the balance.
 
@@ -199,7 +201,12 @@ The module calls `before_invoice_issue(invoice uuid)`, `after_invoice_issue(invo
 | `INVOICE_CURRENCY_MISMATCH`   | a payment isn't in the invoice's currency                                                   |
 | `INVOICE_REFUND_TOO_LARGE`    | a refund is more than was paid                                                              |
 | `INVOICE_NOT_CREDITABLE`      | only an issued invoice is credited                                                          |
-| `INVOICE_CREDIT_TOO_LARGE`    | the credit is more than is owed                                                             |
+| `INVOICE_CREDIT_TOO_LARGE`    | the credit is more than the total less earlier credits                                      |
+| `INVOICE_DUE_INVALID`         | the due date is before the issue date                                                       |
+| `INVOICE_PAYMENT_NOT_FOUND`   | no such payment on an invoice the caller can manage                                         |
+| `INVOICE_PAYMENT_PROVIDER`    | the payment came from a payment provider and is refunded there                              |
+| `INVOICE_PAYMENT_REVERSED`    | the payment is a reversal or is already reversed                                            |
+| `INVOICE_CHARGE_NOT_FOUND`    | no such charge on an invoice the caller can edit                                            |
 | `INVOICE_NOT_VOIDABLE`        | an invoice with payments or credits is credited instead                                     |
 | `INVOICE_NOT_OPEN`            | only an open invoice is written off                                                         |
 | `INVOICE_QUOTE_NOT_ACCEPTED`  | the quote isn't accepted                                                                    |

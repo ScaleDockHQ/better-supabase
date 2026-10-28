@@ -59,6 +59,14 @@ const EVENTS: BlockSqlEvents<InvoicesEvents> = {
     subject: "invoices",
     payload: [...INVOICE, "chargeId", "amount", "balance"],
   },
+  "invoice.payment_reversed": {
+    subject: "invoices",
+    payload: [...INVOICE, "paymentId", "amount", "balance"],
+  },
+  "invoice.charge_removed": {
+    subject: "invoices",
+    payload: [...INVOICE, "chargeId", "amount", "balance"],
+  },
 };
 
 const NAMES: BlockSqlNames = {
@@ -91,11 +99,17 @@ const NAMES: BlockSqlNames = {
     "lineRates",
     "chargeExtraColumns",
     "totals",
+    "providerPaymentMethods",
   ],
   tables: {
     invoices: {
       name: "invoices",
-      app: {},
+      app: {
+        unused: (ctx) =>
+          typeof ctx.config.columns["invoices"]?.["writeOffReason"] === "string"
+            ? []
+            : ["writeOffReason"],
+      },
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -119,6 +133,7 @@ const NAMES: BlockSqlNames = {
         paidAt: "paid_at",
         voidedAt: "voided_at",
         voidReason: "void_reason",
+        writeOffReason: "write_off_reason",
         note: "note",
         originType: "origin_type",
         originId: "origin_id",
@@ -134,6 +149,7 @@ const NAMES: BlockSqlNames = {
         "contactType",
         "contactId",
         "voidReason",
+        "writeOffReason",
         "note",
         "originType",
         "originId",
@@ -324,6 +340,7 @@ function build(ctx: BlockSqlContext): string {
     prefix: ctx.text("prefix", "INV-"),
     creditPrefix: ctx.text("creditPrefix", "CN-"),
     termsDays,
+    providerMethods: ctx.list("providerPaymentMethods", ["stripe", "order"]),
     service: "(auth.role() = 'service_role')",
     extras: ctx.extraColumns("invoices", [
       "lines",
@@ -352,7 +369,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "set_invoice_lines", args: ["uuid", "jsonb"], returns: "jsonb" },
-    { name: "issue_invoice", args: ["uuid", "date"], returns: "jsonb" },
+    { name: "issue_invoice", args: ["uuid", "date", "date"], returns: "jsonb" },
     {
       name: "record_invoice_payment",
       args: ["uuid", "bigint", "text", "timestamptz", "text", "text"],
@@ -364,7 +381,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "void_invoice", args: ["uuid", "text"], returns: "jsonb" },
-    { name: "write_off_invoice", args: ["uuid"], returns: "jsonb" },
+    { name: "write_off_invoice", args: ["uuid", "text"], returns: "jsonb" },
+    {
+      name: "reverse_invoice_payment",
+      args: ["uuid", "text"],
+      returns: "jsonb",
+    },
     ...(ctx.hasTable("charges")
       ? [
           {
@@ -378,6 +400,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
             ],
             returns: "jsonb",
           },
+          { name: "remove_invoice_charge", args: ["uuid"], returns: "jsonb" },
         ]
       : []),
     { name: "invoice_aging", args: ["{id}", "text", "date"], returns: "jsonb" },

@@ -3688,6 +3688,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "paidAt": "paid_at",
               "voidedAt": "voided_at",
               "voidReason": "void_reason",
+              "writeOffReason": "write_off_reason",
               "note": "note",
               "originType": "origin_type",
               "originId": "origin_id",
@@ -14837,7 +14838,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "invoice.credited",
           "invoice.voided",
           "invoice.uncollected",
-          "invoice.charged"
+          "invoice.charged",
+          "invoice.charge_removed",
+          "invoice.payment_reversed"
         ]
       }
     },
