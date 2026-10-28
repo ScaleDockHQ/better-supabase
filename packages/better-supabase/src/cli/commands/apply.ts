@@ -29,6 +29,7 @@ import { CliError } from "../core/errors.ts";
 import { applyPlan, planResult } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { AUTHZ_NOTE, createUrlParam } from "../create-url.ts";
+import { adoptionContext } from "../doctor/app-tables.ts";
 import { readPresetInput } from "../preset-input.ts";
 import {
   adoptableBlocks,
@@ -133,7 +134,7 @@ function adoptBlocks(
 
     const proposal = proposeAdoption(block, tables, {
       blocks: config.blocks,
-      subjects: config.subjects,
+      ...adoptionContext({ config }),
       schemas,
     });
 

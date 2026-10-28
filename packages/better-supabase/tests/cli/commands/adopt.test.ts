@@ -16,6 +16,11 @@ import {
   presetFromSpec,
   resolvePreset,
 } from "../../../src/preset/index.ts";
+import { modulePermissionKeys, SQL_MODULES } from "../../../src/sql/index.ts";
+import {
+  stubProvider,
+  withProvider,
+} from "../../fixtures/authorization-provider.ts";
 import { usageError } from "../fixtures/usage.ts";
 
 let dir: string;
@@ -71,6 +76,55 @@ const ENUM_TEAMS: ExistingTable = {
       : column,
   ),
 };
+
+const CALENDARS = table("calendars", [
+  "id",
+  "tenant_id",
+  "name",
+  "tz",
+  "color",
+  "owner_type",
+  "owner_id",
+  "visibility",
+  "description",
+  "rank",
+  "is_default",
+  "created_at",
+]);
+
+const providerConfig = () =>
+  resolveConfig(
+    {
+      auth: {
+        authorization: withProvider({
+          permissions: modulePermissionKeys(
+            { permissions: { model: "provider" } },
+            Object.keys(SQL_MODULES),
+          ).map((entry) => ({ key: entry.key, sqlComplete: true })),
+          functions: {
+            ...stubProvider.functions,
+            rowsWith: "authz.rows_{resource}({permission}, {ids})",
+            rowsWithFor:
+              "authz.rows_{resource}_for({user}, {permission}, {ids})",
+          },
+        }),
+      },
+      blocks: {
+        permissions: { model: "provider" },
+        calendar: {
+          options: {
+            access: true,
+            calendarDetails: true,
+            accessFunctions: {
+              read: { rows: "agenda_calendar", key: "agendaCalendar.read" },
+              write: { rows: "agenda_calendar", key: "agendaCalendar.update" },
+            },
+          },
+        },
+      },
+    },
+    dir,
+  );
 
 const configPath = () => join(dir, "better-supabase.config.json");
 
@@ -184,6 +238,19 @@ describe("adopt", () => {
     expect(refused.error).toContain("Set blocks.teams in it yourself.");
   });
 
+  it("renders the proposal with the authorization provider's row checks", async () => {
+    await writeFile(configPath(), json({}));
+
+    const result = await runAdopt(
+      providerConfig(),
+      { block: "calendar", tables: "public.calendars", "dry-run": true },
+      { configFile: configPath(), tables: () => Promise.resolve([CALENDARS]) },
+    );
+
+    expect(result.data).toMatchObject({ errors: [] });
+    expect(result.code).toBe(0);
+  });
+
   it("reads the tables from a snapshot through the CLI", async () => {
     await writeFile(configPath(), json({}));
 
@@ -268,6 +335,33 @@ describe("apply --adopt", () => {
         join(dir, "supabase/schemas/900_better_supabase_058_teams.sql"),
       ),
     ).toBe(true);
+  });
+
+  it("proposes a block with the authorization provider's row checks", async () => {
+    await writeFile(configPath(), json({}));
+
+    const result = await runApply(
+      providerConfig(),
+      {
+        preset: await createUrl(
+          resolvePreset(
+            presetFromSpec({ scope: "tenant", blocks: ["calendar"] }),
+          ),
+        ),
+        only: "blocks",
+        adopt: true,
+        "dry-run": true,
+      },
+      {
+        configFile: configPath(),
+        now,
+        tables: () => Promise.resolve([CALENDARS]),
+      },
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(result.output).toContain("Adopting calendar:");
+    expect(result.code).toBe(0);
   });
 
   it("says when nothing is there to adopt", async () => {
