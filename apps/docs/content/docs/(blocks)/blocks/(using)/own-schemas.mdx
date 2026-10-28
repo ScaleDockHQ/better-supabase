@@ -104,6 +104,7 @@ may be your own enum or domain.
 - `approvals`
   - `better_supabase.approval_requests`: `id`, `tenant_id`, `subject_type`, `subject_id`, `action`, `status`, `requested_by`, `created_at`; typed: `status`
   - `better_supabase.approval_decisions`: `id`, `request_id`, `tenant_id`, `step`, `approver`, `decision`, `created_at`; typed: `decision`
+  - `better_supabase.approval_policies`: `id`, `tenant_id`, `subject_type`, `action`, `name`, `mode`, `steps`, `self_approval`, `enabled`, `created_at`; typed: `mode`
 - `assets`
   - `better_supabase.asset_locations`: `id`, `tenant_id`, `parent_id`, `kind`, `name`, `archived_at`, `created_at`, `updated_at`
   - `better_supabase.assets`: `id`, `tenant_id`, `location_id`, `kind`, `name`, `status`, `assignee_type`, `assignee_id`, `created_at`, `updated_at`; typed: `status`

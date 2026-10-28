@@ -233,6 +233,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0116: One JWKS per process on `globalThis`; one verified-token memo per server; clients on `createContextClient` and `createAdminClient`.
 - 0117: Sessions refresh through `@supabase/ssr` on every request; a coalescing fetch makes one Auth call per refresh token.
 - 0118: Calendar alarms are event data in `calendar_event_alarms`; reminders fire on any subject's rule, `at` column or own time, planned by the `reminders.schedule` timer.
+- 0119: Tenant approval policies tighten config floors with conditions and a confirm or authorize mode; manager approvers; approvals consumed once against a fingerprint.
 
 ## Pre-release pins
 

@@ -269,7 +269,7 @@ export default defineConfig({
     sso: {},
     approvals: {
       options: {
-        // Organizations tighten these policies with their own (ADR 0116).
+        // Organizations tighten these policies with their own (ADR 0119).
         tenantPolicies: true,
         policies: {
           customer: {

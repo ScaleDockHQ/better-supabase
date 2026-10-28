@@ -7,7 +7,7 @@ export type ApprovalsSqlOptions = {
   readonly policies?: unknown;
   /**
    * Adds `approval_policies`, where each organization tightens the policies
-   * above with its own steps, conditions and mode (ADR 0116).
+   * above with its own steps, conditions and mode (ADR 0119).
    */
   readonly tenantPolicies?: boolean;
   readonly extraColumns?: ExtraColumns;
