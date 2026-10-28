@@ -53,63 +53,7 @@ const BLOCKS: AnyBlocksConfig = {
 const SERVICE = `perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
   perform set_config('request.jwt.claim.role', 'service_role', true);`;
 
-describe("catalog over the app's products", () => {
-  it(
-    "writes enum kinds and moves statuses through a value map",
-    { timeout: 60_000 },
-    async () => {
-      const files = renderBlocks(["catalog"], {
-        modules: BLOCKS,
-        ownTables: { "public.items": "app.sql" },
-      });
-
-      await using stack = await liteStack({
-        driver: "pglite",
-        migrations: [
-          APP,
-          ...files
-            .filter((file) => file.kind !== "data")
-            .map((file) => file.contents),
-        ],
-        seed: [
-          ...files
-            .filter((file) => file.kind === "data")
-            .map((file) => file.contents),
-          `do $$
-declare
-  v_product jsonb;
-  v_id uuid;
-  v_moved jsonb;
-begin
-  ${SERVICE}
-  v_product := better_supabase.save_product('${TENANT}', null, 'Chair', null, null, 'digital');
-  v_id := (v_product ->> 'id')::uuid;
-  if v_product ->> 'status' <> 'active' or (select item_type::text from public.items where id = v_id) <> 'digital' then
-    raise exception 'saved %', v_product;
-  end if;
-  v_moved := better_supabase.set_product_status(v_id, 'archived');
-  if v_moved ->> 'from' <> 'active' or (select status::text from public.items where id = v_id) <> 'archived' then
-    raise exception 'moved %', v_moved;
-  end if;
-  update public.items set status = 'discontinued' where id = v_id;
-  v_moved := better_supabase.set_product_status(v_id, 'archived');
-  if v_moved ->> 'from' <> 'archived' or (select status::text from public.items where id = v_id) <> 'discontinued' then
-    raise exception 'kept %', v_moved;
-  end if;
-end;
-$$;`,
-        ],
-      });
-
-      expect(stack.url).not.toBe("");
-    },
-  );
-
-  it(
-    "ranks by integer positions and prices variants from their own columns",
-    { timeout: 60_000 },
-    async () => {
-      const app = `${APP}
+const VARIANT_APP = `${APP}
 alter table public.items add column currency text not null default 'EUR';
 alter table public.items add column default_price_cents bigint;
 alter table public.items add column track_inventory boolean not null default true;
@@ -159,69 +103,133 @@ create table public.item_option_values (
 );
 `;
 
+const VARIANT_BLOCKS: AnyBlocksConfig = {
+  catalog: {
+    ...BLOCKS["catalog"],
+    tables: {
+      products: "public.items",
+      variants: "public.item_variants",
+      options: "public.item_options",
+      optionValues: "public.item_option_values",
+      categories: "public.item_categories",
+      prices: null,
+      priceLists: null,
+    },
+    columns: {
+      products: {
+        tenant: "org_id",
+        title: "name",
+        kind: "item_type",
+        description: null,
+        price: "default_price_cents",
+      },
+      variants: {
+        tenant: "org_id",
+        product: "item_id",
+        title: null,
+        barcode: null,
+        weight: null,
+        trackInventory: null,
+        rank: "position",
+        price: "selling_price_cents",
+      },
+      options: { tenant: "org_id", product: "item_id", rank: "position" },
+      optionValues: { tenant: "org_id", rank: "position" },
+      categories: { tenant: "org_id", rank: "position" },
+    },
+    options: {
+      rankType: "integer",
+      variantExtraColumns: {
+        manufacturer_part_number: "text",
+        purchase_price_cents: "bigint",
+        is_default: "boolean not null default false",
+      },
+      categoryExtraColumns: { icon: "text not null default 'Package'" },
+    },
+  },
+};
+
+const VARIANT_OWN = {
+  "public.items": "app.sql",
+  "public.item_variants": "app.sql",
+  "public.item_options": "app.sql",
+  "public.item_option_values": "app.sql",
+  "public.item_categories": "app.sql",
+};
+
+describe("catalog over the app's products", () => {
+  it(
+    "writes enum kinds and moves statuses through a value map",
+    { timeout: 60_000 },
+    async () => {
       const files = renderBlocks(["catalog"], {
-        modules: {
-          catalog: {
-            ...BLOCKS["catalog"],
-            tables: {
-              products: "public.items",
-              variants: "public.item_variants",
-              options: "public.item_options",
-              optionValues: "public.item_option_values",
-              categories: "public.item_categories",
-              prices: null,
-              priceLists: null,
-            },
-            columns: {
-              products: {
-                tenant: "org_id",
-                title: "name",
-                kind: "item_type",
-                description: null,
-                price: "default_price_cents",
-              },
-              variants: {
-                tenant: "org_id",
-                product: "item_id",
-                title: null,
-                barcode: null,
-                weight: null,
-                trackInventory: null,
-                rank: "position",
-                price: "selling_price_cents",
-              },
-              options: {
-                tenant: "org_id",
-                product: "item_id",
-                rank: "position",
-              },
-              optionValues: { tenant: "org_id", rank: "position" },
-              categories: { tenant: "org_id", rank: "position" },
-            },
-            options: {
-              rankType: "integer",
-              variantExtraColumns: {
-                manufacturer_part_number: "text",
-                purchase_price_cents: "bigint",
-                is_default: "boolean not null default false",
-              },
-              categoryExtraColumns: { icon: "text not null default 'Package'" },
-            },
-          },
-        },
-        ownTables: {
-          "public.items": "app.sql",
-          "public.item_variants": "app.sql",
-          "public.item_options": "app.sql",
-          "public.item_option_values": "app.sql",
-          "public.item_categories": "app.sql",
-        },
+        modules: BLOCKS,
+        ownTables: { "public.items": "app.sql" },
       });
 
       await using stack = await liteStack({
         driver: "pglite",
         migrations: [
-          app,
+          APP,
+          ...files
+            .filter((file) => file.kind !== "data")
+            .map((file) => file.contents),
+        ],
+        seed: [
+          ...files
+            .filter((file) => file.kind === "data")
+            .map((file) => file.contents),
+          `do $$
+declare
+  v_product jsonb;
+  v_id uuid;
+  v_moved jsonb;
+begin
+  ${SERVICE}
+  v_product := better_supabase.save_product('${TENANT}', null, 'Chair', null, null, 'digital');
+  v_id := (v_product ->> 'id')::uuid;
+  if v_product ->> 'status' <> 'active' or (select item_type::text from public.items where id = v_id) <> 'digital' then
+    raise exception 'saved %', v_product;
+  end if;
+  v_moved := better_supabase.set_product_status(v_id, 'archived');
+  if v_moved ->> 'from' <> 'active' or (select status::text from public.items where id = v_id) <> 'archived' then
+    raise exception 'moved %', v_moved;
+  end if;
+  update public.items set status = 'discontinued' where id = v_id;
+  v_moved := better_supabase.set_product_status(v_id, 'archived');
+  if v_moved ->> 'from' <> 'archived' or (select status::text from public.items where id = v_id) <> 'archived' then
+    raise exception 'canonical %', v_moved;
+  end if;
+  v_moved := better_supabase.set_product_status(v_id, 'discontinued');
+  if v_moved ->> 'status' <> 'archived' or (select status::text from public.items where id = v_id) <> 'discontinued' then
+    raise exception 'app label %', v_moved;
+  end if;
+  v_moved := better_supabase.set_product_status(v_id, 'active');
+  if (select status::text from public.items where id = v_id) <> 'active' then
+    raise exception 'reactivated %', v_moved;
+  end if;
+end;
+$$;`,
+        ],
+      });
+
+      expect(stack.url).not.toBe("");
+    },
+  );
+
+  it(
+    "ranks by integer positions and prices variants from their own columns",
+    { timeout: 60_000 },
+    async () => {
+      const files = renderBlocks(["catalog"], {
+        modules: VARIANT_BLOCKS,
+        ownTables: VARIANT_OWN,
+      });
+
+      await using stack = await liteStack({
+        driver: "pglite",
+        migrations: [
+          VARIANT_APP,
           ...files
             .filter((file) => file.kind !== "data")
             .map((file) => file.contents),
@@ -318,6 +326,89 @@ $$;`,
       expect(stack.url).not.toBe("");
     },
   );
+
+  it(
+    "clears product settings, adds options over a default variant and patches variants",
+    { timeout: 60_000 },
+    async () => {
+      const files = renderBlocks(["catalog"], {
+        modules: VARIANT_BLOCKS,
+        ownTables: VARIANT_OWN,
+      });
+
+      await using stack = await liteStack({
+        driver: "pglite",
+        migrations: [
+          VARIANT_APP,
+          ...files
+            .filter((file) => file.kind !== "data")
+            .map((file) => file.contents),
+        ],
+        seed: [
+          ...files
+            .filter((file) => file.kind === "data")
+            .map((file) => file.contents),
+          `do $$
+declare
+  v_product uuid;
+  v_variant uuid;
+  v_option jsonb;
+begin
+  ${SERVICE}
+  v_product := (better_supabase.save_product('${TENANT}', null, 'Mug', null, null, 'physical', 990, 'eur', true) ->> 'id')::uuid;
+  perform better_supabase.save_product('${TENANT}', v_product, 'Mug', null, null, null, null, null, null, clear => array['price']);
+  if (select default_price_cents from public.items where id = v_product) is not null
+    or (select currency from public.items where id = v_product) <> 'EUR' then
+    raise exception 'cleared %', (select row_to_json(i) from public.items i where id = v_product);
+  end if;
+  v_variant := (better_supabase.save_variant(v_product, null, 'MUG', null, null, null, null, null, true) ->> 'id')::uuid;
+  v_option := better_supabase.save_product_option(v_product, null, 'Colour', array['White', 'Black']);
+  if (select count(*) from better_supabase.product_variant_values where variant_id = v_variant) <> 1 then
+    raise exception 'default variant got no value %', v_option;
+  end if;
+  perform better_supabase.save_variant(v_product, v_variant, null, null, null, null, null, null, null);
+  if (select row(sku, allow_backorder)::text from public.item_variants where id = v_variant) <> '(MUG,t)'
+    or (select count(*) from better_supabase.product_variant_values where variant_id = v_variant) <> 1 then
+    raise exception 'patched %', (select row_to_json(v) from public.item_variants v where id = v_variant);
+  end if;
+end;
+$$;`,
+        ],
+      });
+
+      expect(stack.url).not.toBe("");
+    },
+  );
+
+  it("checks separate create, update and delete keys when the config names them", () => {
+    const sql = renderBlocks(["catalog"], {
+      modules: {
+        catalog: {
+          permissions: {
+            create: "product.create",
+            update: "product.update",
+            delete: "product.delete",
+          },
+        },
+      },
+    })
+      .filter((file) => file.module === "catalog")
+      .map((file) => file.contents)
+      .join("\n");
+
+    const body = (name: string): string =>
+      sql.slice(
+        sql.indexOf(`function "better_supabase"."${name}"`),
+        sql.indexOf("$$;", sql.indexOf(`function "better_supabase"."${name}"`)),
+      );
+
+    expect(body("save_product")).toContain("'product.create'");
+    expect(body("save_product")).toContain("'product.update'");
+    expect(body("set_product_status")).toContain("'product.update'");
+    expect(body("delete_product")).toContain("'product.delete'");
+    expect(body("delete_variant")).toContain("'product.delete'");
+    expect(body("set_price")).toContain("'catalog.manage'");
+  });
 
   it("reads inventory tracking from the product when variants have no column", () => {
     const sql = renderBlocks(["catalog", "inventory"], {

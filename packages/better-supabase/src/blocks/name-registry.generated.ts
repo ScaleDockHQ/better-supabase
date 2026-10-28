@@ -325,7 +325,7 @@ export interface BlockNameRegistry {
       readonly "media": "id" | "tenant" | "product" | "variant" | "attachment" | "position" | "alt" | "createdAt";
     };
     readonly functions: "add_to_collection" | "channel_price" | "channel_products" | "currency_minor_units" | "delete_catalog_channel" | "delete_category" | "delete_collection" | "delete_price" | "delete_price_list" | "delete_product" | "delete_product_option" | "delete_variant" | "move_category" | "product_text" | "publish_storefront" | "rank_variant" | "remove_from_collection" | "save_catalog_channel" | "save_category" | "save_collection" | "save_price_list" | "save_product" | "save_product_option" | "save_variant" | "set_channel_listing" | "set_price" | "set_product_categories" | "set_product_status" | "set_product_translation" | "set_variant_translation" | "storefront_products" | "storefront_tenants" | "variant_price";
-    readonly actions: "manage" | "read";
+    readonly actions: "manage" | "read" | "create" | "update" | "delete";
     readonly hooks: "before_product_save" | "after_product_save" | "before_variant_save" | "after_variant_save" | "before_price_set" | "after_price_set";
     readonly entities: {
       readonly "product": "id" | "tenant_id" | "slug" | "title" | "description" | "kind" | "status" | "created_at" | "updated_at" | "price" | "currency" | "track_inventory";
