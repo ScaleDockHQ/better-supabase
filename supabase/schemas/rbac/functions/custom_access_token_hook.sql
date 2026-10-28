@@ -7,7 +7,6 @@ as $$
 declare
   claims jsonb := event -> 'claims';
   user_role rbac.app_role;
-  authz_version bigint;
   active_tenant text := claims -> 'app_metadata' ->> 'tenant_id';
   permission_keys jsonb := '{}'::jsonb;
 begin
@@ -19,12 +18,9 @@ begin
     claims := jsonb_set(claims, '{user_role}', to_jsonb(user_role));
   end if;
 
-  -- The version `subscribeAuthzVersions` evicts on (user_authz_versions.sql).
-  select v.version into authz_version
-  from rbac.user_authz_versions v
-  where v.user_id = (event ->> 'user_id')::uuid;
-
-  claims := jsonb_set(claims, '{authz_ver}', to_jsonb(coalesce(authz_version, 0)));
+  -- The version SessionProvider and `subscribeAuthzVersions` watch
+  -- (blocks['sessions'].options.authzVersions).
+  claims := jsonb_set(claims, '{authz_ver}', to_jsonb(better_supabase.authz_version((event ->> 'user_id')::uuid)));
 
   -- Every organization the user belongs to, and each one's plan features
   -- (supabase/schemas/045_access_contract.sql and the entitlements module).

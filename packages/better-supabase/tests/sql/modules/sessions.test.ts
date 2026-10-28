@@ -46,3 +46,28 @@ describe("sessions bootstrap wrappers", () => {
     ).toThrow(/schema\.function/);
   });
 });
+
+describe("sessions authorization versions", () => {
+  it("renders nothing without the option", () => {
+    expect(sessions()).not.toContain("user_authz_versions");
+  });
+
+  it("renders the table, the bump trigger and both broadcasts", async () => {
+    const sql = sessions({ options: { authzVersions: true } });
+
+    expect(sql).toContain(
+      "create table if not exists better_supabase.user_authz_versions (",
+    );
+    expect(sql).toContain("'better_supabase:authz'");
+    expect(sql).toContain("'authz:' || new.user_id::text");
+    expect(sql).toContain(
+      "(select realtime.topic()) = 'authz:' || (select auth.uid())::text",
+    );
+    expect(sql).toContain(
+      "revoke all on better_supabase.user_authz_versions from public, anon, authenticated;",
+    );
+    await expect(
+      sql.slice(sql.indexOf("-- blocks['sessions'].options.authzVersions")),
+    ).toMatchFileSnapshot("../__golden__/sessions-authz-versions.sql");
+  });
+});

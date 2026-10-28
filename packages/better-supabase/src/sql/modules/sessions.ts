@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { BlockSqlLayout, BlockSqlDefinition } from "../module-types.ts";
 
+import { AUTHZ_EVENT, AUTHZ_TOPIC } from "../../core/authz-topic.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { tableGlobs } from "../schema-scan.ts";
 import { SCHEMA } from "../shared.ts";
@@ -147,10 +148,150 @@ grant execute on function ${wrapper}(jsonb) to authenticated;`;
 ${wrappers.join("\n\n")}`;
 }
 
+/**
+ * `blocks['sessions'].options.authzVersions`: a version per user that a trigger
+ * bumps, the access token hook copies into `authz_ver`, and Realtime broadcasts
+ * on the shared server topic and on the user's own `authz:<uid>`.
+ */
+function authzVersions(ctx: BlockSqlContext): string {
+  if (!ctx.flag("authzVersions", false)) {
+    return "";
+  }
+
+  const payload =
+    "jsonb_build_object('user_id', new.user_id, 'version', new.version)";
+
+  return `
+
+-- blocks['sessions'].options.authzVersions: one authorization version per
+-- user. Attach better_supabase.bump_authz_version() to the tables a user's
+-- access comes from; the access token hook reads better_supabase.authz_version().
+create table if not exists better_supabase.user_authz_versions (
+  user_id uuid primary key references auth.users on delete cascade,
+  version bigint not null default 1,
+  updated_at timestamptz not null default now()
+);
+
+alter table better_supabase.user_authz_versions enable row level security;
+
+revoke all on better_supabase.user_authz_versions from public, anon, authenticated;
+grant select on better_supabase.user_authz_versions to supabase_auth_admin;
+grant all on better_supabase.user_authz_versions to service_role;
+
+${renderPolicy(
+  makePolicy({
+    table: "better_supabase.user_authz_versions",
+    name: "bsb_authz_versions_auth_admin",
+    command: "select",
+    roles: ["supabase_auth_admin"],
+    using: "true",
+  }),
+  { drop: true, target: "better_supabase.user_authz_versions" },
+)}
+
+-- The version the access token hook copies into authz_ver; 0 before the
+-- first bump.
+create or replace function better_supabase.authz_version(p_user uuid)
+returns bigint
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (select v.version from better_supabase.user_authz_versions v where v.user_id = p_user),
+    0
+  )
+$$;
+
+revoke execute on function better_supabase.authz_version(uuid) from public, anon, authenticated;
+grant execute on function better_supabase.authz_version(uuid) to supabase_auth_admin, service_role;
+
+-- Bumps the versions of many users at once, for changes no trigger sees.
+create or replace function better_supabase.bump_authz_versions(p_users uuid[])
+returns void
+language sql
+volatile
+security definer
+set search_path = ''
+as $$
+  insert into better_supabase.user_authz_versions as v (user_id)
+  select distinct u from unnest(p_users) u where u is not null
+  on conflict (user_id) do update
+    set version = v.version + 1, updated_at = now()
+$$;
+
+revoke execute on function better_supabase.bump_authz_versions(uuid[]) from public, anon, authenticated;
+grant execute on function better_supabase.bump_authz_versions(uuid[]) to service_role;
+
+-- A row trigger: bumps the user in the row's user_id column, or in the column
+-- named by the trigger's first argument, before and after an update.
+create or replace function better_supabase.bump_authz_version()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  col text := coalesce(tg_argv[0], 'user_id');
+begin
+  perform better_supabase.bump_authz_versions(array[
+    (to_jsonb(new) ->> col)::uuid,
+    (to_jsonb(old) ->> col)::uuid
+  ]);
+  return null;
+end;
+$$;
+
+revoke execute on function better_supabase.bump_authz_version() from public, anon, authenticated;
+
+-- Sends { user_id, version } as the changed event on the server topic, which
+-- no user may join, and on the user's own authz:<uid> topic.
+create or replace function better_supabase.broadcast_authz_version()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  ${ctx.broadcast(`'${AUTHZ_TOPIC}'`, `'${AUTHZ_EVENT}'`, payload, { indent: "  " })}
+  ${ctx.broadcast("'authz:' || new.user_id::text", `'${AUTHZ_EVENT}'`, payload, { indent: "  " })}
+  return null;
+end;
+$$;
+
+revoke execute on function better_supabase.broadcast_authz_version() from public, anon, authenticated;
+
+drop trigger if exists bsb_authz_versions_broadcast on better_supabase.user_authz_versions;
+create trigger bsb_authz_versions_broadcast
+  after insert or update on better_supabase.user_authz_versions
+  for each row execute function better_supabase.broadcast_authz_version();
+
+do $$
+begin
+  if to_regclass('realtime.messages') is not null then
+    ${renderPolicy(
+      makePolicy({
+        table: "realtime.messages",
+        name: "bsb_authz_versions_receive",
+        command: "select",
+        roles: ["authenticated"],
+        using: `realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'authz:' || (select auth.uid())::text`,
+      }),
+      { drop: true, target: "realtime.messages" },
+    )}
+  end if;
+end;
+$$;`;
+}
+
 export const SESSIONS: BlockSqlDefinition = {
   internal: ["session_active"],
   name: "sessions",
-  names: { tables: {}, options: ["bootstrap", "exclude", "policies"] },
+  names: {
+    tables: {},
+    options: ["authzVersions", "bootstrap", "exclude", "policies"],
+  },
   title: "Session revocation",
   description:
     "session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.",
@@ -264,5 +405,5 @@ grant execute on function better_supabase.end_my_session(uuid) to authenticated;
 -- create policy session_required on public.invoices as restrictive
 --   for all to authenticated
 --   using ((select better_supabase.session_active()))
---   with check ((select better_supabase.session_active()));${sessionPolicies(ctx, layout)}${bootstrapWrappers(ctx)}`,
+--   with check ((select better_supabase.session_active()));${sessionPolicies(ctx, layout)}${bootstrapWrappers(ctx)}${authzVersions(ctx)}`,
 };

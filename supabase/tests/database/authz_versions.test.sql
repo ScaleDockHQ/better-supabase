@@ -1,21 +1,21 @@
--- The authorization-version fixture behind `subscribeAuthzVersions`: a role,
--- membership or permission override change bumps the user's version,
--- broadcasts it on the private `authz-versions` topic, and the access token
--- hook copies it into `authz_ver` next to the active organization's
--- permission keys. User …00a1 is an admin and owns organization …0001, and
+-- The sessions module's authorization versions (options.authzVersions): a
+-- role, membership or permission override change bumps the user's version,
+-- broadcasts it on the private `better_supabase:authz` topic and on the
+-- user's own `authz:<uid>`, and the access token hook copies it into
+-- `authz_ver` next to the active organization's permission keys. User …00a1 is an admin and owns organization …0001, and
 -- …00a2 is a member there, in supabase/seed.sql.
 begin;
-select plan(11);
+select plan(13);
 
 create temp table seen as
-select user_id, version from rbac.user_authz_versions;
+select user_id, version from better_supabase.user_authz_versions;
 
 create function pg_temp.bumped(member uuid)
 returns bigint
 language sql
 as $$
   select v.version - coalesce((select s.version from seen s where s.user_id = member), 0)
-  from rbac.user_authz_versions v
+  from better_supabase.user_authz_versions v
   where v.user_id = member
 $$;
 
@@ -41,21 +41,35 @@ select is(
   rbac.custom_access_token_hook(
     '{"user_id":"00000000-0000-4000-8000-0000000000a1","claims":{"sub":"00000000-0000-4000-8000-0000000000a1"}}'
   ) -> 'claims' -> 'authz_ver',
-  to_jsonb((select version from rbac.user_authz_versions
+  to_jsonb((select version from better_supabase.user_authz_versions
     where user_id = '00000000-0000-4000-8000-0000000000a1')),
   'the hook copies the version into authz_ver'
 );
 
 select is(
   (select payload ->> 'user_id' from realtime.messages
-   where topic = 'authz-versions' and event = 'changed' and private
+   where topic = 'better_supabase:authz' and event = 'changed' and private
    order by inserted_at desc limit 1),
   '00000000-0000-4000-8000-0000000000a1',
-  'each change broadcasts the user and version on the private topic'
+  'each change broadcasts the user and version on the server topic'
 );
 
 select ok(
-  not has_table_privilege('authenticated', 'rbac.user_authz_versions', 'select'),
+  exists (select 1 from realtime.messages
+   where topic = 'authz:00000000-0000-4000-8000-0000000000a1'
+     and event = 'changed' and private),
+  'and on the user''s own topic'
+);
+
+select ok(
+  exists (select 1 from pg_policies
+   where schemaname = 'realtime' and tablename = 'messages'
+     and policyname = 'bsb_authz_versions_receive'),
+  'a user may receive their own authz topic'
+);
+
+select ok(
+  not has_table_privilege('authenticated', 'better_supabase.user_authz_versions', 'select'),
   'authenticated cannot read authorization versions'
 );
 

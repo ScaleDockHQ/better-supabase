@@ -43,7 +43,7 @@ revoke all on public.memberships from anon, authenticated;
 grant select on public.memberships to authenticated;
 
 -- A role change, a new membership or a removal changes the member's
--- permission keys, so their token's version moves (rbac.bump_authz_version).
+-- permission keys, so their token's version moves (better_supabase.bump_authz_version).
 create trigger memberships_bump_authz_version
   after insert or delete or update of role on public.memberships
-  for each row execute function rbac.bump_authz_version();
+  for each row execute function better_supabase.bump_authz_version();

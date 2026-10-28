@@ -255,8 +255,10 @@ export default defineConfig({
     // The blocks behind the remaining UI recipes (`/recipes`), one page or
     // card each in the app.
     // Ending a session on /settings/sessions cuts its access at once: every
-    // app table gets the restrictive session_active() policy.
-    sessions: { options: { policies: true } },
+    // app table gets the restrictive session_active() policy. A role change
+    // bumps the user's authorization version, which SessionProvider hears on
+    // authz:<uid> and refreshes the token for.
+    sessions: { options: { policies: true, authzVersions: true } },
     sso: {},
     approvals: {
       options: {

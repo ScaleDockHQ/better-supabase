@@ -13,7 +13,7 @@ create table rbac.user_roles (
 
 create trigger user_roles_bump_authz_version
   after insert or update or delete on rbac.user_roles
-  for each row execute function rbac.bump_authz_version();
+  for each row execute function better_supabase.bump_authz_version();
 
 alter table rbac.user_roles enable row level security;
 
