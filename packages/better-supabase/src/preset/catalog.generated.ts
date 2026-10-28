@@ -14901,6 +14901,21 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InboxCounts"
         },
         {
+          "name": "InboxDraft"
+        },
+        {
+          "name": "InboxDraftInput"
+        },
+        {
+          "name": "InboxDrafts"
+        },
+        {
+          "name": "InboxDraftSource"
+        },
+        {
+          "name": "InboxDraftStatus"
+        },
+        {
           "name": "InboxEvents"
         },
         {
@@ -15210,6 +15225,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "MemoryRecord"
+        },
+        {
+          "name": "MemorySaveOptions"
         },
         {
           "name": "MemoryScope"
