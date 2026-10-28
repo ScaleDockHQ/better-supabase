@@ -5,6 +5,7 @@ import type { ResolvedConfig } from "../../config/index.ts";
 import type { BlockSqlLayout } from "../../sql/index.ts";
 import type { ContentMapperSetup } from "../content-mapper.ts";
 import type { CatalogPolicy, Snapshot } from "../introspect/types.ts";
+import type { PackageInstall } from "../lockfile.ts";
 import type { PeerVersion } from "../peers.ts";
 import type { SupabaseToml, TomlValue } from "../supabase-toml.ts";
 import type { AdvisorSource } from "./advisors.ts";
@@ -31,6 +32,7 @@ import { advisorRule } from "./advisor-rules.ts";
 import { APP_TABLE_SCOPE_RULES } from "./app-table-scope.ts";
 import { AUTHORIZATION_RULES } from "./authorization.ts";
 import { BLOCK_PREFIX, blockTargets } from "./block-policies.ts";
+import { BLOCK_WRITE_RULES } from "./block-writes.ts";
 import { CLAIM_RULES } from "./claims.ts";
 import { COOKIE_RULES } from "./cookies.ts";
 import { DEPENDENCY_RULES } from "./dependencies.ts";
@@ -46,6 +48,7 @@ import { MODULE_RULES } from "./modules.ts";
 import { NEXT_CACHE_RULES } from "./next-cache.ts";
 import { NOT_VALID_RULES } from "./not-valid.ts";
 import { PGDELTA_RULES } from "./pgdelta.ts";
+import { PLAIN_SECRET_RULES } from "./plain-secrets.ts";
 import { POLICY_RULES } from "./policies.ts";
 import { REALTIME_RULES } from "./realtime.ts";
 import { REMOVED_API_RULES } from "./removed-apis.ts";
@@ -145,6 +148,11 @@ export interface DoctorContext {
   readonly codes?: readonly string[];
   /** Better-supabase's peers and the versions the project installs (BS601). */
   readonly peers?: readonly PeerVersion[];
+  /**
+   * The better-supabase in `node_modules` and the versions the lockfile
+   * resolves (BS607).
+   */
+  readonly install?: PackageInstall;
   /**
    * `tsconfig.json`, the typecheck script and TypeScript, in mapper mode
    * (BS602).
@@ -1140,6 +1148,8 @@ export const RULES: readonly Rule[] = [
   ...FLAG_RULES,
   ...REALTIME_RULES,
   ...ADOPTION_RULES,
+  ...BLOCK_WRITE_RULES,
+  ...PLAIN_SECRET_RULES,
   ...MIGRATION_SAFETY_RULES,
   ...NOT_VALID_RULES,
   ...APP_TABLE_SCOPE_RULES,
