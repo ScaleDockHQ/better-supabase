@@ -1,5 +1,7 @@
+import type { AiMessage, AiMessagePart, AiMessageRole } from "./message.ts";
 import type {
   AiChatInput,
+  AiChatParticipant,
   AiChatPatch,
   AiChatRecord,
   AiChatShare,
@@ -14,8 +16,7 @@ import type {
   AiToolApproval,
   AiToolPolicy,
   SharedAiChat,
-} from "./ai-chat.ts";
-import type { AiMessage, AiMessagePart, AiMessageRole } from "./message.ts";
+} from "./records.ts";
 
 import {
   isRecord,
@@ -41,7 +42,7 @@ export function chatOf(value: unknown): AiChatRecord {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: optionalText(row["organization_id"]),
     ownerId: textOf(row["owner_id"]),
     projectId: optionalText(row["project_id"]),
     agentId: optionalText(row["agent_id"]),
@@ -70,7 +71,7 @@ export function projectOf(value: unknown): AiProject {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: optionalText(row["organization_id"]),
     ownerId: textOf(row["owner_id"]),
     name: textOf(row["name"]),
     instructions: textOf(row["instructions"] ?? ""),
@@ -102,21 +103,29 @@ export const ROLES: readonly AiMessageRole[] = [
 export function storedOf(value: unknown): AiStoredMessage {
   const row = recordOf(value, "ai_message_path");
   const metadata = row["metadata"];
+  const format = textOf(row["format"] ?? "canonical");
 
-  const parts: readonly AiMessagePart[] = Array.isArray(row["parts"])
-    ? row["parts"].filter(isPart)
+  const raw: readonly unknown[] = Array.isArray(row["parts"])
+    ? row["parts"]
     : [];
 
+  const parts: readonly AiMessagePart[] = raw.filter(isPart);
+  const hasMetadata = isRecord(metadata) && Object.keys(metadata).length > 0;
+  const id = textOf(row["id"]);
+  const role = oneOf(row["role"], ROLES, "user");
+
   return {
-    id: textOf(row["id"]),
-    role: oneOf(row["role"], ROLES, "user"),
+    id,
+    role,
     parts,
-    ...(isRecord(metadata) && Object.keys(metadata).length > 0
-      ? { metadata }
-      : {}),
+    ...(hasMetadata ? { metadata } : {}),
     parentId: optionalText(row["parent_id"]),
-    format: textOf(row["format"] ?? "canonical"),
-    native: row["native"] ?? undefined,
+    authorId: optionalText(row["author_id"]),
+    format,
+    native:
+      format === "native"
+        ? { id, role, parts: raw, ...(hasMetadata ? { metadata } : {}) }
+        : (row["native"] ?? undefined),
     model: optionalText(row["model"]),
     status: oneOf(row["status"], ["complete", "aborted", "error"], "complete"),
     createdAt: instantOf(row["created_at"]),
@@ -244,7 +253,7 @@ export function moderationOf(value: unknown): AiModerationEvent {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: optionalText(row["organization_id"]),
     chatId: optionalText(row["chat_id"]),
     messageId: optionalText(row["message_id"]),
     userId: optionalText(row["user_id"]),
@@ -361,6 +370,32 @@ export const canonical = (message: AiMessage): Record<string, unknown> => ({
   parts: message.parts,
   ...(message.metadata === undefined ? {} : { metadata: message.metadata }),
 });
+
+/** The SDK's own message as the module stores it with `parts: "native"`. */
+export function nativeMessage(value: unknown): Record<string, unknown> {
+  const row = recordOf(value, "native message");
+  const metadata = row["metadata"];
+
+  return {
+    id: row["id"],
+    role: row["role"],
+    parts: row["parts"],
+    ...(metadata === undefined ? {} : { metadata }),
+  };
+}
+
+export function participantOf(value: unknown): AiChatParticipant {
+  const row = recordOf(value, "ai_chat_participant");
+
+  return {
+    chatId: textOf(row["chat_id"]),
+    userId: textOf(row["user_id"]),
+    role: oneOf(row["role"], ["viewer", "editor"], "viewer"),
+    addedBy: optionalText(row["added_by"]),
+    createdAt: optionalInstant(row["created_at"]),
+    fields: record(row["fields"]),
+  };
+}
 
 /**
  * The chat block over the `ai-chat` SQL module: chats with a message tree,

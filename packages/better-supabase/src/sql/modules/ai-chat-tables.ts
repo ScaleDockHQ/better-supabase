@@ -307,18 +307,6 @@ create index if not exists ${ctx.naming.rename("ai_chats_expires_idx")} on ${t.c
 create index if not exists ${ctx.naming.rename("ai_chats_search_idx")} on ${t.chats} using gin (${ch.search});${nullableTenant(ctx, names, "chats")}${addExtraColumns(t.chats, names.chatExtras)}
 ${lockTable(t.chats)}
 grant select on ${t.chats} to authenticated;
-${renderPolicy(
-  makePolicy({
-    table: t.chats,
-    name: ctx.naming.rename("ai_chats_read"),
-    command: "select",
-    roles: ["authenticated"],
-    using: `${ch.owner} = (select auth.uid())
-    or (${asText(ctx, "chats", ch.visibility)} = 'organization' and ${visible})
-    or ${participates(names, ch.id)}`,
-  }),
-  { drop: true, target: t.chats },
-)}
 
 -- People besides the owner who may read a chat (viewer) or also write to it
 -- (editor). Each person sees only their own rows.
@@ -332,6 +320,18 @@ create index if not exists ${ctx.naming.rename("ai_chat_participants_user_idx")}
 ${lockTable(t.participants)}
 grant select on ${t.participants} to authenticated;
 ${renderPolicy(makePolicy({ table: t.participants, name: ctx.naming.rename("ai_chat_participants_own_read"), command: "select", roles: ["authenticated"], using: `${pa.user} = (select auth.uid())` }), { drop: true, target: t.participants })}
+${renderPolicy(
+  makePolicy({
+    table: t.chats,
+    name: ctx.naming.rename("ai_chats_read"),
+    command: "select",
+    roles: ["authenticated"],
+    using: `${ch.owner} = (select auth.uid())
+    or (${asText(ctx, "chats", ch.visibility)} = 'organization' and ${visible})
+    or ${participates(names, `${t.chats}.${ch.id}`)}`,
+  }),
+  { drop: true, target: t.chats },
+)}
 
 -- ${mode.tree ? "The message tree: (chat_id, id) is the key, parent_id the previous turn.\n-- Editing a prompt or regenerating a reply adds a sibling, never an update." : "One list of messages per chat, in seq order: a regenerated reply or an\n-- edited prompt replaces the messages after it."}
 -- parts holds ${mode.native ? "the SDK's own message parts" : "the canonical AI message parts; native the SDK's own shape"}.

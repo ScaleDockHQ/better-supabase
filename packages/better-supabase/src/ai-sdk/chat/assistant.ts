@@ -59,7 +59,11 @@ export interface AssistantContext {
    */
   readonly chats: AiChat;
   readonly userId: string;
-  readonly organizationId: string;
+  /**
+   * The tenant a new chat is made in; `null` for a chat outside a tenant
+   * (`blocks.ai-chat.options.tenant: false`).
+   */
+  readonly organizationId: string | null;
   /**
    * Keeps the function alive until the answer is stored, after the response is
    * sent: `after` in Next.js, `ctx.waitUntil` on Workers and Vercel.
@@ -290,6 +294,14 @@ export interface Assistant {
   stop(chatId: string, context: AssistantContext): Promise<Response>;
 }
 
+/** The chat's tenant as an optional `organizationId`, for a spread. */
+export const tenantOf = (
+  chat: Pick<AiChatRecord, "organizationId">,
+): { readonly organizationId?: string } =>
+  chat.organizationId === undefined
+    ? {}
+    : { organizationId: chat.organizationId };
+
 const TRIGGERS: ReadonlySet<unknown> = new Set([
   "submit-message",
   "regenerate-message",
@@ -432,7 +444,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
     }
 
     await context.chats.moderation.record({
-      organizationId: chat.organizationId,
+      ...tenantOf(chat),
       chatId: chat.id,
       messageId: message.id,
       userId: context.userId,
@@ -496,7 +508,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
       return blocked;
     }
 
-    if (options.quota) {
+    if (options.quota && chat.organizationId !== undefined) {
       const exceeded = await options.quota(chat.organizationId);
 
       if (exceeded) {
@@ -510,6 +522,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
       {
         ...(body.trigger === undefined ? {} : { trigger: body.trigger }),
         ...(body.messageId === undefined ? {} : { messageId: body.messageId }),
+        native: body.message,
       },
     );
 
@@ -537,7 +550,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
 
     const uiMessages = toUIMessages(
       path.data.map((stored) =>
-        stored.format === AI_SDK_UI_FORMAT
+        stored.format === AI_SDK_UI_FORMAT || stored.format === "native"
           ? stored
           : (repaired.get(stored.id) ?? stored),
       ),
@@ -553,7 +566,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
       }),
       providerOptions: gatewayOptions({
         userId: context.userId,
-        organizationId: chat.organizationId,
+        ...tenantOf(chat),
         chatId: chat.id,
         feature: options.feature ?? "chat",
       }),
@@ -673,7 +686,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
         ) {
           await options.enqueueCostBackfill({
             generationId: usage.generationId,
-            organizationId: chat.organizationId,
+            ...tenantOf(chat),
           });
         }
 
@@ -721,7 +734,9 @@ export function createAssistant(options: AssistantOptions): Assistant {
       chunks.pipeThrough(new JsonToSseTransformStream()),
       {
         owner: chat.ownerId,
-        tenant: chat.organizationId,
+        ...(chat.organizationId === undefined
+          ? {}
+          : { tenant: chat.organizationId }),
         kind: "chat",
         ...(options.streamTtl === undefined ? {} : { ttl: options.streamTtl }),
         onCancel: () => {

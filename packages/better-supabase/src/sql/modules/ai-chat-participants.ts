@@ -38,7 +38,7 @@ export function aiChatParticipants(
 
   const [columns, values] = writtenPairs(ctx, "participants", [
     ["chat", "v_chat.id"],
-    ["user", "add_ai_chat_participant.user_id"],
+    ["user", "add_ai_chat_participant.participant"],
     ["role", ctx.cast("participants", "role", "v_role")],
     ["addedBy", "auth.uid()"],
   ]);
@@ -47,7 +47,7 @@ export function aiChatParticipants(
 
   return `-- Adds someone to a chat, or changes their role: viewer or editor. The
 -- chat's owner${names.tenantless ? "" : ` with ${perm.share}`}, or the service role.${extras.length > 0 ? " fields sets the\n-- app's extra columns." : ""}
-create or replace function ${fn("add_ai_chat_participant")}(chat uuid, user_id uuid, role text default 'viewer', fields jsonb default '{}')
+create or replace function ${fn("add_ai_chat_participant")}(chat uuid, participant uuid, participant_role text default 'viewer', fields jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -56,7 +56,7 @@ as $$
 ${variableConflict(ctx, "participants")}
 declare
   v_chat record;
-  v_role text := coalesce(add_ai_chat_participant.role, 'viewer');
+  v_role text := coalesce(add_ai_chat_participant.participant_role, 'viewer');
   v_row ${t.participants};
 begin
   select x.${ch.id} as id, x.${ch.owner} as owner, x.${ch.tenant} as tenant into v_chat
@@ -70,14 +70,14 @@ begin
   if v_role not in ('viewer', 'editor') then
     ${raise("A participant is a viewer or an editor, not %", "22023", "AI_CHAT_INVALID", "v_role")}
   end if;
-  if add_ai_chat_participant.user_id is null or add_ai_chat_participant.user_id = v_chat.owner then
+  if add_ai_chat_participant.participant is null or add_ai_chat_participant.participant = v_chat.owner then
     ${raise("The owner already takes part in chat %", "22023", "AI_CHAT_INVALID", "add_ai_chat_participant.chat")}
   end if;
   insert into ${t.participants} (${columns}${inserted.columns})
   values (${values}${inserted.values})
   on conflict (${pa.chat}, ${pa.user}) do update set ${pa.role} = excluded.${pa.role}
   returning * into v_row;${writeExtraColumns(t.participants, extras, fields, `x.${pa.chat} = v_row.${pa.chat} and x.${pa.user} = v_row.${pa.user}`, "v_row")}
-  perform ${fn("ai_chat_notify")}(v_chat.id, add_ai_chat_participant.user_id, 'participant.added', jsonb_build_object('userId', add_ai_chat_participant.user_id, 'role', v_role), true);
+  perform ${fn("ai_chat_notify")}(v_chat.id, add_ai_chat_participant.participant, 'participant.added', jsonb_build_object('userId', add_ai_chat_participant.participant, 'role', v_role), true);
   return ${participantJson(ctx, "v_row")};
 end;
 $$;
@@ -85,7 +85,7 @@ ${userGrant(`${fn("add_ai_chat_participant")}(uuid, uuid, text, jsonb)`)}
 
 -- Removes someone from a chat: the chat's owner, the service role, or the
 -- participant leaving. Returns whether they took part.
-create or replace function ${fn("remove_ai_chat_participant")}(chat uuid, user_id uuid)
+create or replace function ${fn("remove_ai_chat_participant")}(chat uuid, participant uuid)
 returns boolean
 language plpgsql
 security definer
@@ -100,15 +100,15 @@ begin
   if not found or not (
     ${SERVICE_CALLER}
     or coalesce(v_owner = (select auth.uid()), false)
-    or coalesce(remove_ai_chat_participant.user_id = (select auth.uid()), false)
+    or coalesce(remove_ai_chat_participant.participant = (select auth.uid()), false)
   ) then
     ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "remove_ai_chat_participant.chat")}
   end if;
   delete from ${t.participants} x
-  where x.${pa.chat} = remove_ai_chat_participant.chat and x.${pa.user} = remove_ai_chat_participant.user_id;
+  where x.${pa.chat} = remove_ai_chat_participant.chat and x.${pa.user} = remove_ai_chat_participant.participant;
   get diagnostics v_count = row_count;
   if v_count > 0 then
-    perform ${fn("ai_chat_notify")}(remove_ai_chat_participant.chat, remove_ai_chat_participant.user_id, 'participant.removed', jsonb_build_object('userId', remove_ai_chat_participant.user_id), true);
+    perform ${fn("ai_chat_notify")}(remove_ai_chat_participant.chat, remove_ai_chat_participant.participant, 'participant.removed', jsonb_build_object('userId', remove_ai_chat_participant.participant), true);
   end if;
   return v_count > 0;
 end;

@@ -109,7 +109,9 @@ async function release(
   ) {
     await options.enqueueCostBackfill({
       generationId: usage.generationId,
-      organizationId: input.organizationId,
+      ...(input.organizationId === undefined
+        ? {}
+        : { organizationId: input.organizationId }),
     });
   }
 }

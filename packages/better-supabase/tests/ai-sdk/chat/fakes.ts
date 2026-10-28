@@ -69,6 +69,7 @@ export interface FakeChats {
   readonly tree: AiStoredMessage[];
   readonly released: unknown[];
   readonly saved: unknown[];
+  readonly appended: unknown[];
   readonly moderated: unknown[];
   readonly stops: string[];
 }
@@ -85,6 +86,7 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
     tree.push({
       ...message,
       parentId,
+      authorId: undefined,
       format: "canonical",
       native: undefined,
       model: undefined,
@@ -98,6 +100,7 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
 
   const released: unknown[] = [];
   const saved: unknown[] = [];
+  const appended: unknown[] = [];
   const moderated: unknown[] = [];
   const stops: string[] = [];
 
@@ -113,10 +116,13 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
         return chat ? result(chat) : failure(dbError("not_found", "no chat"));
       },
       create: (
-        organizationId: string,
+        organizationId: string | null,
         input: { id: string; model?: string },
       ) => {
-        const chat = record(input.id, { organizationId, model: input.model });
+        const chat = record(input.id, {
+          organizationId: organizationId ?? undefined,
+          model: input.model,
+        });
 
         chats.set(chat.id, chat);
 
@@ -137,8 +143,10 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
       appendUser: (
         chatId: string,
         message: AiMessage,
-        opts: { trigger?: string; messageId?: string } = {},
+        opts: { trigger?: string; messageId?: string; native?: unknown } = {},
       ) => {
+        appended.push(opts);
+
         if (opts.trigger === "regenerate-message") {
           return result({
             messageId: tree.find((m) => m.role === "user")?.id ?? "",
@@ -223,6 +231,7 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
     tree,
     released,
     saved,
+    appended,
     moderated,
     stops,
   };

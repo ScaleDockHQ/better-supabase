@@ -230,7 +230,10 @@ describe("toUIMessage", () => {
       native: ui,
     };
 
+    const native = { ...stored, format: "native" };
+
     expect(toUIMessage(stored)).toBe(ui);
+    expect(toUIMessage(native)).toBe(ui);
   });
 
   it("covers the remaining tool states and fallbacks", () => {

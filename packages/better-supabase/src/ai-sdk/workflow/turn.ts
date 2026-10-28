@@ -19,7 +19,8 @@ import { fromModelMessages } from "../model-messages.ts";
  */
 export interface DurableTurnInput {
   readonly chatId: string;
-  readonly organizationId: string;
+  /** Missing for a chat outside a tenant. */
+  readonly organizationId?: string;
   readonly userId: string;
   readonly model: string;
   /** The answer's id: every save of the turn updates this message. */
@@ -113,7 +114,7 @@ export interface DurableDecisionsInput {
 export interface DurableReleaseInput {
   readonly chatId: string;
   readonly streamId: string;
-  readonly organizationId: string;
+  readonly organizationId?: string;
   readonly status: AiRunStatus;
   readonly usage?: AiUsage;
   readonly error?: string;
@@ -369,7 +370,9 @@ export async function durableTurn(
     await deps.step("release", {
       chatId: input.chatId,
       streamId: segment.streamId,
-      organizationId: input.organizationId,
+      ...(input.organizationId === undefined
+        ? {}
+        : { organizationId: input.organizationId }),
       status,
       ...(usage === undefined ? {} : { usage }),
       ...(error === undefined ? {} : { error }),
@@ -393,7 +396,9 @@ export async function durableTurn(
       await deps.step("release", {
         chatId: input.chatId,
         streamId: claimed.streamId,
-        organizationId: input.organizationId,
+        ...(input.organizationId === undefined
+          ? {}
+          : { organizationId: input.organizationId }),
         status: "cancelled",
       });
     };

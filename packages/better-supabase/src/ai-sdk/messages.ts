@@ -22,6 +22,15 @@ import { AsyncResult, err, ok } from "../core/result.ts";
 /** The `format` the chat tree stores next to an AI SDK message it keeps as is. */
 export const AI_SDK_UI_FORMAT = "ai-sdk-ui";
 
+/**
+ * The `format` of a row whose own parts are the SDK's, with
+ * `blocks.ai-chat.options.messages.parts: "native"`.
+ */
+const NATIVE_FORMATS: ReadonlySet<unknown> = new Set([
+  AI_SDK_UI_FORMAT,
+  "native",
+]);
+
 /** The output a denied tool call gets in the canonical history. */
 export const DENIED_TOOL_OUTPUT = "The tool call was denied.";
 
@@ -487,7 +496,7 @@ function render(
 function nativeOf(message: AiMessage): UIMessage | undefined {
   const stored: StoredLike = message;
 
-  return stored.format === AI_SDK_UI_FORMAT && isUIMessage(stored.native)
+  return NATIVE_FORMATS.has(stored.format) && isUIMessage(stored.native)
     ? stored.native
     : undefined;
 }

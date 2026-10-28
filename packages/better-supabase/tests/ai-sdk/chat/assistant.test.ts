@@ -329,6 +329,37 @@ describe("createAssistant", () => {
     ).toBe(200);
   });
 
+  it("runs a chat without a tenant and skips the quota", async () => {
+    const quota = vi.fn(async () =>
+      dbError("quota_exceeded", "used up", { meter: "ai" }),
+    );
+
+    const enqueueCostBackfill = vi.fn(async () => undefined);
+
+    const { assistant, context, fake, pending, run } = setup({
+      quota,
+      enqueueCostBackfill,
+    });
+
+    const response = await assistant.respond(
+      post({ id: "c1", message: userMessage() }),
+      { ...context, organizationId: null },
+    );
+
+    expect(response.status).toBe(200);
+    await response.text();
+    await Promise.all(pending);
+    expect(quota).not.toHaveBeenCalled();
+    expect(fake.raw.get("c1")?.organizationId).toBeUndefined();
+    expect(run.mock.calls[0]?.[0].providerOptions).toEqual({
+      gateway: { user: "user", tags: ["chat:c1", "feature:chat"] },
+    });
+    expect(enqueueCostBackfill).toHaveBeenCalledWith({ generationId: "gen_1" });
+    expect(fake.appended).toEqual([
+      expect.objectContaining({ native: userMessage() }),
+    ]);
+  });
+
   it("answers 409 while another answer runs", async () => {
     const { assistant, context } = setup({}, fakeChats({ claimed: false }));
 

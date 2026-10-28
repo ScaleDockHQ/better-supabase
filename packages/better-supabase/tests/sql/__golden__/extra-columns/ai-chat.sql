@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@5 managed
--- @bsb-hash sha256:8ac980a54b31b2bf38a1092634a9237fdb0cb7e219a8f452c42332cf5e0d03f3
+-- @bsb-hash sha256:0e7fab06b20fc29c5c332719bf74db2f85e3cff9dfa164ce6916f979c24627fc
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -145,12 +145,6 @@ alter table "better_supabase"."ai_chats" enable row level security;
 revoke all on "better_supabase"."ai_chats" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chats" to service_role;
 grant select on "better_supabase"."ai_chats" to authenticated;
-drop policy if exists ai_chats_read on "better_supabase"."ai_chats";
-create policy ai_chats_read on "better_supabase"."ai_chats"
-  for select to authenticated
-  using ("owner_id" = (select auth.uid())
-    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
-    or exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "id" and pa."user_id" = (select auth.uid())));
 
 -- People besides the owner who may read a chat (viewer) or also write to it
 -- (editor). Each person sees only their own rows.
@@ -171,6 +165,12 @@ drop policy if exists ai_chat_participants_own_read on "better_supabase"."ai_cha
 create policy ai_chat_participants_own_read on "better_supabase"."ai_chat_participants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
+drop policy if exists ai_chats_read on "better_supabase"."ai_chats";
+create policy ai_chats_read on "better_supabase"."ai_chats"
+  for select to authenticated
+  using ("owner_id" = (select auth.uid())
+    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
+    or exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "better_supabase"."ai_chats"."id" and pa."user_id" = (select auth.uid())));
 
 -- The message tree: (chat_id, id) is the key, parent_id the previous turn.
 -- Editing a prompt or regenerating a reply adds a sibling, never an update.
@@ -823,7 +823,7 @@ grant execute on function "better_supabase"."list_ai_projects"(uuid) to authenti
 
 -- Adds someone to a chat, or changes their role: viewer or editor. The
 -- chat's owner with 'ai_chat.share', or the service role.
-create or replace function "better_supabase"."add_ai_chat_participant"(chat uuid, user_id uuid, role text default 'viewer', fields jsonb default '{}')
+create or replace function "better_supabase"."add_ai_chat_participant"(chat uuid, participant uuid, participant_role text default 'viewer', fields jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -832,7 +832,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_chat record;
-  v_role text := coalesce(add_ai_chat_participant.role, 'viewer');
+  v_role text := coalesce(add_ai_chat_participant.participant_role, 'viewer');
   v_row "better_supabase"."ai_chat_participants";
 begin
   if not (better_supabase.actor_may_write()) then
@@ -849,14 +849,14 @@ begin
   if v_role not in ('viewer', 'editor') then
     raise exception 'A participant is a viewer or an editor, not %', v_role using errcode = '22023', hint = 'AI_CHAT_INVALID';
   end if;
-  if add_ai_chat_participant.user_id is null or add_ai_chat_participant.user_id = v_chat.owner then
+  if add_ai_chat_participant.participant is null or add_ai_chat_participant.participant = v_chat.owner then
     raise exception 'The owner already takes part in chat %', add_ai_chat_participant.chat using errcode = '22023', hint = 'AI_CHAT_INVALID';
   end if;
   insert into "better_supabase"."ai_chat_participants" ("chat_id", "user_id", "role", "added_by")
-  values (v_chat.id, add_ai_chat_participant.user_id, v_role, auth.uid())
+  values (v_chat.id, add_ai_chat_participant.participant, v_role, auth.uid())
   on conflict ("chat_id", "user_id") do update set "role" = excluded."role"
   returning * into v_row;
-  perform "better_supabase"."ai_chat_notify"(v_chat.id, add_ai_chat_participant.user_id, 'participant.added', jsonb_build_object('userId', add_ai_chat_participant.user_id, 'role', v_role), true);
+  perform "better_supabase"."ai_chat_notify"(v_chat.id, add_ai_chat_participant.participant, 'participant.added', jsonb_build_object('userId', add_ai_chat_participant.participant, 'role', v_role), true);
   return jsonb_build_object('chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
 end;
 $$;
@@ -865,7 +865,7 @@ grant execute on function "better_supabase"."add_ai_chat_participant"(uuid, uuid
 
 -- Removes someone from a chat: the chat's owner, the service role, or the
 -- participant leaving. Returns whether they took part.
-create or replace function "better_supabase"."remove_ai_chat_participant"(chat uuid, user_id uuid)
+create or replace function "better_supabase"."remove_ai_chat_participant"(chat uuid, participant uuid)
 returns boolean
 language plpgsql
 security definer
@@ -883,15 +883,15 @@ begin
   if not found or not (
     coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or coalesce(v_owner = (select auth.uid()), false)
-    or coalesce(remove_ai_chat_participant.user_id = (select auth.uid()), false)
+    or coalesce(remove_ai_chat_participant.participant = (select auth.uid()), false)
   ) then
     raise exception 'No chat %', remove_ai_chat_participant.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   delete from "better_supabase"."ai_chat_participants" x
-  where x."chat_id" = remove_ai_chat_participant.chat and x."user_id" = remove_ai_chat_participant.user_id;
+  where x."chat_id" = remove_ai_chat_participant.chat and x."user_id" = remove_ai_chat_participant.participant;
   get diagnostics v_count = row_count;
   if v_count > 0 then
-    perform "better_supabase"."ai_chat_notify"(remove_ai_chat_participant.chat, remove_ai_chat_participant.user_id, 'participant.removed', jsonb_build_object('userId', remove_ai_chat_participant.user_id), true);
+    perform "better_supabase"."ai_chat_notify"(remove_ai_chat_participant.chat, remove_ai_chat_participant.participant, 'participant.removed', jsonb_build_object('userId', remove_ai_chat_participant.participant), true);
   end if;
   return v_count > 0;
 end;
@@ -2539,7 +2539,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_chats" as restric
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid())
     or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
-    or exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "id" and pa."user_id" = (select auth.uid())))
+    or exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "better_supabase"."ai_chats"."id" and pa."user_id" = (select auth.uid())))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_chats";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_chats" as restrictive
