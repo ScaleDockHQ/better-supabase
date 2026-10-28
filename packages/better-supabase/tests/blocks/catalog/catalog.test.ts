@@ -530,6 +530,30 @@ describe("catalog block", () => {
     ).toBeNull();
   });
 
+  it("clears product and variant columns with null and reorders options", async () => {
+    const { calls, transport } = recorder(
+      { id: "p1", slug: "mug", status: "active" },
+      { id: "v1", sku: null, rank: "a" },
+      true,
+    );
+
+    const catalog = createCatalog({ transport });
+    await catalog
+      .updateProduct("org", "p1", { description: null, slug: null })
+      .orThrow();
+    expect(
+      await catalog
+        .updateVariant("p1", "v1", { sku: null, barcode: null })
+        .orThrow(),
+    ).toEqual({ id: "v1", rank: "a" });
+    await catalog.reorderOptions("p1", ["o2", "o1"]).orThrow();
+    expect(calls.map((call) => call.args)).toEqual([
+      expect.objectContaining({ title: null, clear: ["slug", "description"] }),
+      expect.objectContaining({ sku: null, clear: ["sku", "barcode"] }),
+      { product: "p1", options: ["o2", "o1"] },
+    ]);
+  });
+
   it("adds, orders and reads product media", async () => {
     const { calls, transport } = recorder({ id: "m1", position: 0 }, true, [
       {

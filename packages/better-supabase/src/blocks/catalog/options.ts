@@ -20,6 +20,13 @@ export type CatalogSqlOptions = {
    * categories, collection products) are whole-number positions.
    */
   readonly rankType?: "text" | "integer";
+  /**
+   * A function of the app's, `(variant uuid) returns boolean`, true while
+   * something still references the variant. Removing an option value then
+   * archives such a variant (with a mapped `columns.variants.status`) instead
+   * of deleting it.
+   */
+  readonly variantInUse?: string;
 };
 
 export const catalogSqlOptions: BlockOptionsSchema<CatalogSqlOptions> =
@@ -30,4 +37,5 @@ export const catalogSqlOptions: BlockOptionsSchema<CatalogSqlOptions> =
     categoryExtraColumns: option.extraColumns(),
     locales: option.strings({ default: ["en"] }),
     rankType: option.string<"text" | "integer">({ default: "text" }),
+    variantInUse: option.string(),
   });

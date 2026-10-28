@@ -271,13 +271,13 @@ begin
     raise exception 'option ranks %', v_option;
   end if;
   v_variant := better_supabase.save_variant(v_product, null, 'SHIRT-S', array[(v_option -> 'values' -> 0 ->> 'id')::uuid], null, null, null, null, null,
-    '{"manufacturer_part_number": "MPN-1", "purchase_price_cents": 400, "is_default": true}');
+    fields => '{"manufacturer_part_number": "MPN-1", "purchase_price_cents": 400, "is_default": true}');
   v_small := (v_variant ->> 'id')::uuid;
   if v_variant -> 'fields' ->> 'manufacturer_part_number' <> 'MPN-1'
     or (select row(purchase_price_cents, is_default)::text from public.item_variants where id = v_small) <> '(400,t)' then
     raise exception 'variant fields %', v_variant;
   end if;
-  perform better_supabase.save_variant(v_product, v_small, 'SHIRT-S', array[(v_option -> 'values' -> 0 ->> 'id')::uuid], null, null, null, null, null, '{"is_default": false}');
+  perform better_supabase.save_variant(v_product, v_small, 'SHIRT-S', array[(v_option -> 'values' -> 0 ->> 'id')::uuid], null, null, null, null, null, fields => '{"is_default": false}');
   if (select row(manufacturer_part_number, is_default)::text from public.item_variants where id = v_small) <> '(MPN-1,f)' then
     raise exception 'variant update %', (select row_to_json(v) from public.item_variants v where id = v_small);
   end if;
@@ -370,6 +370,118 @@ begin
   if (select row(sku, allow_backorder)::text from public.item_variants where id = v_variant) <> '(MUG,t)'
     or (select count(*) from better_supabase.product_variant_values where variant_id = v_variant) <> 1 then
     raise exception 'patched %', (select row_to_json(v) from public.item_variants v where id = v_variant);
+  end if;
+end;
+$$;`,
+        ],
+      });
+
+      expect(stack.url).not.toBe("");
+    },
+  );
+
+  it(
+    "inserts extra columns with the row, patches with clears, reorders options and retires referenced variants",
+    { timeout: 60_000 },
+    async () => {
+      const catalog = VARIANT_BLOCKS["catalog"];
+
+      const blocks: AnyBlocksConfig = {
+        catalog: {
+          ...catalog,
+          columns: {
+            ...catalog?.columns,
+            products: {
+              ...catalog?.columns?.["products"],
+              description: "description",
+            },
+            variants: {
+              ...catalog?.columns?.["variants"],
+              barcode: "ean",
+              status: "status",
+            },
+          },
+          options: {
+            ...catalog?.options,
+            extraColumns: { digital_delivery: "text" },
+            variantInUse: "public.variant_in_use",
+          },
+        },
+      };
+
+      const files = renderBlocks(["catalog"], {
+        modules: blocks,
+        ownTables: VARIANT_OWN,
+      });
+
+      await using stack = await liteStack({
+        driver: "pglite",
+        migrations: [
+          `${VARIANT_APP}
+alter table public.items add column description text;
+alter table public.items add column digital_delivery text;
+alter table public.items add constraint items_digital check ((item_type = 'digital') = (digital_delivery is not null));
+alter table public.item_variants alter column sku drop not null;
+alter table public.item_variants add column ean text;
+alter table public.item_variants add column status public.item_status not null default 'active';
+create table public.order_lines (id uuid primary key default gen_random_uuid(), variant_id uuid not null references public.item_variants (id));
+create table public.pinned_variants (variant_id uuid primary key);
+create function public.variant_in_use(variant uuid) returns boolean language sql stable as $$
+  select exists (select 1 from public.pinned_variants p where p.variant_id = variant);
+$$;`,
+          ...files
+            .filter((file) => file.kind !== "data")
+            .map((file) => file.contents),
+        ],
+        seed: [
+          ...files
+            .filter((file) => file.kind === "data")
+            .map((file) => file.contents),
+          `do $$
+declare
+  v_digital uuid;
+  v_product uuid;
+  v_size jsonb;
+  v_colour jsonb;
+  v_small uuid;
+  v_medium uuid;
+  v_large uuid;
+begin
+  ${SERVICE}
+  v_digital := (better_supabase.save_product('${TENANT}', null, 'Manual', null, 'A guide', 'digital', null, null, null, fields => '{"digital_delivery": "download"}') ->> 'id')::uuid;
+  if (select digital_delivery from public.items where id = v_digital) <> 'download' then
+    raise exception 'digital %', (select row_to_json(i) from public.items i where id = v_digital);
+  end if;
+  perform better_supabase.save_product('${TENANT}', v_digital, null, 'user-guide', null, null, null, null, null);
+  if (select row(name, slug, description)::text from public.items where id = v_digital) <> '(Manual,user-guide,"A guide")' then
+    raise exception 'patched %', (select row_to_json(i) from public.items i where id = v_digital);
+  end if;
+  perform better_supabase.save_product('${TENANT}', v_digital, 'Handbook', null, null, null, null, null, null, clear => array['description', 'slug']);
+  if (select row(name, slug, description)::text from public.items where id = v_digital) <> '(Handbook,handbook,)' then
+    raise exception 'cleared %', (select row_to_json(i) from public.items i where id = v_digital);
+  end if;
+  v_product := (better_supabase.save_product('${TENANT}', null, 'Tee', null, null, 'physical', null, null, null) ->> 'id')::uuid;
+  v_size := better_supabase.save_product_option(v_product, null, 'Size', array['S', 'M', 'L']);
+  v_colour := better_supabase.save_product_option(v_product, null, 'Colour', array['Red']);
+  v_small := (better_supabase.save_variant(v_product, null, 'TEE-S', array[(v_size -> 'values' -> 0 ->> 'id')::uuid, (v_colour -> 'values' -> 0 ->> 'id')::uuid], null, '871', null, null, null) ->> 'id')::uuid;
+  v_medium := (better_supabase.save_variant(v_product, null, 'TEE-M', array[(v_size -> 'values' -> 1 ->> 'id')::uuid, (v_colour -> 'values' -> 0 ->> 'id')::uuid], null, null, null, null, null) ->> 'id')::uuid;
+  v_large := (better_supabase.save_variant(v_product, null, 'TEE-L', array[(v_size -> 'values' -> 2 ->> 'id')::uuid, (v_colour -> 'values' -> 0 ->> 'id')::uuid], null, null, null, null, null) ->> 'id')::uuid;
+  perform better_supabase.save_variant(v_product, v_small, null, null, null, null, null, null, null, clear => array['sku', 'barcode']);
+  if (select row(sku, ean)::text from public.item_variants where id = v_small) <> '(,)' then
+    raise exception 'variant cleared %', (select row_to_json(v) from public.item_variants v where id = v_small);
+  end if;
+  perform better_supabase.reorder_product_options(v_product, array[(v_colour ->> 'id')::uuid, (v_size ->> 'id')::uuid]);
+  if (select array_agg(name order by position) from public.item_options where item_id = v_product) <> array['Colour', 'Size'] then
+    raise exception 'reordered %', (select array_agg(name order by position) from public.item_options where item_id = v_product);
+  end if;
+  insert into public.order_lines (variant_id) values (v_medium);
+  insert into public.pinned_variants (variant_id) values (v_large);
+  perform better_supabase.save_product_option(v_product, (v_size ->> 'id')::uuid, 'Size', array['XL']);
+  if exists (select 1 from public.item_variants where id = v_small)
+    or (select status::text from public.item_variants where id = v_medium) <> 'archived'
+    or (select status::text from public.item_variants where id = v_large) <> 'archived'
+    or (select array_agg(value) from public.item_option_values where option_id = (v_size ->> 'id')::uuid) <> array['XL'] then
+    raise exception 'retired %', (select jsonb_agg(row_to_json(v)) from public.item_variants v);
   end if;
 end;
 $$;`,

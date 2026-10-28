@@ -134,6 +134,7 @@ const NAMES: BlockSqlNames = {
     "categoryExtraColumns",
     "locales",
     "rankType",
+    "variantInUse",
   ],
   tables: {
     products: {
@@ -185,7 +186,12 @@ const NAMES: BlockSqlNames = {
     },
     variants: {
       name: "product_variants",
-      app: {},
+      app: {
+        unused: (ctx) =>
+          typeof ctx.config.columns["variants"]?.["status"] === "string"
+            ? []
+            : ["status"],
+      },
       lifecycle: tenantExport,
       columns: {
         id: "id",
@@ -201,8 +207,16 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
         price: "price",
+        status: "status",
       },
-      optional: ["title", "barcode", "weight", "trackInventory", "price"],
+      optional: [
+        "title",
+        "barcode",
+        "weight",
+        "trackInventory",
+        "price",
+        "status",
+      ],
     },
     variantValues: {
       name: "product_variant_values",
@@ -744,6 +758,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         "text",
         "text",
         ...productSettingTypes(ctx),
+        "text[]",
         ...extraFieldsArg(productExtras(ctx)).contract,
       ],
       returns: "jsonb",
@@ -758,6 +773,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
             returns: "jsonb",
           },
           { name: "delete_product_option", args: ["uuid"], returns: "boolean" },
+          {
+            name: "reorder_product_options",
+            args: ["uuid", "uuid[]"],
+            returns: "boolean",
+          },
         ]
       : []),
     {
@@ -772,6 +792,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         "integer",
         "boolean",
         "boolean",
+        "text[]",
         ...extraFieldsArg(variantExtras(ctx)).contract,
       ],
       returns: "jsonb",

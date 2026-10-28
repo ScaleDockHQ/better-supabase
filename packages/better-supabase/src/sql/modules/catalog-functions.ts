@@ -3,7 +3,7 @@ import type { RankSql } from "../rank-sql.ts";
 import type { BlockSqlScope } from "../scope.ts";
 
 import { isRecord } from "../../core/guards.ts";
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { rankSql } from "../rank-sql.ts";
 import {
   columnsObject,
@@ -130,6 +130,25 @@ function machineGoverns(ctx: BlockSqlContext): boolean {
   });
 }
 
+const QUALIFIED = /^[A-Za-z_][\w$]*\.[A-Za-z_][\w$]*$/;
+
+/** `options.variantInUse` as a quoted function name, or undefined. */
+function variantInUse(ctx: BlockSqlContext): string | undefined {
+  const value = ctx.text("variantInUse", "");
+
+  if (value === "") {
+    return undefined;
+  }
+
+  if (!QUALIFIED.test(value)) {
+    throw new TypeError(
+      "blocks.catalog.options.variantInUse must be a schema-qualified function name, such as public.variant_in_use",
+    );
+  }
+
+  return value.split(".").map(sqlIdent).join(".");
+}
+
 export interface Names {
   /** The block's scope checks. */
   readonly scope: BlockSqlScope;
@@ -180,11 +199,26 @@ export function productFunctions(ctx: BlockSqlContext, names: Names): string {
   const settings = productSettings(ctx);
   const baseArgs = `${ctx.idType}, uuid, text, text, text, text`;
   const oldArgs = [baseArgs, ...productSettingTypes(ctx)].join(", ");
-  const saveArgs = settings.length === 0 ? oldArgs : `${oldArgs}, text[]`;
+  const saveArgs = `${oldArgs}, text[]`;
+
+  const clearable = [
+    ...settings.map(([logical]) => logical),
+    "slug",
+    ...(desc ? ["description"] : []),
+  ];
+
+  const clears = (name: string): string =>
+    `${sqlString(name)} = any (coalesce(save_product.clear, '{}'::text[]))`;
+
+  const inserted = insertExtraColumns(
+    products,
+    extras,
+    "coalesce(save_product.fields, '{}'::jsonb)",
+  );
 
   const settingParams = `${settings
     .map(([, param, type]) => `, ${param} ${type} default null`)
-    .join("")}${settings.length === 0 ? "" : ", clear text[] default null"}`;
+    .join("")}, clear text[] default null`;
 
   const settingWrite =
     settings.length === 0
@@ -193,23 +227,17 @@ export function productFunctions(ctx: BlockSqlContext, names: Names): string {
   update ${products} x set ${settings
     .map(
       ([logical, param]) =>
-        `${p(logical)} = case when ${sqlString(logical)} = any (coalesce(save_product.clear, '{}'::text[])) then null else coalesce(${logical === "currency" ? `upper(save_product.${param})` : `save_product.${param}`}, x.${p(logical)}) end`,
+        `${p(logical)} = case when ${clears(logical)} then null else coalesce(${logical === "currency" ? `upper(save_product.${param})` : `save_product.${param}`}, x.${p(logical)}) end`,
     )
     .join(",\n    ")}
   where x.${p("id")} = v_id;`;
 
-  const clearCheck =
-    settings.length === 0
-      ? ""
-      : `
-  if exists (select 1 from unnest(coalesce(save_product.clear, '{}'::text[])) c where c <> all (${sqlString(`{${settings.map(([logical]) => logical).join(",")}}`)}::text[])) then
-    ${fail("CATALOG_CLEAR_INVALID", `clear names only ${settings.map(([logical]) => logical).join(", ")}`, "22023")}
+  const clearCheck = `
+  if exists (select 1 from unnest(coalesce(save_product.clear, '{}'::text[])) c where c <> all (${sqlString(`{${clearable.join(",")}}`)}::text[])) then
+    ${fail("CATALOG_CLEAR_INVALID", `clear names only ${clearable.join(", ")}`, "22023")}
   end if;`;
 
-  const staleDrops =
-    settings.length === 0
-      ? ""
-      : `drop function if exists ${fn("save_product")}(${baseArgs});
+  const staleDrops = `drop function if exists ${fn("save_product")}(${baseArgs});
 drop function if exists ${fn("save_product")}(${baseArgs}, jsonb);
 drop function if exists ${fn("save_product")}(${oldArgs});
 drop function if exists ${fn("save_product")}(${oldArgs}, jsonb);
@@ -242,7 +270,8 @@ drop function if exists ${fn("save_product")}(${oldArgs}, jsonb);
 
   return `
 -- Creates a product (product null) or updates one. Returns its id, slug and
--- status.${settings.length === 0 ? "" : " A null price, currency or track_inventory keeps the column."}
+-- status. On an update a null argument keeps the column and clear names the
+-- columns to empty; a cleared slug is derived from the title again.
 ${staleDrops}${extraFieldsArg(extras).drop(fn("save_product"), saveArgs)}
 create or replace function ${fn("save_product")}(tenant ${ctx.idType}, product uuid, title text, slug text, description text, kind text${settingParams}${extraFieldsArg(extras).param})
 returns jsonb
@@ -252,7 +281,8 @@ set search_path = ''
 as $$
 declare
   v_id uuid := save_product.product;
-  v_slug text := coalesce(nullif(save_product.slug, ''), trim(both '-' from regexp_replace(lower(save_product.title), '[^a-z0-9]+', '-', 'g')));
+  v_title text := save_product.title;
+  v_slug text := nullif(save_product.slug, '');
   v_status text;
   v_created boolean := save_product.product is null;
 begin
@@ -261,32 +291,41 @@ begin
   else
     ${guard(names, "save_product.tenant", names.update)}
   end if;${clearCheck}
+  if not v_created then
+    select coalesce(v_title, x.${p("title")}), case when v_slug is null and not ${clears("slug")} then x.${p("slug")} else v_slug end
+    into v_title, v_slug
+    from ${products} x where x.${p("id")} = save_product.product and x.${p("tenant")} = save_product.tenant;
+    if not found then
+      ${fail("CATALOG_PRODUCT_NOT_FOUND", "product not found", "P0002")}
+    end if;
+  end if;
+  v_slug := coalesce(v_slug, trim(both '-' from regexp_replace(lower(v_title), '[^a-z0-9]+', '-', 'g')));
   if v_slug is null or v_slug !~ ${SLUG} then
     ${fail("CATALOG_SLUG_INVALID", "the slug must be lower-case letters, digits and hyphens", "22023")}
   end if;
   ${ctx.hook("before_product_save", [
     [ctx.idType, "save_product.tenant"],
     ["uuid", "save_product.product"],
-    ["text", "save_product.title"],
+    ["text", "v_title"],
     ["text", "v_slug"],
     ["text", "save_product.kind"],
   ])}
   begin
     if v_created then
-      insert into ${products} (${p("tenant")}, ${p("title")}, ${p("slug")}${desc ? `, ${p("description")}` : ""}${kind ? `, ${p("kind")}` : ""})
-      values (save_product.tenant, save_product.title, v_slug${desc ? ", save_product.description" : ""}${kind ? `, ${ctx.cast("products", "kind", "coalesce(save_product.kind, 'physical')")}` : ""})
+      insert into ${products} (${p("tenant")}, ${p("title")}, ${p("slug")}${desc ? `, ${p("description")}` : ""}${kind ? `, ${p("kind")}` : ""}${inserted.columns})
+      values (save_product.tenant, v_title, v_slug${desc ? ", save_product.description" : ""}${kind ? `, ${ctx.cast("products", "kind", "coalesce(save_product.kind, 'physical')")}` : ""}${inserted.values})
       returning ${p("id")}, ${ctx.label("products", "status", p("status"))} into v_id, v_status;
     else
-      update ${products} x set ${p("title")} = save_product.title, ${p("slug")} = v_slug${desc ? `, ${p("description")} = save_product.description` : ""}${kind ? `, ${p("kind")} = coalesce(${ctx.cast("products", "kind", "save_product.kind")}, x.${p("kind")})` : ""}, ${p("updatedAt")} = now()
+      update ${products} x set ${p("title")} = v_title, ${p("slug")} = v_slug${desc ? `, ${p("description")} = case when ${clears("description")} then null else coalesce(save_product.description, x.${p("description")}) end` : ""}${kind ? `, ${p("kind")} = coalesce(${ctx.cast("products", "kind", "save_product.kind")}, x.${p("kind")})` : ""}, ${p("updatedAt")} = now()
       where x.${p("id")} = save_product.product and x.${p("tenant")} = save_product.tenant
       returning ${ctx.label("products", "status", `x.${p("status")}`)} into v_status;
       if not found then
         ${fail("CATALOG_PRODUCT_NOT_FOUND", "product not found", "P0002")}
-      end if;
+      end if;${writeExtraColumns(products, extras, "save_product.fields", `x.${p("id")} = v_id`).replaceAll("\n  ", "\n      ")}
     end if;
   exception when unique_violation then
     ${fail("CATALOG_SLUG_TAKEN", "another product has this slug", "23505")}
-  end;${settingWrite}${writeExtraColumns(products, extras, "save_product.fields", `x.${p("id")} = v_id`)}
+  end;${settingWrite}
   if v_created then
     ${ctx.record({
       type: "product.created",
@@ -418,6 +457,62 @@ export function optionFunctions(ctx: BlockSqlContext, names: Names): string {
   const linked = ctx.hasTable("variantValues");
   const vv = (column: string): string => ctx.col("variantValues", column);
 
+  const retires =
+    typeof ctx.config.columns["variants"]?.["status"] === "string" &&
+    ctx.has("variants", "status");
+
+  const inUse = variantInUse(ctx);
+
+  const inventory = ctx.installed("inventory")
+    ? ctx.of("inventory")
+    : undefined;
+
+  const referenced = [
+    ...(inUse === undefined ? [] : [`${inUse}(v_variant)`]),
+    ...(inventory === undefined
+      ? []
+      : [stockHistory(inventory, (variant) => `${variant} = v_variant`)]),
+  ];
+
+  const retire = retires
+    ? `
+      update ${variants} x set ${v("status")} = ${ctx.value("variants", "status", "archived")}, ${v("updatedAt")} = now() where x.${v("id")} = v_variant;
+      delete from ${ctx.table("variantValues")} x where x.${vv("variant")} = v_variant;`
+    : `
+      ${fail("CATALOG_OPTION_VALUE_IN_USE", "a variant this list removes is still in use", "23503")}`;
+
+  const dropVariant = `
+      delete from ${variants} x where x.${v("id")} = v_variant;
+      ${ctx
+        .record({
+          type: "variant.deleted",
+          payload: `jsonb_build_object('organizationId', v_tenant, 'id', v_variant, 'productId', save_product_option.product)`,
+          subject: `'variants/' || v_variant::text`,
+          tenant: "v_tenant",
+          audit: false,
+        })
+        .replaceAll("\n", "\n    ")}`;
+
+  const removeVariants = linked
+    ? `
+  for v_variant in
+    select distinct x.${vv("variant")} from ${ctx.table("variantValues")} x
+    join ${values} y on y.${ov("id")} = x.${vv("value")}
+    where y.${ov("option")} = v_id and not (y.${ov("value")} = any (save_product_option.option_values))
+  loop${
+    referenced.length === 0
+      ? ""
+      : `
+    if ${referenced.join(" or ")} then${retire}
+      continue;
+    end if;`
+  }
+    begin${dropVariant}
+    exception when foreign_key_violation then${retire}
+    end;
+  end loop;`
+    : "";
+
   const linkVariants = linked
     ? `
   if v_new then
@@ -429,7 +524,8 @@ export function optionFunctions(ctx: BlockSqlContext, names: Names): string {
 
   return `
 -- Creates an option (option null) or updates one, with its values in order.
--- Values missing from the list are removed; values a variant uses can't be.
+-- Values missing from the list are removed with the variants that use them;
+-- a variant something still references is archived instead.
 create or replace function ${fn("save_product_option")}(product uuid, option uuid, name text, option_values text[])
 returns jsonb
 language plpgsql
@@ -442,6 +538,7 @@ declare
   v_last text;
   v_rank text;
   v_value text;
+  v_variant uuid;
   v_new boolean := save_product_option.option is null;
 begin
   select x.${p("tenant")} into v_tenant from ${products} x where x.${p("id")} = save_product_option.product for update;
@@ -477,7 +574,7 @@ begin
     end if;
   exception when unique_violation then
     ${fail("CATALOG_OPTION_TAKEN", "the product has another option with this name", "23505")}
-  end;
+  end;${removeVariants}
   begin
     delete from ${values} x where x.${ov("option")} = v_id and not (x.${ov("value")} = any (save_product_option.option_values));
   exception when foreign_key_violation then
@@ -499,6 +596,37 @@ begin
 end;
 $$;
 ${userGrant(`${fn("save_product_option")}(uuid, uuid, text, text[])`)}
+
+-- Puts a product's options in the given order; the list names each once.
+create or replace function ${fn("reorder_product_options")}(product uuid, options uuid[])
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+  v_rank text;
+  v_option uuid;
+begin
+  select x.${p("tenant")} into v_tenant from ${products} x where x.${p("id")} = reorder_product_options.product for update;
+  if v_tenant is null then
+    ${fail("CATALOG_PRODUCT_NOT_FOUND", "product not found", "P0002")}
+  end if;
+  ${guard(names, "v_tenant", names.update)}
+  if coalesce(cardinality(reorder_product_options.options), 0) <> (select count(*) from ${options} x where x.${o("product")} = reorder_product_options.product)
+    or (select count(distinct y) from unnest(reorder_product_options.options) y) <> cardinality(reorder_product_options.options)
+    or exists (select 1 from unnest(reorder_product_options.options) y where not exists (select 1 from ${options} x where x.${o("id")} = y and x.${o("product")} = reorder_product_options.product)) then
+    ${fail("CATALOG_OPTION_ORDER_INVALID", "the list must name each option of the product once", "22023")}
+  end if;
+  foreach v_option in array reorder_product_options.options loop
+    v_rank := ${rank.after("v_rank")};
+    update ${options} x set ${o("rank")} = ${rank.write("v_rank")} where x.${o("id")} = v_option;
+  end loop;
+  return true;
+end;
+$$;
+${userGrant(`${fn("reorder_product_options")}(uuid, uuid[])`)}
 
 -- Deletes an option and its values; refused while a variant uses one.
 create or replace function ${fn("delete_product_option")}(option uuid)
@@ -542,8 +670,14 @@ function variantFunctions(
   const extras = variantExtras(ctx);
   const extraArg = extraFieldsArg(extras);
 
-  const variantArgs =
+  const oldVariantArgs =
     "uuid, uuid, text, uuid[], text, text, integer, boolean, boolean";
+
+  const variantArgs = `${oldVariantArgs}, text[]`;
+
+  const clearable = ["sku", "title", "barcode", "weight"].filter((column) =>
+    ctx.has("variants", column),
+  );
 
   const inserted = insertExtraColumns(
     variants,
@@ -557,6 +691,12 @@ function variantFunctions(
   if save_variant.track_inventory is not null then
     ${fail("CATALOG_TRACK_INVENTORY_UNSUPPORTED", "this catalog tracks inventory per product, not per variant", "22023")}
   end if;`;
+
+  const retired = (alias: string): string =>
+    typeof ctx.config.columns["variants"]?.["status"] === "string" &&
+    ctx.has("variants", "status")
+      ? ` and ${alias}.${v("status")} is distinct from ${ctx.value("variants", "status", "archived")}`
+      : "";
 
   const hasValues =
     ctx.hasTable("variantValues") &&
@@ -619,7 +759,7 @@ function variantFunctions(
   if exists (
     select 1 from ${variants} x
     where x.${v("product")} = save_variant.product
-      and x.${v("id")} is distinct from save_variant.variant
+      and x.${v("id")} is distinct from save_variant.variant${retired("x")}
       and coalesce((select array_agg(y.${vv("value")} order by y.${vv("value")}) from ${variantValues} y where y.${vv("variant")} = x.${v("id")}), '{}'::uuid[]) = v_wanted
   ) then
     ${fail("CATALOG_VARIANT_DUPLICATE", "another variant has these option values", "23505")}
@@ -647,9 +787,12 @@ function variantFunctions(
   return `
 -- Creates a variant (variant null) or updates one. option_values holds one
 -- option value id per product option; no two variants share a combination.
--- fields: the extra columns (options.variantExtraColumns) to set.
+-- On an update a null argument keeps the column and clear names the columns
+-- to empty. fields: the extra columns (options.variantExtraColumns) to set.
+drop function if exists ${fn("save_variant")}(${oldVariantArgs});
+drop function if exists ${fn("save_variant")}(${oldVariantArgs}, jsonb);
 ${extraArg.drop(fn("save_variant"), variantArgs)}
-create or replace function ${fn("save_variant")}(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean${extraArg.param})
+create or replace function ${fn("save_variant")}(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null${extraArg.param})
 returns jsonb
 language plpgsql
 security definer
@@ -673,6 +816,9 @@ begin
   else
     ${guard(names, "v_tenant", names.update)}
   end if;${tracking}
+  if exists (select 1 from unnest(coalesce(save_variant.clear, '{}'::text[])) c where c <> all (${sqlString(`{${clearable.join(",")}}`)}::text[])) then
+    ${fail("CATALOG_CLEAR_INVALID", `clear names only ${clearable.join(", ")}`, "22023")}
+  end if;
 ${valueChecks.check}
   ${ctx.hook("before_variant_save", [
     ["uuid", "save_variant.product"],
@@ -688,7 +834,7 @@ ${valueChecks.check}
       values (v_tenant, save_variant.product, ${columns.map(([, value]) => value).join(", ")}, ${rank.write("v_rank")}${inserted.values})
       returning ${v("id")} into v_id;
     else
-      update ${variants} x set ${columns.map(([column, , param]) => `${v(column)} = coalesce(${param}, x.${v(column)})`).join(", ")}, ${v("updatedAt")} = now()
+      update ${variants} x set ${columns.map(([column, , param]) => (clearable.includes(column) ? `${v(column)} = case when ${sqlString(column)} = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(${param}, x.${v(column)}) end` : `${v(column)} = coalesce(${param}, x.${v(column)})`)).join(", ")}, ${v("updatedAt")} = now()
       where x.${v("id")} = save_variant.variant and x.${v("product")} = save_variant.product
       returning x.${v("rank")}, x.${v("sku")} into v_rank, v_sku;
       if not found then
