@@ -69,7 +69,7 @@ const OUTBOUND = "('sale', 'transfer_out')";
  * between the variant's stock accounts at the location (one per bin and lot it
  * touches) and a counter account for its reason. Amounts are base units: the
  * quantity times ten to the variant's scale, so a 1.250 kg movement at scale 3
- * posts 1250 (ADR 0126). Levels and buckets stay projections the movement
+ * posts 1250 (ADR 0127). Levels and buckets stay projections the movement
  * updates in the same transaction. With average costing the same transaction
  * moves the stock's value between the variant's value account and a value
  * counter.

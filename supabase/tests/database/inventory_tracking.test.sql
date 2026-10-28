@@ -1,5 +1,5 @@
 -- Fractional stock, lots, bins, average cost, allocations, document orders
--- and shipment lines on the fixture's access contract (ADR 0126). The admin
+-- and shipment lines on the fixture's access contract (ADR 0127). The admin
 -- (…00a1) of Acme (…0001) sells flour by the kilogram at scale 3 in lots,
 -- orders it from lines and from an accepted quote, and ships it with
 -- shipment lines that take the stock out and receive a return. Globex

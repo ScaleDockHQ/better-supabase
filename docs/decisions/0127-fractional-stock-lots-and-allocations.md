@@ -1,4 +1,4 @@
-# 0126: Count stock in numeric units with lots, bins and allocations
+# 0127: Count stock in numeric units with lots, bins and allocations
 
 - Status: accepted
 - Date: 2026-10-28

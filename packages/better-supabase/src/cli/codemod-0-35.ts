@@ -3,9 +3,8 @@
  * (parallel requests share one token refresh), session cookies are written by
  * `@supabase/ssr`, and the old cookie codec and prefetch predicates are gone.
  * In the blocks, `transition()` takes its reason in an options object and
- * `validateGraph` takes the step library as `{ steps }`.
- * Stock quantities are numeric, and orders made from documents start
- * `confirmed` (ADR 0126).
+ * `validateGraph` takes the step library as `{ steps }`. Stock quantities are
+ * numeric, and orders made from documents start `confirmed` (ADR 0127).
  */
 
 import type { Codemod, ReviewLine } from "./codemod.ts";

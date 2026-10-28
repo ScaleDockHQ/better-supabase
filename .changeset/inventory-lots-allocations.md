@@ -2,7 +2,7 @@
 "better-supabase": minor
 ---
 
-Inventory counts fractional units with lots, serials, expiry, bins and average cost; orders come from lines or a quote; and shipments carry stock (ADR 0126).
+Inventory counts fractional units with lots, serials, expiry, bins and average cost; orders come from lines or a quote; and shipments carry stock (ADR 0127).
 
 - `setStockItem(variantId, { unit, scale, tracking, tracksExpiry, costing, currency })` gives a variant a unit with up to 6 decimals, lot or serial tracking and weighted average cost. The ledger posts base units (the quantity times ten to the scale).
 - Every movement takes a `detail` with `binId`, `lotId` or `lot` and `serials`. `saveBin` (with `hold` bins), `saveLot`, `stockDetail`, `expiringLots`, `expireLots` and `stockValuation` read and age the stock. Stock leaves first-expiry-first-out, and sales skip hold bins and expired lots.

@@ -89,7 +89,7 @@ function allocationJson(ctx: BlockSqlContext, alias: string): string {
 /**
  * Stock a document (an order, a work order, a shipment) holds for its lines. An
  * allocation takes what's available and keeps the rest on backorder; stock that
- * arrives later fills backorders oldest first (ADR 0126).
+ * arrives later fills backorders oldest first (ADR 0127).
  */
 export function allocationFunctions(
   ctx: BlockSqlContext,

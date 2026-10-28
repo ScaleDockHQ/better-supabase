@@ -95,7 +95,7 @@ export function releaseAllocations(ctx: BlockSqlContext): string {
 /**
  * Orders made from documents rather than carts: from lines staff enter and from
  * an accepted quote. They start confirmed, without a payment window, and hold
- * their stock through allocations with backorders (ADR 0126).
+ * their stock through allocations with backorders (ADR 0127).
  */
 export function documentFunctions(
   ctx: BlockSqlContext,

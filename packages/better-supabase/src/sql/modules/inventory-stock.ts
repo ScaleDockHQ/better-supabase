@@ -62,7 +62,7 @@ export function moveStock(
     readonly note?: string;
     /**
      * A `jsonb` expression with the bin, lot, serial numbers and unit cost of
-     * the movement (ADR 0126).
+     * the movement (ADR 0127).
      */
     readonly detail?: string;
   },

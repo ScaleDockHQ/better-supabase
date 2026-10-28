@@ -241,7 +241,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0124: Knowledge collections with a visibility, a priority and user or team grants; system collections and documents have no tenant and every tenant reads them.
 - 0125: `inbox_drafts` keeps one open reply draft per staff member and conversation; the service role suggests AI drafts the team sends or discards.
 - 0126: `workflow_node_kinds` registers the app's own node kinds (`defineNodeKind`, run as steps); definitions take a `purpose` and one default lifecycle workflow per subject type.
-- 0126: Stock is `numeric` with a unit scale and posts base units; lots, serials, bins, average cost, document allocations, orders from lines or a quote, and shipment lines.
+- 0127: Stock is `numeric` with a unit scale and posts base units; lots, serials, bins, average cost, document allocations, orders from lines or a quote, and shipment lines.
 
 ## Pre-release pins
 

@@ -191,7 +191,7 @@ for example by skipping tenant keys or a tenant quota.
 ## Stock quantities, orders and shipments
 
 Stock is counted in `numeric(20, 6)` now, so a variant can count kilograms
-or metres ([ADR 0126](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0126-fractional-stock-lots-and-allocations.md)).
+or metres ([ADR 0127](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0127-fractional-stock-lots-and-allocations.md)).
 Run `better-supabase upgrade` and generate the migration; existing stock keeps
 its value and counts whole items until you call `setStockItem`.
 

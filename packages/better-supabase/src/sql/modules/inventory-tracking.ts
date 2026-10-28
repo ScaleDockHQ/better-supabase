@@ -12,7 +12,7 @@ import {
 
 /**
  * The quantity type of every stock column: up to six decimals, so a variant can
- * count in grams, millilitres or hundredths of a metre (ADR 0126).
+ * count in grams, millilitres or hundredths of a metre (ADR 0127).
  */
 export const QUANTITY = "numeric(20, 6)";
 

@@ -13,7 +13,7 @@ const QUANTITY = "'^[0-9]{1,14}([.][0-9]{1,6})?$'";
 /**
  * Raises unless `lines` is a non-empty array of objects whose `key` is a uuid
  * (once each) and whose `quantity` is a positive number with up to six
- * decimals. The variant's scale decides how many it may have (ADR 0126).
+ * decimals. The variant's scale decides how many it may have (ADR 0127).
  */
 function linesCheck(lines: string, key: string, extra = ""): string {
   return `if jsonb_typeof(${lines}) is distinct from 'array' or jsonb_array_length(${lines}) = 0
