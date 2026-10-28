@@ -1,0 +1,101 @@
+---
+title: Acknowledgements
+description: Proof that a member read one version of a record, with assignments to users, teams and roles, due dates and overdue notifications.
+---
+
+`acknowledgements` records that a person read and understood one version of a
+record. A policy, a controlled document or a procedure has a frozen version;
+an assignment makes that version due for a user, a team or a role; the member
+acknowledges it, with a click or a completed signature.
+
+```bash
+better-supabase add acknowledgements
+```
+
+```ts
+import { createAcknowledgements } from "better-supabase/blocks/acknowledgements";
+```
+
+## Tables
+
+| Table                        | Holds                                                         |
+| ---------------------------- | ------------------------------------------------------------- |
+| `acknowledgement_assignments` | Who must acknowledge which record, and how soon               |
+| `acknowledgements`           | Who acknowledged which version, when, and by which method      |
+
+Both tables are readable with `acknowledgements.read`; a member also reads
+their own acknowledgements without it.
+
+## The current version
+
+A record's current version is the newest frozen version in `versions`. A block
+that keeps the current version on its own row contributes
+`versionColumn` through the acknowledgements contribution, and the registry
+reads that column instead.
+
+## Assigning
+
+```ts
+const client = createAcknowledgements({ transport });
+
+await client.assign(organizationId, { type: "compliance_policy", id }, {
+  type: "role",
+  id: "member",
+}, { dueInDays: 14 });
+```
+
+The principal is a user, a team or a role. A role covers every member with
+that role; a team covers the team's members. `assign` is idempotent on the
+record and principal.
+
+## Acknowledging
+
+```ts
+await client.acknowledge({ type: "compliance_policy", id });
+```
+
+`acknowledge` refuses a stale `versionId`, a record with no frozen version,
+and a record the caller is not assigned. Passing a `signatureId` requires a
+completed signature request for the same record, and records the method as
+`signature`.
+
+## The inbox and the status
+
+`mine(organizationId)` lists every assigned record with its current version,
+its due date and whether it is overdue. `status(record)` returns the required
+and acknowledged counts and the pending members. `of(record)` lists who
+acknowledged, optionally for one version.
+
+## Overdue notifications
+
+`notifyDue()` is a service call: it notifies each pending principal once when
+the due date has passed and records `acknowledgement.expired`. Run it from a
+scheduled job.
+
+## Errors
+
+| Hint code                          | Meaning                                              |
+| ---------------------------------- | ---------------------------------------------------- |
+| `ACKNOWLEDGEMENT_FORBIDDEN`        | The caller lacks the permission                      |
+| `ACKNOWLEDGEMENT_NOT_ASSIGNED`     | The record is not assigned to the caller             |
+| `ACKNOWLEDGEMENT_NO_VERSION`       | The record has no frozen version                     |
+| `ACKNOWLEDGEMENT_VERSION_STALE`    | The version is not the current one                   |
+| `ACKNOWLEDGEMENT_PRINCIPAL_INVALID`| The principal is not a member, team or role          |
+| `ACKNOWLEDGEMENT_ASSIGNMENT_NOT_FOUND` | The assignment does not exist                    |
+| `ACKNOWLEDGEMENT_SIGNATURE_INVALID`| The signature is not completed for this record       |
+
+## Events
+
+| Type                                   | Payload                                                       |
+| -------------------------------------- | ------------------------------------------------------------- |
+| `acknowledgement_assignment.created`   | `organizationId`, `subjectType`, `subjectId`, `assignmentId`, `principalType`, `principalId`, `dueOn` |
+| `acknowledgement_assignment.deleted`   | `organizationId`, `assignmentId`                              |
+| `acknowledgement.created`              | `organizationId`, `subjectType`, `subjectId`, `versionId`, `userId`, `method` |
+| `acknowledgement.expired`              | `organizationId`, `subjectType`, `subjectId`, `versionId`, `userId`, `dueOn` |
+
+## Without the client
+
+`assign_acknowledgement`, `unassign_acknowledgement`,
+`list_acknowledgement_assignments`, `acknowledge`,
+`list_my_acknowledgements`, `acknowledgement_status`, `acknowledgements_of`
+and `notify_due_acknowledgements`.

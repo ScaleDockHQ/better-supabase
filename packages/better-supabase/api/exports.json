@@ -6889,6 +6889,43 @@
       "BlockTransport"
     ]
   },
+  "./blocks/acknowledgements": {
+    "values": [
+      "acknowledgementAssignmentInputSchema",
+      "acknowledgementsBlock",
+      "acknowledgementsEvents",
+      "createAcknowledgements",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "Acknowledgement",
+      "AcknowledgementAssignment",
+      "AcknowledgementAssignmentCreatedEventData",
+      "AcknowledgementAssignmentDeletedEventData",
+      "AcknowledgementAssignmentInput",
+      "AcknowledgementCreatedEventData",
+      "AcknowledgementExpiredEventData",
+      "AcknowledgementPrincipal",
+      "AcknowledgementRecord",
+      "Acknowledgements",
+      "AcknowledgementsEvents",
+      "AcknowledgementsOptions",
+      "AcknowledgementStatus",
+      "AcknowledgeOptions",
+      "AssignAcknowledgementOptions",
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "MyAcknowledgement",
+      "MyAcknowledgementsOptions",
+      "RpcClient"
+    ]
+  },
   "./blocks/documents": {
     "values": [
       "createDocuments",

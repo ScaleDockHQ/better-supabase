@@ -1,6 +1,7 @@
 import type { AnyBlock } from "./define-block.ts";
 
 import { accessRequestsBlock } from "./access-requests/manifest.ts";
+import { acknowledgementsBlock } from "./acknowledgements/manifest.ts";
 import { activitiesBlock } from "./activities/manifest.ts";
 import { agentsBlock } from "./agents/manifest.ts";
 import { aiCacheBlock } from "./ai-cache/manifest.ts";
@@ -150,6 +151,7 @@ import { workflowsBlock } from "./workflows/manifest.ts";
 export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   permissionsBlock,
   accessRequestsBlock,
+  acknowledgementsBlock,
   createdByBlock,
   agentsBlock,
   aiCacheBlock,

@@ -101,6 +101,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "shipments.*",
     "contracts.*",
     "compliance.*",
+    "acknowledgements.*",
     "incidents.*",
     "courses.*",
     "sequences.*",
@@ -204,6 +205,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "compliance.read",
     "compliance.collect",
     "compliance.acknowledge",
+    "acknowledgements.acknowledge",
     "incidents.read",
     "incidents.write",
     "courses.read",
@@ -532,6 +534,9 @@ export const OPERATIONS = {
   "forecasts.read": "forecasts.read",
   "forecasts.snapshot": "forecasts.snapshot",
   "field-history.read": "field_history.read",
+  "acknowledgements.read": "acknowledgements.read",
+  "acknowledgements.manage": "acknowledgements.manage",
+  "acknowledgements.acknowledge": "acknowledgements.acknowledge",
 } as const;
 
 /** An operation name, `<module>.<action>`. */
@@ -680,6 +685,11 @@ export const MODULE_PERMISSION_SCOPES: {
   metrics: { read: "tenant", manage: "tenant" },
   calendar: { manage: "tenant", write: "tenant", read: "tenant" },
   bookings: { manage: "tenant", create: "tenant", read: "tenant" },
+  acknowledgements: {
+    read: "tenant",
+    manage: "tenant",
+    acknowledge: "tenant",
+  },
   versions: {
     read: "tenant",
     create: "tenant",

@@ -159,6 +159,7 @@ export const BLOCK_ICONS = {
   sso: LogInIcon,
   subjects: BoxesIcon,
   "access-requests": DoorOpenIcon,
+  acknowledgements: BadgeCheckIcon,
   identities: FingerprintIcon,
   // Tenancy & accounts
   memberships: BuildingIcon,

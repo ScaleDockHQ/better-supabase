@@ -1,6 +1,7 @@
 export {
   type AuthorizationCodeRedemption,
   type AuthorizationCodeRequest,
+  // eslint-disable-next-line typescript/no-deprecated -- the deprecated alias is re-exported for one minor.
   createOAuthServer,
   createOauthServer,
   type DeviceCodePoll,

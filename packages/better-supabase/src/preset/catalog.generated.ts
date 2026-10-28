@@ -2096,6 +2096,75 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "acknowledgements",
+      "title": "Acknowledgements",
+      "category": "collaboration",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects",
+        "versions"
+      ],
+      "integrates": [
+        "teams",
+        "notifications",
+        "signatures",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "acknowledgements",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "acknowledgement": {
+            "table": "acknowledgements",
+            "singular": "acknowledgement"
+          },
+          "acknowledgement_assignment": {
+            "table": "assignments",
+            "singular": "acknowledgement_assignment"
+          }
+        },
+        "tables": {
+          "acknowledgements": {
+            "name": "acknowledgements",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "version": "version_id",
+              "user": "user_id",
+              "method": "method",
+              "signature": "signature_id",
+              "acknowledgedAt": "acknowledged_at"
+            }
+          },
+          "assignments": {
+            "name": "acknowledgement_assignments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "principalType": "principal_type",
+              "principalId": "principal_id",
+              "dueInDays": "due_in_days",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "acknowledgements.read",
+          "manage": "acknowledgements.manage",
+          "acknowledge": "acknowledgements.acknowledge"
+        }
+      }
+    },
+    {
       "name": "trash",
       "title": "Trash",
       "category": "content",
@@ -6875,6 +6944,49 @@ export const PRESET_CATALOG: PresetCatalog = {
           "access.request_approved",
           "access.ended"
         ]
+      }
+    },
+    {
+      "name": "acknowledgements",
+      "sql": [
+        "acknowledgements"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "acknowledgementsBlock",
+        "subpath": "better-supabase/blocks/acknowledgements"
+      },
+      "consumes": {},
+      "provides": [],
+      "entitySchemas": {
+        "acknowledgement_assignment": {
+          "input": {
+            "title": "AcknowledgementAssignmentInput",
+            "fields": {
+              "dueInDays": {
+                "kind": "number",
+                "optional": true,
+                "minimum": 1,
+                "maximum": 365,
+                "description": "Days after the version is created that it is due."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "AcknowledgementAssignmentInput",
+              "type": "object",
+              "properties": {
+                "dueInDays": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 365,
+                  "description": "Days after the version is created that it is due."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
       }
     },
     {

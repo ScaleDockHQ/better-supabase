@@ -88,6 +88,7 @@ const PURE_BARRELS = [
   "blocks/reactions",
   "blocks/approvals",
   "blocks/access-requests",
+  "blocks/acknowledgements",
   "blocks/documents",
   "blocks/catalog",
   "blocks/inventory",

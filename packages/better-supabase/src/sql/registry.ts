@@ -144,6 +144,7 @@ import { UPDATED_AT } from "./modules/updated-at.ts";
 import { USAGE } from "./modules/usage.ts";
 import { VECTOR_SEARCH } from "./modules/vector-search.ts";
 import { VERCEL_MARKETPLACE } from "./modules/vercel-marketplace.ts";
+import { ACKNOWLEDGEMENTS } from "./modules/acknowledgements.ts";
 import { VERSIONS } from "./modules/versions.ts";
 import { WAITLIST } from "./modules/waitlist.ts";
 import { WEBHOOK_INBOX } from "./modules/webhook-inbox.ts";
@@ -380,6 +381,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(POSTS),
       built(FIELD_ENCRYPTION),
       built(CONTENT),
+      built(ACKNOWLEDGEMENTS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

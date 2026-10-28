@@ -852,6 +852,11 @@
       "types": "./dist/blocks/access-requests/index.d.ts",
       "default": "./dist/blocks/access-requests/index.js"
     },
+    "./blocks/acknowledgements": {
+      "@better-supabase/source": "./src/blocks/acknowledgements/index.ts",
+      "types": "./dist/blocks/acknowledgements/index.d.ts",
+      "default": "./dist/blocks/acknowledgements/index.js"
+    },
     "./blocks/documents": {
       "@better-supabase/source": "./src/blocks/documents/index.ts",
       "types": "./dist/blocks/documents/index.d.ts",
@@ -1735,6 +1740,10 @@
       "./blocks/access-requests": {
         "types": "./dist/blocks/access-requests/index.d.ts",
         "default": "./dist/blocks/access-requests/index.js"
+      },
+      "./blocks/acknowledgements": {
+        "types": "./dist/blocks/acknowledgements/index.d.ts",
+        "default": "./dist/blocks/acknowledgements/index.js"
       },
       "./blocks/documents": {
         "types": "./dist/blocks/documents/index.d.ts",

@@ -1547,6 +1547,7 @@
           "items": {
             "enum": [
               "access-requests",
+              "acknowledgements",
               "activities",
               "agents",
               "ai-cache",
@@ -1702,6 +1703,7 @@
               "block": {
                 "enum": [
                   "access-requests",
+                  "acknowledgements",
                   "activities",
                   "agents",
                   "ai-cache",
@@ -1851,6 +1853,9 @@
           "properties": {
             "access-requests": {
               "$ref": "#/$defs/blocks/access-requests"
+            },
+            "acknowledgements": {
+              "$ref": "#/$defs/blocks/acknowledgements"
             },
             "activities": {
               "$ref": "#/$defs/blocks/activities"
@@ -3401,6 +3406,25 @@
                   "type": "string"
                 }
               }
+            }
+          }
+        }
+      },
+      "acknowledgements": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "on": {}
             }
           }
         }

@@ -1,4 +1,5 @@
 import type { AccessRequestsSqlOptions } from "./access-requests/options.ts";
+import type { AcknowledgementsSqlOptions } from "./acknowledgements/options.ts";
 import type { ActivitiesSqlOptions } from "./activities/options.ts";
 import type { AgentsSqlOptions } from "./agents/options.ts";
 import type { AiCacheSqlOptions } from "./ai-cache/options.ts";
@@ -126,6 +127,7 @@ import type { WorkflowEditorSqlOptions } from "./workflow-editor/options.ts";
 import type { WorkflowSdkSqlOptions } from "./workflow-sdk/options.ts";
 
 import { accessRequestsSqlOptions } from "./access-requests/options.ts";
+import { acknowledgementsSqlOptions } from "./acknowledgements/options.ts";
 import { activitiesSqlOptions } from "./activities/options.ts";
 import { agentsSqlOptions } from "./agents/options.ts";
 import { aiCacheSqlOptions } from "./ai-cache/options.ts";
@@ -261,6 +263,7 @@ type None = Record<never, never>;
  */
 export interface BlockOptionsRegistry {
   readonly "access-requests": AccessRequestsSqlOptions;
+  readonly acknowledgements: AcknowledgementsSqlOptions;
   readonly activities: ActivitiesSqlOptions;
   readonly agents: AgentsSqlOptions;
   readonly "ai-cache": AiCacheSqlOptions;
@@ -412,6 +415,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   >;
 } = {
   "access-requests": accessRequestsSqlOptions,
+  acknowledgements: acknowledgementsSqlOptions,
   activities: activitiesSqlOptions,
   agents: agentsSqlOptions,
   "ai-cache": aiCacheSqlOptions,

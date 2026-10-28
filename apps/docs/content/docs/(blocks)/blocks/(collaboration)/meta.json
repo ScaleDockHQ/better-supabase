@@ -15,6 +15,7 @@
     "posts",
     "moderation",
     "enrollments",
-    "guests"
+    "guests",
+    "acknowledgements"
   ]
 }
