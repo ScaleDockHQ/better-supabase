@@ -232,6 +232,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0115: A page reads its user data in one `bsb.bootstrap` call, private or remote, from a generated `bootstrap_<rpc>` wrapper.
 - 0116: One JWKS per process on `globalThis`; one verified-token memo per server; clients on `createContextClient` and `createAdminClient`.
 - 0117: Sessions refresh through `@supabase/ssr` on every request; a coalescing fetch makes one Auth call per refresh token.
+- 0115: Calendar alarms are event data in `calendar_event_alarms`; reminders fire on any subject's rule, `at` column or own time, planned by the `reminders.schedule` timer.
 
 ## Pre-release pins
 

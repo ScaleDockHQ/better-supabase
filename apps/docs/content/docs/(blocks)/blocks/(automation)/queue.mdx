@@ -378,13 +378,14 @@ named `block:<block>.<name>` on the `block_ticks` queue, and
 tick without a handler, or a handler that returns a failed `Result`, throws,
 so the queue retries it and the dead letter shows it.
 
-| Timer               | Cron               | Handler                                                          |
-| ------------------- | ------------------ | ---------------------------------------------------------------- |
-| `sla.check`         | every minute       | `sla.check()`: warnings and breaches of running clocks           |
-| `sequences.run-due` | every minute       | `sequences.runDue()`: sends the steps whose wait ended           |
-| `ai-schedules.tick` | every minute       | `aiSchedules.tick()`: runs the due AI tasks                      |
-| `workflows.tick`    | every minute       | `schedules.tick()` and `admission.tick()` of the workflows block |
-| `content.publish`   | every five minutes | `content.publishDue()`: publishes the scheduled entries now due  |
+| Timer                | Cron               | Handler                                                             |
+| -------------------- | ------------------ | ------------------------------------------------------------------- |
+| `sla.check`          | every minute       | `sla.check()`: warnings and breaches of running clocks              |
+| `sequences.run-due`  | every minute       | `sequences.runDue()`: sends the steps whose wait ended              |
+| `ai-schedules.tick`  | every minute       | `aiSchedules.tick()`: runs the due AI tasks                         |
+| `workflows.tick`     | every minute       | `schedules.tick()` and `admission.tick()` of the workflows block    |
+| `content.publish`    | every five minutes | `content.publishDue()`: publishes the scheduled entries now due     |
+| `reminders.schedule` | every five minutes | `reminders.schedule()`: enqueues the deliveries due in the next day |
 
 ```ts title="lib/jobs.ts"
 import {
@@ -417,8 +418,9 @@ export const ticks = blockTickHandler({
 ```
 
 Pass `ticks` as the `block_ticks` handler of the [drain route](#drain-route).
-Reminders don't need a timer: each reminder is a job on its own queue, due at
-its time.
+The `reminders.schedule` timer only plans: it enqueues each occurrence as a
+`reminders.deliver` job due at its time, so a reminder still fires on the
+minute.
 
 #### Schedules from SQL
 

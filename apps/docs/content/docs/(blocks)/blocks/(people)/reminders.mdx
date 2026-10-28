@@ -20,7 +20,43 @@ import {
 
 `options.ruleFormat` is `rrule` (the default) or `columns`. The columns format maps `frequency`, `interval_count`, `week_days`, `month_day`, `month_weekday` and `month_ordinal`.
 
-`reminders.upsert(subject, offsetMinutes)` sets a reminder for the caller, `reminders.list(subject)` returns the caller's reminders on that subject, and `reminders.remove(id)` deletes one with its delivery history. All three need `reminders.manage`. The subject is a `RecordRef`, such as `{ type: "task", id: taskId }`, and `upsert` and `list` act in the block's `tenant`, an organization id or a function that returns the current one. `createBlocks` and `createBlockClient` pass the request's tenant; a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. The [calendar](/docs/blocks/calendar) block mirrors each event into a rule, so reminders on a `calendar_event` fire.
+`reminders.upsert(subject, offsetMinutes)` sets a reminder for the caller (or `upsert(subject, { at })` for [one time](#one-time-reminders-and-subject-times)), `reminders.list(subject)` returns the caller's reminders on that subject, and `reminders.remove(id)` deletes one with its delivery history. All three need `reminders.manage`. The subject is a `RecordRef`, such as `{ type: "task", id: taskId }`, and `upsert` and `list` act in the block's `tenant`, an organization id or a function that returns the current one. `createBlocks` and `createBlockClient` pass the request's tenant; a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. The [calendar](/docs/blocks/calendar) block mirrors each event into a rule, so reminders on a `calendar_event` fire.
+
+## One-time reminders and subject times
+
+A reminder fires before each occurrence of its subject's rule, before the
+time in a column of the subject's row, or once at a time you give it.
+`upsert` takes `{ at }` in place of the offset for a one-time reminder:
+
+```ts
+await db.reminders
+  .upsert(
+    { type: "task", id: taskId },
+    { at: Temporal.Instant.from("2030-03-06T07:30:00Z") },
+  )
+  .orThrow();
+```
+
+The time lands in the reminder's `remind_at` column, and `list` returns it as
+`remindAt`. Map `columns.reminders.remindAt` to `null` on a table without
+the column; `upsert` then takes offsets only.
+
+A subject without a recurrence rule, such as a task with a due date, names
+the column that holds its time in `on.<type>.at`. Its reminders fire
+`offsetMinutes` before that time, and a subject with no time set gets none:
+
+```ts title="better-supabase.config.ts"
+reminders: {
+  on: { task: { table: "public.tasks", at: "due_at" } },
+},
+```
+
+`upsert` checks the subject. With `on` set, a subject type that `on` doesn't
+list is refused with `REMINDER_SUBJECT_UNSUPPORTED`. A subject of a type in
+`on`, or in [`config.subjects`](/docs/repository/record-types) when `on` is unset,
+must exist in the organization and be readable by the caller, or `upsert`
+fails with `REMINDER_SUBJECT_NOT_FOUND`. Other types pass unchecked. The
+service role skips both checks.
 
 `expandRule` covers `FREQ`, `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY` with ordinals, `BYMONTHDAY`, `BYMONTH`, `BYSETPOS` and `WKST`. The pin is `SPEC_PINS.rfc5545`.
 
@@ -69,6 +105,53 @@ the subject stops getting its reminders:
 ```ts
 createReminders({ ...context, authorization: bsb.authorization });
 ```
+
+## Scheduling deliveries
+
+`reminders.schedule()` plans the deliveries on the server. It reads
+`list_reminder_schedule` as the service role, expands each reminder's rule,
+and enqueues one `reminders.deliver` job per occurrence due in the next day
+on `jobs`, keyed by reminder id and occurrence. Running it again enqueues
+nothing new, and `deliver` still records each occurrence once, so the two
+dedupes together send every reminder once. A delivery that fell due in the
+last 15 minutes still goes out, so a late run catches up.
+
+The block declares the timer `reminders.schedule` (every five minutes) in its
+manifest, so `blockSchedules` creates it with the
+[other block timers](/docs/blocks/queue#block-timers):
+
+```ts title="lib/jobs.ts"
+export const jobs = createQueue({
+  sql: postgres.admin,
+  queues: {
+    [BLOCK_TICKS_QUEUE]: blockTickSchema,
+    [REMINDER_DELIVERY_QUEUE]: reminderJobSchema,
+  },
+});
+
+const { reminders } = createBlocks(
+  { transport, service },
+  {
+    notifications: notificationsBlock,
+    reminders: remindersBlock.with({ jobs }),
+  },
+);
+
+export const ticks = blockTickHandler({
+  "reminders.schedule": () => reminders.schedule(),
+});
+```
+
+| Option            | Default | Does                                             |
+| ----------------- | ------- | ------------------------------------------------ |
+| `horizonMinutes`  | 1440    | How far ahead to enqueue deliveries              |
+| `lookbackMinutes` | 15      | How far back a missed delivery is still enqueued |
+| `now`             | now     | The instant the window starts from, for tests    |
+
+It returns `{ planned, enqueued, duplicates, skipped }`. Rules kept in
+columns (`ruleFormat: "columns"`) are counted in `skipped`: expand those with
+`planReminderDeliveries` from your own rule reader. Without `jobs`,
+`schedule` fails with the hint `REMINDER_JOBS_MISSING`.
 
 `reminder.sent` carries `organizationId`, `id`, `subjectType`, `subjectId`
 and `userId`, so a [watcher sink](/docs/blocks/notifications#watchers) can
