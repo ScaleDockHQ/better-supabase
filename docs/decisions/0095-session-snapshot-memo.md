@@ -18,8 +18,7 @@ same shape: two loaders of one request verified twice.
 
 `createServer` owns a session memo (`sessionMemo` in
 `src/auth/snapshot.ts`): a bounded LRU (1000 entries by default) keyed by
-the SHA-256 of the access token, computed with WebCrypto so runtime entries
-import no Node built-ins. It stores the in-flight promise, so concurrent
+the access token (ADR 0116 dropped the SHA-256 key). It stores the in-flight promise, so concurrent
 scopes share one verification. An entry lives until
 `min(exp, now + ttlMs)`; a failed verification and a signed-out result are
 never stored. The key comes only from the token, never from a user id or a
@@ -47,8 +46,9 @@ Expo expose the snapshot to loaders and handlers.
 
 `bsb.bootstrap()` (ADR 0115) is the usual reader in a page: its first island
 verifies the token through the memo, and the others share the result through
-React's `cache()`. The memo sits on top of the resolver's verified-token memo
-and the one process-wide JWKS (ADR 0116).
+React's `cache()`. Since 0.35 it is the only verified-token memo: the
+resolver looks tokens up in it, and the key set is the one process-wide JWKS
+(ADR 0116).
 
 ## Alternatives considered
 
@@ -70,5 +70,5 @@ valid token makes no Auth call. The memo holds verified tokens in memory
 for at most their lifetime, so a revoked session stays usable until it
 expires, the same as the local JWT check it replaces (`endedSession` is
 still the way to catch revocations on document loads). `sessions: false`
-turns the memo off. Revisit if Next.js adds a request store that spans
+turns the memo off, and with it every reuse of a verified token. Revisit if Next.js adds a request store that spans
 private cache scopes.

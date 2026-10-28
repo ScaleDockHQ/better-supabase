@@ -131,8 +131,18 @@ export const bsb = createServer(betterSupabase, {
 
 See [Jobs, webhooks and agents without a session](/docs/guides/without-a-session).
 
-`dbFor(auth)` and `supabaseFor(auth)` bind to an auth state you already
-have, for example one resolved in a proxy.
+`dbFor(auth)` and `contextClient(auth)` bind to an auth state you already
+have, for example one resolved in a proxy. `contextClient` builds a user's
+client with `createContextClient` from `@supabase/server`, so PostgREST,
+Storage and Realtime all run as that user. A secret-key or anonymous state
+without extra headers gets the server's shared client; the secret-key one is
+built with `createAdminClient` on first use.
+
+One server verifies each access token once while it is valid: the proxy,
+every `bsb.context()`, `getClaims()` and `bsb.snapshot()` share one memo of
+verified tokens (1000 by default, `sessions: { max, ttlMs }`).
+`bsb.sessions.evict(userId)` forgets a user's tokens, and `sessions: false`
+verifies on every call.
 
 ## From a verified token to a context
 
