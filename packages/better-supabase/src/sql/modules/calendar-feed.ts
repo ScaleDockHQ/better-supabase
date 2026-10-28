@@ -3,9 +3,9 @@ import type { FeedOptions } from "../feed-options.ts";
 
 import { feedOptions, feedWindow } from "../feed-options.ts";
 import {
-  accessCall,
+  accessForCall,
   calendarFeatures,
-  eventAccessCall,
+  eventAccessForCall,
   eventOwner,
   privateEvent,
   recurrenceSql,
@@ -56,7 +56,7 @@ function feedEvents(
     feed.visibility === "public"
       ? `(not ${privateEvent(ctx, "e.")}${owner === undefined ? "" : ` or e.${owner} = ${creator}`})`
       : features.access
-        ? eventAccessCall(ctx, e("id"), "read", creator)
+        ? eventAccessForCall(ctx, e("id"), creator)
         : "true";
 
   const reminders =
@@ -134,7 +134,7 @@ begin
   v_calendar := v_subject::uuid;
   if v_creator is null or not ${ctx.scope.canUser("v_creator", "v_tenant", read)}${
     features.access
-      ? ` or not ${accessCall(ctx, "v_calendar", "read", "v_creator")}`
+      ? ` or not ${accessForCall(ctx, "v_calendar", "v_creator")}`
       : ""
   } then
     return null;
@@ -173,7 +173,7 @@ function userFeed(
   const read = ctx.permission("read", moduleOperations("calendar").read);
 
   const readable = features.access
-    ? accessCall(ctx, k("id"), "read", "v_user")
+    ? accessForCall(ctx, k("id"), "v_user")
     : ctx.scope.canUser("v_user", k("tenant"), read);
 
   return `

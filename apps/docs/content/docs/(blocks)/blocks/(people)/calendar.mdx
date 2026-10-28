@@ -276,7 +276,11 @@ Every write function checks the calendar or event it changes, the read
 policies of the calendars, events and attendees tables call
 `calendar_access(calendar_id, user_id, action)` and
 `calendar_event_access(event_id, user_id, action)`, and a feed link serves a
-private calendar only while the member who made it can still read it. Members
+private calendar only while the member who made it can still read it. Both
+functions answer for the caller only and return false for another `user_id`,
+unless the service role asks. The feeds check the link's creator through
+`calendar_access_for` and `calendar_event_access_for`, which no client role
+can execute. Members
 create calendars they own with `calendar.write`; other calendars need
 `calendar.manage`.
 
@@ -303,7 +307,31 @@ with `columns.grants.role` holding `viewer` or `editor`. When your app already
 decides calendar access, name your functions in `options.accessFunctions`:
 each takes `(calendar_id uuid, user_id uuid)`, returns a boolean, and replaces
 the built-in rule for reading (`read`) or for writing, managing and seeing
-private events (`write`). The caller still needs `calendar.read`.
+private events (`write`), and `share` for making a share link (`write` when
+unset). The caller still needs `calendar.read`.
+
+When an [authorization provider](/docs/extending/authorization-providers)
+grants access per calendar, name its resource and a permission key instead of a
+function, and the block generates the check (`blocks.permissions.model:
+"provider"` and the provider's `rowsWith` template):
+
+```ts title="better-supabase.config.ts"
+calendar: {
+  options: {
+    access: true,
+    accessFunctions: {
+      read: { rows: "team_calendar", key: "teamCalendar.read" },
+      write: { rows: "team_calendar", key: "teamCalendar.update" },
+    },
+  },
+},
+```
+
+The signed-in caller is checked through `rowsWith`, with their own claims.
+A feed checks the link's creator, who is not signed in, through the provider's
+`rowsWithFor`; without it a feed serves no calendar that only a row grant
+opens. When the creator loses the grant, or the provider disables them, the
+feed returns nothing on the next fetch.
 
 ## Feed per member
 

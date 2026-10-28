@@ -222,7 +222,11 @@ puts the result into a policy or a module function:
 `rows` ([Actions granted per row](/docs/blocks/sql#actions-granted-per-row)).
 `{resource}` is that entry's `rows`, unquoted, so it can be part of a
 function name (`app.rows_{resource}({permission})`), and `{ids}` is a `text[]`
-of the ids being checked, which a provider may use to limit its work.
+of the ids being checked, which a provider may use to limit its work. The
+calendar block's `accessFunctions` and the drive block's `roleFunctions` take
+`{ rows }` entries too, so those blocks check per-row grants without a
+hand-written function; the calendar feeds use `rowsWithFor` to check the
+link's creator.
 
 `{roles}` is the same role as a `text[]` (`array[role]::text[]`), for a
 function that checks a set of roles at once. A `memberships` entry's

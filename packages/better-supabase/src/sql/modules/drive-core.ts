@@ -135,7 +135,7 @@ ${userGrant(`${fn("drive_node_held")}(uuid)`)}
 ${
   drives
     ? `
--- The caller's role on a drive: ${driveRole === undefined ? `${OPERATIONS["drive.manage"]} is ${roles.top}, the owner holds ${roles.top} too${roles.member === undefined ? "" : `, options.memberRole (${roles.member}) covers every member with ${OPERATIONS["drive.read"]}`}, and a grant that names them or one of their teams adds its role` : `options.roleFunctions.drive (${driveRole}) decides it`}. ${OPERATIONS["drive.read"]} in the drive's organization is required.
+-- The caller's role on a drive: ${driveRole === undefined ? `${OPERATIONS["drive.manage"]} is ${roles.top}, the owner holds ${roles.top} too${roles.member === undefined ? "" : `, options.memberRole (${roles.member}) covers every member with ${OPERATIONS["drive.read"]}`}, and a grant that names them or one of their teams adds its role` : `options.roleFunctions.drive (${driveRole.label}) decides it`}. ${OPERATIONS["drive.read"]} in the drive's organization is required.
 create or replace function ${fn("drive_drive_role")}(drive uuid)
 returns text
 language plpgsql
@@ -156,7 +156,7 @@ begin
   select d.${d("tenant")}, d.${d("owner")} into v_tenant, v_owner from ${D} d where d.${d("id")} = drive_drive_role.drive;
   if v_tenant is null or v_uid is null or not ${ctx.can("tenant", "v_tenant", read)} then
     return null;
-  end if;${driveRole === undefined ? "" : `\n  return (select r from ${driveRole}(drive_drive_role.drive, v_uid) r where r = any (${rolesArray}));`}
+  end if;${driveRole === undefined ? "" : `\n  return (select r from (select ${driveRole.role("drive_drive_role.drive", "v_uid")}) x(r) where r = any (${rolesArray}));`}
   if ${ctx.can("tenant", "v_tenant", manage)} or v_owner = v_uid then
     return ${sqlString(roles.top)};
   end if;
@@ -211,7 +211,7 @@ ${
   where ${SERVICE_CALLER}
     or (auth.uid() is not null
       and d.${d("tenant")} in (select ${ctx.scope.ids(read)})
-      and (${driveRole}(d.${d("id")}, auth.uid())) = any (${rolesArray}))`
+      and (${driveRole.role(`d.${d("id")}`, "auth.uid()")}) = any (${rolesArray}))`
 }
 $$;
 ${userGrant(`${fn("drive_drive_readable_ids")}()`)}
@@ -219,7 +219,7 @@ ${userGrant(`${fn("drive_drive_readable_ids")}()`)}
     : ""
 }
 
--- The caller's role on a node: ${nodeRole === undefined ? `the highest of the grants on it and its ancestors that name them, one of their teams or their organization role${roles.member === undefined ? "" : `, and options.memberRole (${roles.member}) for every member with ${OPERATIONS["drive.read"]}`}. ${OPERATIONS["drive.manage"]} is ${roles.top} everywhere` : `options.roleFunctions.node (${nodeRole}) decides it`}. Grants
+-- The caller's role on a node: ${nodeRole === undefined ? `the highest of the grants on it and its ancestors that name them, one of their teams or their organization role${roles.member === undefined ? "" : `, and options.memberRole (${roles.member}) for every member with ${OPERATIONS["drive.read"]}`}. ${OPERATIONS["drive.manage"]} is ${roles.top} everywhere` : `options.roleFunctions.node (${nodeRole.label}) decides it`}. Grants
 -- need ${OPERATIONS["drive.read"]} in the node's organization too.
 create or replace function ${fn("drive_role")}(node uuid)
 returns text
@@ -241,7 +241,7 @@ begin
   select x.${n("tenant")}${drives ? `, x.${n("drive")}` : ""} into v_tenant${drives ? ", v_drive" : ""} from ${T} x where x.${n("id")} = drive_role.node;
   if v_tenant is null or v_uid is null or not ${ctx.can("tenant", "v_tenant", read)} then
     return null;
-  end if;${nodeRole === undefined ? "" : `\n  return (select r from ${nodeRole}(drive_role.node, v_uid) r where r = any (${rolesArray}));`}
+  end if;${nodeRole === undefined ? "" : `\n  return (select r from (select ${nodeRole.role("drive_role.node", "v_uid")}) x(r) where r = any (${rolesArray}));`}
   if ${ctx.can("tenant", "v_tenant", manage)} then
     return ${sqlString(roles.top)};
   end if;
@@ -333,7 +333,7 @@ ${
   where ${SERVICE_CALLER}
     or (auth.uid() is not null
       and x.${n("tenant")} in (select ${ctx.scope.ids(read)})
-      and (${nodeRole}(x.${n("id")}, auth.uid())) = any (${rolesArray}))`
+      and (${nodeRole.role(`x.${n("id")}`, "auth.uid()")}) = any (${rolesArray}))`
 }
 $$;
 ${userGrant(`${fn("drive_readable_ids")}()`)}

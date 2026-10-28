@@ -10,6 +10,7 @@ import {
   resolveBlocks,
 } from "../../../src/sql/registry.ts";
 import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
+import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
@@ -380,6 +381,70 @@ describe("drive module", () => {
     );
     expect(core).toContain(`"public"."file_node_role"(x."id", auth.uid())`);
     expect(core).toContain(`"public"."file_drive_role"(d."id", auth.uid())`);
+  });
+
+  it("maps the provider's row grants to node and drive roles", () => {
+    const layout: Layout = {
+      modules: {
+        permissions: { model: "provider" },
+        drive: {
+          options: {
+            drives: true,
+            roleFunctions: {
+              node: {
+                rows: "file_node",
+                roles: { viewer: "fileNode.read", editor: "fileNode.update" },
+              },
+              drive: { rows: "drive", roles: { owner: "drive.manage" } },
+            },
+          },
+        },
+      },
+      accessProvider: {
+        ...moduleProvider,
+        functions: {
+          ...moduleProvider.functions,
+          rowsWith: "authz.rows_{resource}({permission}, {ids})",
+        },
+      },
+    };
+
+    const core = sqlOf(["drive"], "drive", layout);
+
+    expect(core).toContain(
+      "return (select r from (select case when (v_uid = auth.uid() and drive_role.node::text in (select r.id::text from authz.rows_file_node('fileNode.update', array[drive_role.node::text]) as r(id))) then 'editor' when (v_uid = auth.uid() and drive_role.node::text in (select r.id::text from authz.rows_file_node('fileNode.read', array[drive_role.node::text]) as r(id))) then 'viewer' end) x(r)",
+    );
+    expect(core).toContain(
+      "authz.rows_drive('drive.manage', array[drive_drive_role.drive::text])",
+    );
+    expect(core).toContain(
+      `authz.rows_file_node('fileNode.read', array[x."id"::text])`,
+    );
+
+    const fails = (roles: unknown) => () =>
+      sqlOf(["drive"], "drive", {
+        ...layout,
+        modules: {
+          ...layout.modules,
+          drive: {
+            options: { roleFunctions: { node: { rows: "file_node", roles } } },
+          },
+        },
+      });
+
+    expect(fails({ admin: "x" })).toThrow(/rows, roles/u);
+    expect(fails({})).toThrow(/rows, roles/u);
+    expect(() =>
+      sqlOf(
+        ["drive"],
+        "drive",
+        withOptions({
+          roleFunctions: {
+            node: { rows: "file_node", roles: { viewer: "x" } },
+          },
+        }),
+      ),
+    ).toThrow(/rowsWith/u);
   });
 
   it("can leave read policies to the app", () => {

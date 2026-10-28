@@ -69,6 +69,25 @@ The creator of a node gets the top role on it. Grants with an `expiresAt` stop a
 
 With `roleFunctions.node` or `roleFunctions.drive`, the block calls a schema-qualified function you name with the node or drive id and the caller's user id, and uses the role it returns. The function returns one of `roles`, or null. It replaces the block's own grants at that level, while the tenant `drive.read` check still applies. Use it when your own rules already decide who may read a node or a drive, such as an AuthorizationProvider.
 
+When an [authorization provider](/docs/extending/authorization-providers) grants access per row, set `{ rows, roles }` instead of a function name: `rows` is the provider's resource and `roles` maps each role of `roles` to the permission key that grants it. The block generates the check through the provider's `rowsWith` template (`blocks.permissions.model: "provider"`), and the caller gets the highest role whose key they hold on the node or drive.
+
+```ts title="better-supabase.config.ts"
+drive: {
+  options: {
+    roleFunctions: {
+      node: {
+        rows: "file_node",
+        roles: {
+          viewer: "fileNode.read",
+          editor: "fileNode.update",
+          owner: "fileNode.manage",
+        },
+      },
+    },
+  },
+},
+```
+
 ## Configure
 
 ```ts title="better-supabase.config.ts"
@@ -95,7 +114,7 @@ blocks: {
 | `drives`        | `false`                         | Several drives per organization, with drive-level grants and connected drives          |
 | `driveKinds`    | `["shared"]`                    | The kinds a drive can have; the first is the default                                   |
 | `sources`       | `["google-drive", "onedrive"]`  | The providers a connection can mirror                                                  |
-| `roleFunctions` | none                            | App functions that return the caller's role on a node or a drive                       |
+| `roleFunctions` | none                            | App functions or provider row grants that give the caller's role                       |
 | `readPolicy`    | `true`                          | The block's read policies; `false` leaves them to the app                              |
 | `extraColumns`  | none                            | Columns on the node table that `fields` reads and writes                               |
 
