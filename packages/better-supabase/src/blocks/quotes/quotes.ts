@@ -25,7 +25,12 @@ import {
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult } from "../../core/result.ts";
-import { amountsError, moneyOf, unknownCurrency } from "../money-codec.ts";
+import {
+  amountText,
+  amountsError,
+  moneyOf,
+  unknownCurrency,
+} from "../money-codec.ts";
 import { lineAmounts, lineArg, lineOf, totalsOf } from "../sales-lines.ts";
 import { attrsArg, compact, plainDate, refOf } from "../sales-shared.ts";
 import {
@@ -74,6 +79,42 @@ const STATUSES: readonly QuoteStatus[] = [
 
 export type QuoteDecision = "accepted" | "rejected" | "changes_requested";
 
+/** A quote line, with its place on the quote. */
+export interface QuoteLine extends Line {
+  /** 1-based; `selected` in a decision names lines by it. */
+  readonly position: number;
+  /** The heading the line sits under. */
+  readonly section?: string;
+  /** An optional line counts only while `selected`. */
+  readonly optional: boolean;
+  readonly selected: boolean;
+}
+
+/** The totals of one tax rate (and tax code), after the document discount. */
+export interface QuoteTaxLine {
+  readonly taxRateBps: number;
+  readonly taxCode?: string;
+  readonly net: Money;
+  readonly tax: Money;
+  readonly gross: Money;
+  /** This rate's share of the document discount. */
+  readonly discount: Money;
+}
+
+/** How a quote is priced: tax-inclusive prices, a document discount, a deposit. */
+export interface QuotePricing {
+  /** Unit amounts include tax, so tax is counted out of them. */
+  readonly pricesIncludeTax: boolean;
+  /** A percentage off the whole quote, in basis points (1000 for 10%). */
+  readonly discountBps: number;
+  /** An amount off the whole quote, after `discountBps`. */
+  readonly discountAmount: Money;
+  /** The deposit asked on acceptance, in basis points of the total. */
+  readonly depositBps?: number;
+  /** `depositBps` of the total, in minor units of the quote's currency. */
+  readonly depositDue: Money;
+}
+
 /** A quote. `F` types the extra columns the `fields` schema describes. */
 export interface Quote<F extends object = Record<never, never>> {
   readonly id: string;
@@ -81,9 +122,8 @@ export interface Quote<F extends object = Record<never, never>> {
   readonly number: bigint;
   /** `Q-12`; every revision of a quote shares it. */
   readonly identifier: string;
+  /** Counts up each time the quote is sent again after a change. */
   readonly revision: number;
-  /** The revision this one replaces. */
-  readonly supersedesId?: string;
   readonly title: string;
   readonly company?: RecordRef;
   readonly contact?: RecordRef;
@@ -101,7 +141,14 @@ export interface Quote<F extends object = Record<never, never>> {
   /** Who decided: the customer's name, or the member who recorded it. */
   readonly decidedBy?: string;
   readonly decisionNote?: string;
-  readonly lines: readonly Line[];
+  /** The signed-in user who decided, a member or a portal guest. */
+  readonly decidedUserId?: string;
+  /** The customer's IP address and user agent, when they answered. */
+  readonly decidedIp?: string;
+  readonly decidedUserAgent?: string;
+  readonly pricing: QuotePricing;
+  readonly lines: readonly QuoteLine[];
+  readonly taxLines: readonly QuoteTaxLine[];
   readonly totals: Totals;
   /** The app's extra columns (`options.extraColumns`), by column name. */
   readonly fields: RowFields<F>;
@@ -119,11 +166,49 @@ export interface QuoteInput<F extends object = Record<never, never>> {
   readonly terms?: string | null;
   readonly note?: string | null;
   readonly origin?: RecordRef;
+  readonly pricesIncludeTax?: boolean;
+  readonly discountBps?: number;
+  /** In the quote's currency. */
+  readonly discountAmount?: Money;
+  readonly depositBps?: number | null;
   /**
    * Values for the app's extra columns (`options.extraColumns`); left out keeps
    * the stored ones.
    */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
+}
+
+/** A published revision: the quote exactly as it was sent then. */
+export interface QuoteVersion<F extends object = Record<never, never>> {
+  readonly revision: number;
+  readonly publishedAt: Temporal.Instant;
+  readonly quote: Quote<F>;
+}
+
+/** A published revision, without its snapshot. */
+export interface QuoteVersionSummary {
+  readonly revision: number;
+  readonly total: Money;
+  readonly publishedAt: Temporal.Instant;
+  readonly publishedBy?: string;
+}
+
+/** The customer's answer. */
+export interface QuoteAnswer {
+  readonly name: string;
+  readonly note?: string;
+  /**
+   * On acceptance, the positions of the optional lines the customer takes; the
+   * others drop out of the totals. Left out keeps the current choice.
+   */
+  readonly selected?: readonly number[];
+}
+
+/** What a customer's answer did. */
+export interface QuoteResponse {
+  readonly status: QuoteStatus;
+  readonly identifier: string;
+  readonly revision: number;
 }
 
 /** What the customer sees through the quote's link. */
@@ -135,18 +220,23 @@ export interface PublicQuote {
   readonly currency: string;
   readonly validUntil?: Temporal.PlainDate;
   readonly terms?: string;
-  readonly subtotal: Money;
-  readonly discountTotal: Money;
-  readonly taxTotal: Money;
-  readonly total: Money;
-  readonly lines: readonly Line[];
+  readonly pricing: QuotePricing;
+  readonly totals: Totals;
+  readonly lines: readonly QuoteLine[];
+  readonly taxLines: readonly QuoteTaxLine[];
 }
 
 /**
  * A quote line. With the catalog block installed, a line can name a product
  * variant and take its price in the quote's currency and its title.
  */
-export type QuoteLineInput = LineInput | CatalogLineInput;
+export type QuoteLineInput = (LineInput | CatalogLineInput) & {
+  readonly section?: string;
+  /** Left out of the totals unless `selected`. */
+  readonly optional?: boolean;
+  /** Defaults to `true` for a required line and `false` for an optional one. */
+  readonly selected?: boolean;
+};
 
 export interface Quotes<F extends object = Record<never, never>> {
   create(
@@ -168,10 +258,21 @@ export interface Quotes<F extends object = Record<never, never>> {
   decide(
     quoteId: string,
     decision: QuoteDecision,
-    options?: { readonly note?: string; readonly by?: string },
+    options?: {
+      readonly note?: string;
+      readonly by?: string;
+      readonly selected?: readonly number[];
+    },
   ): AsyncResult<Quote<F>>;
-  /** A new draft revision; the old one is withdrawn unless accepted. */
+  /**
+   * Back to draft for changes, as the next revision. The sent revision stays
+   * published in `versions`; an accepted quote can't be revised.
+   */
   revise(quoteId: string): AsyncResult<Quote<F>>;
+  /** The revisions sent so far, oldest first. */
+  versions(quoteId: string): AsyncResult<readonly QuoteVersionSummary[]>;
+  /** The quote as it was sent at `revision`. */
+  version(quoteId: string, revision: number): AsyncResult<QuoteVersion<F>>;
   /** A draft quote from a deal, once per deal. Needs the deals module. */
   fromDeal(dealId: string): AsyncResult<Quote<F>>;
   /** The quote behind a link, for the customer's page. Marks it viewed. */
@@ -180,8 +281,22 @@ export interface Quotes<F extends object = Record<never, never>> {
   respond(
     token: string,
     decision: QuoteDecision,
-    answer: { readonly name: string; readonly note?: string },
-  ): AsyncResult<{ readonly status: QuoteStatus }>;
+    answer: QuoteAnswer,
+  ): AsyncResult<QuoteResponse>;
+  /**
+   * A quote shared with the signed-in guest (portal), as the customer sees it.
+   * Marks it viewed.
+   */
+  portalView(quoteId: string): AsyncResult<PublicQuote>;
+  /**
+   * The signed-in guest's answer, with no token. The name defaults to the
+   * guest's email.
+   */
+  portalRespond(
+    quoteId: string,
+    decision: QuoteDecision,
+    answer?: Partial<QuoteAnswer>,
+  ): AsyncResult<QuoteResponse>;
   /** Expires sent quotes past their date. Service role only. */
   expire(): AsyncResult<number>;
 }
@@ -208,7 +323,6 @@ const KNOWN = new Set([
   "number",
   "identifier",
   "revision",
-  "supersedes_id",
   "title",
   "company_type",
   "company_id",
@@ -227,6 +341,14 @@ const KNOWN = new Set([
   "decided_at",
   "decided_by",
   "decision_note",
+  "decided_user_id",
+  "decided_ip",
+  "decided_user_agent",
+  "prices_include_tax",
+  "discount_bps",
+  "discount_amount",
+  "deposit_bps",
+  "deposit_due",
   "created_by",
   "created_at",
   "updated_at",
@@ -236,9 +358,94 @@ const KNOWN = new Set([
   "tax_total",
   "total",
   "lines",
+  "tax_lines",
+  "taxLines",
   "token",
   "fields",
+  "publishedAt",
 ]);
+
+function quoteLineOf(value: unknown, currency: string): QuoteLine {
+  const row = recordOf(value, "quote line");
+  const optional = row["optional"] === true;
+
+  return compact<QuoteLine>({
+    ...lineOf(row, currency),
+    position: Number(row["position"] ?? 0),
+    section: optionalText(row["section"]),
+    optional,
+    selected:
+      typeof row["selected"] === "boolean" ? row["selected"] : !optional,
+  });
+}
+
+function taxLineOf(value: unknown, currency: string): QuoteTaxLine {
+  const row = recordOf(value, "quote tax line");
+
+  const at = (key: string): Money =>
+    moneyOf(row[key] ?? "0", currency, `quote tax line ${key}`);
+
+  return compact<QuoteTaxLine>({
+    taxRateBps: Number(row["taxRateBps"] ?? 0),
+    taxCode: optionalText(row["taxCode"]),
+    net: at("net"),
+    tax: at("tax"),
+    gross: at("gross"),
+    discount: at("discount"),
+  });
+}
+
+/** Pricing from a row (snake keys) or a public quote (camel keys). */
+function pricingOf(
+  row: Readonly<Record<string, unknown>>,
+  currency: string,
+  camel: boolean,
+): QuotePricing {
+  const key = (snake: string, camelKey: string): unknown =>
+    camel ? row[camelKey] : row[snake];
+
+  const depositBps = key("deposit_bps", "depositBps");
+
+  return compact<QuotePricing>({
+    pricesIncludeTax: key("prices_include_tax", "pricesIncludeTax") === true,
+    discountBps: Number(key("discount_bps", "discountBps") ?? 0),
+    discountAmount: moneyOf(
+      key("discount_amount", "discountAmount") ?? "0",
+      currency,
+      "quote discountAmount",
+    ),
+    depositBps:
+      depositBps === null || depositBps === undefined
+        ? undefined
+        : Number(depositBps),
+    depositDue: moneyOf(
+      key("deposit_due", "depositDue") ?? "0",
+      currency,
+      "quote depositDue",
+    ),
+  });
+}
+
+function responseOf(value: unknown): QuoteResponse {
+  const row = recordOf(value, "quote response");
+
+  return {
+    status: enumOrThrow(row["status"], STATUSES, "quote status"),
+    identifier: textOf(row["identifier"]),
+    revision: Number(row["revision"] ?? 1),
+  };
+}
+
+function versionSummaryOf(value: unknown): QuoteVersionSummary {
+  const row = recordOf(value, "quote version");
+
+  return compact<QuoteVersionSummary>({
+    revision: Number(row["revision"]),
+    total: moneyOf(row["total"], row["currency"], "quote version total"),
+    publishedAt: requiredInstant(row["publishedAt"], "publishedAt"),
+    publishedBy: optionalText(row["publishedBy"]),
+  });
+}
 
 function quoteOf(value: unknown): Quote {
   const row = recordOf(value, "quote");
@@ -250,7 +457,6 @@ function quoteOf(value: unknown): Quote {
     number: bigintOf(row["number"], "quote number"),
     identifier: textOf(row["identifier"]),
     revision: Number(row["revision"] ?? 1),
-    supersedesId: optionalText(row["supersedes_id"]),
     title: textOf(row["title"]),
     company: refOf(row["company_type"], row["company_id"]),
     contact: refOf(row["contact_type"], row["contact_id"]),
@@ -266,8 +472,15 @@ function quoteOf(value: unknown): Quote {
     decidedAt: optionalInstant(row["decided_at"]),
     decidedBy: optionalText(row["decided_by"]),
     decisionNote: optionalText(row["decision_note"]),
+    decidedUserId: optionalText(row["decided_user_id"]),
+    decidedIp: optionalText(row["decided_ip"]),
+    decidedUserAgent: optionalText(row["decided_user_agent"]),
+    pricing: pricingOf(row, currency, false),
     lines: recordsOf(row["lines"], "quote lines").map((line) =>
-      lineOf(line, currency),
+      quoteLineOf(line, currency),
+    ),
+    taxLines: recordsOf(row["taxLines"] ?? [], "quote tax lines").map((line) =>
+      taxLineOf(line, currency),
     ),
     totals: totalsOf(row, false),
     // Rows from the module carry `fields`; an adopted table's rows carry
@@ -285,9 +498,6 @@ function publicOf(value: unknown): PublicQuote {
   const row = recordOf(value, "public_quote");
   const currency = textOf(row["currency"]);
 
-  const at = (key: string): Money =>
-    moneyOf(row[key], currency, `public_quote ${key}`);
-
   return compact<PublicQuote>({
     identifier: textOf(row["identifier"]),
     revision: Number(row["revision"] ?? 1),
@@ -296,19 +506,24 @@ function publicOf(value: unknown): PublicQuote {
     currency,
     validUntil: plainDate(row["validUntil"]),
     terms: optionalText(row["terms"]),
-    subtotal: at("subtotal"),
-    discountTotal: at("discountTotal"),
-    taxTotal: at("taxTotal"),
-    total: at("total"),
+    pricing: pricingOf(row, currency, true),
+    totals: totalsOf(
+      { ...row, listTotal: row["listTotal"] ?? row["subtotal"] },
+      true,
+    ),
     lines: recordsOf(row["lines"], "quote lines").map((line) =>
-      lineOf(line, currency),
+      quoteLineOf(line, currency),
+    ),
+    taxLines: recordsOf(row["taxLines"] ?? [], "quote tax lines").map((line) =>
+      taxLineOf(line, currency),
     ),
   });
 }
 
 /**
- * The quotes block: quotes with lines, a revision chain, a public link the
- * customer answers through, expiry, and quotes made from deals.
+ * The quotes block: quotes with lines, sections and optional lines, document
+ * discounts and tax-inclusive prices, published versions, a public link and a
+ * portal the customer answers through, expiry, and quotes made from deals.
  */
 export function createQuotes<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -329,10 +544,13 @@ export function createQuotes<
     input: QuoteInput<F>,
     checked: Readonly<Record<string, unknown>> | undefined,
   ): Record<string, unknown> => {
-    const { fields: _fields, ...rest } = input;
+    const { fields: _fields, discountAmount, ...rest } = input;
 
     return {
       ...attrsArg(rest),
+      ...(discountAmount === undefined
+        ? {}
+        : { discountAmount: amountText(discountAmount) }),
       ...(checked === undefined ? {} : { fields: checked }),
     };
   };
@@ -403,23 +621,56 @@ export function createQuotes<
           decision,
           note: decide.note ?? null,
           by: decide.by ?? null,
+          selected: decide.selected ?? null,
         },
         quoteOf,
       ),
     revise: (quoteId) => quote("revise_quote", { quote: quoteId }, quoteOf),
+    versions: (quoteId) =>
+      call("quote_versions", { quote: quoteId }, (value) =>
+        recordsOf(value, "quote versions").map(versionSummaryOf),
+      ),
+    version: (quoteId, revision) =>
+      call("quote_version", { quote: quoteId, revision }, (value) => {
+        const row = recordOf(value, "quote version");
+
+        return {
+          revision: Number(row["revision"]),
+          publishedAt: requiredInstant(row["publishedAt"], "publishedAt"),
+          quote: quoteOf(row),
+        };
+      }).andThen((version) =>
+        readFields(fields, version.quote).map((parsed) => ({
+          ...version,
+          quote: parsed,
+        })),
+      ),
     fromDeal: (dealId) => quote("quote_from_deal", { deal: dealId }, quoteOf),
     view: (token) => call("public_quote", { token }, publicOf),
     respond: (token, decision, answer) =>
       call(
         "respond_to_quote",
-        { token, decision, name: answer.name, note: answer.note ?? null },
-        (value) => ({
-          status: enumOrThrow(
-            recordOf(value, "respond_to_quote")["status"],
-            STATUSES,
-            "quote status",
-          ),
-        }),
+        {
+          token,
+          decision,
+          name: answer.name,
+          note: answer.note ?? null,
+          selected: answer.selected ?? null,
+        },
+        responseOf,
+      ),
+    portalView: (quoteId) => call("portal_quote", { quote: quoteId }, publicOf),
+    portalRespond: (quoteId, decision, answer = {}) =>
+      call(
+        "respond_to_portal_quote",
+        {
+          quote: quoteId,
+          decision,
+          name: answer.name ?? null,
+          note: answer.note ?? null,
+          selected: answer.selected ?? null,
+        },
+        responseOf,
       ),
     expire: () => call("expire_quotes", {}, (value) => Number(value ?? 0)),
   };

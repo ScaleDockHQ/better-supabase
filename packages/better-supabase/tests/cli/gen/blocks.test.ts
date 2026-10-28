@@ -139,6 +139,8 @@ describe("blocks.generated.ts", () => {
               columns: {
                 quotes: { tenant: "org_id" },
                 lines: { tenant: "org_id" },
+                versions: { tenant: "org_id" },
+                taxLines: { tenant: "org_id" },
               },
             },
           },

@@ -122,3 +122,4 @@ add one, and link it from the code or config it explains.
 | [0116](0116-one-jwks-and-token-memos.md)                  | One JWKS per process on `globalThis`; one verified-token memo per server; clients on `createContextClient` and `createAdminClient`                 |
 | [0117](0117-proxy-on-supabase-ssr.md)                     | Sessions refresh through `@supabase/ssr` on every request, with one Auth call per refresh token                                                    |
 | [0119](0119-tenant-approval-policies.md)                  | Tenant approval policies tighten config floors with conditions and a confirm or authorize mode; manager approvers; approvals consumed once         |
+| [0120](0120-quote-versions-and-document-totals.md)        | Quotes publish immutable versions and revise in place; document discounts, VAT-inclusive prices and deposits count per tax rate                    |

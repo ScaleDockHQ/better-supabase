@@ -51,6 +51,7 @@ const ROW = {
   origin_type: "quote",
   origin_id: "q1",
   deposit_bps: 3000,
+  prices_include_tax: true,
   created_by: "u1",
   created_at: "2026-10-15T09:00:00Z",
   updated_at: "2026-10-15T09:00:00Z",
@@ -125,6 +126,7 @@ describe("invoices block", () => {
       balance: eur(400n),
       overdue: true,
       depositBps: 3000,
+      pricesIncludeTax: true,
       origin: { type: "quote", id: "q1" },
       payments: [
         { id: "pay1", amount: eur(500n), method: "bank", reference: "b1" },
