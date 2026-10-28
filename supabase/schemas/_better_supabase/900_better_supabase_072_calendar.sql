@@ -1,6 +1,6 @@
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:110e9a399862b40b14921ff42903c3713cbac4d20f1f27fac2de150997db15b1
+-- @bsb-hash sha256:e9798aad475202e3c92442697f1c495d747e36a73f21a3559aa8f229d73cd6b6
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1221,6 +1221,7 @@ begin
   return (
     select jsonb_build_object(
       'calendar', jsonb_build_object('id', k."id", 'name', k."name", 'tz', k."tz"),
+      'createdBy', v_creator,
       'events', coalesce((
       select jsonb_agg(f.item order by f.starts)
       from (

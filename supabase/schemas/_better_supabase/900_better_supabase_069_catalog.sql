@@ -1,6 +1,6 @@
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:542264ac018284f11ebdf42f36b758378c72502a6dca90f9218262fc38337af9
+-- @bsb-hash sha256:583888a585f2c1cedd87e991f804b59abfccf9885c17c43e362d52cf436fbada
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -539,8 +539,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+  if v_created then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  else
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
@@ -598,35 +604,39 @@ as $$
 declare
   v_tenant uuid;
   v_from text;
+  v_from_raw text;
+  v_to text := set_product_status.status;
+  v_to_raw text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", x."status" into v_tenant, v_from from "better_supabase"."products" x where x."id" = set_product_status.product for update;
+  select x."tenant_id", x."status", x."status"::text into v_tenant, v_from, v_from_raw from "better_supabase"."products" x where x."id" = set_product_status.product for update;
   if v_tenant is null then
     raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if set_product_status.status not in ('draft', 'active', 'archived') then
+  if v_to is null or v_to not in ('draft', 'active', 'archived') then
     raise exception 'the status must be draft, active or archived' using errcode = '22023', hint = 'CATALOG_STATUS_INVALID';
   end if;
-  if v_from = set_product_status.status then
+  v_to_raw := (set_product_status.status)::text;
+  if v_from_raw = v_to_raw then
     return jsonb_build_object('id', set_product_status.product, 'status', v_from, 'from', v_from);
   end if;
-  if not (case v_from
-    when 'draft' then set_product_status.status = any ('{active,archived}'::text[])
-    when 'active' then set_product_status.status = any ('{draft,archived}'::text[])
-    when 'archived' then set_product_status.status = any ('{draft}'::text[])
+  if v_from <> v_to and not (case v_from
+    when 'draft' then v_to = any ('{active,archived}'::text[])
+    when 'active' then v_to = any ('{draft,archived}'::text[])
+    when 'archived' then v_to = any ('{draft}'::text[])
     else false
   end) then
     raise exception 'the product can''t move to this status' using errcode = '22023', hint = 'CATALOG_TRANSITION_INVALID';
   end if;
   update "better_supabase"."products" x set "status" = set_product_status.status, "updated_at" = now()
   where x."id" = set_product_status.product;
-  perform "better_supabase".emit_event('product.status_changed', jsonb_build_object('organizationId', v_tenant, 'id', set_product_status.product, 'from', v_from, 'to', set_product_status.status), 'products/' || set_product_status.product::text, (v_tenant)::text, null, 'better-supabase/catalog');
-  return jsonb_build_object('id', set_product_status.product, 'status', set_product_status.status, 'from', v_from);
+  perform "better_supabase".emit_event('product.status_changed', jsonb_build_object('organizationId', v_tenant, 'id', set_product_status.product, 'from', v_from, 'to', v_to), 'products/' || set_product_status.product::text, (v_tenant)::text, null, 'better-supabase/catalog');
+  return jsonb_build_object('id', set_product_status.product, 'status', v_to, 'from', v_from);
 end;
 $$;
 revoke execute on function "better_supabase"."set_product_status"(uuid, text) from public, anon;
@@ -680,6 +690,7 @@ declare
   v_wanted uuid[];
   v_last text;
   v_rank text;
+  v_sku text := save_variant.sku;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -688,9 +699,16 @@ begin
   if v_tenant is null then
     raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+  if v_created then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
+  else
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  end if;
+  if v_created or save_variant.option_values is not null then
   v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
   if cardinality(v_wanted) <> coalesce(cardinality(save_variant.option_values), 0)
     or exists (
@@ -712,6 +730,7 @@ begin
   ) then
     raise exception 'another variant has these option values' using errcode = '23505', hint = 'CATALOG_VARIANT_DUPLICATE';
   end if;
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_variant_save"(uuid, uuid, text, uuid[])');
   begin
@@ -732,9 +751,9 @@ begin
       values (v_tenant, save_variant.product, save_variant.sku, save_variant.title, save_variant.barcode, save_variant.weight_grams, coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
       returning "id" into v_id;
     else
-      update "better_supabase"."product_variants" x set "sku" = save_variant.sku, "title" = save_variant.title, "barcode" = save_variant.barcode, "weight_grams" = save_variant.weight_grams, "track_inventory" = coalesce(save_variant.track_inventory, true), "allow_backorder" = coalesce(save_variant.allow_backorder, false), "updated_at" = now()
+      update "better_supabase"."product_variants" x set "sku" = coalesce(save_variant.sku, x."sku"), "title" = coalesce(save_variant.title, x."title"), "barcode" = coalesce(save_variant.barcode, x."barcode"), "weight_grams" = coalesce(save_variant.weight_grams, x."weight_grams"), "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
       where x."id" = save_variant.variant and x."product_id" = save_variant.product
-      returning x."rank" into v_rank;
+      returning x."rank", x."sku" into v_rank, v_sku;
       if not found then
         raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
       end if;
@@ -742,14 +761,16 @@ begin
   exception when unique_violation then
     raise exception 'another variant has this SKU' using errcode = '23505', hint = 'CATALOG_SKU_TAKEN';
   end;
+  if v_wanted is not null then
   delete from "better_supabase"."product_variant_values" x where x."variant_id" = v_id and not (x."option_value_id" = any (v_wanted));
   insert into "better_supabase"."product_variant_values" ("tenant_id", "variant_id", "option_value_id")
   select v_tenant, v_id, x from unnest(v_wanted) x
   on conflict do nothing;
+  end if;
   if v_created then
-    perform "better_supabase".emit_event('variant.created', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', save_variant.sku), 'variants/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
+    perform "better_supabase".emit_event('variant.created', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', v_sku), 'variants/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
   else
-    perform "better_supabase".emit_event('variant.updated', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', save_variant.sku), 'variants/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
+    perform "better_supabase".emit_event('variant.updated', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', v_sku), 'variants/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_variant_save"(uuid, boolean)');
@@ -759,7 +780,7 @@ begin
         using v_id, v_created;
     end if;
   end;
-  return jsonb_build_object('id', v_id, 'sku', save_variant.sku, 'rank', v_rank);
+  return jsonb_build_object('id', v_id, 'sku', v_sku, 'rank', v_rank);
 end;
 $$;
 revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean) from public, anon;
@@ -841,6 +862,7 @@ declare
   v_last text;
   v_rank text;
   v_value text;
+  v_new boolean := save_product_option.option is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -860,9 +882,6 @@ begin
   end if;
   begin
     if v_id is null then
-      if exists (select 1 from "better_supabase"."product_variants" x where x."product_id" = save_product_option.product) then
-        raise exception 'add options before the product has variants' using errcode = '22023', hint = 'CATALOG_OPTION_HAS_VARIANTS';
-      end if;
       select max(x."rank" collate "C") into v_last from "better_supabase"."product_options" x where x."product_id" = save_product_option.product;
       insert into "better_supabase"."product_options" ("tenant_id", "product_id", "name", "rank")
       values (v_tenant, save_product_option.product, save_product_option.name, case
@@ -899,6 +918,11 @@ begin
       values (v_tenant, v_id, v_value, v_rank);
     end if;
   end loop;
+  if v_new then
+    insert into "better_supabase"."product_variant_values" ("tenant_id", "variant_id", "option_value_id")
+    select v_tenant, x."id", (select y."id" from "better_supabase"."product_option_values" y where y."option_id" = v_id and y."value" = save_product_option.option_values[1])
+    from "better_supabase"."product_variants" x where x."product_id" = save_product_option.product;
+  end if;
   return jsonb_build_object(
     'id', v_id,
     'values', (select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'value', x."value") order by x."rank" collate "C"), '[]'::jsonb) from "better_supabase"."product_option_values" x where x."option_id" = v_id)
