@@ -24,4 +24,4 @@ Breaking changes:
 
 Raw SQL reads of the stock columns now return decimal strings such as `"7.000000"`, and stock event payloads carry them the same way (`available`, `reorderPoint`).
 
-`better-supabase codemod 0.35` lists the stock hooks declared with an `integer` quantity, the order status switches and `orderFromQuoteAction` calls for review.
+`better-supabase codemod 0.37` lists the stock hooks declared with an `integer` quantity, the order status switches and `orderFromQuoteAction` calls for review.

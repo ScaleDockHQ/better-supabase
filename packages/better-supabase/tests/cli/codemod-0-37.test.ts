@@ -4,7 +4,9 @@ import { applyCodemod, CODEMODS } from "../../src/cli/codemod.ts";
 
 const v035 = CODEMODS["0.35"]!;
 
-describe("codemod 0.35", () => {
+const v037 = CODEMODS["0.37"]!;
+
+describe("codemod 0.37", () => {
   it("rewrites the navigation policies, outside strings and comments", () => {
     const source = `import { createExpo } from "better-supabase/expo";
 
@@ -14,7 +16,7 @@ export const session = { verifySession: 'navigation' };
 const label = 'refresh: "navigation"';
 `;
 
-    expect(applyCodemod(v035, source, "src/server.ts").text)
+    expect(applyCodemod(v037, source, "src/server.ts").text)
       .toBe(`import { createExpo } from "better-supabase/expo";
 
 // refresh: "navigation" was the default
@@ -31,7 +33,7 @@ export const proxy = bsb.proxy(request, { onExpiredPrefetch: "render" });
 clearSessionCookies(request, response);
 `;
 
-    const messages = applyCodemod(v035, source, "src/proxy.ts").review.map(
+    const messages = applyCodemod(v037, source, "src/proxy.ts").review.map(
       (line) => line.message,
     );
 
@@ -53,7 +55,7 @@ await bsb.contextFromSession(session, { token });
 await bsb.cached({ life: { stale: 900 } });
 `;
 
-    const review = applyCodemod(v035, source, "src/data.ts").review;
+    const review = applyCodemod(v037, source, "src/data.ts").review;
 
     expect(review.map((line) => line.line)).toEqual([1, 3, 4, 5]);
     expect(review.map((line) => line.message)).toEqual([
@@ -69,7 +71,7 @@ await bsb.cached({ life: { stale: 900 } });
 export const GET = sessionStatusRoute(bsb);
 `;
 
-    const result = applyCodemod(v035, source, "app/layout.tsx");
+    const result = applyCodemod(v037, source, "app/layout.tsx");
 
     expect(result.text)
       .toBe(`<SessionProvider session={bsb.claims()}>{children}</SessionProvider>;
@@ -85,7 +87,7 @@ const { supabaseFor } = server;
 export const server = createServer({ sessions: false });
 `;
 
-    const result = applyCodemod(v035, source, "src/server.ts");
+    const result = applyCodemod(v037, source, "src/server.ts");
 
     expect(result.text).toBe(`const client = server.contextClient(ctx.auth);
 const label = "server.supabaseFor(auth)";
@@ -107,7 +109,7 @@ await machine.transition(subject, "won", reason);
 const label = 'machine.transition(subject, "won", "Signed")';
 `;
 
-    const result = applyCodemod(v035, source, "src/deals.ts");
+    const result = applyCodemod(v037, source, "src/deals.ts");
 
     expect(result.text)
       .toBe(`await machine.transition(subject, "won", { reason: "Signed" });
@@ -130,7 +132,7 @@ await memory.archival.forget(id);
 const icons = {} satisfies Record<WorkflowNodeKind, Icon>;
 `;
 
-    const result = applyCodemod(v035, source, "src/graph.ts");
+    const result = applyCodemod(v037, source, "src/graph.ts");
 
     expect(result.text).toBe(`const a = validateGraph(graph, { steps });
 const b = validateGraph(draft, { steps: library.steps });
@@ -152,7 +154,7 @@ if (order.status === "pending_payment") notify();
 export const toOrder = orderFromQuoteAction({ create: placeOrder });
 `;
 
-    const review = applyCodemod(v035, source, "src/orders.ts").review;
+    const review = applyCodemod(v037, source, "src/orders.ts").review;
 
     expect(review.map((line) => line.line)).toEqual([1, 3, 4]);
     expect(review.map((line) => line.message)).toEqual([
@@ -160,5 +162,27 @@ export const toOrder = orderFromQuoteAction({ create: placeOrder });
       expect.stringContaining("`confirmed` status"),
       expect.stringContaining("no longer needs `create`"),
     ]);
+  });
+});
+
+describe("codemod 0.35", () => {
+  it("keeps the 0.36 rewrites and review lines that 0.36.0 shipped", () => {
+    const source = `const supabase = bsb.supabaseFor(auth);
+clearSessionCookies(request, response);
+`;
+
+    const result = applyCodemod(v035, source, "src/server.ts");
+
+    expect(result.text).toContain("bsb.contextClient(auth)");
+    expect(result.review.map((line) => line.line)).toEqual([2]);
+  });
+
+  it("leaves the 0.37 stock and order lines to codemod 0.37", () => {
+    const source = `if (order.status === "pending_payment") notify();
+export const toOrder = orderFromQuoteAction({ create: placeOrder });
+`;
+
+    expect(applyCodemod(v035, source, "src/orders.ts").review).toEqual([]);
+    expect(applyCodemod(v037, source, "src/orders.ts").review).toHaveLength(2);
   });
 });
