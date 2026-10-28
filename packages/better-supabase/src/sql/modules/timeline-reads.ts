@@ -334,7 +334,7 @@ function messageBranch(ctx: BlockSqlContext, types: string): string {
     id: `${m("id")}::text`,
     tenant: m("tenant"),
     event: "null::text",
-    type: `'message.' || ${m("kind")}::text`,
+    type: "'message.sent'",
     actor: m("author"),
     subjectType: "list_activity.subject_type",
     subjectId: "list_activity.subject_id",

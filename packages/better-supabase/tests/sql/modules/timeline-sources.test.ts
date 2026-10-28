@@ -78,7 +78,7 @@ describe("timeline transition and message sources", () => {
     );
     expect(sql).toContain(`and m."sent_at" is not null`);
     expect(sql).toContain(`and m."deleted_at" is null`);
-    expect(sql).toContain(`'type', 'message.' || m."kind"::text`);
+    expect(sql).toContain(`'type', 'message.sent'`);
     expect(sql).toContain(`'source', 'message'`);
   });
 

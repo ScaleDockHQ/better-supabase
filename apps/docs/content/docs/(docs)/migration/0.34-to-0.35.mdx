@@ -218,9 +218,9 @@ installed, and a `workflow_version_id` column to `subject_lifecycles` when a
 machine sets `workflow`. Three unions gained members, so an exhaustive
 `switch` over them stops compiling until it handles the new ones:
 
-| 0.34                                                     | 0.35                                                           |
-| -------------------------------------------------------- | -------------------------------------------------------------- |
-| `TemplateScope`: `"tenant" \| "system"`                  | adds `"brand"`, for a starter of one brand                     |
-| `ActivitySource`: `event`, `audit`, `delivery`, `run`    | adds `transition` and `message`                                |
-| `StatusState` without workflow fields                    | adds `workflow` and `workflowVersionId`                        |
-| a timeline lists status changes only as `status.changed` | also as `transition` entries; pass `sources` to show them once |
+| 0.34                                                        | 0.35                                                              |
+| ----------------------------------------------------------- | ----------------------------------------------------------------- |
+| `TemplateScope`: `"tenant" \| "system"`                     | adds `"brand"`, for a starter of one brand                        |
+| `ActivitySource`: `event`, `audit`, `delivery`, `run`       | adds `transition` and `message`                                   |
+| `StatusState` without workflow fields                       | adds `workflow` and `workflowVersionId`                           |
+| a timeline lists status changes and comments only as events | also as `transition` and `message` entries; filter with `sources` |

@@ -63,8 +63,10 @@ the record's messaging conversation.
 - Two workers that claim one occurrence before either records it both call
   the type's `apply` with the same key; the type uses the key to return the
   first record, as the `templates.apply` step already requires.
-- With the outbox installed, a status change reaches a timeline twice, as a
-  `status.changed` event and as a `transition`; views filter with `sources`.
+- When `activitySink` also records `status.changed` or `message.sent`, a
+  status change or a comment reaches a timeline twice, as an `event` and as a
+  `transition` or `message`; views filter with `sources`. Message entries
+  have the type `message.sent`, as the outbox event does.
 - A workflow machine names its definition by slug in the config. The
   lifecycle defaults of ADR 0126 (`resolve_workflow_definition`) pick a
   workflow to start per subject type and don't change which version a
