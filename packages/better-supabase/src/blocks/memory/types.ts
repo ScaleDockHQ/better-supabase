@@ -3,6 +3,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { Embedder } from "../knowledge/knowledge.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
@@ -11,14 +12,16 @@ export type MemoryScope =
   | "agent"
   | "chat"
   | "project"
-  | "organization";
+  | "organization"
+  | "record";
 
 export type MemoryKind = "core" | "archival";
 
 /**
  * Whose memory a call reads or changes. The default is the caller's own memory;
- * `organization` memory is shared and only admins change it. The `project`
- * scope takes a `projectId` (an ai-chat project) and no other scope does. The
+ * `organization` and `record` memory are shared and only admins change them.
+ * The `project` scope takes a `projectId` (an ai-chat project) and the `record`
+ * scope a `subject` (any registered record); no other scope takes either. The
  * service role names the user in `ownerId`.
  */
 export interface MemoryNamespace {
@@ -26,7 +29,19 @@ export interface MemoryNamespace {
   readonly agentId?: string;
   readonly chatId?: string;
   readonly projectId?: string;
+  readonly subject?: RecordRef;
   readonly ownerId?: string;
+}
+
+/** What `archival.upsert` and `saveExtracted` store next to a fact. */
+export interface MemorySaveOptions {
+  readonly sourceMessageId?: string;
+  /** A lowercase slug, such as `preference` or `fact`. */
+  readonly category?: string;
+  /** From 0 to 1; a search weighs each fact's score by it. Default 1. */
+  readonly confidence?: number;
+  /** When the fact stops showing up in lists and searches. */
+  readonly expiresAt?: Temporal.Instant;
 }
 
 export interface MemoryRecord {
@@ -37,6 +52,8 @@ export interface MemoryRecord {
   readonly agentId: string | undefined;
   readonly chatId: string | undefined;
   readonly projectId: string | undefined;
+  /** The record of `record` memory. */
+  readonly subject: RecordRef | undefined;
   readonly kind: MemoryKind;
   /** A path under `/memories`, for core memory. */
   readonly path: string | undefined;
@@ -44,6 +61,12 @@ export interface MemoryRecord {
   readonly version: number;
   readonly embeddingModel: string | undefined;
   readonly sourceMessageId: string | undefined;
+  readonly category: string | undefined;
+  readonly confidence: number | undefined;
+  readonly expiresAt: Temporal.Instant | undefined;
+  /** How many searches returned the fact. */
+  readonly useCount: number;
+  readonly lastUsedAt: Temporal.Instant | undefined;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
 }
@@ -201,7 +224,7 @@ export interface Memory {
       organizationId: string,
       content: string,
       ns?: MemoryNamespace,
-      options?: { readonly sourceMessageId?: string },
+      options?: MemorySaveOptions,
     ): AsyncResult<MemoryRecord>;
     search(
       organizationId: string,
@@ -214,11 +237,24 @@ export interface Memory {
       ns?: MemoryNamespace,
       options?: { readonly limit?: number },
     ): AsyncResult<readonly MemoryRecord[]>;
-    /** Deletes a memory, or marks it replaced by `supersededBy`. */
+    /**
+     * Deletes a memory, or marks it replaced by `supersededBy`. A deleted
+     * memory stays restorable until `purge` removes it.
+     */
     forget(
       memoryId: string,
       options?: { readonly supersededBy?: string },
     ): AsyncResult<boolean>;
+    /** Restores a deleted memory. False when there is none to restore. */
+    restore(memoryId: string): AsyncResult<boolean>;
+    /**
+     * Removes memories deleted more than `retentionDays` ago (default 30) and
+     * expired ones, at most `batch` (service role). Returns how many.
+     */
+    purge(options?: {
+      readonly retentionDays?: number;
+      readonly batch?: number;
+    }): AsyncResult<number>;
   };
   readonly recall: {
     /** Embeds a message so later chats can recall it (service role). */
@@ -252,7 +288,7 @@ export interface Memory {
     organizationId: string,
     facts: readonly string[],
     ns?: MemoryNamespace,
-    options?: { readonly sourceMessageId?: string },
+    options?: MemorySaveOptions,
   ): AsyncResult<readonly MemoryRecord[]>;
   /**
    * Embeds memories edited since their last embedding (service role). Returns

@@ -29,18 +29,41 @@ export interface Machine {
   readonly order: readonly string[];
   /** The flags `set_lifecycle_flag` accepts. */
   readonly flags: readonly string[];
-  readonly history?: {
-    readonly table: string;
-    readonly id: string;
-    readonly from: string;
-    readonly to: string;
-    readonly actor: string;
-    readonly reason: string;
-    readonly subject: string;
-    readonly tenant: string;
-    readonly createdAt: string;
-  };
+  /**
+   * Where the history lives: unset for the block's `status_history`, `"app"`
+   * when the app writes and reads its own history, or an app table the block
+   * reads (and writes, unless `write` is false).
+   */
+  readonly history?: "app" | AppHistory;
 }
+
+/** An app table that keeps a machine's history. */
+export interface AppHistory {
+  readonly table: string;
+  /** False when the app writes the rows itself; the block only reads them. */
+  readonly write: boolean;
+  readonly id: string;
+  readonly from: string;
+  readonly to: string;
+  readonly actor: string;
+  readonly reason: string;
+  readonly subject: string;
+  readonly tenant: string;
+  readonly createdAt: string;
+  /** Optional columns for the actor fields `transition()` passes. */
+  readonly actorName?: string;
+  readonly actorEmail?: string;
+  readonly ip?: string;
+  readonly userAgent?: string;
+}
+
+/** The actor fields beyond the user id, by app history key. */
+export const ACTOR_FIELDS = [
+  ["actorName", "name"],
+  ["actorEmail", "email"],
+  ["ip", "ip"],
+  ["userAgent", "userAgent"],
+] as const;
 
 export function machines(ctx: BlockSqlContext): readonly Machine[] {
   const raw = ctx.option("machines");
@@ -294,13 +317,17 @@ function historyOf(
   value: unknown,
   where: string,
   tenant: string,
-): Machine["history"] | undefined {
+): "app" | AppHistory | undefined {
   if (value === undefined) {
     return undefined;
   }
 
+  if (value === "app") {
+    return "app";
+  }
+
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new TypeError(`${where}.history must be an object`);
+    throw new TypeError(`${where}.history must be "app" or an object`);
   }
 
   const record: Record<string, unknown> = {};
@@ -329,8 +356,24 @@ function historyOf(
     throw new TypeError(`${where}.history.table is required`);
   }
 
+  const write = record["write"] ?? true;
+
+  if (typeof write !== "boolean") {
+    throw new TypeError(`${where}.history.write must be true or false`);
+  }
+
+  const extras: Partial<Record<(typeof ACTOR_FIELDS)[number][0], string>> = {};
+
+  for (const [key] of ACTOR_FIELDS) {
+    if (record[key] !== undefined) {
+      extras[key] = text(key, key);
+    }
+  }
+
   return {
     table,
+    write,
+    ...extras,
     id: text("id", "id"),
     from: text("from", "from_status"),
     to: text("to", "to_status"),

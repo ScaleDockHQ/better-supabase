@@ -202,7 +202,7 @@ describe("saas block clients", () => {
     const denied = createStateMachine(options({ transition: false }));
     expect(
       await denied
-        .transition({ type: "quotes", id: "q1" }, "sent", "nope")
+        .transition({ type: "quotes", id: "q1" }, "sent", { reason: "nope" })
         .orThrow(),
     ).toBe(false);
   });

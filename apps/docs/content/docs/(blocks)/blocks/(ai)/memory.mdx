@@ -67,13 +67,14 @@ const rows = useMemory({ limit: 50 });
 | Group       | Methods                                                             |
 | ----------- | ------------------------------------------------------------------- |
 | `core`      | `view`, `write`, `strReplace`, `insert`, `remove`, `rename`, `list` |
-| `archival`  | `upsert`, `search`, `list`, `forget`                                |
+| `archival`  | `upsert`, `search`, `list`, `forget`, `restore`, `purge`            |
 | `recall`    | `index`, `search`                                                   |
 | (top level) | `run`, `render`, `saveExtracted`, `embedPending`                    |
 
 Each method takes the organization and an optional namespace, such as
 `{ scope: "agent", agentId }` or `{ scope: "project", projectId }`. The service role passes `ownerId` to act for
-a user.
+a user. `{ scope: "record", subject }` is memory about one record (any type in the subject registry, such
+as a deal): every member reads it, and only admins change it, as with `organization` memory.
 
 ## Core memory
 
@@ -111,6 +112,32 @@ Search ranks by embedding similarity and full text together.
 to one already saved (similarity 0.92 by default, `dedupeThreshold`);
 `forget(id, { supersededBy })` keeps the old fact but hides it.
 `saveExtracted` embeds every fact in one embedder call.
+
+`upsert` and `saveExtracted` take a `category` (a lowercase slug such as
+`preference`), a `confidence` from 0 to 1 that weighs the fact's search
+score, and an `expiresAt` after which lists and searches skip it. Each
+search counts its hits in `useCount` and `lastUsedAt`, so a review screen
+can show which facts the agent leans on.
+
+```ts
+await memory.archival
+  .upsert(
+    organizationId,
+    "Renewal talks start in March",
+    { scope: "record", subject: { type: "deal", id: dealId } },
+    {
+      category: "fact",
+      confidence: 0.8,
+      expiresAt: Temporal.Now.instant().add({ hours: 24 * 90 }),
+    },
+  )
+  .orThrow();
+```
+
+`forget(id)` soft deletes: the fact leaves lists and searches, and
+`restore(id)` brings it back. `purge({ retentionDays })` (service role,
+default 30 days) removes facts deleted before then and facts past their
+expiry; run it on a schedule.
 
 `recall.index(message)` runs as the service role after a message is
 stored; `recall.search(organizationId, query, { excludeChat })` returns the

@@ -2,7 +2,11 @@ import type {
   GraphRuntime,
   GraphStepCall,
 } from "../../../src/blocks/workflow-editor/executor.ts";
-import type { WorkflowGraph } from "../../../src/blocks/workflow-editor/graph.ts";
+import type {
+  WorkflowGraph,
+  WorkflowGraphNode,
+  WorkflowNodeKindInfo,
+} from "../../../src/blocks/workflow-editor/graph.ts";
 
 export const GRAPH: WorkflowGraph = {
   nodes: [
@@ -65,3 +69,29 @@ export function fakeRuntime(
     },
   };
 }
+
+/** A graph with the app's own kinds: a branching score check and a notify. */
+export const CUSTOM_GRAPH: WorkflowGraph = {
+  nodes: [
+    { id: "start", kind: "trigger" },
+    { id: "score", kind: "score.check", config: { min: 5 } },
+    { id: "ping", kind: "notify", config: { channel: "ops" } },
+    { id: "skip", kind: "notify", config: { channel: "low" } },
+  ],
+  edges: [
+    { id: "e1", source: "start", target: "score" },
+    { id: "e2", source: "score", target: "ping", branch: "true" },
+    { id: "e3", source: "score", target: "skip", branch: "false" },
+  ],
+};
+
+export const CUSTOM_KINDS: readonly WorkflowNodeKindInfo[] = [
+  { kind: "score.check", branches: true },
+  {
+    kind: "notify",
+    validate: (node: WorkflowGraphNode) =>
+      typeof node.config?.["channel"] === "string"
+        ? []
+        : [`Node ${node.id} names no channel`],
+  },
+];

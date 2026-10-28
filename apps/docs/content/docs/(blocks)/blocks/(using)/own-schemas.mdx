@@ -321,6 +321,7 @@ may be your own enum or domain.
   - `better_supabase.inbound_events`: `id`, `tenant_id`, `adapter`, `external_id`, `inbox_id`, `headers`, `body`, `status`, `attempts`, `received_at`; typed: `status`
   - `better_supabase.message_templates`: `id`, `tenant_id`, `inbox_id`, `name`, `channel`, `language`, `body`, `created_at`, `updated_at`
   - `better_supabase.scheduled_inbox_messages`: `id`, `tenant_id`, `conversation_id`, `author_id`, `input`, `scheduled_for`, `updated_at`
+  - `better_supabase.inbox_drafts`: `id`, `tenant_id`, `conversation_id`, `author_id`, `source`, `input`, `status`, `updated_at`
 - `incidents`
   - `better_supabase.status_components`: `id`, `tenant_id`, `name`, `public`, `status`; typed: `status`
   - `better_supabase.status_component_history`: `id`, `tenant_id`, `component_id`, `status`, `started_at`, `ended_at`; typed: `status`
@@ -346,6 +347,8 @@ may be your own enum or domain.
   - `better_supabase.invoice_charges`: `id`, `tenant_id`, `invoice_id`, `amount`
 - `knowledge`
   - `better_supabase.knowledge_documents`: `id`, `organization_id`, `owner_id`, `scope`, `scope_id`, `title`, `status`, `updated_at`; typed: `scope`, `status`
+  - `better_supabase.knowledge_collections`: `id`, `organization_id`, `name`, `description`, `visibility`, `priority`, `created_by`, `created_at`, `updated_at`
+  - `better_supabase.knowledge_collection_grants`: `collection_id`, `user_id`, `team_id`, `created_at`
   - `better_supabase.knowledge_chunks`: `document_id`, `idx`, `content`, `embedding`
 - `lead-scoring`
   - `better_supabase.lead_score_checks`: `tenant_id`, `subject_type`, `subject_id`, `stale`, `checked_at`
@@ -594,6 +597,7 @@ may be your own enum or domain.
   - `better_supabase.workflow_webhook_tokens`: `token_hash`, `trigger_id`, `created_at`
   - `better_supabase.workflow_credentials`: `id`, `tenant_id`, `kind`, `name`, `credential_ref`, `scopes`, `created_by`, `created_at`
   - `better_supabase.workflow_step_library`: `name`, `title`, `input_schema`, `output_schema`, `credential_kind`, `operation`, `updated_at`
+  - `better_supabase.workflow_node_kinds`: `kind`, `title`, `description`, `branches`, `config_schema`, `updated_at`
   - `better_supabase.workflow_node_runs`: `run_id`, `node_id`, `status`, `attempts`, `output`, `error`, `started_at`, `ended_at`; typed: `status`
   - `better_supabase.workflow_alerts`: `id`, `definition_id`, `on_event`, `threshold`, `channel`, `created_by`, `created_at`; typed: `on_event`
   - `better_supabase.workflow_alert_fires`: `alert_id`, `run_id`, `fired_at`

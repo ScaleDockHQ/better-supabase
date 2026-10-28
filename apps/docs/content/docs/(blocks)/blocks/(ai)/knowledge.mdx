@@ -77,11 +77,12 @@ server does. The `embedder` is anything with a `model` name and an
 builds one from an AI SDK model, and `files` (an [AI files](/docs/blocks/ai-files)
 client) lets `ingest.file` read uploads.
 
-| Group       | Methods                                             |
-| ----------- | --------------------------------------------------- |
-| `documents` | `create`, `get`, `list`, `write`, `remove`          |
-| `ingest`    | `text`, `file`                                      |
-| (top level) | `process`, `embedJob`, `drain`, `search`, `reembed` |
+| Group         | Methods                                                           |
+| ------------- | ----------------------------------------------------------------- |
+| `collections` | `create`, `update`, `remove`, `list`, `grant`, `revoke`, `grants` |
+| `documents`   | `create`, `get`, `list`, `write`, `remove`                        |
+| `ingest`      | `text`, `file`, `queue`                                           |
+| (top level)   | `process`, `embedJob`, `drain`, `search`, `reembed`               |
 
 ## Ingest and embed
 
@@ -152,6 +153,42 @@ document `title` and a fused `score`. Without an embedder the search is
 full text only; pass `{ text, embedding }` to reuse an embedding you
 already have. `filter` matches documents whose `metadata` contains an
 object.
+
+## Collections
+
+A collection groups documents with a visibility and a priority. An
+`automatic` collection shows up in every search of its organization, a
+`restricted` one only for the users and teams it is granted to (and for
+members with the manage permission), and a `disabled` one in no search. A
+search ranks the chunks of a higher priority collection first; pass
+`collections` to search only some of them.
+
+```ts
+const policies = await knowledge.collections
+  .create(organizationId, { name: "HR policies", visibility: "restricted" })
+  .orThrow();
+await knowledge.collections
+  .grant(policies.id, { teamId: peopleTeamId })
+  .orThrow();
+await knowledge.ingest
+  .text(organizationId, { title: "Leave", text, collectionId: policies.id })
+  .orThrow();
+const hits = await knowledge
+  .search(organizationId, "parental leave", { collections: [policies.id] })
+  .orThrow();
+```
+
+Team grants need the [`teams`](/docs/blocks/teams) block. Removing a
+collection keeps its documents, without a collection.
+
+## System documents
+
+The service role creates a system collection with `collections.create(null, ...)`
+and a system document with `documents.create(null, ...)` or
+`ingest.text(null, ...)`. A system document has no organization and no owner,
+and every organization reads and searches it, so product help or a shared
+handbook is written once. A system document can join a system collection
+only; an organization's documents join its own collections or a system one.
 
 ## AI SDK
 

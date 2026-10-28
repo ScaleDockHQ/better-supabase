@@ -27,6 +27,14 @@ export type {
 export { INBOX_CHANNELS } from "./rows.ts";
 
 export type {
+  InboxDraft,
+  InboxDraftInput,
+  InboxDrafts,
+  InboxDraftSource,
+  InboxDraftStatus,
+} from "./drafts.ts";
+
+export type {
   MessageFile,
   MessageKind,
   MessageReaction,

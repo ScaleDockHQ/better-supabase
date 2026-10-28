@@ -1,4 +1,5 @@
 import type { CredentialRef } from "../../credentials/provider.ts";
+import type { WorkflowNodeKindRow } from "./node-kinds.ts";
 import type {
   WorkflowAlert,
   WorkflowCredential,
@@ -9,6 +10,7 @@ import type {
   WorkflowGrantPrincipal,
   WorkflowNodeRun,
   WorkflowNodeRunStatus,
+  WorkflowPurpose,
   WorkflowStepInfo,
   WorkflowTrigger,
   WorkflowTriggerKind,
@@ -50,6 +52,8 @@ const TRIGGER_KINDS: readonly WorkflowTriggerKind[] = [
 
 const SCOPES: readonly WorkflowDefinitionScope[] = ["tenant", "system"];
 
+const PURPOSES: readonly WorkflowPurpose[] = ["automation", "lifecycle"];
+
 const GRANT_PRINCIPALS: readonly WorkflowGrantPrincipal[] = [
   "user",
   "team",
@@ -86,6 +90,11 @@ export function definitionOf(row: Record<string, unknown>): WorkflowDefinition {
     forkedFrom: optionalText(row["forkedFrom"]),
     forkedFromVersion: optionalNumber(row["forkedFromVersion"]),
     restricted: row["restricted"] === true,
+    purpose:
+      row["purpose"] === undefined || row["purpose"] === null
+        ? "automation"
+        : enumOrThrow(row["purpose"], PURPOSES, "definition purpose"),
+    isDefault: row["isDefault"] === true,
     ...("published" in row ? { published: optionalNumber(published) } : {}),
     ...("draft" in row ? { draft: row["draft"] === true } : {}),
     ...("upstreamVersion" in row
@@ -188,6 +197,16 @@ export function stepOf(row: Record<string, unknown>): WorkflowStepInfo {
     outputSchema: recordOrEmpty(row["outputSchema"]),
     credentialKind: optionalText(row["credentialKind"]),
     operation: optionalText(row["operation"]),
+  };
+}
+
+export function nodeKindOf(row: Record<string, unknown>): WorkflowNodeKindRow {
+  return {
+    kind: textOf(row["kind"]),
+    title: textOf(row["title"]),
+    description: optionalText(row["description"]),
+    branches: row["branches"] === true,
+    configSchema: recordOrEmpty(row["configSchema"]),
   };
 }
 

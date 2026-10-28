@@ -15,6 +15,7 @@ import {
   recordsOf,
   textOf,
   instantOf,
+  optionalInstant,
 } from "../shared.ts";
 
 const SCOPES: readonly MemoryScope[] = [
@@ -23,6 +24,7 @@ const SCOPES: readonly MemoryScope[] = [
   "chat",
   "project",
   "organization",
+  "record",
 ];
 
 const scopeOf = (value: unknown): MemoryScope =>
@@ -30,6 +32,9 @@ const scopeOf = (value: unknown): MemoryScope =>
 
 export function memoryOf(value: unknown): MemoryRecord {
   const row = recordOf(value, "memories");
+  const subjectType = optionalText(row["subject_type"]);
+  const subjectId = optionalText(row["subject_id"]);
+  const confidence = row["confidence"];
 
   return {
     id: textOf(row["id"]),
@@ -39,12 +44,21 @@ export function memoryOf(value: unknown): MemoryRecord {
     agentId: optionalText(row["agent_id"]),
     chatId: optionalText(row["chat_id"]),
     projectId: optionalText(row["project_id"]),
+    subject:
+      subjectType === undefined || subjectId === undefined
+        ? undefined
+        : { type: subjectType, id: subjectId },
     kind: row["kind"] === "core" ? "core" : "archival",
     path: optionalText(row["path"]),
     content: textOf(row["content"]),
     version: Number(row["version"] ?? 1),
     embeddingModel: optionalText(row["embedding_model"]),
     sourceMessageId: optionalText(row["source_message_id"]),
+    category: optionalText(row["category"]),
+    confidence: typeof confidence === "number" ? confidence : undefined,
+    expiresAt: optionalInstant(row["expires_at"]),
+    useCount: Number(row["use_count"] ?? 0),
+    lastUsedAt: optionalInstant(row["last_used_at"]),
     createdAt: instantOf(row["created_at"]),
     updatedAt: instantOf(row["updated_at"]),
   };

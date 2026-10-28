@@ -262,6 +262,81 @@ describe("createMemory", () => {
     });
   });
 
+  it("keeps record memory, categories, confidence and expiry", async () => {
+    const { transport, calls } = fakeTransport({
+      memory_save: () =>
+        memoryRow({
+          scope: "record",
+          owner_id: null,
+          subject_type: "deal",
+          subject_id: "d1",
+          kind: "archival",
+          path: null,
+          category: "preference",
+          confidence: 0.5,
+          expires_at: "2026-02-01T00:00:00Z",
+          use_count: 3,
+          last_used_at: AT,
+        }),
+      memory_restore: () => true,
+      purge_memories: () => 4,
+    });
+
+    const memory = createMemory({ transport });
+
+    const ns = {
+      scope: "record",
+      subject: { type: "deal", id: "d1" },
+    } as const;
+
+    const saved = await memory.archival
+      .upsert("o1", "prefers email", ns, {
+        category: "preference",
+        confidence: 0.5,
+        expiresAt: Temporal.Instant.from("2026-02-01T00:00:00Z"),
+      })
+      .orThrow();
+
+    expect(calls[0]?.args).toMatchObject({
+      ns: { scope: "record", subject_type: "deal", subject_id: "d1" },
+      category: "preference",
+      confidence: 0.5,
+      expires_at: "2026-02-01T00:00:00Z",
+    });
+    expect(saved).toMatchObject({
+      ownerId: undefined,
+      subject: { type: "deal", id: "d1" },
+      category: "preference",
+      confidence: 0.5,
+      useCount: 3,
+    });
+    expect(saved.expiresAt?.toString()).toBe("2026-02-01T00:00:00Z");
+    expect(saved.lastUsedAt?.toString()).toBe("2026-01-01T00:00:00Z");
+    expect(await memory.archival.restore("m1").orThrow()).toBe(true);
+    expect(calls[1]).toEqual({
+      fn: "memory_restore",
+      args: { memory_id: "m1" },
+    });
+    expect(
+      await memory.archival.purge({ retentionDays: 7, batch: 50 }).orThrow(),
+    ).toBe(4);
+    expect(calls[2]?.args).toEqual({ retention_days: 7, batch: 50 });
+    expect(await memory.archival.purge().orThrow()).toBe(4);
+  });
+
+  it("reads a row without the version 3 columns", async () => {
+    const { transport } = fakeTransport({ memory_list: () => [memoryRow()] });
+    const [row] = await createMemory({ transport }).core.list("o1").orThrow();
+    expect(row).toMatchObject({
+      subject: undefined,
+      category: undefined,
+      confidence: undefined,
+      expiresAt: undefined,
+      useCount: 0,
+      lastUsedAt: undefined,
+    });
+  });
+
   it("reads and writes project memory", async () => {
     const { transport, calls } = fakeTransport({
       memory_list: () => [

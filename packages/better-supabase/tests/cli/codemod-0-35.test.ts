@@ -97,4 +97,51 @@ export const server = createServer({ sessions: false });
       expect.stringContaining("verifies its token again"),
     ]);
   });
+
+  it("passes a literal transition reason as { reason } and flags the rest", () => {
+    const source = `await machine.transition(subject, "won", "Signed");
+await machine.transition({ type: "deal", id }, "lost", \`Lost to \${rival}\`);
+await machine.transition(subject, "won");
+await machine.transition(subject, "won", { reason: "Signed" });
+await machine.transition(subject, "won", reason);
+const label = 'machine.transition(subject, "won", "Signed")';
+`;
+
+    const result = applyCodemod(v035, source, "src/deals.ts");
+
+    expect(result.text)
+      .toBe(`await machine.transition(subject, "won", { reason: "Signed" });
+await machine.transition({ type: "deal", id }, "lost", { reason: \`Lost to \${rival}\` });
+await machine.transition(subject, "won");
+await machine.transition(subject, "won", { reason: "Signed" });
+await machine.transition(subject, "won", reason);
+const label = 'machine.transition(subject, "won", "Signed")';
+`);
+    expect(result.review.map((line) => line.line)).toEqual([5]);
+    expect(result.review[0]?.message).toContain("pass `{ reason }`");
+  });
+
+  it("passes the step library to validateGraph as { steps }, and flags forget and kind maps", () => {
+    const source = `const a = validateGraph(graph, steps);
+const b = validateGraph(draft, library.steps);
+const c = validateGraph(graph);
+const d = validateGraph(graph, { steps });
+await memory.archival.forget(id);
+const icons = {} satisfies Record<WorkflowNodeKind, Icon>;
+`;
+
+    const result = applyCodemod(v035, source, "src/graph.ts");
+
+    expect(result.text).toBe(`const a = validateGraph(graph, { steps });
+const b = validateGraph(draft, { steps: library.steps });
+const c = validateGraph(graph);
+const d = validateGraph(graph, { steps });
+await memory.archival.forget(id);
+const icons = {} satisfies Record<WorkflowNodeKind, Icon>;
+`);
+    expect(result.review.map((line) => line.message)).toEqual([
+      expect.stringContaining("soft deletes now"),
+      expect.stringContaining("WorkflowBuiltinNodeKind"),
+    ]);
+  });
 });

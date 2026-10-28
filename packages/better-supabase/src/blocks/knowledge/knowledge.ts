@@ -6,6 +6,7 @@ import type { Result } from "../../core/result.ts";
 import type { AiFile, AiFiles } from "../ai-files/ai-files.ts";
 import type { JobHandler } from "../queue/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
+import type { KnowledgeCollections } from "./collections.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { DbException, dbError } from "../../core/errors.ts";
@@ -25,6 +26,7 @@ import {
   instantOf,
   injectableOf,
 } from "../shared.ts";
+import { knowledgeCollections } from "./collections.ts";
 
 /**
  * Turns texts into vectors. `model` is stored with each document, so a document
@@ -51,8 +53,10 @@ export type KnowledgeStatus = "pending" | "ready" | "failed";
 
 export interface KnowledgeDocument {
   readonly id: string;
-  readonly organizationId: string;
-  readonly ownerId: string;
+  /** None for a system document, which every tenant reads. */
+  readonly organizationId: string | undefined;
+  /** None for a system document. */
+  readonly ownerId: string | undefined;
   readonly scope: KnowledgeScope;
   /**
    * The agent, project, chat or user the document belongs to; none for
@@ -67,6 +71,7 @@ export interface KnowledgeDocument {
   readonly error: string | undefined;
   readonly chunkCount: number;
   readonly embeddingModel: string | undefined;
+  readonly collectionId: string | undefined;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
 }
@@ -82,6 +87,8 @@ export interface NewKnowledgeDocument {
   readonly metadata?: Readonly<Record<string, unknown>>;
   /** The service role only: the user the document belongs to. */
   readonly ownerId?: string;
+  /** A collection of the tenant, or a system collection. */
+  readonly collectionId?: string;
 }
 
 export interface KnowledgeChunk {
@@ -116,6 +123,8 @@ export interface KnowledgeSearchOptions {
   }[];
   /** How many chunks to return. Default 8, at most 100. */
   readonly k?: number;
+  /** Only the documents of these collections. */
+  readonly collections?: readonly string[];
   /** Matches documents whose metadata contains this object. */
   readonly filter?: Readonly<Record<string, unknown>>;
   readonly signal?: AbortSignal;
@@ -168,14 +177,21 @@ export interface KnowledgeOptions extends BlockTemporalOptions {
  * group.
  */
 export type KnowledgeHooks = BlockHooks<Knowledge> & {
+  readonly collections?: BlockHooks<Knowledge["collections"]>;
   readonly documents?: BlockHooks<Knowledge["documents"]>;
   readonly ingest?: BlockHooks<Knowledge["ingest"]>;
 };
 
 export interface Knowledge {
+  /** Collections of documents with a visibility, a priority and grants. */
+  readonly collections: KnowledgeCollections;
   readonly documents: {
+    /**
+     * Creates a document. `organizationId` null creates a system document,
+     * which every tenant reads (service role).
+     */
     create(
-      organizationId: string,
+      organizationId: string | null,
       document: NewKnowledgeDocument,
     ): AsyncResult<KnowledgeDocument>;
     get(documentId: string): AsyncResult<KnowledgeDocument>;
@@ -185,6 +201,8 @@ export interface Knowledge {
         readonly scope?: KnowledgeScope;
         readonly scopeId?: string;
         readonly limit?: number;
+        /** The documents of a collection, system ones included. */
+        readonly collectionId?: string;
       },
     ): AsyncResult<readonly KnowledgeDocument[]>;
     /** Replaces the chunks; unchanged chunks keep their embedding. */
@@ -195,9 +213,12 @@ export interface Knowledge {
     remove(documentId: string): AsyncResult<boolean>;
   };
   readonly ingest: {
-    /** Creates a document from text and writes its chunks. */
+    /**
+     * Creates a document from text and writes its chunks; null creates a system
+     * document (service role).
+     */
     text(
-      organizationId: string,
+      organizationId: string | null,
       document: NewKnowledgeDocument & { readonly text: string },
     ): AsyncResult<KnowledgeDocument>;
     /** Creates a document from a ready ai-files file and writes its chunks. */
@@ -391,8 +412,8 @@ function documentOf(value: unknown): KnowledgeDocument {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
-    ownerId: textOf(row["owner_id"]),
+    organizationId: optionalText(row["organization_id"]),
+    ownerId: optionalText(row["owner_id"]),
     scope: scopeOf(row["scope"]),
     scopeId: optionalText(row["scope_id"]),
     fileId: optionalText(row["file_id"]),
@@ -403,6 +424,7 @@ function documentOf(value: unknown): KnowledgeDocument {
     error: optionalText(row["error"]),
     chunkCount: Number(row["chunk_count"] ?? 0),
     embeddingModel: optionalText(row["embedding_model"]),
+    collectionId: optionalText(row["collection_id"]),
     createdAt: instantOf(row["created_at"]),
     updatedAt: instantOf(row["updated_at"]),
   };
@@ -466,7 +488,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
       : AsyncResult.err(notFound());
 
   const create = (
-    organizationId: string,
+    organizationId: string | null,
     document: NewKnowledgeDocument,
   ): AsyncResult<KnowledgeDocument> =>
     call(
@@ -480,6 +502,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
         source: document.source,
         metadata: document.metadata,
         owner: document.ownerId,
+        collection_id: document.collectionId,
       },
       documentOf,
     );
@@ -499,7 +522,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
     ).andThen(found);
 
   const fromText = (
-    organizationId: string,
+    organizationId: string | null,
     document: NewKnowledgeDocument,
     text: string,
   ): AsyncResult<KnowledgeDocument> =>
@@ -650,6 +673,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
     });
 
   const client: Knowledge = {
+    collections: knowledgeCollections(call),
     documents: {
       create,
       get: (documentId) =>
@@ -666,6 +690,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
             scope: listOptions.scope,
             scope_id: listOptions.scopeId,
             max_rows: listOptions.limit,
+            collection_id: listOptions.collectionId,
           },
           (value) =>
             recordsOf(value, "list_knowledge_documents").map(documentOf),
@@ -813,6 +838,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
                 : { items: searchOptions.scopes },
             k: searchOptions.k,
             filter: searchOptions.filter,
+            collections: searchOptions.collections,
           },
           (rows) => recordsOf(rows, "knowledge_search").map(hitOf),
         ),
@@ -826,12 +852,16 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
       ),
   };
 
-  const { documents, ingest, ...hooks } = options.hooks ?? {};
+  const { collections, documents, ingest, ...hooks } = options.hooks ?? {};
   const logger = options.logger ? { logger: options.logger } : {};
 
   return withBlockHooks(
     {
       ...client,
+      collections: withBlockHooks(client.collections, collections, {
+        block: "knowledge.collections",
+        ...logger,
+      }),
       documents: withBlockHooks(client.documents, documents, {
         block: "knowledge.documents",
         ...logger,

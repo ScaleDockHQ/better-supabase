@@ -17,6 +17,7 @@ import type {
   WorkflowEditor,
   WorkflowBuilderHooks,
   WorkflowDefinition,
+  WorkflowResolved,
   WorkflowStepInfo,
   WorkflowTrigger,
   WorkflowVersion,
@@ -43,12 +44,14 @@ import {
   textOf,
 } from "../shared.ts";
 import { diffGraphs, graphOf } from "./graph.ts";
+import { nodeKindRows } from "./node-kinds.ts";
 import { mayPublishRefusal, runAsPublisher } from "./publisher.ts";
 import {
   alertOf,
   credentialOf,
   definitionOf,
   grantOf,
+  nodeKindOf,
   nodeRunOf,
   optionalOf,
   stepOf,
@@ -82,6 +85,8 @@ export type {
   WorkflowGrantPrincipal,
   WorkflowNodeRun,
   WorkflowNodeRunStatus,
+  WorkflowPurpose,
+  WorkflowResolved,
   WorkflowStepInfo,
   WorkflowTrigger,
   WorkflowTriggerKind,
@@ -294,6 +299,39 @@ export function createWorkflowEditor<
             opted_out: input.optedOut ?? true,
           },
           (value) => value === true,
+        ),
+      setPurpose: (id, purpose, purposeOptions = {}) =>
+        call(
+          "set_workflow_definition_purpose",
+          {
+            definition: id,
+            purpose,
+            is_default: purposeOptions.isDefault ?? false,
+          },
+          (value) =>
+            definitionOf(recordOf(value, "set_workflow_definition_purpose")),
+        ).andThen(fields.row),
+      resolve: (tenant, resolveOptions = {}) =>
+        call(
+          "resolve_workflow_definition",
+          {
+            tenant,
+            purpose: resolveOptions.purpose ?? "lifecycle",
+            subject_type: resolveOptions.subjectType,
+          },
+          (value) =>
+            value === null
+              ? undefined
+              : recordOf(value, "resolve_workflow_definition"),
+        ).andThen((row) =>
+          row === undefined
+            ? AsyncResult.ok(undefined)
+            : fields
+                .row(definitionOf(recordOf(row["definition"], "definition")))
+                .map((definition): WorkflowResolved<F> => ({
+                  definition,
+                  version: versionOf(recordOf(row["version"], "version")),
+                })),
         ),
       grants: {
         add: (input) => grant(input, true),
@@ -766,6 +804,18 @@ export function createWorkflowEditor<
           recordsOf(value, "workflow_steps_list").map(stepOf),
         ),
     },
+    nodeKinds: {
+      sync: (kinds = options.nodes ?? []) =>
+        serviceCall(
+          "sync_workflow_node_kinds",
+          { kinds: nodeKindRows(kinds) },
+          Number,
+        ),
+      list: () =>
+        call("workflow_node_kinds_list", {}, (value) =>
+          recordsOf(value, "workflow_node_kinds_list").map(nodeKindOf),
+        ),
+    },
     nodeRuns: {
       record: (input) =>
         serviceCall(
@@ -877,6 +927,11 @@ function hooked<F extends object>(
       block("credentials"),
     ),
     steps: withBlockHooks(builder.steps, hooks.steps, block("steps")),
+    nodeKinds: withBlockHooks(
+      builder.nodeKinds,
+      hooks.nodeKinds,
+      block("nodeKinds"),
+    ),
     nodeRuns: withBlockHooks(
       builder.nodeRuns,
       hooks.nodeRuns,

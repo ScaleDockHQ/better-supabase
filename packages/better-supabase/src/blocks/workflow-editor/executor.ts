@@ -1,14 +1,18 @@
 import type {
+  WorkflowBuiltinNodeKind,
   WorkflowGraph,
   WorkflowGraphEdge,
   WorkflowGraphNode,
+  WorkflowNodeKindInfo,
 } from "./graph.ts";
 
 import {
   approved,
+  branchesOn,
   conditionOf,
   durationMs,
   evaluateCondition,
+  isBuiltinNodeKind,
   isGraphRecord,
   topologicalOrder,
   validateGraph,
@@ -38,6 +42,14 @@ export interface GraphStepCall {
   /** The tenant the run belongs to; pass it to `builder.versions.runAs` too. */
   readonly tenant?: string;
   readonly subject?: GraphSubject;
+}
+
+/**
+ * What a node of an app's own kind (`defineNodeKind`) passes to the engine's
+ * step: plain data, so it serializes.
+ */
+export interface GraphNodeCall extends Omit<GraphStepCall, "step"> {
+  readonly kind: string;
 }
 
 /**
@@ -76,7 +88,14 @@ export interface GraphRuntime {
    * approval node takes its stub as the decision (else approved).
    */
   readonly stubs?: Readonly<Record<string, unknown>>;
+  /** The app's own node kinds (`defineNodeKind`) the graph may use. */
+  readonly nodes?: readonly WorkflowNodeKindInfo[];
   step(call: GraphStepCall): PromiseLike<unknown>;
+  /**
+   * Runs a node of an app's own kind, as a step. A branching kind takes the
+   * `true` branch when the output is truthy. Required when the graph has one.
+   */
+  node?(call: GraphNodeCall): PromiseLike<unknown>;
   sleep(ms: number): PromiseLike<unknown>;
   /**
    * Files the approval request for an approval node and returns its id, which
@@ -193,7 +212,7 @@ export async function executeGraph(
   input: unknown,
   runtime: GraphRuntime,
 ): Promise<Record<string, unknown>> {
-  const errors = validateGraph(graph);
+  const errors = validateGraph(graph, { nodes: runtime.nodes ?? [] });
 
   if (errors.length > 0) {
     throw new TypeError(`workflow-editor: ${errors.join("; ")}`);
@@ -239,13 +258,64 @@ const extrasOf = (
   ...(runtime.subject === undefined ? {} : { subject: runtime.subject }),
 });
 
+interface NodeOutcome {
+  readonly output: unknown;
+  readonly outcome: boolean;
+}
+
+async function runCustomNode(
+  node: WorkflowGraphNode,
+  input: unknown,
+  results: Readonly<Record<string, unknown>>,
+  runtime: GraphRuntime,
+): Promise<NodeOutcome> {
+  let output: unknown;
+
+  if (runtime.stubs !== undefined) {
+    output = stubOf(runtime.stubs, node.id, { stubbed: true });
+  } else if (runtime.node === undefined) {
+    throw new TypeError(
+      `workflow-editor: pass node to the runtime to run node ${node.id} of kind ${node.kind}`,
+    );
+  } else {
+    output = await runtime.node({
+      node: node.id,
+      kind: node.kind,
+      config: node.config ?? {},
+      input,
+      results: { ...results },
+      runKey: runtime.runKey,
+      ...extrasOf(runtime),
+    });
+  }
+
+  const kinds = new Map((runtime.nodes ?? []).map((info) => [info.kind, info]));
+
+  return {
+    output: output ?? null,
+    outcome: branchesOn(node.kind, kinds) ? Boolean(output) : true,
+  };
+}
+
 async function runNode(
   node: WorkflowGraphNode,
   input: unknown,
   results: Readonly<Record<string, unknown>>,
   runtime: GraphRuntime,
-): Promise<{ output: unknown; outcome: boolean }> {
-  switch (node.kind) {
+): Promise<NodeOutcome> {
+  return isBuiltinNodeKind(node.kind)
+    ? runBuiltinNode(node, node.kind, input, results, runtime)
+    : runCustomNode(node, input, results, runtime);
+}
+
+async function runBuiltinNode(
+  node: WorkflowGraphNode,
+  kind: WorkflowBuiltinNodeKind,
+  input: unknown,
+  results: Readonly<Record<string, unknown>>,
+  runtime: GraphRuntime,
+): Promise<NodeOutcome> {
+  switch (kind) {
     case "trigger": {
       return { output: input, outcome: true };
     }
@@ -311,7 +381,7 @@ async function runNode(
     }
 
     default: {
-      const unknown: never = node.kind;
+      const unknown: never = kind;
       throw new TypeError(
         `workflow-editor: unknown node kind ${String(unknown)}`,
       );

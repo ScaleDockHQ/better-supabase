@@ -12,12 +12,16 @@ import { GRAPH_APPROVAL } from "./graph-steps";
 
 const Id = v.pipe(v.string(), v.minLength(1), v.maxLength(100));
 
+// A built-in kind or one the app registers with defineNodeKind; the database
+// refuses a kind that is neither when the version is published.
+const Kind = v.pipe(v.string(), v.regex(/^[a-z][a-z0-9_.-]{0,62}$/u));
+
 const Graph = v.object({
   nodes: v.pipe(
     v.array(
       v.object({
         id: Id,
-        kind: v.picklist(["trigger", "step", "sleep", "approval", "condition"]),
+        kind: Kind,
         label: v.exactOptional(v.pipe(v.string(), v.maxLength(100))),
         step: v.exactOptional(Id),
         config: v.exactOptional(v.record(v.string(), v.unknown())),

@@ -21,9 +21,11 @@ import {
   nodeOf,
   readPath,
   topologicalOrder,
+  isBuiltinNodeKind,
   validateGraph,
 } from "../../../src/blocks/workflow-editor/graph.ts";
-import { fakeRuntime, GRAPH } from "./fixture.ts";
+import { defineNodeKind } from "../../../src/blocks/workflow-editor/node-kinds.ts";
+import { CUSTOM_GRAPH, CUSTOM_KINDS, fakeRuntime, GRAPH } from "./fixture.ts";
 
 describe("durationMs", () => {
   it("reads numbers and unit strings", () => {
@@ -177,7 +179,9 @@ describe("conditions", () => {
 describe("validateGraph", () => {
   it("accepts a valid graph and checks steps against a library", () => {
     expect(validateGraph(GRAPH)).toEqual([]);
-    expect(validateGraph(GRAPH, ["crm.lookup", "email.send"])).toEqual([
+    expect(
+      validateGraph(GRAPH, { steps: ["crm.lookup", "email.send"] }),
+    ).toEqual([
       "Node rejected uses step slack.post, which is not in the step library",
     ]);
   });
@@ -514,5 +518,109 @@ describe("executeGraph", () => {
     await expect(
       executeGraph({ nodes: [], edges: [] }, {}, fakeRuntime("pro", undefined)),
     ).rejects.toThrow("at least one trigger");
+  });
+});
+
+describe("the app's own node kinds", () => {
+  it("accepts kinds it is given, runs their validate, and branches only on branching kinds", () => {
+    expect(isBuiltinNodeKind("step")).toBe(true);
+    expect(isBuiltinNodeKind("notify")).toBe(false);
+    expect(nodeOf({ id: "a", kind: "notify" })?.kind).toBe("notify");
+    expect(nodeOf({ id: "a", kind: "Not A Kind" })).toBeUndefined();
+    expect(validateGraph(CUSTOM_GRAPH)).toEqual([
+      "Node score has an unknown kind",
+      "Node ping has an unknown kind",
+      "Node skip has an unknown kind",
+      "Edge e2 branches from a score.check node",
+      "Edge e3 branches from a score.check node",
+    ]);
+    expect(validateGraph(CUSTOM_GRAPH, { nodes: CUSTOM_KINDS })).toEqual([]);
+    expect(
+      validateGraph(
+        {
+          ...CUSTOM_GRAPH,
+          nodes: [
+            ...CUSTOM_GRAPH.nodes.slice(0, 2),
+            { id: "ping", kind: "notify" },
+            { id: "skip", kind: "notify", config: { channel: "low" } },
+          ],
+        },
+        { nodes: CUSTOM_KINDS },
+      ),
+    ).toEqual(["Node ping names no channel"]);
+  });
+
+  it("runs them through runtime.node and follows a branching kind's output", async () => {
+    for (const [score, ran] of [
+      [9, "ping"],
+      [0, "skip"],
+    ] as const) {
+      const calls: string[] = [];
+
+      const results = await executeGraph(
+        CUSTOM_GRAPH,
+        { score },
+        {
+          ...fakeRuntime("pro", undefined),
+          nodes: CUSTOM_KINDS,
+          version: "v1",
+          node: async (call) => {
+            calls.push(`${call.node} ${call.kind} ${String(call.version)}`);
+
+            return call.kind === "score.check"
+              ? (call.input as { score: number }).score >= 5
+              : undefined;
+          },
+        },
+      );
+
+      expect(calls).toEqual(["score score.check v1", `${ran} notify v1`]);
+      expect(results[ran]).toBeNull();
+    }
+  });
+
+  it("returns stubs in a test run and refuses a live run without runtime.node", async () => {
+    const results = await executeGraph(
+      CUSTOM_GRAPH,
+      {},
+      {
+        ...fakeRuntime("pro", undefined),
+        nodes: CUSTOM_KINDS,
+        stubs: { score: false },
+      },
+    );
+
+    expect(results).toEqual({
+      start: {},
+      score: false,
+      skip: { stubbed: true },
+    });
+    await expect(
+      executeGraph(
+        CUSTOM_GRAPH,
+        {},
+        { ...fakeRuntime("pro", undefined), nodes: CUSTOM_KINDS },
+      ),
+    ).rejects.toThrow("pass node to the runtime to run node score");
+  });
+
+  it("defines a kind only with apiVersion 1 and a kind name that isn't built in", () => {
+    const notify = defineNodeKind({
+      apiVersion: 1,
+      kind: "notify",
+      title: "Notify",
+    });
+
+    expect(notify.kind).toBe("notify");
+    expect(() =>
+      defineNodeKind({ apiVersion: 1, kind: "step", title: "Step" }),
+    ).toThrow('"step" can\'t be a node kind');
+    expect(() =>
+      defineNodeKind({ apiVersion: 1, kind: "Bad Kind", title: "Bad" }),
+    ).toThrow("can't be a node kind");
+    expect(() =>
+      // @ts-expect-error apiVersion 2 doesn't exist yet
+      defineNodeKind({ apiVersion: 2, kind: "later", title: "Later" }),
+    ).toThrow("apiVersion 2");
   });
 });

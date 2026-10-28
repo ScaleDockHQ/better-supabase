@@ -9,6 +9,7 @@ export {
   type MemoryHooks,
   type MemoryOptions,
   type MemoryRecord,
+  type MemorySaveOptions,
   type MemoryScope,
   type MemoryView,
   type RecalledMessage,

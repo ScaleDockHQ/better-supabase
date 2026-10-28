@@ -16,6 +16,15 @@ export {
   type NewKnowledgeDocument,
 } from "./knowledge.ts";
 
+export type {
+  KnowledgeCollection,
+  KnowledgeCollectionGrant,
+  KnowledgeCollections,
+  KnowledgeGrantee,
+  KnowledgeVisibility,
+  NewKnowledgeCollection,
+} from "./collections.ts";
+
 export {
   dbTransport,
   rpcTransport,

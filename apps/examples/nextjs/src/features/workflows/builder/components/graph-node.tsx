@@ -2,6 +2,7 @@
 
 import type { Edge, Node, NodeProps } from "@xyflow/react";
 import type {
+  WorkflowBuiltinNodeKind,
   WorkflowGraph,
   WorkflowGraphNode,
   WorkflowNodeKind,
@@ -10,7 +11,9 @@ import type {
 import type { LucideIcon } from "lucide-react";
 
 import { Handle, Position } from "@xyflow/react";
+import { isBuiltinNodeKind } from "better-supabase/blocks/workflow-editor";
 import {
+  BoxIcon,
   ClockIcon,
   GitBranchIcon,
   HandIcon,
@@ -28,6 +31,8 @@ export interface GraphNodeData extends Record<string, unknown> {
   readonly label: string;
   readonly step?: string;
   readonly config: NodeConfig;
+  /** Whether one of the app's own node kinds takes true and false branches. */
+  readonly branches?: boolean;
   /** The node's status in the run the overlay shows. */
   readonly status?: WorkflowNodeRunStatus;
 }
@@ -40,7 +45,7 @@ const ICONS = {
   sleep: ClockIcon,
   approval: HandIcon,
   condition: GitBranchIcon,
-} satisfies Record<WorkflowNodeKind, LucideIcon>;
+} satisfies Record<WorkflowBuiltinNodeKind, LucideIcon>;
 
 const STATUS_RING = {
   running: "ring-2 ring-sky-500",
@@ -50,11 +55,13 @@ const STATUS_RING = {
   skipped: "opacity-60",
 } satisfies Record<WorkflowNodeRunStatus, string>;
 
-const branches = (kind: WorkflowNodeKind): boolean =>
-  kind === "condition" || kind === "approval";
+const branches = (data: GraphNodeData): boolean =>
+  data.kind === "condition" ||
+  data.kind === "approval" ||
+  data.branches === true;
 
 function GraphNode({ data, selected }: NodeProps<GraphFlowNode>) {
-  const Icon = ICONS[data.kind];
+  const Icon = isBuiltinNodeKind(data.kind) ? ICONS[data.kind] : BoxIcon;
 
   return (
     <div
@@ -78,7 +85,7 @@ function GraphNode({ data, selected }: NodeProps<GraphFlowNode>) {
           <Badge variant="outline">{data.status}</Badge>
         )}
       </div>
-      {branches(data.kind) ? (
+      {branches(data) ? (
         <>
           <Handle
             id="true"

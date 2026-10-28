@@ -95,10 +95,50 @@ condition or an approval, `branch: "true"` or `"false"` picks the outcome
 it follows. A node runs when one of its incoming edges is active, so two
 branches can join again.
 
-`validateGraph(graph, steps)` returns the errors: no trigger, a cycle, an edge to an unknown node, a step outside the library or
-an invalid condition. The database runs the same checks when it saves a
-draft and when it publishes one. `diffGraphs(from, to)` lists the nodes and
+`validateGraph(graph, { steps, nodes })` returns the errors: no trigger, a cycle, an edge to an unknown node, a step outside the library,
+a node kind that is neither built in nor in `nodes`, or an invalid condition. The database runs the same checks when it publishes a
+version and when it starts one. `diffGraphs(from, to)` lists the nodes and
 edges that were added, removed or changed.
+
+### Your own node kinds
+
+Beyond the five built-in kinds, an app registers its own with
+`defineNodeKind` (`apiVersion: 1`). A kind is a lowercase name such as
+`score.check` or `notify`, a title for the palette, an optional
+`configSchema`, `branches: true` when its edges take `true` and `false`
+branches, and an optional `validate(node)` that returns errors for a node's
+config:
+
+```ts title="src/lib/workflows/nodes.ts"
+import { defineNodeKind } from "better-supabase/blocks/workflow-editor";
+
+export const NODE_KINDS = [
+  defineNodeKind({
+    apiVersion: 1,
+    kind: "score.check",
+    title: "Score check",
+    branches: true,
+    configSchema: { type: "object", properties: { min: { type: "number" } } },
+  }),
+  defineNodeKind({
+    apiVersion: 1,
+    kind: "notify",
+    title: "Notify a channel",
+    validate: (node) =>
+      typeof node.config?.["channel"] === "string" ? [] : ["Pick a channel"],
+  }),
+];
+```
+
+Pass them to `createWorkflowEditor({ nodes: NODE_KINDS })` and call
+`builder.nodeKinds.sync()` once from a deploy script (service role): it
+writes `workflow_node_kinds`, which the database's graph check reads, and
+`nodeKinds.list()` returns them for the canvas palette. The engine runs a
+custom node as a step: `executeGraph` calls `runtime.node({ node, kind,
+config, input, results })`, and `graphStarter({ nodeKinds, nodes })` binds
+one Workflow SDK step per kind. A branching kind takes the `true` branch when
+its output is truthy. A test run returns the node's stub, as it does for a
+step.
 
 ### Filter conditions
 
@@ -235,6 +275,37 @@ module installed, the caller must also be able to read the record
 event trigger attaches the event's record (`subjectType` and `subjectId` on
 the event or in its payload) when the definition lists its type. Each step
 gets the subject in `call.subject`.
+
+## Lifecycle workflows
+
+A definition has a `purpose`: `automation` (the default) for workflows
+people start or triggers run, or `lifecycle` for the workflow that drives a
+record through its stages. One lifecycle definition per subject type can be
+the organization's default; `resolve` finds the published version to run
+for a record, and falls back to a system default the organization hasn't
+opted out of:
+
+```ts
+await builder.definitions
+  .setPurpose(definitionId, "lifecycle", { isDefault: true })
+  .orThrow();
+
+const resolved = await builder.definitions
+  .resolve(organizationId, { subjectType: "deal" })
+  .orThrow();
+
+if (resolved !== undefined) {
+  await builder
+    .run({ definition: resolved.definition.id, subject: { type: "deal", id } })
+    .orThrow();
+}
+```
+
+Making a definition the default clears the flag on the organization's other
+default definitions that share a subject type, so `resolve` has one answer.
+`setPurpose` needs the admin permission on the definition. A default must
+be a `lifecycle` definition, and a lifecycle definition lists its
+`subjectTypes`; anything else fails with `WORKFLOW_PURPOSE_INVALID`.
 
 ## Test runs
 

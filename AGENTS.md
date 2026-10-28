@@ -237,6 +237,10 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0120: Quotes publish immutable `quote_versions` and revise in place; document discounts, VAT-inclusive prices and deposits count per tax rate into `quote_tax_lines`.
 - 0121: Enrollment steps carry an assignee and a due date, rendered into open `enrollment_steps` rows with `due_at`.
 - 0122: ai-chat runs without a tenant (`tenant: false`), shares chats through `ai_chat_participants`, and `messages` keys a linear list by uuid with native parts (amends 0010).
+- 0123: `transition()` takes `{ reason, actor }`; history keeps the actor's name, email, IP and user agent, or `history: "app"` leaves it to the app. Memory gets a `record` scope, expiry, confidence and soft deletes.
+- 0124: Knowledge collections with a visibility, a priority and user or team grants; system collections and documents have no tenant and every tenant reads them.
+- 0125: `inbox_drafts` keeps one open reply draft per staff member and conversation; the service role suggests AI drafts the team sends or discards.
+- 0126: `workflow_node_kinds` registers the app's own node kinds (`defineNodeKind`, run as steps); definitions take a `purpose` and one default lifecycle workflow per subject type.
 
 ## Pre-release pins
 

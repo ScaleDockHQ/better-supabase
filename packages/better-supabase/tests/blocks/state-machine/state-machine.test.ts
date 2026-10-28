@@ -186,6 +186,76 @@ describe("state machine block", () => {
     });
   });
 
+  it("passes the reason and actor of a transition and reads them back", async () => {
+    const { calls, transport } = recording({
+      transition: true,
+      list_status_history: [
+        {
+          id: "h3",
+          from: "sent",
+          to: "accepted",
+          actorId: null,
+          actorName: "Ada Client",
+          actorEmail: "ada@example.com",
+          ip: "203.0.113.7",
+          userAgent: "Mozilla/5.0",
+          reason: "signed",
+          createdAt: "2026-10-04T00:00:00Z",
+        },
+      ],
+    });
+
+    const machine = createStateMachine<"quote">({ transport });
+
+    const actor = {
+      name: "Ada Client",
+      email: "ada@example.com",
+      ip: "203.0.113.7",
+      userAgent: "Mozilla/5.0",
+    };
+
+    expect(
+      await machine
+        .transition({ type: "quote", id: "q1" }, "accepted", {
+          reason: "signed",
+          actor,
+        })
+        .orThrow(),
+    ).toBe(true);
+    expect(
+      await machine.transition({ type: "quote", id: "q2" }, "sent").orThrow(),
+    ).toBe(true);
+    expect(calls.map((call) => call.args)).toEqual([
+      {
+        subject_type: "quote",
+        subject_id: "q1",
+        to_status: "accepted",
+        reason: "signed",
+        actor,
+      },
+      {
+        subject_type: "quote",
+        subject_id: "q2",
+        to_status: "sent",
+        reason: null,
+        actor: null,
+      },
+    ]);
+
+    const [change] = await machine
+      .history({ type: "quote", id: "q1" })
+      .orThrow();
+
+    expect(change).toMatchObject({
+      actorId: undefined,
+      actorName: "Ada Client",
+      actorEmail: "ada@example.com",
+      ip: "203.0.113.7",
+      userAgent: "Mozilla/5.0",
+      reason: "signed",
+    });
+  });
+
   it("reads the stages timeline", async () => {
     const { transport } = recording({
       list_status_stages: [

@@ -1,8 +1,8 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@5 managed
--- @bsb-hash sha256:18105c80328e2d6266a91493aa53bf148cf5e7e7eb0ef5066dce1aacca15274e
--- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
+-- @bsb-block inbox@6 managed
+-- @bsb-hash sha256:b862837997d1c58e7609450e5f1424b96196e143931cfeee8d62dfc7a71838f3
+-- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -122,6 +122,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scheduled_inbox_messages";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."scheduled_inbox_messages";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scheduled_inbox_messages";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_drafts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -424,6 +432,38 @@ drop policy if exists scheduled_inbox_messages_author_read on "better_supabase".
 create policy scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages"
   for select to authenticated
   using ("author_id" = (select auth.uid()) and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
+
+-- Reply drafts. A user draft belongs to its author, one open draft per
+-- conversation; an ai draft has no author and every staff member who can
+-- reply in the tenant sees it. status moves from draft to sent or discarded.
+create table if not exists "better_supabase"."inbox_drafts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
+  "author_id" uuid references auth.users (id) on delete cascade,
+  "source" text not null default 'user' check ("source" in ('user', 'ai')),
+  "input" jsonb not null check (jsonb_typeof("input") = 'object'),
+  "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'discarded')),
+  "metadata" jsonb not null default '{}'::jsonb,
+  "updated_at" timestamptz not null default now(),
+  "created_at" timestamptz not null default now(),
+  constraint inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
+);
+create unique index if not exists inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
+create index if not exists inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");
+create index if not exists inbox_drafts_author_idx on "better_supabase"."inbox_drafts" ("author_id");
+alter table "better_supabase"."inbox_drafts" add column if not exists "updated_at" timestamptz not null default now();
+drop trigger if exists bsb_updated_at on "better_supabase"."inbox_drafts";
+create trigger bsb_updated_at before update on "better_supabase"."inbox_drafts"
+  for each row execute function better_supabase.set_updated_at('updated_at');
+alter table "better_supabase"."inbox_drafts" enable row level security;
+revoke all on "better_supabase"."inbox_drafts" from public, anon, authenticated;
+grant select on "better_supabase"."inbox_drafts" to authenticated;
+grant all on "better_supabase"."inbox_drafts" to service_role;
+drop policy if exists inbox_drafts_read on "better_supabase"."inbox_drafts";
+create policy inbox_drafts_read on "better_supabase"."inbox_drafts"
+  for select to authenticated
+  using (("author_id" = (select auth.uid()) or "source" = 'ai') and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
 
 create or replace function "better_supabase"."inbox_contact_ids"()
 returns setof uuid
@@ -2002,6 +2042,152 @@ $$;
 revoke execute on function "better_supabase"."publish_due_inbox_messages"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."publish_due_inbox_messages"(integer) to service_role;
 
+-- Saves the caller's draft reply on a conversation: the one open draft is
+-- replaced, else a new one starts. The input is the one send_inbox_message
+-- takes, without the service's fields; an empty body is fine until it sends.
+create or replace function "better_supabase"."save_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+  v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
+  v_metadata jsonb := save_inbox_draft.metadata;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = save_inbox_draft.conversation;
+  if not found then
+    raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
+  end if;
+  if (select auth.uid()) is null or not coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'inbox.reply'), false) then
+    raise exception 'not allowed to reply in this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
+  end if;
+  if length(coalesce(v_input ->> 'body', '')) > 20000 then
+    raise exception 'a message is at most 20000 characters' using errcode = '22023', hint = 'INBOX_MESSAGE_TOO_LONG';
+  end if;
+  if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
+    raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
+  end if;
+  update "better_supabase"."inbox_drafts" x set "input" = v_input, "metadata" = coalesce(v_metadata, x."metadata")
+  where x."conversation_id" = v_conv."id" and x."author_id" = (select auth.uid())
+    and x."source" = 'user' and x."status" = 'draft'
+  returning * into v_row;
+  if not found then
+    insert into "better_supabase"."inbox_drafts" ("tenant_id", "conversation_id", "author_id", "source", "input", "metadata")
+  values (v_conv."tenant_id", v_conv."id", (select auth.uid()), 'user', v_input, coalesce(v_metadata, '{}'::jsonb))
+  returning * into v_row;
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+
+-- Adds an ai draft to a conversation for its staff to review. The service
+-- role only: the model runs on the server.
+create or replace function "better_supabase"."suggest_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+  v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
+  v_metadata jsonb := suggest_inbox_draft.metadata;
+begin
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = suggest_inbox_draft.conversation;
+  if not found then
+    raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
+  end if;
+  if length(coalesce(v_input ->> 'body', '')) > 20000 then
+    raise exception 'a message is at most 20000 characters' using errcode = '22023', hint = 'INBOX_MESSAGE_TOO_LONG';
+  end if;
+  if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
+    raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
+  end if;
+  insert into "better_supabase"."inbox_drafts" ("tenant_id", "conversation_id", "author_id", "source", "input", "metadata")
+  values (v_conv."tenant_id", v_conv."id", null, 'ai', v_input, coalesce(v_metadata, '{}'::jsonb))
+  returning * into v_row;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_inbox_draft"(uuid, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."suggest_inbox_draft"(uuid, jsonb, jsonb) to service_role;
+
+-- The open drafts the caller sees, newest first: their own and the ai
+-- drafts of their tenants, on one conversation when conversation is set.
+create or replace function "better_supabase"."list_inbox_drafts"(conversation uuid default null)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(d) order by d."updated_at" desc, d."id"), '[]'::jsonb)
+  from "better_supabase"."inbox_drafts" d
+  where d."status" = 'draft'
+    and (list_inbox_drafts.conversation is null or d."conversation_id" = list_inbox_drafts.conversation);
+$$;
+revoke execute on function "better_supabase"."list_inbox_drafts"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_inbox_drafts"(uuid) to authenticated, service_role;
+
+-- Sends a draft as the caller through send_inbox_message, with input's
+-- fields over the draft's, and marks it sent. Returns the message.
+create or replace function "better_supabase"."send_inbox_draft"(draft uuid, input jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+  v_message jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."inbox_drafts" where "id" = send_inbox_draft.draft for update;
+  if not found or v_row."status" <> 'draft' or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_row."author_id" = (select auth.uid()) or v_row."source" = 'ai') and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inbox.reply'), false))) then
+    raise exception 'draft not found' using errcode = 'P0002', hint = 'INBOX_DRAFT_NOT_FOUND';
+  end if;
+  v_message := "better_supabase"."send_inbox_message"(v_row."conversation_id", v_row."input" || (coalesce(send_inbox_draft.input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller'));
+  update "better_supabase"."inbox_drafts" set "status" = 'sent' where "id" = v_row."id";
+  return v_message;
+end;
+$$;
+revoke execute on function "better_supabase"."send_inbox_draft"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."send_inbox_draft"(uuid, jsonb) to authenticated, service_role;
+
+-- Discards a draft the caller can act on.
+create or replace function "better_supabase"."discard_inbox_draft"(draft uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."inbox_drafts" where "id" = discard_inbox_draft.draft for update;
+  if not found or v_row."status" <> 'draft' or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_row."author_id" = (select auth.uid()) or v_row."source" = 'ai') and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inbox.reply'), false))) then
+    raise exception 'draft not found' using errcode = 'P0002', hint = 'INBOX_DRAFT_NOT_FOUND';
+  end if;
+  update "better_supabase"."inbox_drafts" set "status" = 'discarded' where "id" = v_row."id";
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."discard_inbox_draft"(uuid) from public, anon;
+grant execute on function "better_supabase"."discard_inbox_draft"(uuid) to authenticated, service_role;
+
 -- A core message in an inbox conversation pings the staff topic. The
 -- messaging module attaches it to its messages table.
 create or replace function "better_supabase"."inbox_message_broadcast"()
@@ -2325,6 +2511,27 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scheduled_in
 create policy bsb_tenant_scope_delete on "better_supabase"."scheduled_inbox_messages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_drafts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_select on "better_supabase"."inbox_drafts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("author_id" = (select auth.uid()) or "source" = 'ai') and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_insert on "better_supabase"."inbox_drafts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_update on "better_supabase"."inbox_drafts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_delete on "better_supabase"."inbox_drafts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2342,22 +2549,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:dd5c2301799399ddb9e9153f1c7cda2524a230e8bfd6107a0e1fa93f11a97478
+-- @bsb-hash sha256:ed59f5ab6e132fee543aa174b1916f674af1c387fb039890697dff4d040007a9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 5, 'managed')
+values ('inbox', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@5 managed
--- @bsb-hash sha256:74c8ec2783d54c9082a501a34585ada94aeb7ce36c590700b698bf6661a53b75
--- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
+-- @bsb-block inbox@6 managed
+-- @bsb-hash sha256:ec9af0d7c973d605bd9c116b4b1f9543c123d6bc08a219790c8c33cf79e029cf
+-- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2477,6 +2684,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scheduled_inbox_messages";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."scheduled_inbox_messages";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scheduled_inbox_messages";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_drafts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2779,6 +2994,38 @@ drop policy if exists scheduled_inbox_messages_author_read on "better_supabase".
 create policy scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages"
   for select to authenticated
   using ("author_id" = (select auth.uid()) and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
+
+-- Reply drafts. A user draft belongs to its author, one open draft per
+-- conversation; an ai draft has no author and every staff member who can
+-- reply in the tenant sees it. status moves from draft to sent or discarded.
+create table if not exists "better_supabase"."inbox_drafts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
+  "author_id" uuid references auth.users (id) on delete cascade,
+  "source" text not null default 'user' check ("source" in ('user', 'ai')),
+  "input" jsonb not null check (jsonb_typeof("input") = 'object'),
+  "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'discarded')),
+  "metadata" jsonb not null default '{}'::jsonb,
+  "updated_at" timestamptz not null default now(),
+  "created_at" timestamptz not null default now(),
+  constraint inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
+);
+create unique index if not exists inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
+create index if not exists inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");
+create index if not exists inbox_drafts_author_idx on "better_supabase"."inbox_drafts" ("author_id");
+alter table "better_supabase"."inbox_drafts" add column if not exists "updated_at" timestamptz not null default now();
+drop trigger if exists bsb_updated_at on "better_supabase"."inbox_drafts";
+create trigger bsb_updated_at before update on "better_supabase"."inbox_drafts"
+  for each row execute function better_supabase.set_updated_at('updated_at');
+alter table "better_supabase"."inbox_drafts" enable row level security;
+revoke all on "better_supabase"."inbox_drafts" from public, anon, authenticated;
+grant select on "better_supabase"."inbox_drafts" to authenticated;
+grant all on "better_supabase"."inbox_drafts" to service_role;
+drop policy if exists inbox_drafts_read on "better_supabase"."inbox_drafts";
+create policy inbox_drafts_read on "better_supabase"."inbox_drafts"
+  for select to authenticated
+  using (("author_id" = (select auth.uid()) or "source" = 'ai') and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
 
 create or replace function "better_supabase"."inbox_contact_ids"()
 returns setof uuid
@@ -4479,6 +4726,152 @@ $$;
 revoke execute on function "better_supabase"."publish_due_inbox_messages"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."publish_due_inbox_messages"(integer) to service_role;
 
+-- Saves the caller's draft reply on a conversation: the one open draft is
+-- replaced, else a new one starts. The input is the one send_inbox_message
+-- takes, without the service's fields; an empty body is fine until it sends.
+create or replace function "better_supabase"."save_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+  v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
+  v_metadata jsonb := save_inbox_draft.metadata;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = save_inbox_draft.conversation;
+  if not found then
+    raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
+  end if;
+  if (select auth.uid()) is null or not coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'inbox.reply'), false) then
+    raise exception 'not allowed to reply in this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
+  end if;
+  if length(coalesce(v_input ->> 'body', '')) > 20000 then
+    raise exception 'a message is at most 20000 characters' using errcode = '22023', hint = 'INBOX_MESSAGE_TOO_LONG';
+  end if;
+  if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
+    raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
+  end if;
+  update "better_supabase"."inbox_drafts" x set "input" = v_input, "metadata" = coalesce(v_metadata, x."metadata")
+  where x."conversation_id" = v_conv."id" and x."author_id" = (select auth.uid())
+    and x."source" = 'user' and x."status" = 'draft'
+  returning * into v_row;
+  if not found then
+    insert into "better_supabase"."inbox_drafts" ("tenant_id", "conversation_id", "author_id", "source", "input", "metadata")
+  values (v_conv."tenant_id", v_conv."id", (select auth.uid()), 'user', v_input, coalesce(v_metadata, '{}'::jsonb))
+  returning * into v_row;
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+
+-- Adds an ai draft to a conversation for its staff to review. The service
+-- role only: the model runs on the server.
+create or replace function "better_supabase"."suggest_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+  v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
+  v_metadata jsonb := suggest_inbox_draft.metadata;
+begin
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = suggest_inbox_draft.conversation;
+  if not found then
+    raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
+  end if;
+  if length(coalesce(v_input ->> 'body', '')) > 20000 then
+    raise exception 'a message is at most 20000 characters' using errcode = '22023', hint = 'INBOX_MESSAGE_TOO_LONG';
+  end if;
+  if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
+    raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
+  end if;
+  insert into "better_supabase"."inbox_drafts" ("tenant_id", "conversation_id", "author_id", "source", "input", "metadata")
+  values (v_conv."tenant_id", v_conv."id", null, 'ai', v_input, coalesce(v_metadata, '{}'::jsonb))
+  returning * into v_row;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_inbox_draft"(uuid, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."suggest_inbox_draft"(uuid, jsonb, jsonb) to service_role;
+
+-- The open drafts the caller sees, newest first: their own and the ai
+-- drafts of their tenants, on one conversation when conversation is set.
+create or replace function "better_supabase"."list_inbox_drafts"(conversation uuid default null)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(d) order by d."updated_at" desc, d."id"), '[]'::jsonb)
+  from "better_supabase"."inbox_drafts" d
+  where d."status" = 'draft'
+    and (list_inbox_drafts.conversation is null or d."conversation_id" = list_inbox_drafts.conversation);
+$$;
+revoke execute on function "better_supabase"."list_inbox_drafts"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_inbox_drafts"(uuid) to authenticated, service_role;
+
+-- Sends a draft as the caller through send_inbox_message, with input's
+-- fields over the draft's, and marks it sent. Returns the message.
+create or replace function "better_supabase"."send_inbox_draft"(draft uuid, input jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+  v_message jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."inbox_drafts" where "id" = send_inbox_draft.draft for update;
+  if not found or v_row."status" <> 'draft' or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_row."author_id" = (select auth.uid()) or v_row."source" = 'ai') and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inbox.reply'), false))) then
+    raise exception 'draft not found' using errcode = 'P0002', hint = 'INBOX_DRAFT_NOT_FOUND';
+  end if;
+  v_message := "better_supabase"."send_inbox_message"(v_row."conversation_id", v_row."input" || (coalesce(send_inbox_draft.input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller'));
+  update "better_supabase"."inbox_drafts" set "status" = 'sent' where "id" = v_row."id";
+  return v_message;
+end;
+$$;
+revoke execute on function "better_supabase"."send_inbox_draft"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."send_inbox_draft"(uuid, jsonb) to authenticated, service_role;
+
+-- Discards a draft the caller can act on.
+create or replace function "better_supabase"."discard_inbox_draft"(draft uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."inbox_drafts" where "id" = discard_inbox_draft.draft for update;
+  if not found or v_row."status" <> 'draft' or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_row."author_id" = (select auth.uid()) or v_row."source" = 'ai') and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inbox.reply'), false))) then
+    raise exception 'draft not found' using errcode = 'P0002', hint = 'INBOX_DRAFT_NOT_FOUND';
+  end if;
+  update "better_supabase"."inbox_drafts" set "status" = 'discarded' where "id" = v_row."id";
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."discard_inbox_draft"(uuid) from public, anon;
+grant execute on function "better_supabase"."discard_inbox_draft"(uuid) to authenticated, service_role;
+
 -- A core message in an inbox conversation pings the staff topic. The
 -- messaging module attaches it to its messages table.
 create or replace function "better_supabase"."inbox_message_broadcast"()
@@ -4802,6 +5195,27 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scheduled_in
 create policy bsb_tenant_scope_delete on "better_supabase"."scheduled_inbox_messages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_drafts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_select on "better_supabase"."inbox_drafts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("author_id" = (select auth.uid()) or "source" = 'ai') and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_insert on "better_supabase"."inbox_drafts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_update on "better_supabase"."inbox_drafts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_delete on "better_supabase"."inbox_drafts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -4819,7 +5233,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:cc035b07edf84ff34d09e267ec1d7bb904ebf7e9d86d99b19424f09b510acf0c
+-- @bsb-hash sha256:cd7f83eddff1c12dd22ad128708aa160f14860285557f960679fab997732731a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4830,15 +5244,15 @@ values ('inbox.conversation_to_task', 'inbox', 'inbox_conversation', 'inbox_conv
 on conflict ("key") do update set "subject_type" = excluded."subject_type", "trigger" = excluded."trigger", "name" = excluded."name", "description" = excluded."description", "actions" = excluded."actions", "enabled" = excluded."enabled", "block" = excluded."block", "updated_at" = now();
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 5, 'managed')
+values ('inbox', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@5 managed
--- @bsb-hash sha256:ddcbf7e45e21269f298fbcb73d20f8b42d57312ea17fc03017927249fa19fd2c
--- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
+-- @bsb-block inbox@6 managed
+-- @bsb-hash sha256:123c1f10177844c58867c761593c48b01c508529dc75d04ff8960d11de21c6bb
+-- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -4958,6 +5372,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "app_private"."scheduled_inbox_messages";
     drop policy if exists bsb_tenant_scope_update on "app_private"."scheduled_inbox_messages";
     drop policy if exists bsb_tenant_scope_delete on "app_private"."scheduled_inbox_messages";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."inbox_drafts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -5265,6 +5687,38 @@ drop policy if exists scheduled_inbox_messages_author_read on "app_private"."sch
 create policy scheduled_inbox_messages_author_read on "app_private"."scheduled_inbox_messages"
   for select to authenticated
   using ("author_id" = (select auth.uid()) and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
+
+-- Reply drafts. A user draft belongs to its author, one open draft per
+-- conversation; an ai draft has no author and every staff member who can
+-- reply in the tenant sees it. status moves from draft to sent or discarded.
+create table if not exists "app_private"."inbox_drafts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "conversation_id" uuid not null references "app_private"."inbox_conversations" ("id") on delete cascade,
+  "author_id" uuid references auth.users (id) on delete cascade,
+  "source" text not null default 'user' check ("source" in ('user', 'ai')),
+  "input" jsonb not null check (jsonb_typeof("input") = 'object'),
+  "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'discarded')),
+  "metadata" jsonb not null default '{}'::jsonb,
+  "updated_at" timestamptz not null default now(),
+  "created_at" timestamptz not null default now(),
+  constraint inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
+);
+create unique index if not exists inbox_drafts_open_key on "app_private"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
+create index if not exists inbox_drafts_conversation_idx on "app_private"."inbox_drafts" ("conversation_id");
+create index if not exists inbox_drafts_author_idx on "app_private"."inbox_drafts" ("author_id");
+alter table "app_private"."inbox_drafts" add column if not exists "updated_at" timestamptz not null default now();
+drop trigger if exists bsb_updated_at on "app_private"."inbox_drafts";
+create trigger bsb_updated_at before update on "app_private"."inbox_drafts"
+  for each row execute function better_supabase.set_updated_at('updated_at');
+alter table "app_private"."inbox_drafts" enable row level security;
+revoke all on "app_private"."inbox_drafts" from public, anon, authenticated;
+grant select on "app_private"."inbox_drafts" to authenticated;
+grant all on "app_private"."inbox_drafts" to service_role;
+drop policy if exists inbox_drafts_read on "app_private"."inbox_drafts";
+create policy inbox_drafts_read on "app_private"."inbox_drafts"
+  for select to authenticated
+  using (("author_id" = (select auth.uid()) or "source" = 'ai') and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
 
 create or replace function "app_private"."inbox_contact_ids"()
 returns setof uuid
@@ -6843,6 +7297,152 @@ $$;
 revoke execute on function "app_private"."publish_due_inbox_messages"(integer) from public, anon, authenticated;
 grant execute on function "app_private"."publish_due_inbox_messages"(integer) to service_role;
 
+-- Saves the caller's draft reply on a conversation: the one open draft is
+-- replaced, else a new one starts. The input is the one send_inbox_message
+-- takes, without the service's fields; an empty body is fine until it sends.
+create or replace function "app_private"."save_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_conv "app_private"."inbox_conversations"%rowtype;
+  v_row "app_private"."inbox_drafts"%rowtype;
+  v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
+  v_metadata jsonb := save_inbox_draft.metadata;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_conv from "app_private"."inbox_conversations" where "id" = save_inbox_draft.conversation;
+  if not found then
+    raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
+  end if;
+  if (select auth.uid()) is null or not coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'inbox.reply'), false) then
+    raise exception 'not allowed to reply in this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
+  end if;
+  if length(coalesce(v_input ->> 'body', '')) > 20000 then
+    raise exception 'a message is at most 20000 characters' using errcode = '22023', hint = 'INBOX_MESSAGE_TOO_LONG';
+  end if;
+  if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
+    raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
+  end if;
+  update "app_private"."inbox_drafts" x set "input" = v_input, "metadata" = coalesce(v_metadata, x."metadata")
+  where x."conversation_id" = v_conv."id" and x."author_id" = (select auth.uid())
+    and x."source" = 'user' and x."status" = 'draft'
+  returning * into v_row;
+  if not found then
+    insert into "app_private"."inbox_drafts" ("tenant_id", "conversation_id", "author_id", "source", "input", "metadata")
+  values (v_conv."tenant_id", v_conv."id", (select auth.uid()), 'user', v_input, coalesce(v_metadata, '{}'::jsonb))
+  returning * into v_row;
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "app_private"."save_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "app_private"."save_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+
+-- Adds an ai draft to a conversation for its staff to review. The service
+-- role only: the model runs on the server.
+create or replace function "app_private"."suggest_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_conv "app_private"."inbox_conversations"%rowtype;
+  v_row "app_private"."inbox_drafts"%rowtype;
+  v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
+  v_metadata jsonb := suggest_inbox_draft.metadata;
+begin
+  select * into v_conv from "app_private"."inbox_conversations" where "id" = suggest_inbox_draft.conversation;
+  if not found then
+    raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
+  end if;
+  if length(coalesce(v_input ->> 'body', '')) > 20000 then
+    raise exception 'a message is at most 20000 characters' using errcode = '22023', hint = 'INBOX_MESSAGE_TOO_LONG';
+  end if;
+  if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
+    raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
+  end if;
+  insert into "app_private"."inbox_drafts" ("tenant_id", "conversation_id", "author_id", "source", "input", "metadata")
+  values (v_conv."tenant_id", v_conv."id", null, 'ai', v_input, coalesce(v_metadata, '{}'::jsonb))
+  returning * into v_row;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "app_private"."suggest_inbox_draft"(uuid, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function "app_private"."suggest_inbox_draft"(uuid, jsonb, jsonb) to service_role;
+
+-- The open drafts the caller sees, newest first: their own and the ai
+-- drafts of their tenants, on one conversation when conversation is set.
+create or replace function "app_private"."list_inbox_drafts"(conversation uuid default null)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(d) order by d."updated_at" desc, d."id"), '[]'::jsonb)
+  from "app_private"."inbox_drafts" d
+  where d."status" = 'draft'
+    and (list_inbox_drafts.conversation is null or d."conversation_id" = list_inbox_drafts.conversation);
+$$;
+revoke execute on function "app_private"."list_inbox_drafts"(uuid) from public, anon;
+grant execute on function "app_private"."list_inbox_drafts"(uuid) to authenticated, service_role;
+
+-- Sends a draft as the caller through send_inbox_message, with input's
+-- fields over the draft's, and marks it sent. Returns the message.
+create or replace function "app_private"."send_inbox_draft"(draft uuid, input jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."inbox_drafts"%rowtype;
+  v_message jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."inbox_drafts" where "id" = send_inbox_draft.draft for update;
+  if not found or v_row."status" <> 'draft' or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_row."author_id" = (select auth.uid()) or v_row."source" = 'ai') and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inbox.reply'), false))) then
+    raise exception 'draft not found' using errcode = 'P0002', hint = 'INBOX_DRAFT_NOT_FOUND';
+  end if;
+  v_message := "app_private"."send_inbox_message"(v_row."conversation_id", v_row."input" || (coalesce(send_inbox_draft.input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller'));
+  update "app_private"."inbox_drafts" set "status" = 'sent' where "id" = v_row."id";
+  return v_message;
+end;
+$$;
+revoke execute on function "app_private"."send_inbox_draft"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."send_inbox_draft"(uuid, jsonb) to authenticated, service_role;
+
+-- Discards a draft the caller can act on.
+create or replace function "app_private"."discard_inbox_draft"(draft uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."inbox_drafts"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."inbox_drafts" where "id" = discard_inbox_draft.draft for update;
+  if not found or v_row."status" <> 'draft' or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_row."author_id" = (select auth.uid()) or v_row."source" = 'ai') and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inbox.reply'), false))) then
+    raise exception 'draft not found' using errcode = 'P0002', hint = 'INBOX_DRAFT_NOT_FOUND';
+  end if;
+  update "app_private"."inbox_drafts" set "status" = 'discarded' where "id" = v_row."id";
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."discard_inbox_draft"(uuid) from public, anon;
+grant execute on function "app_private"."discard_inbox_draft"(uuid) to authenticated, service_role;
+
 -- A core message in an inbox conversation pings the staff topic. The
 -- messaging module attaches it to its messages table.
 create or replace function "app_private"."inbox_message_broadcast"()
@@ -7166,6 +7766,27 @@ drop policy if exists bsb_tenant_scope_delete on "app_private"."scheduled_inbox_
 create policy bsb_tenant_scope_delete on "app_private"."scheduled_inbox_messages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."inbox_drafts";
+drop policy if exists bsb_tenant_scope_select on "app_private"."inbox_drafts";
+create policy bsb_tenant_scope_select on "app_private"."inbox_drafts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("author_id" = (select auth.uid()) or "source" = 'ai') and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."inbox_drafts";
+create policy bsb_tenant_scope_insert on "app_private"."inbox_drafts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."inbox_drafts";
+create policy bsb_tenant_scope_update on "app_private"."inbox_drafts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."inbox_drafts";
+create policy bsb_tenant_scope_delete on "app_private"."inbox_drafts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -7183,22 +7804,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:dd5c2301799399ddb9e9153f1c7cda2524a230e8bfd6107a0e1fa93f11a97478
+-- @bsb-hash sha256:ed59f5ab6e132fee543aa174b1916f674af1c387fb039890697dff4d040007a9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 5, 'managed')
+values ('inbox', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@5 managed
--- @bsb-hash sha256:1c8ab9be3f4db57e02cd2c28527790139a9f421b10758c8e13f4974738819089
--- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
+-- @bsb-block inbox@6 managed
+-- @bsb-hash sha256:7fb7885060674b3c8f1daf3aa8bf4c86e5d4f24cf70e2232e24129512f1dc261
+-- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -7318,6 +7939,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scheduled_inbox_messages";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."scheduled_inbox_messages";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scheduled_inbox_messages";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_drafts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -7620,6 +8249,38 @@ drop policy if exists scheduled_inbox_messages_author_read on "better_supabase".
 create policy scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages"
   for select to authenticated
   using ("author_id" = (select auth.uid()) and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
+
+-- Reply drafts. A user draft belongs to its author, one open draft per
+-- conversation; an ai draft has no author and every staff member who can
+-- reply in the tenant sees it. status moves from draft to sent or discarded.
+create table if not exists "better_supabase"."inbox_drafts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
+  "author_id" uuid references auth.users (id) on delete cascade,
+  "source" text not null default 'user' check ("source" in ('user', 'ai')),
+  "input" jsonb not null check (jsonb_typeof("input") = 'object'),
+  "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'discarded')),
+  "metadata" jsonb not null default '{}'::jsonb,
+  "updated_at" timestamptz not null default now(),
+  "created_at" timestamptz not null default now(),
+  constraint inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
+);
+create unique index if not exists inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
+create index if not exists inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");
+create index if not exists inbox_drafts_author_idx on "better_supabase"."inbox_drafts" ("author_id");
+alter table "better_supabase"."inbox_drafts" add column if not exists "updated_at" timestamptz not null default now();
+drop trigger if exists bsb_updated_at on "better_supabase"."inbox_drafts";
+create trigger bsb_updated_at before update on "better_supabase"."inbox_drafts"
+  for each row execute function better_supabase.set_updated_at('updated_at');
+alter table "better_supabase"."inbox_drafts" enable row level security;
+revoke all on "better_supabase"."inbox_drafts" from public, anon, authenticated;
+grant select on "better_supabase"."inbox_drafts" to authenticated;
+grant all on "better_supabase"."inbox_drafts" to service_role;
+drop policy if exists inbox_drafts_read on "better_supabase"."inbox_drafts";
+create policy inbox_drafts_read on "better_supabase"."inbox_drafts"
+  for select to authenticated
+  using (("author_id" = (select auth.uid()) or "source" = 'ai') and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
 
 create or replace function "better_supabase"."inbox_contact_ids"()
 returns setof uuid
@@ -9198,6 +9859,152 @@ $$;
 revoke execute on function "better_supabase"."publish_due_inbox_messages"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."publish_due_inbox_messages"(integer) to service_role;
 
+-- Saves the caller's draft reply on a conversation: the one open draft is
+-- replaced, else a new one starts. The input is the one send_inbox_message
+-- takes, without the service's fields; an empty body is fine until it sends.
+create or replace function "better_supabase"."save_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+  v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
+  v_metadata jsonb := save_inbox_draft.metadata;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = save_inbox_draft.conversation;
+  if not found then
+    raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
+  end if;
+  if (select auth.uid()) is null or not coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'inbox.reply'), false) then
+    raise exception 'not allowed to reply in this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
+  end if;
+  if length(coalesce(v_input ->> 'body', '')) > 20000 then
+    raise exception 'a message is at most 20000 characters' using errcode = '22023', hint = 'INBOX_MESSAGE_TOO_LONG';
+  end if;
+  if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
+    raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
+  end if;
+  update "better_supabase"."inbox_drafts" x set "input" = v_input, "metadata" = coalesce(v_metadata, x."metadata")
+  where x."conversation_id" = v_conv."id" and x."author_id" = (select auth.uid())
+    and x."source" = 'user' and x."status" = 'draft'
+  returning * into v_row;
+  if not found then
+    insert into "better_supabase"."inbox_drafts" ("tenant_id", "conversation_id", "author_id", "source", "input", "metadata")
+  values (v_conv."tenant_id", v_conv."id", (select auth.uid()), 'user', v_input, coalesce(v_metadata, '{}'::jsonb))
+  returning * into v_row;
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+
+-- Adds an ai draft to a conversation for its staff to review. The service
+-- role only: the model runs on the server.
+create or replace function "better_supabase"."suggest_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+  v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
+  v_metadata jsonb := suggest_inbox_draft.metadata;
+begin
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = suggest_inbox_draft.conversation;
+  if not found then
+    raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
+  end if;
+  if length(coalesce(v_input ->> 'body', '')) > 20000 then
+    raise exception 'a message is at most 20000 characters' using errcode = '22023', hint = 'INBOX_MESSAGE_TOO_LONG';
+  end if;
+  if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
+    raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
+  end if;
+  insert into "better_supabase"."inbox_drafts" ("tenant_id", "conversation_id", "author_id", "source", "input", "metadata")
+  values (v_conv."tenant_id", v_conv."id", null, 'ai', v_input, coalesce(v_metadata, '{}'::jsonb))
+  returning * into v_row;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_inbox_draft"(uuid, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."suggest_inbox_draft"(uuid, jsonb, jsonb) to service_role;
+
+-- The open drafts the caller sees, newest first: their own and the ai
+-- drafts of their tenants, on one conversation when conversation is set.
+create or replace function "better_supabase"."list_inbox_drafts"(conversation uuid default null)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(d) order by d."updated_at" desc, d."id"), '[]'::jsonb)
+  from "better_supabase"."inbox_drafts" d
+  where d."status" = 'draft'
+    and (list_inbox_drafts.conversation is null or d."conversation_id" = list_inbox_drafts.conversation);
+$$;
+revoke execute on function "better_supabase"."list_inbox_drafts"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_inbox_drafts"(uuid) to authenticated, service_role;
+
+-- Sends a draft as the caller through send_inbox_message, with input's
+-- fields over the draft's, and marks it sent. Returns the message.
+create or replace function "better_supabase"."send_inbox_draft"(draft uuid, input jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+  v_message jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."inbox_drafts" where "id" = send_inbox_draft.draft for update;
+  if not found or v_row."status" <> 'draft' or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_row."author_id" = (select auth.uid()) or v_row."source" = 'ai') and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inbox.reply'), false))) then
+    raise exception 'draft not found' using errcode = 'P0002', hint = 'INBOX_DRAFT_NOT_FOUND';
+  end if;
+  v_message := "better_supabase"."send_inbox_message"(v_row."conversation_id", v_row."input" || (coalesce(send_inbox_draft.input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller'));
+  update "better_supabase"."inbox_drafts" set "status" = 'sent' where "id" = v_row."id";
+  return v_message;
+end;
+$$;
+revoke execute on function "better_supabase"."send_inbox_draft"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."send_inbox_draft"(uuid, jsonb) to authenticated, service_role;
+
+-- Discards a draft the caller can act on.
+create or replace function "better_supabase"."discard_inbox_draft"(draft uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."inbox_drafts" where "id" = discard_inbox_draft.draft for update;
+  if not found or v_row."status" <> 'draft' or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_row."author_id" = (select auth.uid()) or v_row."source" = 'ai') and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inbox.reply'), false))) then
+    raise exception 'draft not found' using errcode = 'P0002', hint = 'INBOX_DRAFT_NOT_FOUND';
+  end if;
+  update "better_supabase"."inbox_drafts" set "status" = 'discarded' where "id" = v_row."id";
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."discard_inbox_draft"(uuid) from public, anon;
+grant execute on function "better_supabase"."discard_inbox_draft"(uuid) to authenticated, service_role;
+
 -- A core message in an inbox conversation pings the staff topic. The
 -- messaging module attaches it to its messages table.
 create or replace function "better_supabase"."inbox_message_broadcast"()
@@ -9519,6 +10326,27 @@ create policy bsb_tenant_scope_update on "better_supabase"."scheduled_inbox_mess
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scheduled_inbox_messages";
 create policy bsb_tenant_scope_delete on "better_supabase"."scheduled_inbox_messages" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_drafts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_select on "better_supabase"."inbox_drafts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("author_id" = (select auth.uid()) or "source" = 'ai') and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_insert on "better_supabase"."inbox_drafts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_update on "better_supabase"."inbox_drafts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_delete on "better_supabase"."inbox_drafts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -9905,6 +10733,51 @@ as $$ select "better_supabase"."publish_due_inbox_messages"($1) $$;
 revoke execute on function "api"."publish_due_inbox_messages"(integer) from public, anon, authenticated;
 grant execute on function "api"."publish_due_inbox_messages"(integer) to service_role;
 
+create or replace function "api"."save_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_inbox_draft"($1, $2, $3) $$;
+revoke execute on function "api"."save_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "api"."save_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+
+create or replace function "api"."suggest_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."suggest_inbox_draft"($1, $2, $3) $$;
+revoke execute on function "api"."suggest_inbox_draft"(uuid, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function "api"."suggest_inbox_draft"(uuid, jsonb, jsonb) to service_role;
+
+create or replace function "api"."list_inbox_drafts"(conversation uuid default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_inbox_drafts"($1) $$;
+revoke execute on function "api"."list_inbox_drafts"(uuid) from public, anon;
+grant execute on function "api"."list_inbox_drafts"(uuid) to authenticated, service_role;
+
+create or replace function "api"."send_inbox_draft"(draft uuid, input jsonb default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."send_inbox_draft"($1, $2) $$;
+revoke execute on function "api"."send_inbox_draft"(uuid, jsonb) from public, anon;
+grant execute on function "api"."send_inbox_draft"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."discard_inbox_draft"(draft uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."discard_inbox_draft"($1) $$;
+revoke execute on function "api"."discard_inbox_draft"(uuid) from public, anon;
+grant execute on function "api"."discard_inbox_draft"(uuid) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -9921,22 +10794,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:dd5c2301799399ddb9e9153f1c7cda2524a230e8bfd6107a0e1fa93f11a97478
+-- @bsb-hash sha256:ed59f5ab6e132fee543aa174b1916f674af1c387fb039890697dff4d040007a9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 5, 'managed')
+values ('inbox', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@5 managed
--- @bsb-hash sha256:670bb1d7855e0de257612301b73b9ea8e7bccd9bd995555ba5ed336ec58fe80a
--- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
+-- @bsb-block inbox@6 managed
+-- @bsb-hash sha256:db1317fb94a981ac204d5099472ca7b217913c8c65d2611cb6b51d8de6c7e00f
+-- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -10072,6 +10945,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scheduled_inbox_messages";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."scheduled_inbox_messages";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scheduled_inbox_messages";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_drafts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -10352,6 +11233,35 @@ drop policy if exists bsb_scheduled_inbox_messages_select on "better_supabase"."
 create policy bsb_scheduled_inbox_messages_select on "better_supabase"."scheduled_inbox_messages"
   for select to authenticated
   using ("author_id" = (select auth.uid()) and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
+
+-- Reply drafts. A user draft belongs to its author, one open draft per
+-- conversation; an ai draft has no author and every staff member who can
+-- reply in the tenant sees it. status moves from draft to sent or discarded.
+-- better_supabase.inbox_drafts is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."inbox_drafts" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."inbox_drafts" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."inbox_drafts" add column if not exists "conversation_id" uuid references "better_supabase"."inbox_conversations" ("id") on delete cascade;
+alter table "better_supabase"."inbox_drafts" add column if not exists "author_id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."inbox_drafts" add column if not exists "source" text not null default 'user' check ("source" in ('user', 'ai'));
+alter table "better_supabase"."inbox_drafts" add column if not exists "input" jsonb check (jsonb_typeof("input") = 'object');
+alter table "better_supabase"."inbox_drafts" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'discarded'));
+alter table "better_supabase"."inbox_drafts" add column if not exists "metadata" jsonb not null default '{}'::jsonb;
+alter table "better_supabase"."inbox_drafts" add column if not exists "updated_at" timestamptz not null default now();
+alter table "better_supabase"."inbox_drafts" add column if not exists "created_at" timestamptz not null default now();
+create unique index if not exists inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
+create index if not exists inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");
+create index if not exists inbox_drafts_author_idx on "better_supabase"."inbox_drafts" ("author_id");
+alter table "better_supabase"."inbox_drafts" add column if not exists "updated_at" timestamptz not null default now();
+drop trigger if exists bsb_updated_at on "better_supabase"."inbox_drafts";
+create trigger bsb_updated_at before update on "better_supabase"."inbox_drafts"
+  for each row execute function better_supabase.set_updated_at('updated_at');
+alter table "better_supabase"."inbox_drafts" enable row level security;
+grant select on "better_supabase"."inbox_drafts" to authenticated;
+grant all on "better_supabase"."inbox_drafts" to service_role;
+drop policy if exists bsb_inbox_drafts_select on "better_supabase"."inbox_drafts";
+create policy bsb_inbox_drafts_select on "better_supabase"."inbox_drafts"
+  for select to authenticated
+  using (("author_id" = (select auth.uid()) or "source" = 'ai') and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
 
 create or replace function "better_supabase"."inbox_contact_ids"()
 returns setof uuid
@@ -11936,6 +12846,152 @@ $$;
 revoke execute on function "better_supabase"."publish_due_inbox_messages"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."publish_due_inbox_messages"(integer) to service_role;
 
+-- Saves the caller's draft reply on a conversation: the one open draft is
+-- replaced, else a new one starts. The input is the one send_inbox_message
+-- takes, without the service's fields; an empty body is fine until it sends.
+create or replace function "better_supabase"."save_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+  v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
+  v_metadata jsonb := save_inbox_draft.metadata;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = save_inbox_draft.conversation;
+  if not found then
+    raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
+  end if;
+  if (select auth.uid()) is null or not coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'inbox.reply'), false) then
+    raise exception 'not allowed to reply in this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
+  end if;
+  if length(coalesce(v_input ->> 'body', '')) > 20000 then
+    raise exception 'a message is at most 20000 characters' using errcode = '22023', hint = 'INBOX_MESSAGE_TOO_LONG';
+  end if;
+  if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
+    raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
+  end if;
+  update "better_supabase"."inbox_drafts" x set "input" = v_input, "metadata" = coalesce(v_metadata, x."metadata")
+  where x."conversation_id" = v_conv."id" and x."author_id" = (select auth.uid())
+    and x."source" = 'user' and x."status" = 'draft'
+  returning * into v_row;
+  if not found then
+    insert into "better_supabase"."inbox_drafts" ("tenant_id", "conversation_id", "author_id", "source", "input", "metadata")
+  values (v_conv."tenant_id", v_conv."id", (select auth.uid()), 'user', v_input, coalesce(v_metadata, '{}'::jsonb))
+  returning * into v_row;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'conversation_id', v_row."conversation_id", 'author_id', v_row."author_id", 'source', v_row."source", 'input', v_row."input", 'status', v_row."status", 'metadata', v_row."metadata", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+
+-- Adds an ai draft to a conversation for its staff to review. The service
+-- role only: the model runs on the server.
+create or replace function "better_supabase"."suggest_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+  v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
+  v_metadata jsonb := suggest_inbox_draft.metadata;
+begin
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = suggest_inbox_draft.conversation;
+  if not found then
+    raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
+  end if;
+  if length(coalesce(v_input ->> 'body', '')) > 20000 then
+    raise exception 'a message is at most 20000 characters' using errcode = '22023', hint = 'INBOX_MESSAGE_TOO_LONG';
+  end if;
+  if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
+    raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
+  end if;
+  insert into "better_supabase"."inbox_drafts" ("tenant_id", "conversation_id", "author_id", "source", "input", "metadata")
+  values (v_conv."tenant_id", v_conv."id", null, 'ai', v_input, coalesce(v_metadata, '{}'::jsonb))
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'conversation_id', v_row."conversation_id", 'author_id', v_row."author_id", 'source', v_row."source", 'input', v_row."input", 'status', v_row."status", 'metadata', v_row."metadata", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_inbox_draft"(uuid, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."suggest_inbox_draft"(uuid, jsonb, jsonb) to service_role;
+
+-- The open drafts the caller sees, newest first: their own and the ai
+-- drafts of their tenants, on one conversation when conversation is set.
+create or replace function "better_supabase"."list_inbox_drafts"(conversation uuid default null)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', d."id", 'tenant_id', d."tenant_id", 'conversation_id', d."conversation_id", 'author_id', d."author_id", 'source', d."source", 'input', d."input", 'status', d."status", 'metadata', d."metadata", 'created_at', d."created_at", 'updated_at', d."updated_at") order by d."updated_at" desc, d."id"), '[]'::jsonb)
+  from "better_supabase"."inbox_drafts" d
+  where d."status" = 'draft'
+    and (list_inbox_drafts.conversation is null or d."conversation_id" = list_inbox_drafts.conversation);
+$$;
+revoke execute on function "better_supabase"."list_inbox_drafts"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_inbox_drafts"(uuid) to authenticated, service_role;
+
+-- Sends a draft as the caller through send_inbox_message, with input's
+-- fields over the draft's, and marks it sent. Returns the message.
+create or replace function "better_supabase"."send_inbox_draft"(draft uuid, input jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+  v_message jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."inbox_drafts" where "id" = send_inbox_draft.draft for update;
+  if not found or v_row."status" <> 'draft' or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_row."author_id" = (select auth.uid()) or v_row."source" = 'ai') and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inbox.reply'), false))) then
+    raise exception 'draft not found' using errcode = 'P0002', hint = 'INBOX_DRAFT_NOT_FOUND';
+  end if;
+  v_message := "better_supabase"."send_inbox_message"(v_row."conversation_id", v_row."input" || (coalesce(send_inbox_draft.input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller'));
+  update "better_supabase"."inbox_drafts" set "status" = 'sent' where "id" = v_row."id";
+  return v_message;
+end;
+$$;
+revoke execute on function "better_supabase"."send_inbox_draft"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."send_inbox_draft"(uuid, jsonb) to authenticated, service_role;
+
+-- Discards a draft the caller can act on.
+create or replace function "better_supabase"."discard_inbox_draft"(draft uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."inbox_drafts" where "id" = discard_inbox_draft.draft for update;
+  if not found or v_row."status" <> 'draft' or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_row."author_id" = (select auth.uid()) or v_row."source" = 'ai') and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inbox.reply'), false))) then
+    raise exception 'draft not found' using errcode = 'P0002', hint = 'INBOX_DRAFT_NOT_FOUND';
+  end if;
+  update "better_supabase"."inbox_drafts" set "status" = 'discarded' where "id" = v_row."id";
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."discard_inbox_draft"(uuid) from public, anon;
+grant execute on function "better_supabase"."discard_inbox_draft"(uuid) to authenticated, service_role;
+
 -- A core message in an inbox conversation pings the staff topic. The
 -- messaging module attaches it to its messages table.
 create or replace function "better_supabase"."inbox_message_broadcast"()
@@ -12259,6 +13315,27 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scheduled_in
 create policy bsb_tenant_scope_delete on "better_supabase"."scheduled_inbox_messages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_drafts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_select on "better_supabase"."inbox_drafts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("author_id" = (select auth.uid()) or "source" = 'ai') and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_insert on "better_supabase"."inbox_drafts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_update on "better_supabase"."inbox_drafts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_delete on "better_supabase"."inbox_drafts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -12276,22 +13353,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:dd5c2301799399ddb9e9153f1c7cda2524a230e8bfd6107a0e1fa93f11a97478
+-- @bsb-hash sha256:ed59f5ab6e132fee543aa174b1916f674af1c387fb039890697dff4d040007a9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 5, 'managed')
+values ('inbox', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@5 managed
--- @bsb-hash sha256:656c26f870b9c3106f2d65909597965231415a5921e4b27bf511ec8889ba4bec
--- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
+-- @bsb-block inbox@6 managed
+-- @bsb-hash sha256:3d78a1ee2f13e6f757bad6a58f0132756a71c2186148b8685875100023c387e3
+-- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -12411,6 +13488,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scheduled_inbox_messages";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."scheduled_inbox_messages";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scheduled_inbox_messages";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_drafts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_drafts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -12713,6 +13798,38 @@ drop policy if exists scheduled_inbox_messages_author_read on "better_supabase".
 create policy scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages"
   for select to authenticated
   using ("author_id" = (select auth.uid()) and "org_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
+
+-- Reply drafts. A user draft belongs to its author, one open draft per
+-- conversation; an ai draft has no author and every staff member who can
+-- reply in the tenant sees it. status moves from draft to sent or discarded.
+create table if not exists "better_supabase"."inbox_drafts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
+  "author_id" uuid references auth.users (id) on delete cascade,
+  "source" text not null default 'user' check ("source" in ('user', 'ai')),
+  "input" jsonb not null check (jsonb_typeof("input") = 'object'),
+  "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'discarded')),
+  "metadata" jsonb not null default '{}'::jsonb,
+  "updated_at" timestamptz not null default now(),
+  "created_at" timestamptz not null default now(),
+  constraint inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
+);
+create unique index if not exists inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
+create index if not exists inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");
+create index if not exists inbox_drafts_author_idx on "better_supabase"."inbox_drafts" ("author_id");
+alter table "better_supabase"."inbox_drafts" add column if not exists "updated_at" timestamptz not null default now();
+drop trigger if exists bsb_updated_at on "better_supabase"."inbox_drafts";
+create trigger bsb_updated_at before update on "better_supabase"."inbox_drafts"
+  for each row execute function better_supabase.set_updated_at('updated_at');
+alter table "better_supabase"."inbox_drafts" enable row level security;
+revoke all on "better_supabase"."inbox_drafts" from public, anon, authenticated;
+grant select on "better_supabase"."inbox_drafts" to authenticated;
+grant all on "better_supabase"."inbox_drafts" to service_role;
+drop policy if exists inbox_drafts_read on "better_supabase"."inbox_drafts";
+create policy inbox_drafts_read on "better_supabase"."inbox_drafts"
+  for select to authenticated
+  using (("author_id" = (select auth.uid()) or "source" = 'ai') and "org_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
 
 create or replace function "better_supabase"."inbox_contact_ids"()
 returns setof uuid
@@ -14291,6 +15408,152 @@ $$;
 revoke execute on function "better_supabase"."publish_due_inbox_messages"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."publish_due_inbox_messages"(integer) to service_role;
 
+-- Saves the caller's draft reply on a conversation: the one open draft is
+-- replaced, else a new one starts. The input is the one send_inbox_message
+-- takes, without the service's fields; an empty body is fine until it sends.
+create or replace function "better_supabase"."save_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+  v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
+  v_metadata jsonb := save_inbox_draft.metadata;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = save_inbox_draft.conversation;
+  if not found then
+    raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
+  end if;
+  if (select auth.uid()) is null or not coalesce(better_supabase.can('tenant', v_conv."org_id", 'inbox.reply'), false) then
+    raise exception 'not allowed to reply in this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
+  end if;
+  if length(coalesce(v_input ->> 'body', '')) > 20000 then
+    raise exception 'a message is at most 20000 characters' using errcode = '22023', hint = 'INBOX_MESSAGE_TOO_LONG';
+  end if;
+  if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
+    raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
+  end if;
+  update "better_supabase"."inbox_drafts" x set "input" = v_input, "metadata" = coalesce(v_metadata, x."metadata")
+  where x."conversation_id" = v_conv."id" and x."author_id" = (select auth.uid())
+    and x."source" = 'user' and x."status" = 'draft'
+  returning * into v_row;
+  if not found then
+    insert into "better_supabase"."inbox_drafts" ("org_id", "conversation_id", "author_id", "source", "input", "metadata")
+  values (v_conv."org_id", v_conv."id", (select auth.uid()), 'user', v_input, coalesce(v_metadata, '{}'::jsonb))
+  returning * into v_row;
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+
+-- Adds an ai draft to a conversation for its staff to review. The service
+-- role only: the model runs on the server.
+create or replace function "better_supabase"."suggest_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+  v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
+  v_metadata jsonb := suggest_inbox_draft.metadata;
+begin
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = suggest_inbox_draft.conversation;
+  if not found then
+    raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
+  end if;
+  if length(coalesce(v_input ->> 'body', '')) > 20000 then
+    raise exception 'a message is at most 20000 characters' using errcode = '22023', hint = 'INBOX_MESSAGE_TOO_LONG';
+  end if;
+  if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
+    raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
+  end if;
+  insert into "better_supabase"."inbox_drafts" ("org_id", "conversation_id", "author_id", "source", "input", "metadata")
+  values (v_conv."org_id", v_conv."id", null, 'ai', v_input, coalesce(v_metadata, '{}'::jsonb))
+  returning * into v_row;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."suggest_inbox_draft"(uuid, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."suggest_inbox_draft"(uuid, jsonb, jsonb) to service_role;
+
+-- The open drafts the caller sees, newest first: their own and the ai
+-- drafts of their tenants, on one conversation when conversation is set.
+create or replace function "better_supabase"."list_inbox_drafts"(conversation uuid default null)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(d) order by d."updated_at" desc, d."id"), '[]'::jsonb)
+  from "better_supabase"."inbox_drafts" d
+  where d."status" = 'draft'
+    and (list_inbox_drafts.conversation is null or d."conversation_id" = list_inbox_drafts.conversation);
+$$;
+revoke execute on function "better_supabase"."list_inbox_drafts"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_inbox_drafts"(uuid) to authenticated, service_role;
+
+-- Sends a draft as the caller through send_inbox_message, with input's
+-- fields over the draft's, and marks it sent. Returns the message.
+create or replace function "better_supabase"."send_inbox_draft"(draft uuid, input jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+  v_message jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."inbox_drafts" where "id" = send_inbox_draft.draft for update;
+  if not found or v_row."status" <> 'draft' or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_row."author_id" = (select auth.uid()) or v_row."source" = 'ai') and coalesce(better_supabase.can('tenant', v_row."org_id", 'inbox.reply'), false))) then
+    raise exception 'draft not found' using errcode = 'P0002', hint = 'INBOX_DRAFT_NOT_FOUND';
+  end if;
+  v_message := "better_supabase"."send_inbox_message"(v_row."conversation_id", v_row."input" || (coalesce(send_inbox_draft.input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller'));
+  update "better_supabase"."inbox_drafts" set "status" = 'sent' where "id" = v_row."id";
+  return v_message;
+end;
+$$;
+revoke execute on function "better_supabase"."send_inbox_draft"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."send_inbox_draft"(uuid, jsonb) to authenticated, service_role;
+
+-- Discards a draft the caller can act on.
+create or replace function "better_supabase"."discard_inbox_draft"(draft uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."inbox_drafts"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."inbox_drafts" where "id" = discard_inbox_draft.draft for update;
+  if not found or v_row."status" <> 'draft' or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_row."author_id" = (select auth.uid()) or v_row."source" = 'ai') and coalesce(better_supabase.can('tenant', v_row."org_id", 'inbox.reply'), false))) then
+    raise exception 'draft not found' using errcode = 'P0002', hint = 'INBOX_DRAFT_NOT_FOUND';
+  end if;
+  update "better_supabase"."inbox_drafts" set "status" = 'discarded' where "id" = v_row."id";
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."discard_inbox_draft"(uuid) from public, anon;
+grant execute on function "better_supabase"."discard_inbox_draft"(uuid) to authenticated, service_role;
+
 -- A core message in an inbox conversation pings the staff topic. The
 -- messaging module attaches it to its messages table.
 create or replace function "better_supabase"."inbox_message_broadcast"()
@@ -14614,6 +15877,27 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scheduled_in
 create policy bsb_tenant_scope_delete on "better_supabase"."scheduled_inbox_messages" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_drafts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_select on "better_supabase"."inbox_drafts" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or (("author_id" = (select auth.uid()) or "source" = 'ai') and "org_id" in (select better_supabase.tenant_ids_with('inbox.reply')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_insert on "better_supabase"."inbox_drafts" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_update on "better_supabase"."inbox_drafts" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_drafts";
+create policy bsb_tenant_scope_delete on "better_supabase"."inbox_drafts" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -14631,13 +15915,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:dd5c2301799399ddb9e9153f1c7cda2524a230e8bfd6107a0e1fa93f11a97478
+-- @bsb-hash sha256:ed59f5ab6e132fee543aa174b1916f674af1c387fb039890697dff4d040007a9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 5, 'managed')
+values ('inbox', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

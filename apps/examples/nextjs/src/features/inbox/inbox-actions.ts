@@ -104,6 +104,22 @@ export const loadMessage = bsb.action(
   },
 );
 
+/**
+ * Keeps the unsent reply as the caller's draft on the conversation, so it
+ * survives a reload; sending the reply leaves the draft to be replaced.
+ */
+export const saveDraft = bsb.action(
+  { input: v.object({ conversationId: Id, body: Body, note: v.boolean() }) },
+  async ({ conversationId, body, note }, { db }) => {
+    const saved = await db.inbox.drafts.upsert(conversationId, {
+      body,
+      kind: note ? "note" : "message",
+    });
+
+    return saved.ok ? ok(saved.data.id) : saved;
+  },
+);
+
 /** A reply to the contact, or with `note` an internal note only staff see. */
 export const reply = bsb.action(
   { input: v.object({ conversationId: Id, body: Body, note: v.boolean() }) },

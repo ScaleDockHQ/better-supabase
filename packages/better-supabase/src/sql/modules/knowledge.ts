@@ -12,6 +12,14 @@ import {
   revokeTable,
 } from "../shared.ts";
 import { vectorSchemaOf } from "../vector-schema.ts";
+import {
+  COLLECTION_GRANTS,
+  COLLECTIONS,
+  collectionPriority,
+  collectionReadable,
+  collectionSearched,
+  knowledgeCollectionsSql,
+} from "./knowledge-collections.ts";
 import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -29,6 +37,7 @@ const DOCUMENTS = {
   error: "error",
   chunkCount: "chunk_count",
   model: "embedding_model",
+  collection: "collection_id",
   createdAt: "created_at",
   updatedAt: "updated_at",
 } as const;
@@ -64,11 +73,24 @@ const NAMES: BlockSqlNames = {
         "error",
         "chunkCount",
         "model",
+        "collection",
         "createdAt",
       ],
       typed: ["scope", "status"],
       app: {},
       lifecycle: { user: "owner", tenant: "tenant" },
+    },
+    collections: {
+      name: "knowledge_collections",
+      columns: COLLECTIONS,
+      app: {},
+      lifecycle: { tenant: "tenant" },
+    },
+    collectionGrants: {
+      name: "knowledge_collection_grants",
+      columns: COLLECTION_GRANTS,
+      app: {},
+      lifecycle: { user: "user" },
     },
     chunks: {
       name: "knowledge_chunks",
@@ -176,6 +198,8 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const chunk = (column: keyof typeof CHUNKS): boolean =>
     ctx.has("chunks", column);
 
+  const collected = doc("collection");
+
   const line = (present: boolean, definition: string): string =>
     present ? `\n  ${definition},` : "";
 
@@ -271,6 +295,9 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     [d.scopeId, "v_scope_id"],
     ...(doc("file") ? [[d.file, "create_knowledge_document.file_id"]] : []),
     [d.title, "create_knowledge_document.title"],
+    ...(collected
+      ? [[d.collection, "create_knowledge_document.collection_id"]]
+      : []),
     ...(doc("source") ? [[d.source, "create_knowledge_document.source"]] : []),
     ...(doc("metadata")
       ? [[d.metadata, "coalesce(create_knowledge_document.metadata, '{}')"]]
@@ -321,7 +348,13 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   // Organization and agent knowledge is shared with readers of the
   // organization, chat knowledge with readers of the chat, user and project
   // knowledge stays with its owner. Admins see everything in their tenant.
-  const readable = `(${d.owner} = (select auth.uid()) or (${d.scope} in ('organization', 'agent') and ${ctx.scope.check(d.tenant, read)}) or ${ctx.scope.check(d.tenant, manage)} or (${d.scope} = 'chat' and ${chatReadable(d.scopeId)}))`;
+  // A system document (no tenant) is shared with everyone. A document in a
+  // collection also needs the collection to be readable.
+  const inCollection = collected
+    ? ` and (${d.collection} is null or ${collectionReadable(ctx, d.collection)})`
+    : "";
+
+  const readable = `(${d.tenant} is null or ${d.owner} = (select auth.uid()) or (${d.scope} in ('organization', 'agent') and ${ctx.scope.check(d.tenant, read)}) or ${ctx.scope.check(d.tenant, manage)} or (${d.scope} = 'chat' and ${chatReadable(d.scopeId)}))${inCollection}`;
 
   const ownDocument = (row: string): string =>
     `(${SERVICE_CALLER} or coalesce(${row}.${d.owner} = auth.uid(), false) or ${ctx.scope.can(`${row}.${d.tenant}`, manage)})`;
@@ -334,23 +367,30 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   );
 
   return `${schemaPreamble(ctx)}
+${knowledgeCollectionsSql(ctx)}
 -- Documents for retrieval: uploaded files, pasted text and synced rows, split
 -- into chunks with an embedding and a tsvector each. The app chunks and
 -- embeds; the database stores, scopes and searches.
 create table if not exists ${documents} (
   ${d.id} uuid primary key default gen_random_uuid(),
-  ${d.tenant} ${id} not null,
+  ${d.tenant} ${id},
   ${d.owner} uuid references auth.users (id) on delete cascade,
   ${d.scope} text not null default 'user' check (${d.scope} in ('organization', 'agent', 'project', 'chat', 'user')),
   ${d.scopeId} uuid,${line(doc("file"), `${d.file} uuid${fileReference}`)}
   ${d.title} text not null check (length(${d.title}) between 1 and 500),${line(doc("source"), `${d.source} text`)}${line(doc("metadata"), `${d.metadata} jsonb not null default '{}' check (jsonb_typeof(${d.metadata}) = 'object')`)}
   ${d.status} text not null default 'pending' check (${d.status} in ('pending', 'ready', 'failed')),${line(doc("error"), `${d.error} text`)}${line(doc("chunkCount"), `${d.chunkCount} integer not null default 0`)}${line(doc("model"), `${d.model} text`)}${line(doc("createdAt"), `${d.createdAt} timestamptz not null default now()`)}
   ${d.updatedAt} timestamptz not null default now(),
-  check ((${d.scope} = 'organization') = (${d.scopeId} is null))
-);
+  check ((${d.scope} = 'organization') = (${d.scopeId} is null)),
+  constraint ${ctx.naming.rename("knowledge_documents_system_check")} check (${d.tenant} is not null or (${d.scope} = 'organization' and ${d.owner} is null))
+);${
+    ctx.owns("documents")
+      ? `
+alter table ${documents} add column if not exists ${d.collection} uuid references ${ctx.table("collections")} (${ctx.col("collections", "id")}) on delete set null;`
+      : ""
+  }
 create index if not exists ${ctx.naming.rename("knowledge_documents_tenant_idx")} on ${documents} (${d.tenant}, ${d.scope}, ${d.scopeId});
 create index if not exists ${ctx.naming.rename("knowledge_documents_owner_idx")} on ${documents} (${d.owner}) where ${d.owner} is not null;
-${doc("file") ? `create index if not exists ${ctx.naming.rename("knowledge_documents_file_idx")} on ${documents} (${d.file}) where ${d.file} is not null;\n` : ""}create index if not exists ${ctx.naming.rename("knowledge_documents_pending_idx")} on ${documents} (${d.updatedAt}) where ${d.status} = 'pending';
+${collected ? `create index if not exists ${ctx.naming.rename("knowledge_documents_collection_idx")} on ${documents} (${d.collection}) where ${d.collection} is not null;\n` : ""}${doc("file") ? `create index if not exists ${ctx.naming.rename("knowledge_documents_file_idx")} on ${documents} (${d.file}) where ${d.file} is not null;\n` : ""}create index if not exists ${ctx.naming.rename("knowledge_documents_pending_idx")} on ${documents} (${d.updatedAt}) where ${d.status} = 'pending';
 alter table ${documents} enable row level security;
 ${revokeTable(documents)}
 grant select on ${documents} to authenticated;
@@ -374,7 +414,10 @@ grant all on ${chunks} to service_role;
 ${renderPolicy(makePolicy({ table: chunks, name: "knowledge_chunks_read", command: "select", roles: ["authenticated"], using: `exists (select 1 from ${documents} doc where doc.${d.id} = ${c.document})` }), { drop: true, target: chunks })}
 
 -- Creates a document for the caller (or for owner, as the service role).
--- Organization and agent knowledge needs the manage permission.
+-- Organization and agent knowledge needs the manage permission. Only the
+-- service role creates a system document (tenant null, organization scope).
+-- A document joins a collection of its tenant, or a system collection.
+drop function if exists ${fn("create_knowledge_document")}(${id}, text, text, uuid, uuid, text, jsonb, uuid);
 create or replace function ${fn("create_knowledge_document")}(
   tenant ${id},
   title text,
@@ -383,7 +426,8 @@ create or replace function ${fn("create_knowledge_document")}(
   file_id uuid default null,
   source text default null,
   metadata jsonb default '{}',
-  owner uuid default null
+  owner uuid default null,
+  collection_id uuid default null
 )
 returns jsonb
 language plpgsql
@@ -395,8 +439,19 @@ declare
   v_scope_id uuid := create_knowledge_document.scope_id;
   v_row ${documents}%rowtype;
 begin
-  if not ${SERVICE_CALLER} and (auth.uid() is null or not ${ctx.scope.can("create_knowledge_document.tenant", write)}) then
+  if not ${SERVICE_CALLER} and (auth.uid() is null or create_knowledge_document.tenant is null or not ${ctx.scope.can("create_knowledge_document.tenant", write)}) then
     ${raise("you may not add knowledge here", "42501", "KNOWLEDGE_FORBIDDEN")}
+  end if;
+  if create_knowledge_document.tenant is null then
+    v_owner := null;
+  end if;
+  if create_knowledge_document.collection_id is not null and not exists (
+    select 1 from ${ctx.table("collections")} kc
+    where kc.${ctx.col("collections", "id")} = create_knowledge_document.collection_id
+      and (kc.${ctx.col("collections", "tenant")} is null or kc.${ctx.col("collections", "tenant")} = create_knowledge_document.tenant)
+      and ${collectionReadable(ctx, `kc.${ctx.col("collections", "id")}`)}
+  )${collected ? "" : " or create_knowledge_document.collection_id is not null"} then
+    ${raise("collection % not found", "P0002", "KNOWLEDGE_COLLECTION_NOT_FOUND", "create_knowledge_document.collection_id")}
   end if;
   if create_knowledge_document.scope in ('organization', 'agent') and not (${SERVICE_CALLER} or ${ctx.scope.can("create_knowledge_document.tenant", manage)}) then
     ${raise("only admins add % knowledge", "42501", "KNOWLEDGE_FORBIDDEN", "create_knowledge_document.scope")}
@@ -421,7 +476,7 @@ begin
   return ${documentJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("create_knowledge_document")}(${id}, text, text, uuid, uuid, text, jsonb, uuid)`)}
+${userGrant(`${fn("create_knowledge_document")}(${id}, text, text, uuid, uuid, text, jsonb, uuid, uuid)`)}
 
 -- Replaces a document's chunks. A chunk whose text is unchanged keeps its
 -- embedding unless the model changed; the rest wait for the embed job.
@@ -476,12 +531,15 @@ as $$
 $$;
 ${userGrant(`${fn("get_knowledge_document")}(uuid)`)}
 
--- The documents the caller can read in a tenant, newest first.
+-- The documents the caller can read in a tenant, newest first. With a
+-- collection, its documents, system ones included.
+drop function if exists ${fn("list_knowledge_documents")}(${id}, text, uuid, integer);
 create or replace function ${fn("list_knowledge_documents")}(
   tenant ${id},
   scope text default null,
   scope_id uuid default null,
-  max_rows integer default 100
+  max_rows integer default 100,
+  collection_id uuid default null
 )
 returns jsonb
 language sql
@@ -492,14 +550,20 @@ as $$
   select coalesce(jsonb_agg(${documentJson("x")} order by ${createdAt("x")} desc), '[]')
   from (
     select * from ${documents} y
-    where y.${d.tenant} = list_knowledge_documents.tenant
+    where ${
+      collected
+        ? `(y.${d.tenant} = list_knowledge_documents.tenant or (y.${d.tenant} is null and list_knowledge_documents.collection_id is not null))
+      and (list_knowledge_documents.collection_id is null or y.${d.collection} = list_knowledge_documents.collection_id)`
+        : `y.${d.tenant} = list_knowledge_documents.tenant
+      and list_knowledge_documents.collection_id is null`
+    }
       and (list_knowledge_documents.scope is null or ${asText(ctx, "documents", `y.${d.scope}`)} = list_knowledge_documents.scope)
       and (list_knowledge_documents.scope_id is null or y.${d.scopeId} = list_knowledge_documents.scope_id)
     order by ${createdAt("y")} desc
     limit least(greatest(list_knowledge_documents.max_rows, 1), 1000)
   ) x
 $$;
-${userGrant(`${fn("list_knowledge_documents")}(${id}, text, uuid, integer)`)}
+${userGrant(`${fn("list_knowledge_documents")}(${id}, text, uuid, integer, uuid)`)}
 
 create or replace function ${fn("delete_knowledge_document")}(document_id uuid)
 returns boolean
@@ -524,15 +588,19 @@ ${userGrant(`${fn("delete_knowledge_document")}(uuid)`)}
 -- full-text rankings fused with reciprocal rank fusion (k = 60). Iterative
 -- index scans keep looking until enough visible chunks turn up. scopes is a
 -- list of {"scope", "id"} objects, or {"items": list}; null searches every
--- scope. Returns a JSON array of {document_id, idx, content, metadata,
--- title, score}.
+-- scope. collections limits it to those collections. System documents count
+-- in every tenant, disabled collections in none, and a collection with a
+-- higher priority ranks its chunks first. Returns a JSON array of
+-- {document_id, idx, content, metadata, title, score}.
+drop function if exists ${fn("knowledge_search")}(${id}, ${embedding.type}, text, jsonb, integer, jsonb);
 create or replace function ${fn("knowledge_search")}(
   tenant ${id},
   query_embedding ${embedding.type} default null,
   query_text text default null,
   scopes jsonb default null,
   k integer default 8,
-  filter jsonb default null
+  filter jsonb default null,
+  collections uuid[] default null
 )
 returns jsonb
 language plpgsql
@@ -548,8 +616,15 @@ declare
 begin
   perform set_config('hnsw.iterative_scan', 'relaxed_order', true);
   with docs as materialized (
-    select x.${d.id} as id, x.${d.title} as title from ${documents} x
-    where x.${d.tenant} = knowledge_search.tenant
+    select x.${d.id} as id, x.${d.title} as title, ${collected ? collectionPriority(ctx, `x.${d.collection}`) : "0"} as priority from ${documents} x
+    where (x.${d.tenant} = knowledge_search.tenant or x.${d.tenant} is null)${
+      collected
+        ? `
+      and (x.${d.collection} is null or ${collectionSearched(ctx, `x.${d.collection}`)})
+      and (knowledge_search.collections is null or x.${d.collection} = any(knowledge_search.collections))`
+        : `
+      and knowledge_search.collections is null`
+    }
       and (v_scopes is null or exists (
         select 1 from jsonb_array_elements(v_scopes) s
         where s.value ->> 'scope' = ${asText(ctx, "documents", `x.${d.scope}`)}
@@ -584,21 +659,21 @@ begin
       coalesce(1.0 / (60 + v.rank), 0) + coalesce(1.0 / (60 + x.rank), 0) as score
     from vector_ranked v full join text_ranked x on x.document_id = v.document_id and x.idx = v.idx
   )
-  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.score desc, r.document_id, r.idx), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.priority desc, r.score desc, r.document_id, r.idx), '[]')
   into v_rows
   from (
-    select f.document_id, f.idx, t.${c.content} as content, ${chunk("metadata") ? `t.${c.metadata}` : "'{}'::jsonb"} as metadata, docs.title, f.score
+    select f.document_id, f.idx, t.${c.content} as content, ${chunk("metadata") ? `t.${c.metadata}` : "'{}'::jsonb"} as metadata, docs.title, docs.priority, f.score
     from fused f
     join ${chunks} t on t.${c.document} = f.document_id and t.${c.index} = f.idx
     join docs on docs.id = f.document_id
-    order by f.score desc, f.document_id, f.idx
+    order by docs.priority desc, f.score desc, f.document_id, f.idx
     limit least(greatest(knowledge_search.k, 1), 100)
   ) r;
   perform set_config('hnsw.iterative_scan', coalesce(previous_scan, 'off'), true);
   return v_rows;
 end;
 $$;
-${userGrant(`${fn("knowledge_search")}(${id}, ${embedding.type}, text, jsonb, integer, jsonb)`)}
+${userGrant(`${fn("knowledge_search")}(${id}, ${embedding.type}, text, jsonb, integer, jsonb, uuid[])`)}
 
 -- The chunks of a document still waiting for an embedding, for the worker,
 -- with the md5 of each content it passes back to set_knowledge_embeddings.
@@ -748,17 +823,26 @@ export const KNOWLEDGE: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Knowledge",
   description:
-    "Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.",
+    "Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.",
   requires: ["memberships", "permissions", "vector-search"],
-  integrates: ["ai-chat", "ai-files", "queue"],
+  integrates: ["ai-chat", "ai-files", "queue", "teams"],
   target: "schema",
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "With ai-files and jobs, queue_knowledge_file creates a pending document for a file and enqueues its ingestion on options.ingestQueue (default knowledge_ingest).",
       sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "Knowledge collections with a visibility, a priority and grants to users or teams; documents join a collection, and system documents without a tenant are shared with every tenant.",
+      sql: (ctx) =>
+        ctx.owns("documents")
+          ? `alter table ${ctx.table("documents")} alter column ${ctx.col("documents", "tenant")} drop not null;`
+          : "",
     },
   ],
   names: NAMES,

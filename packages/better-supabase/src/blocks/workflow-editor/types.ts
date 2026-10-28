@@ -20,6 +20,10 @@ import type {
   WorkflowSubject,
 } from "../workflows/workflows.ts";
 import type { WorkflowGraph, WorkflowGraphDiff } from "./graph.ts";
+import type {
+  WorkflowNodeKindDefinition,
+  WorkflowNodeKindRow,
+} from "./node-kinds.ts";
 
 export type WorkflowVersionStatus = "draft" | "published" | "archived";
 
@@ -37,6 +41,12 @@ export type WorkflowTriggerKind =
  * every organization can run it, fork it or opt out of it.
  */
 export type WorkflowDefinitionScope = "tenant" | "system";
+
+/**
+ * What a definition is for: `lifecycle` owns a record's status path, one per
+ * record; `automation` reacts to events.
+ */
+export type WorkflowPurpose = "automation" | "lifecycle";
 
 /** Who a definition grant is for: a user id, a team id or an organization role. */
 export type WorkflowGrantPrincipal = "user" | "team" | "role";
@@ -76,6 +86,12 @@ export interface WorkflowDefinition<F extends object = Record<never, never>> {
    * workflows still sees it.
    */
   readonly restricted: boolean;
+  readonly purpose: WorkflowPurpose;
+  /**
+   * The tenant's default lifecycle for its subject types; a system default
+   * applies to every tenant that didn't opt out.
+   */
+  readonly isDefault: boolean;
   /** The published version's number (lists only). */
   readonly published?: number | undefined;
   /** Whether a draft is open (lists only). */
@@ -91,6 +107,15 @@ export interface WorkflowDefinition<F extends object = Record<never, never>> {
   readonly optedOut?: boolean;
   /** The extra columns, keyed by database name. */
   readonly fields: ExtraFields<F>;
+}
+
+/**
+ * The default definition `definitions.resolve` picked, with its published
+ * version.
+ */
+export interface WorkflowResolved<F extends object = Record<never, never>> {
+  readonly definition: WorkflowDefinition<F>;
+  readonly version: WorkflowVersion;
 }
 
 export interface WorkflowDefinitionGrant {
@@ -281,6 +306,8 @@ export interface BuilderOptions<
   readonly mappers?: readonly ErrorMapper[];
   /** The steps `steps.sync()` writes to the library. */
   readonly steps?: readonly WorkflowStepInfo[];
+  /** The app's own node kinds `nodeKinds.sync()` writes to the registry. */
+  readonly nodes?: readonly WorkflowNodeKindDefinition[];
   /**
    * Runs on publish and fails it when it throws; the result is stored through
    * `service`. `better-supabase/workflow-sdk/builder` exports `compileGraph`.
@@ -446,6 +473,7 @@ export type WorkflowBuilderHooks<F extends object = Record<never, never>> =
     readonly triggers?: BlockHooks<WorkflowEditor<F>["triggers"]>;
     readonly credentials?: BlockHooks<WorkflowEditor<F>["credentials"]>;
     readonly steps?: BlockHooks<WorkflowEditor<F>["steps"]>;
+    readonly nodeKinds?: BlockHooks<WorkflowEditor<F>["nodeKinds"]>;
     readonly nodeRuns?: BlockHooks<WorkflowEditor<F>["nodeRuns"]>;
     readonly alerts?: BlockHooks<WorkflowEditor<F>["alerts"]>;
   };
@@ -483,6 +511,29 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
       readonly definition: string;
       readonly optedOut?: boolean;
     }): AsyncResult<boolean>;
+    /**
+     * Sets what the definition is for and whether it is its tenant's default
+     * (`workflow.admin`; the service role for a system one). Only a lifecycle
+     * definition, which names its subject types, is a default; marking one
+     * clears the tenant's other default for those subject types.
+     */
+    setPurpose(
+      id: string,
+      purpose: WorkflowPurpose,
+      options?: { readonly isDefault?: boolean },
+    ): AsyncResult<WorkflowDefinition<F>>;
+    /**
+     * The default definition for `purpose` (default `lifecycle`) in `tenant`,
+     * with its published version: the tenant's own first, then a system one it
+     * didn't opt out of. `subjectType` picks a default that names it.
+     */
+    resolve(
+      tenant: string,
+      options?: {
+        readonly purpose?: WorkflowPurpose;
+        readonly subjectType?: string;
+      },
+    ): AsyncResult<WorkflowResolved<F> | undefined>;
     readonly grants: {
       /** Grants run or edit on a restricted definition (`workflow.admin`). */
       add(input: GrantInput): AsyncResult<boolean>;
@@ -585,6 +636,12 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
     /** Replaces the library with `steps` (service role). */
     sync(steps?: readonly WorkflowStepInfo[]): AsyncResult<number>;
     list(): AsyncResult<readonly WorkflowStepInfo[]>;
+  };
+  /** The registry of the app's own node kinds (`defineNodeKind`). */
+  readonly nodeKinds: {
+    /** Replaces the registry with `kinds` (service role). */
+    sync(kinds?: readonly WorkflowNodeKindDefinition[]): AsyncResult<number>;
+    list(): AsyncResult<readonly WorkflowNodeKindRow[]>;
   };
   readonly nodeRuns: {
     /** Records a node's status and pings `workflow-run:<id>` (service role). */

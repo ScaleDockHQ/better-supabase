@@ -867,8 +867,9 @@ export interface BlockNameRegistry {
       readonly "inbound": "id" | "tenant" | "adapter" | "externalId" | "inbox" | "headers" | "body" | "status" | "error" | "attempts" | "receivedAt" | "processedAt";
       readonly "templates": "id" | "tenant" | "inbox" | "name" | "channel" | "language" | "body" | "variables" | "externalId" | "createdAt" | "updatedAt";
       readonly "scheduled": "id" | "tenant" | "conversation" | "author" | "input" | "scheduledFor" | "createdAt" | "updatedAt";
+      readonly "drafts": "id" | "tenant" | "conversation" | "author" | "source" | "input" | "status" | "metadata" | "createdAt" | "updatedAt";
     };
-    readonly functions: "assign_conversation" | "cancel_inbox_message" | "create_inbox" | "create_inbox_attachment" | "create_inbox_team" | "delete_message_template" | "edit_inbox_message" | "get_conversation" | "get_inbox_message" | "inbox_add_message" | "inbox_can_conversation" | "inbox_contact_ids" | "inbox_contact_read_at" | "inbox_conversation_allowed" | "inbox_conversation_broadcast" | "inbox_conversation_json" | "inbox_counts" | "inbox_delivery_broadcast" | "inbox_file_allowed" | "inbox_file_failed" | "inbox_message_broadcast" | "inbox_messages_json" | "inbox_note_readable" | "inbox_resolve_contact" | "list_conversation_events" | "list_inbox_conversations" | "list_inbox_messages" | "list_scheduled_inbox_messages" | "mark_conversation_read" | "pending_inbound_events" | "pending_inbox_files" | "publish_due_inbox_messages" | "purge_contact" | "purge_inbound_events" | "react_to_inbox_message" | "record_delivery" | "record_inbound" | "reschedule_inbox_message" | "schedule_inbox_message" | "send_inbox_message" | "set_bot_mode" | "set_conversation_status" | "set_delivery_status" | "set_inbound_event_status" | "set_inbox_member" | "set_inbox_team_member" | "start_conversation" | "store_inbound_event" | "update_inbox" | "upsert_contact" | "upsert_message_template" | "wake_snoozed_conversations";
+    readonly functions: "assign_conversation" | "cancel_inbox_message" | "create_inbox" | "create_inbox_attachment" | "create_inbox_team" | "delete_message_template" | "discard_inbox_draft" | "edit_inbox_message" | "get_conversation" | "get_inbox_message" | "inbox_add_message" | "inbox_can_conversation" | "inbox_contact_ids" | "inbox_contact_read_at" | "inbox_conversation_allowed" | "inbox_conversation_broadcast" | "inbox_conversation_json" | "inbox_counts" | "inbox_delivery_broadcast" | "inbox_file_allowed" | "inbox_file_failed" | "inbox_message_broadcast" | "inbox_messages_json" | "inbox_note_readable" | "inbox_resolve_contact" | "list_conversation_events" | "list_inbox_conversations" | "list_inbox_drafts" | "list_inbox_messages" | "list_scheduled_inbox_messages" | "mark_conversation_read" | "pending_inbound_events" | "pending_inbox_files" | "publish_due_inbox_messages" | "purge_contact" | "purge_inbound_events" | "react_to_inbox_message" | "record_delivery" | "record_inbound" | "reschedule_inbox_message" | "save_inbox_draft" | "schedule_inbox_message" | "send_inbox_draft" | "send_inbox_message" | "set_bot_mode" | "set_conversation_status" | "set_delivery_status" | "set_inbound_event_status" | "set_inbox_member" | "set_inbox_team_member" | "start_conversation" | "store_inbound_event" | "suggest_inbox_draft" | "update_inbox" | "upsert_contact" | "upsert_message_template" | "wake_snoozed_conversations";
     readonly actions: "read" | "reply" | "assign" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -951,14 +952,16 @@ export interface BlockNameRegistry {
   };
   readonly "knowledge": {
     readonly tables: {
-      readonly "documents": "id" | "tenant" | "owner" | "scope" | "scopeId" | "file" | "title" | "source" | "metadata" | "status" | "error" | "chunkCount" | "model" | "createdAt" | "updatedAt";
+      readonly "documents": "id" | "tenant" | "owner" | "scope" | "scopeId" | "file" | "title" | "source" | "metadata" | "status" | "error" | "chunkCount" | "model" | "collection" | "createdAt" | "updatedAt";
+      readonly "collections": "id" | "tenant" | "name" | "description" | "visibility" | "priority" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "collectionGrants": "collection" | "user" | "team" | "createdAt";
       readonly "chunks": "document" | "index" | "content" | "tokens" | "embedding" | "hash" | "metadata" | "tsv";
     };
-    readonly functions: "create_knowledge_document" | "delete_knowledge_document" | "fail_knowledge_document" | "get_knowledge_document" | "knowledge_search" | "list_knowledge_documents" | "pending_knowledge_chunks" | "pending_knowledge_documents" | "reembed_knowledge" | "set_knowledge_embeddings" | "write_knowledge_chunks";
+    readonly functions: "create_knowledge_collection" | "create_knowledge_document" | "delete_knowledge_collection" | "delete_knowledge_document" | "fail_knowledge_document" | "get_knowledge_document" | "knowledge_collection_readable" | "knowledge_search" | "list_knowledge_collection_grants" | "list_knowledge_collections" | "list_knowledge_documents" | "pending_knowledge_chunks" | "pending_knowledge_documents" | "reembed_knowledge" | "set_knowledge_collection_grant" | "set_knowledge_embeddings" | "update_knowledge_collection" | "write_knowledge_chunks";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "document": "id" | "organization_id" | "owner_id" | "scope" | "scope_id" | "file_id" | "title" | "source" | "metadata" | "status" | "error" | "chunk_count" | "embedding_model" | "created_at" | "updated_at";
+      readonly "document": "id" | "organization_id" | "owner_id" | "scope" | "scope_id" | "file_id" | "title" | "source" | "metadata" | "status" | "error" | "chunk_count" | "embedding_model" | "collection_id" | "created_at" | "updated_at";
     };
     readonly primary: "document";
   };
@@ -1051,15 +1054,15 @@ export interface BlockNameRegistry {
   };
   readonly "memory": {
     readonly tables: {
-      readonly "memories": "id" | "tenant" | "owner" | "scope" | "agent" | "chat" | "project" | "kind" | "path" | "content" | "version" | "embedding" | "model" | "sourceMessage" | "supersededBy" | "tsv" | "createdAt" | "updatedAt";
+      readonly "memories": "id" | "tenant" | "owner" | "scope" | "agent" | "chat" | "project" | "kind" | "path" | "content" | "version" | "embedding" | "model" | "sourceMessage" | "supersededBy" | "subjectType" | "subjectId" | "category" | "confidence" | "expiresAt" | "deletedAt" | "useCount" | "lastUsedAt" | "tsv" | "createdAt" | "updatedAt";
       readonly "messageEmbeddings": "chat" | "message" | "user" | "tenant" | "embedding" | "model" | "createdAt";
       readonly "documents": "scopeKey" | "path" | "content" | "version" | "expiresAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "memory_create" | "memory_delete" | "memory_document_read" | "memory_document_write" | "memory_forget" | "memory_insert" | "memory_list" | "memory_rename" | "memory_save" | "memory_search" | "memory_str_replace" | "memory_view" | "pending_memory_embeddings" | "purge_memory_documents" | "recall_ai_messages" | "set_ai_message_embedding" | "set_memory_embedding" | "set_memory_embeddings";
+    readonly functions: "memory_create" | "memory_delete" | "memory_document_read" | "memory_document_write" | "memory_forget" | "memory_insert" | "memory_list" | "memory_rename" | "memory_restore" | "memory_save" | "memory_search" | "memory_str_replace" | "memory_view" | "pending_memory_embeddings" | "purge_memories" | "purge_memory_documents" | "recall_ai_messages" | "set_ai_message_embedding" | "set_memory_embedding" | "set_memory_embeddings";
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "memory": "id" | "organization_id" | "owner_id" | "scope" | "agent_id" | "chat_id" | "project_id" | "kind" | "path" | "content" | "version" | "embedding" | "embedding_model" | "source_message_id" | "superseded_by" | "tsv" | "created_at" | "updated_at";
+      readonly "memory": "id" | "organization_id" | "owner_id" | "scope" | "agent_id" | "chat_id" | "project_id" | "kind" | "path" | "content" | "version" | "embedding" | "embedding_model" | "source_message_id" | "superseded_by" | "subject_type" | "subject_id" | "category" | "confidence" | "expires_at" | "deleted_at" | "use_count" | "last_used_at" | "tsv" | "created_at" | "updated_at";
     };
     readonly primary: "memory";
   };
@@ -1633,7 +1636,7 @@ export interface BlockNameRegistry {
   };
   readonly "state-machine": {
     readonly tables: {
-      readonly "history": "id" | "tenant" | "subjectType" | "subjectId" | "fromStatus" | "toStatus" | "actor" | "reason" | "createdAt";
+      readonly "history": "id" | "tenant" | "subjectType" | "subjectId" | "fromStatus" | "toStatus" | "actor" | "actorName" | "actorEmail" | "ip" | "userAgent" | "reason" | "createdAt";
       readonly "stages": "id" | "tenant" | "subjectType" | "subjectId" | "label" | "outcome" | "display" | "clearedAt" | "createdAt";
       readonly "lifecycles": "id" | "tenant" | "subjectType" | "subjectId" | "version" | "flags" | "pausedAt" | "pausedUntil" | "pauseReason" | "pausedBy" | "createdAt" | "updatedAt";
     };
@@ -1864,7 +1867,7 @@ export interface BlockNameRegistry {
   };
   readonly "workflow-editor": {
     readonly tables: {
-      readonly "definitions": "id" | "tenant" | "slug" | "name" | "description" | "subjectTypes" | "scope" | "forkedFrom" | "forkedFromVersion" | "restricted" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "definitions": "id" | "tenant" | "slug" | "name" | "description" | "subjectTypes" | "scope" | "forkedFrom" | "forkedFromVersion" | "restricted" | "purpose" | "isDefault" | "createdBy" | "createdAt" | "updatedAt";
       readonly "optOuts": "tenant" | "definition" | "createdBy" | "createdAt";
       readonly "grants": "id" | "definition" | "principalKind" | "principalId" | "action" | "createdBy" | "createdAt";
       readonly "versions": "id" | "definition" | "version" | "graph" | "compiled" | "status" | "createdBy" | "createdAt" | "publishedAt" | "publishedBy" | "owner" | "permissions" | "inputSchema";
@@ -1872,15 +1875,16 @@ export interface BlockNameRegistry {
       readonly "webhookTokens": "tokenHash" | "trigger" | "createdAt";
       readonly "credentials": "id" | "tenant" | "kind" | "name" | "ref" | "scopes" | "createdBy" | "createdAt";
       readonly "steps": "name" | "title" | "description" | "inputSchema" | "outputSchema" | "credentialKind" | "operation" | "updatedAt";
+      readonly "nodeKinds": "kind" | "title" | "description" | "branches" | "configSchema" | "updatedAt";
       readonly "nodeRuns": "run" | "node" | "status" | "attempts" | "output" | "error" | "startedAt" | "endedAt";
       readonly "alerts": "id" | "definition" | "onEvent" | "threshold" | "channel" | "createdBy" | "createdAt";
       readonly "alertFires": "alert" | "run" | "firedAt";
     };
-    readonly functions: "check_workflow_alerts" | "fork_workflow_definition" | "publish_workflow_version" | "record_workflow_node_run" | "remove_workflow_alert" | "remove_workflow_credential" | "remove_workflow_definition" | "remove_workflow_trigger" | "rotate_workflow_webhook_token" | "save_workflow_alert" | "save_workflow_credential" | "save_workflow_definition" | "save_workflow_draft" | "save_workflow_trigger" | "set_workflow_definition_grant" | "set_workflow_opt_out" | "start_test_run" | "sync_workflow_steps" | "validate_workflow_graph" | "workflow_alerts_list" | "workflow_credential_get" | "workflow_credentials_list" | "workflow_definition_get" | "workflow_definition_grants_list" | "workflow_definitions_list" | "workflow_graph_permissions" | "workflow_node_runs_list" | "workflow_run_principal" | "workflow_runs_alert" | "workflow_start_target" | "workflow_steps_list" | "workflow_subject_start_target" | "workflow_triggers_list" | "workflow_version_get" | "workflow_versions_list" | "workflow_webhook_target";
+    readonly functions: "check_workflow_alerts" | "fork_workflow_definition" | "publish_workflow_version" | "record_workflow_node_run" | "remove_workflow_alert" | "remove_workflow_credential" | "remove_workflow_definition" | "remove_workflow_trigger" | "resolve_workflow_definition" | "rotate_workflow_webhook_token" | "save_workflow_alert" | "save_workflow_credential" | "save_workflow_definition" | "save_workflow_draft" | "save_workflow_trigger" | "set_workflow_definition_grant" | "set_workflow_definition_purpose" | "set_workflow_opt_out" | "start_test_run" | "sync_workflow_node_kinds" | "sync_workflow_steps" | "validate_workflow_graph" | "workflow_alerts_list" | "workflow_credential_get" | "workflow_credentials_list" | "workflow_definition_get" | "workflow_definition_grants_list" | "workflow_definitions_list" | "workflow_graph_permissions" | "workflow_node_kinds_list" | "workflow_node_runs_list" | "workflow_run_principal" | "workflow_runs_alert" | "workflow_start_target" | "workflow_steps_list" | "workflow_subject_start_target" | "workflow_triggers_list" | "workflow_version_get" | "workflow_versions_list" | "workflow_webhook_target";
     readonly actions: "read" | "run" | "edit" | "publish" | "admin";
     readonly hooks: never;
     readonly entities: {
-      readonly "definition": "id" | "tenant_id" | "slug" | "name" | "description" | "subject_types" | "scope" | "forked_from" | "forked_from_version" | "restricted" | "created_by" | "created_at" | "updated_at";
+      readonly "definition": "id" | "tenant_id" | "slug" | "name" | "description" | "subject_types" | "scope" | "forked_from" | "forked_from_version" | "restricted" | "purpose" | "is_default" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: "definition";
   };
