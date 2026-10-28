@@ -20,7 +20,7 @@ import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { ownerIsEmployee, recordOwner } from "./record-owner.ts";
 
-export const EXPENSE_RESERVED = ["fields"] as const;
+const EXPENSE_RESERVED = ["fields"] as const;
 
 const STATUSES = ["draft", "submitted", "approved", "rejected", "reimbursed"];
 

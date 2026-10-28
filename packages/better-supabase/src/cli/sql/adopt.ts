@@ -310,7 +310,6 @@ export interface ProposeOptions {
   readonly blocks?: AnyBlocksConfig;
   /** `config.subjects`, which a block's `on` entries inherit from. */
   readonly subjects?: SubjectsConfig;
-  /** The authorization provider the `provider` access model renders with. */
   readonly accessProvider?: BlockSqlLayout["accessProvider"];
   /**
    * Schemas searched for the module's default table names. Defaults to
