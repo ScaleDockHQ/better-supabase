@@ -3,6 +3,7 @@ import type { NextOptions } from "better-supabase/next";
 import "server-only";
 import { permissionsAuthorizer } from "better-supabase/blocks/permissions";
 import { createNext } from "better-supabase/next";
+import { createServer } from "better-supabase/server";
 
 import { env } from "@/env";
 
@@ -17,6 +18,9 @@ const options: NextOptions = {
     // Matches `src/app/api/bs-stats/route.ts`, where `bsb.debugRoute()` is mounted.
     route: "/api/bs-stats",
   },
+  // `bsb.bootstrap()` calls `api.bootstrap_<rpc>`: the config's `sql.api`,
+  // the one module schema PostgREST exposes.
+  bootstrapSchema: "api",
   // Applies when SUPABASE_READ_URL is set: reads stay on the primary this long after a write.
   replicas: { pinMs: 5000 },
   // `permission` on actions, routes and resources: granted from the token's
@@ -24,7 +28,16 @@ const options: NextOptions = {
   authorizer: permissionsAuthorizer({ permissions, load: myPermissions }),
 };
 
-export const bsb = createNext(betterSupabase, options);
+// Built here, not inside `createNext`, so the testing route can read its
+// session memo: how many renders verified a token instead of reusing one.
+const server = createServer(betterSupabase, options);
+
+export const bsb = createNext(betterSupabase, { ...options, server });
+
+/** Hits and misses of the verified-session memo, for `/api/bs-sessions`. */
+export function sessionStats() {
+  return server.sessions.stats();
+}
 
 /**
  * The caller's keys from `my_permissions`, for a token whose claim is missing

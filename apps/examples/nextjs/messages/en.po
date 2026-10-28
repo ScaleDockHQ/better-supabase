@@ -326,26 +326,6 @@ msgctxt "inbox.DRlmpk"
 msgid "Customer conversations from the Help widget and chat channels, kept live over Realtime."
 msgstr "Customer conversations from the Help widget and chat channels, kept live over Realtime."
 
-#: src/app/[locale]/(app)/islands/page.tsx
-msgctxt "islands.a8EoBn"
-msgid "Islands"
-msgstr "Islands"
-
-#: src/app/[locale]/(app)/islands/page.tsx
-msgctxt "islands.D9tzWm"
-msgid "Ten private islands that share one verified session per request."
-msgstr "Ten private islands that share one verified session per request."
-
-#: src/app/[locale]/(app)/islands/page.tsx
-msgctxt "islands.4lbK5K"
-msgid "Rows"
-msgstr "Rows"
-
-#: src/app/[locale]/(app)/islands/page.tsx
-msgctxt "islands.d3wbXx"
-msgid "Session"
-msgstr "Session"
-
 #: src/app/[locale]/(app)/knowledge/page.tsx
 msgctxt "knowledge.5OteMI"
 msgid "Knowledge"
@@ -687,6 +667,31 @@ msgstr "Upgrade and save"
 msgctxt "pricing.RbnSLQ"
 msgid "The pricing-banner flag is on for your plan."
 msgstr "The pricing-banner flag is on for your plan."
+
+#: src/app/[locale]/islands/page.tsx
+msgctxt "islands.a8EoBn"
+msgid "Islands"
+msgstr "Islands"
+
+#: src/app/[locale]/islands/page.tsx
+msgctxt "islands.FPlXDU"
+msgid "Ten islands that read one bootstrap call per request."
+msgstr "Ten islands that read one bootstrap call per request."
+
+#: src/app/[locale]/islands/page.tsx
+msgctxt "islands.hzSNj4"
+msgid "Dashboard"
+msgstr "Dashboard"
+
+#: src/app/[locale]/islands/page.tsx
+msgctxt "islands.4lbK5K"
+msgid "Rows"
+msgstr "Rows"
+
+#: src/app/[locale]/islands/page.tsx
+msgctxt "islands.d3wbXx"
+msgid "Session"
+msgstr "Session"
 
 #: src/app/[locale]/layout.tsx
 msgctxt "app.pZg_tf"
@@ -7236,6 +7241,31 @@ msgctxt "integrations.62nsdy"
 msgid "Retry"
 msgstr "Retry"
 
+#: src/features/islands/components/cache-status.tsx
+msgctxt "islands.ei4Zkn"
+msgid "Cache scope"
+msgstr "Cache scope"
+
+#: src/features/islands/components/cache-status.tsx
+msgctxt "islands.viXE32"
+msgid "Private"
+msgstr "Private"
+
+#: src/features/islands/components/cache-status.tsx
+msgctxt "islands.JJBzhX"
+msgid "Remote"
+msgstr "Remote"
+
+#: src/features/islands/components/cache-status.tsx
+msgctxt "islands.LuyUz3"
+msgid "Computed at"
+msgstr "Computed at"
+
+#: src/features/islands/components/cache-status.tsx
+msgctxt "islands.mLBnic"
+msgid "Evict my cached views"
+msgstr "Evict my cached views"
+
 #: src/features/islands/components/count-island.tsx
 msgctxt "islands.TkYZBT"
 msgid "Customers"
@@ -7277,9 +7307,19 @@ msgid "Add the first row to see it counted."
 msgstr "Add the first row to see it counted."
 
 #: src/features/islands/components/count-island.tsx
+msgctxt "islands.sT9oXC"
+msgid "An admin adds the first row."
+msgstr "An admin adds the first row."
+
+#: src/features/islands/components/count-island.tsx
 msgctxt "islands.z7yzMC"
 msgid "Add one"
 msgstr "Add one"
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.JfG49w"
+msgid "Open"
+msgstr "Open"
 
 #: src/features/islands/components/island-error.tsx
 msgctxt "islands.EZenTi"
@@ -7998,6 +8038,11 @@ msgstr "AI tasks"
 msgctxt "navigation.riw_yc"
 msgid "Beta"
 msgstr "Beta"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.a8EoBn"
+msgid "Islands"
+msgstr "Islands"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.-a-2ug"

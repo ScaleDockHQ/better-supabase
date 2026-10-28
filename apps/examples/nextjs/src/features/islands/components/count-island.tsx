@@ -22,9 +22,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
 
-import type { IslandTable } from "../islands-queries";
+import type { Islands, IslandScope, IslandTable } from "../islands-queries";
 
-import { getIslandSession, getTableCount } from "../islands-queries";
+import { getIslandsIn } from "../islands-queries";
 import { IslandError } from "./island-error";
 
 /** Where a user adds the first row of each table. */
@@ -37,12 +37,17 @@ const ADD_HREF: Record<IslandTable, AppHref> = {
 };
 
 /**
- * Render inside `<Suspense>`: one table's row count. The island checks the
- * session itself; a layout never gates it.
+ * Render inside `<Suspense>`: one table's row count. Every island reads the
+ * same bootstrap result, so the ten of them cost one query.
  */
-export async function CountIsland({ table }: { table: IslandTable }) {
-  const [session, t, format] = await Promise.all([
-    getIslandSession(),
+export async function CountIsland({
+  table,
+  scope,
+}: {
+  table: IslandTable;
+  scope: Promise<IslandScope>;
+}) {
+  const [t, format] = await Promise.all([
     getExtracted("islands"),
     getFormatter(),
   ]);
@@ -56,17 +61,18 @@ export async function CountIsland({ table }: { table: IslandTable }) {
   };
 
   const title = titles[table];
-
-  if (!session?.organizationId) {
-    return null;
-  }
-
-  let count: number;
+  let islands: Islands;
 
   try {
-    count = await getTableCount(table, session.organizationId);
+    islands = await getIslandsIn(await scope);
   } catch {
     return <IslandError title={title} />;
+  }
+
+  const count = islands.counts?.[table];
+
+  if (count === undefined) {
+    return null;
   }
 
   return (
@@ -80,11 +86,13 @@ export async function CountIsland({ table }: { table: IslandTable }) {
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <DatabaseIcon />
+                <DatabaseIcon aria-hidden />
               </EmptyMedia>
               <EmptyTitle>{t("Nothing here yet")}</EmptyTitle>
               <EmptyDescription>
-                {t("Add the first row to see it counted.")}
+                {islands.canWrite
+                  ? t("Add the first row to see it counted.")
+                  : t("An admin adds the first row.")}
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
@@ -92,7 +100,7 @@ export async function CountIsland({ table }: { table: IslandTable }) {
                 href={ADD_HREF[table]}
                 className={buttonVariants({ variant: "outline", size: "sm" })}
               >
-                {t("Add one")}
+                {islands.canWrite ? t("Add one") : t("Open")}
               </Link>
             </EmptyContent>
           </Empty>

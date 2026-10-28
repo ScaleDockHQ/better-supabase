@@ -32,6 +32,7 @@ import {
   Trash2Icon,
   CreditCardIcon,
   FlaskConicalIcon,
+  GridIcon,
   BellIcon,
   CalendarClockIcon,
   CpuIcon,
@@ -116,6 +117,7 @@ const ICONS = {
   agentActivity: ActivityIcon,
   aiTasks: CalendarClockIcon,
   beta: FlaskConicalIcon,
+  islands: GridIcon,
   members: UsersRoundIcon,
   teams: GroupIcon,
   roles: ShieldIcon,
@@ -301,6 +303,10 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "beta": {
         return t("Beta");
+      }
+
+      case "islands": {
+        return t("Islands");
       }
 
       case "members": {

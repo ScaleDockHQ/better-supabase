@@ -46,6 +46,7 @@ export type NavId =
   | "agentActivity"
   | "aiTasks"
   | "beta"
+  | "islands"
   | "members"
   | "teams"
   | "roles"
@@ -263,6 +264,7 @@ export const navItems: readonly NavItem[] = [
     requires: "ai.create",
   },
   { id: "beta", href: "/beta", group: "workspace", flag: "beta-page" },
+  { id: "islands", href: "/islands", group: "workspace" },
   {
     id: "members",
     href: "/settings/members",

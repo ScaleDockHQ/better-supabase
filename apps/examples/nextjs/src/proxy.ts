@@ -2,7 +2,7 @@ import type { ProxyOptions } from "better-supabase/next";
 import type { NextRequest } from "next/server";
 
 import { permissionMatches } from "better-supabase/blocks/permissions";
-import { permissionsOf, toSession } from "better-supabase/next";
+import { permissionsOf, postAuthPath, toSession } from "better-supabase/next";
 import { precompute } from "flags/next";
 import { hasLocale } from "next-intl";
 import createMiddleware from "next-intl/middleware";
@@ -26,7 +26,7 @@ const PUBLIC = new Set([
   "/waitlist",
 ]);
 
-/** Pages a signed-in user skips straight to the dashboard from. */
+/** Pages a signed-in user skips, to the `?next=` path or the dashboard. */
 const GUEST_ONLY = new Set(["/login", "/signup", "/forgot-password"]);
 
 function splitLocale(pathname: string) {
@@ -98,8 +98,11 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
     return NextResponse.redirect(login);
   }
 
+  // A signed-in user who opens the sign-in page goes where `?next=` points.
   if (GUEST_ONLY.has(path)) {
-    return NextResponse.redirect(new URL(`/${locale}`, request.url));
+    return NextResponse.redirect(
+      new URL(postAuthPath(request, `/${locale}`), request.url),
+    );
   }
 
   const needed = requiredPermission(path);
