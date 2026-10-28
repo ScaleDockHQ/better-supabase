@@ -6,7 +6,7 @@ import type {
   BlockSqlNames,
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
-import type { Names } from "./catalog-functions.ts";
+import type { Names } from "./catalog-names.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { currencyMinorUnitsFunction } from "../money-sql.ts";
@@ -41,6 +41,7 @@ import {
   priceFunctions,
   storefrontFunctions,
 } from "./catalog-merchandising.ts";
+import { variantStatusFunction } from "./catalog-variant-status.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<CatalogEvents> = {
@@ -729,6 +730,9 @@ function build(ctx: BlockSqlContext): string {
     create: actionKey(ctx, "create", keys.manage),
     update: actionKey(ctx, "update", keys.manage),
     remove: actionKey(ctx, "delete", keys.manage),
+    categoryCreate: actionKey(ctx, "categoryCreate", keys.manage),
+    categoryUpdate: actionKey(ctx, "categoryUpdate", keys.manage),
+    categoryDelete: actionKey(ctx, "categoryDelete", keys.manage),
   };
 
   storefrontOption(ctx);
@@ -739,7 +743,7 @@ function build(ctx: BlockSqlContext): string {
 -- categories, collections, price lists, sales channels, translations,
 -- product media and an optional public storefront.
 ${currencyMinorUnitsFunction(names.fn("currency_minor_units"))}
-${tables(ctx, names)}${productFunctions(ctx, names)}${optionFunctions(ctx, names)}${priceFunctions(ctx, names)}${categoryFunctions(ctx, names)}${collectionFunctions(ctx, names)}${storefrontFunctions(ctx, names)}${channelModuleFunctions(ctx, names)}
+${tables(ctx, names)}${productFunctions(ctx, names)}${variantStatusFunction(ctx, names)}${optionFunctions(ctx, names)}${priceFunctions(ctx, names)}${categoryFunctions(ctx, names)}${collectionFunctions(ctx, names)}${storefrontFunctions(ctx, names)}${channelModuleFunctions(ctx, names)}
 ${ctx.hasTable("storefronts") ? storefrontPolicies(ctx, names) : ""}
 `;
 }
@@ -766,6 +770,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "set_product_status", args: ["uuid", "text"], returns: "jsonb" },
+    { name: "set_variant_status", args: ["uuid", "text"], returns: "jsonb" },
     { name: "delete_product", args: ["uuid"], returns: "boolean" },
     ...(options
       ? [

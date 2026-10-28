@@ -386,6 +386,10 @@ export interface Catalog<F extends object = Record<never, never>> {
     variantId: string,
     neighbors: RankNeighbors,
   ): AsyncResult<string>;
+  setVariantStatus(
+    variantId: string,
+    status: "active" | "archived" | (string & {}),
+  ): AsyncResult<{ readonly status: string; readonly from: string }>;
   deleteVariant(variantId: string): AsyncResult<boolean>;
   savePriceList(
     organizationId: string,
@@ -779,6 +783,12 @@ export function createCatalog<
           status: enumOrThrow(row["status"], PRODUCT_STATUSES, "status"),
           from: enumOrThrow(row["from"], PRODUCT_STATUSES, "status"),
         };
+      }),
+    setVariantStatus: (variantId, status) =>
+      call("set_variant_status", { variant: variantId, status }, (value) => {
+        const row = recordOf(value, "set_variant_status");
+
+        return { status: textOf(row["status"]), from: textOf(row["from"]) };
       }),
     deleteProduct: (productId) =>
       call("delete_product", { product: productId }, (value) => value === true),

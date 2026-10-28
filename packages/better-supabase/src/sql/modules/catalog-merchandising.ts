@@ -1,5 +1,5 @@
 import type { BlockSqlContext } from "../context.ts";
-import type { Names } from "./catalog-functions.ts";
+import type { Names } from "./catalog-names.ts";
 
 import {
   columnsObject,
@@ -498,7 +498,11 @@ declare
   v_last text;
   v_rank text;
 begin
-  ${guard(names, "save_category.tenant")}
+  if v_id is null then
+    ${guard(names, "save_category.tenant", names.categoryCreate)}
+  else
+    ${guard(names, "save_category.tenant", names.categoryUpdate)}
+  end if;
   if v_slug is null or v_slug !~ ${SLUG} then
     ${fail("CATALOG_SLUG_INVALID", "the slug must be lower-case letters, digits and hyphens", "22023")}
   end if;
@@ -556,7 +560,7 @@ begin
   if v_tenant is null then
     ${fail("CATALOG_CATEGORY_NOT_FOUND", "category not found", "P0002")}
   end if;
-  ${guard(names, "v_tenant")}
+  ${guard(names, "v_tenant", names.categoryUpdate)}
   if move_category.parent is not null and not exists (select 1 from ${categories} x where x.${k("id")} = move_category.parent and x.${k("tenant")} = v_tenant) then
     ${fail("CATALOG_CATEGORY_NOT_FOUND", "parent category not found", "P0002")}
   end if;
@@ -582,7 +586,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  ${guard(names, "v_tenant")}
+  ${guard(names, "v_tenant", names.categoryDelete)}
   begin
     delete from ${categories} x where x.${k("id")} = delete_category.category;
   exception when foreign_key_violation then

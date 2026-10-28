@@ -1,5 +1,5 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
-import type { Names } from "./catalog-functions.ts";
+import type { Names } from "./catalog-names.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";

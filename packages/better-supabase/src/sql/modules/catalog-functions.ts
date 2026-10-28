@@ -1,6 +1,6 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 import type { RankSql } from "../rank-sql.ts";
-import type { BlockSqlScope } from "../scope.ts";
+import type { Names } from "./catalog-names.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -147,17 +147,6 @@ function variantInUse(ctx: BlockSqlContext): string | undefined {
   }
 
   return value.split(".").map(sqlIdent).join(".");
-}
-
-export interface Names {
-  /** The block's scope checks. */
-  readonly scope: BlockSqlScope;
-  readonly fn: (name: string) => string;
-  readonly manage: string;
-  readonly read: string;
-  readonly create: string;
-  readonly update: string;
-  readonly remove: string;
 }
 
 /** `blocks.catalog.options.rankType`: rank keys or integer positions. */

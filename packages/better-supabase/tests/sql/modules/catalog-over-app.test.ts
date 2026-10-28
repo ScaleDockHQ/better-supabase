@@ -536,6 +536,134 @@ $$;`,
     },
   );
 
+  it(
+    "sets a mapped variant status and checks the category keys",
+    { timeout: 60_000 },
+    async () => {
+      const catalog = VARIANT_BLOCKS["catalog"];
+      const member = "55555555-5555-4555-8555-555555555555";
+
+      const asMember = `perform set_config('request.jwt.claims', '{"sub":"${member}","role":"authenticated"}', true);
+  perform set_config('request.jwt.claim.sub', '${member}', true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);`;
+
+      const refused = (call: string): string => `begin
+    perform ${call};
+    raise exception 'allowed: ${call.replaceAll("'", "''")}';
+  exception when others then
+    if sqlerrm like 'allowed: %' then
+      raise;
+    end if;
+  end;`;
+
+      const blocks: AnyBlocksConfig = {
+        catalog: {
+          ...catalog,
+          columns: {
+            ...catalog?.columns,
+            variants: { ...catalog?.columns?.["variants"], status: "status" },
+          },
+          values: {
+            ...catalog?.values,
+            variants: { status: { discontinued: "discontinued" } },
+          },
+          permissions: {
+            update: "product.update",
+            categoryCreate: "category.create",
+            categoryDelete: "category.delete",
+          },
+        },
+      };
+
+      const files = renderBlocks(["catalog"], {
+        modules: blocks,
+        ownTables: VARIANT_OWN,
+      });
+
+      await using stack = await liteStack({
+        driver: "pglite",
+        migrations: [
+          `${VARIANT_APP}
+alter table public.item_variants add column status public.item_status not null default 'active';`,
+          ...files
+            .filter((file) => file.kind !== "data")
+            .map((file) => file.contents),
+        ],
+        seed: [
+          ...files
+            .filter((file) => file.kind === "data")
+            .map((file) => file.contents),
+          `create table public.denied (permission text primary key);
+insert into public.denied values ('category.delete');
+create or replace function better_supabase.can(scope text, scope_id uuid, permission text)
+returns boolean language sql stable as $$ select not exists (select 1 from public.denied d where d.permission = can.permission) $$;
+do $$
+declare
+  v_product uuid;
+  v_matrix jsonb;
+  v_small uuid;
+  v_other uuid;
+  v_moved jsonb;
+  v_category uuid;
+begin
+  ${asMember}
+  v_product := (better_supabase.save_product('${TENANT}', null, 'Tee', null, null, 'physical', null, null, null) ->> 'id')::uuid;
+  v_matrix := better_supabase.set_product_options(v_product, '[{"name": "Size", "values": ["S", "M"]}]');
+  v_small := (v_matrix #>> '{variants,0,id}')::uuid;
+  v_moved := better_supabase.set_variant_status(v_small, 'discontinued');
+  if v_moved ->> 'status' <> 'discontinued' or v_moved ->> 'from' <> 'active'
+    or (select status::text from public.item_variants where id = v_small) <> 'discontinued' then
+    raise exception 'discontinued %', v_moved;
+  end if;
+  perform better_supabase.set_variant_status(v_small, 'archived');
+  perform better_supabase.save_variant(v_product, v_small, 'TEE-S-OLD', null, null, null, null, null, null);
+  v_matrix := better_supabase.set_product_options(v_product, '[{"name": "Size", "values": ["S", "M"]}]');
+  if jsonb_array_length(v_matrix -> 'variants') <> 2 or (select count(*) from public.item_variants where item_id = v_product) <> 3 then
+    raise exception 'archived counted as live %', v_matrix;
+  end if;
+  ${refused("better_supabase.set_variant_status(v_small, 'active')")}
+  ${refused("better_supabase.set_variant_status(v_small, 'gone')")}
+  v_other := (select id from public.item_variants where item_id = v_product and sku = 'TEE-S');
+  perform better_supabase.set_variant_status(v_other, 'archived');
+  perform better_supabase.set_variant_status(v_small, 'active');
+  if (select status::text from public.item_variants where id = v_small) <> 'active' then
+    raise exception 'reactivated %', (select row_to_json(v) from public.item_variants v where id = v_small);
+  end if;
+  v_category := (better_supabase.save_category('${TENANT}', null, null, 'Shirts', null, null) ->> 'id')::uuid;
+  perform better_supabase.move_category(v_category, null, '0');
+  ${refused("better_supabase.delete_category(v_category)")}
+  insert into public.denied values ('product.update');
+  ${refused("better_supabase.set_variant_status(v_small, 'archived')")}
+end;
+$$;`,
+        ],
+      });
+
+      expect(stack.url).not.toBe("");
+
+      const sql = renderBlocks(["catalog"], { modules: { catalog: {} } })
+        .filter((file) => file.module === "catalog")
+        .map((file) => file.contents)
+        .join("\n");
+
+      const body = (name: string): string =>
+        sql.slice(
+          sql.indexOf(`function "better_supabase"."${name}"`),
+          sql.indexOf(
+            "$$;",
+            sql.indexOf(`function "better_supabase"."${name}"`),
+          ),
+        );
+
+      expect(body("save_category")).toContain("'catalog.manage'");
+      expect(body("move_category")).toContain("'catalog.manage'");
+      expect(body("delete_category")).toContain("'catalog.manage'");
+      expect(body("set_variant_status")).toContain(
+        "CATALOG_VARIANT_STATUS_UNSUPPORTED",
+      );
+    },
+  );
+
   it("checks separate create, update and delete keys when the config names them", () => {
     const sql = renderBlocks(["catalog"], {
       modules: {
