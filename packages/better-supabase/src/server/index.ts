@@ -343,6 +343,12 @@ export { passwordGrant, safeRedirectPath } from "../auth/sign-in.ts";
 
 export { subscribeAuthzVersions } from "./authz-versions.ts";
 
+export {
+  AUTHZ_EVENT,
+  AUTHZ_TOPIC,
+  authzUserTopic,
+} from "../core/authz-topic.ts";
+
 export type {
   AuthzVersionChannel,
   AuthzVersionClient,

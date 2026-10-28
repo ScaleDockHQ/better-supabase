@@ -1,5 +1,11 @@
 import type { AuthzVersionCache } from "../core/authorizer.ts";
 
+import {
+  AUTHZ_EVENT,
+  AUTHZ_TOPIC,
+  authzUserTopic,
+} from "../core/authz-topic.ts";
+
 /** The broadcast message shape Realtime delivers for `realtime.send()`. */
 interface BroadcastMessage {
   readonly payload?: unknown;
@@ -32,12 +38,20 @@ export interface SubscribeAuthzVersionsOptions {
    * `realtime.messages` policy, so no user can listen.
    */
   readonly client: AuthzVersionClient;
-  /** The private channel the database trigger sends on. */
-  readonly topic: string;
-  /** The broadcast event name the trigger uses. */
-  readonly event: string;
-  /** The payload key holding the user id whose authorization changed. */
-  readonly userIdKey: string;
+  /**
+   * The private channel the database trigger sends on. Defaults to
+   * `AUTHZ_TOPIC`, the topic of the sessions module's `authzVersions` option. A
+   * per-user `authz:<uid>` topic evicts that user when the payload names no
+   * one.
+   */
+  readonly topic?: string;
+  /** The broadcast event name the trigger uses. Defaults to `"changed"`. */
+  readonly event?: string;
+  /**
+   * The payload key holding the user id whose authorization changed. Defaults
+   * to `"user_id"`.
+   */
+  readonly userIdKey?: string;
   /** The app's module-scope cache; each message evicts one user. */
   readonly versions: AuthzVersionCache;
   /** Called for a malformed message, a failed eviction or a channel error. */
@@ -50,6 +64,8 @@ export interface AuthzVersionSubscription {
   /** Leaves the channel. A later `subscribeAuthzVersions` joins again. */
   close(): Promise<void>;
 }
+
+const USER_TOPIC_PREFIX = authzUserTopic("");
 
 const subscriptions = new WeakMap<
   AuthzVersionCache,
@@ -76,6 +92,13 @@ function userIdOf(payload: unknown, key: string): string | undefined {
  *
  * ```ts
  * export const versions = createVersionCache();
+ * subscribeAuthzVersions({ client: serviceClient, versions });
+ * ```
+ *
+ * With the sessions module's `authzVersions` option the defaults match the
+ * generated trigger. Pass `topic`, `event` and `userIdKey` for your own.
+ *
+ * ```ts
  * subscribeAuthzVersions({
  *   client: serviceClient,
  *   topic: "authz-versions",
@@ -94,21 +117,27 @@ export function subscribeAuthzVersions(
     return existing;
   }
 
+  const topic = options.topic ?? AUTHZ_TOPIC;
+  const event = options.event ?? AUTHZ_EVENT;
+  const userIdKey = options.userIdKey ?? "user_id";
+
+  const topicUser = topic.startsWith(USER_TOPIC_PREFIX)
+    ? topic.slice(USER_TOPIC_PREFIX.length)
+    : undefined;
+
   const report = (error: Error): void => {
     options.onError?.(error);
   };
 
-  const channel = options.client.channel(options.topic, {
-    config: { private: true },
-  });
+  const channel = options.client.channel(topic, { config: { private: true } });
 
-  channel.on("broadcast", { event: options.event }, (message) => {
-    const userId = userIdOf(message.payload, options.userIdKey);
+  channel.on("broadcast", { event }, (message) => {
+    const userId = userIdOf(message.payload, userIdKey) ?? topicUser;
 
     if (userId === undefined) {
       report(
         new Error(
-          `better-supabase: an ${options.event} message on ${options.topic} has no ${options.userIdKey}`,
+          `better-supabase: an ${event} message on ${topic} has no ${userIdKey}`,
         ),
       );
 
@@ -132,9 +161,7 @@ export function subscribeAuthzVersions(
         case "TIMED_OUT": {
           const failure =
             error ??
-            new Error(
-              `better-supabase: ${options.topic} ${status.toLowerCase()}`,
-            );
+            new Error(`better-supabase: ${topic} ${status.toLowerCase()}`);
 
           report(failure);
           reject(failure);

@@ -75,7 +75,6 @@ import {
   nextCache,
   nextCacheAttached,
   sessionIdTag,
-  sessionTag,
   supportTag,
   tableTags,
 } from "./cache.ts";
@@ -94,6 +93,7 @@ import {
 import { recordServer } from "./record.ts";
 import { handOff, takeHandoff } from "./remote-handoff.ts";
 import { resourceRoutes } from "./resources.ts";
+import { refreshCallerCache, userSessionTags } from "./session-tags.ts";
 import { authFlows } from "./sign-in.ts";
 import {
   STATS_URL_HEADER,
@@ -230,6 +230,9 @@ export function createNext<
 
     return incomingRequest();
   };
+
+  const userTags = (userId: string): readonly string[] =>
+    userSessionTags(base.authorization, userId);
 
   const forget = (userId: string): void => {
     base.evictSession(userId).catch((cause: unknown) => {
@@ -423,7 +426,7 @@ export function createNext<
     userId: string,
     evictOptions: { readonly tags?: readonly string[] } = {},
   ): Promise<void> => {
-    invalidateAll([sessionTag(userId), ...(evictOptions.tags ?? [])]);
+    invalidateAll([...userTags(userId), ...(evictOptions.tags ?? [])]);
     await base.evictSession(userId);
   };
 
@@ -433,21 +436,21 @@ export function createNext<
     evictSession,
     deleteAccount: ((userId, deleteOptions) =>
       base.deleteAccount(userId, deleteOptions).map((result) => {
-        invalidateAll([sessionTag(userId)]);
+        invalidateAll(userTags(userId));
         forget(userId);
 
         return result;
       })) satisfies BetterServer<M, F, E, C, P, B>["deleteAccount"],
     endSessions: ((userId) =>
       base.endSessions(userId).map((result) => {
-        invalidateAll([sessionTag(userId)]);
+        invalidateAll(userTags(userId));
         forget(userId);
 
         return result;
       })) satisfies BetterServer<M, F, E, C, P, B>["endSessions"],
     suspendAccount: ((userId, suspendOptions) =>
       base.suspendAccount(userId, suspendOptions).map((result) => {
-        invalidateAll([sessionTag(userId)]);
+        invalidateAll(userTags(userId));
         forget(userId);
 
         return result;
@@ -469,7 +472,7 @@ export function createNext<
       scope.generation += 1;
     },
     signedOut: (userId) => {
-      invalidateAll([sessionTag(userId)]);
+      invalidateAll(userTags(userId));
       forget(userId);
     },
   });
@@ -549,7 +552,7 @@ export function createNext<
     const sessionId = typeof claimed === "string" ? claimed : undefined;
 
     const tags = [
-      ...(view.kind === "user" ? [sessionTag(view.user.id)] : []),
+      ...(view.kind === "user" ? userTags(view.user.id) : []),
       ...(sessionId === undefined ? [] : [sessionIdTag(sessionId)]),
       ...(ctx.support ? [supportTag(ctx.support.session.id)] : []),
       ...(entry.tags ?? []),
@@ -585,6 +588,8 @@ export function createNext<
   >(withAccounts, {
     claims,
     getClaims,
+    refreshSessionCache: async () =>
+      refreshCallerCache(await getClaims(), base),
 
     async cached(cachedOptions = {}) {
       const { ctx, view, scope, tenant } = await scopeOf(cachedOptions);
@@ -1154,7 +1159,7 @@ export function createNext<
       });
 
       if (resolution.auth.kind === "user") {
-        invalidateAll([sessionTag(resolution.auth.user.id)]);
+        invalidateAll(userTags(resolution.auth.user.id));
       }
 
       return {
@@ -1184,7 +1189,7 @@ export function createNext<
       invalidateAll([
         supportTag(id),
         ...(resolution.auth.kind === "user"
-          ? [sessionTag(resolution.auth.user.id)]
+          ? userTags(resolution.auth.user.id)
           : []),
       ]);
 

@@ -222,6 +222,20 @@ describe("authorization library contract", () => {
     >();
   });
 
+  it("takes the provider's session tags as an optional, additive hook", () => {
+    expectTypeOf<AuthorizationHooks["sessionTags"]>().toEqualTypeOf<
+      ((userId: string) => readonly string[]) | undefined
+    >();
+
+    const hooks: AuthorizationHooks = {
+      apiVersion: 1,
+      name: "provider",
+      sessionTags: (userId) => [`provider:${userId}`],
+    };
+
+    expectTypeOf(hooks.apiVersion).toEqualTypeOf<1>();
+  });
+
   it("re-exports exactly the slot types from better-supabase/contract", () => {
     expectTypeOf<Contract.ContractApiVersion>().toEqualTypeOf<1>();
     expectTypeOf<Contract.AuthorizationProvider>().toEqualTypeOf<AuthorizationProvider>();

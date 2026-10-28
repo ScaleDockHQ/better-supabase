@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AuthzVersionClient } from "../../src/server/authz-versions.ts";
 
+import { AUTHZ_TOPIC, authzUserTopic } from "../../src/core/authz-topic.ts";
 import { subscribeAuthzVersions } from "../../src/server/authz-versions.ts";
 
 function fakeClient(status = "SUBSCRIBED") {
@@ -76,6 +77,34 @@ describe("subscribeAuthzVersions", () => {
 
     await subscription.close();
     expect(fake.unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it("defaults to the sessions module topic and reads a per-user topic", async () => {
+    const shared = fakeClient();
+    const versions = { evict: vi.fn<(userId: string) => void>() };
+    const first = subscribeAuthzVersions({ client: shared.client, versions });
+    await first.ready;
+    shared.send({ user_id: "u1", version: 2 });
+
+    expect(shared.joins).toEqual([
+      { topic: AUTHZ_TOPIC, private: true, event: "changed" },
+    ]);
+    expect(versions.evict).toHaveBeenLastCalledWith("u1");
+    await first.close();
+
+    const own = fakeClient();
+
+    const second = subscribeAuthzVersions({
+      client: own.client,
+      topic: authzUserTopic("u2"),
+      versions,
+    });
+
+    await second.ready;
+    own.send({ version: 4 });
+
+    expect(versions.evict).toHaveBeenLastCalledWith("u2");
+    await second.close();
   });
 
   it("joins once per cache", () => {

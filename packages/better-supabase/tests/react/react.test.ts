@@ -99,7 +99,7 @@ describe("react", () => {
           { fallback: "loading" },
           createElement(
             SessionProvider,
-            { sessionPromise: Promise.resolve(session) },
+            { session: Promise.resolve(session) },
             createElement(Who),
           ),
         ),
@@ -146,7 +146,7 @@ describe("react", () => {
         createElement(
           SessionProvider,
           {
-            sessionPromise: Promise.resolve<AuthSession>({
+            session: Promise.resolve<AuthSession>({
               kind: "user",
               user: { id: "u1" },
               claims: { sub: "u1" },

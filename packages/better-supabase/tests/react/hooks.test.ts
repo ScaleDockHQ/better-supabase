@@ -50,7 +50,7 @@ import {
 import { usePresence } from "../../src/react/presence.ts";
 import { useRealtimeRelay } from "../../src/react/relay.ts";
 import { useDebouncedSearch } from "../../src/react/search.ts";
-import { useSession } from "../../src/react/session.ts";
+import { SessionProvider, useSession } from "../../src/react/session.ts";
 import { useSignIn, useSignOut } from "../../src/react/sign-in.ts";
 import { useImage, useSignedUrl, useUpload } from "../../src/react/storage.ts";
 import { useConflicts, useSyncStatus } from "../../src/react/sync.ts";
@@ -2178,5 +2178,73 @@ describe("useRealtimeRelay", () => {
     });
     expect(statuses).toEqual(["TIMED_OUT"]);
     await relayed.result?.removeChannel(channel!);
+  });
+});
+
+describe("SessionProvider", () => {
+  it("joins the user's topic and refreshes on a new version", async () => {
+    const handlers: ((message: { payload?: unknown }) => void)[] = [];
+    const unsubscribe = vi.fn(async () => "ok");
+    const refreshSession = vi.fn(async () => ({}));
+
+    const channel = {
+      on(
+        _type: "broadcast",
+        _filter: { readonly event: string },
+        callback: (message: { payload?: unknown }) => void,
+      ) {
+        handlers.push(callback);
+
+        return channel;
+      },
+      subscribe: () => channel,
+      unsubscribe,
+    };
+
+    const client = { channel: vi.fn(() => channel), auth: { refreshSession } };
+    const onAuthzChange = vi.fn();
+
+    const session = {
+      kind: "user" as const,
+      user: { id: USER },
+      claims: { sub: USER },
+      expiresAt: null,
+      issuedAt: null,
+      authzVersion: 1,
+      aal: "aal1" as const,
+      anonymous: false,
+      amr: [],
+    };
+
+    const rendered = renderHook(
+      () => {
+        void SessionProvider({
+          session,
+          client,
+          onAuthzChange,
+          channel: false,
+        });
+
+        return useSession();
+      },
+      undefined,
+      null,
+    );
+
+    expect(rendered.result).toBe(session);
+    await vi.waitFor(() => {
+      expect(client.channel).toHaveBeenCalledWith(`authz:${USER}`, {
+        config: { private: true },
+      });
+    });
+
+    handlers[0]?.({ payload: { user_id: USER, version: 2 } });
+    await vi.waitFor(() => {
+      expect(onAuthzChange).toHaveBeenCalledOnce();
+    });
+    expect(refreshSession).toHaveBeenCalledOnce();
+
+    rendered.unmount();
+    expect(unsubscribe).toHaveBeenCalledOnce();
   });
 });
