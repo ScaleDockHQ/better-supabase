@@ -1,6 +1,6 @@
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:3fd80857b4536956d7b3f9eeb93208686fefe01165d00792194bdf386b2b1228
+-- @bsb-hash sha256:739903288993d42b74b433d880abd779bb32d2181551ca2a8237727c45b95786
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -87,6 +87,7 @@ create table if not exists "better_supabase"."reminders" (
   "method" text not null default 'notification',
   "offset_minutes" integer not null default 0
 );
+alter table "better_supabase"."reminders" add column if not exists "remind_at" timestamptz;
 alter table "better_supabase"."reminders" enable row level security;
 revoke all on "better_supabase"."reminders" from public, anon, authenticated;
 grant select on "better_supabase"."reminders" to authenticated;
@@ -123,8 +124,10 @@ revoke all on "better_supabase"."reminder_deliveries" from public, anon, authent
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
 
+drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb);
+drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer);
 drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
-create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)
+create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -139,14 +142,60 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_reminder.tenant, 'reminders.manage'), false)) then
     raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
   end if;
-  insert into "better_supabase"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes")
-  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0))
+  if not (auth.role() = 'service_role')
+    and save_reminder.subject_type in ('message', 'conversation', 'channel', 'company', 'person', 'deal', 'course', 'post', 'engagement', 'quote', 'work_item', 'employee', 'invoice', 'ledger_account', 'product', 'product_variant', 'order', 'calendar_event', 'booking', 'asset', 'asset_location', 'lease', 'expense_report', 'expense_line', 'donation_fund', 'work_order', 'shipment', 'contract', 'control', 'policy', 'incident', 'content_entry', 'form', 'document', 'customer', 'drive_node', 'application', 'project', 'task')
+    and not (case save_reminder.subject_type
+    when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'messages.read'), false)
+    when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'messages.read'), false)
+    when 'channel' then exists (select 1 from "better_supabase"."channels" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'messages.read'), false)
+    when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'parties.read'), false)
+    when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'parties.read'), false)
+    when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'deals.read'), false)
+    when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'courses.read'), false)
+    when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'posts.read'), false)
+    when 'engagement' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'engagements.read'), false)
+    when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'quotes.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'work_items.read'), false)
+    when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'employees.read'), false)
+    when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'invoices.read'), false)
+    when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'ledger.read'), false)
+    when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'catalog.read'), false)
+    when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'catalog.read'), false)
+    when 'order' then exists (select 1 from "better_supabase"."orders" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'orders.read'), false)
+    when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'calendar.read'), false)
+    when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'bookings.read'), false)
+    when 'asset' then exists (select 1 from "better_supabase"."assets" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'assets.read'), false)
+    when 'asset_location' then exists (select 1 from "better_supabase"."asset_locations" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'assets.read'), false)
+    when 'lease' then exists (select 1 from "better_supabase"."lease_agreements" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'leases.read'), false)
+    when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'expenses.read'), false)
+    when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'expenses.read'), false)
+    when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'donations.read'), false)
+    when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'dispatch.read'), false)
+    when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'shipments.read'), false)
+    when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'contracts.read'), false)
+    when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'controls.read'), false)
+    when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'controls.read'), false)
+    when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'incidents.read'), false)
+    when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'content.read'), false)
+    when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'forms.read'), false)
+    when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'documents.read'), false)
+    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (save_reminder.subject_id)::uuid and s."organization_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'customers.read'), false)
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'drive.read'), false)
+    when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'hiring.read'), false)
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = (save_reminder.subject_id)::uuid and s."organization_id" = save_reminder.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (save_reminder.subject_id)::uuid and s."organization_id" = save_reminder.tenant)
+    else false
+  end) then
+    raise exception 'the record was not found in this organization' using errcode = 'P0002', hint = 'REMINDER_SUBJECT_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes", "remind_at")
+  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0), save_reminder.remind_at)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) from public, anon;
-grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
 -- The caller's reminders on one subject, the earliest first.
 create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
@@ -164,7 +213,8 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object(
       'id', r."id",
       'method', r."method",
-      'offsetMinutes', r."offset_minutes"
+      'offsetMinutes', r."offset_minutes",
+      'remindAt', r."remind_at"
     ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
     from "better_supabase"."reminders" r
     where r."tenant_id" = list_my_reminders.tenant
@@ -240,7 +290,10 @@ $$;
 revoke execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamptz) from public, anon, authenticated;
 grant execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamptz) to service_role;
 
-create or replace function "better_supabase"."list_reminder_schedule"()
+-- Every reminder's schedule: its subject's rule, its own time, or the
+-- subject's `at` column. Delivery dedupes on (reminder, occurrence).
+drop function if exists "better_supabase"."list_reminder_schedule"();
+create function "better_supabase"."list_reminder_schedule"()
 returns table (
   reminder uuid,
   dtstart timestamptz,
@@ -249,7 +302,8 @@ returns table (
   offset_minutes integer,
   tenant uuid,
   subject_type text,
-  subject_id text
+  subject_id text,
+  user_id uuid
 )
 language sql
 stable
@@ -263,12 +317,20 @@ as $$
     r."offset_minutes",
     r."tenant_id",
     r."subject_type",
-    r."subject_id"
+    r."subject_id",
+    r."user_id"
   from "better_supabase"."reminders" r
   join "better_supabase"."recurrence_rules" u
     on u."tenant_id" = r."tenant_id"
    and u."subject_type" = r."subject_type"
-   and u."subject_id" = r."subject_id";
+   and u."subject_id" = r."subject_id"
+  where r."remind_at" is null
+  union all
+  select r."id", r."remind_at", 'UTC'::text, 'FREQ=DAILY;COUNT=1'::text, 0,
+    r."tenant_id", r."subject_type",
+    r."subject_id", r."user_id"
+  from "better_supabase"."reminders" r
+  where r."remind_at" is not null;
 $$;
 revoke execute on function "better_supabase"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "better_supabase"."list_reminder_schedule"() to service_role;
@@ -329,7 +391,10 @@ create policy bsb_tenant_scope_delete on "better_supabase"."reminders" as restri
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb);
+drop function if exists "api"."save_reminder"(uuid, text, text, integer);
 drop function if exists "api"."save_reminder"(uuid, text, text, integer, jsonb);
+drop function if exists "api"."list_reminder_schedule"();
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -349,14 +414,14 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
-create or replace function "api"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)
+create or replace function "api"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_reminder"($1, $2, $3, $4) $$;
-revoke execute on function "api"."save_reminder"(uuid, text, text, integer) from public, anon;
-grant execute on function "api"."save_reminder"(uuid, text, text, integer) to authenticated, service_role;
+as $$ select "better_supabase"."save_reminder"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
+grant execute on function "api"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
 create or replace function "api"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
@@ -394,7 +459,8 @@ returns table (
   offset_minutes integer,
   tenant uuid,
   subject_type text,
-  subject_id text
+  subject_id text,
+  user_id uuid
 )
 language sql
 security invoker
