@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { readSession } from "../../src/auth/session.ts";
 import { defineSupabase } from "../../src/core/define.ts";
-import { createNext } from "../../src/next/index.ts";
+import { createNext, postAuthPath } from "../../src/next/index.ts";
 import { createServer } from "../../src/server/server.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -1026,5 +1026,26 @@ describe("auth flows", () => {
       code: "over_email_send_rate_limit",
     });
     expect(mocks.jar.has(VERIFIER)).toBe(false);
+  });
+});
+
+describe("postAuthPath", () => {
+  it("reads ?next= from a request, search params or page props", () => {
+    expect(
+      postAuthPath(new Request("https://app.test/sign-in?next=/inbox"), "/"),
+    ).toBe("/inbox");
+    expect(postAuthPath(new URLSearchParams("next=/a?b=1"), "/")).toBe(
+      "/a?b=1",
+    );
+    expect(postAuthPath({ next: ["/first", "/second"] }, "/")).toBe("/first");
+    expect(postAuthPath({}, "/home")).toBe("/home");
+  });
+
+  it("falls back for a path that leaves the app", () => {
+    expect(postAuthPath({ next: "https://evil.test/" }, "/")).toBe("/");
+    expect(postAuthPath({ next: "//evil.test" }, "/")).toBe("/");
+    expect(postAuthPath(new URLSearchParams("next=/\\evil.test"), "/")).toBe(
+      "/",
+    );
   });
 });

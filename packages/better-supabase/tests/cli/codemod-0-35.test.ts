@@ -43,4 +43,24 @@ clearSessionCookies(request, response);
       ]),
     );
   });
+
+  it("lists the removed cache lifetime helpers and the token overload", () => {
+    const source = `import { sessionStale } from "better-supabase/next";
+
+cacheLife({ stale: sessionStale(session) });
+await bsb.cached({ life: { max: 900 } });
+await bsb.contextFromSession(session, { token });
+await bsb.cached({ life: { stale: 900 } });
+`;
+
+    const review = applyCodemod(v035, source, "src/data.ts").review;
+
+    expect(review.map((line) => line.line)).toEqual([1, 3, 4, 5]);
+    expect(review.map((line) => line.message)).toEqual([
+      expect.stringContaining("`sessionStale` is gone"),
+      expect.stringContaining("`sessionStale` is gone"),
+      expect.stringContaining("`life.min` and `life.max` are gone"),
+      expect.stringContaining("SessionSnapshot"),
+    ]);
+  });
 });

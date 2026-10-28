@@ -1,12 +1,8 @@
 export { createNext } from "./create.ts";
 
-export {
-  nextCache,
-  sessionIdTag,
-  sessionStale,
-  sessionTag,
-  supportTag,
-} from "./cache.ts";
+export { postAuthPath } from "./sign-in.ts";
+
+export { nextCache, sessionIdTag, sessionTag, supportTag } from "./cache.ts";
 
 export {
   authzVersionOf,
@@ -67,10 +63,16 @@ export { defineAction } from "../server/resource-execute.ts";
 export type { ResourceMap } from "../server/resources.ts";
 
 export type {
+  Access,
   ActionOptions,
   BlockActionArgs,
   BetterNext,
+  Bootstrap,
+  BootstrapOptions,
+  CacheScope,
+  CacheShare,
   CachedContext,
+  CachedLife,
   CachedOptions,
   ExchangeCodeParams,
   EmailRedirect,
@@ -79,6 +81,11 @@ export type {
   NextCacheOptions,
   NextDebugOptions,
   NextOptions,
+  NextRootParams,
+  PrivateCachedOptions,
+  RemoteCacheKey,
+  RemoteCachedOptions,
+  RemoteOptions,
   SignInWithOAuthParams,
   ProxyOptions,
   RequireAalOptions,
@@ -87,7 +94,6 @@ export type {
   ResetPasswordParams,
   RouteOptions,
   ScopeOptions,
-  SessionStaleOptions,
   SignedIn,
   SignInCredentials,
   SignInOptions,

@@ -1,4 +1,5 @@
 import { cacheLife, cacheTag, io } from "next/cache.js";
+import { redirect } from "next/dist/client/components/redirect.js";
 import { cookies, headers } from "next/headers.js";
 import { NextResponse, after } from "next/server.js";
 import { cache } from "react";
@@ -26,9 +27,24 @@ import type {
   ContextOptions,
   ServerContext,
 } from "../server/server-types.ts";
-import type { BetterNext, NextOptions, ScopeOptions } from "./types.ts";
+import type { BootstrapRow } from "./bootstrap.ts";
+import type {
+  Access,
+  Bootstrap,
+  BootstrapOptions,
+  BetterNext,
+  CachedOptions,
+  CacheScope,
+  NextOptions,
+  RemoteCacheKey,
+  ScopeOptions,
+} from "./types.ts";
 
-import { snapshotOf } from "../auth/snapshot.ts";
+import {
+  isSessionSnapshot,
+  sessionCacheKey,
+  snapshotOf,
+} from "../auth/snapshot.ts";
 import { SUPPORT_COOKIE, supportCookieMaxAge } from "../auth/support-cookie.ts";
 import { tenantOf, toSession } from "../auth/view.ts";
 import { methodOf } from "../blocks/block-method.ts";
@@ -52,12 +68,13 @@ import {
 import { resourceRouter } from "../server/resources.ts";
 import { defaultExpose, guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
+import { runBootstrap } from "./bootstrap.ts";
 import {
+  cachedLife,
   invalidateAll,
   nextCache,
   nextCacheAttached,
   sessionIdTag,
-  sessionStale,
   sessionTag,
   supportTag,
   tableTags,
@@ -75,6 +92,7 @@ import {
   serverTimingValue,
 } from "./proxy.ts";
 import { recordServer } from "./record.ts";
+import { handOff, takeHandoff } from "./remote-handoff.ts";
 import { resourceRoutes } from "./resources.ts";
 import { authFlows } from "./sign-in.ts";
 import {
@@ -284,6 +302,25 @@ export function createNext<
     getClaimsAt(box().generation);
 
   const tenantClaim = claimsOf(betterSupabase.meta).tenant;
+
+  /**
+   * A `next/root-params` getter's value; `undefined` without the getter and
+   * outside a render (actions and route handlers have no root params).
+   */
+  const rootParam = async (
+    getter: (() => Promise<string | undefined>) | undefined,
+  ): Promise<string | undefined> => {
+    if (!getter) {
+      return undefined;
+    }
+
+    try {
+      return await getter();
+    } catch {
+      return undefined;
+    }
+  };
+
   /** The tenant `scoped` resolved for a context, when it wasn't the claim. */
   const scopedTenants = new WeakMap<object, string>();
 
@@ -320,7 +357,10 @@ export function createNext<
       const { request, resolution } = await incoming();
 
       const [tenant, support] = await Promise.all([
-        explicit ?? options.tenant?.(request, resolution.auth),
+        explicit ??
+          (options.tenant
+            ? options.tenant(request, resolution.auth)
+            : rootParam(options.rootParams?.tenant)),
         base.support.current(request, resolution.auth),
       ]);
 
@@ -373,64 +413,11 @@ export function createNext<
     secure: options.support?.options.cookie?.secure ?? true,
   } as const;
 
-  const contextFromView = async (
-    view: AuthSession<C, P>,
-    { token }: { readonly token: string | null },
-  ): Promise<ServerContext<M, F, E, C, P, B>> => {
-    const ctx = await base.context(bearerRequest(token));
-
-    // An expired token or an unreachable JWKS keeps its own error.
-    if (ctx.auth.kind === "invalid") {
-      return ctx;
-    }
-
-    const matches =
-      ctx.auth.kind === "user"
-        ? view.kind === "user" && view.user.id === ctx.auth.user.id
-        : view.kind === ctx.auth.kind;
-
-    if (matches) {
-      return ctx;
-    }
-
-    return base.contextFor({
-      kind: "invalid",
-      reason: "token",
-      error: dbError(
-        "unauthorized",
-        "The token does not belong to the session passed to contextFromSession()",
-      ),
-    });
-  };
-
-  function contextFromSession(
+  const contextFromSession = (
     snapshot: SessionSnapshot<C> | null,
     contextOptions?: ContextOptions,
-  ): Promise<ServerContext<M, F, E, C, P, B>>;
-  function contextFromSession(
-    view: AuthSession<C, P>,
-    tokenOptions: { readonly token: string | null },
-  ): Promise<ServerContext<M, F, E, C, P, B>>;
-  function contextFromSession(
-    session: SessionSnapshot<C> | AuthSession<C, P> | null,
-    sessionOptions?: ContextOptions | { readonly token: string | null },
-  ): Promise<ServerContext<M, F, E, C, P, B>> {
-    if (session !== null && "kind" in session) {
-      return contextFromView(
-        session,
-        sessionOptions !== undefined && "token" in sessionOptions
-          ? sessionOptions
-          : { token: null },
-      );
-    }
-
-    return base.contextFromSession(
-      session,
-      sessionOptions !== undefined && "token" in sessionOptions
-        ? {}
-        : sessionOptions,
-    );
-  }
+  ): Promise<ServerContext<M, F, E, C, P, B>> =>
+    base.contextFromSession(snapshot, contextOptions);
 
   const evictSession = async (
     userId: string,
@@ -487,6 +474,112 @@ export function createNext<
     },
   });
 
+  /**
+   * The context of a cache scope: the request's in `'use cache: private'`, the
+   * handed-off snapshot's in `'use cache: remote'`.
+   */
+  const scopeOf = async (
+    cachedOptions: CachedOptions,
+  ): Promise<{
+    readonly ctx: ServerContext<M, F, E, C, P, B>;
+    readonly view: AuthSession<C, P>;
+    readonly scope: CacheScope;
+    readonly tenant: string | undefined;
+  }> => {
+    if (cachedOptions.scope !== "remote") {
+      const [view, ctx] = await Promise.all([
+        claims(),
+        current(cachedOptions.tenant),
+      ]);
+
+      return { ctx, view, scope: "private", tenant: tenantFor(ctx, view) };
+    }
+
+    const { key } = cachedOptions;
+    const tenant = key.tenant ?? undefined;
+    const snapshot = takeHandoff<C>(key);
+
+    const ctx = snapshot
+      ? await base.contextFromSession(
+          snapshot,
+          tenant === undefined ? {} : { tenant },
+        )
+      : base.contextFor(
+          key.userId === null && key.shared === null && key.support === null
+            ? { kind: "none", reason: "none" }
+            : {
+                kind: "invalid",
+                reason: "token",
+                error: dbError(
+                  "unauthorized",
+                  "No caller handed this remote cache key over: call the function through bsb.remote()",
+                ),
+              },
+        );
+
+    return { ctx, view: toSession(ctx.auth), scope: "remote", tenant };
+  };
+
+  /** Sets `cacheLife` and the session, support, table and row tags of an entry. */
+  const applyEntry = (
+    ctx: ServerContext<M, F, E, C, P, B>,
+    view: AuthSession<C, P>,
+    scope: CacheScope,
+    tenant: string | undefined,
+    entry: CachedOptions,
+  ): void => {
+    cacheLife(
+      cachedLife(view, scope, entry.life, {
+        ...(development
+          ? {
+              warn: (message: string) => {
+                betterSupabase.events.logger.warn(message);
+              },
+            }
+          : {}),
+      }),
+    );
+
+    const tables = entry.tables ?? [];
+    const first = tables[0];
+
+    const claimed =
+      ctx.auth.kind === "user" ? ctx.auth.claims["session_id"] : undefined;
+
+    const sessionId = typeof claimed === "string" ? claimed : undefined;
+
+    const tags = [
+      ...(view.kind === "user" ? [sessionTag(view.user.id)] : []),
+      ...(sessionId === undefined ? [] : [sessionIdTag(sessionId)]),
+      ...(ctx.support ? [supportTag(ctx.support.session.id)] : []),
+      ...(entry.tags ?? []),
+      ...tables.flatMap((table) =>
+        tableTags(table, tenant === undefined ? {} : { tenant }),
+      ),
+      ...(first !== undefined && entry.id !== undefined
+        ? [tagFor(first, entry.id)]
+        : []),
+    ];
+
+    if (tags.length > 0) {
+      cacheTag(...tags);
+    }
+  };
+
+  /** The bootstrap calls of one request, by session key, schema, rpc and args. */
+  const bootstrapCalls = cache(() => new Map<string, Promise<BootstrapRow>>());
+
+  const signedOutBootstrap = (
+    view: AuthSession<C, P>,
+    tenant: string | undefined,
+  ): Bootstrap<C, P, never> => ({
+    session: view,
+    tenant: tenant ?? null,
+    authzVersion: null,
+    sessionActive: false,
+    data: null,
+  });
+
   const next: BetterNext<M, F, E, C, P, PermissionRef<A>, B, V> = extendServer<
     BetterNext<M, F, E, C, P, PermissionRef<A>, B, V>
   >(withAccounts, {
@@ -494,48 +587,171 @@ export function createNext<
     getClaims,
 
     async cached(cachedOptions = {}) {
-      const [view, ctx] = await Promise.all([
-        claims(),
-        current(cachedOptions.tenant),
-      ]);
-
-      const life = cachedOptions.life;
-      const stale = sessionStale(view, life);
-      cacheLife({
-        stale: life?.stale === undefined ? stale : Math.min(stale, life.stale),
-        ...(life?.revalidate === undefined
-          ? {}
-          : { revalidate: life.revalidate }),
-        ...(life?.expire === undefined ? {} : { expire: life.expire }),
-      });
-      const tables = cachedOptions.tables ?? [];
-      const tenant = tables.length > 0 ? tenantFor(ctx, view) : undefined;
-      const first = tables[0];
-
-      const claimed =
-        ctx.auth.kind === "user" ? ctx.auth.claims["session_id"] : undefined;
-
-      const sessionId = typeof claimed === "string" ? claimed : undefined;
-
-      const tags = [
-        ...(view.kind === "user" ? [sessionTag(view.user.id)] : []),
-        ...(sessionId === undefined ? [] : [sessionIdTag(sessionId)]),
-        ...(ctx.support ? [supportTag(ctx.support.session.id)] : []),
-        ...(cachedOptions.tags ?? []),
-        ...tables.flatMap((table) =>
-          tableTags(table, tenant === undefined ? {} : { tenant }),
-        ),
-        ...(first !== undefined && cachedOptions.id !== undefined
-          ? [tagFor(first, cachedOptions.id)]
-          : []),
-      ];
-
-      if (tags.length > 0) {
-        cacheTag(...tags);
-      }
+      const { ctx, view, scope, tenant } = await scopeOf(cachedOptions);
+      applyEntry(ctx, view, scope, tenant, cachedOptions);
 
       return withExtra(ctx, { session: view });
     },
+
+    remote(fn, remoteOptions = {}) {
+      return async (...args) => {
+        const ctx = await current(remoteOptions.tenant?.(...args));
+        const view = toSession(ctx.auth);
+        // A support session's restrictions live in its context, which a remote
+        // scope can't rebuild: its calls get no token.
+        const snapshot = ctx.support ? null : snapshotOf(ctx.auth);
+        const share = remoteOptions.share ?? "session";
+        const shared = typeof share === "object" ? share.key(snapshot) : null;
+
+        const key: RemoteCacheKey = {
+          userId: shared === null && view.kind === "user" ? view.user.id : null,
+          sessionId:
+            shared === null && share === "session"
+              ? (snapshot?.sessionId ?? null)
+              : null,
+          tenant: tenantFor(ctx, view) ?? null,
+          authzVersion:
+            shared === null ? (snapshot?.authzVersion ?? null) : null,
+          shared,
+          support: ctx.support?.session.id ?? null,
+        };
+
+        const release = snapshot ? handOff(key, snapshot) : undefined;
+
+        try {
+          return await fn(key, ...args);
+        } finally {
+          release?.();
+        }
+      };
+    },
+
+    async bootstrap<T>(
+      bootstrapOptions: BootstrapOptions<Extract<keyof M, string>>,
+    ): Promise<Bootstrap<C, P, T>> {
+      const { ctx, view, scope, tenant } = await scopeOf(bootstrapOptions);
+      const snapshot = snapshotOf(ctx.auth);
+
+      if (view.kind !== "user" || !snapshot) {
+        applyEntry(ctx, view, scope, tenant, bootstrapOptions);
+
+        return signedOutBootstrap(view, tenant);
+      }
+
+      const schema =
+        bootstrapOptions.schema ?? options.bootstrapSchema ?? "better_supabase";
+
+      const args = { ...bootstrapOptions.args, ...(tenant ? { tenant } : {}) };
+      const calls = bootstrapCalls();
+      const callKey = `${sessionCacheKey(snapshot)}|${schema}|${bootstrapOptions.rpc}|${JSON.stringify(args)}`;
+
+      let call = calls.get(callKey);
+
+      if (!call) {
+        call = runBootstrap(
+          ctx.db.$executor,
+          schema,
+          bootstrapOptions.rpc,
+          args,
+        );
+        calls.set(callKey, call);
+      }
+
+      const row = await call;
+
+      if (!row.sessionActive) {
+        cacheLife({ stale: 0, revalidate: 0, expire: 0 });
+        await evictSession(view.user.id);
+
+        if (bootstrapOptions.redirect !== undefined) {
+          redirect(`${bootstrapOptions.redirect}?reason=session_not_found`);
+        }
+
+        return {
+          session: view,
+          sessionActive: false,
+          authzVersion: row.authzVersion,
+          tenant: row.tenant ?? tenant ?? null,
+          data: null,
+        };
+      }
+
+      if (row.authzVersion !== null) {
+        await options.versions?.seed?.(view.user.id, row.authzVersion);
+      }
+
+      applyEntry(
+        ctx,
+        view,
+        scope,
+        tenant ?? row.tenant ?? undefined,
+        bootstrapOptions,
+      );
+
+      return {
+        session: view,
+        sessionActive: true,
+        authzVersion: row.authzVersion,
+        tenant: row.tenant ?? tenant ?? null,
+        // SAFETY: the app's function decides the data's type; the wrapper passes its jsonb through.
+        data: row.data as T | null,
+      };
+    },
+
+    async getAccess(source, accessOptions = {}) {
+      const boot = source && "session" in source ? source : undefined;
+      const tenant = boot?.tenant ?? undefined;
+
+      const snapshot = isSessionSnapshot(source)
+        ? source
+        : accessOptions.key
+          ? (takeHandoff<C>(accessOptions.key) ?? null)
+          : await getClaims();
+
+      const ctx = await base.contextFromSession(
+        snapshot,
+        tenant === undefined ? {} : { tenant },
+      );
+
+      const view = toSession(ctx.auth);
+      const resolvedTenant = tenant ?? tenantFor(ctx, view) ?? null;
+
+      const access: Access<
+        ServerContext<M, F, E, C, P, B>,
+        C,
+        P,
+        PermissionRef<A>
+      > = {
+        context: ctx,
+        session: view,
+        tenant: resolvedTenant,
+        authzVersion: boot
+          ? boot.authzVersion
+          : (snapshot?.authzVersion ?? null),
+        async can(permission) {
+          if (view.kind !== "user") {
+            return false;
+          }
+
+          const outcome = await authorizeAuth(
+            ctx.auth,
+            { permission },
+            undefined,
+            resolvedTenant ?? undefined,
+            base.authorizer,
+            ctx,
+          );
+
+          return !("kind" in outcome && "message" in outcome);
+        },
+      };
+
+      return access;
+    },
+
+    locale: () => rootParam(options.rootParams?.locale),
+    brand: () => rootParam(options.rootParams?.brand),
+    tenant: () => rootParam(options.rootParams?.tenant),
 
     async liveCount(spec, db) {
       const runner = db ?? (await current()).db;
@@ -557,7 +773,11 @@ export function createNext<
 
       // `before` (i18n rewrites, redirects) and auth run on the original request.
       const sessionCheck =
-        proxyOptions.verifySession === true ? {} : proxyOptions.verifySession;
+        proxyOptions.verifySession === true
+          ? {}
+          : proxyOptions.verifySession === "bootstrap"
+            ? undefined
+            : proxyOptions.verifySession;
 
       const verifySession =
         sessionCheck !== undefined && shouldCheckSession(request, sessionCheck);

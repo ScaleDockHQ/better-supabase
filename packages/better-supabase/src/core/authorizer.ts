@@ -161,6 +161,11 @@ export interface Authorizer<
 export interface AuthzVersionCache {
   /** Forgets a user's version, so the next decision reads it again. */
   evict(userId: string): void | PromiseLike<void>;
+  /**
+   * Stores a version the database just returned, such as `bsb.bootstrap()`'s,
+   * so the next decision skips reading it.
+   */
+  seed?(userId: string, version: number): void | PromiseLike<void>;
 }
 
 /**

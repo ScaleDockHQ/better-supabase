@@ -70,6 +70,22 @@ export interface NextOptions extends ServerOptions {
    * current scope.
    */
   readonly cookieScopes?: readonly CookieScope[];
+  /**
+   * The getters from `next/root-params`, for `bsb.locale()`, `bsb.brand()` and
+   * `bsb.tenant()`. Without `tenant` in the options, the context takes the
+   * tenant from `rootParams.tenant`.
+   *
+   * ```ts
+   * import * as rootParams from "next/root-params";
+   * export const bsb = createNext(betterSupabase, { rootParams });
+   * ```
+   */
+  readonly rootParams?: NextRootParams;
+  /**
+   * The schema `bsb.bootstrap()` calls: the sessions module's API schema
+   * (`blocks.sessions.api`, then `sql.api`). Defaults to `better_supabase`.
+   */
+  readonly bootstrapSchema?: string;
 }
 
 export interface NextDebugOptions {
@@ -131,9 +147,11 @@ export interface ProxyOptions<C = unknown, P = unknown> {
   readonly leeway?: number;
   /**
    * Ask Auth whether the session still exists (one network call), on top-level
-   * document loads only. `true` checks every document load.
+   * document loads only. `true` checks every document load. `"bootstrap"` skips
+   * the call: `bsb.bootstrap()` checks `session_active()` in the same query as
+   * the page's data.
    */
-  readonly verifySession?: true | VerifySessionOptions;
+  readonly verifySession?: true | "bootstrap" | VerifySessionOptions;
   /**
    * Called when a refresh failed because the Auth server was unreachable, timed
    * out or answered 5xx or 429. When the access token couldn't be kept
@@ -285,15 +303,13 @@ export interface BetterNext<
     snapshot: SessionSnapshot<C> | null,
     options?: ContextOptions,
   ): Promise<ServerContext<M, F, E, C, P, B>>;
-  contextFromSession(
-    session: AuthSession<C, P>,
-    options: { readonly token: string | null },
-  ): Promise<ServerContext<M, F, E, C, P, B>>;
   /**
-   * First statement of an app-authored `'use cache: private'` function: sets
-   * `cacheLife` from the session's expiry (`sessionStale`, capped by
-   * `life.stale`), tags the entry `bsb:session:<user id>` plus `tags`, and
-   * returns the caller's context plus `session`.
+   * First statement of an app-authored cache function: sets `cacheLife`
+   * (`stale` 300 unless `life` says otherwise), tags the entry
+   * `bsb:session:<user id>` and `bsb:session-id:<session id>` plus `tags`, and
+   * returns the caller's context plus `session`. In `'use cache: private'` it
+   * reads the request's session; in `'use cache: remote'` pass `{ scope:
+   * "remote", key }` with the key `bsb.remote()` handed the function.
    *
    * ```ts
    * async function getCustomers() {
@@ -306,6 +322,54 @@ export interface BetterNext<
   cached(
     options?: CachedOptions<Extract<keyof M, string>>,
   ): Promise<CachedContext<M, F, E, C, P, B>>;
+  /**
+   * Wraps a `'use cache: remote'` function so it can read as the caller: it
+   * verifies the session outside the boundary (a memo hit), hands the token
+   * over for the call, and passes the serializable key parts first. The token
+   * is never a key part, so a rotation keeps the entry.
+   *
+   * ```ts
+   * export const getReport = bsb.remote(async (key, year: number) => {
+   *   "use cache: remote";
+   *   const { db } = await bsb.cached({
+   *     scope: "remote",
+   *     key,
+   *     tables: ["invoices"],
+   *   });
+   *   return db.invoices.list({ where: { year } }).orThrow();
+   * });
+   * ```
+   */
+  remote<A extends readonly unknown[], R>(
+    fn: (key: RemoteCacheKey, ...args: A) => Promise<R>,
+    options?: RemoteOptions<C, A>,
+  ): (...args: A) => Promise<R>;
+  /**
+   * One call for a page's user data: runs the sessions module's
+   * `bootstrap_<rpc>` wrapper, which checks `session_active()` and returns the
+   * caller's authorization version with the app function's data. Call it as the
+   * first statement of a cache function, like `bsb.cached()`; React's `cache()`
+   * runs the call once per request and key. A `false` `sessionActive` evicts
+   * the user's entries and redirects to `redirect` when it is set.
+   */
+  bootstrap<T = unknown>(
+    options: BootstrapOptions<Extract<keyof M, string>>,
+  ): Promise<Bootstrap<C, P, T>>;
+  /**
+   * The context, tenant and permission checks for a bootstrap result (or a
+   * snapshot), bound to its authorization version, so islands stop rebuilding
+   * their context one by one. In a remote scope pass the key.
+   */
+  getAccess(
+    source?: Bootstrap<C, P> | SessionSnapshot<C> | null,
+    options?: { readonly key?: RemoteCacheKey },
+  ): Promise<Access<ServerContext<M, F, E, C, P, B>, C, P, Ref>>;
+  /** `rootParams.locale()`, or `undefined` without one or outside a render. */
+  locale(): Promise<string | undefined>;
+  /** `rootParams.brand()`, or `undefined` without one or outside a render. */
+  brand(): Promise<string | undefined>;
+  /** `rootParams.tenant()`, or `undefined` without one or outside a render. */
+  tenant(): Promise<string | undefined>;
   /**
    * Drops every `bsb.cached()` entry of a user, e.g. after a role change, and
    * the entries tagged with `tags` (such as a permission snapshot's tag). In a
@@ -699,35 +763,87 @@ export interface SupportStarted {
   readonly expiresAt: string;
 }
 
-export interface SessionStaleOptions {
+/**
+ * Where a `bsb.cached()` entry lives: `"use cache: private"` or `"use cache:
+ * remote"`.
+ */
+export type CacheScope = "private" | "remote";
+
+/** `cacheLife` for a `bsb.cached()` or `bsb.bootstrap()` entry. */
+export interface CachedLife {
   /**
-   * With fewer seconds left on the token, the view is not reused at all (0):
-   * Next.js would not prefetch it anyway. Defaults to 30, and values below 30
-   * count as 30: the client router keeps any entry for at least 30 seconds, so
-   * a shorter stale time would outlive the token.
+   * Seconds the client router reuses the entry. Defaults to 300, the shortest
+   * time that keeps a private entry in the App Shell; the token's lifetime
+   * doesn't cap it, since the proxy refreshes prefetches and sign-out evicts
+   * the session tags. Below 300 the entry leaves the App Shell, below 30 the
+   * prerender (development warns about both).
    */
-  readonly min?: number;
-  /** 300 (5 minutes) joins the route's App Shell. Defaults to 300. */
-  readonly max?: number;
+  readonly stale?: number;
+  /**
+   * Defaults to 300 in the remote scope, and to the profile's in the private
+   * one.
+   */
+  readonly revalidate?: number;
+  /**
+   * Defaults to 3600 in the remote scope, and to the profile's in the private
+   * one.
+   */
+  readonly expire?: number;
+  /**
+   * Caps `stale` at the seconds left on the access token, and 0 once fewer than
+   * 30 are left: the behavior before 0.35.
+   */
+  readonly capToToken?: boolean;
 }
 
-export interface CachedOptions<T extends string = string> extends ScopeOptions {
+/**
+ * Who shares a remote entry. `"session"` keys it on the Auth session, `"user"`
+ * on the user across sessions. `{ key }` keys it on what the function returns
+ * for the caller, such as a tenant and role fingerprint: that is the app's own
+ * authorization decision, since every caller with the same key reads the
+ * entry.
+ */
+export type CacheShare<C = unknown> =
+  | "session"
+  | "user"
+  | { readonly key: (snapshot: SessionSnapshot<C> | null) => string };
+
+/**
+ * The serializable key parts `bsb.remote()` passes to a `"use cache: remote"`
+ * function. They never hold the token; the function gets it through
+ * `bsb.cached({ scope: "remote", key })`, from a handoff only the verified
+ * caller's request filled.
+ */
+export interface RemoteCacheKey {
+  readonly userId: string | null;
+  readonly sessionId: string | null;
+  readonly tenant: string | null;
+  readonly authzVersion: number | null;
+  /** The `{ key }` share's value. */
+  readonly shared: string | null;
+  /** The support session the caller acts in. */
+  readonly support: string | null;
+}
+
+export interface RemoteOptions<
+  C = unknown,
+  A extends readonly unknown[] = readonly unknown[],
+> {
+  /** Defaults to `"session"`. */
+  readonly share?: CacheShare<C>;
   /**
-   * The active tenant, as for `bsb.context({ tenant })`. Next.js keys the
-   * private cache on your function's arguments, so take the tenant as an
-   * argument and pass it through; never read it from anywhere else.
+   * The active tenant from the function's arguments, as for `bsb.context({
+   * tenant })`.
    */
-  readonly tenant?: string;
+  readonly tenant?: (...args: A) => string | undefined;
+}
+
+interface CachedEntryOptions<T extends string = string> {
   /**
-   * `cacheLife` for the entry. `stale` is `sessionStale`, and never more than
-   * `stale` when it is set: pass a permission snapshot's lifetime so the entry
-   * goes stale with the snapshot too.
+   * `cacheLife` for the entry. Pass a permission snapshot's lifetime as `stale`
+   * so the entry goes stale with the snapshot too.
    */
-  readonly life?: SessionStaleOptions & {
-    readonly stale?: number;
-    readonly revalidate?: number;
-    readonly expire?: number;
-  };
+  readonly life?: CachedLife;
   /** More tags for the entry, e.g. `snapshotTag(sub)` or `organization:<id>`. */
   readonly tags?: readonly string[];
   /**
@@ -738,6 +854,83 @@ export interface CachedOptions<T extends string = string> extends ScopeOptions {
   readonly tables?: readonly T[];
   /** With `tables`, also tags the row `bsb:<first table>:<id>`. */
   readonly id?: string | number;
+}
+
+export interface PrivateCachedOptions<T extends string = string>
+  extends ScopeOptions, CachedEntryOptions<T> {
+  /** Defaults to `"private"`. */
+  readonly scope?: "private";
+  /**
+   * The active tenant, as for `bsb.context({ tenant })`. Next.js keys the
+   * private cache on your function's arguments, so take the tenant as an
+   * argument and pass it through; never read it from anywhere else.
+   */
+  readonly tenant?: string;
+}
+
+export interface RemoteCachedOptions<
+  T extends string = string,
+> extends CachedEntryOptions<T> {
+  readonly scope: "remote";
+  /** The key `bsb.remote()` passed to the function. */
+  readonly key: RemoteCacheKey;
+}
+
+export type CachedOptions<T extends string = string> =
+  | PrivateCachedOptions<T>
+  | RemoteCachedOptions<T>;
+
+export type BootstrapOptions<T extends string = string> = CachedOptions<T> & {
+  /**
+   * The name in `blocks.sessions.options.bootstrap`; the call runs
+   * `bootstrap_<rpc>` in the sessions schema (its API schema when there is
+   * one).
+   */
+  readonly rpc: string;
+  /** Passed to the app's function as its one `jsonb` argument. */
+  readonly args?: Readonly<Record<string, unknown>>;
+  /**
+   * The schema to call. Defaults to `NextOptions.bootstrapSchema`, else
+   * `better_supabase`.
+   */
+  readonly schema?: string;
+  /**
+   * Where to send the caller when `session_active()` is false, with
+   * `?reason=session_not_found`. Without it the result has `sessionActive:
+   * false`, and the entry isn't kept.
+   */
+  readonly redirect?: string;
+};
+
+/** What `bsb.bootstrap()` returns: plain data, safe across a cache boundary. */
+export interface Bootstrap<C = unknown, P = unknown, T = unknown> {
+  readonly session: AuthSession<C, P>;
+  readonly tenant: string | null;
+  readonly authzVersion: number | null;
+  readonly sessionActive: boolean;
+  readonly data: T | null;
+}
+
+/**
+ * What `bsb.getAccess()` returns: one context and its checks, bound to one
+ * version.
+ */
+export interface Access<Ctx, C = unknown, P = unknown, Ref = string> {
+  readonly context: Ctx;
+  readonly session: AuthSession<C, P>;
+  readonly tenant: string | null;
+  readonly authzVersion: number | null;
+  /** Whether the caller holds `permission` in the tenant; `false` signed out. */
+  can(permission: Ref): Promise<boolean>;
+}
+
+export interface NextRootParams {
+  /** `locale` from `next/root-params`. */
+  readonly locale?: () => Promise<string | undefined>;
+  /** `brand` from `next/root-params`. */
+  readonly brand?: () => Promise<string | undefined>;
+  /** `tenant` from `next/root-params`; `NextOptions.tenant` falls back to it. */
+  readonly tenant?: () => Promise<string | undefined>;
 }
 
 export type CachedContext<
