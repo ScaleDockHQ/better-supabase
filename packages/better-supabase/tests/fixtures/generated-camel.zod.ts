@@ -524,6 +524,10 @@ export const customersByStatusArgs: z.ZodType<{ p_limit?: number; p_status: stri
   p_status: z.string(),
 }).meta({ title: "customers_by_status arguments" });
 
+export const islandCountsArgs: z.ZodType<{ args: Json }> = z.object({
+  args: z.json(),
+}).meta({ title: "island_counts arguments" });
+
 export const organizationInvitationsArgs: z.ZodType<{ organization: string }> = z.object({
   organization: z.guid(),
 }).meta({ title: "organization_invitations arguments" });
@@ -553,5 +557,7 @@ export const setMyAvatarPathArgs: z.ZodType<{ avatar_path: string }> = z.object(
 export const updateMyProfileArgs: z.ZodType<{ full_name: string }> = z.object({
   full_name: z.string(),
 }).meta({ title: "update_my_profile arguments" });
+
+export const islandCountsResult: z.ZodType<Json> = z.json();
 
 export const rsWorkspaceSummaryResult: z.ZodType<Json> = z.json();

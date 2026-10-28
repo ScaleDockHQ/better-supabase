@@ -6,6 +6,7 @@
     "build": {
       "env": [
         "BSB_BUILD_SCOPE",
+        "BSB_REMOTE_CACHE_DIR",
         "EXPOSE_TESTING_API",
         "FLAGS_SECRET",
         "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",

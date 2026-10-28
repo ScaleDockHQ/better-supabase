@@ -34,6 +34,7 @@ export default {
     "client_notes_reveal": {"name":"client_notes_reveal","schema":"public","args":[{"name":"ids","type":"uuid"}],"returns":"record","returnsSet":true,"volatility":"volatile","result":{"columns":[{"db":"birth_date","name":"birthDate"},{"db":"diagnosis"},{"db":"id"}]}},
     "customer_note_counts": {"name":"customer_note_counts","schema":"public","args":[{"name":"p_customer_ids","type":"uuid"}],"returns":"record","returnsSet":true,"volatility":"stable","result":{"columns":[{"db":"customer_id","name":"customerId"},{"db":"last_note_at","name":"lastNoteAt"},{"db":"note_count","name":"noteCount","codec":"bigint"}]}},
     "customers_by_status": {"name":"customers_by_status","schema":"public","args":[{"name":"p_limit","type":"int4"},{"name":"p_status","type":"text"}],"returns":"customers","returnsSet":true,"volatility":"stable","result":{"table":"customers"}},
+    "island_counts": {"name":"island_counts","schema":"public","args":[{"name":"args","type":"jsonb"}],"returns":"jsonb","returnsSet":false,"volatility":"stable"},
     "my_organizations": {"name":"my_organizations","schema":"public","args":[],"returns":"record","returnsSet":true,"volatility":"stable","result":{"columns":[{"db":"id"},{"db":"last_used_at","name":"lastUsedAt"},{"db":"name"},{"db":"plan"},{"db":"role"},{"db":"slug"}]}},
     "my_profile": {"name":"my_profile","schema":"public","args":[],"returns":"record","returnsSet":true,"volatility":"stable","result":{"columns":[{"db":"avatar_path","name":"avatarPath"},{"db":"avatar_url","name":"avatarUrl"},{"db":"email"},{"db":"full_name","name":"fullName"},{"db":"username"}]}},
     "organization_invitations": {"name":"organization_invitations","schema":"public","args":[{"name":"organization","type":"uuid"}],"returns":"record","returnsSet":true,"volatility":"stable","result":{"columns":[{"db":"created_at","name":"createdAt"},{"db":"email"},{"db":"expires_at","name":"expiresAt"},{"db":"id"},{"db":"invited_by","name":"invitedBy"},{"db":"role"}]}},
@@ -47,5 +48,8 @@ export default {
   "buckets": {
     "customerLogos": {"id":"customer-logos","public":true,"path":"{organizationId}/{customerId}/logo/{version}.webp","policy":"tenant","fileSizeLimit":"5MiB","allowedMimeTypes":["image/png","image/jpeg","image/webp"]},
     "avatars": {"id":"avatars","public":true,"path":"{userId}/avatar-{version}.{ext}","policy":"owner","fileSizeLimit":"2MiB","allowedMimeTypes":["image/png","image/jpeg","image/webp","image/gif","image/avif"]}
+  },
+  "bootstrap": {
+    "schema": "api"
   }
 };

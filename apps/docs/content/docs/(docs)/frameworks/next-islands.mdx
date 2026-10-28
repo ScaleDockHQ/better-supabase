@@ -19,15 +19,17 @@ the server instance instead:
   users safely.
 
 The [Next.js example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/nextjs)
-has a page with ten islands (`/islands`), and its e2e test checks that the
-ten verify the token at most once.
+has a page with ten islands (`/islands`) that read one
+[bootstrap call](#6-one-database-call-for-every-island) per request. Its e2e
+test checks that the ten verify the token at most once and call the database
+once, in the private scope and in the remote one (`/islands?scope=remote`).
 
 ## 1. Keep the page synchronous
 
 The page renders the static chrome and one `<Suspense>` per island. It reads
 nothing from the request, so it prerenders into the shell:
 
-```tsx title="src/app/[locale]/(app)/islands/page.tsx"
+```tsx title="src/app/[locale]/islands/page.tsx"
 export default function IslandsPage() {
   return (
     <>
@@ -67,11 +69,13 @@ export async function getIslandSession() {
 }
 ```
 
-`bsb.cached()` reads the snapshot from the memo, sets `cacheLife` so the
-entry never outlives the token, and tags it with `sessionTag(userId)` and
-`sessionIdTag(sessionId)`. A `cacheLife` of your own in the same scope can
-only shorten the entry, because Next.js keeps the smallest `stale` of the
-calls ([with your own cacheLife](/docs/frameworks/next-cache-components#with-your-own-cachelife)).
+`bsb.cached()` reads the snapshot from the memo, sets a `stale` time of 300
+seconds so the entry rides in the App Shell, and tags it with
+`sessionTag(userId)` and `sessionIdTag(sessionId)`. The proxy refreshes every
+request, so the token's lifetime no longer caps the entry; pass
+`life: { capToToken: true }` to bring the cap back. A `cacheLife` of your own
+in the same scope can only shorten the entry, because Next.js keeps the
+smallest `stale` of the calls ([with your own cacheLife](/docs/frameworks/next-cache-components#with-your-own-cachelife)).
 
 ## 3. Pass plain values into cached readers
 
@@ -129,6 +133,49 @@ user, evicts the user from the session memo and calls
 `versions.evict(userId)` when the server has an
 [authorization-version cache](/docs/extending/authorization-providers#version-cache).
 Call it after a role change, so the next render verifies again.
+
+## 6. One database call for every island
+
+Islands that each run their own query cost one round trip each. Generate a
+bootstrap wrapper for one app function instead, and let every island read it:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  sessions: {
+    options: {
+      authzVersions: true,
+      bootstrap: { islands: "public.island_counts" },
+    },
+  },
+},
+```
+
+```ts title="src/features/islands/islands-queries.ts"
+async function getIslands() {
+  "use cache: private";
+  const boot = await bsb.bootstrap<IslandCounts>({
+    rpc: "islands",
+    tables: ISLAND_TABLES,
+  });
+  const access = await bsb.getAccess(boot);
+
+  return islandsFrom(boot, await access.can("customers.write"));
+}
+```
+
+`bsb.bootstrap()` calls `bootstrap_islands`, which checks `session_active()`,
+returns the token's authorization version, the tenant and the app function's
+data in one row, and runs once per request for the same arguments. A
+`bsb.remote()` reader shares the entry across server instances, keyed by the
+user, Auth session, tenant and authorization version, never by the token.
+[One database call per page](/docs/frameworks/next-cache-components#one-database-call-per-page)
+and the [remote scope](/docs/frameworks/next-cache-components#remote-scope)
+cover both in full.
+
+To show a role change on an open page, render `<SessionProvider>` with a
+browser `client`. It listens on the user's `authz:<uid>` topic, refreshes the
+token when the version moves and calls `onAuthzChange`, where the example
+calls `bsb.refreshSessionCache()` and `router.refresh()`.
 
 ## Sizing the memo
 

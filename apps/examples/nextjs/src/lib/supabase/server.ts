@@ -3,6 +3,7 @@ import type { NextOptions } from "better-supabase/next";
 import "server-only";
 import { permissionsAuthorizer } from "better-supabase/blocks/permissions";
 import { createNext } from "better-supabase/next";
+import { createServer } from "better-supabase/server";
 
 import { env } from "@/env";
 
@@ -24,7 +25,19 @@ const options: NextOptions = {
   authorizer: permissionsAuthorizer({ permissions, load: myPermissions }),
 };
 
-export const bsb = createNext(betterSupabase, options);
+// Built here, not inside `createNext`, so the testing route can read its
+// session memo: how many renders verified a token instead of reusing one.
+const bsbServer = createServer(betterSupabase, options);
+
+export const bsb = createNext(betterSupabase, {
+  ...options,
+  server: bsbServer,
+});
+
+/** Hits and misses of the verified-session memo, for `/api/bs-sessions`. */
+export function sessionStats() {
+  return bsbServer.sessions.stats();
+}
 
 /**
  * The caller's keys from `my_permissions`, for a token whose claim is missing

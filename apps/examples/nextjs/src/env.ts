@@ -22,6 +22,7 @@ const {
   ASSISTANT_SANDBOX,
   CONNECT_GMAIL_CONNECTOR,
   CONNECT_OUTLOOK_CONNECTOR,
+  BSB_REMOTE_CACHE_DIR,
 } = process.env;
 
 export const env = createEnv({
@@ -52,6 +53,9 @@ export const env = createEnv({
     // Vercel Connect connector UIDs; the Integrations tab lists each one set.
     CONNECT_GMAIL_CONNECTOR: v.optional(v.string()),
     CONNECT_OUTLOOK_CONNECTOR: v.optional(v.string()),
+    // The directory cache-handlers/shared-remote.ts keeps remote entries in;
+    // next.config.ts reads it directly, since the handler is set at build.
+    BSB_REMOTE_CACHE_DIR: v.optional(v.string()),
   },
   client: {
     NEXT_PUBLIC_SUPABASE_URL: v.pipe(v.string(), v.url()),
@@ -72,6 +76,7 @@ export const env = createEnv({
     ASSISTANT_SANDBOX,
     CONNECT_GMAIL_CONNECTOR,
     CONNECT_OUTLOOK_CONNECTOR,
+    BSB_REMOTE_CACHE_DIR,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,

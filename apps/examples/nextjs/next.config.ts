@@ -1,5 +1,8 @@
 import createNextIntlPlugin from "next-intl/plugin";
+import { fileURLToPath } from "node:url";
 import { withWorkflow } from "workflow/next";
+
+import type { NextConfigOverrides } from "@better-supabase/next-config/next-config";
 
 import { createNextConfig } from "@better-supabase/next-config/next-config";
 
@@ -28,7 +31,24 @@ const config = createNextConfig({
   // `[locale]` matches every path, so no URL reaches a global not-found page;
   // `[locale]/not-found.tsx` and `api/[...rest]` answer unknown paths.
   experimental: { globalNotFound: false },
+  ...remoteCache(),
 });
+
+/**
+ * The e2e test runs two `next start` instances over one directory, so the
+ * second reads the first one's `"use cache: remote"` entries.
+ */
+function remoteCache(): Pick<NextConfigOverrides, "remoteCacheHandler"> {
+  if (!process.env["BSB_REMOTE_CACHE_DIR"]) {
+    return {};
+  }
+
+  return {
+    remoteCacheHandler: fileURLToPath(
+      new URL("cache-handlers/shared-remote.ts", import.meta.url),
+    ),
+  };
+}
 
 // Compiles the "use workflow" and "use step" functions and adds the
 // /.well-known/workflow routes the World delivers runs to.

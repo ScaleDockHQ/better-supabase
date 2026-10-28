@@ -4,6 +4,7 @@ import type { RemoteCacheKey } from "../../src/next/index.ts";
 
 import { defineAuthorizer } from "../../src/core/authorizer.ts";
 import { defineSupabase } from "../../src/core/define.ts";
+import { defineSchema } from "../../src/index.ts";
 import { createNext, sessionTag } from "../../src/next/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -184,7 +185,7 @@ describe("bsb.bootstrap()", () => {
     } as never,
   });
 
-  let calls: { url: string; body: unknown }[] = [];
+  let calls: { url: string; body: unknown; profile: string | null }[] = [];
   let row: Record<string, unknown> = {};
 
   beforeEach(() => {
@@ -200,6 +201,7 @@ describe("bsb.bootstrap()", () => {
       calls.push({
         url: String(input instanceof Request ? input.url : input),
         body: JSON.parse(String(init?.body ?? "null")),
+        profile: new Headers(init?.headers).get("content-profile"),
       });
 
       return Response.json(row);
@@ -229,6 +231,7 @@ describe("bsb.bootstrap()", () => {
       {
         url: `${PROJECT_URL}/rest/v1/rpc/bootstrap_home`,
         body: { args: { page: "inbox" } },
+        profile: "better_supabase",
       },
     ]);
     expect(seed).toHaveBeenCalledWith(USER, 7);
@@ -290,6 +293,34 @@ describe("bsb.bootstrap()", () => {
       data: null,
     });
     expect(calls).toEqual([]);
+  });
+
+  it("calls the schema gen recorded for the sessions block, unless told otherwise", async () => {
+    const recorded = createNext(
+      defineSupabase(
+        defineSchema({ ...schema.meta, bootstrap: { schema: "api" } }),
+      ),
+      { env, cacheTags: false, auth: { jwks: signer.jwks } },
+    );
+
+    const overridden = createNext(
+      defineSupabase(
+        defineSchema({ ...schema.meta, bootstrap: { schema: "api" } }),
+      ),
+      {
+        env,
+        cacheTags: false,
+        auth: { jwks: signer.jwks },
+        bootstrapSchema: "app",
+      },
+    );
+
+    await signIn();
+    await recorded.bootstrap({ rpc: "home" });
+    await overridden.bootstrap({ rpc: "home" });
+    await recorded.bootstrap({ rpc: "home", schema: "own" });
+
+    expect(calls.map((call) => call.profile)).toEqual(["api", "app", "own"]);
   });
 
   it("throws a DbException when the wrapper is missing", async () => {

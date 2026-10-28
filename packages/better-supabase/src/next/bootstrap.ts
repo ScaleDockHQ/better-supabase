@@ -14,6 +14,27 @@ export interface BootstrapRow {
   readonly data: unknown;
 }
 
+/**
+ * The schema a `bsb.bootstrap()` call targets: the call's, then
+ * `bootstrapSchema`, then the one `gen` recorded, else `better_supabase`.
+ */
+export function bootstrapSchema(
+  call: { readonly schema?: string | undefined },
+  options: { readonly bootstrapSchema?: string | undefined },
+  owner: {
+    readonly meta: {
+      readonly bootstrap?: { readonly schema: string } | undefined;
+    };
+  },
+): string {
+  return (
+    call.schema ??
+    options.bootstrapSchema ??
+    owner.meta.bootstrap?.schema ??
+    "better_supabase"
+  );
+}
+
 /** Calls `<schema>.bootstrap_<rpc>(args)` and checks the row it returns. */
 export async function runBootstrap(
   executor: Executor,

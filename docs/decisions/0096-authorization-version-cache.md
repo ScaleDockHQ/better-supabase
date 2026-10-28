@@ -28,17 +28,33 @@ optional, so the `AuthorizationProvider` contract stays at `apiVersion: 1`.
 The token carries the version as `authz_ver`, set by an access token hook,
 and `AuthSession` and `SessionSnapshot` read it as `authzVersion` (with
 `issuedAt` from `iat`). `sessionCacheKey` includes it, so a cache keyed on
-the session changes with the next token. `invalidateSession(userId)` evicts
-the user from `versions`.
+the session changes with the next token. `bsb.evictSession(userId)` evicts
+the user from `versions`, from the session memo (ADR 0095) and from the
+user's cache tags, including the tags an authorization provider names
+through its optional `sessionTags(userId)` hook. `bsb.bootstrap()` returns
+the version with the page's data and seeds `versions` with it (ADR 0115).
 
-`subscribeAuthzVersions({ client, topic, event, userIdKey, versions })` in
-`src/server/authz-versions.ts` joins a private Realtime channel with the
-service-role client and evicts each user a broadcast names. The topic,
-event and payload key are required, so no library's names are built in. It
-is idempotent per `versions` instance (a `WeakMap`) and starts from the
-module that owns the cache. It adds no `realtime.messages` policy: only the
-service role listens. The fixture schema has a neutral `user_authz_versions`
-table whose trigger calls `realtime.send`, with a pgTAP test.
+The sessions module's `authzVersions` option owns the version: a
+`better_supabase.user_authz_versions` table, `bump_authz_versions(uuid[])`,
+a `bump_authz_version()` trigger function to attach to the tables a user's
+access comes from, and the `authz_ver` claim in the access token hook. A
+trigger on the table broadcasts each change twice, with `realtime.send`:
+
+- on `better_supabase:authz` (`AUTHZ_TOPIC`), which no `realtime.messages`
+  policy opens, so only the service role reads it;
+- on the user's own `authz:<uid>` topic, which a select policy opens to that
+  user alone (`realtime.topic() = 'authz:' || auth.uid()`).
+
+`subscribeAuthzVersions({ client, versions })` in
+`src/server/authz-versions.ts` joins the first topic with the service-role
+client and evicts each user a broadcast names. `topic`, `event` and
+`userIdKey` default to the module's names and can point at a library's own
+trigger; a per-user `authz:<uid>` topic evicts that user. It is idempotent
+per `versions` instance (a `WeakMap`) and starts from the module that owns
+the cache. In the browser, `<SessionProvider client>` joins `authz:<uid>`,
+refreshes the token on a new version, runs `onAuthzChange` (usually
+`bsb.refreshSessionCache` and `router.refresh()`) and tells the app's other
+tabs through a `BroadcastChannel`. A pgTAP test covers the module.
 
 ## Alternatives considered
 
@@ -47,13 +63,17 @@ table whose trigger calls `realtime.send`, with a pgTAP test.
 - Evicting from `instrumentation.ts`: the subscription would outlive or miss
   the cache instance the server uses. Starting it next to the cache ties
   their lifetimes together.
-- A public channel with a `realtime.messages` policy: users could listen to
-  other users' authorization changes.
+- One public channel for every user: users could listen to other users'
+  authorization changes. Each user's topic is private and opens only to that
+  user.
+- Polling `session_active()` or the version from the browser: a database call
+  per tab per interval, and a role change still waits for the next poll.
 
 ## Consequences
 
 A role change takes effect on the next decision of every instance that
-subscribed, without a per-check database read. A library ships its own
+subscribed, without a per-check database read, and the user's open tabs
+re-render with the new token in the background. A library ships its own
 cache and passes it in; better-supabase only evicts. An app without a
 version claim gets `authzVersion: null` and loses nothing. A new required
 member of `AuthzVersionCache` would need a new `apiVersion`.

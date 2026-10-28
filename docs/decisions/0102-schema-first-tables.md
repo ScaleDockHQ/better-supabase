@@ -20,8 +20,8 @@ user-owned file for each table fits the platform better than generated tables.
   `vectorSearch`, the audit table lists, `subjects`, `records`, `encrypted`, `events` and
   `auditReads`.
 - Column formats become domains (`bsb.email`). Rollups and lookups become `security_invoker` views.
-- Block files stay generated and hashed, in `_better_supabase/`. Statements on user tables keep the
-  `bsb_` prefix.
+- Block files stay generated and hashed. Statements on user tables keep the `bsb_` prefix. Where
+  the files go is amended below.
 - `gen` reads tags from the catalog. `appTables` and `records` are removed (breaking), and
   `migrate schema-first` rewrites a config into SQL plus tags.
 
@@ -79,3 +79,16 @@ A breaking release with a migration guide, a codemod and a changeset.
 - A column with its own `min`, `max` or `options`, or an encrypted one, keeps the inline check.
 - Rollups and lookups stay `security_invoker` views, one file each under `public/views`.
 - `gen` needs no change: typegen resolves a domain column to its base type.
+
+## Amendment (2026-10-28): where block SQL lives
+
+The decision above said block files live in `_better_supabase/`. The code never did that by
+default: `sql.dir` defaults to `supabase/schemas` and `sql.prefix` to `900_better_supabase`, so a
+block file is `supabase/schemas/900_better_supabase_<nn>_<module>.sql`, next to the user's own
+schema folders. The `900_` prefix sorts it after them, which is what declarative schemas need.
+
+`supabase/schemas/_better_supabase/` is one `sql.dir` choice. The repo fixture (the Next.js
+example's config) sets it to keep the fixture's block files apart from its hand-written schemas.
+
+The default stays as it is. Moving it would move every app's files and give `db diff` a rename of
+every block file to plan.

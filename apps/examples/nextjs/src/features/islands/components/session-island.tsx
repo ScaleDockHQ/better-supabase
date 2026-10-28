@@ -10,7 +10,10 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { getIslandSession } from "../islands-queries";
+import type { Islands, IslandScope } from "../islands-queries";
+
+import { getIslandsIn } from "../islands-queries";
+import { IslandError } from "./island-error";
 
 export type SessionFact =
   | "email"
@@ -20,17 +23,38 @@ export type SessionFact =
   | "version";
 
 /**
- * Render inside `<Suspense>`: one fact from the verified session. Ten islands
- * read the session; the token still verifies once for the request.
+ * Render inside `<Suspense>`: one fact from the bootstrap result. The version
+ * is the one the database saw in the token, so it moves after a refresh.
  */
-export async function SessionIsland({ fact }: { fact: SessionFact }) {
-  const [session, t, format] = await Promise.all([
-    getIslandSession(),
+export async function SessionIsland({
+  fact,
+  scope,
+}: {
+  fact: SessionFact;
+  scope: Promise<IslandScope>;
+}) {
+  const [t, format] = await Promise.all([
     getExtracted("islands"),
     getFormatter(),
   ]);
 
-  if (!session) {
+  const titles: Record<SessionFact, string> = {
+    email: t("Signed in as"),
+    organization: t("Organization"),
+    expires: t("Token expires"),
+    issued: t("Token issued"),
+    version: t("Authorization version"),
+  };
+
+  let islands: Islands;
+
+  try {
+    islands = await getIslandsIn(await scope);
+  } catch {
+    return <IslandError title={titles[fact]} />;
+  }
+
+  if (islands.userId === null) {
     return null;
   }
 
@@ -42,33 +66,35 @@ export async function SessionIsland({ fact }: { fact: SessionFact }) {
           dateStyle: "medium",
         });
 
-  const facts: Record<SessionFact, { title: string; value: string | null }> = {
-    email: { title: t("Signed in as"), value: session.email },
-    organization: { title: t("Organization"), value: session.organizationId },
-    expires: { title: t("Token expires"), value: time(session.expiresAt) },
-    issued: { title: t("Token issued"), value: time(session.issuedAt) },
-    version: {
-      title: t("Authorization version"),
-      value:
-        session.authzVersion === null
-          ? null
-          : format.number(session.authzVersion),
-    },
+  const values: Record<SessionFact, string | null> = {
+    email: islands.email,
+    organization: islands.organizationId,
+    expires: time(islands.expiresAt),
+    issued: time(islands.issuedAt),
+    version:
+      islands.authzVersion === null
+        ? null
+        : format.number(islands.authzVersion),
   };
 
-  const { title, value } = facts[fact];
+  const value = values[fact];
 
   return (
     <Card data-testid={`island-${fact}`}>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <CardTitle>{titles[fact]}</CardTitle>
         <CardDescription>{t("From the verified token")}</CardDescription>
       </CardHeader>
       <CardContent>
         {value === null ? (
           <Badge variant="secondary">{t("Not in the token")}</Badge>
         ) : (
-          <span className="text-sm font-medium break-all">{value}</span>
+          <span
+            className="text-sm font-medium break-all tabular-nums"
+            data-testid={`island-${fact}-value`}
+          >
+            {value}
+          </span>
         )}
       </CardContent>
     </Card>

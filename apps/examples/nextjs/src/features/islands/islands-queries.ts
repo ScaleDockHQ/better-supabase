@@ -1,5 +1,6 @@
+import type { Bootstrap } from "better-supabase/next";
+
 import "server-only";
-import { tenantOf } from "better-supabase/next";
 
 import { bsb } from "@/lib/supabase/server";
 
@@ -13,8 +14,15 @@ export const ISLAND_TABLES = [
 
 export type IslandTable = (typeof ISLAND_TABLES)[number];
 
-/** The caller as plain values, so a cached reader can take them as arguments. */
-export interface IslandSession {
+/** What `public.island_counts` returns through `bootstrap_islands`. */
+export type IslandCounts = Readonly<Record<IslandTable, number>>;
+
+/** `?scope=remote` reads through `"use cache: remote"`; the default is private. */
+export type IslandScope = "private" | "remote";
+
+/** The ten islands' data as plain values, safe across a cache boundary. */
+export interface Islands {
+  readonly userId: string | null;
   readonly email: string | null;
   readonly organizationId: string | null;
   /** Seconds since epoch. */
@@ -22,65 +30,76 @@ export interface IslandSession {
   /** Seconds since epoch. */
   readonly issuedAt: number | null;
   readonly authzVersion: number | null;
+  /** `null` signed out or once `session_active()` is false. */
+  readonly counts: IslandCounts | null;
+  /** Whether the caller may add customers, from `getAccess`. */
+  readonly canWrite: boolean;
+  /** When the entry was computed, so a remote hit shows the first render's time. */
+  readonly cachedAt: string;
 }
 
 /**
- * Every island calls this. Each `'use cache: private'` scope runs it again, but
- * the token verifies once per request: the session memo keys on its hash.
+ * Every island calls this. The `bootstrap_islands` call runs once per request:
+ * React's `cache()` inside `bsb.bootstrap` dedupes it, and the token verifies
+ * once because the session memo keys on its hash.
  */
-export async function getIslandSession(): Promise<IslandSession | null> {
+async function getIslands(): Promise<Islands> {
   "use cache: private";
-  const { session } = await bsb.cached();
 
-  if (session.kind !== "user") {
-    return null;
-  }
+  const boot = await bsb.bootstrap<IslandCounts>({
+    rpc: "islands",
+    tables: ISLAND_TABLES,
+  });
+
+  const access = await bsb.getAccess(boot);
+
+  return islandsFrom(boot, await access.can("customers.write"));
+}
+
+/**
+ * The same read in the remote scope: one entry per Auth session, shared by
+ * every server instance behind `cacheHandlers.remote`. The token never keys
+ * it.
+ */
+const getRemoteIslands = bsb.remote(async (key): Promise<Islands> => {
+  "use cache: remote";
+
+  const boot = await bsb.bootstrap<IslandCounts>({
+    rpc: "islands",
+    scope: "remote",
+    key,
+    tables: ISLAND_TABLES,
+  });
+
+  const access = await bsb.getAccess(boot, { key });
+
+  return islandsFrom(boot, await access.can("customers.write"));
+});
+
+export function getIslandsIn(scope: IslandScope): Promise<Islands> {
+  return scope === "remote" ? getRemoteIslands() : getIslands();
+}
+
+export function islandScope(value: string | string[] | undefined): IslandScope {
+  return value === "remote" ? "remote" : "private";
+}
+
+function islandsFrom(
+  boot: Bootstrap<unknown, unknown, IslandCounts>,
+  canWrite: boolean,
+): Islands {
+  const { session } = boot;
+  const user = session.kind === "user" ? session : null;
 
   return {
-    email: session.user.email ?? null,
-    organizationId: tenantOf(session) ?? null,
-    expiresAt: session.expiresAt,
-    issuedAt: session.issuedAt,
-    authzVersion: session.authzVersion,
+    userId: user?.user.id ?? null,
+    email: user?.user.email ?? null,
+    organizationId: boot.tenant,
+    expiresAt: user?.expiresAt ?? null,
+    issuedAt: user?.issuedAt ?? null,
+    authzVersion: boot.authzVersion,
+    counts: boot.sessionActive ? boot.data : null,
+    canWrite,
+    cachedAt: new Date().toISOString(),
   };
-}
-
-/**
- * One table's row count in the organization. RLS scopes the count; the
- * organization id keys the cache entry, and the table tag revalidates it.
- */
-export async function getTableCount(
-  table: IslandTable,
-  organizationId: string,
-): Promise<number> {
-  "use cache: private";
-  const { db } = await bsb.cached({ tables: [table] });
-
-  switch (table) {
-    case "customers": {
-      return db.customers.count({ where: { organizationId } }).orThrow();
-    }
-
-    case "notes": {
-      return db.notes.count({ where: { organizationId } }).orThrow();
-    }
-
-    case "contacts": {
-      return db.contacts.count({ where: { organizationId } }).orThrow();
-    }
-
-    case "tags": {
-      return db.tags.count({ where: { organizationId } }).orThrow();
-    }
-
-    case "tasks": {
-      return db.tasks.count({ where: { organizationId } }).orThrow();
-    }
-
-    default: {
-      const exhaustive: never = table;
-
-      return exhaustive;
-    }
-  }
 }

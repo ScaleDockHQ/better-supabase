@@ -34,6 +34,7 @@ export default {
     "client_notes_reveal": {"name":"client_notes_reveal","schema":"public","args":[{"name":"ids","type":"uuid"}],"returns":"record","returnsSet":true,"volatility":"volatile"},
     "customer_note_counts": {"name":"customer_note_counts","schema":"public","args":[{"name":"p_customer_ids","type":"uuid"}],"returns":"record","returnsSet":true,"volatility":"stable"},
     "customers_by_status": {"name":"customers_by_status","schema":"public","args":[{"name":"p_limit","type":"int4"},{"name":"p_status","type":"text"}],"returns":"customers","returnsSet":true,"volatility":"stable"},
+    "island_counts": {"name":"island_counts","schema":"public","args":[{"name":"args","type":"jsonb"}],"returns":"jsonb","returnsSet":false,"volatility":"stable"},
     "my_organizations": {"name":"my_organizations","schema":"public","args":[],"returns":"record","returnsSet":true,"volatility":"stable"},
     "my_profile": {"name":"my_profile","schema":"public","args":[],"returns":"record","returnsSet":true,"volatility":"stable"},
     "organization_invitations": {"name":"organization_invitations","schema":"public","args":[{"name":"organization","type":"uuid"}],"returns":"record","returnsSet":true,"volatility":"stable"},

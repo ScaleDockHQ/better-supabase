@@ -257,8 +257,15 @@ export default defineConfig({
     // Ending a session on /settings/sessions cuts its access at once: every
     // app table gets the restrictive session_active() policy. A role change
     // bumps the user's authorization version, which SessionProvider hears on
-    // authz:<uid> and refreshes the token for.
-    sessions: { options: { policies: true, authzVersions: true } },
+    // authz:<uid> and refreshes the token for. `bootstrap` renders
+    // better_supabase.bootstrap_islands, which /islands reads in one query.
+    sessions: {
+      options: {
+        policies: true,
+        authzVersions: true,
+        bootstrap: { islands: "public.island_counts" },
+      },
+    },
     sso: {},
     approvals: {
       options: {
