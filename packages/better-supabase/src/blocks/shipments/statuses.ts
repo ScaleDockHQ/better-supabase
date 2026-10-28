@@ -27,3 +27,16 @@ export const SHIPMENT_STATUSES = [
 ] as const;
 
 export type ShipmentStatus = (typeof SHIPMENT_STATUSES)[number];
+
+/** Where a line's stock goes: out to the recipient, or back from them. */
+export const LINE_DIRECTIONS = ["outbound", "return"] as const;
+
+export type LineDirection = (typeof LINE_DIRECTIONS)[number];
+
+/**
+ * What happens to returned stock: `restock` puts it back in sellable stock,
+ * `hold` puts it in a hold bin for inspection and `scrap` writes it off.
+ */
+export const RETURN_DISPOSITIONS = ["restock", "hold", "scrap"] as const;
+
+export type ReturnDisposition = (typeof RETURN_DISPOSITIONS)[number];

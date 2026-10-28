@@ -14,6 +14,7 @@ import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { afterSaleFunctions } from "./orders-after-sale.ts";
 import { cartFunctions, shippingRateFunctions } from "./orders-carts.ts";
 import { checkoutFunctions } from "./orders-checkout.ts";
+import { documentFunctions } from "./orders-documents.ts";
 import {
   KITCHEN_TABLES,
   KITCHEN_TOPIC,
@@ -199,9 +200,18 @@ const NAMES: BlockSqlNames = {
         completedAt: "completed_at",
         cancelledAt: "cancelled_at",
         cancelReason: "cancel_reason",
+        originType: "origin_type",
+        originId: "origin_id",
         updatedAt: "updated_at",
       },
-      optional: ["email", "billingAddress", "cancelReason", "taxTransaction"],
+      optional: [
+        "email",
+        "billingAddress",
+        "cancelReason",
+        "taxTransaction",
+        "originType",
+        "originId",
+      ],
       typed: ["status"],
     },
     orderLines: {
@@ -280,7 +290,9 @@ const NAMES: BlockSqlNames = {
         fulfillment: "fulfillment_id",
         line: "order_line_id",
         quantity: "quantity",
+        detail: "detail",
       },
+      optional: ["detail"],
     },
     returns: {
       name: "order_returns",
@@ -477,14 +489,19 @@ create table if not exists ${t("orders")} (
   ${o("paidAt")} timestamptz,
   ${o("fulfilledAt")} timestamptz,
   ${o("completedAt")} timestamptz,
-  ${o("cancelledAt")} timestamptz,${optionalColumn("orders", "cancelReason", (name) => `${name} text`)}
+  ${o("cancelledAt")} timestamptz,${optionalColumn("orders", "cancelReason", (name) => `${name} text`)}${optionalColumn("orders", "originType", (name) => `${name} text check (${name} ~ '^[a-z][a-z0-9_]{0,62}$')`)}${optionalColumn("orders", "originId", (name) => `${name} text check (length(${name}) between 1 and 200)`)}
   ${o("updatedAt")} timestamptz not null default now(),
   unique (${o("tenant")}, ${o("number")}),
   unique (${o("tenant")}, ${o("invoiceNumber")})
 );
 create index if not exists ${ctx.naming.rename("orders_status_idx")} on ${t("orders")} (${o("tenant")}, ${o("status")}, ${o("placedAt")});
 create index if not exists ${ctx.naming.rename("orders_customer_idx")} on ${t("orders")} (${o("customer")});
-create index if not exists ${ctx.naming.rename("orders_sequence_idx")} on ${t("orders")} (${o("tenant")}, ${o("sequence")});${addExtraColumns(t("orders"), names.extras)}
+create index if not exists ${ctx.naming.rename("orders_sequence_idx")} on ${t("orders")} (${o("tenant")}, ${o("sequence")});${
+    ctx.has("orders", "originType") && ctx.has("orders", "originId")
+      ? `
+create unique index if not exists ${ctx.naming.rename("orders_origin_idx")} on ${t("orders")} (${o("tenant")}, ${o("originType")}, ${o("originId")}) where ${o("originId")} is not null and ${ctx.is("orders", "status", o("status"), ["cancelled"], true)};`
+      : ""
+  }${addExtraColumns(t("orders"), names.extras)}
 ${lockModuleTable(ctx, "orders", { read: true })}
 ${policy("orders", `${o("customer")} = (select auth.uid()) or ${tenantRead("orders")}`)}
 
@@ -554,7 +571,7 @@ create table if not exists ${t("fulfillmentLines")} (
   ${fl("tenant")} ${ctx.idType} not null,
   ${fl("fulfillment")} uuid not null references ${t("fulfillments")} (${f("id")}) on delete cascade,
   ${fl("line")} uuid not null references ${t("orderLines")} (${ol("id")}) on delete cascade,
-  ${fl("quantity")} integer not null check (${fl("quantity")} > 0),
+  ${fl("quantity")} integer not null check (${fl("quantity")} > 0),${optionalColumn("fulfillmentLines", "detail", (name) => `${name} jsonb check (${name} is null or jsonb_typeof(${name}) = 'object')`)}
   primary key (${fl("fulfillment")}, ${fl("line")})
 );${appUniqueIndex(ctx, "fulfillmentLines", ["fulfillment", "line"])}
 create index if not exists fulfillment_lines_line_idx on ${t("fulfillmentLines")} (${fl("line")});
@@ -632,7 +649,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Carts on any signed-in user (anonymous sign-ins included), checkout into
 -- orders with numbers, payments, fulfillments, returns and refunds.
-${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}${kitchenOn(ctx) ? kitchenSql(ctx, names) : ""}`;
+${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${documentFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}${kitchenOn(ctx) ? kitchenSql(ctx, names) : ""}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -701,6 +718,20 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "jsonb"],
       returns: "boolean",
     },
+    {
+      name: "order_from_lines",
+      args: ["{id}", "jsonb", "jsonb"],
+      returns: "jsonb",
+    },
+    ...(ctx.installed("quotes")
+      ? [
+          {
+            name: "order_from_quote",
+            args: ["uuid", "jsonb"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
     { name: "cancel_order", args: ["uuid", "text"], returns: "boolean" },
     { name: "expire_orders", args: ["integer"], returns: "integer" },
     { name: "get_order", args: ["uuid"], returns: "jsonb" },
@@ -746,7 +777,7 @@ export const ORDERS: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Orders",
   description:
-    "Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.",
+    "Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.",
   requires: ["memberships", "permissions", "catalog"],
   integrates: [
     "outbox",
@@ -755,15 +786,22 @@ export const ORDERS: BlockSqlDefinition = {
     "numbering",
     "state-machine",
     "invoices",
+    "quotes",
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "With invoices, record_payment creates an issued, paid invoice for a newly paid order and stores its identifier as the order's invoice number.",
+      sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "Orders made from lines or an accepted quote start confirmed and hold their stock through inventory allocations with backorders; orders gain origin columns and fulfillment lines a detail column for lots and serial numbers.",
       sql: () => "",
     },
   ],

@@ -115,7 +115,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   incidents:
     "delete_status_component get_incident get_status_page list_incidents list_status_components open_incident post_incident_update public_status_page publish_postmortem save_postmortem save_status_component save_status_page set_incident_impacts update_incident",
   inventory:
-    "adjust_stock cancel_purchase_order cancel_transfer commit_reservation count_stock create_transfer delete_location expire_reservations place_purchase_order receive_purchase_order receive_transfer release_reservation reserve_stock save_location save_purchase_order set_location_active set_reorder_point ship_transfer",
+    "adjust_stock allocate_stock cancel_purchase_order cancel_transfer commit_reservation count_stock create_transfer delete_location expire_lots expire_reservations expiring_lots fulfill_allocation list_allocations place_purchase_order receive_purchase_order receive_transfer release_allocations release_reservation reserve_stock restore_allocation save_bin save_location save_lot save_purchase_order set_location_active set_reorder_point set_stock_item ship_transfer stock_detail stock_valuation",
   invitations:
     "accept_invitation accept_invitation_by_id decline_invitation decline_invitation_by_id invitation_preview invite_member my_invitations resend_invitation revoke_invitation update_invitation",
   invoices:
@@ -146,7 +146,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   onboarding:
     "complete_onboarding_step onboarding_progress reset_onboarding_step",
   orders:
-    "add_to_cart cancel_fulfillment cancel_order complete_refund create_cart create_fulfillment create_refund delete_shipping_rate deliver_fulfillment expire_orders get_order merge_carts place_order price_cart receive_return record_payment reject_return request_return save_shipping_rate set_cart_details set_cart_line set_cart_shipping_rate set_order_tax_transaction ship_fulfillment shipping_options",
+    "add_to_cart cancel_fulfillment cancel_order complete_refund create_cart create_fulfillment create_refund delete_shipping_rate deliver_fulfillment expire_orders get_order merge_carts order_from_lines order_from_quote place_order price_cart receive_return record_payment reject_return request_return save_shipping_rate set_cart_details set_cart_line set_cart_shipping_rate set_order_tax_transaction ship_fulfillment shipping_options",
   organizations:
     "create_organization delete_organization leave_organization list_members list_my_organizations mark_used organization_slug_problem remove_member resume_member suspend_member switch_organization transfer_ownership update_member_role update_organization",
   outbox:
@@ -195,7 +195,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "share-links":
     "create_share_link list_share_links record_view resolve_share_link revoke_share_link set_user_state",
   shipments:
-    "cancel_shipment create_shipment get_shipment ingest_tracking_events list_shipments list_tracking_events record_tracking_events set_shipment_label",
+    "cancel_shipment create_shipment get_shipment ingest_tracking_events list_shipments list_tracking_events receive_shipment_return record_tracking_events set_shipment_label set_shipment_lines",
   signatures:
     "cancel_signature_request create_signature_request decline_signature_request get_signature_request list_signature_requests sign_signature",
   "signing-keys":

@@ -42,7 +42,7 @@ describe("inventory module", () => {
       `references "better_supabase"."product_variants" ("id") on delete cascade`,
     );
     expect(sql).toContain(
-      `"available" integer generated always as ("on_hand" - "reserved") stored`,
+      `"available" numeric(20, 6) generated always as ("on_hand" - "reserved" - "held") stored`,
     );
   });
 

@@ -332,12 +332,18 @@ may be your own enum or domain.
   - `better_supabase.status_pages`: `id`, `tenant_id`, `slug`, `title`, `published`
 - `inventory`
   - `better_supabase.inventory_locations`: `id`, `tenant_id`, `code`, `name`, `kind`, `active`, `created_at`, `updated_at`
-  - `better_supabase.stock_levels`: `tenant_id`, `variant_id`, `location_id`, `on_hand`, `reserved`, `incoming`, `available`, `reorder_point`, `updated_at`
+  - `better_supabase.stock_levels`: `tenant_id`, `variant_id`, `location_id`, `on_hand`, `reserved`, `held`, `incoming`, `available`, `reorder_point`, `updated_at`
   - `better_supabase.stock_reservations`: `id`, `tenant_id`, `variant_id`, `location_id`, `quantity`, `status`, `reference_type`, `reference_id`, `expires_at`, `created_at`, `updated_at`; typed: `status`
   - `better_supabase.stock_transfers`: `id`, `tenant_id`, `from_location_id`, `to_location_id`, `status`, `note`, `created_at`, `shipped_at`, `received_at`; typed: `status`
-  - `better_supabase.stock_transfer_lines`: `tenant_id`, `transfer_id`, `variant_id`, `quantity`
+  - `better_supabase.stock_transfer_lines`: `tenant_id`, `transfer_id`, `variant_id`, `quantity`, `detail`
   - `better_supabase.purchase_orders`: `id`, `tenant_id`, `location_id`, `supplier_type`, `supplier_id`, `status`, `currency`, `expected_at`, `note`, `created_at`, `updated_at`, `placed_at`; typed: `status`
   - `better_supabase.purchase_order_lines`: `id`, `tenant_id`, `purchase_order_id`, `variant_id`, `quantity_ordered`, `quantity_received`, `unit_cost`
+  - `better_supabase.stock_items`: `variant_id`, `tenant_id`, `unit`, `scale`, `tracking`, `tracks_expiry`, `costing`, `currency`, `average_cost`, `updated_at`
+  - `better_supabase.stock_bins`: `id`, `tenant_id`, `location_id`, `code`, `name`, `hold`, `active`, `created_at`
+  - `better_supabase.stock_lots`: `id`, `tenant_id`, `variant_id`, `code`, `expires_on`, `created_at`
+  - `better_supabase.stock_serials`: `id`, `tenant_id`, `variant_id`, `serial`, `lot_id`, `location_id`, `bin_id`, `status`, `movement_id`, `updated_at`
+  - `better_supabase.stock_buckets`: `id`, `tenant_id`, `variant_id`, `location_id`, `bin_id`, `lot_id`, `on_hand`, `updated_at`
+  - `better_supabase.stock_allocations`: `id`, `tenant_id`, `variant_id`, `location_id`, `document_type`, `document_id`, `line_id`, `quantity`, `allocated`, `fulfilled`, `backordered`, `status`, `created_at`, `updated_at`
 - `invitations`
   - `better_supabase.invitations`: `id`, `email`, `role`, `token_hash`, `expires_at`, `accepted_at`, `organization_id`
   - `better_supabase.platform_invitations`, once mapped: `id`, `email`, `role`, `token_hash`, `expires_at`, `accepted_at`
@@ -516,6 +522,7 @@ may be your own enum or domain.
   - `better_supabase.shipments`: `id`, `tenant_id`, `reference`, `status`, `from_address`, `to_address`, `carrier`, `service`, `tracking_number`, `label_id`, `label_format`, `label_cost`, `currency`, `labeled_at`, `delivered_at`, `cancelled_at`, `created_at`, `updated_at`; typed: `status`
   - `better_supabase.shipment_packages`: `id`, `tenant_id`, `shipment_id`, `position`, `weight_grams`
   - `better_supabase.shipment_tracking_events`: `id`, `tenant_id`, `shipment_id`, `external_id`, `status`, `occurred_at`, `source`, `created_at`; typed: `status`
+  - `better_supabase.shipment_lines`: `id`, `tenant_id`, `shipment_id`, `position`, `direction`, `variant_id`, `location_id`, `quantity`, `detail`, `disposition`, `movement_id`, `moved_at`, `created_at`
 - `signatures`
   - `better_supabase.signature_requests`: `id`, `tenant_id`, `subject_type`, `subject_id`, `version_id`, `content_hash`, `signers`, `sign_order`, `status`, `approval_request_id`, `message`, `requested_by`, `created_at`, `completed_at`
   - `better_supabase.signatures`: `id`, `request_id`, `tenant_id`, `signer`, `method`, `typed_name`, `image_attachment_id`, `signed_hash`, `ip`, `user_agent`, `signed_at`

@@ -20,7 +20,30 @@ export {
   type StockCount,
   type StockLine,
   type TransferInput,
+  type TransferLine,
 } from "./inventory.ts";
+
+export {
+  ALLOCATION_STATUSES,
+  COSTING_METHODS,
+  TRACKING_MODES,
+  type Allocation,
+  type AllocationInput,
+  type AllocationStatus,
+  type Bin,
+  type BinInput,
+  type CostingMethod,
+  type ExpiringLot,
+  type InventoryTracking,
+  type Lot,
+  type StockBucket,
+  type StockDetail,
+  type StockItem,
+  type StockItemInput,
+  type StockLevelDetail,
+  type StockValuation,
+  type TrackingMode,
+} from "./tracking.ts";
 
 export {
   extendBlock,

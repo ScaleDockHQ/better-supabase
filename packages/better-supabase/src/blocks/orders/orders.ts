@@ -4,6 +4,7 @@ import type {
   PaymentEvent,
   PaymentProvider,
 } from "../../commerce/payments.ts";
+import type { StockDetail } from "../../commerce/stock-detail.ts";
 import type {
   TaxCart,
   TaxProvider,
@@ -28,10 +29,12 @@ import type {
   QuantityLine,
   ShippingOption,
 } from "./codecs.ts";
+import type { OrderDocuments } from "./documents.ts";
 import type { OrderKitchen } from "./kitchen.ts";
 
 import { money } from "../../commerce/money.ts";
 import { paymentProviderOf } from "../../commerce/payments.ts";
+import { detailArg } from "../../commerce/stock-detail.ts";
 import { taxProviderOf } from "../../commerce/tax.ts";
 import { blockFields, readFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -58,6 +61,7 @@ import {
   shippingOptionsOf,
   transactionToJson,
 } from "./codecs.ts";
+import { orderDocuments } from "./documents.ts";
 import { orderKitchen } from "./kitchen.ts";
 
 export interface OrdersOptions<
@@ -151,9 +155,14 @@ export interface PaymentRecord {
   readonly invoiceNumber: string | null;
 }
 
+export interface FulfillmentLine extends QuantityLine {
+  /** The bin, lot or serials the line ships from, with the inventory block. */
+  readonly detail?: StockDetail;
+}
+
 export interface FulfillmentInput {
   /** Default: every unit not fulfilled yet. */
-  readonly lines?: readonly QuantityLine[];
+  readonly lines?: readonly FulfillmentLine[];
   readonly locationId?: string;
   readonly carrier?: string;
   readonly trackingNumber?: string;
@@ -208,7 +217,9 @@ export interface Invoice<F extends object = Record<never, never>> {
   readonly order: Order<F>;
 }
 
-export interface Orders<F extends object = Record<never, never>> {
+export interface Orders<
+  F extends object = Record<never, never>,
+> extends OrderDocuments<F> {
   saveShippingRate(
     organizationId: string,
     input: ShippingRateInput,
@@ -1114,6 +1125,7 @@ export function createOrders<
             ? input.lines.map((line) => ({
                 lineId: line.lineId,
                 quantity: line.quantity,
+                ...(line.detail ? { detail: detailArg(line.detail) } : {}),
               }))
             : null,
           location: input.locationId ?? null,
@@ -1187,6 +1199,7 @@ export function createOrders<
       await expireOrders(maxRowsOf(payload)).orThrow();
     },
     kitchen: orderKitchen(call),
+    ...orderDocuments(call, parsed),
   };
 
   return withBlockHooks(orders, options.hooks, {

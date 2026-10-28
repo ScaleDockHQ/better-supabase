@@ -271,6 +271,9 @@ export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CatalogE
  */
 export const blockEvents: Events<BlockEvents> = {
   types: [
+    "allocation.created",
+    "allocation.filled",
+    "allocation.released",
     "api_key.created",
     "api_key.revoked",
     "api_key.rotated",
@@ -375,6 +378,9 @@ export const blockEvents: Events<BlockEvents> = {
  * @public
  */
 export const blockEventSchemas = {
+  "allocation.created": true,
+  "allocation.filled": true,
+  "allocation.released": true,
   "api_key.created": true,
   "api_key.revoked": true,
   "api_key.rotated": true,

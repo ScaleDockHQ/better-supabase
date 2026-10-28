@@ -18,6 +18,11 @@ import type {
   ShipmentRate,
 } from "./carrier.ts";
 import type {
+  ShipmentLine,
+  ShipmentLineInput,
+  ShipmentReturnInput,
+} from "./lines.ts";
+import type {
   LabelFormat,
   ShipmentStatus,
   TrackingStatus,
@@ -45,6 +50,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { shipmentCarrierOf } from "./carrier.ts";
+import { lineOf, linesArg, returnsArg } from "./lines.ts";
 import {
   LABEL_FORMATS,
   SHIPMENT_STATUSES,
@@ -111,6 +117,8 @@ export interface Shipment<F extends object = Record<never, never>> {
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
   readonly packages: readonly ShipmentPackage[];
+  /** The stock it carries and the returns against it, in position order. */
+  readonly lines: readonly ShipmentLine[];
   /** The extra columns, keyed by database name. */
   readonly fields: ExtraFields<F>;
 }
@@ -217,6 +225,22 @@ export interface Shipments<F extends object = Record<never, never>> {
   cancel(id: string): AsyncResult<Shipment<F>>;
   /** The tracking timeline, oldest first. */
   trackingEvents(id: string): AsyncResult<readonly TrackingEvent[]>;
+  /**
+   * Replaces the stock a draft shipment carries. The stock leaves inventory
+   * when the shipment gets its label and comes back when it is cancelled.
+   */
+  setLines(
+    id: string,
+    lines: readonly ShipmentLineInput[],
+  ): AsyncResult<Shipment<F>>;
+  /**
+   * Receives stock sent back on a shipment that left, with a disposition per
+   * line. A variant comes back at most as often as it went out.
+   */
+  receiveReturn(
+    id: string,
+    lines: readonly ShipmentReturnInput[],
+  ): AsyncResult<Shipment<F>>;
 }
 
 type Defined<T> = { [K in keyof T]?: Exclude<T[K], undefined> };
@@ -279,6 +303,9 @@ function shipmentOf(value: unknown, fn: string): Shipment {
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     packages: recordsOf(row["packages"], fn).map(packageOf),
+    lines: (row["lines"] === undefined ? [] : recordsOf(row["lines"], fn)).map(
+      lineOf,
+    ),
     fields: isRecord(row["fields"]) ? row["fields"] : {},
     ...defined({
       fromLocationId: optionalText(row["fromLocationId"]),
@@ -695,6 +722,18 @@ export function createShipments<
       call("list_tracking_events", { shipment_id: id }, (value) =>
         recordsOf(value, "list_tracking_events").map(trackingEventOf),
       ),
+    setLines: (id, lines) =>
+      call(
+        "set_shipment_lines",
+        { shipment_id: id, lines: linesArg(lines) },
+        one("set_shipment_lines"),
+      ).andThen(fields.row),
+    receiveReturn: (id, lines) =>
+      call(
+        "receive_shipment_return",
+        { shipment_id: id, lines: returnsArg(lines) },
+        one("receive_shipment_return"),
+      ).andThen(fields.row),
   };
 
   return withBlockHooks(client, options.hooks, {

@@ -4,6 +4,7 @@ import type { OrdersNames } from "./orders-shared.ts";
 import { fail, serviceGrant, userGrant } from "../shared.ts";
 import { variantTracked } from "./catalog-tracking.ts";
 import { moveStock } from "./inventory-stock.ts";
+import { shipAllocations } from "./orders-documents.ts";
 import {
   columns,
   guard,
@@ -59,6 +60,7 @@ export function afterSaleFunctions(
   const subject = "'orders/' || v_order.id::text";
 
   const trackingUrl = ctx.has("fulfillments", "trackingUrl");
+  const lineDetail = ctx.has("fulfillmentLines", "detail");
   const returnReason = ctx.has("returns", "reason");
   const refundReason = ctx.has("refunds", "reason");
 
@@ -125,8 +127,10 @@ export function afterSaleFunctions(
   ${load("v_return.order_id")}`;
 
   return `
--- Fulfills lines of a paid order from one location. lines is
--- [{lineId, quantity}]; null fulfills everything not yet fulfilled.
+-- Fulfills lines of a paid or confirmed order from one location. lines is
+-- [{lineId, quantity, detail?}]; null fulfills everything not yet
+-- fulfilled. detail names the bin, lot or serial numbers a confirmed
+-- order's line ships from, as for inventory's move_stock.
 create or replace function ${fn("create_fulfillment")}(order_id uuid, lines jsonb default null, location uuid default null,
   carrier text default null, tracking_number text default null, tracking_url text default null)
 returns jsonb
@@ -142,8 +146,8 @@ declare
 begin
   ${load("create_fulfillment.order_id")}
   ${guard(names.scope, names.manage, "v_order.tenant")}
-  if v_order.status <> 'paid' then
-    ${fail("ORDERS_NOT_PAID", "only a paid order can be fulfilled", "55000")}
+  if v_order.status::text not in ('paid', 'confirmed') then
+    ${fail("ORDERS_NOT_PAID", "only a paid or confirmed order can be fulfilled", "55000")}
   end if;${unsupported(trackingUrl, "create_fulfillment.tracking_url", "ORDERS_TRACKING_URL_UNSUPPORTED", "this fulfillment table has no tracking URL column")}
   ${ctx.hook("before_fulfillment_create", [["uuid", "v_order.id"]])}
   v_requested := coalesce(create_fulfillment.lines, (
@@ -158,19 +162,33 @@ begin
     create_fulfillment.carrier, create_fulfillment.tracking_number${trackingUrl ? ", create_fulfillment.tracking_url" : ""})
   returning ${f("id")} into v_id;
   for v_item in
-    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity from jsonb_array_elements(v_requested) e
+    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity,
+      case when jsonb_typeof(e -> 'detail') = 'object' then e -> 'detail' end as detail
+    from jsonb_array_elements(v_requested) e
   loop
     if v_item.quantity is null or v_item.quantity <= 0 then
       ${fail("ORDERS_QUANTITY_INVALID", "each quantity is a whole number above zero", "22023")}
-    end if;
+    end if;${
+      lineDetail
+        ? ""
+        : `
+    if v_item.detail is not null then
+      ${fail("ORDERS_DETAIL_UNSUPPORTED", "this fulfillment line table has no detail column", "22023")}
+    end if;`
+    }
     update ${lines} x set ${ol("fulfilled")} = x.${ol("fulfilled")} + v_item.quantity
     where x.${ol("id")} = v_item.line and x.${ol("order")} = v_order.id and x.${ol("fulfilled")} + v_item.quantity <= x.${ol("quantity")};
     if not found then
       ${fail("ORDERS_FULFILLMENT_INVALID", "a line isn't on this order or has less left to fulfill", "22023")}
     end if;
-    insert into ${fulfillmentLines} as x (${fl("tenant")}, ${fl("fulfillment")}, ${fl("line")}, ${fl("quantity")})
-    values (v_order.tenant, v_id, v_item.line, v_item.quantity)
-    on conflict (${fl("fulfillment")}, ${fl("line")}) do update set ${fl("quantity")} = x.${fl("quantity")} + excluded.${fl("quantity")};
+    insert into ${fulfillmentLines} as x (${fl("tenant")}, ${fl("fulfillment")}, ${fl("line")}, ${fl("quantity")}${lineDetail ? `, ${fl("detail")}` : ""})
+    values (v_order.tenant, v_id, v_item.line, v_item.quantity${lineDetail ? ", v_item.detail" : ""})
+    on conflict (${fl("fulfillment")}, ${fl("line")}) do update set ${fl("quantity")} = x.${fl("quantity")} + excluded.${fl("quantity")}${
+      lineDetail
+        ? `,
+      ${fl("detail")} = coalesce(excluded.${fl("detail")}, x.${fl("detail")})`
+        : ""
+    };
   end loop;
   ${ctx.hook("after_fulfillment_create", [["uuid", "v_id"]])}
   return jsonb_build_object('id', v_id, 'orderId', v_order.id, 'status', 'pending');
@@ -178,8 +196,9 @@ end;
 $$;
 ${userGrant(`${fn("create_fulfillment")}(uuid, jsonb, uuid, text, text, text)`)}
 
--- Marks a fulfillment shipped. Once every line has shipped, the order is
--- fulfilled.
+-- Marks a fulfillment shipped. A confirmed order's lines take their stock
+-- through their allocations here. Once every line has shipped, the order
+-- is fulfilled.
 create or replace function ${fn("ship_fulfillment")}(fulfillment uuid, carrier text default null, tracking_number text default null, tracking_url text default null)
 returns boolean
 language plpgsql
@@ -189,6 +208,8 @@ as $$
 declare
   v_fulfillment record;
   v_order record;
+  v_line record;
+  v_claims text;
 begin
   ${loadFulfillment("ship_fulfillment.fulfillment")}
   ${guard(names.scope, names.manage, "v_order.tenant")}
@@ -206,7 +227,7 @@ begin
     ${f("trackingUrl")} = coalesce(ship_fulfillment.tracking_url, x.${f("trackingUrl")})`
         : ""
     }
-  where x.${f("id")} = v_fulfillment.id;
+  where x.${f("id")} = v_fulfillment.id;${shipAllocations(ctx)}
   ${partEvent("fulfillment.shipped", "v_fulfillment.id", [
     [
       "carrier",
@@ -217,7 +238,7 @@ begin
       `(select x.${f("trackingNumber")} from ${fulfillments} x where x.${f("id")} = v_fulfillment.id)`,
     ],
   ])}
-  if v_order.status = 'paid'
+  if v_order.status::text in ('paid', 'confirmed')
     and not exists (select 1 from ${lines} l where l.${ol("order")} = v_order.id and l.${ol("fulfilled")} < l.${ol("quantity")})
     and not exists (select 1 from ${fulfillments} x where x.${f("order")} = v_order.id and ${ctx.is("fulfillments", "status", `x.${f("status")}`, ["pending"])}) then
     perform ${fn("order_transition")}(v_order.id, 'fulfilled');

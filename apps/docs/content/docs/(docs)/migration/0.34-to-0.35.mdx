@@ -187,3 +187,25 @@ key, the tree and canonical parts.
 Code that read `chat.organizationId` as a string has to handle `undefined`,
 and assistant hooks that take `context.organizationId` have to handle `null`,
 for example by skipping tenant keys or a tenant quota.
+
+## Stock quantities, orders and shipments
+
+Stock is counted in `numeric(20, 6)` now, so a variant can count kilograms
+or metres ([ADR 0126](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0126-fractional-stock-lots-and-allocations.md)).
+Run `better-supabase upgrade` and generate the migration; existing stock keeps
+its value and counts whole items until you call `setStockItem`.
+
+| Before                                                  | After                                                               |
+| ------------------------------------------------------- | ------------------------------------------------------------------- |
+| `stock_levels.on_hand`, `reserved`, `available` integer | `numeric(20, 6)`, and `available` subtracts `held`                  |
+| `before_stock_adjust(uuid, uuid, integer, text)`        | `before_stock_adjust(uuid, uuid, numeric, text)`                    |
+| `before_stock_reserve(uuid, uuid, integer, text, text)` | `before_stock_reserve(uuid, uuid, numeric, text, text)`             |
+| `move_stock(..., quantity integer, ...)`                | `move_stock(..., quantity numeric, ..., detail jsonb)`              |
+| `orderFromQuoteAction({ create })`                      | `orderFromQuoteAction({ clients })`, which calls `orders.fromQuote` |
+| order statuses without `confirmed`                      | `confirmed`, the first status of an order from lines or a quote     |
+| a shipment without stock                                | `shipment.lines`, taken out of inventory when the label is bought   |
+
+Redeclare your stock hooks with a `numeric` quantity: the block looks them
+up by signature, so a hook still declared with `integer` is no longer
+called. Code that switches over the order status needs a `confirmed` case.
+The codemod lists these lines for review.

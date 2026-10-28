@@ -4,6 +4,8 @@
  * `@supabase/ssr`, and the old cookie codec and prefetch predicates are gone.
  * In the blocks, `transition()` takes its reason in an options object and
  * `validateGraph` takes the step library as `{ steps }`.
+ * Stock quantities are numeric, and orders made from documents start
+ * `confirmed` (ADR 0126).
  */
 
 import type { Codemod, ReviewLine } from "./codemod.ts";
@@ -101,6 +103,7 @@ export const CODEMOD_0_35: Codemod = {
   name: "0.35",
   description:
     'Rewrites refresh: "navigation" to refresh: true, verifySession: "navigation" to verifySession: "document" and the SessionProvider sessionPromise prop to session, supabaseFor calls to contextClient, a string reason passed to transition() to { reason } and validateGraph(graph, steps) to validateGraph(graph, { steps }), and lists for review the lines that use onExpiredPrefetch, shouldRefresh, clearSessionCookies (now async), the removed cookie codec (writeSession, refreshSession, AUTH_CACHE_HEADERS, pruneSessionChunks, sessionEncoding, clearSessionAtScopes), sessionStale, life.min and life.max, contextFromSession with a token, a destructured supabaseFor, sessions: false, a transition() reason that is not a string literal, memory forget (now a soft delete) and maps keyed by WorkflowNodeKind',
+    'Rewrites refresh: "navigation" to refresh: true, verifySession: "navigation" to verifySession: "document" and the SessionProvider sessionPromise prop to session and supabaseFor calls to contextClient, and lists for review the lines that use onExpiredPrefetch, shouldRefresh, clearSessionCookies (now async), the removed cookie codec (writeSession, refreshSession, AUTH_CACHE_HEADERS, pruneSessionChunks, sessionEncoding, clearSessionAtScopes), sessionStale, life.min and life.max, contextFromSession with a token, a destructured supabaseFor, sessions: false, the stock hooks that take an integer quantity, the order status switches that miss confirmed and orderFromQuoteAction',
   review: [
     {
       pattern: /\bonExpiredPrefetch\b/,
@@ -169,6 +172,21 @@ export const CODEMOD_0_35: Codemod = {
       pattern: /\bRecord<\s*WorkflowNodeKind\b/,
       message:
         "`WorkflowNodeKind` takes the app's own kinds now (any string): key a map of every kind by `WorkflowBuiltinNodeKind`, with a fallback for custom kinds",
+    },
+    {
+      pattern: /\b(?:before|after)_stock_(?:adjust|reserve)\b[^;]*\binteger\b/i,
+      message:
+        "Stock quantities are `numeric` now: declare the quantity argument of your `before_stock_adjust` and `before_stock_reserve` hooks as `numeric` instead of `integer`, or the block no longer calls them",
+    },
+    {
+      pattern: /\bOrderStatus\b|["']pending_payment["']/,
+      message:
+        "Orders gain the `confirmed` status: an order made with `orderFromLines` or `orderFromQuote` starts there instead of `pending_payment`, so handle it where you switch over the status",
+    },
+    {
+      pattern: /\borderFromQuoteAction\(/,
+      message:
+        "`orderFromQuoteAction` no longer needs `create`: without it the action calls `orders.fromQuote`, so drop a `create` that only placed the order",
     },
   ],
   source: renamePolicies,

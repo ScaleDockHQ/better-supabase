@@ -30,6 +30,7 @@ versioned `ShippingProvider` interface; the block ships no carrier SDK (see
 | `shipments`                | One shipment: `reference`, `status`, the `from_address` and `to_address`, the record it is for, and once labeled the `carrier`, `service`, `tracking_number`, label and its cost |
 | `shipment_packages`        | The packages, by `position`: `weight_grams` and the sizes in millimeters                                                                                                         |
 | `shipment_tracking_events` | The timeline: the carrier's event id, `status`, `occurred_at`, `description`, `location` and the `source` (`carrier`, `webhook` or `manual`)                                     |
+| `shipment_lines`           | The stock it carries: `direction` (`outbound` or `return`), the variant, location and `quantity`, an optional allocation, the `disposition` of a return and the movement         |
 
 Every table is read through the functions only. Members with
 `shipments.read` read shipments (members hold it by default), and
@@ -95,10 +96,68 @@ fails, the block voids the label it just bought. A shipment without a
 | `recordTracking(id, events)`         | the events recorded by hand, and the shipment              |
 | `ingest(carrier, request)`           | one entry per tracking number in a verified webhook        |
 | `cancel(id)`                         | the cancelled shipment, after the carrier voided its label |
+| `setLines(id, lines)`                | the draft shipment with its outbound lines                 |
+| `receiveReturn(id, lines)`           | the shipment with the return lines                         |
 | `trackingEvents(id)`                 | the timeline, oldest first                                 |
 
 The [shipments binding](/docs/repository/record-bindings) lists a record's shipments on
 its page, with `create` and `cancel` writes.
+
+## Shipment lines
+
+With the [inventory block](/docs/blocks/inventory), a shipment carries stock.
+Set its outbound lines while it is a draft; buying the label takes them out
+of inventory:
+
+```ts
+await db.shipments
+  .setLines(shipment.id, [
+    { variantId, locationId: warehouse.id, quantity: "1.25" },
+    {
+      variantId: serialVariantId,
+      locationId: warehouse.id,
+      quantity: 1,
+      allocationId,
+      detail: { serials: ["SN-0042"] },
+    },
+  ])
+  .orThrow();
+```
+
+A line with an `allocationId` ships from that allocation (an order's, for
+example); one without is a `sale` movement referencing the shipment. Each
+line's `detail` names the bin, lot or serials to take, and after the label
+`detail.parts` lists the lots the stock came from. Cancelling the shipment
+puts every line's stock back where it came from.
+
+A labeled shipment takes returns, at most what it carried out per
+variant:
+
+```ts
+await db.shipments
+  .receiveReturn(shipment.id, [
+    {
+      variantId,
+      locationId: warehouse.id,
+      quantity: "0.5",
+      disposition: "hold",
+      detail: { binId: quarantine.id, lot: { code: "L-0412" } },
+    },
+    {
+      variantId,
+      locationId: warehouse.id,
+      quantity: "0.25",
+      disposition: "scrap",
+    },
+  ])
+  .orThrow();
+```
+
+`restock` puts the stock back for sale, `hold` puts it in a hold bin at the
+location, and `scrap` returns it and writes it off. Each return is a line on
+the shipment, and `shipment.return_received` records how many lines and how
+much came back. Quantities are strings or numbers in, and strings on the
+shipment's `lines`, so fractional units keep their precision.
 
 ## Tracking
 
@@ -228,11 +287,18 @@ and refresh. It is in the Next.js example.
 | `SHIPMENT_TRACKING_UNKNOWN`    | the carrier doesn't know the tracking number                               |
 | `SHIPMENT_WEBHOOK_UNSUPPORTED` | the carrier has no `parseWebhook`                                          |
 | `SHIPMENT_SHIPPED`             | the shipment has left and can't be cancelled                               |
+| `SHIPMENT_INVENTORY_MISSING`   | lines were set without the inventory block                                 |
+| `SHIPMENT_LINES_INVALID`       | a line lacks a variant, a location or a positive quantity                  |
+| `SHIPMENT_LINE_NOT_FOUND`      | a line names a variant or location outside the organization                |
+| `SHIPMENT_ALLOCATION_INVALID`  | the allocation isn't open, or holds another variant or location            |
+| `SHIPMENT_NOT_SHIPPED`         | a return was received for a draft or cancelled shipment                    |
+| `SHIPMENT_RETURN_EXCEEDS`      | a return is more than the shipment carried out                             |
+| `SHIPMENT_HOLD_BIN_REQUIRED`   | a `hold` return names no hold bin at the location                          |
 
 ## Events
 
-`shipment.created`, `shipment.labeled`, `shipment.status_changed` and
-`shipment.cancelled`. The [events page](/docs/extending/events) lists their
+`shipment.created`, `shipment.labeled`, `shipment.status_changed`,
+`shipment.cancelled` and `shipment.return_received`. The [events page](/docs/extending/events) lists their
 payloads.
 
 ## Without the client

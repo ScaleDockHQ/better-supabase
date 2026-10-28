@@ -2636,7 +2636,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "promotions",
         "numbering",
         "state-machine",
-        "invoices"
+        "invoices",
+        "quotes"
       ],
       "manifest": "orders",
       "scopes": [
@@ -2698,6 +2699,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "completedAt": "completed_at",
               "cancelledAt": "cancelled_at",
               "cancelReason": "cancel_reason",
+              "originType": "origin_type",
+              "originId": "origin_id",
               "updatedAt": "updated_at"
             }
           },
@@ -5391,7 +5394,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "audit",
-        "assets"
+        "assets",
+        "inventory"
       ],
       "manifest": "shipments",
       "scopes": [
@@ -5419,6 +5423,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "shipment_tracking_event": {
             "table": "trackingEvents",
             "singular": "shipment_tracking_event"
+          },
+          "shipment_line": {
+            "table": "lines",
+            "singular": "shipment_line"
           }
         },
         "tables": {
@@ -5477,6 +5485,25 @@ export const PRESET_CATALOG: PresetCatalog = {
               "description": "description",
               "location": "location",
               "source": "source",
+              "createdAt": "created_at"
+            }
+          },
+          "lines": {
+            "name": "shipment_lines",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "shipment": "shipment_id",
+              "position": "position",
+              "direction": "direction",
+              "variant": "variant_id",
+              "location": "location_id",
+              "quantity": "quantity",
+              "allocation": "allocation_id",
+              "detail": "detail",
+              "disposition": "disposition",
+              "movement": "movement_id",
+              "movedAt": "moved_at",
               "createdAt": "created_at"
             }
           }
@@ -11432,6 +11459,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ShipmentLabelRequest"
         },
         {
+          "name": "ShipmentLine"
+        },
+        {
+          "name": "ShipmentLineInput"
+        },
+        {
           "name": "ShipmentListOptions"
         },
         {
@@ -11445,6 +11478,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "ShipmentRateRequest"
+        },
+        {
+          "name": "ShipmentReturnInput"
+        },
+        {
+          "name": "ShipmentReturnReceivedEventData"
         },
         {
           "name": "Shipments",
@@ -11640,7 +11679,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "shipment.created",
           "shipment.labeled",
           "shipment.status_changed",
-          "shipment.cancelled"
+          "shipment.cancelled",
+          "shipment.return_received"
         ]
       },
       "providers": [
@@ -15010,6 +15050,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "reservation.created",
           "reservation.committed",
           "reservation.released",
+          "allocation.created",
+          "allocation.filled",
+          "allocation.released",
           "transfer.shipped",
           "transfer.received",
           "transfer.cancelled",
@@ -16343,6 +16386,23 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "OrderBoardQuery"
         },
         {
+          "name": "OrderDocumentInput"
+        },
+        {
+          "name": "OrderDocuments",
+          "fields": true
+        },
+        {
+          "name": "OrderFromDocument",
+          "fields": true
+        },
+        {
+          "name": "OrderFromLinesInput"
+        },
+        {
+          "name": "OrderFromQuoteClients"
+        },
+        {
           "name": "OrderFromQuoteOptions"
         },
         {
@@ -16350,6 +16410,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "OrderLine"
+        },
+        {
+          "name": "OrderLineInput"
         },
         {
           "name": "OrderMetrics"

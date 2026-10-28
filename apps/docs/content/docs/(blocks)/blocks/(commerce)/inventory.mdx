@@ -1,6 +1,6 @@
 ---
 title: Inventory
-description: Stock per catalog variant and location on the ledger block, reservations that expire, transfers between locations and purchase orders with partial receiving.
+description: Stock per catalog variant and location on the ledger block, in whole or fractional units, with lots, serials, expiry, bins, average cost, reservations, allocations with backorders, transfers and purchase orders.
 ---
 
 `inventory` counts the stock of [catalog](/docs/blocks/catalog) variants at
@@ -197,6 +197,100 @@ export const GET = jobs.drainRoute({
 
 `inventory.job` reads an optional `maxRows` from the payload.
 
+## Units, lots and bins
+
+A variant counts whole items until you give it a stock item. Set it before
+the variant has stock (`INVENTORY_ITEM_LOCKED` after):
+
+```ts
+await inventory
+  .setStockItem(variantId, {
+    unit: "kg",
+    scale: 3,
+    tracking: "lot",
+    tracksExpiry: true,
+    costing: "average",
+    currency: "EUR",
+  })
+  .orThrow();
+
+const quarantine = await inventory
+  .saveBin(warehouse.id, { code: "HOLD", name: "Quarantine", hold: true })
+  .orThrow();
+
+await inventory
+  .adjustStock(variantId, warehouse.id, 10.5, "receipt", "first delivery", {
+    lot: { code: "L-0412", expiresOn: "2027-02-01" },
+  })
+  .orThrow();
+
+await inventory.stockDetail(variantId, warehouse.id).orThrow();
+// { onHand: 10.5, held: 0, available: 10.5, buckets: [{ lotCode: "L-0412", expiresOn: "2027-02-01", onHand: 10.5, ... }] }
+```
+
+Quantities are `numeric(20, 6)`, and `scale` (0 to 6) sets how many decimals
+a variant's quantity may have (`INVENTORY_QUANTITY_PRECISION` past it). The
+ledger keeps whole numbers: a movement posts the quantity times ten to the
+scale, so 1.250 kg at scale 3 posts 1250 on an account whose code ends in
+`:kg:3`.
+
+Every movement takes a `detail` with `binId`, `lotId` or `lot` (a code, and
+an expiry date to create it) and `serials`. A variant tracked by `lot` needs
+a lot on every receipt; one tracked by `serial` needs one serial number per
+unit, and a serial can't be in stock twice. Without a bin or lot, stock leaves
+first-expiry-first-out: the lot that expires first, then the stock outside any
+lot. A sale or a transfer out skips hold bins and expired lots, and stock in a
+hold bin counts as `held`, so `available` is on hand minus reserved minus held.
+
+`expiringLots(organizationId, "2027-03-01")` lists the lots with stock that
+expire before a date. `expireLots(organizationId)` is a service function that
+scraps the stock of lots that have expired, as `expired` movements.
+
+## Average cost
+
+With `costing: "average"`, a receipt carries its cost, and the stock's value
+moves into the variant's value account on the same ledger transaction. A
+purchase order receipt takes its line's `unitCost`. The average cost is
+recomputed on each receipt, and a sale moves its value out to cost of goods
+sold:
+
+```ts
+await inventory.stockValuation(variantId).orThrow();
+// { costing: "average", averageCost: "200.000000", onHand: 10.5, value: money(2100n, "EUR"), ... }
+```
+
+## Allocations
+
+An allocation holds stock for a document line, such as an order or a work
+order, for as long as the document needs it. What isn't available waits on
+backorder, and every movement that adds stock fills open backorders, oldest
+first:
+
+```ts
+const allocation = await inventory
+  .allocate(organizationId, {
+    variantId,
+    locationId: warehouse.id,
+    quantity: 12,
+    documentType: "work_order",
+    documentId: workOrder.id,
+    lineId: "line-1",
+  })
+  .orThrow();
+// { allocated: 10.5, backordered: 1.5, status: "open", ... }
+
+await inventory.fulfillAllocation(allocation.id, 10).orThrow(); // a `sale` movement
+await inventory.restoreAllocation(allocation.id, 1).orThrow(); // a `return` movement
+await inventory
+  .releaseAllocations(organizationId, "work_order", workOrder.id)
+  .orThrow();
+```
+
+Pass `backorder: false` to refuse what isn't available
+(`INVENTORY_INSUFFICIENT`). Orders allocate their lines themselves (see
+[orders from documents](/docs/blocks/orders#orders-from-documents)), and
+[shipment lines](/docs/blocks/shipments#shipment-lines) ship from them.
+
 ## Transfers
 
 ```ts
@@ -256,6 +350,7 @@ such as a CRM company; the module stores the pair and doesn't check it.
 | `stock.reorder_point_reached`                                                  | Available stock drops to the reorder point       |
 | `reservation.created`, `reservation.committed`                                 | `reserve`, `commitReservation`                   |
 | `reservation.released`                                                         | A release, with `reason` `released` or `expired` |
+| `allocation.created`, `allocation.filled`, `allocation.released`               | `allocate`, a backorder filled, a release        |
 | `transfer.shipped`, `transfer.received`, `transfer.cancelled`                  | A transfer step                                  |
 | `purchase_order.placed`, `purchase_order.received`, `purchase_order.cancelled` | A purchase order step                            |
 
@@ -268,22 +363,24 @@ registers the subject.
 
 The SQL module calls `before_stock_adjust`, `after_stock_adjust`,
 `before_stock_reserve` and `after_stock_reserve` when you define them (see
-[blocks](/docs/extending/blocks)). The TypeScript client takes `hooks` keyed
+[blocks](/docs/extending/blocks)). Their quantity argument is `numeric`. The TypeScript client takes `hooks` keyed
 by method name.
 
 ## Adopting existing tables
 
 To run over tables you already have, map `locations`, `levels` and
 `reservations` to yours;
-movements live in the ledger block's tables. Transfers (`transfers`, `transferLines`) and purchase orders
+movements live in the ledger block's tables. The stock items, bins, lots,
+serials, buckets and allocations (`items`, `bins`, `lots`, `serials`,
+`buckets`, `allocations`) are adoptable too. Transfers (`transfers`, `transferLines`) and purchase orders
 (`purchaseOrders`, `purchaseOrderLines`) are optional: set them to `null`
 and their functions are left out.
 
 ## Not included
 
-Sales orders, fulfilment and returns belong to an orders block. Inventory
-doesn't value stock (no FIFO or average cost), doesn't pick a location for
-an order, and doesn't track lots, serial numbers or expiry dates.
+Sales orders, fulfilment and returns belong to the orders and shipments
+blocks. Inventory values stock at average cost only (no FIFO layers) and
+doesn't pick a location for an order.
 
 ## Without the client
 

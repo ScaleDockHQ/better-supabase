@@ -20,6 +20,7 @@ import {
 
 export const ORDER_STATUSES = [
   "pending_payment",
+  "confirmed",
   "paid",
   "fulfilled",
   "completed",

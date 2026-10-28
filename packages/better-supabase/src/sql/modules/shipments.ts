@@ -33,6 +33,14 @@ import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
+import {
+  LINES_TABLE,
+  lineFunctions,
+  linesJson,
+  linesTable,
+  restoreLines,
+  shipLines,
+} from "./shipments-lines.ts";
 
 /** The most packages one shipment holds. */
 const MAX_PACKAGES = 50;
@@ -57,6 +65,10 @@ const EVENTS: BlockSqlEvents<ShipmentsEvents> = {
     subject: "shipments",
     payload: ["organizationId", "id", "trackingNumber"],
   },
+  "shipment.return_received": {
+    subject: "shipments",
+    payload: ["organizationId", "id", "lines", "quantity"],
+  },
 };
 
 const NAMES: BlockSqlNames = {
@@ -75,6 +87,7 @@ const NAMES: BlockSqlNames = {
       table: "trackingEvents",
       singular: "shipment_tracking_event",
     },
+    shipment_line: { table: "lines", singular: "shipment_line" },
   },
   events: EVENTS,
   options: ["extraColumns"],
@@ -155,6 +168,7 @@ const NAMES: BlockSqlNames = {
       optional: ["description", "location"],
       typed: ["status"],
     },
+    lines: LINES_TABLE,
   },
 };
 
@@ -284,7 +298,7 @@ create index if not exists ${index("trackingEvents", "timeline_idx")} on ${event
 ${lockModuleTable(ctx, "trackingEvents", { read: true })}
 drop policy if exists ${index("trackingEvents", "read")} on ${events};
 ${renderPolicy(makePolicy({ table: events, name: index("trackingEvents", "read"), command: "select", roles: ["authenticated"], using: readable(e("tenant")) }), { target: events })}${locationKey}
-`;
+${linesTable(ctx)}`;
 }
 
 function functions(
@@ -358,7 +372,7 @@ function functions(
 
   const shipmentJson = (row: string): string =>
     withExtraFields(
-      `jsonb_build_object('id', ${row}.${h("id")}, 'organizationId', ${row}.${h("tenant")}::text, 'reference', ${row}.${h("reference")}, 'status', ${ctx.label("shipments", "status", `${row}.${h("status")}`)}, 'from', ${row}.${h("fromAddress")}, 'to', ${row}.${h("toAddress")}, 'fromLocationId', ${or("shipments", row, "fromLocation")}, 'subjectType', ${or("shipments", row, "subjectType")}, 'subjectId', ${or("shipments", row, "subjectId")}, 'carrier', ${row}.${h("carrier")}, 'service', ${row}.${h("service")}, 'trackingNumber', ${row}.${h("trackingNumber")}, 'trackingUrl', ${or("shipments", row, "trackingUrl")}, 'labelId', ${row}.${h("labelId")}, 'labelUrl', ${or("shipments", row, "labelUrl")}, 'labelFormat', ${row}.${h("labelFormat")}, 'labelCost', ${row}.${h("labelCost")}::text, 'currency', ${row}.${h("currency")}, 'labeledAt', ${row}.${h("labeledAt")}, 'deliveredAt', ${row}.${h("deliveredAt")}, 'cancelledAt', ${row}.${h("cancelledAt")}, 'createdBy', ${or("shipments", row, "createdBy")}, 'createdAt', ${row}.${h("createdAt")}, 'updatedAt', ${row}.${h("updatedAt")}, 'packages', ${packagesJson(row)})`,
+      `jsonb_build_object('id', ${row}.${h("id")}, 'organizationId', ${row}.${h("tenant")}::text, 'reference', ${row}.${h("reference")}, 'status', ${ctx.label("shipments", "status", `${row}.${h("status")}`)}, 'from', ${row}.${h("fromAddress")}, 'to', ${row}.${h("toAddress")}, 'fromLocationId', ${or("shipments", row, "fromLocation")}, 'subjectType', ${or("shipments", row, "subjectType")}, 'subjectId', ${or("shipments", row, "subjectId")}, 'carrier', ${row}.${h("carrier")}, 'service', ${row}.${h("service")}, 'trackingNumber', ${row}.${h("trackingNumber")}, 'trackingUrl', ${or("shipments", row, "trackingUrl")}, 'labelId', ${row}.${h("labelId")}, 'labelUrl', ${or("shipments", row, "labelUrl")}, 'labelFormat', ${row}.${h("labelFormat")}, 'labelCost', ${row}.${h("labelCost")}::text, 'currency', ${row}.${h("currency")}, 'labeledAt', ${row}.${h("labeledAt")}, 'deliveredAt', ${row}.${h("deliveredAt")}, 'cancelledAt', ${row}.${h("cancelledAt")}, 'createdBy', ${or("shipments", row, "createdBy")}, 'createdAt', ${row}.${h("createdAt")}, 'updatedAt', ${row}.${h("updatedAt")}, 'packages', ${packagesJson(row)}, 'lines', ${linesJson(ctx, row)})`,
       row,
       extras,
     );
@@ -452,6 +466,14 @@ function functions(
     fn("create_shipment"),
     `${idType}, jsonb, jsonb, jsonb, text, uuid, text, text`,
   );
+
+  const stockDeclare = ctx.installed("inventory")
+    ? `
+  v_line record;
+  v_part record;
+  v_movement uuid;
+  v_claims text;`
+    : "";
 
   const findForWrite = (
     arg: string,
@@ -620,7 +642,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_ship ${shipments}%rowtype;${syncDeclare}
+  v_ship ${shipments}%rowtype;${syncDeclare}${stockDeclare}
 begin
 ${findForWrite("set_shipment_label.shipment_id")}
   if ${st("v_ship", ["draft"], true)} then
@@ -647,7 +669,7 @@ ${findForWrite("set_shipment_label.shipment_id")}
   end;
   if v_ship.${h("carrier")} is null or v_ship.${h("service")} is null or v_ship.${h("trackingNumber")} is null or v_ship.${h("labelId")} is null or v_ship.${h("labelCost")} is null then
     ${fail("SHIPMENT_LABEL_INVALID", "a label needs a carrier, service, tracking number, label id, a cost of zero or more and a currency", "22023")}
-  end if;
+  end if;${shipLines(ctx)}
   insert into ${events} (${e("tenant")}, ${e("shipment")}, ${e("externalId")}, ${e("status")}, ${e("occurredAt")}${also("trackingEvents", "description")}, ${e("source")})
   values (v_ship.${h("tenant")}, v_ship.${h("id")}, 'label:' || v_ship.${h("labelId")}, ${ctx.value("trackingEvents", "status", "label_created")}, now()${alsoValue("trackingEvents", "description", "'Label created'")}, 'carrier')
   on conflict (${e("shipment")}, ${e("externalId")}) do nothing;
@@ -728,12 +750,12 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_ship ${shipments}%rowtype;
+  v_ship ${shipments}%rowtype;${stockDeclare}
 begin
 ${findForWrite("cancel_shipment.shipment_id")}
   if ${st("v_ship", ["draft", "label_created"], true)} then
     ${fail("SHIPMENT_SHIPPED", "only a draft or a shipment that hasn't left gets cancelled", "55000")}
-  end if;
+  end if;${restoreLines(ctx)}
   update ${shipments} x set
     ${h("status")} = ${ctx.value("shipments", "status", "cancelled")},
     ${h("cancelledAt")} = now(),
@@ -751,7 +773,7 @@ ${findForWrite("cancel_shipment.shipment_id")}
 end;
 $$;
 ${userGrant(`${fn("cancel_shipment")}(uuid)`)}
-
+${lineFunctions(ctx, findForWrite, shipmentJson)}
 -- A shipment's tracking timeline, oldest first.
 create or replace function ${fn("list_tracking_events")}(shipment_id uuid)
 returns jsonb
@@ -881,6 +903,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "cancel_shipment", args: ["uuid"], returns: "jsonb" },
     { name: "list_tracking_events", args: ["uuid"], returns: "jsonb" },
+    { name: "set_shipment_lines", args: ["uuid", "jsonb"], returns: "jsonb" },
+    {
+      name: "receive_shipment_return",
+      args: ["uuid", "jsonb"],
+      returns: "jsonb",
+    },
   ];
 }
 
@@ -891,9 +919,18 @@ export const SHIPMENTS: BlockSqlDefinition = {
   description:
     "Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "audit", "assets"],
+  integrates: ["outbox", "audit", "assets", "inventory"],
   target: "schema",
   modes: ["managed", "custom"],
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Adds shipment_lines: the stock a shipment carries out, taken from inventory when it gets its label and put back when it is cancelled, and the returns received against it with a restock, hold or scrap disposition.",
+      sql: () => "",
+    },
+  ],
   names: NAMES,
   contract,
   build,
