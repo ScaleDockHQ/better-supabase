@@ -98,6 +98,18 @@ library.
 
 ## Renames
 
+In 0.35 the refresh options name what they check, and the session provider
+prop takes a session or a promise.
+[`better-supabase codemod 0.35`](/docs/cli/codemod) renames them; the
+[0.34 to 0.35 guide](/docs/migration/0.34-to-0.35) has the details.
+
+| Before (0.34)                                 | After (0.35)                                  |
+| --------------------------------------------- | --------------------------------------------- |
+| `refresh: "navigation"`                       | `refresh: true`                               |
+| `verifySession: "navigation"`                 | `verifySession: "document"`                   |
+| `<SessionProvider sessionPromise={...}>`      | `<SessionProvider session={...}>`             |
+| `cacheLife({ stale: sessionStale(session) })` | `bsb.cached()` (stale 300 seconds by default) |
+
 From 0.32 the auth names follow supabase-js and Next.js.
 [`better-supabase codemod 0.32`](/docs/cli/codemod) renames them and lists the
 lines it can't rename safely; the

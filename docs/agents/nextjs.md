@@ -158,6 +158,27 @@ cache fails with `Could not resolve "better-supabase/blocks/..."`.
   holds a reload of the same URL until that response ends (its HTTP cache
   lock), so a reload looks slow even when the server answers at once.
 
+## Islands, bootstrap and the remote scope
+
+- `/islands` sits outside the `(app)` layout on purpose: the sidebar and
+  menus there make their own calls, so the page's budget (one token
+  verification, one `bootstrap_islands` call) would fail. Keep new budget
+  pages outside it too.
+- `bsb.bootstrap()` calls the wrapper in the schema that `createNext()`'s
+  `bootstrapSchema` names, `better_supabase` by default; it doesn't follow
+  `blocks.sessions.api`. The example's wrappers are in `api`, so
+  `src/lib/supabase/server.ts` sets `bootstrapSchema: "api"`.
+- A verification is a session memo miss. The e2e test reads the counts from
+  `/api/bs-sessions` (`bsb.sessions.stats()`), which answers only in a build
+  with `EXPOSE_TESTING_API=1`.
+- Without `cacheHandlers.remote`, each `next start` keeps its own remote
+  entries. The example points `remoteCacheHandler` at a file store when
+  `BSB_REMOTE_CACHE_DIR` is set; only the tests set it.
+- Realtime doesn't replay a broadcast sent before the channel joined. A test
+  that bumps the authorization version waits for the `phx_reply` with status
+  `ok` to the `realtime:authz:<uid>` join first (`authzJoined` in
+  `tests/islands.spec.ts`).
+
 ## API and MCP in the example
 
 - `src/features/api/api-resources.ts` is the one resource map: `/api/v1`
