@@ -23,12 +23,14 @@ describe("server sessions", () => {
     const request = await requestAs({ role: "member" });
     const verify = vi.spyOn(crypto.subtle, "verify");
 
-    const [first, second] = await Promise.all([
+    const [first, second, again] = await Promise.all([
       server.snapshot(request),
+      server.snapshot(request.clone()),
       server.snapshot(request),
     ]);
 
     expect(first).toBe(second);
+    expect(again).toBe(first);
     expect(first).toMatchObject({ userId: USER });
     expect(verify).toHaveBeenCalledOnce();
     expect(server.sessions.stats()).toMatchObject({ hits: 1, misses: 1 });
@@ -93,5 +95,10 @@ describe("server sessions", () => {
     await server.snapshot(request);
 
     expect(server.sessions.stats()).toMatchObject({ hits: 0, misses: 2 });
+
+    server.sessions.clear();
+    await server.snapshot(request);
+
+    expect(server.sessions.stats()).toMatchObject({ hits: 0, misses: 1 });
   });
 });

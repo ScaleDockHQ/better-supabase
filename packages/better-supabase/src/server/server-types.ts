@@ -198,8 +198,9 @@ export interface ServerOptions<
    */
   readonly approval?: ApprovalOptions;
   /**
-   * The verified-session memo `snapshot()` and adapters share across cache
-   * scopes: size and lifetime, or `false` to verify in every scope.
+   * The server's one verified-token memo, shared by the proxy, contexts,
+   * `snapshot()` and adapters: size and lifetime, or `false` to verify the
+   * token on every call.
    */
   readonly sessions?: SessionMemoOptions | false;
 }
@@ -418,9 +419,11 @@ export interface BetterServer<
   ): ServerContext<M, F, E, C, P, B>;
   /**
    * A stateless supabase-js client for an auth state, optionally with extra
-   * request headers.
+   * request headers: `createContextClient` from `@supabase/server/core` for a
+   * user or anon, `createAdminClient` for a secret key. Without headers, the
+   * admin and anon clients are shared.
    */
-  supabaseFor(
+  contextClient(
     auth: AuthState,
     headers?: Readonly<Record<string, string>>,
   ): SupabaseClient;

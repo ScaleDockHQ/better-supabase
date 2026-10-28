@@ -1,9 +1,11 @@
 /**
  * `server.context()` latency for an anonymous request, a bearer token the
- * process has not verified yet, one it has, and a repeat call on one request.
- * Run with `pnpm --filter better-supabase bench`.
+ * process has not verified yet, one it has (a hit in the server's
+ * verified-token memo), the same token on a server without the memo (the shared
+ * key set warm), and a repeat call on one request. Run with `pnpm --filter
+ * better-supabase bench`.
  */
-import { clearVerifiedTokens } from "../../src/auth/resolve.ts";
+import { clearKeyCaches } from "../../src/auth/resolve.ts";
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { createServer } from "../../src/server/server.ts";
@@ -32,17 +34,23 @@ const token = await signer.sign({
   org_id: "00000000-0000-4000-8000-000000000001",
 });
 
-const server = createServer(
-  defineSupabase(schema).use(membershipsExtension({ claim: "org_id" })),
-  {
+const betterSupabase = defineSupabase(schema).use(
+  membershipsExtension({ claim: "org_id" }),
+);
+
+const serverWith = (sessions?: false) =>
+  createServer(betterSupabase, {
     env: {
       url: PROJECT_URL,
       publishableKey: "sb_publishable_test",
       jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
     },
     auth: { jwks: signer.jwks },
-  },
-);
+    ...(sessions === false ? { sessions } : {}),
+  });
+
+const server = serverWith();
+const unmemoized = serverWith(false);
 
 const anonymous = (): Request => new Request("https://app.test/");
 
@@ -72,7 +80,8 @@ const anon = await measure(async () => {
 });
 
 const cold = await measure(async () => {
-  clearVerifiedTokens();
+  clearKeyCaches();
+  server.sessions.clear();
   const ctx = await server.context(bearer());
 
   return ctx.db;
@@ -80,6 +89,12 @@ const cold = await measure(async () => {
 
 const warm = await measure(async () => {
   const ctx = await server.context(bearer());
+
+  return ctx.db;
+});
+
+const keysWarm = await measure(async () => {
+  const ctx = await unmemoized.context(bearer());
 
   return ctx.db;
 });
@@ -98,6 +113,7 @@ console.table({
   anonymous: { "µs per context": anon.toFixed(1) },
   "bearer, first verification": { "µs per context": cold.toFixed(1) },
   "bearer, verified": { "µs per context": warm.toFixed(1) },
+  "bearer, no memo, keys warm": { "µs per context": keysWarm.toFixed(1) },
   "same request again": { "µs per context": repeat.toFixed(1) },
 });
 

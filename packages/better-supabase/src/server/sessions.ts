@@ -1,17 +1,14 @@
-import type { AuthResolution, AuthState } from "../auth/resolve.ts";
-import type { SessionMemoOptions, SessionSnapshot } from "../auth/snapshot.ts";
+import type {
+  AuthResolution,
+  AuthState,
+  VerifiedUser,
+} from "../auth/resolve.ts";
+import type { SessionMemo, SessionSnapshot } from "../auth/snapshot.ts";
 import type { AuthzVersionCache } from "../core/authorizer.ts";
 import type { ServerSessions } from "./server-types.ts";
 
-import { requestToken } from "../auth/resolve.ts";
-import { authOfSnapshot, sessionMemo, snapshotOf } from "../auth/snapshot.ts";
+import { authOfSnapshot, snapshotOf } from "../auth/snapshot.ts";
 import { dbError } from "../core/errors.ts";
-
-/** A memoized session: the verified user and the snapshot handed out for it. */
-interface VerifiedSession<C, P> {
-  readonly auth: Extract<AuthState<C, P>, { readonly kind: "user" }>;
-  readonly snapshot: SessionSnapshot<C>;
-}
 
 const ANON = { kind: "none", reason: "none" } as const;
 
@@ -38,25 +35,19 @@ function authFor<C, P>(session: SessionSnapshot<C>): AuthState<C, P> {
 }
 
 export interface SessionsOptions<C, P, Ctx> {
+  /** Resolves a request; its token verification goes through `memo`. */
   readonly resolve: (
     request: Request,
     options: { readonly refresh: false; readonly cookies?: false },
   ) => Promise<AuthResolution<C, P>>;
-  readonly cookieName: () => string;
-  /** Read the session cookie (`auth.cookies`). */
-  readonly cookies: boolean;
-  /**
-   * A custom resolver or the lite backend may read credentials `requestToken`
-   * doesn't know, so their requests skip the memo.
-   */
-  readonly custom: boolean;
-  readonly memo: SessionMemoOptions | false | undefined;
+  /** The server's verified-token memo, `undefined` with `sessions: false`. */
+  readonly memo: SessionMemo<VerifiedUser> | undefined;
   readonly versions: AuthzVersionCache | undefined;
   /** A context for an auth state, without a request. */
   readonly contextFor: (auth: AuthState<C, P>, options: object) => Ctx;
 }
 
-/** The members of `BetterServer` that the verified-session memo backs. */
+/** The members of `BetterServer` that the verified-token memo backs. */
 export function serverSessions<C, P, Ctx, Opts extends object>(
   options: SessionsOptions<C, P, Ctx>,
 ): {
@@ -68,47 +59,37 @@ export function serverSessions<C, P, Ctx, Opts extends object>(
   readonly sessions: ServerSessions<C, P>;
   readonly evictSession: (userId: string) => Promise<void>;
 } {
-  const memo =
-    options.memo === false
-      ? undefined
-      : sessionMemo<VerifiedSession<C, P>>(
-          (verified) => verified.auth.expiresAt,
-          options.memo,
-        );
+  const { memo } = options;
 
-  const verified = (
-    auth: AuthState<C, P>,
-    token: string,
-  ): VerifiedSession<C, P> | null => {
-    if (auth.kind !== "user" || auth.token !== token) {
-      return null;
-    }
+  /** A memo hit returns the stored user, so its snapshot is built once. */
+  const snapshots = new WeakMap<object, SessionSnapshot<C> | null>();
 
-    const snapshot = snapshotOf(auth);
+  /** Loaders of one request share its resolution until an eviction. */
+  let byRequest = new WeakMap<Request, Promise<SessionSnapshot<C> | null>>();
 
-    return snapshot ? { auth, snapshot } : null;
-  };
-
-  const snapshot = async (
+  const build = async (
     request: Request,
   ): Promise<SessionSnapshot<C> | null> => {
-    const token = options.custom
-      ? null
-      : requestToken(request, options.cookieName(), options.cookies);
+    const { auth } = await options.resolve(request, { refresh: false });
+    let found = snapshots.get(auth);
 
-    if (!token || !memo) {
-      const resolution = await options.resolve(request, { refresh: false });
-
-      return snapshotOf(resolution.auth);
+    if (found === undefined) {
+      found = snapshotOf(auth);
+      snapshots.set(auth, found);
     }
 
-    const found = await memo.get(token, async () => {
-      const resolution = await options.resolve(request, { refresh: false });
+    return found;
+  };
 
-      return verified(resolution.auth, token);
-    });
+  const snapshot = (request: Request): Promise<SessionSnapshot<C> | null> => {
+    let found = byRequest.get(request);
 
-    return found?.snapshot ?? null;
+    if (!found) {
+      found = build(request);
+      byRequest.set(request, found);
+    }
+
+    return found;
   };
 
   const contextFromSession = (
@@ -121,7 +102,8 @@ export function serverSessions<C, P, Ctx, Opts extends object>(
   };
 
   const evict = (userId: string): void => {
-    memo?.evict((session) => session.auth.user.id === userId);
+    byRequest = new WeakMap();
+    memo?.evict((user) => user.user.id === userId);
   };
 
   return {
@@ -130,14 +112,15 @@ export function serverSessions<C, P, Ctx, Opts extends object>(
     sessions: {
       stats: () => memo?.stats() ?? { hits: 0, misses: 0, size: 0 },
       seed: async (auth) => {
-        const found = auth.kind === "user" ? verified(auth, auth.token) : null;
-
-        if (found && memo) {
-          await memo.seed(found.auth.token, found);
+        if (auth.kind === "user" && auth.token !== "" && memo) {
+          await memo.seed(auth.token, auth);
         }
       },
       evict,
-      clear: () => memo?.clear(),
+      clear: () => {
+        byRequest = new WeakMap();
+        memo?.clear();
+      },
     },
     evictSession: async (userId) => {
       evict(userId);

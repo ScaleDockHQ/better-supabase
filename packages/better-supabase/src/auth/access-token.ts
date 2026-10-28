@@ -84,7 +84,6 @@ export interface AccessTokenResolverOptions {
 
 const TYPES = new Set(["at+jwt", "application/at+jwt"]);
 const BEARER = /^Bearer\s+([\w.~+/-]+=*)\s*$/i;
-const MEMO_SIZE = 256;
 
 function headerOf(token: string): Record<string, unknown> | undefined {
   const part = token.split(".", 1)[0];
@@ -307,7 +306,6 @@ export function accessTokenResolver(
     ...(options.now ? { now: options.now } : {}),
   });
 
-  const memo = new Map<string, Verified>();
   const seconds = (): number => Math.floor((options.now ?? Date.now)() / 1000);
 
   const verify = async (
@@ -316,18 +314,6 @@ export function accessTokenResolver(
     { ok: true; verified: Verified } | { ok: false; state: ResolvedState }
   > => {
     const now = seconds();
-    const hit = memo.get(token);
-
-    if (hit) {
-      memo.delete(token);
-
-      if (hit.expiresAt + (options.clockSkew ?? 30) > now) {
-        memo.set(token, hit);
-
-        return { ok: true, verified: hit };
-      }
-    }
-
     let payload: Readonly<Record<string, unknown>> | undefined;
 
     for (const refresh of [false, true]) {
@@ -373,14 +359,7 @@ export function accessTokenResolver(
       return checked;
     }
 
-    const verified = verifiedOf(checked.payload, options);
-    memo.set(token, verified);
-
-    if (memo.size > MEMO_SIZE) {
-      memo.delete(memo.keys().next().value!);
-    }
-
-    return { ok: true, verified };
+    return { ok: true, verified: verifiedOf(checked.payload, options) };
   };
 
   return {
@@ -411,8 +390,6 @@ export function accessTokenResolver(
         }
 
         if (revoked.data) {
-          memo.delete(token);
-
           return invalid(
             "ACCESS_TOKEN_REVOKED",
             "The access token was revoked",

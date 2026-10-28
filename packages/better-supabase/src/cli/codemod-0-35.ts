@@ -18,10 +18,13 @@ const POLICY = /(?<![\w$])(refresh|verifySession)(\s*:\s*)(["'])navigation\3/g;
 
 const SESSION_PROMISE = /(?<![\w$.])sessionPromise(?=\s*=\s*\{)/g;
 
+const SUPABASE_FOR = /(?<=\.\s*)supabaseFor(?=\s*\()/g;
+
 /**
  * `refresh: "navigation"` is `refresh: true`, `verifySession: "navigation"` is
- * `verifySession: "document"`, and `<SessionProvider sessionPromise={...}>` is
- * `session={...}`, where the key is code.
+ * `verifySession: "document"`, `<SessionProvider sessionPromise={...}>` is
+ * `session={...}` and `server.supabaseFor(auth)` is
+ * `server.contextClient(auth)`, where the key is code.
  */
 function renamePolicies(text: string): {
   readonly text: string;
@@ -52,6 +55,13 @@ function renamePolicies(text: string): {
         end: match.index + match[0].length,
         text: "session",
       })),
+    ...[...text.matchAll(SUPABASE_FOR)]
+      .filter(inCode)
+      .map((match) => ({
+        start: match.index,
+        end: match.index + match[0].length,
+        text: "contextClient",
+      })),
   ];
 
   let result = text;
@@ -66,7 +76,7 @@ function renamePolicies(text: string): {
 export const CODEMOD_0_35: Codemod = {
   name: "0.35",
   description:
-    'Rewrites refresh: "navigation" to refresh: true, verifySession: "navigation" to verifySession: "document" and the SessionProvider sessionPromise prop to session, and lists for review the lines that use onExpiredPrefetch, shouldRefresh, clearSessionCookies (now async), the removed cookie codec (writeSession, refreshSession, AUTH_CACHE_HEADERS, pruneSessionChunks, sessionEncoding, clearSessionAtScopes), sessionStale, life.min and life.max, and contextFromSession with a token',
+    'Rewrites refresh: "navigation" to refresh: true, verifySession: "navigation" to verifySession: "document" and the SessionProvider sessionPromise prop to session and supabaseFor calls to contextClient, and lists for review the lines that use onExpiredPrefetch, shouldRefresh, clearSessionCookies (now async), the removed cookie codec (writeSession, refreshSession, AUTH_CACHE_HEADERS, pruneSessionChunks, sessionEncoding, clearSessionAtScopes), sessionStale, life.min and life.max, contextFromSession with a token, a destructured supabaseFor and sessions: false',
   review: [
     {
       pattern: /\bonExpiredPrefetch\b/,
@@ -109,6 +119,16 @@ export const CODEMOD_0_35: Codemod = {
       pattern: /\bsessionStatusRoute\(/,
       message:
         "`sessionStatusRoute` reads the verified claims only now (`verifySession` defaults to false): pass `verifySession: true` to keep asking Auth on every check",
+    },
+    {
+      pattern: /(?<![\w$.])supabaseFor\b/,
+      message:
+        "`supabaseFor` on the server is now `contextClient`: rename the destructured method and its calls",
+    },
+    {
+      pattern: /\bsessions\s*:\s*false\b/,
+      message:
+        "`sessions: false` now turns off the one verified-token memo, so every request verifies its token again (about 0.1 ms each): drop it unless you need that",
     },
   ],
   source: renamePolicies,

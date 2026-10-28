@@ -361,25 +361,25 @@ describe("createServer clients", () => {
   it("shares the service and anon clients for the primary only", async () => {
     const { sent } = stubFetch();
     const server = createServer(defineSupabase(schema), { env: secretEnv });
-    expect(server.supabaseFor(service)).toBe(server.supabaseFor(service));
-    expect(server.supabaseFor(anon)).toBe(server.supabaseFor(anon));
+    expect(server.contextClient(service)).toBe(server.contextClient(service));
+    expect(server.contextClient(anon)).toBe(server.contextClient(anon));
     expect(
-      server.supabaseFor({
+      server.contextClient({
         kind: "invalid",
         reason: "token",
         error: { kind: "unauthorized", message: "x", status: 401 } as never,
       }),
-    ).toBe(server.supabaseFor(anon));
-    expect(server.supabaseFor(anon)).not.toBe(server.supabaseFor(service));
+    ).toBe(server.contextClient(anon));
+    expect(server.contextClient(anon)).not.toBe(server.contextClient(service));
 
-    const tagged = server.supabaseFor(service, { "x-job": "nightly" });
-    expect(tagged).not.toBe(server.supabaseFor(service));
+    const tagged = server.contextClient(service, { "x-job": "nightly" });
+    expect(tagged).not.toBe(server.contextClient(service));
     await tagged.from("customers").select("id");
     expect(sent(0).headers.get("x-job")).toBe("nightly");
     expect(sent(0).headers.get("apikey")).toBe("sb_secret_test");
 
-    const anonTagged = server.supabaseFor(anon, { "x-job": "public" });
-    expect(anonTagged).not.toBe(server.supabaseFor(anon));
+    const anonTagged = server.contextClient(anon, { "x-job": "public" });
+    expect(anonTagged).not.toBe(server.contextClient(anon));
     await anonTagged.from("customers").select("id");
     expect(sent(1).headers.get("x-job")).toBe("public");
     expect(sent(1).headers.get("apikey")).toBe("sb_publishable_test");
@@ -389,7 +389,7 @@ describe("createServer clients", () => {
     const { sent } = stubFetch();
     const server = createServer(defineSupabase(schema), { env });
     await server
-      .supabaseFor(user("user-token"), { "x-request-id": "r9" })
+      .contextClient(user("user-token"), { "x-request-id": "r9" })
       .from("customers")
       .select("id");
     expect(sent(0).headers.get("authorization")).toBe("Bearer user-token");
@@ -493,7 +493,7 @@ describe("createServer clients", () => {
     expect(() => server.admin()).toThrow(
       "admin() needs SUPABASE_SECRET_KEY; it is not set",
     );
-    expect(() => server.supabaseFor(service, { "x-a": "1" })).toThrow(
+    expect(() => server.contextClient(service, { "x-a": "1" })).toThrow(
       /SUPABASE_SECRET_KEY/,
     );
   });

@@ -18,4 +18,3 @@ Other changes:
 - The JWKS is fetched with `auth.fetch` and cached once per process, so every module graph (proxy, render, route handlers) shares one copy.
 - When Auth can't be reached, a refresh fails within `timeoutMs` without auth-js's retries and keeps the cookies as they are.
 - A response that `after` returns in `bsb.proxy()` keeps the refreshed session cookies and cache headers.
-- The session memo still holds 256 entries per process.

@@ -2,12 +2,12 @@ import type { JWTClaims, UserClaims } from "@supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getEnv, pipeline, seedContext } from "@supabase/middleware";
-import { createClient } from "@supabase/supabase-js";
 
 import type {
   AuthResolution,
   AuthState,
   ResolvePhase,
+  VerifiedUser,
 } from "../auth/resolve.ts";
 import type { SessionEncoding } from "../auth/session.ts";
 import type { AuthzVersionCache, RequestMemo } from "../core/authorizer.ts";
@@ -47,6 +47,7 @@ import {
 import { actClaim, userContext } from "../auth/impersonation.ts";
 import { prefetchJwks, resolveAuth } from "../auth/resolve.ts";
 import { sessionCookieName } from "../auth/session.ts";
+import { sessionMemo } from "../auth/snapshot.ts";
 import { bindAuthorizer, requestMemo } from "../core/authorizer.ts";
 import { hooksApiProblem } from "../core/contracts/authorization-hooks.ts";
 import { dbError } from "../core/errors.ts";
@@ -196,14 +197,13 @@ export function createServer<
     serviceClient,
     readUrl,
     apiKeyClient,
-    supabaseFor,
+    contextClient,
     restAt,
   } = createClients({
     options,
     env,
     definitionExecutor: betterSupabase.executorOptions(),
     lite,
-    createClient,
   });
 
   /** `$client` stays the full Supabase client, built when first read. */
@@ -226,7 +226,7 @@ export function createServer<
 
     // `db.$storage` and `db.$buckets` build the full client on first use.
     const storage: StorageApi = {
-      from: (bucket) => (supabase ??= supabaseFor(auth)).storage.from(bucket),
+      from: (bucket) => (supabase ??= contextClient(auth)).storage.from(bucket),
     };
 
     // SAFETY: `$client` is redefined below to return the SupabaseClient.
@@ -240,7 +240,7 @@ export function createServer<
           : { storage },
     ) as Db<M, F, E, SupabaseClient, B>;
 
-    return withLazyClient(db, () => (supabase ??= supabaseFor(auth)));
+    return withLazyClient(db, () => (supabase ??= contextClient(auth)));
   };
 
   const sqlFor = (
@@ -609,7 +609,10 @@ export function createServer<
           : undefined;
 
     const client = (): SupabaseClient =>
-      (supabase ??= supabaseFor(auth, sharesClient ? clientHeaders : headers));
+      (supabase ??= contextClient(
+        auth,
+        sharesClient ? clientHeaders : headers,
+      ));
 
     let replica: ReplicaState | undefined;
 
@@ -714,6 +717,12 @@ export function createServer<
       scopeIds(request, contextOptions),
     );
 
+  /** The one verified-token memo: the proxy, contexts and `getClaims` share it. */
+  const verifiedTokens =
+    options.sessions === false
+      ? undefined
+      : sessionMemo<VerifiedUser>((user) => user.expiresAt, options.sessions);
+
   const resolve = async (
     request: Request,
     resolveOptions: {
@@ -730,6 +739,7 @@ export function createServer<
 
     const resolved = await resolveAuth(request, {
       logger: betterSupabase.events.logger,
+      ...(verifiedTokens ? { memo: verifiedTokens } : {}),
       ...(lite ? lite.auth() : options.auth),
       ...(claims ? { claims } : {}),
       ...(userMetadata ? { userMetadata } : {}),
@@ -800,19 +810,10 @@ export function createServer<
     options.versions ? { versions: options.versions } : {},
   );
 
-  // A custom resolver or the lite backend may read credentials requestToken
-  // doesn't know, so those requests skip the memo.
-  const custom =
-    lite !== undefined || (options.auth?.resolvers?.length ?? 0) > 0;
-
   const { snapshot, contextFromSession, sessions, evictSession } =
     serverSessions<C, P, ServerContext<M, F, E, C, P, B>, ContextOptions>({
       resolve,
-      cookieName: () =>
-        options.auth?.cookie?.name ?? sessionCookieName(env().url),
-      cookies: options.auth?.cookies !== false,
-      custom,
-      memo: options.sessions,
+      memo: verifiedTokens,
       versions: options.versions,
       contextFor: (auth, contextOptions: ContextOptions) =>
         contextFor(
@@ -845,7 +846,7 @@ export function createServer<
     sessions,
     evictSession,
     resolve,
-    supabaseFor,
+    contextClient,
     dbFor: (auth, context, dbOptions) =>
       dbOptions?.support
         ? supportContextFor(
@@ -932,7 +933,7 @@ export function createServer<
       const client =
         adminOptions.as === undefined
           ? serviceClient()
-          : supabaseFor(
+          : contextClient(
               { kind: "secret", keyName: "secret" },
               { [ACTOR_HEADER]: adminOptions.as },
             );
