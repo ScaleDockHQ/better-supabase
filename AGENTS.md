@@ -210,13 +210,13 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0093: blocks install as named instances behind one data contract; plugins, sections and preset codes go (supersedes 0064).
 - 0094: supported adapters (Next.js, Hono, Expo, SvelteKit, TanStack Start, React Router) get the full test matrix; the rest are community adapters with a smoke test.
 - 0095: one token verification per request across cache scopes, through a session memo keyed by the token hash.
-- 0096: authorization libraries pass a version cache to `createServer`; `subscribeAuthzVersions` evicts users on a Realtime broadcast.
+- 0096: authorization libraries pass a version cache to `createServer`; `subscribeAuthzVersions` evicts users on a Realtime broadcast, and `SessionProvider` refreshes on the user's `authz:<uid>` topic.
 - 0097: `gen.contentMapper` serves the schema types through a TypeScript 7.1 content mapper; the `ts71` catalog pins the beta for tests only.
 - 0098: blocks detect the app's tables per table (`ownTables`) and run over them; every block table is adoptable except the `workflow-sdk` world; `ownership: "adopt"` is removed (breaking).
 - 0099: tenant isolation renders as one restrictive `bsb_tenant_scope` policy per tenant table; an app's permissive policy can't widen it.
 - 0100: One project pipeline for the config, the CLI, Create and the cloud; `checkProject` returns one `Issue` type.
 - 0101: Adopt one rung at a time: `init`, helpers for every table, table features, blocks over your tables.
-- 0102: Tables are user-owned SQL; per-table features are `@bsb` tags in the table comment.
+- 0102: Tables are user-owned SQL; per-table features are `@bsb` tags in the table comment; block SQL defaults to `supabase/schemas` with the `900_better_supabase` prefix.
 - 0103: Block modules emit typed `Policy` values; the tenant scope and actor guard compose on them.
 - 0104: Per-command tenant scope to public, default privileges, anonymous excluded, rls-guard on.
 - 0105: The catalog is verified offline and by a generated role by command by table access matrix.
@@ -229,6 +229,9 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0112: Vercel Sandbox runs chat sandboxes through an optional-peer adapter; credentials reach the VM only at its firewall.
 - 0113: eve tools run as the user through `forContext` with delegated scopes; approvals block approvals and queue schedules drive them.
 - 0114: Authorization libraries get a typed, additive contract: `claims` and `contract` subpaths, request intent and source, typed `versions`, approval ids, `blockTables`.
+- 0115: A page reads its user data in one `bsb.bootstrap` call, private or remote, from a generated `bootstrap_<rpc>` wrapper.
+- 0116: One JWKS per process on `globalThis`; the verified-token memos stay until a benchmark retires them.
+- 0117: Sessions refresh through `@supabase/ssr` on every request; a coalescing fetch makes one Auth call per refresh token.
 
 ## Pre-release pins
 

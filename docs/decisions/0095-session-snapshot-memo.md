@@ -35,12 +35,20 @@ from a branded snapshot with no cookie read, no network call and no second
 verification. A copy gets the `invalid` context, so callers pass plain
 values into cached functions, never the snapshot.
 
-In Next.js, `bsb.getRequestSession()` awaits `cookies()`, reads the session
-cookie, looks it up in the memo and only then reads the clock. `session()`,
-`context()` and `cached()` build on it. The proxy seeds the memo after a
-refresh, and `bsb.signIn()` after a sign-in. `invalidateSession(userId)`
-evicts the user. SvelteKit, TanStack Start, React Router, Hono and Expo
-expose the snapshot to loaders and handlers.
+In Next.js, `bsb.getClaims()` awaits `cookies()`, reads the session cookie,
+looks it up in the memo and only then reads the clock. `claims()` (the
+serializable `AuthSession`), `context()`, `cached()` and `bootstrap()` build
+on it. The proxy seeds the memo when it refreshed the token, and the sign-in
+flows seed it after a sign-in, so the render that follows reads a verified
+entry. `bsb.evictSession(userId)` evicts the user from the memo, from the
+authorization version cache (ADR 0096) and from every cache entry tagged
+with the user's session. SvelteKit, TanStack Start, React Router, Hono and
+Expo expose the snapshot to loaders and handlers.
+
+`bsb.bootstrap()` (ADR 0115) is the usual reader in a page: its first island
+verifies the token through the memo, and the others share the result through
+React's `cache()`. The memo sits on top of the resolver's verified-token memo
+and the one process-wide JWKS (ADR 0116).
 
 ## Alternatives considered
 
