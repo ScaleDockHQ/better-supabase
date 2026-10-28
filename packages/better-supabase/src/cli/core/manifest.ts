@@ -650,7 +650,14 @@ export const COMMANDS: readonly CommandSpec[] = [
       {
         name: "0.35",
         description:
-          "Changes from 0.34 to 0.35: the proxy refreshes on every request, session cookies go through @supabase/ssr, and the cookie codec and prefetch predicates are gone",
+          "The 0.36 part of the 0.35 to 0.37 changes, as 0.36.0 shipped it: the proxy refreshes on every request, session cookies go through @supabase/ssr, and the cookie codec and prefetch predicates are gone. Prefer codemod 0.37",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
+        name: "0.37",
+        description:
+          "Changes from 0.35 to 0.37: the proxy refreshes on every request, session cookies go through @supabase/ssr, the cookie codec and prefetch predicates are gone, and stock quantities are numeric",
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },

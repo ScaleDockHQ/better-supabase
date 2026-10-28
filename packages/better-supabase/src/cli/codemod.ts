@@ -10,7 +10,7 @@ import type { ConfigEdit } from "./sql/config-edit.ts";
 import { BLOCK_EVENT_RENAMES } from "../events/index.ts";
 import { codeRanges } from "./code-ranges.ts";
 import { CODEMOD_0_32 } from "./codemod-0-32.ts";
-import { CODEMOD_0_35 } from "./codemod-0-35.ts";
+import { CODEMODS_0_37 } from "./codemod-0-37.ts";
 import {
   BLOCK_EXPORT_RENAMES,
   PLUGIN_IMPORT_RENAMES,
@@ -529,7 +529,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   },
   "0.29": CODEMOD_0_29,
   "0.32": CODEMOD_0_32,
-  "0.35": CODEMOD_0_35,
+  ...CODEMODS_0_37,
 };
 
 const SUPABASE_IMPORT =

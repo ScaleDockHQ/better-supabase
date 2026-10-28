@@ -405,7 +405,36 @@ Docs: https://bettersupabase.com/docs/cli/codemod
 exports[`help > documents codemod 0.35 1`] = `
 "Usage: better-supabase codemod 0.35 [options] [path...]
 
-Changes from 0.34 to 0.35: the proxy refreshes on every request, session cookies go through @supabase/ssr, and the cookie codec and prefetch predicates are gone
+The 0.36 part of the 0.35 to 0.37 changes, as 0.36.0 shipped it: the proxy refreshes on every request, session cookies go through @supabase/ssr, and the cookie codec and prefetch predicates are gone. Prefer codemod 0.37
+
+Arguments
+  [path...]  Files or directories to rewrite (default: the project)
+
+Options
+  --dry-run  Show the changes without writing them
+  --check    Write nothing; exit 1 with a diff when a file would change
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Side effects: Writes files.
+Docs: https://bettersupabase.com/docs/cli/codemod
+"
+`;
+
+exports[`help > documents codemod 0.37 1`] = `
+"Usage: better-supabase codemod 0.37 [options] [path...]
+
+Changes from 0.35 to 0.37: the proxy refreshes on every request, session cookies go through @supabase/ssr, the cookie codec and prefetch predicates are gone, and stock quantities are numeric
 
 Arguments
   [path...]  Files or directories to rewrite (default: the project)
@@ -445,7 +474,8 @@ Commands
   0.15  Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, exports take their block, record and provider names, the config regroups, renamed blocks take their 0.15 names, and CLI calls use the new commands
   0.29  Changes from 0.28 to 0.29: records is renamed back to subjects in the config, and record tags in the schema files become subject tags
   0.32  Changes from 0.31 to 0.32: tenant is the public word again (auth.tenant, requireTenant), and sign-in, session, proxy and cache names follow supabase-js
-  0.35  Changes from 0.34 to 0.35: the proxy refreshes on every request, session cookies go through @supabase/ssr, and the cookie codec and prefetch predicates are gone
+  0.35  The 0.36 part of the 0.35 to 0.37 changes, as 0.36.0 shipped it: the proxy refreshes on every request, session cookies go through @supabase/ssr, and the cookie codec and prefetch predicates are gone. Prefer codemod 0.37
+  0.37  Changes from 0.35 to 0.37: the proxy refreshes on every request, session cookies go through @supabase/ssr, the cookie codec and prefetch predicates are gone, and stock quantities are numeric
 
 Global options
   --cwd <dir>            Project directory
