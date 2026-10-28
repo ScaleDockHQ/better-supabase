@@ -16,6 +16,7 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
+import { alarmsTable, alarmWrites } from "./calendar-alarms.ts";
 import { attendeesSql } from "./calendar-attendees.ts";
 import {
   availabilityContract,
@@ -288,7 +289,7 @@ ${addCheck({
 })}${eventColumns}${addExtraColumns(events, eventExtras(ctx))}
 ${lockTable(events, { read: true })}
 ${renderPolicy(makePolicy({ table: events, name: `${ctx.tableName("events").name}_read`, command: "select", roles: ["authenticated"], using: features.access ? eventAccessCall(ctx, e("id"), "read", me) : ctx.scope.check(e("tenant"), read) }), { drop: true, target: events })}
-${attendeesTable()}${workingHoursTable(ctx)}${grantsTable(ctx)}${recurrenceTables(ctx)}`
+${attendeesTable()}${alarmsTable(ctx)}${workingHoursTable(ctx)}${grantsTable(ctx)}${recurrenceTables(ctx)}`
     : "";
 
   const attendeeFunctions = attendeesSql(ctx, writesEvent);
@@ -600,7 +601,7 @@ ${
     if not found then
       ${fail("CALENDAR_EVENT_NOT_FOUND", "event not found", "P0002")}
     end if;
-  end if;${tableWrites}${writeExtraColumns(events, eventExtras(ctx), "v_item", `x.${e("id")} = v_id`)}
+  end if;${tableWrites}${alarmWrites(ctx)}${writeExtraColumns(events, eventExtras(ctx), "v_item", `x.${e("id")} = v_id`)}
   if exists (select 1 from ${events} where ${e("id")} = v_id and ${e("endsAt")} < ${e("startsAt")}) then
     ${fail("CALENDAR_EVENT_INVALID", "endsAt must not be before startsAt", "22023")}
   end if;

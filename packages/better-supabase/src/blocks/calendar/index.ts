@@ -79,4 +79,6 @@ export { calendarEvents } from "./events.ts";
 
 export type { CalendarEvents } from "./events.ts";
 
-export { calendarEventInputSchema } from "./schemas.ts";
+export { calendarAlarmSchema, calendarEventInputSchema } from "./schemas.ts";
+
+export type { CalendarAlarm, CalendarAlarmAction } from "./alarms.ts";

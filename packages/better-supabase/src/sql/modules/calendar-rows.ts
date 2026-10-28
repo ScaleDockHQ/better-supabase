@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { extraFieldsJson } from "../shared.ts";
+import { alarmsJson } from "./calendar-alarms.ts";
 import { calendarFeatures, recurrenceSql } from "./calendar-features.ts";
 
 export const STATUSES = "('confirmed', 'tentative', 'cancelled')";
@@ -258,5 +259,5 @@ export function eventJson(ctx: BlockSqlContext, attendees: string): string {
       : ""
   }${features.access && ctx.has("events", "owner") ? `, 'ownerId', ${e("owner")}` : ""}`;
 
-  return `jsonb_build_object('id', ${e("id")}, 'calendarId', ${e("calendar")}, 'uid', ${e("uid")}, 'title', ${e("title")}, 'startsAt', ${e("startsAt")}, 'endsAt', ${e("endsAt")}, 'allDay', ${e("allDay")}, 'tz', ${e("tz")}, 'status', ${ctx.label("events", "status", e("status"))}, 'rrule', ${recurrence.rule("e.")}, 'exdates', to_jsonb(${recurrence.exdates("e.")}), 'recurrenceId', ${e("recurrence")}, 'originalStart', ${e("originalStart")}${optional("description", "description")}${optional("location", "location")}${optional("color", "color")}${optional("subjectType", "subjectType")}${optional("subjectId", "subjectId")}) || jsonb_build_object('updatedAt', ${e("updatedAt")}${optional("kind", "kind")}${optional("transparency", "transparency")}${optional("autoDecline", "autoDecline")}${list}${added}${extraFieldsJson("e", eventExtras(ctx))})`;
+  return `jsonb_build_object('id', ${e("id")}, 'calendarId', ${e("calendar")}, 'uid', ${e("uid")}, 'title', ${e("title")}, 'startsAt', ${e("startsAt")}, 'endsAt', ${e("endsAt")}, 'allDay', ${e("allDay")}, 'tz', ${e("tz")}, 'status', ${ctx.label("events", "status", e("status"))}, 'rrule', ${recurrence.rule("e.")}, 'exdates', to_jsonb(${recurrence.exdates("e.")}), 'recurrenceId', ${e("recurrence")}, 'originalStart', ${e("originalStart")}${optional("description", "description")}${optional("location", "location")}${optional("color", "color")}${optional("subjectType", "subjectType")}${optional("subjectId", "subjectId")}) || jsonb_build_object('updatedAt', ${e("updatedAt")}${optional("kind", "kind")}${optional("transparency", "transparency")}${optional("autoDecline", "autoDecline")}${list}${added}${alarmsJson(ctx)}${extraFieldsJson("e", eventExtras(ctx))})`;
 }

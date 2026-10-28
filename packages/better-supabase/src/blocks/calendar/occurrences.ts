@@ -1,3 +1,4 @@
+import type { CalendarAlarm } from "./alarms.ts";
 import type {
   CalendarEventKind,
   CalendarTransparency,
@@ -43,6 +44,8 @@ export interface CalendarEvent {
   readonly autoDecline?: boolean;
   readonly attendees: readonly CalendarAttendee[];
   readonly reminders?: readonly CalendarReminder[];
+  /** The event's alarms, when the calendar block has its alarms table. */
+  readonly alarms?: readonly CalendarAlarm[];
   readonly updatedAt?: Temporal.Instant;
   readonly visibility?: "public" | "private";
   readonly ownerId?: string;
