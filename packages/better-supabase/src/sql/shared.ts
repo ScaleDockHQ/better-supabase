@@ -81,6 +81,19 @@ export const writeExtraColumns = (
     .join(", ")}))) r
   where ${where}${into === undefined ? "" : `\n  returning x.* into ${into}`};`;
 
+export const updateExtraColumns = (
+  table: string,
+  extras: readonly ExtraColumn[],
+  source: string,
+  alias = "x",
+): string =>
+  extras
+    .map(
+      (extra) =>
+        `, ${extra.ident} = case when ${source} ? ${sqlString(extra.name)} then (jsonb_populate_record(null::${table}, jsonb_build_object(${sqlString(extra.name)}, ${source} -> ${sqlString(extra.name)}))).${extra.ident} else ${alias === "" ? "" : `${alias}.`}${extra.ident} end`,
+    )
+    .join("");
+
 /**
  * The `default` expression of an `extraColumns` type, such as `'en'` in `text
  * not null default 'en'`, or undefined without one.

@@ -135,12 +135,47 @@ catalog: {
 }
 ```
 
+### The whole matrix at once
+
+`setOptions(productId, options, { titleSeparator? })` (`set_product_options`)
+replaces a product's options and makes its variants the full matrix of their
+values, in one transaction. Options are matched by name and kept in the order
+given; a missing one is removed, and a new one is added with its first value
+on every existing variant. Every combination ends up with exactly one live
+variant:
+
+- a variant whose values are still a combination keeps its id, SKU and prices;
+- variants that become the same combination keep the first by rank, and the
+  others go, like a removed value's variants (archived when something still
+  references them, as above);
+- a missing combination gets a new variant, with a SKU made from the product
+  slug and the values when the SKU column is `not null`, and none otherwise.
+
+With a title column, every variant's title becomes its values joined by
+`titleSeparator` (`" / "` by default; `null` leaves titles alone). The matrix
+is capped at `options.maxVariants` combinations (100 by default,
+`CATALOG_VARIANT_LIMIT`), checked before anything changes. It needs the update
+permission, and the create permission when it adds variants, and returns the
+options with their values and the live variants with their `optionValueIds`.
+
+```ts
+const matrix = await catalog
+  .setOptions(shirt.id, [
+    { name: "Size", values: ["S", "M", "L"] },
+    { name: "Colour", values: ["Sand", "Navy"] },
+  ])
+  .orThrow();
+// matrix.variants.length === 6
+```
+
 `updateVariant` changes only what it names: a SKU, option values or a flag
 left out keeps its value, and `null` clears `sku`, `title`, `barcode` or
 `weightGrams` (`save_variant` takes `clear`). Clearing a SKU needs a nullable
 SKU column. `updateProduct` patches the same way: `title`, `slug`,
 `description` and `kind` left out keep their value, `description: null` clears
-the description and `slug: null` derives it from the title again.
+the description and `slug: null` derives it from the title again. The block's
+columns, the price settings and the extra columns change in one `update`, so a
+check across `kind` and an extra column holds when a product changes kind.
 
 `trackInventory` and `allowBackorder` are read by the
 [inventory](/docs/blocks/inventory) block when it is installed.

@@ -27,6 +27,7 @@ export type CatalogSqlOptions = {
    * of deleting it.
    */
   readonly variantInUse?: string;
+  readonly maxVariants?: number;
 };
 
 export const catalogSqlOptions: BlockOptionsSchema<CatalogSqlOptions> =
@@ -38,4 +39,5 @@ export const catalogSqlOptions: BlockOptionsSchema<CatalogSqlOptions> =
     locales: option.strings({ default: ["en"] }),
     rankType: option.string<"text" | "integer">({ default: "text" }),
     variantInUse: option.string(),
+    maxVariants: option.number({ default: 100 }),
   });
