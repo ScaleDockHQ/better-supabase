@@ -23,6 +23,47 @@ function recorder(...results: unknown[]) {
 }
 
 describe("catalog block", () => {
+  it("clears a product price and patches a variant without a SKU", async () => {
+    const { calls, transport } = recorder(
+      { id: "p1", slug: "mug", status: "active" },
+      { id: "v1", sku: "MUG", rank: "a" },
+    );
+
+    const catalog = createCatalog({ transport });
+    await catalog
+      .updateProduct("org", "p1", { title: "Mug", price: null })
+      .orThrow();
+    await catalog.updateVariant("p1", "v1", { allowBackorder: true }).orThrow();
+    expect(calls).toEqual([
+      {
+        fn: "save_product",
+        args: {
+          tenant: "org",
+          product: "p1",
+          title: "Mug",
+          slug: null,
+          description: null,
+          kind: null,
+          clear: ["price"],
+        },
+      },
+      {
+        fn: "save_variant",
+        args: {
+          product: "p1",
+          variant: "v1",
+          sku: null,
+          option_values: null,
+          title: null,
+          barcode: null,
+          weight_grams: null,
+          track_inventory: null,
+          allow_backorder: true,
+        },
+      },
+    ]);
+  });
+
   it("creates and updates products through save_product", async () => {
     const { calls, transport } = recorder({
       id: "p1",

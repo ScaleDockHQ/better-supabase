@@ -248,6 +248,7 @@ export const OPTIONAL_MODULE_PERMISSIONS: Readonly<
     delete: "tenant",
     members: "tenant",
   },
+  catalog: { create: "tenant", update: "tenant", delete: "tenant" },
 };
 
 /**

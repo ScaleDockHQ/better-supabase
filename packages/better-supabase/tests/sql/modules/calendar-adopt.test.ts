@@ -520,6 +520,76 @@ describe("calendar over an app's tables with per-calendar access", () => {
   );
 
   it(
+    "adds the app's event alarms and the link's creator to a calendar feed",
+    { timeout: 60_000 },
+    async () => {
+      const files = renderBlocks(["calendar", "share-links"], {
+        modules: {
+          calendar: {
+            options: {
+              feed: {
+                reminders: {
+                  table: "public.event_alarms",
+                  event: "event_id",
+                  offsetMinutes: "minutes_before",
+                  method: "action",
+                },
+              },
+            },
+          },
+        },
+      });
+
+      await using stack = await liteStack({
+        driver: "pglite",
+        migrations: [
+          ROLES,
+          APP,
+          `create table public.event_alarms (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null,
+  minutes_before integer not null,
+  action text not null default 'display'
+);`,
+          ...files
+            .filter((file) => file.kind !== "data")
+            .map((file) => file.contents),
+        ],
+        seed: [
+          ...files
+            .filter((file) => file.kind === "data")
+            .map((file) => file.contents),
+          KEYS,
+          `do $$
+declare
+  v_calendar uuid;
+  v_event uuid;
+  v_token text;
+  v_feed jsonb;
+begin
+  ${as(OWNER)}
+  v_calendar := (better_supabase.create_calendar('${TENANT}', 'Alice', 'UTC', 'user', '${OWNER}') ->> 'id')::uuid;
+  v_event := (better_supabase.save_calendar_event(v_calendar, jsonb_build_object('title', 'Standup', 'startsAt', now() + interval '1 day', 'endsAt', now() + interval '1 day 1 hour')) ->> 'id')::uuid;
+  insert into public.event_alarms (event_id, minutes_before, action) values (v_event, 15, 'display'), (v_event, 60, 'email');
+  v_token := better_supabase.create_share_link('${TENANT}', 'calendar', v_calendar::text, 'view') ->> 'token';
+  ${ANON}
+  v_feed := better_supabase.calendar_feed(v_token);
+  if v_feed ->> 'createdBy' is distinct from '${OWNER}'
+    or jsonb_array_length(v_feed -> 'events' -> 0 -> 'reminders') is distinct from 2
+    or v_feed -> 'events' -> 0 -> 'reminders' -> 0 ->> 'offsetMinutes' is distinct from '15'
+    or v_feed -> 'events' -> 0 -> 'reminders' -> 1 ->> 'method' is distinct from 'email' then
+    raise exception 'feed %', v_feed;
+  end if;
+end;
+$$;`,
+        ],
+      });
+
+      expect(stack.url).not.toBe("");
+    },
+  );
+
+  it(
     "runs on the block's own tables with inline rdates and attendees without email",
     { timeout: 60_000 },
     async () => {

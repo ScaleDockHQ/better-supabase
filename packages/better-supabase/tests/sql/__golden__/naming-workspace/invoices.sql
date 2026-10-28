@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:65458ce68be50cd8f7fb1262d8ad23390dfeebecfcaf6154f611bfa873eea952
+-- @bsb-hash sha256:a0309824d2b2c8c7dba459f812e37ccabdd3a456334331e2ed8b9baff6e6aa82
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -186,7 +186,7 @@ begin
     values (create_invoice.tenant, trim(create_invoice.attrs ->> 'title'),
       case when v_company_id is null then null else v_company_type end, v_company_id,
       case when v_contact_id is null then null else v_contact_type end, v_contact_id,
-      upper(coalesce(create_invoice.attrs ->> 'currency', 'EUR')), coalesce((create_invoice.attrs ->> 'termsDays')::integer, 30),
+      upper(coalesce(create_invoice.attrs ->> 'currency', 'EUR')), case when create_invoice.attrs ? 'termsDays' then (create_invoice.attrs ->> 'termsDays')::integer else 30 end,
       create_invoice.attrs ->> 'note', create_invoice.attrs -> 'origin' ->> 'type', create_invoice.attrs -> 'origin' ->> 'id',
       (create_invoice.attrs ->> 'depositBps')::integer, auth.uid())
     returning * into v_row;
@@ -367,7 +367,8 @@ grant execute on function "better_supabase"."set_invoice_lines"(uuid, jsonb) to 
 -- Issues a draft: it gets the next number of its kind (gapless, so a
 -- number is only taken when the invoice is final), its issue and due date,
 -- and its lines freeze. A credit note reduces the balance of its original.
-create or replace function "better_supabase"."issue_invoice"(invoice uuid, issued_on date)
+drop function if exists "better_supabase"."issue_invoice"(uuid, date);
+create or replace function "better_supabase"."issue_invoice"(invoice uuid, issued_on date, due_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -393,6 +394,9 @@ begin
   if not exists (select 1 from "better_supabase"."invoice_lines" x where x."parent_id" = v_row."id") then
     raise exception 'an invoice needs a line before it is issued' using errcode = '23514', hint = 'INVOICE_EMPTY';
   end if;
+  if issue_invoice.due_on < v_issued_on then
+    raise exception 'an invoice falls due on or after its issue date' using errcode = '22023', hint = 'INVOICE_DUE_INVALID';
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_invoice_issue"(uuid)');
   begin
@@ -403,8 +407,8 @@ begin
   end;
   if v_row."kind" = 'credit_note' then
     select * into v_original from "better_supabase"."invoices" x where x."id" = v_row."original_id" for update;
-    if v_row."total" > (v_original."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_original."id"), 0) - v_original."credited_total" - v_original."paid_total") then
-      raise exception 'a credit note can''t exceed what is still owed' using errcode = '23514', hint = 'INVOICE_CREDIT_TOO_LARGE';
+    if v_row."total" > v_original."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_original."id"), 0) - v_original."credited_total" then
+      raise exception 'a credit note can''t exceed the invoice''s total less its earlier credits' using errcode = '23514', hint = 'INVOICE_CREDIT_TOO_LARGE';
     end if;
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':credit_note', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from (select * from "better_supabase"."invoices" k where k."kind" = 'credit_note') x where x."tenant_id" = v_row."tenant_id";
@@ -416,7 +420,7 @@ begin
   end if;
   update "better_supabase"."invoices" x set "status" = 'issued', "number" = v_seq, "identifier" = v_identifier,
     "issued_on" = v_issued_on,
-    "due_on" = v_issued_on + x."terms_days",
+    "due_on" = coalesce(issue_invoice.due_on, v_issued_on + x."terms_days"),
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -462,8 +466,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."issue_invoice"(uuid, date) from public, anon;
-grant execute on function "better_supabase"."issue_invoice"(uuid, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date) from public, anon;
+grant execute on function "better_supabase"."issue_invoice"(uuid, date, date) to authenticated, service_role;
 
 -- Records a payment (a negative amount is a refund) in the invoice's
 -- currency as a ledger transaction from the invoice's receivable account to
@@ -668,7 +672,8 @@ revoke execute on function "better_supabase"."void_invoice"(uuid, text) from pub
 grant execute on function "better_supabase"."void_invoice"(uuid, text) to authenticated, service_role;
 
 -- Writes an open invoice off as uncollectible. Needs invoices.manage.
-create or replace function "better_supabase"."write_off_invoice"(invoice uuid)
+drop function if exists "better_supabase"."write_off_invoice"(uuid);
+create or replace function "better_supabase"."write_off_invoice"(invoice uuid, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -698,8 +703,72 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."write_off_invoice"(uuid) from public, anon;
-grant execute on function "better_supabase"."write_off_invoice"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."write_off_invoice"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."write_off_invoice"(uuid, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."reverse_invoice_payment"(payment uuid, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_meta jsonb;
+  v_amount bigint;
+  v_reversal uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select y."metadata" into v_meta from "better_supabase"."ledger_transactions" y
+  where y."id" = reverse_invoice_payment.payment and y."reference_type" = 'invoices';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = (v_meta ->> 'invoiceId')::uuid and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.manage'), false)) for update;
+  if v_meta is null or v_row."id" is null then
+    raise exception 'no such payment on an invoice you can manage' using errcode = 'P0002', hint = 'INVOICE_PAYMENT_NOT_FOUND';
+  end if;
+  if coalesce(v_meta ->> 'method', '') = any ('{stripe,order}'::text[]) then
+    raise exception 'a payment provider''s payment is refunded through the provider, not reversed' using errcode = '55000', hint = 'INVOICE_PAYMENT_PROVIDER';
+  end if;
+  if (v_meta ->> 'reversal')::boolean is true
+    or exists (select 1 from "better_supabase"."ledger_transactions" y where y."reverses" = reverse_invoice_payment.payment) then
+    raise exception 'this payment is a reversal or is already reversed' using errcode = '55000', hint = 'INVOICE_PAYMENT_REVERSED';
+  end if;
+  v_amount := coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), 0);
+  v_reversal := "better_supabase"."ledger_post"(v_row."tenant_id", 'invoice.payment_reversal',
+    (select jsonb_agg(jsonb_build_object('account', e."account_id", 'amount', (-e."amount")::text) order by e."created_at", e."id")
+      from "better_supabase"."ledger_entries" e where e."transaction_id" = reverse_invoice_payment.payment),
+    'invoices', v_row."id"::text, null, null, null,
+    (select y."metadata" from "better_supabase"."ledger_transactions" y where y."id" = reverse_invoice_payment.payment) || jsonb_strip_nulls(jsonb_build_object('reversal', true, 'reason', nullif(trim(reverse_invoice_payment.reason), ''))),
+    reverse_invoice_payment.payment);
+  v_amount := v_amount - coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), 0);
+  update "better_supabase"."invoices" x set
+    "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  update "better_supabase"."invoices" x set
+    "status" = case
+      when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
+      when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
+      else 'issued' end,
+    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
+  returning * into v_row;
+  null;
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+      'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
+      'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference') order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."reverse_invoice_payment"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."reverse_invoice_payment"(uuid, text) to authenticated, service_role;
 
 drop function if exists "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb);
 -- Adds a charge on top of an issued invoice's total, such as collection
@@ -762,6 +831,58 @@ end;
 $$;
 revoke execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text) from public, anon;
 grant execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_invoice_charge"(charge uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_amount bigint;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x.* into v_row from "better_supabase"."invoices" x join "better_supabase"."invoice_charges" c on c."invoice_id" = x."id"
+  where c."id" = remove_invoice_charge.charge and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false))
+  for update of x;
+  if v_row."id" is null then
+    raise exception 'no such charge on an invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_CHARGE_NOT_FOUND';
+  end if;
+  if v_row."status" not in ('issued', 'partially_paid', 'paid') then
+    raise exception 'only an issued invoice changes its charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
+  end if;
+  delete from "better_supabase"."invoice_charges" c where c."id" = remove_invoice_charge.charge
+  returning c."amount" into v_amount;
+  update "better_supabase"."invoices" x set
+    "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  update "better_supabase"."invoices" x set
+    "status" = case
+      when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
+      when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
+      else 'issued' end,
+    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
+  returning * into v_row;
+  null;
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
+      'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), '[]'::jsonb),
+      'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference') order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."remove_invoice_charge"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_invoice_charge"(uuid) to authenticated, service_role;
 
 -- What a tenant is owed in one currency on as_of, by days past due:
 -- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.

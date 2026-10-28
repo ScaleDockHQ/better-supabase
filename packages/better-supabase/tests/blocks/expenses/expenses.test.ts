@@ -495,6 +495,120 @@ describe("createExpenses", () => {
     ]);
   });
 
+  it("records, submits, decides, reimburses and lists single expenses", async () => {
+    const EXPENSE = {
+      id: "exp-1",
+      organizationId: "org-1",
+      userId: null,
+      employeeId: "emp-1",
+      categoryId: null,
+      spentOn: "2026-10-20",
+      description: "Train",
+      merchant: "NS",
+      amount: "4250",
+      currency: "EUR",
+      status: "reimbursed",
+      submittedAt: AT,
+      decidedBy: "u2",
+      decidedAt: AT,
+      decisionNote: null,
+      reimbursedAt: AT,
+      reimbursement: "SEPA-1",
+      createdAt: AT,
+      updatedAt: AT,
+    };
+
+    const fake = fakeTransport({
+      create_expense: { ...EXPENSE, status: "draft" },
+      update_expense: { ...EXPENSE, status: "draft" },
+      submit_expense: { ...EXPENSE, status: "submitted" },
+      decide_expense: { ...EXPENSE, status: "approved" },
+      reimburse_expense: EXPENSE,
+      get_expense: EXPENSE,
+      list_expenses: [EXPENSE],
+    });
+
+    const expenses = createExpenses({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    const created = await expenses
+      .createExpense({
+        spentOn: Temporal.PlainDate.from("2026-10-20"),
+        amount: money(4250n, "EUR"),
+        description: "Train",
+        employeeId: "emp-1",
+      })
+      .orThrow();
+
+    expect(created).toMatchObject({ status: "draft", employeeId: "emp-1" });
+    expect(created.userId).toBeUndefined();
+    await expenses
+      .updateExpense("exp-1", { amount: money(4500n, "EUR") })
+      .orThrow();
+    await expenses.submitExpense("exp-1").orThrow();
+    await expenses.decideExpense("exp-1", { approved: true }).orThrow();
+
+    const paid = await expenses
+      .reimburseExpense("exp-1", { reference: "SEPA-1" })
+      .orThrow();
+
+    expect(paid.amount).toEqual(money(4250n, "EUR"));
+    expect(paid.reimbursement).toBe("SEPA-1");
+    expect((await expenses.getExpense("exp-1").orThrow()).status).toBe(
+      "reimbursed",
+    );
+    expect(
+      await expenses
+        .listExpenses({ employeeId: "emp-1", status: "reimbursed" })
+        .orThrow(),
+    ).toHaveLength(1);
+    expect(fake.calls).toEqual([
+      [
+        "create_expense",
+        {
+          tenant: "org-1",
+          spent_on: "2026-10-20",
+          amount: "4250",
+          currency: "EUR",
+          category_id: null,
+          description: "Train",
+          merchant: null,
+          user_id: null,
+          employee_id: "emp-1",
+        },
+      ],
+      [
+        "update_expense",
+        {
+          expense_id: "exp-1",
+          spent_on: null,
+          amount: "4500",
+          currency: "EUR",
+          category_id: null,
+          description: null,
+          merchant: null,
+        },
+      ],
+      ["submit_expense", { expense_id: "exp-1" }],
+      ["decide_expense", { expense_id: "exp-1", approved: true, note: null }],
+      ["reimburse_expense", { expense_id: "exp-1", reference: "SEPA-1" }],
+      ["get_expense", { expense_id: "exp-1" }],
+      [
+        "list_expenses",
+        {
+          tenant: "org-1",
+          user_id: null,
+          status: "reimbursed",
+          everyone: false,
+          page_size: null,
+          employee_id: "emp-1",
+        },
+      ],
+    ]);
+  });
+
   it("fails without a tenant", async () => {
     const expenses = createExpenses({ transport: fakeTransport({}).transport });
 

@@ -23,6 +23,7 @@ import { amountText, moneyOf } from "../money-codec.ts";
 import {
   applyTemporal,
   blockCall,
+  enumOrThrow,
   instantArg,
   optionalText,
   recordOf,
@@ -177,6 +178,62 @@ export interface ExpenseReportListOptions {
   readonly pageSize?: number;
 }
 
+export type ExpenseStatus =
+  | "draft"
+  | "submitted"
+  | "approved"
+  | "rejected"
+  | "reimbursed";
+
+export interface Expense<F extends object = Record<never, never>> {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly userId?: string;
+  readonly employeeId?: string;
+  readonly categoryId?: string;
+  readonly spentOn: Temporal.PlainDate;
+  readonly description?: string;
+  readonly merchant?: string;
+  readonly amount: Money;
+  readonly status: ExpenseStatus;
+  readonly submittedAt?: Temporal.Instant;
+  readonly decidedBy?: string;
+  readonly decidedAt?: Temporal.Instant;
+  readonly decisionNote?: string;
+  readonly reimbursedAt?: Temporal.Instant;
+  readonly reimbursement?: string;
+  readonly createdAt: Temporal.Instant;
+  readonly updatedAt: Temporal.Instant;
+  readonly fields: ExtraFields<F>;
+}
+
+export interface ExpenseInput<F extends object = Record<never, never>> {
+  readonly spentOn: Temporal.PlainDate;
+  readonly amount: Money;
+  readonly categoryId?: string;
+  readonly description?: string;
+  readonly merchant?: string;
+  readonly userId?: string;
+  readonly employeeId?: string;
+  readonly fields?: Partial<F>;
+}
+
+export interface ExpenseUpdate {
+  readonly spentOn?: Temporal.PlainDate;
+  readonly amount?: Money;
+  readonly categoryId?: string;
+  readonly description?: string;
+  readonly merchant?: string;
+}
+
+export interface ExpenseListOptions {
+  readonly status?: ExpenseStatus;
+  readonly userId?: string;
+  readonly employeeId?: string;
+  readonly everyone?: boolean;
+  readonly pageSize?: number;
+}
+
 export interface ReimbursementInput {
   readonly paidAt?: Temporal.Instant;
   readonly reference?: string;
@@ -226,6 +283,24 @@ export interface Expenses<F extends object = Record<never, never>> {
   list(
     options?: ExpenseReportListOptions,
   ): AsyncResult<readonly ExpenseReport<F>[]>;
+  createExpense(input: ExpenseInput<F>): AsyncResult<Expense<F>>;
+  updateExpense(
+    expenseId: string,
+    update: ExpenseUpdate,
+  ): AsyncResult<Expense<F>>;
+  submitExpense(expenseId: string): AsyncResult<Expense<F>>;
+  decideExpense(
+    expenseId: string,
+    decision: { readonly approved: boolean; readonly note?: string },
+  ): AsyncResult<Expense<F>>;
+  reimburseExpense(
+    expenseId: string,
+    input?: { readonly reference?: string },
+  ): AsyncResult<Expense<F>>;
+  getExpense(expenseId: string): AsyncResult<Expense<F>>;
+  listExpenses(
+    options?: ExpenseListOptions,
+  ): AsyncResult<readonly Expense<F>[]>;
 }
 
 function optional<K extends string, V>(
@@ -335,6 +410,46 @@ function reportOf(value: unknown, fn: string): ExpenseReport {
   };
 }
 
+const EXPENSE_STATUSES: readonly ExpenseStatus[] = [
+  "draft",
+  "submitted",
+  "approved",
+  "rejected",
+  "reimbursed",
+];
+
+function expenseOf(value: unknown, fn: string): Expense {
+  const row = recordOf(value, fn);
+
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["organizationId"]),
+    spentOn: temporal().PlainDate.from(textOf(row["spentOn"])),
+    amount: moneyOf(row["amount"], row["currency"], "amount"),
+    status: enumOrThrow(row["status"], EXPENSE_STATUSES, "expense status"),
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
+    ...optional("userId", optionalText(row["userId"])),
+    ...optional("employeeId", optionalText(row["employeeId"])),
+    ...optional("categoryId", optionalText(row["categoryId"])),
+    ...optional("description", optionalText(row["description"])),
+    ...optional("merchant", optionalText(row["merchant"])),
+    ...optional(
+      "submittedAt",
+      optionalInstant(row["submittedAt"], "submittedAt"),
+    ),
+    ...optional("decidedBy", optionalText(row["decidedBy"])),
+    ...optional("decidedAt", optionalInstant(row["decidedAt"], "decidedAt")),
+    ...optional("decisionNote", optionalText(row["decisionNote"])),
+    ...optional(
+      "reimbursedAt",
+      optionalInstant(row["reimbursedAt"], "reimbursedAt"),
+    ),
+    ...optional("reimbursement", optionalText(row["reimbursement"])),
+  };
+}
+
 function violationOf(value: unknown): ExpensePolicyViolation {
   const row = recordOf(value, "check_expense_report");
   const kind = textOf(row["kind"]);
@@ -392,6 +507,11 @@ export function createExpenses<
     (fn: string) =>
     (value: unknown): ExpenseReport =>
       reportOf(value, fn);
+
+  const expense =
+    (fn: string) =>
+    (value: unknown): Expense =>
+      expenseOf(value, fn);
 
   const line =
     (fn: string) =>
@@ -572,6 +692,87 @@ export function createExpenses<
             recordsOf(value, "list_expense_reports").map(
               report("list_expense_reports"),
             ),
+        ).andThen(fields.rows),
+      ),
+    createExpense: (input) =>
+      fields
+        .args(input.fields)
+        .andThen((checked) =>
+          tenant().andThen((organizationId) =>
+            call(
+              "create_expense",
+              {
+                tenant: organizationId,
+                spent_on: input.spentOn.toString(),
+                amount: amountText(input.amount),
+                currency: input.amount.currency,
+                category_id: input.categoryId ?? null,
+                description: input.description ?? null,
+                merchant: input.merchant ?? null,
+                user_id: input.userId ?? null,
+                ...optional("employee_id", input.employeeId),
+                ...(checked === undefined ? {} : { fields: checked }),
+              },
+              expense("create_expense"),
+            ).andThen(fields.row),
+          ),
+        ),
+    updateExpense: (expenseId, update) =>
+      call(
+        "update_expense",
+        {
+          expense_id: expenseId,
+          spent_on: update.spentOn?.toString() ?? null,
+          amount: update.amount ? amountText(update.amount) : null,
+          currency: update.amount?.currency ?? null,
+          category_id: update.categoryId ?? null,
+          description: update.description ?? null,
+          merchant: update.merchant ?? null,
+        },
+        expense("update_expense"),
+      ).andThen(fields.row),
+    submitExpense: (expenseId) =>
+      call(
+        "submit_expense",
+        { expense_id: expenseId },
+        expense("submit_expense"),
+      ).andThen(fields.row),
+    decideExpense: (expenseId, decision) =>
+      call(
+        "decide_expense",
+        {
+          expense_id: expenseId,
+          approved: decision.approved,
+          note: decision.note ?? null,
+        },
+        expense("decide_expense"),
+      ).andThen(fields.row),
+    reimburseExpense: (expenseId, input = {}) =>
+      call(
+        "reimburse_expense",
+        { expense_id: expenseId, reference: input.reference ?? null },
+        expense("reimburse_expense"),
+      ).andThen(fields.row),
+    getExpense: (expenseId) =>
+      call(
+        "get_expense",
+        { expense_id: expenseId },
+        expense("get_expense"),
+      ).andThen(fields.row),
+    listExpenses: (list = {}) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_expenses",
+          {
+            tenant: organizationId,
+            user_id: list.userId ?? null,
+            status: list.status ?? null,
+            everyone: list.everyone ?? false,
+            page_size: list.pageSize ?? null,
+            ...optional("employee_id", list.employeeId),
+          },
+          (value) =>
+            recordsOf(value, "list_expenses").map(expense("list_expenses")),
         ).andThen(fields.rows),
       ),
   };

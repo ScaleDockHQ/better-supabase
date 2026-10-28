@@ -12,6 +12,10 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
+import {
+  expenseStandaloneSql,
+  expensesStandalone,
+} from "./expenses-standalone.ts";
 import { moduleOperations, OPERATIONS } from "./permissions-model.ts";
 
 /** Reports the expenses block submits to approvals. */
@@ -48,20 +52,25 @@ function expensePolicy(ctx: BlockSqlContext): string {
  * false` or without an approval column.
  */
 export function expenseApprovals(ctx: BlockSqlContext): boolean {
-  return ctx.flag("approvals", true) && ctx.has("reports", "approval");
+  return (
+    !expensesStandalone(ctx) &&
+    ctx.flag("approvals", true) &&
+    ctx.has("reports", "approval")
+  );
 }
 
 /** The expenses module's functions. */
 export function expensesFunctions(ctx: BlockSqlContext): string {
   const approvals = expenseApprovals(ctx) ? ctx.of("approvals") : undefined;
-  const ledger = ctx.of("ledger");
+  const standalone = expensesStandalone(ctx);
+  const ledger = standalone ? undefined : ctx.of("ledger");
 
   const rejections =
     approvals === undefined && ctx.has("reports", "rejectedAt");
 
   const categories = ctx.table("categories");
-  const reports = ctx.table("reports");
-  const lines = ctx.table("lines");
+  const reports = standalone ? "" : ctx.table("reports");
+  const lines = standalone ? "" : ctx.table("lines");
   const k = (column: string): string => ctx.col("categories", column);
   const r = (column: string): string => ctx.col("reports", column);
   const x = (column: string): string => ctx.col("lines", column);
@@ -80,7 +89,11 @@ export function expensesFunctions(ctx: BlockSqlContext): string {
 
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
-  const extras = ctx.extraColumns("reports", EXPENSE_REPORT_RESERVED);
+
+  const extras = standalone
+    ? []
+    : ctx.extraColumns("reports", EXPENSE_REPORT_RESERVED);
+
   const extra = extraFieldsArg(extras);
   const ops = moduleOperations("expenses");
   const read = ctx.permission("read", ops.read);
@@ -256,7 +269,7 @@ ${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text)`)}
     holder: string,
     owner: string,
   ): string =>
-    `${ledger.fn("ledger_account_for")}(${tenant}, ${kind}, ${code}, ${name}, ${currency}::text, 0::smallint, ${holder}, ${owner}, true, ${read}, 'expenses', null)`;
+    `${ledger?.fn("ledger_account_for") ?? ""}(${tenant}, ${kind}, ${code}, ${name}, ${currency}::text, 0::smallint, ${holder}, ${owner}, true, ${read}, 'expenses', null)`;
 
   const payableAccount = (row: string): string =>
     account(
@@ -416,7 +429,10 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_expense_categories")}(${idType}, boolean)`)}
-
+${
+  standalone
+    ? expenseStandaloneSql(ctx)
+    : `
 -- The spend policy findings of a report, empty when it may be submitted:
 -- a category total over its limit, a line over its category's receipt
 -- threshold without a receipt, and a line in an archived category.
@@ -653,7 +669,7 @@ begin
     from ${lines} l where l.${x("report")} = v_row.${r("id")} group by l.${x("category")}
   ) q join ${categories} c on c.${k("id")} = q.category;
   v_lines := v_lines || jsonb_build_array(jsonb_build_object('account', ${payableAccount("v_row")}, 'amount', -${total("v_row")}));
-  v_tx := ${ledger.fn("ledger_post")}(v_row.${r("tenant")}, 'expense.approved', v_lines,
+  v_tx := ${ledger?.fn("ledger_post") ?? ""}(v_row.${r("tenant")}, 'expense.approved', v_lines,
     'expenses', v_row.${r("id")}::text, left('Expenses: ' || v_row.${r("title")}, 500), 'expense:' || v_row.${r("id")}::text || ':approved', null,
     jsonb_build_object('reportId', v_row.${r("id")}, 'userId', v_row.${r("user")}));
   update ${reports} x set ${r("approvedAt")} = now()${alsoSet("reports", "approvalTransaction", "v_tx")}, ${r("updatedAt")} = now()
@@ -682,7 +698,7 @@ begin${loadReport("reimburse_expense_report.report_id", true)}
   if ${status("v_row", "v_approval")} <> 'approved' then
     ${fail("EXPENSE_REPORT_LOCKED", "only an approved report can be reimbursed", "55000")}
   end if;
-  v_tx := ${ledger.fn("ledger_post")}(v_row.${r("tenant")}, 'expense.reimbursed',
+  v_tx := ${ledger?.fn("ledger_post") ?? ""}(v_row.${r("tenant")}, 'expense.reimbursed',
     jsonb_build_array(
       jsonb_build_object('account', ${payableAccount("v_row")}, 'amount', ${total("v_row")}),
       jsonb_build_object('account', ${cashAccount("v_row")}, 'amount', -${total("v_row")})),
@@ -783,5 +799,6 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_expense_reports")}(${idType}, uuid, text, boolean, integer)`)}
-`;
+`
+}`;
 }

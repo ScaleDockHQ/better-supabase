@@ -80,8 +80,8 @@ export function driveDrivesSql(kit: DriveKit): string {
 
   const driveGrantValues = drives
     ? driveTyped
-      ? `v_drive.${d("tenant")}, v_drive.${d("id")}, v_type, drive_share_drive.principal_id, drive_share_drive.role${driveExpiring ? ", drive_share_drive.expires_at" : ""}${ctx.has("driveGrants", "createdBy") ? ", auth.uid()" : ""}`
-      : `v_drive.${d("tenant")}, v_drive.${d("id")}, case when v_type = 'user' then drive_share_drive.principal_id::uuid end${driveTeamColumn ? `, ${driveTeamValue}` : ""}, drive_share_drive.role${driveExpiring ? ", drive_share_drive.expires_at" : ""}${ctx.has("driveGrants", "createdBy") ? ", auth.uid()" : ""}`
+      ? `v_drive.${d("tenant")}, v_drive.${d("id")}, v_type, drive_share_drive.principal_id, ${ctx.cast("driveGrants", "role", "drive_share_drive.role")}${driveExpiring ? ", drive_share_drive.expires_at" : ""}${ctx.has("driveGrants", "createdBy") ? ", auth.uid()" : ""}`
+      : `v_drive.${d("tenant")}, v_drive.${d("id")}, case when v_type = 'user' then drive_share_drive.principal_id::uuid end${driveTeamColumn ? `, ${driveTeamValue}` : ""}, ${ctx.cast("driveGrants", "role", "drive_share_drive.role")}${driveExpiring ? ", drive_share_drive.expires_at" : ""}${ctx.has("driveGrants", "createdBy") ? ", auth.uid()" : ""}`
     : "";
 
   const principalError = drives
@@ -144,7 +144,7 @@ begin
     ${fail("DRIVE_NAME_CONFLICT", "another drive already has this name", "23505")}
   end if;
   insert into ${D} (${d("tenant")}, ${d("name")}, ${d("kind")}, ${d("owner")}, ${d("connection")}${ctx.has("drives", "createdBy") ? `, ${d("createdBy")}` : ""})
-  values (drive_create_drive.tenant, v_name, v_kind, v_owner, drive_create_drive.connection${ctx.has("drives", "createdBy") ? ", auth.uid()" : ""})
+  values (drive_create_drive.tenant, v_name, ${ctx.cast("drives", "kind", "v_kind")}, v_owner, drive_create_drive.connection${ctx.has("drives", "createdBy") ? ", auth.uid()" : ""})
   returning * into v_drive;
   ${recordDrive("drive.created", "v_drive", `, 'name', v_drive.${d("name")}`, driveAudit("v_drive", "created"))}
   return ${withDriveRole("v_drive")};
@@ -389,13 +389,13 @@ begin
     select 1 from ${C} c
     where c.${c("tenant")} = drive_connect.tenant
       and c.${c("user")} = auth.uid()
-      and c.${c("provider")} = v_provider
+      and c.${c("provider")} = ${ctx.cast("connections", "provider", "v_provider")}
       and lower(c.${c("name")}) = lower(v_name)
   ) then
     ${fail("DRIVE_CONNECTION_EXISTS", "this account is already connected", "23505")}
   end if;
   insert into ${C} (${c("tenant")}, ${c("user")}, ${c("provider")}, ${c("name")}${ctx.has("connections", "createdBy") ? `, ${c("createdBy")}` : ""})
-  values (drive_connect.tenant, auth.uid(), v_provider, v_name${ctx.has("connections", "createdBy") ? ", auth.uid()" : ""})
+  values (drive_connect.tenant, auth.uid(), ${ctx.cast("connections", "provider", "v_provider")}, v_name${ctx.has("connections", "createdBy") ? ", auth.uid()" : ""})
   returning * into v_connection;
   ${recordConnection("drive.connection_created", "v_connection", `, 'name', v_connection.${c("name")}`, connectionAudit("v_connection", "created"))}
   return ${connectionJson("v_connection")};
@@ -504,7 +504,7 @@ begin
   using pg_temp.drive_sync_items item
   where item.removed
     and s.${n("drive")} = drive_sync_batch.drive
-    and s.${n("source")} = v_source
+    and s.${n("source")} = ${ctx.cast("nodes", "source", "v_source")}
     and s.${n("externalId")} = item.external_id${
       binColumn
         ? `
@@ -517,9 +517,9 @@ begin
     v_drive.${d("tenant")},
     drive_sync_batch.drive,
     null,
-    item.kind,
+    ${ctx.cast("nodes", "kind", "item.kind")},
     item.name,
-    v_source,
+    ${ctx.cast("nodes", "source", "v_source")},
     item.external_id,
     item.metadata${has("createdBy") ? `, v_drive.${d("owner")}` : ""}
   from pg_temp.drive_sync_items item
@@ -540,7 +540,7 @@ begin
   from pg_temp.drive_sync_items item
   left join ${T} p
     on p.${n("drive")} = drive_sync_batch.drive
-    and p.${n("source")} = v_source
+    and p.${n("source")} = ${ctx.cast("nodes", "source", "v_source")}
     and p.${n("externalId")} = item.parent_external_id
     and p.${n("kind")} = 'folder'${
       binColumn
@@ -550,13 +550,13 @@ begin
     }
   where not item.removed
     and s.${n("drive")} = drive_sync_batch.drive
-    and s.${n("source")} = v_source
+    and s.${n("source")} = ${ctx.cast("nodes", "source", "v_source")}
     and s.${n("externalId")} = item.external_id
     and s.${n("parent")} is distinct from p.${n("id")}
     and (p.${n("id")} is null or p.${n("id")} <> s.${n("id")});
   delete from ${T} s
   where s.${n("drive")} = drive_sync_batch.drive
-    and s.${n("source")} = v_source
+    and s.${n("source")} = ${ctx.cast("nodes", "source", "v_source")}
     and s.${n("parent")} is null
     and s.${n("externalMetadata")} ->> 'parentExternalId' is not null
     and s.${n("externalMetadata")} ->> 'parentExternalId' <> drive_sync_batch.root_external_id
@@ -564,7 +564,7 @@ begin
   if drive_sync_batch.prune and drive_sync_batch.sync_run is not null then
     delete from ${T} s
     where s.${n("drive")} = drive_sync_batch.drive
-      and s.${n("source")} = v_source
+      and s.${n("source")} = ${ctx.cast("nodes", "source", "v_source")}
       and coalesce(s.${n("externalMetadata")} ->> 'syncRun', '') <> drive_sync_batch.sync_run
       and not ${fn("drive_node_held")}(s.${n("id")});
   end if;

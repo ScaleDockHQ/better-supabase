@@ -1,6 +1,8 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { FeedOptions } from "../feed-options.ts";
 
+import { isRecord } from "../../core/guards.ts";
+import { sqlIdent } from "../../core/template.ts";
 import { feedOptions, feedWindow } from "../feed-options.ts";
 import {
   accessForCall,
@@ -32,6 +34,56 @@ export function calendarFeed(ctx: BlockSqlContext): FeedOptions {
   return feed;
 }
 
+const IDENT = /^[a-z_][a-z0-9_$]*$/u;
+
+interface FeedReminders {
+  readonly table: string;
+  readonly event: string;
+  readonly offsetMinutes: string;
+  readonly method: string | undefined;
+  readonly user: string | undefined;
+}
+
+function feedReminders(ctx: BlockSqlContext): FeedReminders | undefined {
+  const feed = ctx.option("feed");
+  const raw = isRecord(feed) ? feed["reminders"] : undefined;
+
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  const where = "blocks.calendar.options.feed.reminders";
+
+  const ident = (value: unknown): value is string =>
+    typeof value === "string" && IDENT.test(value);
+
+  if (
+    !isRecord(raw) ||
+    typeof raw["table"] !== "string" ||
+    !raw["table"].split(".").every((part) => IDENT.test(part)) ||
+    raw["table"].split(".").length !== 2 ||
+    !ident(raw["event"]) ||
+    !ident(raw["offsetMinutes"]) ||
+    (raw["method"] !== undefined && !ident(raw["method"])) ||
+    (raw["user"] !== undefined && !ident(raw["user"]))
+  ) {
+    throw new TypeError(
+      `${where} takes { table: "schema.table", event, offsetMinutes, method?, user? } with column names`,
+    );
+  }
+
+  return {
+    table: raw["table"]
+      .split(".")
+      .map((part) => sqlIdent(part))
+      .join("."),
+    event: sqlIdent(raw["event"]),
+    offsetMinutes: sqlIdent(raw["offsetMinutes"]),
+    method: raw["method"] === undefined ? undefined : sqlIdent(raw["method"]),
+    user: raw["user"] === undefined ? undefined : sqlIdent(raw["user"]),
+  };
+}
+
 /**
  * The events of a feed, as a JSON array: those of the calendars `where` selects
  * (over `k` and `e`), in the feed's window and visibility for `creator`, with
@@ -59,8 +111,11 @@ function feedEvents(
         ? eventAccessForCall(ctx, e("id"), creator)
         : "true";
 
-  const reminders =
-    ctx.installed("reminders") && ctx.of("reminders").hasTable("reminders")
+  const alarms = feedReminders(ctx);
+
+  const reminders = alarms
+    ? ` || jsonb_build_object('reminders', coalesce((select jsonb_agg(jsonb_build_object('method', ${alarms.method === undefined ? "'notification'" : `r.${alarms.method}::text`}, 'offsetMinutes', r.${alarms.offsetMinutes}) order by r.${alarms.offsetMinutes}) from ${alarms.table} r where r.${alarms.event} = ${e("id")}${alarms.user === undefined ? "" : ` and (r.${alarms.user} is null or r.${alarms.user} = ${creator})`}), '[]'::jsonb))`
+    : ctx.installed("reminders") && ctx.of("reminders").hasTable("reminders")
       ? (() => {
           const r = ctx.of("reminders");
           const c = (column: string) => `r.${r.col("reminders", column)}`;
@@ -143,6 +198,7 @@ begin
   return (
     select jsonb_build_object(
       'calendar', jsonb_build_object('id', ${k("id")}, 'name', ${k("name")}, 'tz', ${k("tz")}),
+      'createdBy', v_creator,
       'events', ${feedEvents(ctx, events, calendars, attendees, `${k("id")} = v_calendar`, "v_creator")}
     )
     from ${calendars} k where ${k("id")} = v_calendar and ${k("tenant")} = v_tenant

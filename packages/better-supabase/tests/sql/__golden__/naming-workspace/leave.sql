@@ -2,7 +2,7 @@
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
 -- @bsb-hash sha256:f909bea90cb65b98c112250d0d99163fba4cd6040b82c4013fbc795a21ce5de3
--- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
+-- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 

@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 import type { ShareLinkContribution } from "../contributions.ts";
 
 import { feedDateWindow, feedOptions } from "../feed-options.ts";
+import { leaveByEmployee, leavePartsMapped } from "./leave-owner.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { liveShareLink, touchShareLink } from "./share-links.ts";
 
@@ -20,9 +21,39 @@ export function leavePartial(ctx: BlockSqlContext, row: string): string {
     return `${row}.${ctx.col("requests", "partial")}`;
   }
 
+  if (leavePartsMapped(ctx)) {
+    const start = `${row}.${ctx.col("requests", "startPart")}::text`;
+    const end = `${row}.${ctx.col("requests", "endPart")}::text`;
+    const single = `${row}.${ctx.col("requests", "startsOn")} = ${row}.${ctx.col("requests", "endsOn")}`;
+
+    return `(case when ${start} = 'hours' or ${end} = 'hours' then 'hours' when ${single} and ${start} = 'afternoon' then 'afternoon' when ${single} and ${end} = 'morning' then 'morning' else 'full' end)`;
+  }
+
   const unit = ctx.label("types", "unit", `p.${ctx.col("types", "unit")}`);
 
   return `(select case when ${unit} = 'hours' then 'hours' else 'full' end from ${ctx.table("types")} p where p.${ctx.col("types", "id")} = ${row}.${ctx.col("requests", "type")})`;
+}
+
+export function leaveStartPart(ctx: BlockSqlContext, row: string): string {
+  return leavePartsMapped(ctx)
+    ? `${row}.${ctx.col("requests", "startPart")}::text`
+    : `(case ${leavePartial(ctx, row)} when 'afternoon' then 'afternoon' when 'hours' then 'hours' else 'full' end)`;
+}
+
+export function leaveEndPart(ctx: BlockSqlContext, row: string): string {
+  return leavePartsMapped(ctx)
+    ? `${row}.${ctx.col("requests", "endPart")}::text`
+    : `(case ${leavePartial(ctx, row)} when 'morning' then 'morning' when 'hours' then 'hours' else 'full' end)`;
+}
+
+export function leaveRequestUser(ctx: BlockSqlContext, row: string): string {
+  if (ctx.has("requests", "user") || !leaveByEmployee(ctx)) {
+    return `${row}.${ctx.col("requests", "user")}`;
+  }
+
+  const staff = ctx.of("employees");
+
+  return `(select y.${staff.col("employees", "user")} from ${staff.table("employees")} y where y.${staff.col("employees", "id")} = ${row}.${ctx.col("requests", "employee")})`;
 }
 
 /** The share-links subject of an organization's leave feed. */
@@ -95,7 +126,7 @@ begin
     'requests', coalesce((
       select jsonb_agg(x.item order by x.starts_on, x.id)
       from (
-        select jsonb_build_object('id', ${q("id")}, 'userId', ${q("user")}, 'typeId', ${q("type")}, 'type', ${ty("name")}, 'unit', ${ty("unit")},
+        select jsonb_build_object('id', ${q("id")}, 'userId', ${leaveRequestUser(ctx, "r")}${leaveByEmployee(ctx) ? `, 'employeeId', ${q("employee")}` : ""}, 'typeId', ${q("type")}, 'type', ${ty("name")}, 'unit', ${ty("unit")},
           'startsOn', ${q("startsOn")}, 'endsOn', ${q("endsOn")}, 'partial', ${leavePartial(ctx, "r")}, 'amount', ${q("amount")}::text, 'approvedAt', ${q("approvedAt")}, 'updatedAt', ${q("updatedAt")}) as item,
           ${q("startsOn")} as starts_on, ${q("id")} as id
         from ${ctx.table("requests")} r

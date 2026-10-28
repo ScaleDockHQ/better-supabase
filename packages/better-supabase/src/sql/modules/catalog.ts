@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Names } from "./catalog-functions.ts";
 
+import { sqlString } from "../../core/template.ts";
 import { currencyMinorUnitsFunction } from "../money-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
@@ -688,6 +689,15 @@ ${renderPolicy(makePolicy({ table: t(table), name: policy, command: "select", ro
     .join("\n");
 }
 
+const actionKey = (
+  ctx: BlockSqlContext,
+  action: string,
+  fallback: string,
+): string =>
+  sqlString(
+    ctx.config.permissions[action] ?? ctx.permissionKey("manage", fallback),
+  );
+
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -700,6 +710,9 @@ function build(ctx: BlockSqlContext): string {
     fn: (name) => ctx.fn(name),
     manage: ctx.permission("manage", keys.manage),
     read: ctx.permission("read", keys.read),
+    create: actionKey(ctx, "create", keys.manage),
+    update: actionKey(ctx, "update", keys.manage),
+    remove: actionKey(ctx, "delete", keys.manage),
   };
 
   storefrontOption(ctx);

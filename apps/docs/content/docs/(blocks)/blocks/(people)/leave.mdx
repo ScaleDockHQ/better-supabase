@@ -116,6 +116,43 @@ blocks: {
 
 Over your own tables, `columns.types.key` and `columns.requests.partial` can map to `null`. Without a key column, a type's `key` is its id: `saveType` with an existing type's id updates it, and any other key creates a type. Without a partial column, a request takes whole days (`LEAVE_PARTIAL_UNSUPPORTED` for `morning` or `afternoon`) or, for an hours type, hours, and reads return `full` or `hours`.
 
+### Leave per employee
+
+`options.owner: "employee"` keys requests and balances by an employee of the [employees block](/docs/blocks/employees) instead of by a user, so an employee without an account has leave too. The requests table needs `columns.requests.employee` (`employee_id`), and `columns.requests.user` may map to `null`. `request`, `list`, `balances`, `ledger` and `adjust` take `employeeId` (the caller's employee by default), and `accrue` takes `employeeIds`. The employee's own account requests and reads their leave with `leave.request`; their manager (the employee's `manager_id`) or a member with `leave.manage` requests and cancels it for them, and `leave.read` reads everyone's. Reads return `employeeId` next to `userId`, which is missing for an employee without an account.
+
+### The part of the day a request starts and ends in
+
+Over your own requests table, `columns.requests.startPart` and `endPart` map the part of the day a request starts and ends in: `full`, `morning`, `afternoon` or `hours`, which may be an enum. `request` takes `startPart` and `endPart`: a request that starts in the `afternoon` begins halfway through its first day, and one that ends in the `morning` stops halfway through its last. A day type books the working days less half a day for each, and an hours type books `hours` with any parts. Two requests overlap only when their half days do, so a morning and an afternoon on the same date fit. `partial` still works and fills both parts.
+
+### Balances in your own table
+
+`tables.balances` maps a table of yours that holds a balance as rows of signed amounts, instead of the [ledger block](/docs/blocks/ledger), which leave then doesn't need. Each row has the owner (`user` or `employee`), the `type`, a `kind` (`grant`, `accrual`, `taken`, `adjustment`, `carryover` or `expiry`, which may be an enum), the `amount` in the type's unit, and the `request` a taken row belongs to; `effectiveOn`, `expiresOn`, `note`, `key` and `createdBy` are optional.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  leave: {
+    tables: {
+      requests: "public.time_off_requests",
+      balances: "public.time_off_ledger",
+    },
+    columns: {
+      requests: {
+        user: null,
+        employee: "employee_id",
+        startPart: "start_part",
+        endPart: "end_part",
+        amount: "hours",
+        partial: null,
+      },
+      balances: { user: null, employee: "employee_id", amount: "hours", request: "time_off_request_id" },
+    },
+    options: { owner: "employee", approvals: false },
+  },
+},
+```
+
+The balance on a date is the sum of the rows effective by then, where a credit that has expired counts only as far as the debits used it: taken leave uses the credits that expire first. `balances` reads it at the end of `period`, or today for this year, and a request checks it on its start date. Approving a request adds a `taken` row dated on its start, and cancelling it deletes that row. `adjust` adds a row and takes `expiresOn`. `closePeriod` adds an `expiry` row on 31 December for the balance above `carryoverMax`; it needs `effectiveOn`. An `idempotencyKey` needs `key`.
+
 ### A feed of approved leave
 
 With [share-links](/docs/blocks/share-links), the organization's approved leave can be shared as a feed, for example to subscribe in a calendar app. A member with `leave.read` creates a link of subject type `leave_feed` whose subject id is the organization's id, and `feed(token)` (or `leave_feed(token)`, open to `anon`) returns the approved requests a year back and everything ahead. The link stops working when it is revoked or expires, and when its creator no longer holds `leave.read`. Turn the requests into iCalendar all-day events in your feed route.
@@ -138,6 +175,7 @@ const feed = await leave.feed(link.token).orThrow();
 | `LEAVE_TYPE_NOT_FOUND`    | no active type has this id                                                                          |
 | `LEAVE_REQUEST_NOT_FOUND` | no request the caller can see has this id                                                           |
 | `LEAVE_REQUEST_CLOSED`    | the request is already cancelled                                                                    |
+| `LEAVE_EMPLOYEE_INVALID`  | no employee has this id, or the caller has no employee record                                       |
 
 ## Events
 

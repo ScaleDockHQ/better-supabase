@@ -73,9 +73,10 @@ export interface ProductInput {
   readonly kind?: ProductKind;
   /**
    * The product's own price and currency, when your products table maps `price`
-   * and `currency`. Left out, the columns keep their value.
+   * and `currency`. Left out, the columns keep their value; `null` clears the
+   * price.
    */
-  readonly price?: Money;
+  readonly price?: Money | null;
   /** When your products table maps `trackInventory`. */
   readonly trackInventory?: boolean;
 }
@@ -110,7 +111,7 @@ export interface SavedOption {
 }
 
 export interface VariantInput {
-  readonly sku: string;
+  readonly sku?: string;
   /** One option value id per product option. */
   readonly optionValues?: readonly string[];
   readonly title?: string;
@@ -315,7 +316,7 @@ export interface Catalog<F extends object = Record<never, never>> {
   /** Moves a product between `draft`, `active` and `archived`. */
   setProductStatus(
     productId: string,
-    status: ProductStatus,
+    status: ProductStatus | (string & {}),
   ): AsyncResult<StatusChange>;
   deleteProduct(productId: string): AsyncResult<boolean>;
   saveOption(productId: string, input: OptionInput): AsyncResult<SavedOption>;
@@ -604,7 +605,7 @@ function variantArgs(
   return {
     product: productId,
     variant: variantId,
-    sku: input.sku,
+    sku: input.sku ?? null,
     option_values: input.optionValues ?? null,
     title: input.title ?? null,
     barcode: input.barcode ?? null,
@@ -652,9 +653,13 @@ export function createCatalog<
             slug: slug ?? null,
             description: description ?? null,
             kind: kind ?? null,
-            price: price === undefined ? undefined : amountText(price),
+            price:
+              price === undefined || price === null
+                ? undefined
+                : amountText(price),
             currency: price?.currency,
             track_inventory: trackInventory,
+            ...(price === null ? { clear: ["price"] } : {}),
             ...more,
           },
           (value) => value,

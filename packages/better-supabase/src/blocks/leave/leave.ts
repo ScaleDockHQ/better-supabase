@@ -92,7 +92,8 @@ export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled";
 /** One approved request in a leave feed. */
 export interface LeaveFeedEntry {
   readonly id: string;
-  readonly userId: string;
+  readonly userId?: string;
+  readonly employeeId?: string;
   readonly typeId: string;
   /** The leave type's name. */
   readonly type: string;
@@ -114,12 +115,15 @@ export interface LeaveFeed {
 export interface LeaveRequest<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
-  readonly userId: string;
+  readonly userId?: string;
+  readonly employeeId?: string;
   readonly typeId: string;
   readonly startsOn: Temporal.PlainDate;
   /** Inclusive. */
   readonly endsOn: Temporal.PlainDate;
   readonly partial: LeavePartial;
+  readonly startPart?: LeavePartial;
+  readonly endPart?: LeavePartial;
   /** Working days, or hours for an hours type. */
   readonly amount: number;
   readonly note?: string;
@@ -140,9 +144,12 @@ export interface LeaveRequestInput<F extends object = Record<never, never>> {
   readonly endsOn?: Temporal.PlainDate;
   /** A half day (`morning`, `afternoon`) for a day type. Default `full`. */
   readonly partial?: Exclude<LeavePartial, "hours">;
+  readonly startPart?: LeavePartial;
+  readonly endPart?: LeavePartial;
   /** Required for an hours type. */
   readonly hours?: number;
   readonly note?: string;
+  readonly employeeId?: string;
   /** The extra columns to set. */
   readonly fields?: Partial<F>;
 }
@@ -150,6 +157,7 @@ export interface LeaveRequestInput<F extends object = Record<never, never>> {
 export interface LeaveRequestListOptions {
   /** Another member's requests; needs `leave.read`. Default: the caller. */
   readonly userId?: string;
+  readonly employeeId?: string;
   /** Every member's requests; needs `leave.read`. */
   readonly everyone?: boolean;
   readonly status?: LeaveStatus;
@@ -165,7 +173,8 @@ export interface LeaveBalance {
   readonly key: string;
   readonly name: string;
   readonly unit: LeaveUnit;
-  readonly userId: string;
+  readonly userId?: string;
+  readonly employeeId?: string;
   readonly period: number;
   /** Grants, accruals, adjustments and carryover, less expiry. */
   readonly granted: number;
@@ -188,19 +197,22 @@ export type LeaveLedgerKind =
 export interface LeaveLedgerEntry {
   readonly id: string;
   readonly organizationId: string;
-  readonly userId: string;
+  readonly userId?: string;
+  readonly employeeId?: string;
   readonly typeId: string;
   readonly kind: LeaveLedgerKind;
   /** Signed. */
   readonly amount: number;
   readonly period: number;
+  readonly expiresOn?: Temporal.PlainDate;
   readonly requestId?: string;
   readonly note?: string;
   readonly createdAt: Temporal.Instant;
 }
 
 export interface LeaveAdjustment {
-  readonly userId: string;
+  readonly userId?: string;
+  readonly employeeId?: string;
   readonly typeId: string;
   /** Signed. */
   readonly amount: number;
@@ -209,6 +221,7 @@ export interface LeaveAdjustment {
   /** Default `adjustment`. */
   readonly kind?: "grant" | "adjustment";
   readonly note?: string;
+  readonly expiresOn?: Temporal.PlainDate;
 }
 
 export interface LeaveAccrual {
@@ -219,6 +232,7 @@ export interface LeaveAccrual {
   readonly period?: number;
   /** Default: every member. */
   readonly userIds?: readonly string[];
+  readonly employeeIds?: readonly string[];
   /** A member gets an accrual with the same key once. */
   readonly idempotencyKey?: string;
   readonly note?: string;
@@ -273,13 +287,18 @@ export interface Leave<F extends object = Record<never, never>> {
    */
   balances(
     organizationId: string,
-    options?: { readonly userId?: string; readonly period?: number },
+    options?: {
+      readonly userId?: string;
+      readonly employeeId?: string;
+      readonly period?: number;
+    },
   ): AsyncResult<readonly LeaveBalance[]>;
   /** A member's ledger entries, newest first. */
   ledger(
     organizationId: string,
     options?: {
       readonly userId?: string;
+      readonly employeeId?: string;
       readonly period?: number;
       readonly typeId?: string;
     },
@@ -347,6 +366,18 @@ const dateOf = (value: unknown): Temporal.PlainDate =>
 const numberOf = (value: unknown): number =>
   typeof value === "number" ? value : Number(value);
 
+const optionalPart = (value: unknown): LeavePartial | undefined =>
+  value === null || value === undefined
+    ? undefined
+    : enumOrThrow(value, PARTIALS, "leave part");
+
+const owners = (
+  row: Readonly<Record<string, unknown>>,
+): { readonly userId?: string; readonly employeeId?: string } => ({
+  ...optional("userId", optionalText(row["userId"])),
+  ...optional("employeeId", optionalText(row["employeeId"])),
+});
+
 function typeOf(value: unknown, fn: string): LeaveType {
   const row = recordOf(value, fn);
 
@@ -373,7 +404,7 @@ function requestOf(value: unknown, fn: string): LeaveRequest {
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
-    userId: textOf(row["userId"]),
+    ...owners(row),
     typeId: textOf(row["typeId"]),
     startsOn: dateOf(row["startsOn"]),
     endsOn: dateOf(row["endsOn"]),
@@ -383,6 +414,8 @@ function requestOf(value: unknown, fn: string): LeaveRequest {
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     ...optional("note", optionalText(row["note"])),
+    ...optional("startPart", optionalPart(row["startPart"])),
+    ...optional("endPart", optionalPart(row["endPart"])),
     ...optional("approvalId", optionalText(row["approvalId"])),
     ...optional("approvedAt", optionalInstant(row["approvedAt"])),
     ...optional("cancelledAt", optionalInstant(row["cancelledAt"])),
@@ -398,7 +431,7 @@ function balanceOf(value: unknown, fn: string): LeaveBalance {
     key: textOf(row["key"]),
     name: textOf(row["name"]),
     unit: enumOrThrow(row["unit"], UNITS, "leave unit"),
-    userId: textOf(row["userId"]),
+    ...owners(row),
     period: numberOf(row["period"]),
     granted: decimal(row["granted"]),
     taken: decimal(row["taken"]),
@@ -413,12 +446,18 @@ function entryOf(value: unknown, fn: string): LeaveLedgerEntry {
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
-    userId: textOf(row["userId"]),
+    ...owners(row),
     typeId: textOf(row["typeId"]),
     kind: enumOrThrow(row["kind"], KINDS, "leave ledger kind"),
     amount: decimal(row["amount"]),
     period: numberOf(row["period"]),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    ...optional(
+      "expiresOn",
+      row["expiresOn"] === null || row["expiresOn"] === undefined
+        ? undefined
+        : dateOf(row["expiresOn"]),
+    ),
     ...optional("requestId", optionalText(row["requestId"])),
     ...optional("note", optionalText(row["note"])),
   };
@@ -482,6 +521,9 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
               partial: input.partial ?? "full",
               hours: input.hours ?? null,
               note: input.note ?? null,
+              ...optional("start_part", input.startPart),
+              ...optional("end_part", input.endPart),
+              ...optional("employee_id", input.employeeId),
               ...(checked === undefined ? {} : { fields: checked }),
             },
             (value) => requestOf(value, "request_leave"),
@@ -513,7 +555,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
           organizationId: textOf(row["organizationId"]),
           requests: recordsOf(row["requests"], "leave_feed").map((entry) => ({
             id: textOf(entry["id"]),
-            userId: textOf(entry["userId"]),
+            ...owners(entry),
             typeId: textOf(entry["typeId"]),
             type: textOf(entry["type"]),
             startsOn: dateOf(entry["startsOn"]),
@@ -535,6 +577,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
           ends: list.to?.toString() ?? null,
           everyone: list.everyone ?? false,
           page_size: list.pageSize ?? null,
+          ...optional("employee_id", list.employeeId),
         },
         (value) =>
           recordsOf(value, "list_leave_requests").map((row) =>
@@ -548,6 +591,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
           tenant: organizationId,
           user_id: list.userId ?? null,
           period: list.period ?? null,
+          ...optional("employee_id", list.employeeId),
         },
         (value) =>
           recordsOf(value, "leave_balances").map((row) =>
@@ -562,6 +606,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
           user_id: list.userId ?? null,
           period: list.period ?? null,
           type_id: list.typeId ?? null,
+          ...optional("employee_id", list.employeeId),
         },
         (value) =>
           recordsOf(value, "leave_ledger_entries").map((row) =>
@@ -573,12 +618,14 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
         "adjust_leave_balance",
         {
           tenant: organizationId,
-          user_id: adjustment.userId,
+          user_id: adjustment.userId ?? null,
           type_id: adjustment.typeId,
           amount: adjustment.amount,
           period: adjustment.period ?? null,
           kind: adjustment.kind ?? "adjustment",
           note: adjustment.note ?? null,
+          ...optional("employee_id", adjustment.employeeId),
+          ...optional("expires_on", adjustment.expiresOn?.toString()),
         },
         (value) => entryOf(value, "adjust_leave_balance"),
       ),
@@ -593,6 +640,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
           user_ids: accrual.userIds ?? null,
           idempotency_key: accrual.idempotencyKey ?? null,
           note: accrual.note ?? null,
+          ...optional("employee_ids", accrual.employeeIds),
         },
         numberOf,
       ),

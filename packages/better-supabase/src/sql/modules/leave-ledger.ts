@@ -1,4 +1,5 @@
 import type { BlockSqlContext } from "../context.ts";
+import type { LeaveOwner } from "./leave-owner.ts";
 
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { leaveTypeKey } from "./leave-feed.ts";
@@ -7,8 +8,7 @@ import { moduleOperations } from "./permissions-model.ts";
 
 /** What the balance functions need from the rest of the leave module. */
 export interface LeaveLedgerParts {
-  /** Whether a user is a member of a tenant. */
-  readonly isMember: (tenant: string, user: string) => string;
+  readonly owner: LeaveOwner;
   /** The amount a member's pending requests of one type and period book. */
   readonly pending: (
     tenant: string,
@@ -57,6 +57,11 @@ export function leaveLedgerFunctions(
   const request = ctx.permission("request", permissions.request);
   const read = ctx.permission("read", permissions.read);
   const manage = ctx.permission("manage", permissions.manage);
+  const { owner } = parts;
+  const employee = owner.employee;
+
+  const ownerDrop = (name: string, types: string): string =>
+    employee ? `drop function if exists ${fn(name)}(${types});\n` : "";
 
   const forbidden = (message: string): string =>
     fail("LEAVE_FORBIDDEN", message);
@@ -73,15 +78,15 @@ export function leaveLedgerFunctions(
     period: string,
   ): string =>
     `${ledger.fn("ledger_account_for")}(${tenant}, 'leave', ${userCode(type, user, period)}, 'Leave', ${unit}, 2::smallint,
-    'leave-types', ${type}::text, ${user}, true, ${read}, 'leave',
-    jsonb_build_object('userId', ${user}, 'typeId', ${type}, 'period', ${period}))`;
+    'leave-types', ${type}::text, ${owner.userOf(user)}, true, ${read}, 'leave',
+    jsonb_build_object('userId', ${owner.userOf(user)}${employee ? `, 'employeeId', ${user}` : ""}, 'typeId', ${type}, 'period', ${period}))`;
 
   /** The entries on members' leave accounts, with their transactions. */
   const memberEntries = `${entries} y
     join ${accounts} x on x.${la("id")} = y.${le("account")} and x.${la("managedBy")} = 'leave' and x.${la("kind")} = 'leave'
     join ${transactions} r on r.${lt("id")} = y.${le("transaction")}`;
 
-  const entryJson = `jsonb_build_object('id', y.${le("id")}, 'organizationId', x.${la("tenant")}, 'userId', x.${la("owner")},
+  const entryJson = `jsonb_build_object('id', y.${le("id")}, 'organizationId', x.${la("tenant")}, 'userId', x.${la("owner")}${employee ? `, 'employeeId', (x.${la("metadata")} ->> 'employeeId')::uuid` : ""},
       'typeId', (x.${la("metadata")} ->> 'typeId')::uuid, 'kind', substr(r.${lt("kind")}, 7), 'amount', ${decimalText(`y.${le("amount")}`)},
       'period', (x.${la("metadata")} ->> 'period')::integer,
       'requestId', case when r.${lt("referenceType")} = 'leave-requests' then r.${lt("referenceId")}::uuid end,
@@ -89,7 +94,7 @@ export function leaveLedgerFunctions(
 
   const adjusted = ctx.record({
     type: "leave.adjusted",
-    payload: `jsonb_build_object('organizationId', adjust_leave_balance.tenant, 'id', v_entry, 'userId', adjust_leave_balance.user_id, 'typeId', adjust_leave_balance.type_id, 'kind', coalesce(adjust_leave_balance.kind, 'adjustment'), 'amount', adjust_leave_balance.amount::numeric(8, 2)::text, 'period', v_period)`,
+    payload: `jsonb_build_object('organizationId', adjust_leave_balance.tenant, 'id', v_entry, 'userId', ${employee ? "v_user, 'employeeId', v_owner" : "adjust_leave_balance.user_id"}, 'typeId', adjust_leave_balance.type_id, 'kind', coalesce(adjust_leave_balance.kind, 'adjustment'), 'amount', adjust_leave_balance.amount::numeric(8, 2)::text, 'period', v_period)`,
     subject: `'leave-ledger-entries/' || v_entry::text`,
     tenant: "adjust_leave_balance.tenant",
     audit: {
@@ -99,6 +104,20 @@ export function leaveLedgerFunctions(
       summary: `'adjusted a leave balance by ' || adjust_leave_balance.amount::numeric(8, 2)::text`,
     },
   });
+
+  const key = employee ? "v_owner" : "v_user";
+
+  const y = (column: string): string =>
+    owner.staff?.col("employees", column) ?? "";
+
+  const accrueOwners = employee
+    ? `    select e.${y("id")} from ${owner.staff?.table("employees") ?? ""} e
+    where e.${y("tenant")} = accrue_leave.tenant
+      and (accrue_leave.user_ids is null or e.${y("user")} = any (accrue_leave.user_ids))
+      and (accrue_leave.employee_ids is null or e.${y("id")} = any (accrue_leave.employee_ids))`
+    : `    select m.${members.col("memberships", "user")} from ${members.table("memberships")} m
+    where m.${members.col("memberships", "tenant")} = accrue_leave.tenant
+      and (accrue_leave.user_ids is null or m.${members.col("memberships", "user")} = any (accrue_leave.user_ids))`;
 
   return `
 -- Posts one leave movement to a member's account of a type and period:
@@ -136,7 +155,7 @@ begin
     nullif(trim(leave_post.note), ''),
     case when leave_post.key is not null then 'leave:' || leave_post.user_id::text || ':' || leave_post.type_id::text || ':' || leave_post.key end,
     null,
-    jsonb_build_object('userId', leave_post.user_id, 'typeId', leave_post.type_id, 'period', leave_post.period, 'kind', leave_post.kind));
+    jsonb_build_object(${employee ? "'employeeId'" : "'userId'"}, leave_post.user_id, 'typeId', leave_post.type_id, 'period', leave_post.period, 'kind', leave_post.kind));
 end;
 $$;
 revoke execute on function ${fn("leave_post")}(${idType}, uuid, uuid, text, numeric, integer, uuid, text, text, integer) from public, anon, authenticated;
@@ -171,7 +190,7 @@ revoke execute on function ${fn("leave_available")}(${idType}, uuid, uuid, integ
 
 -- A member's balance of each tracked type for one period (default this
 -- year): granted, taken, pending and available.
-create or replace function ${fn("leave_balances")}(tenant ${idType}, user_id uuid default null, period integer default null)
+${ownerDrop("leave_balances", `${idType}, uuid, integer`)}create or replace function ${fn("leave_balances")}(tenant ${idType}, user_id uuid default null, period integer default null${employee ? ", employee_id uuid default null" : ""})
 returns jsonb
 language plpgsql
 stable
@@ -180,20 +199,25 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_user uuid := coalesce(leave_balances.user_id, auth.uid());
+${
+  employee
+    ? `  v_owner uuid;
+  v_user uuid;`
+    : "  v_user uuid := coalesce(leave_balances.user_id, auth.uid());"
+}
   v_period integer := coalesce(leave_balances.period, extract(year from current_date)::integer);
   v_rows jsonb;
-begin
+begin${employee ? `\n  ${owner.resolve("leave_balances.tenant", "leave_balances.user_id", "leave_balances.employee_id")}` : ""}
   if not (${SERVICE_CALLER} or ${ctx.can("tenant", "leave_balances.tenant", read)}
-    or (coalesce(v_user = auth.uid(), false) and ${ctx.can("tenant", "leave_balances.tenant", request)})) then
+    or (coalesce(v_user = auth.uid(), false) and ${ctx.can("tenant", "leave_balances.tenant", request)})${employee ? ` or ${owner.manages("leave_balances.tenant", "v_owner")}` : ""}) then
     ${forbidden("not allowed to read this member's leave balance")}
   end if;
-  if v_user is null then
-    ${invalid("name user_id")}
+  if ${employee ? "v_owner" : "v_user"} is null then
+    ${invalid(employee ? "name user_id or employee_id" : "name user_id")}
   end if;
   select coalesce(jsonb_agg(jsonb_build_object(
       'typeId', t.${ty("id")}, 'key', ${leaveTypeKey(ctx, "t")}, 'name', t.${ty("name")}, 'unit', t.${ty("unit")},
-      'userId', v_user, 'period', v_period,
+      'userId', v_user${employee ? ", 'employeeId', v_owner" : ""}, 'period', v_period,
       'granted', ${decimalText("coalesce(b.granted, 0)")},
       'taken', ${decimalText("coalesce(b.taken, 0)")},
       'pending', w.pending::numeric(10, 2)::text,
@@ -205,19 +229,19 @@ begin
       -sum(y.${le("amount")}) filter (where r.${lt("kind")} = 'leave.taken') as taken,
       sum(y.${le("amount")}) as total
     from ${memberEntries}
-    where x.${la("tenant")} = leave_balances.tenant and x.${la("code")} = ${userCode(`t.${ty("id")}`, "v_user", "v_period")}
+    where x.${la("tenant")} = leave_balances.tenant and x.${la("code")} = ${userCode(`t.${ty("id")}`, key, "v_period")}
   ) b on true
   cross join lateral (
-    select ${parts.pending("leave_balances.tenant", "v_user", `t.${ty("id")}`, "v_period")} as pending
+    select ${parts.pending("leave_balances.tenant", key, `t.${ty("id")}`, "v_period")} as pending
   ) w
   where t.${ty("tenant")} = leave_balances.tenant and t.${ty("tracked")} and t.${ty("archivedAt")} is null;
   return v_rows;
 end;
 $$;
-${userGrant(`${fn("leave_balances")}(${idType}, uuid, integer)`)}
+${userGrant(`${fn("leave_balances")}(${idType}, uuid, integer${employee ? ", uuid" : ""})`)}
 
 -- A member's ledger entries of one period, newest first.
-create or replace function ${fn("leave_ledger_entries")}(tenant ${idType}, user_id uuid default null, period integer default null, type_id uuid default null)
+${ownerDrop("leave_ledger_entries", `${idType}, uuid, integer, uuid`)}create or replace function ${fn("leave_ledger_entries")}(tenant ${idType}, user_id uuid default null, period integer default null, type_id uuid default null${employee ? ", employee_id uuid default null" : ""})
 returns jsonb
 language plpgsql
 stable
@@ -226,25 +250,30 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_user uuid := coalesce(leave_ledger_entries.user_id, auth.uid());
+${
+  employee
+    ? `  v_owner uuid;
+  v_user uuid;`
+    : "  v_user uuid := coalesce(leave_ledger_entries.user_id, auth.uid());"
+}
   v_rows jsonb;
-begin
+begin${employee ? `\n  ${owner.resolve("leave_ledger_entries.tenant", "leave_ledger_entries.user_id", "leave_ledger_entries.employee_id")}` : ""}
   if not (${SERVICE_CALLER} or ${ctx.can("tenant", "leave_ledger_entries.tenant", read)}
-    or (coalesce(v_user = auth.uid(), false) and ${ctx.can("tenant", "leave_ledger_entries.tenant", request)})) then
+    or (coalesce(v_user = auth.uid(), false) and ${ctx.can("tenant", "leave_ledger_entries.tenant", request)})${employee ? ` or ${owner.manages("leave_ledger_entries.tenant", "v_owner")}` : ""}) then
     ${forbidden("not allowed to read this member's leave balance")}
   end if;
   select coalesce(jsonb_agg(${entryJson} order by y.${le("createdAt")} desc, y.${le("id")} desc), '[]'::jsonb) into v_rows
   from ${memberEntries}
-  where x.${la("tenant")} = leave_ledger_entries.tenant and x.${la("owner")} = v_user
+  where x.${la("tenant")} = leave_ledger_entries.tenant and ${employee ? `x.${la("metadata")} ->> 'employeeId' = v_owner::text` : `x.${la("owner")} = v_user`}
     and (leave_ledger_entries.period is null or (x.${la("metadata")} ->> 'period')::integer = leave_ledger_entries.period)
     and (leave_ledger_entries.type_id is null or x.${la("holderId")} = leave_ledger_entries.type_id::text);
   return v_rows;
 end;
 $$;
-${userGrant(`${fn("leave_ledger_entries")}(${idType}, uuid, integer, uuid)`)}
+${userGrant(`${fn("leave_ledger_entries")}(${idType}, uuid, integer, uuid${employee ? ", uuid" : ""})`)}
 
 -- Adds a grant or a manual adjustment (signed) to a member's balance.
-create or replace function ${fn("adjust_leave_balance")}(tenant ${idType}, user_id uuid, type_id uuid, amount numeric, period integer default null, kind text default 'adjustment', note text default null)
+${ownerDrop("adjust_leave_balance", `${idType}, uuid, uuid, numeric, integer, text, text`)}create or replace function ${fn("adjust_leave_balance")}(tenant ${idType}, user_id uuid, type_id uuid, amount numeric, period integer default null, kind text default 'adjustment', note text default null${employee ? ", employee_id uuid default null" : ""})
 returns jsonb
 language plpgsql
 security definer
@@ -255,7 +284,7 @@ declare
   v_period integer := coalesce(adjust_leave_balance.period, extract(year from current_date)::integer);
   v_transaction uuid;
   v_entry uuid;
-  v_row jsonb;
+  v_row jsonb;${owner.declare}
 begin
   if not (${SERVICE_CALLER} or ${ctx.can("tenant", "adjust_leave_balance.tenant", manage)}) then
     ${forbidden("not allowed to adjust leave balances")}
@@ -266,27 +295,37 @@ begin
   if adjust_leave_balance.amount is null or adjust_leave_balance.amount = 0 then
     ${invalid("amount must not be zero")}
   end if;
-  if not ${parts.isMember("adjust_leave_balance.tenant", "adjust_leave_balance.user_id")} then
-    ${invalid("the user is not a member of this organization")}
+${
+  employee
+    ? `  if adjust_leave_balance.user_id is null and adjust_leave_balance.employee_id is null then
+    ${invalid("name user_id or employee_id")}
   end if;
+  ${owner.resolve("adjust_leave_balance.tenant", "adjust_leave_balance.user_id", "adjust_leave_balance.employee_id")}
+  if v_owner is null then
+    ${invalid("no employee record for that member in this organization")}
+  end if;`
+    : `  if not ${owner.exists("adjust_leave_balance.tenant", "adjust_leave_balance.user_id")} then
+    ${invalid("the user is not a member of this organization")}
+  end if;`
+}
   if not exists (select 1 from ${types} t where t.${ty("id")} = adjust_leave_balance.type_id and t.${ty("tenant")} = adjust_leave_balance.tenant) then
     ${fail("LEAVE_TYPE_NOT_FOUND", "leave type not found", "P0002")}
   end if;
-  v_transaction := ${fn("leave_post")}(adjust_leave_balance.tenant, adjust_leave_balance.user_id, adjust_leave_balance.type_id,
+  v_transaction := ${fn("leave_post")}(adjust_leave_balance.tenant, ${employee ? "v_owner" : "adjust_leave_balance.user_id"}, adjust_leave_balance.type_id,
     coalesce(adjust_leave_balance.kind, 'adjustment'), adjust_leave_balance.amount, v_period, null, adjust_leave_balance.note);
   select y.${le("id")}, ${entryJson} into v_entry, v_row
   from ${memberEntries}
-  where y.${le("transaction")} = v_transaction and x.${la("owner")} = adjust_leave_balance.user_id;
+  where y.${le("transaction")} = v_transaction and ${employee ? `x.${la("metadata")} ->> 'employeeId' = v_owner::text` : `x.${la("owner")} = adjust_leave_balance.user_id`};
   ${adjusted}
   return v_row;
 end;
 $$;
-${userGrant(`${fn("adjust_leave_balance")}(${idType}, uuid, uuid, numeric, integer, text, text)`)}
+${userGrant(`${fn("adjust_leave_balance")}(${idType}, uuid, uuid, numeric, integer, text, text${employee ? ", uuid" : ""})`)}
 
 -- Grants every member (or user_ids) an accrual of one type: amount, or the
 -- type's allowance. With idempotency_key a member gets it once, so a
 -- scheduled job can run it again safely. Returns how many entries it wrote.
-create or replace function ${fn("accrue_leave")}(tenant ${idType}, type_id uuid, amount numeric default null, period integer default null, user_ids uuid[] default null, idempotency_key text default null, note text default null)
+${ownerDrop("accrue_leave", `${idType}, uuid, numeric, integer, uuid[], text, text`)}create or replace function ${fn("accrue_leave")}(tenant ${idType}, type_id uuid, amount numeric default null, period integer default null, user_ids uuid[] default null, idempotency_key text default null, note text default null${employee ? ", employee_ids uuid[] default null" : ""})
 returns integer
 language plpgsql
 security definer
@@ -311,9 +350,7 @@ begin
     ${invalid("name an amount, or give the type an allowance")}
   end if;
   for v_user in
-    select m.${members.col("memberships", "user")} from ${members.table("memberships")} m
-    where m.${members.col("memberships", "tenant")} = accrue_leave.tenant
-      and (accrue_leave.user_ids is null or m.${members.col("memberships", "user")} = any (accrue_leave.user_ids))
+${accrueOwners}
   loop
     continue when accrue_leave.idempotency_key is not null
       and ${fn("leave_posted")}(accrue_leave.tenant, v_user, v_type.${ty("id")}, accrue_leave.idempotency_key);
@@ -324,7 +361,7 @@ begin
   return v_count;
 end;
 $$;
-${userGrant(`${fn("accrue_leave")}(${idType}, uuid, numeric, integer, uuid[], text, text)`)}
+${userGrant(`${fn("accrue_leave")}(${idType}, uuid, numeric, integer, uuid[], text, text${employee ? ", uuid[]" : ""})`)}
 
 -- Closes a period: each member's positive balance of each tracked type
 -- carries into the next period up to the type's carryover_max, and the rest
@@ -349,7 +386,7 @@ begin
     ${invalid("name the period to close")}
   end if;
   for v_row in
-    select x.${la("owner")} as user_id, t.${ty("id")} as type_id, b.${lb("balance")}::numeric / ${SCALE} as balance,
+    select ${employee ? `(x.${la("metadata")} ->> 'employeeId')::uuid` : `x.${la("owner")}`} as user_id, t.${ty("id")} as type_id, b.${lb("balance")}::numeric / ${SCALE} as balance,
       ${ctx.has("types", "carryoverMax") ? `least(b.${lb("balance")}::numeric / ${SCALE}, coalesce(t.${ty("carryoverMax")}, b.${lb("balance")}::numeric / ${SCALE}))` : `b.${lb("balance")}::numeric / ${SCALE}`} as carry
     from ${accounts} x
     join ${balances} b on b.${lb("account")} = x.${la("id")}

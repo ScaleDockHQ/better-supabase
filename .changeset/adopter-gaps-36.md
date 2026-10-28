@@ -1,0 +1,15 @@
+---
+"better-supabase": minor
+---
+
+Leave, expenses, the drive, the catalog, invoices and calendar feeds run over more of an app's own tables.
+
+- Leave: `options.owner: "employee"` keys requests and balances by an employee of the employees block, so an employee without an account has leave too. The client takes `employeeId` on `request`, `list`, `balances`, `ledger` and `adjust`, and `employeeIds` on `accrue`. Reads return `employeeId`, and `userId` is now optional on requests, balances, ledger entries and feed entries.
+- Leave: mapped `columns.requests.startPart` and `endPart` book half a day at either end of a request (`startPart` and `endPart` on `request`), combined with hours for an hours type, and overlaps are checked by half day.
+- Leave: `tables.balances` maps the app's table of signed amounts (with an optional `expiresOn`) instead of the ledger block. The block sums it, adds taken and adjustment rows, and deletes the taken row when approved leave is cancelled. `adjust` takes `expiresOn`.
+- Expenses: mapping `tables.reports` and `tables.lines` to `null` keeps each expense as one row of `tables.expenses`, without the approvals block or the ledger. The client adds `createExpense`, `updateExpense`, `submitExpense`, `decideExpense`, `reimburseExpense`, `getExpense` and `listExpenses`, and `options.owner: "employee"` keys expenses by employee. Report mode is unchanged.
+- Drive: node kind and source, node and drive grant roles, drive kind, and connection provider and status may be enums in the app's tables.
+- `add --adopt` and `apply --adopt` render the proposal with the authorization provider, so calendar `accessFunctions` in the `{ rows, key }` form and drive `roleFunctions` in the `{ rows, roles }` form no longer fail with the `rowsWith` error.
+- Catalog: `updateProduct` with `price: null` clears the price (`save_product` takes `clear`). `setProductStatus` writes the canonical app value of a label even when another mapped value reads as it, accepts an app value itself, and moves an archived product back to `active` when there is no draft status. A product with variants can gain an option, each variant taking its first value. `updateVariant` keeps what it isn't given, and `sku` is optional. `permissions.create`, `update` and `delete` name separate keys for products, options and variants.
+- Invoices: `issue(id, issuedOn, { dueOn })` sets the due date, and `termsDays: null` leaves none. `removeCharge(chargeId)` removes a charge. `writeOff(id, reason)` keeps the reason in a mapped `writeOffReason` column. `reversePayment(paymentId, reason)` posts the opposite ledger transaction for a payment recorded by hand and refuses one whose method is in `options.providerPaymentMethods` (default `stripe` and `order`). A credit note is now capped at the invoice's total and charges less earlier credits instead of the open balance, so a paid invoice can be credited and refunded.
+- Calendar: `options.feed.reminders` reads event-level alarms from an app table into the feed's VALARMs, and `calendar_feed` returns the link's creator as `createdBy`.

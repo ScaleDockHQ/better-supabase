@@ -27,6 +27,7 @@ export type InvoicesSqlOptions = {
    * rate: the block never recounts or writes them and reads what they hold.
    */
   readonly totals?: "block" | "app";
+  readonly providerPaymentMethods?: readonly string[];
 };
 
 export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
@@ -41,4 +42,5 @@ export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
     lineRates: option.string<"bps" | "percent">({ default: "bps" }),
     chargeExtraColumns: option.extraColumns(),
     totals: option.string<"block" | "app">({ default: "block" }),
+    providerPaymentMethods: option.strings({ default: ["stripe", "order"] }),
   });

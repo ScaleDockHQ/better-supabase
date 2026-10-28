@@ -3688,6 +3688,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "paidAt": "paid_at",
               "voidedAt": "voided_at",
               "voidReason": "void_reason",
+              "writeOffReason": "write_off_reason",
               "note": "note",
               "originType": "origin_type",
               "originId": "origin_id",
@@ -4262,10 +4263,13 @@ export const PRESET_CATALOG: PresetCatalog = {
               "id": "id",
               "tenant": "tenant_id",
               "user": "user_id",
+              "employee": "employee_id",
               "type": "type_id",
               "startsOn": "starts_on",
               "endsOn": "ends_on",
               "partial": "partial",
+              "startPart": "start_part",
+              "endPart": "end_part",
               "amount": "amount",
               "note": "note",
               "approval": "approval_id",
@@ -4990,6 +4994,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit",
         "attachments",
+        "employees",
         "approvals"
       ],
       "manifest": "expenses",
@@ -10438,7 +10443,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "expense_report.approved",
           "expense_report.reimbursed",
           "expense_report.cancelled",
-          "expense_report.rejected"
+          "expense_report.rejected",
+          "expense.created",
+          "expense.submitted",
+          "expense.approved",
+          "expense.rejected",
+          "expense.reimbursed"
         ]
       }
     },
@@ -14828,7 +14838,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "invoice.credited",
           "invoice.voided",
           "invoice.uncollected",
-          "invoice.charged"
+          "invoice.charged",
+          "invoice.charge_removed",
+          "invoice.payment_reversed"
         ]
       }
     },

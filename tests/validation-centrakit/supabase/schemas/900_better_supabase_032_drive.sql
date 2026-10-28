@@ -1,9 +1,25 @@
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:63ba23f5d1ebf9583ab2edf27e93416cd49026968a7ea5e71a81fc4fdb724085
+-- @bsb-hash sha256:bb572c6e0f39c5f4818e96fa90054b1ea18527a0cdd0ce00f229ef1c358dde46
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -145,7 +161,7 @@ begin
     return 'editor';
   end if;
   
-  select greatest(coalesce(v_rank, 0), coalesce(max(coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], dg."role"), 0)), 0)) into v_rank from "centrakit"."file_node_grant" dg
+  select greatest(coalesce(v_rank, 0), coalesce(max(coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], dg."role"::text), 0)), 0)) into v_rank from "centrakit"."file_node_grant" dg
   where dg."file_node_id" = any ("better_supabase"."drive_ancestors"(drive_role.node))
     and (dg."user_id" = v_uid or (dg."team_id" is not null and exists (select 1 from "centrakit"."team_members" tm where tm."team_id"::text = dg."team_id"::text and tm."user_id" = v_uid)));
   
@@ -165,7 +181,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], "better_supabase"."drive_role"(drive_can.node)), 0) >= coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], drive_can.role), 0) and coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], drive_can.role), 0) > 0, false)
+  select coalesce(coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], "better_supabase"."drive_role"(drive_can.node)::text), 0) >= coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], drive_can.role::text), 0) and coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], drive_can.role::text), 0) > 0, false)
 $$;
 revoke execute on function "better_supabase"."drive_can"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."drive_can"(uuid, text) to authenticated, service_role;
@@ -207,8 +223,8 @@ as $$
   cross join lateral "better_supabase"."drive_subtree"(dg."file_node_id") s
   join "centrakit"."file_node" x on x."id" = s.node_id
   where auth.uid() is not null
-    and coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], dg."role"), 0) >= coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], 'viewer'), 0)
-    and coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], 'viewer'), 0) > 0
+    and coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], dg."role"::text), 0) >= coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], 'viewer'::text), 0)
+    and coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], 'viewer'::text), 0) > 0
     and x."organization_id" in (select better_supabase.tenant_ids_with('drive.read'))
     and (dg."user_id" = auth.uid() or (dg."team_id" is not null and exists (select 1 from "centrakit"."team_members" tm where tm."team_id"::text = dg."team_id"::text and tm."user_id" = auth.uid())))
 $$;
@@ -385,12 +401,12 @@ begin
     end if;
   end;
   insert into "centrakit"."file_node" ("organization_id", "parent_id", "kind", "name", "created_by")
-  values (drive_insert_node.tenant, drive_insert_node.parent, drive_insert_node.kind, v_name, auth.uid())
+  values (drive_insert_node.tenant, drive_insert_node.parent, better_supabase.as_column_type(drive_insert_node.kind, (null::"centrakit"."file_node")."kind"), v_name, auth.uid())
   returning * into v_node;
   if drive_insert_node.parent is null and auth.uid() is not null then
     delete from "centrakit"."file_node_grant" dg where dg."file_node_id" = v_node."id" and dg."user_id" = auth.uid();
     insert into "centrakit"."file_node_grant" ("organization_id", "file_node_id", "user_id", "role")
-    values (v_node."organization_id", v_node."id", auth.uid(), 'editor');
+    values (v_node."organization_id", v_node."id", auth.uid(), better_supabase.as_column_type('editor', (null::"centrakit"."file_node_grant")."role"));
   end if;
   perform "better_supabase".emit_event('drive.node_created', jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'kind', v_node."kind", 'name', v_node."name", 'parentId', v_node."parent_id"), 'drive-nodes/' || v_node."id"::text, (v_node."organization_id")::text, null, 'domain');
   perform better_supabase.audit_event(
@@ -675,7 +691,7 @@ begin
       v_role := "better_supabase"."drive_role"(v_node."id");
       delete from "centrakit"."file_node_grant" dg where dg."file_node_id" = v_node."id" and dg."user_id" = auth.uid();
     insert into "centrakit"."file_node_grant" ("organization_id", "file_node_id", "user_id", "role")
-    values (v_node."organization_id", v_node."id", auth.uid(), v_role);
+    values (v_node."organization_id", v_node."id", auth.uid(), better_supabase.as_column_type(v_role, (null::"centrakit"."file_node_grant")."role"));
     end if;
     update "centrakit"."file_node" x set "parent_id" = drive_move.parent, "name" = v_name, "updated_at" = now()
     where x."id" = v_node."id"
@@ -763,13 +779,13 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
     raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ("better_supabase"."drive_can"(v_node."id", 'editor') and coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], drive_share.role), 0) <= coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], "better_supabase"."drive_role"(v_node."id")), 0))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ("better_supabase"."drive_can"(v_node."id", 'editor') and coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], drive_share.role::text), 0) <= coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], "better_supabase"."drive_role"(v_node."id")::text), 0))) then
     raise exception 'not allowed to share this item with that role' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
   if (false or false) then
     raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
   end if;
-  if coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], drive_share.role), 0) = 0 then
+  if coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], drive_share.role::text), 0) = 0 then
     raise exception 'role must be one of viewer, commenter, editor' using errcode = '22023', hint = 'DRIVE_ROLE_UNKNOWN';
   end if;
   if v_type not in ('user', 'team') or drive_share.principal_id is null then
@@ -792,7 +808,7 @@ begin
   end;
   delete from "centrakit"."file_node_grant" dg where dg."file_node_id" = v_node."id" and case when dg."user_id" is not null then 'user' else 'team' end = v_type and coalesce(dg."user_id"::text, dg."team_id"::text) = drive_share.principal_id;
   insert into "centrakit"."file_node_grant" ("organization_id", "file_node_id", "user_id", "team_id", "role")
-  values (v_node."organization_id", v_node."id", case when v_type = 'user' then drive_share.principal_id::uuid end, case when v_type = 'team' then (select t."id" from "centrakit"."teams" t where t."id"::text = drive_share.principal_id) end, drive_share.role)
+  values (v_node."organization_id", v_node."id", case when v_type = 'user' then drive_share.principal_id::uuid end, case when v_type = 'team' then (select t."id" from "centrakit"."teams" t where t."id"::text = drive_share.principal_id) end, better_supabase.as_column_type(drive_share.role, (null::"centrakit"."file_node_grant")."role"))
   returning "id" into v_id;
   perform "better_supabase".emit_event('drive.node_shared', jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'principalType', v_type, 'principalId', drive_share.principal_id, 'role', drive_share.role), 'drive-nodes/' || v_node."id"::text, (v_node."organization_id")::text, null, 'domain');
   perform better_supabase.audit_event(
@@ -880,7 +896,7 @@ begin
     raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', dg."id", 'nodeId', dg."file_node_id", 'principalType', case when dg."user_id" is not null then 'user' else 'team' end, 'principalId', coalesce(dg."user_id"::text, dg."team_id"::text), 'role', dg."role", 'expiresAt', null, 'inherited', dg."file_node_id" <> drive_grants.node) order by dg."file_node_id" = drive_grants.node, coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], dg."role"), 0) desc, dg."id"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', dg."id", 'nodeId', dg."file_node_id", 'principalType', case when dg."user_id" is not null then 'user' else 'team' end, 'principalId', coalesce(dg."user_id"::text, dg."team_id"::text), 'role', dg."role", 'expiresAt', null, 'inherited', dg."file_node_id" <> drive_grants.node) order by dg."file_node_id" = drive_grants.node, coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], dg."role"::text), 0) desc, dg."id"), '[]'::jsonb)
     from "centrakit"."file_node_grant" dg
     where dg."file_node_id" = any ("better_supabase"."drive_ancestors"(drive_grants.node))
   );

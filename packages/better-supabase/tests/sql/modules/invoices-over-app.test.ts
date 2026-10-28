@@ -147,6 +147,161 @@ $$;`),
     ).resolves.toBeUndefined();
   });
 
+  it("issues with a due date or none, removes charges and writes off with a reason", async () => {
+    const app = `${APP.replace("terms_days integer not null default 14,", "terms_days integer,\n  write_off_reason text,")}
+create table public.bill_charges (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null,
+  bill_id uuid not null references public.bills (id) on delete cascade,
+  amount bigint not null,
+  created_at timestamptz not null default now()
+);
+`;
+
+    await expect(
+      run(
+        `do $$
+declare
+  v_id uuid;
+  v_open uuid;
+  v_charge uuid;
+  v_invoice jsonb;
+begin
+  ${SERVICE}
+  v_id := (better_supabase.create_invoice('${TENANT}', '{"title": "Website", "currency": "EUR"}'::jsonb,
+    '[{"description": "Design", "quantity": 1, "unitAmount": "5000"}]'::jsonb) ->> 'id')::uuid;
+  v_invoice := better_supabase.issue_invoice(v_id, '2099-01-10', due_on => '2099-02-28');
+  if (select due_on from public.bills where id = v_id) <> '2099-02-28' then
+    raise exception 'due %', v_invoice;
+  end if;
+  v_open := (better_supabase.create_invoice('${TENANT}', '{"title": "Hosting", "currency": "EUR", "termsDays": null}'::jsonb,
+    '[{"description": "Month", "quantity": 1, "unitAmount": "900"}]'::jsonb) ->> 'id')::uuid;
+  perform better_supabase.issue_invoice(v_open, '2099-01-10');
+  if (select terms_days from public.bills where id = v_open) is not null or (select due_on from public.bills where id = v_open) is not null then
+    raise exception 'no terms %', (select row_to_json(b) from public.bills b where id = v_open);
+  end if;
+  perform better_supabase.record_invoice_payment(v_id, 5000, 'EUR', now(), 'bank', 'tx-1');
+  perform better_supabase.add_invoice_charge(v_id, 1500, 'EUR', 'Late fee');
+  v_charge := (select id from public.bill_charges where bill_id = v_id);
+  if (select state from public.bills where id = v_id) <> 'partially_paid' then
+    raise exception 'charged %', (select state from public.bills where id = v_id);
+  end if;
+  v_invoice := better_supabase.remove_invoice_charge(v_charge);
+  if (select state from public.bills where id = v_id) <> 'paid' or exists (select 1 from public.bill_charges) then
+    raise exception 'removed %', v_invoice;
+  end if;
+  perform better_supabase.write_off_invoice(v_open, 'customer went bankrupt');
+  if (select state from public.bills where id = v_open) <> 'uncollectible'
+    or (select write_off_reason from public.bills where id = v_open) <> 'customer went bankrupt' then
+    raise exception 'written off %', (select row_to_json(b) from public.bills b where id = v_open);
+  end if;
+end;
+$$;`,
+        {
+          invoices: {
+            ...BLOCKS["invoices"],
+            tables: {
+              invoices: "public.bills",
+              charges: "public.bill_charges",
+            },
+            columns: {
+              ...BLOCKS["invoices"]?.columns,
+              invoices: {
+                ...BLOCKS["invoices"]?.columns?.["invoices"],
+                writeOffReason: "write_off_reason",
+              },
+              charges: {
+                tenant: "org_id",
+                invoice: "bill_id",
+                currency: null,
+                description: null,
+                createdBy: null,
+              },
+            },
+          },
+        },
+        app,
+        { ...OWN_TABLES, "public.bill_charges": "app.sql" },
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("credits a paid invoice up to its total, reverses manual payments and numbers only issued invoices", async () => {
+    await expect(
+      run(`do $$
+declare
+  v_id uuid;
+  v_empty uuid;
+  v_credit jsonb;
+  v_payment uuid;
+  v_invoice jsonb;
+begin
+  ${SERVICE}
+  v_empty := (better_supabase.create_invoice('${TENANT}', '{"title": "Nothing", "currency": "EUR"}'::jsonb, '[]'::jsonb) ->> 'id')::uuid;
+  begin
+    perform better_supabase.issue_invoice(v_empty, null);
+    raise exception 'an empty invoice was issued';
+  exception when others then
+    if sqlerrm = 'an empty invoice was issued' then
+      raise;
+    end if;
+  end;
+  if (select seq from public.bills where id = v_empty) is not null then
+    raise exception 'a draft carries a number';
+  end if;
+  v_id := (better_supabase.create_invoice('${TENANT}', '{"title": "Website", "currency": "EUR"}'::jsonb,
+    '[{"description": "Design", "quantity": 1, "unitAmount": "5000"}]'::jsonb) ->> 'id')::uuid;
+  v_invoice := better_supabase.issue_invoice(v_id, null);
+  if (select seq from public.bills where id = v_id) <> 1 or (select issued_on from public.bills where id = v_id) <> current_date then
+    raise exception 'numbered %', v_invoice;
+  end if;
+  v_invoice := better_supabase.record_invoice_payment(v_id, 5000, 'EUR', now(), 'stripe', 'pi_1');
+  begin
+    perform better_supabase.reverse_invoice_payment((v_invoice -> 'payments' -> 0 ->> 'id')::uuid, 'wrong');
+    raise exception 'a provider payment was reversed';
+  exception when others then
+    if sqlerrm not like '%provider%' then
+      raise;
+    end if;
+  end;
+  v_credit := better_supabase.credit_invoice(v_id, '[{"description": "Refund", "quantity": 1, "unitAmount": "2000"}]'::jsonb, null);
+  perform better_supabase.issue_invoice((v_credit ->> 'id')::uuid, null);
+  if (select credited_total from public.bills where id = v_id) <> 2000 then
+    raise exception 'a paid invoice was not credited';
+  end if;
+  v_credit := better_supabase.credit_invoice(v_id, '[{"description": "Too much", "quantity": 1, "unitAmount": "3001"}]'::jsonb, null);
+  begin
+    perform better_supabase.issue_invoice((v_credit ->> 'id')::uuid, null);
+    raise exception 'a credit above the total was issued';
+  exception when others then
+    if sqlerrm = 'a credit above the total was issued' then
+      raise;
+    end if;
+  end;
+  perform better_supabase.record_invoice_payment(v_id, -2000, 'EUR', now(), 'bank', 'refund-1');
+  v_id := (better_supabase.create_invoice('${TENANT}', '{"title": "Hosting", "currency": "EUR"}'::jsonb,
+    '[{"description": "Month", "quantity": 1, "unitAmount": "900"}]'::jsonb) ->> 'id')::uuid;
+  perform better_supabase.issue_invoice(v_id, null);
+  v_invoice := better_supabase.record_invoice_payment(v_id, 900, 'EUR', now(), 'bank', 'tx-9');
+  v_payment := (v_invoice -> 'payments' -> 0 ->> 'id')::uuid;
+  v_invoice := better_supabase.reverse_invoice_payment(v_payment, 'bounced');
+  if (select state from public.bills where id = v_id) <> 'issued' or (select paid_total from public.bills where id = v_id) <> 0
+    or jsonb_array_length(v_invoice -> 'payments') <> 2 then
+    raise exception 'reversed %', v_invoice;
+  end if;
+  begin
+    perform better_supabase.reverse_invoice_payment(v_payment, 'again');
+    raise exception 'reversed twice';
+  exception when others then
+    if sqlerrm = 'reversed twice' then
+      raise;
+    end if;
+  end;
+end;
+$$;`),
+    ).resolves.toBeUndefined();
+  });
+
   it("keeps line rates as percentages in the app's line table", async () => {
     await expect(
       run(
