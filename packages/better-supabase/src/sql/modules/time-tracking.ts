@@ -15,6 +15,7 @@ import {
   extraFieldsArg,
   extraFieldsJson,
   fail,
+  insertExtraColumns,
   lockTable,
   pageSize,
   schemaPreamble,
@@ -369,14 +370,8 @@ function build(ctx: BlockSqlContext): string {
   const extras = ctx.extraColumns("entries", RESERVED);
   const extra = extraFieldsArg(extras);
 
-  const setExtras = (source: string): string =>
-    writeExtraColumns(
-      entries,
-      extras,
-      source,
-      `x.${e("id")} = v_row.${e("id")}`,
-      "v_row",
-    );
+  const inserted = (source: string) =>
+    insertExtraColumns(entries, extras, `coalesce(${source}, '{}'::jsonb)`);
 
   const seconds = (row: string): string =>
     durationMode
@@ -678,9 +673,9 @@ begin
   v_row.${e("note")} := start_timer.note;
   ${overlap("v_row")}
   ${save("v_row")}
-  insert into ${entries} (${e("id")}, ${e("tenant")}, ${e("user")}${employeeMode ? `, ${e("employee")}` : ""}, ${subjectInsert}, ${e("startedAt")}, ${e("billable")}, ${e("rate")}, ${e("rateCurrency")}, ${e("note")}${durationMode ? `, ${e("runningSince")}` : ""})
-  values (v_row.${e("id")}, v_row.${e("tenant")}, v_row.${e("user")}${employeeMode ? `, v_row.${e("employee")}` : ""}, ${subjectInsertValues}, v_row.${e("startedAt")}, v_row.${e("billable")}, v_row.${e("rate")}, v_row.${e("rateCurrency")}, v_row.${e("note")}${durationMode ? `, v_row.${e("runningSince")}` : ""})
-  returning * into v_row;${setExtras("start_timer.fields")}
+  insert into ${entries} (${e("id")}, ${e("tenant")}, ${e("user")}${employeeMode ? `, ${e("employee")}` : ""}, ${subjectInsert}, ${e("startedAt")}, ${e("billable")}, ${e("rate")}, ${e("rateCurrency")}, ${e("note")}${durationMode ? `, ${e("runningSince")}` : ""}${inserted("start_timer.fields").columns})
+  values (v_row.${e("id")}, v_row.${e("tenant")}, v_row.${e("user")}${employeeMode ? `, v_row.${e("employee")}` : ""}, ${subjectInsertValues}, v_row.${e("startedAt")}, v_row.${e("billable")}, v_row.${e("rate")}, v_row.${e("rateCurrency")}, v_row.${e("note")}${durationMode ? `, v_row.${e("runningSince")}` : ""}${inserted("start_timer.fields").values})
+  returning * into v_row;
   ${entryRecord("time_entry.started", "v_row", false)}
   ${saved("v_row")}
   return ${entryJson("v_row")};
@@ -771,9 +766,9 @@ begin
   v_row.${e("note")} := log_time.note;
   ${overlap("v_row")}
   ${save("v_row")}
-  insert into ${entries} (${e("id")}, ${e("tenant")}, ${e("user")}${employeeMode ? `, ${e("employee")}` : ""}, ${subjectInsert}, ${e("startedAt")}, ${endColumn}, ${e("billable")}, ${e("rate")}, ${e("rateCurrency")}, ${e("note")})
-  values (v_row.${e("id")}, v_row.${e("tenant")}, v_row.${e("user")}${employeeMode ? `, v_row.${e("employee")}` : ""}, ${subjectInsertValues}, v_row.${e("startedAt")}, v_row.${endColumn}, v_row.${e("billable")}, v_row.${e("rate")}, v_row.${e("rateCurrency")}, v_row.${e("note")})
-  returning * into v_row;${setExtras("log_time.fields")}
+  insert into ${entries} (${e("id")}, ${e("tenant")}, ${e("user")}${employeeMode ? `, ${e("employee")}` : ""}, ${subjectInsert}, ${e("startedAt")}, ${endColumn}, ${e("billable")}, ${e("rate")}, ${e("rateCurrency")}, ${e("note")}${inserted("log_time.fields").columns})
+  values (v_row.${e("id")}, v_row.${e("tenant")}, v_row.${e("user")}${employeeMode ? `, v_row.${e("employee")}` : ""}, ${subjectInsertValues}, v_row.${e("startedAt")}, v_row.${endColumn}, v_row.${e("billable")}, v_row.${e("rate")}, v_row.${e("rateCurrency")}, v_row.${e("note")}${inserted("log_time.fields").values})
+  returning * into v_row;
   ${entryRecord("time_entry.recorded", "v_row", true)}
   ${saved("v_row")}
   return ${entryJson("v_row")};
@@ -857,7 +852,7 @@ begin
       ${e("note")} = v_row.${e("note")},
       ${e("updatedAt")} = now()
   where x.${e("id")} = v_row.${e("id")}
-  returning * into v_row;${setExtras("(v_patch -> 'fields')")}
+  returning * into v_row;${writeExtraColumns(entries, extras, "(v_patch -> 'fields')", `x.${e("id")} = v_row.${e("id")}`, "v_row")}
   ${entryRecord("time_entry.updated", "v_row", true, "v_previous_started_at")}
   ${saved("v_row")}
   return ${entryJson("v_row")};

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:167bb151e461ae5fa5bb1071f4d00a11bab394534f0f0c4f6c27cc01e74d68aa
+-- @bsb-hash sha256:51b114d3f18d7af349546d48347c50d09631412f626ad1551622bdf2d50fe0c9
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -432,7 +432,7 @@ begin
   ) then
     raise exception 'Each rollout variant needs a known variant and a weight from 0 to 100' using errcode = '22023', hint = 'FLAGS_ROLLOUT_VARIANTS';
   end if;
-  insert into "better_supabase"."flags" as x ("key", "type", "description", "variants", "default_variant", "enabled", "archived", "rules", "rollout_percentage", "rollout_variants", "rollout_schedule")
+  insert into "better_supabase"."flags" as x ("key", "type", "description", "variants", "default_variant", "enabled", "archived", "rules", "rollout_percentage", "rollout_variants", "rollout_schedule", "app_note")
   values (
     save_flag.key,
     coalesce(d ->> 'type', 'boolean'),
@@ -444,7 +444,7 @@ begin
     coalesce(d -> 'rules', '[]'::jsonb),
     coalesce((d ->> 'rollout_percentage')::numeric, 0),
     coalesce(d -> 'rollout_variants', '[]'::jsonb),
-    nullif(d -> 'rollout_schedule', 'null'::jsonb)
+    nullif(d -> 'rollout_schedule', 'null'::jsonb), (jsonb_populate_record(null::"better_supabase"."flags", jsonb_build_object('app_note', coalesce(d -> 'fields', '{}'::jsonb) -> 'app_note')))."app_note"
   )
   on conflict ("key") do update set
     "type" = case when d ? 'type' then excluded."type" else x."type" end,

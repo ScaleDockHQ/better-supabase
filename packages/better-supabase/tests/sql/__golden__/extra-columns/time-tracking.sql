@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:f5819bc78668a86f06093863efcc9061908fbe0fdb8140e401462444c53c8ab5
+-- @bsb-hash sha256:169090627a5afd7b4d8db524a22c30883c0d3773b7e81a27d10ad2321c960e75
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -293,13 +293,9 @@ begin
         using v_row."id", v_row."tenant_id", v_row."user_id";
     end if;
   end;
-  insert into "better_supabase"."time_entries" ("id", "tenant_id", "user_id", "subject_type", "subject_id", "started_at", "billable", "rate", "rate_currency", "note")
-  values (v_row."id", v_row."tenant_id", v_row."user_id", v_row."subject_type", v_row."subject_id", v_row."started_at", v_row."billable", v_row."rate", v_row."rate_currency", v_row."note")
+  insert into "better_supabase"."time_entries" ("id", "tenant_id", "user_id", "subject_type", "subject_id", "started_at", "billable", "rate", "rate_currency", "note", "app_note")
+  values (v_row."id", v_row."tenant_id", v_row."user_id", v_row."subject_type", v_row."subject_id", v_row."started_at", v_row."billable", v_row."rate", v_row."rate_currency", v_row."note", (jsonb_populate_record(null::"better_supabase"."time_entries", jsonb_build_object('app_note', coalesce(start_timer.fields, '{}'::jsonb) -> 'app_note')))."app_note")
   returning * into v_row;
-  update "better_supabase"."time_entries" x set "app_note" = case when start_timer.fields ? 'app_note' then r."app_note" else x."app_note" end
-  from jsonb_populate_record(null::"better_supabase"."time_entries", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(start_timer.fields) e where e.key in ('app_note'))) r
-  where x."id" = v_row."id"
-  returning x.* into v_row;
   null;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_time_entry_save"(uuid)');
@@ -457,13 +453,9 @@ begin
         using v_row."id", v_row."tenant_id", v_row."user_id";
     end if;
   end;
-  insert into "better_supabase"."time_entries" ("id", "tenant_id", "user_id", "subject_type", "subject_id", "started_at", "ended_at", "billable", "rate", "rate_currency", "note")
-  values (v_row."id", v_row."tenant_id", v_row."user_id", v_row."subject_type", v_row."subject_id", v_row."started_at", v_row."ended_at", v_row."billable", v_row."rate", v_row."rate_currency", v_row."note")
+  insert into "better_supabase"."time_entries" ("id", "tenant_id", "user_id", "subject_type", "subject_id", "started_at", "ended_at", "billable", "rate", "rate_currency", "note", "app_note")
+  values (v_row."id", v_row."tenant_id", v_row."user_id", v_row."subject_type", v_row."subject_id", v_row."started_at", v_row."ended_at", v_row."billable", v_row."rate", v_row."rate_currency", v_row."note", (jsonb_populate_record(null::"better_supabase"."time_entries", jsonb_build_object('app_note', coalesce(log_time.fields, '{}'::jsonb) -> 'app_note')))."app_note")
   returning * into v_row;
-  update "better_supabase"."time_entries" x set "app_note" = case when log_time.fields ? 'app_note' then r."app_note" else x."app_note" end
-  from jsonb_populate_record(null::"better_supabase"."time_entries", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(log_time.fields) e where e.key in ('app_note'))) r
-  where x."id" = v_row."id"
-  returning x.* into v_row;
   null;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_time_entry_save"(uuid)');
