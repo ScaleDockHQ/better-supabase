@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:e546be029c9c1d266744ac007d2523076b2dd673e6ab616ba0b07f11b2ca7af3
+-- @bsb-hash sha256:deb9c0008d0fa44a8bb09e8020b2c7c1b42177396a1ba1575ca7cb46c1dad4cd
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -159,7 +159,9 @@ create policy expense_lines_read on "better_supabase"."expense_lines"
   using (exists (select 1 from "better_supabase"."expense_reports" p where p."id" = "report_id" and p."user_id" = (select auth.uid()))
     or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
--- Creates or updates the category with this key and its spend policy.
+-- Creates or updates the category with this key and its spend policy. fields:
+-- the extra columns (options.categoryExtraColumns) to set.
+drop function if exists "better_supabase"."save_expense_category"(uuid, text, text, text, bigint, bigint, jsonb);
 create or replace function "better_supabase"."save_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
 returns jsonb
 language plpgsql
@@ -195,12 +197,10 @@ begin
   if save_expense_category.receipt_over is not null then
     raise exception 'a receipt threshold needs the attachments block' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  insert into "better_supabase"."expense_categories" ("tenant_id", "key", "name", "currency", "limit_amount", "receipt_over")
-  values (save_expense_category.tenant, save_expense_category.key, trim(save_expense_category.name), save_expense_category.currency,
-    save_expense_category.limit_amount, save_expense_category.receipt_over)
+  insert into "better_supabase"."expense_categories" as x ("tenant_id", "key", "name", "currency", "limit_amount", "receipt_over")
+  values (save_expense_category.tenant, save_expense_category.key, trim(save_expense_category.name), save_expense_category.currency, save_expense_category.limit_amount, save_expense_category.receipt_over)
   on conflict ("tenant_id", "key") do update set
-    "name" = excluded."name", "currency" = excluded."currency", "limit_amount" = excluded."limit_amount",
-    "receipt_over" = excluded."receipt_over", "archived_at" = null, "updated_at" = now()
+    "name" = trim(save_expense_category.name), "currency" = save_expense_category.currency, "limit_amount" = save_expense_category.limit_amount, "receipt_over" = save_expense_category.receipt_over, "archived_at" = null, "updated_at" = now()
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;

@@ -4775,6 +4775,12 @@
                   "type": "string"
                 }
               },
+              "categoryExtraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "approvals": {
                 "type": "boolean",
                 "default": true
@@ -5306,6 +5312,10 @@
               "owner": {
                 "type": "string",
                 "default": "user"
+              },
+              "reapprove": {
+                "type": "boolean",
+                "default": false
               }
             }
           }

@@ -1,0 +1,63 @@
+/** Actions a module checks only when `blocks.<module>.permissions` names a key. */
+export const OPTIONAL_MODULE_PERMISSIONS: Readonly<
+  Record<string, Readonly<Record<string, "tenant" | "platform">>>
+> = {
+  organizations: {
+    create: "platform",
+    updatePlatform: "platform",
+    deletePlatform: "platform",
+    updateRolePlatform: "platform",
+    removeMemberPlatform: "platform",
+  },
+  audit: { reveal: "tenant" },
+  "data-lifecycle": { deletePlatform: "platform" },
+  tags: { create: "tenant", update: "tenant", delete: "tenant" },
+  tasks: { create: "tenant", delete: "tenant" },
+  calendar: { create: "tenant", update: "tenant", delete: "tenant" },
+  employees: {
+    create: "tenant",
+    contractsRead: "tenant",
+    contractsWrite: "tenant",
+    privateDetailsWrite: "tenant",
+  },
+  hiring: {
+    create: "tenant",
+    jobsCreate: "tenant",
+    jobsUpdate: "tenant",
+    score: "tenant",
+  },
+  teams: {
+    create: "tenant",
+    update: "tenant",
+    delete: "tenant",
+    members: "tenant",
+  },
+  catalog: {
+    create: "tenant",
+    update: "tenant",
+    delete: "tenant",
+    categoryCreate: "tenant",
+    categoryUpdate: "tenant",
+    categoryDelete: "tenant",
+  },
+  invoices: {
+    create: "tenant",
+    update: "tenant",
+    issue: "tenant",
+    payment: "tenant",
+    credit: "tenant",
+    charge: "tenant",
+    void: "tenant",
+    writeOff: "tenant",
+    reverse: "tenant",
+    delete: "tenant",
+  },
+  leave: { readConfidential: "tenant", reapprove: "tenant" },
+  expenses: {
+    create: "tenant",
+    update: "tenant",
+    delete: "tenant",
+    reimburse: "tenant",
+    categories: "tenant",
+  },
+};

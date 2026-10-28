@@ -7450,6 +7450,7 @@
       "InvoiceAging",
       "InvoiceCharge",
       "InvoiceInput",
+      "InvoicePatch",
       "InvoicePayment",
       "Invoices",
       "InvoicesEvents",

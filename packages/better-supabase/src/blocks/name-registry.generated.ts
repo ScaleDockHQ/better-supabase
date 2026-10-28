@@ -327,8 +327,8 @@ export interface BlockNameRegistry {
       readonly "variantTranslations": "tenant" | "variant" | "locale" | "title" | "updatedAt";
       readonly "media": "id" | "tenant" | "product" | "variant" | "attachment" | "position" | "alt" | "createdAt";
     };
-    readonly functions: "add_to_collection" | "channel_price" | "channel_products" | "currency_minor_units" | "delete_catalog_channel" | "delete_category" | "delete_collection" | "delete_price" | "delete_price_list" | "delete_product" | "delete_product_option" | "delete_variant" | "move_category" | "product_text" | "publish_storefront" | "rank_variant" | "remove_from_collection" | "reorder_product_options" | "save_catalog_channel" | "save_category" | "save_collection" | "save_price_list" | "save_product" | "save_product_option" | "save_variant" | "set_channel_listing" | "set_price" | "set_product_categories" | "set_product_options" | "set_product_status" | "set_product_translation" | "set_variant_translation" | "storefront_products" | "storefront_tenants" | "variant_price";
-    readonly actions: "manage" | "read" | "create" | "update" | "delete";
+    readonly functions: "add_to_collection" | "channel_price" | "channel_products" | "currency_minor_units" | "delete_catalog_channel" | "delete_category" | "delete_collection" | "delete_price" | "delete_price_list" | "delete_product" | "delete_product_option" | "delete_variant" | "move_category" | "product_text" | "publish_storefront" | "rank_variant" | "remove_from_collection" | "reorder_product_options" | "save_catalog_channel" | "save_category" | "save_collection" | "save_price_list" | "save_product" | "save_product_option" | "save_variant" | "set_channel_listing" | "set_price" | "set_product_categories" | "set_product_options" | "set_product_status" | "set_product_translation" | "set_variant_status" | "set_variant_translation" | "storefront_products" | "storefront_tenants" | "variant_price";
+    readonly actions: "manage" | "read" | "create" | "update" | "delete" | "categoryCreate" | "categoryUpdate" | "categoryDelete";
     readonly hooks: "before_product_save" | "after_product_save" | "before_variant_save" | "after_variant_save" | "before_price_set" | "after_price_set";
     readonly entities: {
       readonly "product": "id" | "tenant_id" | "slug" | "title" | "description" | "kind" | "status" | "created_at" | "updated_at" | "price" | "currency" | "track_inventory";
@@ -940,8 +940,8 @@ export interface BlockNameRegistry {
       readonly "lines": "id" | "tenant" | "parent" | "productType" | "productId" | "description" | "quantity" | "unitAmount" | "discountBps" | "taxRateBps" | "taxCode" | "position" | "createdAt";
       readonly "charges": "id" | "tenant" | "invoice" | "amount" | "currency" | "description" | "createdBy" | "createdAt";
     };
-    readonly functions: "add_invoice_charge" | "create_invoice" | "credit_invoice" | "invoice_aging" | "issue_invoice" | "record_invoice_payment" | "remove_invoice_charge" | "reverse_invoice_payment" | "set_invoice_lines" | "set_invoice_lines_recount" | "void_invoice" | "write_off_invoice";
-    readonly actions: "read" | "write" | "manage" | "create" | "update" | "issue" | "payment" | "credit" | "charge" | "void" | "writeOff" | "reverse";
+    readonly functions: "add_invoice_charge" | "create_invoice" | "credit_invoice" | "delete_invoice" | "invoice_aging" | "issue_invoice" | "record_invoice_payment" | "remove_invoice_charge" | "reverse_invoice_payment" | "set_invoice_lines" | "set_invoice_lines_recount" | "update_invoice" | "void_invoice" | "write_off_invoice";
+    readonly actions: "read" | "write" | "manage" | "create" | "update" | "issue" | "payment" | "credit" | "charge" | "void" | "writeOff" | "reverse" | "delete";
     readonly hooks: "before_invoice_issue" | "after_invoice_issue" | "before_invoice_payment" | "after_invoice_payment";
     readonly entities: {
       readonly "invoice": "id" | "tenant_id" | "kind" | "number" | "identifier" | "original_id" | "title" | "company_type" | "company_id" | "contact_type" | "contact_id" | "currency" | "status" | "terms_days" | "issued_on" | "due_on" | "paid_total" | "credited_total" | "paid_at" | "voided_at" | "void_reason" | "write_off_reason" | "note" | "origin_type" | "origin_id" | "deposit_bps" | "prices_include_tax" | "created_by" | "created_at" | "updated_at" | "list_total" | "discount_total" | "subtotal" | "tax_total" | "total";
@@ -1001,7 +1001,7 @@ export interface BlockNameRegistry {
       readonly "balances": "id" | "tenant" | "user" | "employee" | "type" | "kind" | "amount" | "effectiveOn" | "expiresOn" | "request" | "note" | "key" | "createdBy" | "createdAt";
     };
     readonly functions: "accrue_leave" | "adjust_leave_balance" | "approve_leave_request" | "archive_leave_type" | "cancel_leave_request" | "close_leave_year" | "decide_leave_request" | "leave_available" | "leave_balances" | "leave_is_mine" | "leave_ledger_entries" | "leave_post" | "leave_posted" | "leave_working_days" | "list_leave_requests" | "list_leave_types" | "request_leave" | "save_leave_type" | "split_leave_request" | "update_leave_request";
-    readonly actions: "request" | "read" | "approve" | "manage" | "readConfidential";
+    readonly actions: "request" | "read" | "approve" | "manage" | "readConfidential" | "reapprove";
     readonly hooks: "before_leave_request" | "after_leave_request";
     readonly entities: {
       readonly "request": "id" | "tenant_id" | "user_id" | "employee_id" | "type_id" | "starts_on" | "ends_on" | "partial" | "start_part" | "end_part" | "amount" | "note" | "approval_id" | "approved_at" | "cancelled_at" | "cancelled_by" | "created_at" | "updated_at" | "rejected_at" | "decided_by" | "decision_note";

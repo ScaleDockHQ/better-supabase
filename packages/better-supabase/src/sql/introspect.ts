@@ -10,8 +10,8 @@ import {
   MODULE_PERMISSION_SCOPES,
   moduleOperations,
   modulePermissionKey,
-  OPTIONAL_MODULE_PERMISSIONS,
 } from "./modules/permissions-model.ts";
+import { OPTIONAL_MODULE_PERMISSIONS } from "./optional-permissions.ts";
 import { SQL_MODULES, checkModules, resolveBlocks } from "./registry.ts";
 
 /** A permission key a SQL module checks, from `modulePermissionKeys`. */

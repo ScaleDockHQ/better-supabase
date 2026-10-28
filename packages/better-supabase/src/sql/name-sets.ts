@@ -5,8 +5,8 @@ import { moduleContext } from "./module-context.ts";
 import {
   isOperationModule,
   moduleOperations,
-  OPTIONAL_MODULE_PERMISSIONS,
 } from "./modules/permissions-model.ts";
+import { OPTIONAL_MODULE_PERMISSIONS } from "./optional-permissions.ts";
 import { resolveBlocks } from "./registry.ts";
 
 /** The names a module's config keys accept, read from its definition. */

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:9531835c44788fb64565a41e8d909ae305a5c40dc817627a0fbbd3158c50126b
+-- @bsb-hash sha256:1eb5e0dc7e00b92ecf3a2bac028cd43d21e1b3727f81a250079efb5eedd6dc6a
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -836,6 +836,20 @@ $$;
 revoke execute on function "better_supabase"."delete_variant"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
 
+-- Variants have no status column (columns.variants.status), so this refuses.
+create or replace function "better_supabase"."set_variant_status"(variant uuid, status text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  raise exception 'this variants table has no status column' using errcode = '22023', hint = 'CATALOG_VARIANT_STATUS_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "better_supabase"."set_variant_status"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_variant_status"(uuid, text) to authenticated, service_role;
+
 -- Creates an option (option null) or updates one, with its values in order.
 -- Values missing from the list are removed with the variants that use them;
 -- a variant something still references is archived instead.
@@ -1365,8 +1379,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+  if v_id is null then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  else
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
@@ -2444,7 +2464,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:6d5c06b7dba342530f419afa669e9a0645ad28280f8a81d5fdb97b33e3d44356
+-- @bsb-hash sha256:3f5eeddafa6e75a0c1a5edd1680227ebfba0e51018f732805f25fc3a29d83e6b
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3316,6 +3336,20 @@ $$;
 revoke execute on function "better_supabase"."delete_variant"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
 
+-- Variants have no status column (columns.variants.status), so this refuses.
+create or replace function "better_supabase"."set_variant_status"(variant uuid, status text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  raise exception 'this variants table has no status column' using errcode = '22023', hint = 'CATALOG_VARIANT_STATUS_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "better_supabase"."set_variant_status"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_variant_status"(uuid, text) to authenticated, service_role;
+
 -- Creates an option (option null) or updates one, with its values in order.
 -- Values missing from the list are removed with the variants that use them;
 -- a variant something still references is archived instead.
@@ -3853,8 +3887,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+  if v_id is null then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  else
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
@@ -5140,7 +5180,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:1817619385bbbee9f68818c8a937828fc70ba4e3c4813c8be02251a58635ca72
+-- @bsb-hash sha256:a2c870780120ad76aa1e557b09bf3fdf1b2b1c9eea747073e462ba0dfd2e1ff1
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5980,6 +6020,20 @@ $$;
 revoke execute on function "app_private"."delete_variant"(uuid) from public, anon;
 grant execute on function "app_private"."delete_variant"(uuid) to authenticated, service_role;
 
+-- Variants have no status column (columns.variants.status), so this refuses.
+create or replace function "app_private"."set_variant_status"(variant uuid, status text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  raise exception 'this variants table has no status column' using errcode = '22023', hint = 'CATALOG_VARIANT_STATUS_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "app_private"."set_variant_status"(uuid, text) from public, anon;
+grant execute on function "app_private"."set_variant_status"(uuid, text) to authenticated, service_role;
+
 -- Creates an option (option null) or updates one, with its values in order.
 -- Values missing from the list are removed with the variants that use them;
 -- a variant something still references is archived instead.
@@ -6509,8 +6563,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+  if v_id is null then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  else
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
@@ -7588,7 +7648,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:c3e17aa6d66304deb96c6b56e65ec1828f5c1a0f27c8c40405e9ec4195dd4a58
+-- @bsb-hash sha256:34df97b9e5b9a463818dd731f0967ea70eba71aa083c1bb832b619c122885d5a
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8423,6 +8483,20 @@ $$;
 revoke execute on function "better_supabase"."delete_variant"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
 
+-- Variants have no status column (columns.variants.status), so this refuses.
+create or replace function "better_supabase"."set_variant_status"(variant uuid, status text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  raise exception 'this variants table has no status column' using errcode = '22023', hint = 'CATALOG_VARIANT_STATUS_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "better_supabase"."set_variant_status"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_variant_status"(uuid, text) to authenticated, service_role;
+
 -- Creates an option (option null) or updates one, with its values in order.
 -- Values missing from the list are removed with the variants that use them;
 -- a variant something still references is archived instead.
@@ -8952,8 +9026,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+  if v_id is null then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  else
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
@@ -10094,6 +10174,15 @@ as $$ select "better_supabase"."delete_variant"($1) $$;
 revoke execute on function "api"."delete_variant"(uuid) from public, anon;
 grant execute on function "api"."delete_variant"(uuid) to authenticated, service_role;
 
+create or replace function "api"."set_variant_status"(variant uuid, status text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_variant_status"($1, $2) $$;
+revoke execute on function "api"."set_variant_status"(uuid, text) from public, anon;
+grant execute on function "api"."set_variant_status"(uuid, text) to authenticated, service_role;
+
 create or replace function "api"."save_product_option"(product uuid, option uuid, name text, option_values text[])
 returns jsonb
 language sql
@@ -10376,7 +10465,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:b8ccd55d7403e19754996e7673baf5853af12fe0896b0c259e5fd61c4b80e683
+-- @bsb-hash sha256:70c55d216609a6b5ba196995772dff3f7d54b4e02c0b32eb1368666cb6d27e33
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11192,6 +11281,20 @@ $$;
 revoke execute on function "better_supabase"."delete_variant"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
 
+-- Variants have no status column (columns.variants.status), so this refuses.
+create or replace function "better_supabase"."set_variant_status"(variant uuid, status text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  raise exception 'this variants table has no status column' using errcode = '22023', hint = 'CATALOG_VARIANT_STATUS_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "better_supabase"."set_variant_status"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_variant_status"(uuid, text) to authenticated, service_role;
+
 -- Creates an option (option null) or updates one, with its values in order.
 -- Values missing from the list are removed with the variants that use them;
 -- a variant something still references is archived instead.
@@ -11721,8 +11824,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+  if v_id is null then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  else
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
@@ -12789,7 +12898,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:94e8eb78049f5f1bbfb418a9dbbaba08a1aeffef78d814c10a4d205fd131ed4e
+-- @bsb-hash sha256:519e6b5923341f2fced546aed97a894c8475f1e2c4228e747feb548c82a93dd9
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13624,6 +13733,20 @@ $$;
 revoke execute on function "better_supabase"."delete_variant"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
 
+-- Variants have no status column (columns.variants.status), so this refuses.
+create or replace function "better_supabase"."set_variant_status"(variant uuid, status text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  raise exception 'this variants table has no status column' using errcode = '22023', hint = 'CATALOG_VARIANT_STATUS_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "better_supabase"."set_variant_status"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_variant_status"(uuid, text) to authenticated, service_role;
+
 -- Creates an option (option null) or updates one, with its values in order.
 -- Values missing from the list are removed with the variants that use them;
 -- a variant something still references is archived instead.
@@ -14153,8 +14276,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+  if v_id is null then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  else
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';

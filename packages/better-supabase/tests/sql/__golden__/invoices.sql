@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:404d93bfcafde8c538695cee9edd492c6788b6cb48df004a71f736f7df897cd5
+-- @bsb-hash sha256:7c09a1398e40d11bb63d81182a571cdd9c84217bc30d8e25de83901911973d61
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -214,6 +214,107 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_invoice"(uuid, jsonb, jsonb) from public, anon;
 grant execute on function "better_supabase"."create_invoice"(uuid, jsonb, jsonb) to authenticated, service_role;
+
+-- Changes a draft's header. attrs: title, company and contact ({ type, id },
+-- null clears), termsDays, note, depositBps, pricesIncludeTax and the extra
+-- columns by name. A key left out keeps its value.
+create or replace function "better_supabase"."update_invoice"(invoice uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_company_type text := coalesce(update_invoice.attrs -> 'company' ->> 'type', 'company');
+  v_company_id text := update_invoice.attrs -> 'company' ->> 'id';
+  v_contact_type text := coalesce(update_invoice.attrs -> 'contact' ->> 'type', 'person');
+  v_contact_id text := update_invoice.attrs -> 'contact' ->> 'id';
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'only a draft changes' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+  end if;
+  if jsonb_typeof(update_invoice.attrs) is distinct from 'object'
+    or (update_invoice.attrs ? 'title' and nullif(trim(update_invoice.attrs ->> 'title'), '') is null) then
+    raise exception 'attrs is an object, and a title isn''t empty' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
+  end if;
+  if v_company_id is not null and not false then
+    raise exception 'the company is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_COMPANY_FORBIDDEN';
+  end if;
+  if v_contact_id is not null and not false then
+    raise exception 'the contact is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_CONTACT_FORBIDDEN';
+  end if;
+  begin
+    update "better_supabase"."invoices" x set
+      "title" = case when update_invoice.attrs ? 'title' then trim(update_invoice.attrs ->> 'title') else x."title" end,
+      "company_type" = case when update_invoice.attrs ? 'company' then case when v_company_id is null then null else v_company_type end else x."company_type" end,
+      "company_id" = case when update_invoice.attrs ? 'company' then v_company_id else x."company_id" end,
+      "contact_type" = case when update_invoice.attrs ? 'contact' then case when v_contact_id is null then null else v_contact_type end else x."contact_type" end,
+      "contact_id" = case when update_invoice.attrs ? 'contact' then v_contact_id else x."contact_id" end,
+      "terms_days" = case when update_invoice.attrs ? 'termsDays' then (update_invoice.attrs ->> 'termsDays')::integer else x."terms_days" end,
+      "note" = case when update_invoice.attrs ? 'note' then update_invoice.attrs ->> 'note' else x."note" end,
+      "deposit_bps" = case when update_invoice.attrs ? 'depositBps' then (update_invoice.attrs ->> 'depositBps')::integer else x."deposit_bps" end,
+      "prices_include_tax" = case when update_invoice.attrs ? 'pricesIncludeTax' then coalesce((update_invoice.attrs ->> 'pricesIncludeTax')::boolean, false) else x."prices_include_tax" end,
+      "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  exception when check_violation or invalid_text_representation or not_null_violation then
+    raise exception 'an invoice field has an invalid value' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
+  end;
+  if update_invoice.attrs ? 'pricesIncludeTax' then
+    perform "better_supabase"."set_invoice_lines_recount"(v_row."id");
+  end if;
+  null;
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
+      'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = x."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), '[]'::jsonb)) from "better_supabase"."invoices" x where x."id" = v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."update_invoice"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."update_invoice"(uuid, jsonb) to authenticated, service_role;
+
+-- Deletes a draft with its lines and charges. An issued invoice is voided instead.
+create or replace function "better_supabase"."delete_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such invoice you can delete' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'only a draft is deleted; void an issued invoice' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+  end if;
+  delete from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id";
+  delete from "better_supabase"."invoice_lines" y where y."parent_id" = v_row."id";
+  delete from "better_supabase"."invoices" x where x."id" = v_row."id";
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_invoice"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_invoice"(uuid) to authenticated, service_role;
 create table if not exists "better_supabase"."invoice_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -1077,7 +1178,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:f286c0ca07dc692d9f72eb4d2ab516526dc7a2c868d6d872b038ec08eae23dbd
+-- @bsb-hash sha256:38e1fb905eb715f07c20441664bace7d92412540ea7c0ee1c1527700e8275b60
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1295,6 +1396,109 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_invoice"(uuid, jsonb, jsonb) from public, anon;
 grant execute on function "better_supabase"."create_invoice"(uuid, jsonb, jsonb) to authenticated, service_role;
+
+-- Changes a draft's header. attrs: title, company and contact ({ type, id },
+-- null clears), termsDays, note, depositBps, pricesIncludeTax and the extra
+-- columns by name. A key left out keeps its value.
+create or replace function "better_supabase"."update_invoice"(invoice uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_company_type text := coalesce(update_invoice.attrs -> 'company' ->> 'type', 'company');
+  v_company_id text := update_invoice.attrs -> 'company' ->> 'id';
+  v_contact_type text := coalesce(update_invoice.attrs -> 'contact' ->> 'type', 'person');
+  v_contact_id text := update_invoice.attrs -> 'contact' ->> 'id';
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'only a draft changes' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+  end if;
+  if jsonb_typeof(update_invoice.attrs) is distinct from 'object'
+    or (update_invoice.attrs ? 'title' and nullif(trim(update_invoice.attrs ->> 'title'), '') is null) then
+    raise exception 'attrs is an object, and a title isn''t empty' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
+  end if;
+  if v_company_id is not null and not false then
+    raise exception 'the company is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_COMPANY_FORBIDDEN';
+  end if;
+  if v_contact_id is not null and not false then
+    raise exception 'the contact is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_CONTACT_FORBIDDEN';
+  end if;
+  begin
+    update "better_supabase"."invoices" x set
+      "title" = case when update_invoice.attrs ? 'title' then trim(update_invoice.attrs ->> 'title') else x."title" end,
+      "company_type" = case when update_invoice.attrs ? 'company' then case when v_company_id is null then null else v_company_type end else x."company_type" end,
+      "company_id" = case when update_invoice.attrs ? 'company' then v_company_id else x."company_id" end,
+      "contact_type" = case when update_invoice.attrs ? 'contact' then case when v_contact_id is null then null else v_contact_type end else x."contact_type" end,
+      "contact_id" = case when update_invoice.attrs ? 'contact' then v_contact_id else x."contact_id" end,
+      "terms_days" = case when update_invoice.attrs ? 'termsDays' then (update_invoice.attrs ->> 'termsDays')::integer else x."terms_days" end,
+      "note" = case when update_invoice.attrs ? 'note' then update_invoice.attrs ->> 'note' else x."note" end,
+      "deposit_bps" = case when update_invoice.attrs ? 'depositBps' then (update_invoice.attrs ->> 'depositBps')::integer else x."deposit_bps" end,
+      "prices_include_tax" = case when update_invoice.attrs ? 'pricesIncludeTax' then coalesce((update_invoice.attrs ->> 'pricesIncludeTax')::boolean, false) else x."prices_include_tax" end,
+      "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  exception when check_violation or invalid_text_representation or not_null_violation then
+    raise exception 'an invoice field has an invalid value' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
+  end;
+  if update_invoice.attrs ? 'pricesIncludeTax' then
+    perform "better_supabase"."set_invoice_lines_recount"(v_row."id");
+  end if;
+  perform "better_supabase".emit_event('invoice.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
+      'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = x."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), '[]'::jsonb)) from "better_supabase"."invoices" x where x."id" = v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."update_invoice"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."update_invoice"(uuid, jsonb) to authenticated, service_role;
+
+-- Deletes a draft with its lines and charges. An issued invoice is voided instead.
+create or replace function "better_supabase"."delete_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such invoice you can delete' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'only a draft is deleted; void an issued invoice' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+  end if;
+  delete from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id";
+  delete from "better_supabase"."invoice_lines" y where y."parent_id" = v_row."id";
+  delete from "better_supabase"."relations" y
+  where y."kind" = 'created_from' and y."source_type" = 'invoice' and y."source_id" = v_row."id"::text;
+  delete from "better_supabase"."invoices" x where x."id" = v_row."id";
+  perform "better_supabase".emit_event('invoice.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_invoice"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_invoice"(uuid) to authenticated, service_role;
 create table if not exists "better_supabase"."invoice_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -2280,7 +2484,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:f4023cf560483aa84096290502c429cae2575b04b60c09bb41c34b6de7175dd0
+-- @bsb-hash sha256:6a5f9abf82b32507a3ea4c3b099eb692f93b07986de4cc8d12330f06d641c4d0
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2498,6 +2702,107 @@ end;
 $$;
 revoke execute on function "app_private"."create_invoice"(uuid, jsonb, jsonb) from public, anon;
 grant execute on function "app_private"."create_invoice"(uuid, jsonb, jsonb) to authenticated, service_role;
+
+-- Changes a draft's header. attrs: title, company and contact ({ type, id },
+-- null clears), termsDays, note, depositBps, pricesIncludeTax and the extra
+-- columns by name. A key left out keeps its value.
+create or replace function "app_private"."update_invoice"(invoice uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."invoices";
+  v_company_type text := coalesce(update_invoice.attrs -> 'company' ->> 'type', 'company');
+  v_company_id text := update_invoice.attrs -> 'company' ->> 'id';
+  v_contact_type text := coalesce(update_invoice.attrs -> 'contact' ->> 'type', 'person');
+  v_contact_id text := update_invoice.attrs -> 'contact' ->> 'id';
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."invoices" x where x."id" = update_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'only a draft changes' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+  end if;
+  if jsonb_typeof(update_invoice.attrs) is distinct from 'object'
+    or (update_invoice.attrs ? 'title' and nullif(trim(update_invoice.attrs ->> 'title'), '') is null) then
+    raise exception 'attrs is an object, and a title isn''t empty' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
+  end if;
+  if v_company_id is not null and not false then
+    raise exception 'the company is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_COMPANY_FORBIDDEN';
+  end if;
+  if v_contact_id is not null and not false then
+    raise exception 'the contact is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_CONTACT_FORBIDDEN';
+  end if;
+  begin
+    update "app_private"."invoices" x set
+      "title" = case when update_invoice.attrs ? 'title' then trim(update_invoice.attrs ->> 'title') else x."title" end,
+      "company_type" = case when update_invoice.attrs ? 'company' then case when v_company_id is null then null else v_company_type end else x."company_type" end,
+      "company_id" = case when update_invoice.attrs ? 'company' then v_company_id else x."company_id" end,
+      "contact_type" = case when update_invoice.attrs ? 'contact' then case when v_contact_id is null then null else v_contact_type end else x."contact_type" end,
+      "contact_id" = case when update_invoice.attrs ? 'contact' then v_contact_id else x."contact_id" end,
+      "terms_days" = case when update_invoice.attrs ? 'termsDays' then (update_invoice.attrs ->> 'termsDays')::integer else x."terms_days" end,
+      "note" = case when update_invoice.attrs ? 'note' then update_invoice.attrs ->> 'note' else x."note" end,
+      "deposit_bps" = case when update_invoice.attrs ? 'depositBps' then (update_invoice.attrs ->> 'depositBps')::integer else x."deposit_bps" end,
+      "prices_include_tax" = case when update_invoice.attrs ? 'pricesIncludeTax' then coalesce((update_invoice.attrs ->> 'pricesIncludeTax')::boolean, false) else x."prices_include_tax" end,
+      "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  exception when check_violation or invalid_text_representation or not_null_violation then
+    raise exception 'an invoice field has an invalid value' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
+  end;
+  if update_invoice.attrs ? 'pricesIncludeTax' then
+    perform "app_private"."set_invoice_lines_recount"(v_row."id");
+  end if;
+  null;
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'balance', (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
+      'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "app_private"."invoice_lines" il where il."parent_id" = x."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), '[]'::jsonb)) from "app_private"."invoices" x where x."id" = v_row."id");
+end;
+$$;
+revoke execute on function "app_private"."update_invoice"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."update_invoice"(uuid, jsonb) to authenticated, service_role;
+
+-- Deletes a draft with its lines and charges. An issued invoice is voided instead.
+create or replace function "app_private"."delete_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."invoices";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."invoices" x where x."id" = delete_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such invoice you can delete' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'only a draft is deleted; void an issued invoice' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+  end if;
+  delete from "app_private"."invoice_charges" y where y."invoice_id" = v_row."id";
+  delete from "app_private"."invoice_lines" y where y."parent_id" = v_row."id";
+  delete from "app_private"."invoices" x where x."id" = v_row."id";
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."delete_invoice"(uuid) from public, anon;
+grant execute on function "app_private"."delete_invoice"(uuid) to authenticated, service_role;
 create table if not exists "app_private"."invoice_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -3361,7 +3666,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:23ebd5a9507d62c417e027b0ac5313c802120f607f9de14cf3b2e1a3995f7091
+-- @bsb-hash sha256:3d2388b18bcd3682b7f71f60d4c4d1a7faa98ab96bcf42b92cdfa2a1c4c1c16c
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3574,6 +3879,107 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_invoice"(uuid, jsonb, jsonb) from public, anon;
 grant execute on function "better_supabase"."create_invoice"(uuid, jsonb, jsonb) to authenticated, service_role;
+
+-- Changes a draft's header. attrs: title, company and contact ({ type, id },
+-- null clears), termsDays, note, depositBps, pricesIncludeTax and the extra
+-- columns by name. A key left out keeps its value.
+create or replace function "better_supabase"."update_invoice"(invoice uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_company_type text := coalesce(update_invoice.attrs -> 'company' ->> 'type', 'company');
+  v_company_id text := update_invoice.attrs -> 'company' ->> 'id';
+  v_contact_type text := coalesce(update_invoice.attrs -> 'contact' ->> 'type', 'person');
+  v_contact_id text := update_invoice.attrs -> 'contact' ->> 'id';
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'only a draft changes' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+  end if;
+  if jsonb_typeof(update_invoice.attrs) is distinct from 'object'
+    or (update_invoice.attrs ? 'title' and nullif(trim(update_invoice.attrs ->> 'title'), '') is null) then
+    raise exception 'attrs is an object, and a title isn''t empty' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
+  end if;
+  if v_company_id is not null and not false then
+    raise exception 'the company is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_COMPANY_FORBIDDEN';
+  end if;
+  if v_contact_id is not null and not false then
+    raise exception 'the contact is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_CONTACT_FORBIDDEN';
+  end if;
+  begin
+    update "better_supabase"."invoices" x set
+      "title" = case when update_invoice.attrs ? 'title' then trim(update_invoice.attrs ->> 'title') else x."title" end,
+      "company_type" = case when update_invoice.attrs ? 'company' then case when v_company_id is null then null else v_company_type end else x."company_type" end,
+      "company_id" = case when update_invoice.attrs ? 'company' then v_company_id else x."company_id" end,
+      "contact_type" = case when update_invoice.attrs ? 'contact' then case when v_contact_id is null then null else v_contact_type end else x."contact_type" end,
+      "contact_id" = case when update_invoice.attrs ? 'contact' then v_contact_id else x."contact_id" end,
+      "terms_days" = case when update_invoice.attrs ? 'termsDays' then (update_invoice.attrs ->> 'termsDays')::integer else x."terms_days" end,
+      "note" = case when update_invoice.attrs ? 'note' then update_invoice.attrs ->> 'note' else x."note" end,
+      "deposit_bps" = case when update_invoice.attrs ? 'depositBps' then (update_invoice.attrs ->> 'depositBps')::integer else x."deposit_bps" end,
+      "prices_include_tax" = case when update_invoice.attrs ? 'pricesIncludeTax' then coalesce((update_invoice.attrs ->> 'pricesIncludeTax')::boolean, false) else x."prices_include_tax" end,
+      "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  exception when check_violation or invalid_text_representation or not_null_violation then
+    raise exception 'an invoice field has an invalid value' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
+  end;
+  if update_invoice.attrs ? 'pricesIncludeTax' then
+    perform "better_supabase"."set_invoice_lines_recount"(v_row."id");
+  end if;
+  null;
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
+      'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = x."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), '[]'::jsonb)) from "better_supabase"."invoices" x where x."id" = v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."update_invoice"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."update_invoice"(uuid, jsonb) to authenticated, service_role;
+
+-- Deletes a draft with its lines and charges. An issued invoice is voided instead.
+create or replace function "better_supabase"."delete_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such invoice you can delete' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'only a draft is deleted; void an issued invoice' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+  end if;
+  delete from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id";
+  delete from "better_supabase"."invoice_lines" y where y."parent_id" = v_row."id";
+  delete from "better_supabase"."invoices" x where x."id" = v_row."id";
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_invoice"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_invoice"(uuid) to authenticated, service_role;
 create table if not exists "better_supabase"."invoice_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -4444,6 +4850,24 @@ as $$ select "better_supabase"."create_invoice"($1, $2, $3) $$;
 revoke execute on function "api"."create_invoice"(uuid, jsonb, jsonb) from public, anon;
 grant execute on function "api"."create_invoice"(uuid, jsonb, jsonb) to authenticated, service_role;
 
+create or replace function "api"."update_invoice"(invoice uuid, attrs jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."update_invoice"($1, $2) $$;
+revoke execute on function "api"."update_invoice"(uuid, jsonb) from public, anon;
+grant execute on function "api"."update_invoice"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."delete_invoice"(invoice uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_invoice"($1) $$;
+revoke execute on function "api"."delete_invoice"(uuid) from public, anon;
+grant execute on function "api"."delete_invoice"(uuid) to authenticated, service_role;
+
 create or replace function "api"."set_invoice_lines"(parent uuid, lines jsonb)
 returns jsonb
 language sql
@@ -4564,7 +4988,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:466231233da7745e985f73305be18a8f48e4fa53fbf777bd986a64401c77bb9d
+-- @bsb-hash sha256:f34134659c4922c85e5bc549cec578b06a6f39763c1bfa3f6e8ce568f75d1c1d
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4785,6 +5209,107 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_invoice"(uuid, jsonb, jsonb) from public, anon;
 grant execute on function "better_supabase"."create_invoice"(uuid, jsonb, jsonb) to authenticated, service_role;
+
+-- Changes a draft's header. attrs: title, company and contact ({ type, id },
+-- null clears), termsDays, note, depositBps, pricesIncludeTax and the extra
+-- columns by name. A key left out keeps its value.
+create or replace function "better_supabase"."update_invoice"(invoice uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_company_type text := coalesce(update_invoice.attrs -> 'company' ->> 'type', 'company');
+  v_company_id text := update_invoice.attrs -> 'company' ->> 'id';
+  v_contact_type text := coalesce(update_invoice.attrs -> 'contact' ->> 'type', 'person');
+  v_contact_id text := update_invoice.attrs -> 'contact' ->> 'id';
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'only a draft changes' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+  end if;
+  if jsonb_typeof(update_invoice.attrs) is distinct from 'object'
+    or (update_invoice.attrs ? 'title' and nullif(trim(update_invoice.attrs ->> 'title'), '') is null) then
+    raise exception 'attrs is an object, and a title isn''t empty' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
+  end if;
+  if v_company_id is not null and not false then
+    raise exception 'the company is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_COMPANY_FORBIDDEN';
+  end if;
+  if v_contact_id is not null and not false then
+    raise exception 'the contact is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_CONTACT_FORBIDDEN';
+  end if;
+  begin
+    update "better_supabase"."invoices" x set
+      "title" = case when update_invoice.attrs ? 'title' then trim(update_invoice.attrs ->> 'title') else x."title" end,
+      "company_type" = case when update_invoice.attrs ? 'company' then case when v_company_id is null then null else v_company_type end else x."company_type" end,
+      "company_id" = case when update_invoice.attrs ? 'company' then v_company_id else x."company_id" end,
+      "contact_type" = case when update_invoice.attrs ? 'contact' then case when v_contact_id is null then null else v_contact_type end else x."contact_type" end,
+      "contact_id" = case when update_invoice.attrs ? 'contact' then v_contact_id else x."contact_id" end,
+      "terms_days" = case when update_invoice.attrs ? 'termsDays' then (update_invoice.attrs ->> 'termsDays')::integer else x."terms_days" end,
+      "note" = case when update_invoice.attrs ? 'note' then update_invoice.attrs ->> 'note' else x."note" end,
+      "deposit_bps" = case when update_invoice.attrs ? 'depositBps' then (update_invoice.attrs ->> 'depositBps')::integer else x."deposit_bps" end,
+      "prices_include_tax" = case when update_invoice.attrs ? 'pricesIncludeTax' then coalesce((update_invoice.attrs ->> 'pricesIncludeTax')::boolean, false) else x."prices_include_tax" end,
+      "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  exception when check_violation or invalid_text_representation or not_null_violation then
+    raise exception 'an invoice field has an invalid value' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
+  end;
+  if update_invoice.attrs ? 'pricesIncludeTax' then
+    perform "better_supabase"."set_invoice_lines_recount"(v_row."id");
+  end if;
+  null;
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
+      'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = x."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), '[]'::jsonb)) from "better_supabase"."invoices" x where x."id" = v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."update_invoice"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."update_invoice"(uuid, jsonb) to authenticated, service_role;
+
+-- Deletes a draft with its lines and charges. An issued invoice is voided instead.
+create or replace function "better_supabase"."delete_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.write'), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such invoice you can delete' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'only a draft is deleted; void an issued invoice' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+  end if;
+  delete from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id";
+  delete from "better_supabase"."invoice_lines" y where y."parent_id" = v_row."id";
+  delete from "better_supabase"."invoices" x where x."id" = v_row."id";
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_invoice"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_invoice"(uuid) to authenticated, service_role;
 -- better_supabase.invoice_lines is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."invoice_lines" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."invoice_lines" add column if not exists "tenant_id" uuid;
@@ -5647,7 +6172,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:c74a1aa110a1c4c820fc283fc01347dc5921a0b508bdd82cd9df069c0a0b178c
+-- @bsb-hash sha256:09ec8421a4e0a55ac9d46ab5093bf4383a6145e944303ba12a9f2cc86c8faf1f
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5860,6 +6385,107 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_invoice"(uuid, jsonb, jsonb) from public, anon;
 grant execute on function "better_supabase"."create_invoice"(uuid, jsonb, jsonb) to authenticated, service_role;
+
+-- Changes a draft's header. attrs: title, company and contact ({ type, id },
+-- null clears), termsDays, note, depositBps, pricesIncludeTax and the extra
+-- columns by name. A key left out keeps its value.
+create or replace function "better_supabase"."update_invoice"(invoice uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+  v_company_type text := coalesce(update_invoice.attrs -> 'company' ->> 'type', 'company');
+  v_company_id text := update_invoice.attrs -> 'company' ->> 'id';
+  v_contact_type text := coalesce(update_invoice.attrs -> 'contact' ->> 'type', 'person');
+  v_contact_id text := update_invoice.attrs -> 'contact' ->> 'id';
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'invoices.write'), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'only a draft changes' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+  end if;
+  if jsonb_typeof(update_invoice.attrs) is distinct from 'object'
+    or (update_invoice.attrs ? 'title' and nullif(trim(update_invoice.attrs ->> 'title'), '') is null) then
+    raise exception 'attrs is an object, and a title isn''t empty' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
+  end if;
+  if v_company_id is not null and not false then
+    raise exception 'the company is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_COMPANY_FORBIDDEN';
+  end if;
+  if v_contact_id is not null and not false then
+    raise exception 'the contact is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_CONTACT_FORBIDDEN';
+  end if;
+  begin
+    update "better_supabase"."invoices" x set
+      "title" = case when update_invoice.attrs ? 'title' then trim(update_invoice.attrs ->> 'title') else x."title" end,
+      "company_type" = case when update_invoice.attrs ? 'company' then case when v_company_id is null then null else v_company_type end else x."company_type" end,
+      "company_id" = case when update_invoice.attrs ? 'company' then v_company_id else x."company_id" end,
+      "contact_type" = case when update_invoice.attrs ? 'contact' then case when v_contact_id is null then null else v_contact_type end else x."contact_type" end,
+      "contact_id" = case when update_invoice.attrs ? 'contact' then v_contact_id else x."contact_id" end,
+      "terms_days" = case when update_invoice.attrs ? 'termsDays' then (update_invoice.attrs ->> 'termsDays')::integer else x."terms_days" end,
+      "note" = case when update_invoice.attrs ? 'note' then update_invoice.attrs ->> 'note' else x."note" end,
+      "deposit_bps" = case when update_invoice.attrs ? 'depositBps' then (update_invoice.attrs ->> 'depositBps')::integer else x."deposit_bps" end,
+      "prices_include_tax" = case when update_invoice.attrs ? 'pricesIncludeTax' then coalesce((update_invoice.attrs ->> 'pricesIncludeTax')::boolean, false) else x."prices_include_tax" end,
+      "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  exception when check_violation or invalid_text_representation or not_null_violation then
+    raise exception 'an invoice field has an invalid value' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
+  end;
+  if update_invoice.attrs ? 'pricesIncludeTax' then
+    perform "better_supabase"."set_invoice_lines_recount"(v_row."id");
+  end if;
+  null;
+  return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
+      'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = x."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."org_id" = x."org_id" and a."code" = 'invoice:' || x."id"::text)), '[]'::jsonb)) from "better_supabase"."invoices" x where x."id" = v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."update_invoice"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."update_invoice"(uuid, jsonb) to authenticated, service_role;
+
+-- Deletes a draft with its lines and charges. An issued invoice is voided instead.
+create or replace function "better_supabase"."delete_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'invoices.write'), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such invoice you can delete' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'only a draft is deleted; void an issued invoice' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+  end if;
+  delete from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id";
+  delete from "better_supabase"."invoice_lines" y where y."parent_id" = v_row."id";
+  delete from "better_supabase"."invoices" x where x."id" = v_row."id";
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_invoice"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_invoice"(uuid) to authenticated, service_role;
 create table if not exists "better_supabase"."invoice_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
