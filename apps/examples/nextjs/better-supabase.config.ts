@@ -358,6 +358,9 @@ export default defineConfig({
             ),
             order: ["triage", "backlog", "unstarted", "started", "completed"],
           },
+          // Stages, their order and the moves between them come from the
+          // tenant's published `change-requests` workflow.
+          change_request: { column: "status", workflow: "change-requests" },
         },
       },
     },
@@ -422,7 +425,10 @@ export default defineConfig({
     "jsonb-schemas": {},
     forms: {},
     imports: {},
-    templates: {},
+    // Brand starters reach the organizations whose `brand` matches.
+    templates: {
+      options: { brand: { table: "public.organizations", column: "brand" } },
+    },
     documents: {},
     "webhooks-out": {},
     outbox: {},

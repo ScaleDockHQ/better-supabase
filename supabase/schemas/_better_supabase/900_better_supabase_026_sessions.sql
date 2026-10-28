@@ -1,6 +1,6 @@
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:0cde9f669db3c40dd87030aef63cf2ff1b36627dca83403e51cc7ff80bb7b46c
+-- @bsb-hash sha256:cce787a68896759eab8b4a6e4184d874401ee55f4c8861427ac57b2a27d58346
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -155,6 +155,11 @@ grant execute on function better_supabase.end_my_session(uuid) to authenticated;
 
 -- blocks['sessions'].options.policies: every table in the schema files,
 -- except blocks['sessions'].options.exclude. `upgrade` rewrites these.
+drop policy if exists bsb_session_active on "public"."change_requests";
+create policy bsb_session_active on "public"."change_requests" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
 drop policy if exists bsb_session_active on "public"."client_notes";
 create policy bsb_session_active on "public"."client_notes" as restrictive
   for all to authenticated

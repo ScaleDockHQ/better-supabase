@@ -3,6 +3,28 @@
 import type { LoaderFunction, SingleParserBuilder } from "nuqs/server";
 import { createLoader, createSearchParamsCache, createSerializer, parseAsInteger, parseAsString, parseAsStringLiteral } from "nuqs/server";
 
+/** Search params for a list of `changeRequests`: filters, order, cursor and page size. */
+export const changeRequestsSearchParams: {
+  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "title" | "status" | "createdAt" | "updatedAt">;
+  readonly direction: SingleParserBuilder<"asc" | "desc"> & { readonly defaultValue: "asc" | "desc" };
+  readonly cursor: SingleParserBuilder<string>;
+  readonly limit: SingleParserBuilder<number> & { readonly defaultValue: number };
+} = {
+  orderBy: parseAsStringLiteral(["id", "organizationId", "title", "status", "createdAt", "updatedAt"] as const),
+  direction: parseAsStringLiteral(["asc", "desc"] as const).withDefault("asc"),
+  cursor: parseAsString,
+  limit: parseAsInteger.withDefault(25),
+};
+
+/** Reads `changeRequestsSearchParams` once per request in Server Components. */
+export const changeRequestsSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof changeRequestsSearchParams>> = createSearchParamsCache(changeRequestsSearchParams);
+
+/** Parses `changeRequestsSearchParams` from a URL, a `Request` or `searchParams`. */
+export const loadChangeRequestsSearchParams: LoaderFunction<typeof changeRequestsSearchParams> = createLoader(changeRequestsSearchParams);
+
+/** Writes `changeRequestsSearchParams` into a URL, for links. */
+export const serializeChangeRequestsSearchParams: ReturnType<typeof createSerializer<typeof changeRequestsSearchParams>> = createSerializer(changeRequestsSearchParams);
+
 /** Search params for a list of `clientNotes`: filters, order, cursor and page size. */
 export const clientNotesSearchParams: {
   readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "createdAt" | "updatedAt" | "clientName" | "diagnosis" | "birthDate">;
@@ -185,12 +207,12 @@ export const serializeNotesSearchParams: ReturnType<typeof createSerializer<type
 
 /** Search params for a list of `organizations`: filters, order, cursor and page size. */
 export const organizationsSearchParams: {
-  readonly orderBy: SingleParserBuilder<"id" | "name" | "slug" | "createdAt" | "updatedAt">;
+  readonly orderBy: SingleParserBuilder<"id" | "name" | "slug" | "createdAt" | "updatedAt" | "brand">;
   readonly direction: SingleParserBuilder<"asc" | "desc"> & { readonly defaultValue: "asc" | "desc" };
   readonly cursor: SingleParserBuilder<string>;
   readonly limit: SingleParserBuilder<number> & { readonly defaultValue: number };
 } = {
-  orderBy: parseAsStringLiteral(["id", "name", "slug", "createdAt", "updatedAt"] as const),
+  orderBy: parseAsStringLiteral(["id", "name", "slug", "createdAt", "updatedAt", "brand"] as const),
   direction: parseAsStringLiteral(["asc", "desc"] as const).withDefault("asc"),
   cursor: parseAsString,
   limit: parseAsInteger.withDefault(25),

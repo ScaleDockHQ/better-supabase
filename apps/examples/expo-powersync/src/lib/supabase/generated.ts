@@ -42,6 +42,42 @@ export const tasksStatusValues = ["todo", "doing", "done"] as const;
 export type TasksStatus = (typeof tasksStatusValues)[number];
 
 export type Models = {
+  change_requests: {
+    Row: {
+      id: string;
+      organization_id: string;
+      title: string;
+      status: string | null;
+      created_at: string;
+      updated_at: string;
+    };
+    Insert: {
+      id?: string;
+      organization_id: string;
+      title: string;
+      status?: string | null;
+      created_at?: string;
+      updated_at?: string;
+    };
+    Update: {
+      id?: string;
+      organization_id?: string;
+      title?: string;
+      status?: string | null;
+      created_at?: string;
+      updated_at?: string;
+    };
+    Relations: {
+      organization: { table: "organizations"; kind: "one"; nullable: false };
+    };
+    PrimaryKey: "id";
+    UniqueKeys: Record<never, never>;
+    Checks: "change_requests_title_check";
+    ForeignKeys: "change_requests_organization_id_fkey";
+    Flags: {
+      tenant: "organization_id";
+    };
+  };
   client_notes: {
     Row: {
       id: string;
@@ -374,6 +410,7 @@ export type Models = {
       slug: string;
       created_at: string;
       updated_at: string;
+      brand: string | null;
     };
     Insert: {
       id?: string;
@@ -381,6 +418,7 @@ export type Models = {
       slug: string;
       created_at?: string;
       updated_at?: string;
+      brand?: string | null;
     };
     Update: {
       id?: string;
@@ -388,8 +426,10 @@ export type Models = {
       slug?: string;
       created_at?: string;
       updated_at?: string;
+      brand?: string | null;
     };
     Relations: {
+      change_requests: { table: "change_requests"; kind: "many"; nullable: true };
       client_notes: { table: "client_notes"; kind: "many"; nullable: true };
       contacts: { table: "contacts"; kind: "many"; nullable: true };
       customer_tags: { table: "customer_tags"; kind: "many"; nullable: true };
@@ -853,7 +893,7 @@ type Extensions = readonly [ReturnType<typeof membershipsExtension>];
 const extensions: Extensions = [membershipsExtension()];
 
 /** The app's subject types, from `config.subjects`. */
-export const subjectTypes = ["message", "conversation", "project", "task"] as const;
+export const subjectTypes = ["message", "conversation", "change_request", "project", "task"] as const;
 export type SubjectType = (typeof subjectTypes)[number];
 /** One subject: its type and its id as text. */
 export type RecordRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };

@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      change_requests: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          status: string | null
+          title: string
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          status?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          status?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "change_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_notes: {
         Row: {
           birth_date: string | null
@@ -363,6 +399,7 @@ export type Database = {
       }
       organizations: {
         Row: {
+          brand: string | null
           created_at: string
           id: string
           name: string
@@ -371,6 +408,7 @@ export type Database = {
         }
         ComputedFields: never
         Insert: {
+          brand?: string | null
           created_at?: string
           id?: string
           name: string
@@ -378,6 +416,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          brand?: string | null
           created_at?: string
           id?: string
           name?: string

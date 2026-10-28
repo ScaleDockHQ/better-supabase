@@ -4,6 +4,45 @@ import { type TableSchema, tableSchema } from "../../src/index.ts";
 
 import type { InsertOf, Json, RowOf, UpdateOf } from "./generated-camel.ts";
 
+export const changeRequestsRow: TableSchema<RowOf<'changeRequests'>> = tableSchema({
+  title: "Change requests",
+  description: "@bsb subject type=change_request id-type=uuid tenant=organization_id title=title url=/change-requests/{id}",
+  fields: {
+    id: { kind: "uuid" },
+    organizationId: { kind: "uuid" },
+    title: { kind: "string", minLength: 1, maxLength: 200 },
+    status: { kind: "string", nullable: true },
+    createdAt: { kind: "datetime", readOnly: true },
+    updatedAt: { kind: "datetime", readOnly: true },
+  },
+});
+
+export const changeRequestsInsert: TableSchema<InsertOf<'changeRequests'>> = tableSchema({
+  title: "Change requests insert",
+  description: "@bsb subject type=change_request id-type=uuid tenant=organization_id title=title url=/change-requests/{id}",
+  fields: {
+    id: { kind: "uuid", optional: true },
+    organizationId: { kind: "uuid" },
+    title: { kind: "string", minLength: 1, maxLength: 200 },
+    status: { kind: "string", nullable: true, optional: true },
+    createdAt: { kind: "datetime", optional: true, readOnly: true },
+    updatedAt: { kind: "datetime", optional: true, readOnly: true },
+  },
+});
+
+export const changeRequestsUpdate: TableSchema<UpdateOf<'changeRequests'>> = tableSchema({
+  title: "Change requests update",
+  description: "@bsb subject type=change_request id-type=uuid tenant=organization_id title=title url=/change-requests/{id}",
+  fields: {
+    id: { kind: "uuid", optional: true },
+    organizationId: { kind: "uuid", optional: true },
+    title: { kind: "string", optional: true, minLength: 1, maxLength: 200 },
+    status: { kind: "string", nullable: true, optional: true },
+    createdAt: { kind: "datetime", optional: true, readOnly: true },
+    updatedAt: { kind: "datetime", optional: true, readOnly: true },
+  },
+});
+
 export const clientNotesRow: TableSchema<RowOf<'clientNotes'>> = tableSchema({
   title: "Client notes",
   description: "@bsb encrypted diagnosis=text birth_date=date",
@@ -318,6 +357,7 @@ export const organizationsRow: TableSchema<RowOf<'organizations'>> = tableSchema
     slug: { kind: "string" },
     createdAt: { kind: "datetime", readOnly: true },
     updatedAt: { kind: "datetime", readOnly: true },
+    brand: { kind: "string", nullable: true },
   },
 });
 
@@ -329,6 +369,7 @@ export const organizationsInsert: TableSchema<InsertOf<'organizations'>> = table
     slug: { kind: "string" },
     createdAt: { kind: "datetime", optional: true, readOnly: true },
     updatedAt: { kind: "datetime", optional: true, readOnly: true },
+    brand: { kind: "string", nullable: true, optional: true },
   },
 });
 
@@ -340,6 +381,7 @@ export const organizationsUpdate: TableSchema<UpdateOf<'organizations'>> = table
     slug: { kind: "string", optional: true },
     createdAt: { kind: "datetime", optional: true, readOnly: true },
     updatedAt: { kind: "datetime", optional: true, readOnly: true },
+    brand: { kind: "string", nullable: true, optional: true },
   },
 });
 
@@ -660,6 +702,7 @@ export const tasksViewRow: TableSchema<RowOf<'tasksView'>> = tableSchema({
 
 /** Write validators; the generated schema installs them through `validation`. */
 export const validators: {
+  readonly changeRequests: { readonly insert: typeof changeRequestsInsert; readonly update: typeof changeRequestsUpdate };
   readonly clientNotes: { readonly insert: typeof clientNotesInsert; readonly update: typeof clientNotesUpdate };
   readonly contacts: { readonly insert: typeof contactsInsert; readonly update: typeof contactsUpdate };
   readonly customerTags: { readonly insert: typeof customerTagsInsert; readonly update: typeof customerTagsUpdate };
@@ -676,6 +719,7 @@ export const validators: {
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
   readonly tasks: { readonly insert: typeof tasksInsert; readonly update: typeof tasksUpdate };
 } = {
+  changeRequests: { insert: changeRequestsInsert, update: changeRequestsUpdate },
   clientNotes: { insert: clientNotesInsert, update: clientNotesUpdate },
   contacts: { insert: contactsInsert, update: contactsUpdate },
   customerTags: { insert: customerTagsInsert, update: customerTagsUpdate },

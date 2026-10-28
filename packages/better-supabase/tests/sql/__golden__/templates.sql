@@ -914,7 +914,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:16145901b5aa65a0ac47eb57c7ced765d90e293e283b4aadf464420c49def3cd
+-- @bsb-hash sha256:54dab34aab480d6015365f2bd8c4572d0d6ffedc9168130212e603271c1b0dcc
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2208,7 +2208,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_row "better_supabase"."template_schedules"%rowtype;
   v_rule "better_supabase"."recurrence_rules"%rowtype;

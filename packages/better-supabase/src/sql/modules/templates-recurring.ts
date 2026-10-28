@@ -327,7 +327,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_row ${s}%rowtype;
   v_rule ${rules}%rowtype;

@@ -8,6 +8,31 @@ const json: v.GenericSchema<Json> = v.lazy(() =>
   v.union([v.string(), v.number(), v.boolean(), v.null(), v.array(json), v.record(v.string(), v.optional(json))]),
 );
 
+export const changeRequestsRow: v.GenericSchema<RowOf<'changeRequests'>> = v.pipe(v.object({
+  id: v.pipe(v.string(), v.uuid()),
+  organizationId: v.pipe(v.string(), v.uuid()),
+  title: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
+  status: v.nullable(v.string()),
+  createdAt: v.pipe(v.string(), v.isoTimestamp()),
+  updatedAt: v.pipe(v.string(), v.isoTimestamp()),
+}), v.title("Change requests"), v.description("@bsb subject type=change_request id-type=uuid tenant=organization_id title=title url=/change-requests/{id}"));
+export const changeRequestsInsert: v.GenericSchema<InsertOf<'changeRequests'>> = v.pipe(v.object({
+  id: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  organizationId: v.pipe(v.string(), v.uuid()),
+  title: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
+  status: v.exactOptional(v.nullable(v.string())),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+}), v.title("Change requests insert"), v.description("@bsb subject type=change_request id-type=uuid tenant=organization_id title=title url=/change-requests/{id}"));
+export const changeRequestsUpdate: v.GenericSchema<UpdateOf<'changeRequests'>> = v.pipe(v.object({
+  id: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  title: v.exactOptional(v.pipe(v.string(), v.minLength(1), v.maxLength(200))),
+  status: v.exactOptional(v.nullable(v.string())),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+}), v.title("Change requests update"), v.description("@bsb subject type=change_request id-type=uuid tenant=organization_id title=title url=/change-requests/{id}"));
+
 export const clientNotesRow: v.GenericSchema<RowOf<'clientNotes'>> = v.pipe(v.object({
   id: v.pipe(v.string(), v.uuid()),
   organizationId: v.pipe(v.string(), v.uuid()),
@@ -233,6 +258,7 @@ export const organizationsRow: v.GenericSchema<RowOf<'organizations'>> = v.pipe(
   slug: v.string(),
   createdAt: v.pipe(v.string(), v.isoTimestamp()),
   updatedAt: v.pipe(v.string(), v.isoTimestamp()),
+  brand: v.nullable(v.string()),
 }), v.title("Organizations"));
 export const organizationsInsert: v.GenericSchema<InsertOf<'organizations'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -240,6 +266,7 @@ export const organizationsInsert: v.GenericSchema<InsertOf<'organizations'>> = v
   slug: v.string(),
   createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  brand: v.exactOptional(v.nullable(v.string())),
 }), v.title("Organizations insert"));
 export const organizationsUpdate: v.GenericSchema<UpdateOf<'organizations'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -247,6 +274,7 @@ export const organizationsUpdate: v.GenericSchema<UpdateOf<'organizations'>> = v
   slug: v.exactOptional(v.string()),
   createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  brand: v.exactOptional(v.nullable(v.string())),
 }), v.title("Organizations update"));
 
 export const planFeaturesRow: v.GenericSchema<RowOf<'planFeatures'>> = v.pipe(v.object({
@@ -475,6 +503,7 @@ export const tasksViewRow: v.GenericSchema<RowOf<'tasksView'>> = v.pipe(v.object
 
 /** Write validators; the generated schema installs them through `validation`. */
 export const validators: {
+  readonly changeRequests: { readonly insert: typeof changeRequestsInsert; readonly update: typeof changeRequestsUpdate };
   readonly clientNotes: { readonly insert: typeof clientNotesInsert; readonly update: typeof clientNotesUpdate };
   readonly contacts: { readonly insert: typeof contactsInsert; readonly update: typeof contactsUpdate };
   readonly customerTags: { readonly insert: typeof customerTagsInsert; readonly update: typeof customerTagsUpdate };
@@ -491,6 +520,7 @@ export const validators: {
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
   readonly tasks: { readonly insert: typeof tasksInsert; readonly update: typeof tasksUpdate };
 } = {
+  changeRequests: { insert: changeRequestsInsert, update: changeRequestsUpdate },
   clientNotes: { insert: clientNotesInsert, update: clientNotesUpdate },
   contacts: { insert: contactsInsert, update: contactsUpdate },
   customerTags: { insert: customerTagsInsert, update: customerTagsUpdate },
