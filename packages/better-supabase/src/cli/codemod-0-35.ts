@@ -2,6 +2,8 @@
  * The 0.35 auth changes: the proxy refreshes on every request it matches
  * (parallel requests share one token refresh), session cookies are written by
  * `@supabase/ssr`, and the old cookie codec and prefetch predicates are gone.
+ * In the blocks, `transition()` takes its reason in an options object and
+ * `validateGraph` takes the step library as `{ steps }`.
  */
 
 import type { Codemod, ReviewLine } from "./codemod.ts";
@@ -19,6 +21,14 @@ const POLICY = /(?<![\w$])(refresh|verifySession)(\s*:\s*)(["'])navigation\3/g;
 const SESSION_PROMISE = /(?<![\w$.])sessionPromise(?=\s*=\s*\{)/g;
 
 const SUPABASE_FOR = /(?<=\.\s*)supabaseFor(?=\s*\()/g;
+
+// `.transition(subject, to, "reason")`, where the reason is a string literal.
+const TRANSITION_REASON =
+  /(\.\s*transition\s*\(\s*(?:\{[^(){}]*\}|[^(),{}]+),\s*[^(),{}]+,\s*)((["'`])(?:\\.|(?!\3)[^\\])*\3)(\s*,?\s*\))/g;
+
+// `validateGraph(graph, steps)`, where the library isn't an object literal.
+const VALIDATE_GRAPH =
+  /(?<![\w$.])(validateGraph\s*\(\s*[^(),{}]+,\s*)([\w$.]+)(\s*,?\s*\))/g;
 
 /**
  * `refresh: "navigation"` is `refresh: true`, `verifySession: "navigation"` is
@@ -62,6 +72,20 @@ function renamePolicies(text: string): {
         end: match.index + match[0].length,
         text: "contextClient",
       })),
+    ...[...text.matchAll(TRANSITION_REASON)]
+      .filter(inCode)
+      .map((match) => ({
+        start: match.index,
+        end: match.index + match[0].length,
+        text: `${match[1]}{ reason: ${match[2]} })`,
+      })),
+    ...[...text.matchAll(VALIDATE_GRAPH)]
+      .filter(inCode)
+      .map((match) => ({
+        start: match.index,
+        end: match.index + match[0].length,
+        text: `${match[1]}{ ${match[2] === "steps" ? "steps" : `steps: ${match[2]}`} })`,
+      })),
   ];
 
   let result = text;
@@ -76,7 +100,7 @@ function renamePolicies(text: string): {
 export const CODEMOD_0_35: Codemod = {
   name: "0.35",
   description:
-    'Rewrites refresh: "navigation" to refresh: true, verifySession: "navigation" to verifySession: "document" and the SessionProvider sessionPromise prop to session and supabaseFor calls to contextClient, and lists for review the lines that use onExpiredPrefetch, shouldRefresh, clearSessionCookies (now async), the removed cookie codec (writeSession, refreshSession, AUTH_CACHE_HEADERS, pruneSessionChunks, sessionEncoding, clearSessionAtScopes), sessionStale, life.min and life.max, contextFromSession with a token, a destructured supabaseFor and sessions: false',
+    'Rewrites refresh: "navigation" to refresh: true, verifySession: "navigation" to verifySession: "document" and the SessionProvider sessionPromise prop to session, supabaseFor calls to contextClient, a string reason passed to transition() to { reason } and validateGraph(graph, steps) to validateGraph(graph, { steps }), and lists for review the lines that use onExpiredPrefetch, shouldRefresh, clearSessionCookies (now async), the removed cookie codec (writeSession, refreshSession, AUTH_CACHE_HEADERS, pruneSessionChunks, sessionEncoding, clearSessionAtScopes), sessionStale, life.min and life.max, contextFromSession with a token, a destructured supabaseFor, sessions: false, a transition() reason that is not a string literal, memory forget (now a soft delete) and maps keyed by WorkflowNodeKind',
   review: [
     {
       pattern: /\bonExpiredPrefetch\b/,
@@ -129,6 +153,22 @@ export const CODEMOD_0_35: Codemod = {
       pattern: /\bsessions\s*:\s*false\b/,
       message:
         "`sessions: false` now turns off the one verified-token memo, so every request verifies its token again (about 0.1 ms each): drop it unless you need that",
+    },
+    {
+      pattern:
+        /\.transition\s*\(\s*(?:\{[^(){}]*\}|[^(),{}]+),\s*[^(),{}]+,\s*(?![\s{"'`])[^)]/,
+      message:
+        "`transition(subject, to, reason)` takes `{ reason, actor }` as its third argument now: pass `{ reason }`",
+    },
+    {
+      pattern: /\barchival\s*\.\s*forget\s*\(/,
+      message:
+        "`memory.archival.forget` soft deletes now: `restore` brings the memory back, and `purge` (service role, on a schedule) removes it for good",
+    },
+    {
+      pattern: /\bRecord<\s*WorkflowNodeKind\b/,
+      message:
+        "`WorkflowNodeKind` takes the app's own kinds now (any string): key a map of every kind by `WorkflowBuiltinNodeKind`, with a fallback for custom kinds",
     },
   ],
   source: renamePolicies,
