@@ -1300,7 +1300,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:c484a654f15979753660b1d059eed017f9f62e212385ace7630f1f5f12b98227
+-- @bsb-hash sha256:7dd91b327aae70a98df5e580716b03143d535db4773f377190a274820c3b7334
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2538,6 +2538,7 @@ begin
   return (
     select jsonb_build_object(
       'calendar', jsonb_build_object('id', k."id", 'name', k."name", 'tz', k."tz"),
+      'createdBy', v_creator,
       'events', coalesce((
       select jsonb_agg(f.item order by f.starts)
       from (
