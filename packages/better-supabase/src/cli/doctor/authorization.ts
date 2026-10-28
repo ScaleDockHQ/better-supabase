@@ -4,20 +4,12 @@ import type {
   ResolvedConfig,
 } from "../../config/index.ts";
 import type { BlockSqlEntitlementsProvider } from "../../sql/index.ts";
-import type {
-  AccessProviderMode,
-  ProviderRequirement,
-} from "../authorization.ts";
+import type { ProviderRequirement } from "../authorization.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import { DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
+import { modulePermissionKeys, SQL_MODULES } from "../../sql/index.ts";
 import {
-  modulePermissionKeys,
-  resolveBlocks,
-  SQL_MODULES,
-} from "../../sql/index.ts";
-import {
-  accessProviderMode,
   accessRequirements,
   entitlementRequirements,
   entitlementsMode,
@@ -25,6 +17,7 @@ import {
   providerLabel,
   unsafeKey,
 } from "../authorization.ts";
+import { accessModule } from "./app-tables.ts";
 import { withoutStrings } from "./rls.ts";
 import { catalogOf, policyObject, qualified } from "./shared.ts";
 
@@ -337,24 +330,6 @@ export function entitlementsModule(
   const mode = entitlementsMode(context.config);
 
   return mode.kind === "provider" ? mode.provider : undefined;
-}
-
-/**
- * The provider for the `provider` access model, when `blocks` installs
- * `access`.
- */
-export function accessModule(
-  context: Pick<DoctorContext, "config">,
-): AccessProviderMode {
-  if (
-    !resolveBlocks(context.config.blockNames, {}).some(
-      (module) => module.name === "permissions",
-    )
-  ) {
-    return { kind: "off" };
-  }
-
-  return accessProviderMode(context.config);
 }
 
 /**

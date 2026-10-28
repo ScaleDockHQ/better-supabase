@@ -15,7 +15,7 @@ import {
 import { notNullTag } from "../gen/model-functions.ts";
 import { configFor } from "../gen/shared.ts";
 import { appTablesWithoutPolicies } from "./app-table-policies.ts";
-import { appTablesOf, appViewsOf } from "./app-tables.ts";
+import { adoptionContext, appTablesOf, appViewsOf } from "./app-tables.ts";
 import { catalogOf, qualified } from "./shared.ts";
 
 const tagText = (notNull: true | readonly string[]): string =>
@@ -182,9 +182,11 @@ export const ADOPTION_RULES: readonly Rule[] = [
         tables.map((table) => [qualified(table), "database"]),
       );
 
-      return adoptedTables(context.config.blocks, ownTables, {
-        subjects: context.config.subjects,
-      }).flatMap((adopted) => {
+      return adoptedTables(
+        context.config.blocks,
+        ownTables,
+        adoptionContext(context),
+      ).flatMap((adopted) => {
         const table = tables.find(
           (entry) =>
             entry.schema === adopted.schema && entry.name === adopted.table,
@@ -234,7 +236,7 @@ export const ADOPTION_RULES: readonly Rule[] = [
       const adopted = adoptedTables(
         context.config.blocks,
         appTablesOf(context),
-        { subjects: context.config.subjects },
+        adoptionContext(context),
       ).find(
         (entry) =>
           entry.module === "webhooks-out" && entry.logical === "endpoints",

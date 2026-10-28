@@ -1,7 +1,9 @@
 import type { BlockSqlLayout } from "../../sql/index.ts";
+import type { AccessProviderMode } from "../authorization.ts";
 import type { DoctorContext } from "./rules.ts";
 
-import { declaredTables } from "../../sql/index.ts";
+import { declaredTables, resolveBlocks } from "../../sql/index.ts";
+import { accessProviderMode } from "../authorization.ts";
 import { writtenByBlocks } from "../sql-layout.ts";
 import { catalogOf, qualified } from "./shared.ts";
 
@@ -56,5 +58,35 @@ export function appViewsOf(
         view.columns.map((column) => column.name),
       ]),
     ),
+  };
+}
+
+/**
+ * The provider for the `provider` access model, when `blocks` installs
+ * `access`.
+ */
+export function accessModule(
+  context: Pick<DoctorContext, "config">,
+): AccessProviderMode {
+  if (
+    !resolveBlocks(context.config.blockNames, {}).some(
+      (module) => module.name === "permissions",
+    )
+  ) {
+    return { kind: "off" };
+  }
+
+  return accessProviderMode(context.config);
+}
+
+/** What `adoptedTables` needs to render the modules as `upgrade` does. */
+export function adoptionContext(
+  context: Pick<DoctorContext, "config">,
+): Pick<BlockSqlLayout, "subjects" | "accessProvider"> {
+  const access = accessModule(context);
+
+  return {
+    subjects: context.config.subjects,
+    ...(access.kind === "provider" ? { accessProvider: access.access } : {}),
   };
 }

@@ -1538,6 +1538,84 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
         /checks "organization\.update" \(update\) with authorization\.functions\.idsWith, but it has conditions[\s\S]*"organization\.delete" \(delete\).*is not in authorization\.permissions/,
       );
     });
+
+    it("upgrades calendar and drive over the app's tables with provider row checks", async () => {
+      await mkdir(join(root, "supabase/schemas"), { recursive: true });
+      await writeFile(
+        join(root, "supabase/schemas/010_agenda.sql"),
+        `create table public.agenda_calendars (
+  id uuid primary key,
+  tenant_id uuid not null,
+  name text not null,
+  tz text not null,
+  color text,
+  owner_type text,
+  owner_id uuid,
+  visibility text not null default 'private',
+  description text,
+  rank text,
+  is_default boolean not null default false,
+  created_at timestamptz not null default now()
+);
+`,
+      );
+
+      const rows = withProvider({
+        permissions: complete.permissions,
+        functions: {
+          ...stubProvider.functions,
+          rowsWith: "authz.rows_{resource}({permission}, {ids})",
+          rowsWithFor: "authz.rows_{resource}_for({user}, {permission}, {ids})",
+        },
+      });
+
+      const config = provider(rows, {
+        blocks: {
+          permissions: { model: "provider" },
+          calendar: {
+            tables: { calendars: "public.agenda_calendars" },
+            options: {
+              access: true,
+              calendarDetails: true,
+              accessFunctions: {
+                read: { rows: "agenda_calendar", key: "agendaCalendar.read" },
+                write: {
+                  rows: "agenda_calendar",
+                  key: "agendaCalendar.update",
+                },
+              },
+            },
+          },
+          drive: {
+            options: {
+              roleFunctions: {
+                node: {
+                  rows: "file_node",
+                  roles: { viewer: "file.read", editor: "file.update" },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      expect(await sql(["sync"], config)).toMatchObject({ code: 0 });
+      expect(
+        await readFile(
+          join(root, "supabase/schemas/900_better_supabase_072_calendar.sql"),
+          "utf-8",
+        ),
+      ).toContain("authz.rows_agenda_calendar(");
+      expect(
+        await readFile(
+          join(root, "supabase/schemas/900_better_supabase_032_drive.sql"),
+          "utf-8",
+        ),
+      ).toContain("authz.rows_file_node(");
+      expect(await sql(["upgrade", "--check"], config)).toMatchObject({
+        code: 0,
+      });
+    });
   });
 
   it("refuses to render entitlements for a scope id type it doesn't support", async () => {

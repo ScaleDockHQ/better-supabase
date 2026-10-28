@@ -8,7 +8,7 @@ import {
   SQL_MODULES,
   widenedCommands,
 } from "../../sql/index.ts";
-import { appTablesOf } from "./app-tables.ts";
+import { adoptionContext, appTablesOf } from "./app-tables.ts";
 import { BLOCK_PREFIX } from "./block-policies.ts";
 import { moduleFiles } from "./module-files.ts";
 import { catalogOf, qualified } from "./shared.ts";
@@ -23,9 +23,11 @@ import { catalogOf, qualified } from "./shared.ts";
 export function widenedAppTablePolicies(
   context: DoctorContext,
 ): FindingInput[] {
-  const tables = adoptedTables(context.config.blocks, appTablesOf(context), {
-    subjects: context.config.subjects,
-  });
+  const tables = adoptedTables(
+    context.config.blocks,
+    appTablesOf(context),
+    adoptionContext(context),
+  );
 
   if (tables.length === 0) {
     return [];
@@ -207,9 +209,11 @@ export function keepsAppsName(
   );
 
   const adopted = named
-    ? adoptedTables(context.config.blocks, appTablesOf(context), {
-        subjects: context.config.subjects,
-      })
+    ? adoptedTables(
+        context.config.blocks,
+        appTablesOf(context),
+        adoptionContext(context),
+      )
     : [];
 
   return (entry) => {
