@@ -346,6 +346,24 @@ export const INBOX_NAMES: BlockSqlNames = {
         updatedAt: "updated_at",
       },
     },
+    drafts: {
+      name: "inbox_drafts",
+      app: {},
+      optional: ["metadata", "createdAt"],
+      lifecycle: { tenant: "tenant", user: "author" },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        conversation: "conversation_id",
+        author: "author_id",
+        source: "source",
+        input: "input",
+        status: "status",
+        metadata: "metadata",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
   },
   migrations: [
     {

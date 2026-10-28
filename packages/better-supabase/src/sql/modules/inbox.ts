@@ -9,6 +9,7 @@ import { CONVERSATION_TO_TASK } from "../../blocks/inbox/automations.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { schemaPreamble } from "../shared.ts";
 import { shippedAutomation } from "./automation-defaults.ts";
+import { inboxDraftFunctions, inboxDraftsDdl } from "./inbox-drafts.ts";
 import { inboxFunctions } from "./inbox-functions.ts";
 import { INBOX_NAMES, inboxSql } from "./inbox-names.ts";
 import { inboxScheduleFunctions } from "./inbox-schedule.ts";
@@ -43,6 +44,8 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 -- go through the functions.
 ${inboxTables(q, sharedTeams)}
 
+${inboxDraftsDdl(q)}
+
 ${inboxHelpers(q)}
 
 ${inboxFunctions(
@@ -57,6 +60,8 @@ ${inboxFunctions(
 ${inboxServiceFunctions(q)}
 
 ${inboxScheduleFunctions(q)}
+
+${inboxDraftFunctions(q)}
 
 ${inboxRealtime(q)}
 
@@ -391,6 +396,19 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "integer",
     },
     {
+      name: "save_inbox_draft",
+      args: ["uuid", "jsonb", "jsonb"],
+      returns: "jsonb",
+    },
+    {
+      name: "suggest_inbox_draft",
+      args: ["uuid", "jsonb", "jsonb"],
+      returns: "jsonb",
+    },
+    { name: "list_inbox_drafts", args: ["uuid"], returns: "jsonb" },
+    { name: "send_inbox_draft", args: ["uuid", "jsonb"], returns: "jsonb" },
+    { name: "discard_inbox_draft", args: ["uuid"], returns: "boolean" },
+    {
       name: "upsert_message_template",
       args: ["{id}", "jsonb"],
       returns: "jsonb",
@@ -423,7 +441,7 @@ export const INBOX: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Shared inbox",
   description:
-    "Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.",
+    "Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.",
   requires: [
     "memberships",
     "permissions",
@@ -443,7 +461,7 @@ export const INBOX: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 5,
+  version: 6,
   upgrades: [
     {
       from: 1,
@@ -459,6 +477,12 @@ export const INBOX: BlockSqlDefinition = {
     },
     TO_MESSAGING,
     THREAD_IDS,
+    {
+      from: 5,
+      description:
+        "Reply drafts live in inbox_drafts: a staff member's own draft per conversation and ai drafts any staff member who can reply reviews.",
+      sql: () => "",
+    },
   ],
   names: INBOX_NAMES,
   contract,

@@ -321,6 +321,7 @@ may be your own enum or domain.
   - `better_supabase.inbound_events`: `id`, `tenant_id`, `adapter`, `external_id`, `inbox_id`, `headers`, `body`, `status`, `attempts`, `received_at`; typed: `status`
   - `better_supabase.message_templates`: `id`, `tenant_id`, `inbox_id`, `name`, `channel`, `language`, `body`, `created_at`, `updated_at`
   - `better_supabase.scheduled_inbox_messages`: `id`, `tenant_id`, `conversation_id`, `author_id`, `input`, `scheduled_for`, `updated_at`
+  - `better_supabase.inbox_drafts`: `id`, `tenant_id`, `conversation_id`, `author_id`, `source`, `input`, `status`, `updated_at`
 - `incidents`
   - `better_supabase.status_components`: `id`, `tenant_id`, `name`, `public`, `status`; typed: `status`
   - `better_supabase.status_component_history`: `id`, `tenant_id`, `component_id`, `status`, `started_at`, `ended_at`; typed: `status`

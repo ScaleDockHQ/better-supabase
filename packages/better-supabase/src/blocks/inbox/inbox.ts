@@ -5,6 +5,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { MessageReaction } from "../messaging/messaging.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
+import type { InboxDrafts } from "./drafts.ts";
 import type {
   BotMode,
   Contact,
@@ -41,6 +42,7 @@ import {
   toInstant,
   pageOf,
 } from "../shared.ts";
+import { inboxDrafts } from "./drafts.ts";
 import {
   contactOf,
   conversationOf,
@@ -212,6 +214,7 @@ export type InboxHooks = BlockHooks<Inbox> & {
   readonly contacts?: BlockHooks<Inbox["contacts"]>;
   readonly conversations?: BlockHooks<Inbox["conversations"]>;
   readonly messages?: BlockHooks<Inbox["messages"]>;
+  readonly drafts?: BlockHooks<Inbox["drafts"]>;
   readonly files?: BlockHooks<Inbox["files"]>;
   readonly deliveries?: BlockHooks<Inbox["deliveries"]>;
   readonly templates?: BlockHooks<Inbox["templates"]>;
@@ -362,6 +365,8 @@ export interface Inbox {
     /** Deletes the caller's scheduled reply before it is sent. */
     cancelScheduled(scheduledId: string): AsyncResult<void>;
   };
+  /** Reply drafts: the caller's own and the ai drafts staff review. */
+  readonly drafts: InboxDrafts;
   /** Service only: the files that arrived on channels. */
   readonly files: {
     /** The channel files to fetch and upload, oldest first. */
@@ -459,7 +464,7 @@ function contactArg(
   };
 }
 
-function messageArg(input: MessageInput): Record<string, unknown> {
+function messageArg(input: Partial<MessageInput>): Record<string, unknown> {
   return {
     body: input.body,
     kind: input.kind,
@@ -796,6 +801,7 @@ export function createInbox(options: InboxOptions): Inbox {
           () => undefined,
         ),
     },
+    drafts: inboxDrafts(call, (input) => compact(messageArg(input))),
     files: {
       pending: (limit) =>
         call("pending_inbox_files", { max: limit }, pendingFilesOf),
@@ -931,6 +937,7 @@ export function createInbox(options: InboxOptions): Inbox {
     contacts,
     conversations,
     messages,
+    drafts,
     files,
     deliveries,
     templates,
@@ -943,6 +950,7 @@ export function createInbox(options: InboxOptions): Inbox {
     contacts,
     conversations,
     messages,
+    drafts,
     files,
     deliveries,
     templates,
@@ -969,6 +977,10 @@ export function createInbox(options: InboxOptions): Inbox {
       ),
       messages: withBlockHooks(client.messages, groups.messages, {
         block: "inbox.messages",
+        ...logger,
+      }),
+      drafts: withBlockHooks(client.drafts, groups.drafts, {
+        block: "inbox.drafts",
         ...logger,
       }),
       files: withBlockHooks(client.files, groups.files, {
