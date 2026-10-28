@@ -601,7 +601,7 @@ export function documentTotals(
  * an amount is gross and the tax is the part of it at `rate / (10000 + rate)`;
  * otherwise an amount is net and tax is added on top.
  */
-export function documentRecountSql(
+function documentRecountSql(
   ctx: BlockSqlContext,
   items: LineItems,
   options: { readonly setter: string; readonly recount: string },
