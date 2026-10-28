@@ -528,6 +528,10 @@ export const customersByStatusArgs: v.GenericSchema<{ p_limit?: number; p_status
   p_status: v.string(),
 }), v.title("customers_by_status arguments"));
 
+export const islandCountsArgs: v.GenericSchema<{ args: Json }> = v.pipe(v.object({
+  args: json,
+}), v.title("island_counts arguments"));
+
 export const organizationInvitationsArgs: v.GenericSchema<{ organization: string }> = v.pipe(v.object({
   organization: v.pipe(v.string(), v.uuid()),
 }), v.title("organization_invitations arguments"));
@@ -557,5 +561,7 @@ export const setMyAvatarPathArgs: v.GenericSchema<{ avatar_path: string }> = v.p
 export const updateMyProfileArgs: v.GenericSchema<{ full_name: string }> = v.pipe(v.object({
   full_name: v.string(),
 }), v.title("update_my_profile arguments"));
+
+export const islandCountsResult: v.GenericSchema<Json> = json;
 
 export const rsWorkspaceSummaryResult: v.GenericSchema<Json> = json;

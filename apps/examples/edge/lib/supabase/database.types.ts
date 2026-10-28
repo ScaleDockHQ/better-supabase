@@ -802,6 +802,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      island_counts: { Args: { args: Json }; Returns: Json }
       my_organizations: {
         Args: Record<PropertyKey, never>
         Returns: {

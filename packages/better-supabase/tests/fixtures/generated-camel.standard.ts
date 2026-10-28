@@ -725,6 +725,13 @@ export const customersByStatusArgs: TableSchema<{ p_limit?: number; p_status: st
   },
 });
 
+export const islandCountsArgs: TableSchema<{ args: Json }> = tableSchema({
+  title: "island_counts arguments",
+  fields: {
+    args: {"kind":"json"},
+  },
+});
+
 export const organizationInvitationsArgs: TableSchema<{ organization: string }> = tableSchema({
   title: "organization_invitations arguments",
   fields: {

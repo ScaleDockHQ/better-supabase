@@ -524,6 +524,10 @@ export const customersByStatusArgs: z.ZodMiniType<{ p_limit?: number; p_status: 
   p_status: z.string(),
 }).check(z.meta({ title: "customers_by_status arguments" }));
 
+export const islandCountsArgs: z.ZodMiniType<{ args: Json }> = z.object({
+  args: z.json(),
+}).check(z.meta({ title: "island_counts arguments" }));
+
 export const organizationInvitationsArgs: z.ZodMiniType<{ organization: string }> = z.object({
   organization: z.guid(),
 }).check(z.meta({ title: "organization_invitations arguments" }));
@@ -553,5 +557,7 @@ export const setMyAvatarPathArgs: z.ZodMiniType<{ avatar_path: string }> = z.obj
 export const updateMyProfileArgs: z.ZodMiniType<{ full_name: string }> = z.object({
   full_name: z.string(),
 }).check(z.meta({ title: "update_my_profile arguments" }));
+
+export const islandCountsResult: z.ZodMiniType<Json> = z.json();
 
 export const rsWorkspaceSummaryResult: z.ZodMiniType<Json> = z.json();

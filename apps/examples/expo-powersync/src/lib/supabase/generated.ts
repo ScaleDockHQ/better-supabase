@@ -769,6 +769,12 @@ export type Functions = {
     };
     Returns: (Models["customers"]['Row'])[];
   };
+  island_counts: {
+    Args: {
+      args: Json | null;
+    };
+    Returns: Json;
+  };
   my_organizations: {
     Args: Record<never, never>;
     Returns: { "id": string | null; "last_used_at": string | null; "name": string | null; "plan": string | null; "role": string | null; "slug": string | null }[];
