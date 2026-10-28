@@ -4,6 +4,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { CalendarAlarm } from "./alarms.ts";
 import type {
   CalendarEventKind,
   CalendarTransparency,
@@ -16,7 +17,6 @@ import type {
   AttendeeRole,
   CalendarAttendee,
   CalendarEventStatus,
-  CalendarReminder,
   IcsEvent,
 } from "./ics.ts";
 import type {
@@ -45,6 +45,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { alarmItem, alarmOf, reminderOf } from "./alarms.ts";
 import {
   CALENDAR_EVENT_KINDS,
   CALENDAR_TRANSPARENCIES,
@@ -145,6 +146,11 @@ export interface CalendarEventInput {
    * invitations to single events it covers, and new ones. Default `false`.
    */
   readonly autoDecline?: boolean;
+  /**
+   * Replaces the event's alarms (`VALARM`), which every reader of the event
+   * gets in exports and feeds. Left out, they stay as they are.
+   */
+  readonly alarms?: readonly CalendarAlarm[];
   /** Only on insert. Default the new id. */
   readonly uid?: string;
 }
@@ -318,16 +324,6 @@ function attendeeOf(value: Record<string, unknown>): CalendarAttendee {
   };
 }
 
-function reminderOf(value: Record<string, unknown>): CalendarReminder {
-  return {
-    method: optionalText(value["method"]) ?? "notification",
-    offsetMinutes:
-      typeof value["offsetMinutes"] === "number"
-        ? Math.trunc(value["offsetMinutes"])
-        : 0,
-  };
-}
-
 /** A `list_calendar_events` or `calendar_feed` row as an event. */
 export function calendarEventOf(value: unknown): CalendarEvent {
   const row = recordOf(value, "calendar event");
@@ -379,6 +375,9 @@ export function calendarEventOf(value: unknown): CalendarEvent {
       : {}),
     attendees: recordsOf(row["attendees"], "attendees").map(attendeeOf),
     reminders: recordsOf(row["reminders"], "reminders").map(reminderOf),
+    ...(row["alarms"] === undefined
+      ? {}
+      : { alarms: recordsOf(row["alarms"], "alarms").map(alarmOf) }),
     ...(updatedAt === undefined ? {} : { updatedAt }),
     ...(rdates === undefined
       ? {}
@@ -413,6 +412,8 @@ function itemOf(
 
     if ((key === "exdates" || key === "rdates") && Array.isArray(value)) {
       item[key] = value.map(String);
+    } else if (key === "alarms" && Array.isArray(value)) {
+      item[key] = value.map(alarmItem);
     } else if (
       key === "startsAt" ||
       key === "endsAt" ||
@@ -448,6 +449,7 @@ function importItem(event: IcsEvent): Record<string, unknown> {
     ...(event.transparency === undefined
       ? {}
       : { transparency: event.transparency }),
+    alarms: event.alarms ?? [],
   });
 }
 
@@ -475,6 +477,7 @@ function copyOf(event: CalendarEvent): CalendarEventInput {
       ? {}
       : { autoDecline: event.autoDecline }),
     ...(event.visibility === undefined ? {} : { visibility: event.visibility }),
+    ...(event.alarms === undefined ? {} : { alarms: event.alarms }),
   };
 }
 
@@ -521,6 +524,7 @@ const EVENT_INPUT: ReadonlySet<string> = new Set([
   "kind",
   "transparency",
   "autoDecline",
+  "alarms",
   "uid",
   "recurrenceId",
   "originalStart",

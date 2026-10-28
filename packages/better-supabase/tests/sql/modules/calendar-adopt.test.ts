@@ -523,21 +523,29 @@ describe("calendar over an app's tables with per-calendar access", () => {
     "adds the app's event alarms and the link's creator to a calendar feed",
     { timeout: 60_000 },
     async () => {
-      const files = renderBlocks(["calendar", "share-links"], {
-        modules: {
-          calendar: {
-            options: {
-              feed: {
-                reminders: {
-                  table: "public.event_alarms",
-                  event: "event_id",
-                  offsetMinutes: "minutes_before",
-                  method: "action",
-                },
-              },
+      const modules = {
+        calendar: {
+          tables: { alarms: "public.event_alarms" },
+          columns: {
+            alarms: {
+              offsetMinutes: "minutes_before",
+              method: "action",
+              user: "user_id",
+              related: null,
+              at: null,
+              repeat: null,
+              repeatMinutes: null,
+              description: null,
+              summary: null,
+              createdAt: null,
             },
           },
         },
+      };
+
+      const files = renderBlocks(["calendar", "share-links"], {
+        modules,
+        ownTables: { "public.event_alarms": "app.sql" },
       });
 
       await using stack = await liteStack({
@@ -547,7 +555,9 @@ describe("calendar over an app's tables with per-calendar access", () => {
           APP,
           `create table public.event_alarms (
   id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null,
   event_id uuid not null,
+  user_id uuid,
   minutes_before integer not null,
   action text not null default 'display'
 );`,
@@ -570,7 +580,7 @@ begin
   ${as(OWNER)}
   v_calendar := (better_supabase.create_calendar('${TENANT}', 'Alice', 'UTC', 'user', '${OWNER}') ->> 'id')::uuid;
   v_event := (better_supabase.save_calendar_event(v_calendar, jsonb_build_object('title', 'Standup', 'startsAt', now() + interval '1 day', 'endsAt', now() + interval '1 day 1 hour')) ->> 'id')::uuid;
-  insert into public.event_alarms (event_id, minutes_before, action) values (v_event, 15, 'display'), (v_event, 60, 'email');
+  insert into public.event_alarms (tenant_id, event_id, user_id, minutes_before, action) values ('${TENANT}', v_event, null, 15, 'display'), ('${TENANT}', v_event, '${OWNER}', 60, 'email'), ('${TENANT}', v_event, '${ALICE}', 5, 'display');
   v_token := better_supabase.create_share_link('${TENANT}', 'calendar', v_calendar::text, 'view') ->> 'token';
   ${ANON}
   v_feed := better_supabase.calendar_feed(v_token);

@@ -1,7 +1,35 @@
 import type { EntitySchema } from "../entity-schema.ts";
+import type { CalendarAlarm } from "./alarms.ts";
 import type { CalendarEventInput } from "./calendar.ts";
 
 import { entitySchema } from "../entity-schema.ts";
+
+/** One alarm (`VALARM`) of an event. */
+export const calendarAlarmSchema: EntitySchema<CalendarAlarm> =
+  entitySchema<CalendarAlarm>({
+    title: "CalendarAlarm",
+    fields: {
+      id: { kind: "string", optional: true },
+      method: { kind: "enum", values: ["display", "email", "audio"] },
+      offsetMinutes: {
+        kind: "integer",
+        minimum: -525_600,
+        maximum: 525_600,
+        description:
+          "Minutes before the start (or end); negative fires after. Ignored with at.",
+      },
+      related: { kind: "enum", values: ["start", "end"], optional: true },
+      at: {
+        kind: "instant",
+        optional: true,
+        description: "An absolute time, instead of offsetMinutes.",
+      },
+      repeat: { kind: "integer", optional: true, minimum: 0 },
+      repeatMinutes: { kind: "integer", optional: true, minimum: 1 },
+      description: { kind: "string", optional: true },
+      summary: { kind: "string", optional: true },
+    },
+  });
 
 /**
  * What `upsert` takes for an event. Fields left out keep their value on update,
@@ -55,6 +83,13 @@ export const calendarEventInputSchema: EntitySchema<CalendarEventInput> =
         optional: true,
         description:
           "On an out-of-office or focus-time block: decline the invitations it covers.",
+      },
+      alarms: {
+        kind: "custom",
+        schema: calendarAlarmSchema,
+        optional: true,
+        array: true,
+        description: "Replaces the event's alarms.",
       },
       uid: { kind: "string", optional: true, description: "Only on insert." },
     },

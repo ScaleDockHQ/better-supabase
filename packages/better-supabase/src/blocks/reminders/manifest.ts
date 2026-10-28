@@ -14,6 +14,15 @@ export const remindersBlock: BlockOf<
   { readonly notifier: "optional" }
 > = defineBlock({
   name: "reminders",
+  schedules: [
+    {
+      name: "schedule",
+      cron: "*/5 * * * *",
+      runs: "schedule()",
+      description:
+        "Enqueues a reminders.deliver job for each reminder due in the next day.",
+    },
+  ],
   sql: ["reminders"],
   options: { reminders: remindersSqlOptions },
   events: remindersEvents,

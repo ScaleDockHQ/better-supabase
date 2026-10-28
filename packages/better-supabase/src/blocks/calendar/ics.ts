@@ -1,6 +1,10 @@
+import type { CalendarAlarm, CalendarReminder } from "./alarms.ts";
 import type { CalendarTransparency } from "./availability.ts";
+import type { ContentLine } from "./ics-text.ts";
 
 import { temporal } from "../../core/temporal-required.ts";
+import { alarmLines, readAlarm } from "./alarms.ts";
+import { compact, escapeText, pad, unescapeText, utc } from "./ics-text.ts";
 
 /** How an attendee takes part (RFC 5545 `ROLE`), in lowercase. */
 export type AttendeeRole =
@@ -31,11 +35,6 @@ export interface CalendarAttendee {
   readonly optional?: boolean;
 }
 
-export interface CalendarReminder {
-  readonly method: string;
-  readonly offsetMinutes: number;
-}
-
 /** One `VEVENT`, ready for `importIcs` or `upsert`. */
 export interface IcsEvent {
   readonly uid: string;
@@ -57,6 +56,8 @@ export interface IcsEvent {
   readonly attendees: readonly CalendarAttendee[];
   /** `TRANSP:TRANSPARENT` reads as `transparent`; absent means opaque. */
   readonly transparency?: CalendarTransparency;
+  /** The event's `VALARM`s, without the per-user reminders `toIcs` writes. */
+  readonly alarms?: readonly CalendarAlarm[];
 }
 
 export interface ParsedIcs {
@@ -67,12 +68,6 @@ export interface ParsedIcs {
   readonly events: readonly IcsEvent[];
   /** `VEVENT`s without a `UID` or `DTSTART`, which are left out. */
   readonly skipped: number;
-}
-
-interface ContentLine {
-  readonly name: string;
-  readonly params: Readonly<Record<string, string>>;
-  readonly value: string;
 }
 
 const ROLES: Readonly<Record<string, AttendeeRole>> = {
@@ -134,21 +129,6 @@ function contentLine(line: string): ContentLine | undefined {
   }
 
   return undefined;
-}
-
-/** RFC 5545 TEXT: `\n`, `\,`, `\;` and `\\`. */
-function unescapeText(value: string): string {
-  return value.replaceAll(/\\([nN,;\\])/g, (_, char: string) =>
-    char === "n" || char === "N" ? "\n" : char,
-  );
-}
-
-function escapeText(value: string): string {
-  return value
-    .replaceAll("\\", "\\\\")
-    .replaceAll(";", "\\;")
-    .replaceAll(",", "\\,")
-    .replaceAll(/\r?\n/g, "\\n");
 }
 
 function zoneOr(zone: string | undefined, fallback: string): string {
@@ -257,6 +237,7 @@ function attendeeOf(line: ContentLine): CalendarAttendee | undefined {
 function eventOf(
   lines: readonly ContentLine[],
   fallback: string,
+  alarmGroups: readonly (readonly ContentLine[])[],
 ): IcsEvent | undefined {
   const time = temporal();
   let uid: string | undefined;
@@ -385,6 +366,12 @@ function eventOf(
 
   const zoned = start.instant.toZonedDateTimeISO(start.tz);
 
+  const alarms = alarmGroups.flatMap((group) => {
+    const alarm = readAlarm(group);
+
+    return alarm === undefined ? [] : [alarm];
+  });
+
   const endsAt =
     end?.instant ??
     (duration === undefined
@@ -409,14 +396,15 @@ function eventOf(
     ...(originalStart === undefined ? {} : { originalStart }),
     attendees,
     ...(transparent ? { transparency: "transparent" as const } : {}),
+    ...(alarms.length === 0 ? {} : { alarms }),
   };
 }
 
 /**
  * Reads an iCalendar file (RFC 5545): unfolds lines, unescapes TEXT values and
- * reads each `VEVENT`'s times, recurrence (`RRULE`, `EXDATE`, `RECURRENCE-ID`)
- * and attendees. Times in a zone Temporal does not know, floating times and
- * dates use `X-WR-TIMEZONE`, else UTC.
+ * reads each `VEVENT`'s times, recurrence (`RRULE`, `EXDATE`, `RECURRENCE-ID`),
+ * attendees and alarms (`VALARM`). Times in a zone Temporal does not know,
+ * floating times and dates use `X-WR-TIMEZONE`, else UTC.
  */
 export function parseIcs(text: string): ParsedIcs {
   const lines = text
@@ -444,19 +432,31 @@ export function parseIcs(text: string): ParsedIcs {
   const events: IcsEvent[] = [];
   let skipped = 0;
   let current: ContentLine[] | undefined;
+  let alarms: ContentLine[][] = [];
+  let alarm: ContentLine[] | undefined;
   let depth = 0;
 
   for (const line of lines) {
     if (line.name === "BEGIN" && line.value.toUpperCase() === "VEVENT") {
       current = [];
+      alarms = [];
       depth = 0;
     } else if (current !== undefined && line.name === "BEGIN") {
+      if (depth === 0 && line.value.toUpperCase() === "VALARM") {
+        alarm = [];
+      }
+
       depth += 1;
     } else if (current !== undefined && line.name === "END") {
       if (depth > 0) {
         depth -= 1;
+
+        if (depth === 0 && alarm !== undefined) {
+          alarms.push(alarm);
+          alarm = undefined;
+        }
       } else if (line.value.toUpperCase() === "VEVENT") {
-        const event = eventOf(current, tz);
+        const event = eventOf(current, tz, alarms);
 
         if (event === undefined) {
           skipped += 1;
@@ -468,6 +468,8 @@ export function parseIcs(text: string): ParsedIcs {
       }
     } else if (current !== undefined && depth === 0) {
       current.push(line);
+    } else if (alarm !== undefined && depth === 1) {
+      alarm.push(line);
     }
   }
 
@@ -492,6 +494,7 @@ export interface IcsSource {
   readonly originalStart?: Temporal.Instant;
   readonly attendees?: readonly CalendarAttendee[];
   readonly reminders?: readonly CalendarReminder[];
+  readonly alarms?: readonly CalendarAlarm[];
   readonly updatedAt?: Temporal.Instant;
 }
 
@@ -502,19 +505,6 @@ export interface ToIcsOptions {
   readonly prodId?: string;
   /** `DTSTAMP` for events without `updatedAt`. Default now. */
   readonly now?: Temporal.Instant;
-}
-
-const pad = (value: number, size = 2): string =>
-  String(value).padStart(size, "0");
-
-function compact(
-  zoned: Temporal.ZonedDateTime | Temporal.PlainDateTime,
-): string {
-  return `${pad(zoned.year, 4)}${pad(zoned.month)}${pad(zoned.day)}T${pad(zoned.hour)}${pad(zoned.minute)}${pad(zoned.second)}`;
-}
-
-function utc(instant: Temporal.Instant): string {
-  return `${compact(instant.toZonedDateTimeISO("UTC"))}Z`;
 }
 
 function day(instant: Temporal.Instant, tz: string): string {
@@ -703,18 +693,8 @@ function eventLines(event: IcsSource, stamp: Temporal.Instant): string[] {
     );
   }
 
-  for (const reminder of event.reminders ?? []) {
-    const minutes = Math.trunc(reminder.offsetMinutes);
-    const trigger = `${minutes > 0 ? "-" : ""}PT${String(Math.abs(minutes))}M`;
-
-    lines.push(
-      "BEGIN:VALARM",
-      "ACTION:DISPLAY",
-      `DESCRIPTION:${escapeText(event.title)}`,
-      `TRIGGER:${trigger}`,
-      `X-BSB-METHOD:${escapeText(reminder.method)}`,
-      "END:VALARM",
-    );
+  for (const alarm of [...(event.alarms ?? []), ...(event.reminders ?? [])]) {
+    lines.push(...alarmLines(alarm, event));
   }
 
   lines.push("END:VEVENT");

@@ -290,6 +290,7 @@ export interface BlockNameRegistry {
       readonly "calendars": "id" | "tenant" | "name" | "tz" | "color" | "ownerType" | "ownerId" | "createdAt" | "visibility" | "description" | "rank" | "isDefault";
       readonly "events": "id" | "tenant" | "calendar" | "uid" | "title" | "description" | "location" | "startsAt" | "endsAt" | "allDay" | "tz" | "status" | "rrule" | "exdates" | "recurrence" | "originalStart" | "subjectType" | "subjectId" | "color" | "kind" | "transparency" | "autoDecline" | "createdBy" | "createdAt" | "updatedAt" | "visibility" | "owner" | "rdates";
       readonly "attendees": "id" | "tenant" | "event" | "email" | "name" | "user" | "role" | "response" | "subjectType" | "subjectId" | "organizer" | "optional";
+      readonly "alarms": "id" | "tenant" | "event" | "user" | "method" | "offsetMinutes" | "related" | "at" | "repeat" | "repeatMinutes" | "description" | "summary" | "createdAt";
       readonly "workingHours": "id" | "tenant" | "user" | "weekday" | "startsAt" | "endsAt" | "tz";
       readonly "grants": "id" | "tenant" | "calendar" | "user" | "role" | "createdAt";
       readonly "rules": "id" | "tenant" | "event" | "rrule" | "freq" | "interval" | "count" | "until" | "byDay" | "byMonthDay" | "byMonth" | "bySetPos";
@@ -1397,14 +1398,14 @@ export interface BlockNameRegistry {
   readonly "reminders": {
     readonly tables: {
       readonly "rules": "id" | "tenant" | "subjectType" | "subjectId" | "dtstart" | "tzid" | "rrule" | "frequency" | "intervalCount" | "weekDays" | "monthDay" | "monthWeekday" | "monthOrdinal";
-      readonly "reminders": "id" | "tenant" | "subjectType" | "subjectId" | "user" | "method" | "offsetMinutes";
+      readonly "reminders": "id" | "tenant" | "subjectType" | "subjectId" | "user" | "method" | "offsetMinutes" | "remindAt";
       readonly "deliveries": "id" | "reminder" | "occurrenceAt" | "sentAt";
     };
     readonly functions: "delete_reminder" | "list_my_reminders" | "list_reminder_schedule" | "mark_reminder_sent" | "save_reminder";
     readonly actions: "manage" | "read";
     readonly hooks: never;
     readonly entities: {
-      readonly "reminder": "id" | "tenant_id" | "subject_type" | "subject_id" | "user_id" | "method" | "offset_minutes";
+      readonly "reminder": "id" | "tenant_id" | "subject_type" | "subject_id" | "user_id" | "method" | "offset_minutes" | "remind_at";
     };
     readonly primary: "reminder";
   };

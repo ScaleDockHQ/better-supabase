@@ -173,7 +173,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   relations:
     "ancestors converted_into descendants link relation_rollup relations_by_kind relations_of unlink",
   reminders:
-    "delete_reminder list_my_reminders mark_reminder_sent save_reminder",
+    "delete_reminder list_my_reminders list_reminder_schedule mark_reminder_sent save_reminder",
   reviews:
     "delete_review list_reviews my_review publish_review reject_review reply_to_review review_queue review_summary submit_review",
   "saved-views":

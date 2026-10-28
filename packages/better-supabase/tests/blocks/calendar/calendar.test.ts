@@ -675,3 +675,50 @@ describe("calendar adoption options", () => {
     });
   });
 });
+
+describe("calendar alarms", () => {
+  it("reads an event's alarms and replaces them on save", async () => {
+    const { calls, calendar } = recorder({
+      list_calendar_events: [
+        {
+          ...SERIES,
+          alarms: [
+            {
+              id: "a1",
+              method: "display",
+              offsetMinutes: 10,
+              related: "start",
+            },
+          ],
+        },
+      ],
+      save_calendar_event: { id: "s1", uid: "s1", created: false },
+    });
+
+    const [first] = await calendar.occurrences(["c1"], range).orThrow();
+
+    expect(first!.event.alarms).toEqual([
+      { method: "display", offsetMinutes: 10, id: "a1" },
+    ]);
+
+    await calendar
+      .editFollowing(first!, {
+        alarms: [
+          {
+            method: "email",
+            offsetMinutes: 0,
+            at: Temporal.Instant.from("2026-03-22T18:00:00Z"),
+          },
+        ],
+      })
+      .orThrow();
+
+    expect(calls[1]?.args).toEqual({
+      calendar_id: "c1",
+      item: {
+        alarms: [{ method: "email", at: "2026-03-22T18:00:00Z" }],
+        id: "s1",
+      },
+    });
+  });
+});

@@ -7,8 +7,9 @@ import type {
 } from "../context.ts";
 import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
+import type { Subject } from "../subjects.ts";
 
-import { sqlIdent } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addCheck,
   addExtraColumns,
@@ -20,6 +21,12 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
+import {
+  qualifiedTable,
+  subjectIdMatches,
+  subjectReadable,
+  subjectsOption,
+} from "../subjects.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<RemindersEvents> = {
@@ -77,7 +84,9 @@ const NAMES: BlockSqlNames = {
         user: "user_id",
         method: "method",
         offsetMinutes: "offset_minutes",
+        remindAt: "remind_at",
       },
+      optional: ["remindAt"],
     },
     deliveries: {
       name: "reminder_deliveries",
@@ -94,6 +103,75 @@ const NAMES: BlockSqlNames = {
 
 /** `options.extraColumns`, added to a managed reminders table. */
 const extrasOf = (ctx: BlockSqlContext) => ctx.extraColumns("reminders");
+
+const COLUMN = /^[a-z_][a-z0-9_]{0,62}$/;
+
+/**
+ * `blocks.reminders.on`, every registered subject when unset. `at` names the
+ * subject's timestamp column that a reminder without a rule counts back from.
+ */
+function subjectsOf(
+  ctx: BlockSqlContext,
+): readonly (readonly [string, Subject])[] {
+  const subjects = subjectsOption(ctx, ["at"]);
+
+  for (const [type, subject] of subjects) {
+    const at = subject.extra["at"];
+
+    if (at !== undefined && (typeof at !== "string" || !COLUMN.test(at))) {
+      throw new TypeError(
+        `blocks.${ctx.instance}.on.${type}.at must be a column name, such as due_at`,
+      );
+    }
+  }
+
+  return subjects;
+}
+
+/** The schedule rows of subjects with an `at` column and no recurrence rule. */
+function subjectTimes(
+  ctx: BlockSqlContext,
+  subjects: readonly (readonly [string, Subject])[],
+  absolute: string,
+): string {
+  const reminders = ctx.table("reminders");
+  const rules = ctx.table("rules");
+  const r = (column: string): string => `r.${ctx.col("reminders", column)}`;
+
+  return subjects
+    .flatMap(([type, subject]) => {
+      const at = subject.extra["at"];
+
+      if (typeof at !== "string") {
+        return [];
+      }
+
+      const column = `s.${sqlIdent(at)}`;
+
+      const tenant =
+        subject.tenant === false
+          ? ""
+          : `\n    and s.${sqlIdent(subject.tenant ?? ctx.naming.rename("organization_id"))}::text = ${r("tenant")}::text`;
+
+      return [
+        `
+  union all
+  select ${r("id")}, ${column}::timestamptz, 'UTC'::text, 'FREQ=DAILY;COUNT=1'::text,
+    ${r("offsetMinutes")}, ${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("user")}
+  from ${reminders} r
+  join ${qualifiedTable(subject.table)} s on ${subjectIdMatches(subject, r("subjectId"))}${tenant}
+  where ${r("subjectType")} = ${sqlString(type)}${absolute}
+    and ${column} is not null
+    and not exists (
+      select 1 from ${rules} u
+      where u.${ctx.col("rules", "tenant")} = ${r("tenant")}
+        and u.${ctx.col("rules", "subjectType")} = ${r("subjectType")}
+        and u.${ctx.col("rules", "subjectId")} = ${r("subjectId")}
+    )`,
+      ];
+    })
+    .join("");
+}
 
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
@@ -113,6 +191,35 @@ function build(ctx: BlockSqlContext): string {
   const reminders = ctx.table("reminders");
   const deliveries = ctx.table("deliveries");
   const manage = ctx.permission("manage", OPERATIONS["reminders.manage"]);
+  const subjects = subjectsOf(ctx);
+  const at = ctx.has("reminders", "remindAt");
+  const remindAt = at ? ctx.col("reminders", "remindAt") : "";
+  const absolute = at ? `\n    and r.${remindAt} is null` : "";
+  const saveArgs = `${ctx.idType}, text, text, integer${at ? ", timestamptz" : ""}`;
+  const fields = extraFieldsArg(extras);
+
+  const listed = subjects.map(([type]) => sqlString(type)).join(", ");
+
+  const typeGuard =
+    ctx.on === undefined
+      ? ""
+      : `
+  if save_reminder.subject_type is null or save_reminder.subject_type not in (${listed}) then
+    raise exception 'blocks.${ctx.instance}.on does not allow this record type'
+      using errcode = '22023', hint = 'REMINDER_SUBJECT_UNSUPPORTED';
+  end if;`;
+
+  // A registered subject must exist in the tenant and be readable by the
+  // caller; types `on` doesn't list pass, unless `on` is set.
+  const readCheck =
+    subjects.length === 0
+      ? ""
+      : `
+  if not (auth.role() = 'service_role')
+    and save_reminder.subject_type in (${listed})
+    and not (${subjectReadable(ctx, subjects, { type: "save_reminder.subject_type", id: "save_reminder.subject_id", tenant: "save_reminder.tenant" })}) then
+    ${fail("REMINDER_SUBJECT_NOT_FOUND", "the record was not found in this organization", "P0002")}
+  end if;`;
 
   const ruleColumns =
     format === "columns"
@@ -147,7 +254,7 @@ create table if not exists ${reminders} (
   ${ctx.col("reminders", "user")} uuid,
   ${ctx.col("reminders", "method")} text not null default 'notification',
   ${ctx.col("reminders", "offsetMinutes")} integer not null default 0
-);${addExtraColumns(reminders, extras)}
+);${at ? `\nalter table ${reminders} add column if not exists ${remindAt} timestamptz;` : ""}${addExtraColumns(reminders, extras)}
 ${lockTable(reminders, { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("reminders").name}_subject_idx`)} on ${reminders} (${ctx.col("reminders", "subjectType")}, ${ctx.col("reminders", "subjectId")});
 create index if not exists ${sqlIdent(`${ctx.tableName("reminders").name}_tenant_idx`)} on ${reminders} (${ctx.col("reminders", "tenant")});
@@ -170,8 +277,14 @@ ${lockTable(deliveries, { read: true })}
 
   return `${schemaPreamble(ctx)}
 ${tables}
-${extraFieldsArg(extras).drop(ctx.fn("save_reminder"), `${ctx.idType}, text, text, integer`)}
-create or replace function ${ctx.fn("save_reminder")}(tenant ${ctx.idType}, subject_type text, subject_id text, offset_minutes integer${extraFieldsArg(extras).param})
+${fields.drop(ctx.fn("save_reminder"), saveArgs)}${
+    at
+      ? `
+drop function if exists ${ctx.fn("save_reminder")}(${ctx.idType}, text, text, integer);
+drop function if exists ${ctx.fn("save_reminder")}(${ctx.idType}, text, text, integer, jsonb);`
+      : ""
+  }
+create or replace function ${ctx.fn("save_reminder")}(tenant ${ctx.idType}, subject_type text, subject_id text, offset_minutes integer${at ? ", remind_at timestamptz default null" : ""}${fields.param})
 returns jsonb
 language plpgsql
 security definer
@@ -182,9 +295,9 @@ declare
 begin
   if not (auth.role() = 'service_role' or ${ctx.scope.can("save_reminder.tenant", manage)}) then
     ${fail("REMINDER_FORBIDDEN", "not allowed to manage reminders")}
-  end if;
-  insert into ${reminders} (${ctx.col("reminders", "tenant")}, ${ctx.col("reminders", "subjectType")}, ${ctx.col("reminders", "subjectId")}, ${ctx.col("reminders", "user")}, ${ctx.col("reminders", "offsetMinutes")})
-  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0))
+  end if;${typeGuard}${readCheck}
+  insert into ${reminders} (${ctx.col("reminders", "tenant")}, ${ctx.col("reminders", "subjectType")}, ${ctx.col("reminders", "subjectId")}, ${ctx.col("reminders", "user")}, ${ctx.col("reminders", "offsetMinutes")}${at ? `, ${remindAt}` : ""})
+  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0)${at ? ", save_reminder.remind_at" : ""})
   returning ${ctx.col("reminders", "id")} into v_id;${writeExtraColumns(reminders, extras, "save_reminder.fields", `x.${ctx.col("reminders", "id")} = v_id`)}
   return jsonb_build_object('id', v_id${
     extras.length === 0
@@ -196,7 +309,7 @@ begin
   });
 end;
 $$;
-${userGrant(`${ctx.fn("save_reminder")}(${ctx.idType}, text, text, integer${extraFieldsArg(extras).type})`)}
+${userGrant(`${ctx.fn("save_reminder")}(${saveArgs}${fields.type})`)}
 
 -- The caller's reminders on one subject, the earliest first.
 create or replace function ${ctx.fn("list_my_reminders")}(tenant ${ctx.idType}, subject_type text, subject_id text)
@@ -214,7 +327,7 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object(
       'id', r.${ctx.col("reminders", "id")},
       'method', r.${ctx.col("reminders", "method")},
-      'offsetMinutes', r.${ctx.col("reminders", "offsetMinutes")}
+      'offsetMinutes', r.${ctx.col("reminders", "offsetMinutes")}${at ? `,\n      'remindAt', r.${remindAt}` : ""}
     ) order by r.${ctx.col("reminders", "offsetMinutes")} desc, r.${ctx.col("reminders", "id")}), '[]'::jsonb)
     from ${reminders} r
     where r.${ctx.col("reminders", "tenant")} = list_my_reminders.tenant
@@ -291,7 +404,10 @@ $$;
 revoke execute on function ${ctx.fn("mark_reminder_sent")}(uuid, timestamptz) from public, anon, authenticated;
 grant execute on function ${ctx.fn("mark_reminder_sent")}(uuid, timestamptz) to service_role;
 
-create or replace function ${ctx.fn("list_reminder_schedule")}()
+-- Every reminder's schedule: its subject's rule, its own time, or the
+-- subject's \`at\` column. Delivery dedupes on (reminder, occurrence).
+drop function if exists ${ctx.fn("list_reminder_schedule")}();
+create function ${ctx.fn("list_reminder_schedule")}()
 returns table (
   reminder uuid,
   dtstart timestamptz,
@@ -300,7 +416,8 @@ returns table (
   offset_minutes integer,
   tenant ${ctx.idType},
   subject_type text,
-  subject_id text
+  subject_id text,
+  user_id uuid
 )
 language sql
 stable
@@ -314,12 +431,23 @@ as $$
     r.${ctx.col("reminders", "offsetMinutes")},
     r.${ctx.col("reminders", "tenant")},
     r.${ctx.col("reminders", "subjectType")},
-    r.${ctx.col("reminders", "subjectId")}
+    r.${ctx.col("reminders", "subjectId")},
+    r.${ctx.col("reminders", "user")}
   from ${reminders} r
   join ${rules} u
     on u.${ctx.col("rules", "tenant")} = r.${ctx.col("reminders", "tenant")}
    and u.${ctx.col("rules", "subjectType")} = r.${ctx.col("reminders", "subjectType")}
-   and u.${ctx.col("rules", "subjectId")} = r.${ctx.col("reminders", "subjectId")};
+   and u.${ctx.col("rules", "subjectId")} = r.${ctx.col("reminders", "subjectId")}${at ? `\n  where r.${remindAt} is null` : ""}${
+     at
+       ? `
+  union all
+  select r.${ctx.col("reminders", "id")}, r.${remindAt}, 'UTC'::text, 'FREQ=DAILY;COUNT=1'::text, 0,
+    r.${ctx.col("reminders", "tenant")}, r.${ctx.col("reminders", "subjectType")},
+    r.${ctx.col("reminders", "subjectId")}, r.${ctx.col("reminders", "user")}
+  from ${reminders} r
+  where r.${remindAt} is not null`
+       : ""
+   }${subjectTimes(ctx, subjects, absolute)};
 $$;
 revoke execute on function ${ctx.fn("list_reminder_schedule")}() from public, anon, authenticated;
 grant execute on function ${ctx.fn("list_reminder_schedule")}() to service_role;
@@ -335,6 +463,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         "text",
         "text",
         "integer",
+        ...(ctx.has("reminders", "remindAt") ? ["timestamptz"] : []),
         ...extraFieldsArg(extrasOf(ctx)).contract,
       ],
       returns: "jsonb",

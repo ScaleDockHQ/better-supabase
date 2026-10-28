@@ -15,7 +15,11 @@ import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { RecordRef } from "../../schema/types.ts";
 import type { Notifier } from "../ports.ts";
-import type { JobHandler } from "../queue/types.ts";
+import type {
+  EnqueueOnceOptions,
+  EnqueueOnceResult,
+  JobHandler,
+} from "../queue/types.ts";
 import type { DeliveryPayload } from "./schedule.ts";
 
 import {
@@ -30,6 +34,7 @@ import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError, isDbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { subjectReaders } from "../../core/subject-readers.ts";
+import { temporal } from "../../core/temporal-required.ts";
 import { isInstant } from "../../core/temporal.ts";
 import { allowedSubscribers } from "../../realtime/subscribers.ts";
 import {
@@ -41,6 +46,7 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+import { planReminderDeliveries } from "./schedule.ts";
 
 /** Sends `notification` through `notifier` for a delivered reminder. */
 function notifyThrough(
@@ -67,6 +73,56 @@ function notifyThrough(
 
 /** The queue `reminders.job` handles. */
 export const REMINDER_DELIVERY_QUEUE = "reminders.deliver";
+
+/** The payload `schedule` enqueues on `reminders.deliver`. */
+export interface ReminderJobPayload {
+  readonly reminderId: string;
+  /** ISO text. */
+  readonly occurrenceAt: string;
+  readonly organizationId: string;
+  readonly userId?: string;
+  readonly subject?: RecordRef;
+}
+
+/**
+ * The jobs queue `schedule` enqueues on: the `queue` block's client, typed by
+ * shape so this block doesn't need it.
+ */
+export interface ReminderJobs {
+  enqueueOnce(
+    queue: typeof REMINDER_DELIVERY_QUEUE,
+    payload: ReminderJobPayload,
+    options: EnqueueOnceOptions,
+  ): AsyncResult<EnqueueOnceResult>;
+}
+
+/** What `schedule` plans and when. */
+export interface ReminderScheduleOptions {
+  /** Default: now. */
+  readonly now?: Temporal.Instant;
+  /** How far ahead to enqueue deliveries, in minutes. Default 1440 (a day). */
+  readonly horizonMinutes?: number;
+  /**
+   * How far back a missed delivery still goes out, in minutes. Default 15, so a
+   * schedule run that comes late still sends what fell due since.
+   */
+  readonly lookbackMinutes?: number;
+}
+
+/** What one `schedule` run did. */
+export interface ReminderScheduleResult {
+  /** Deliveries due in the window. */
+  readonly planned: number;
+  /** New jobs on `reminders.deliver`. */
+  readonly enqueued: number;
+  /** Deliveries that already had a job. */
+  readonly duplicates: number;
+  /**
+   * Schedule rows that couldn't be expanded: a rule kept in columns
+   * (`ruleFormat: "columns"`), or an unknown time zone.
+   */
+  readonly skipped: number;
+}
 
 export interface RemindersOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -103,6 +159,11 @@ export interface RemindersOptions<
    * parsed.
    */
   readonly fields?: S;
+  /**
+   * The jobs queue `schedule` enqueues deliveries on, such as the client
+   * `createQueue` returns.
+   */
+  readonly jobs?: ReminderJobs;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: NoInfer<BlockHooks<Reminders<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
@@ -122,17 +183,28 @@ export interface ReminderEntry {
   readonly method: string;
   /** Minutes before the occurrence; negative fires after it. */
   readonly offsetMinutes: number;
+  /** A one-time reminder's own time, in place of the subject's schedule. */
+  readonly remindAt?: Temporal.Instant;
 }
+
+/**
+ * When a reminder fires: minutes before each occurrence of the subject's rule
+ * (or its `on.<type>.at` column), or once at `at`.
+ */
+export type ReminderWhen = number | { readonly at: Temporal.Instant };
 
 /**
  * `F` is the extra fields `options.fields` describes. `upsert` and `list` act
  * in the block's `tenant`.
  */
 export interface Reminders<F extends object = Record<never, never>> {
-  /** Sets a reminder on `subject`; `fields` fills the app's extra columns. */
+  /**
+   * Sets a reminder on `subject`: `offsetMinutes` before each occurrence, or
+   * once at `{ at }`. `fields` fills the app's extra columns.
+   */
   upsert(
     subject: RecordRef,
-    offsetMinutes?: number,
+    when?: ReminderWhen,
     fields?: Partial<F> & Readonly<Record<string, unknown>>,
   ): AsyncResult<SavedReminder<F>>;
   /**
@@ -157,6 +229,94 @@ export interface Reminders<F extends object = Record<never, never>> {
   deliver(delivery: DeliveryPayload): AsyncResult<boolean>;
   /** The handler for the `reminders.deliver` queue. */
   readonly job: JobHandler<unknown>;
+  /**
+   * Service role. Reads every reminder's schedule and enqueues one
+   * `reminders.deliver` job per occurrence due in the window on `jobs`, once
+   * per reminder and occurrence.
+   */
+  schedule(
+    options?: ReminderScheduleOptions,
+  ): AsyncResult<ReminderScheduleResult>;
+}
+
+interface ScheduleRow {
+  readonly reminder: string;
+  readonly dtstart: Temporal.Instant;
+  readonly tzid: string;
+  readonly rrule: string | undefined;
+  readonly offsetMinutes: number;
+  readonly organizationId: string;
+  readonly subject: RecordRef | undefined;
+  readonly userId: string | undefined;
+}
+
+function scheduleRowOf(row: Readonly<Record<string, unknown>>): ScheduleRow {
+  const userId = optionalText(row["user_id"]);
+
+  return {
+    reminder: textOf(row["reminder"]),
+    dtstart: instantOf(row["dtstart"]),
+    tzid: textOf(row["tzid"]),
+    rrule: optionalText(row["rrule"]),
+    offsetMinutes: Number(row["offset_minutes"]),
+    organizationId: textOf(row["tenant"]),
+    subject: optionalRecordRefOf(row["subject_type"], row["subject_id"]),
+    userId,
+  };
+}
+
+/** The rows' deliveries in the window, and how many rows had no RRULE. */
+function planRows(
+  rows: readonly ScheduleRow[],
+  window: { readonly from: Temporal.Instant; readonly until: Temporal.Instant },
+): {
+  readonly planned: readonly {
+    readonly row: ScheduleRow;
+    readonly occurrenceAt: Temporal.Instant;
+    readonly runAt: Temporal.Instant;
+    readonly dedupeKey: string;
+  }[];
+  readonly skipped: number;
+} {
+  const planned = [];
+  let skipped = 0;
+
+  for (const row of rows) {
+    if (row.rrule === undefined) {
+      skipped += 1;
+      continue;
+    }
+
+    let dtstart: Temporal.ZonedDateTime;
+
+    try {
+      dtstart = row.dtstart.toZonedDateTimeISO(row.tzid);
+    } catch {
+      skipped += 1;
+      continue;
+    }
+
+    const deliveries = planReminderDeliveries(
+      [
+        {
+          id: row.reminder,
+          dtstart,
+          rrule: row.rrule,
+          offsetMinutes: row.offsetMinutes,
+        },
+      ],
+      {
+        from: window.from.toZonedDateTimeISO("UTC"),
+        until: window.until.toZonedDateTimeISO("UTC"),
+      },
+    );
+
+    for (const delivery of deliveries) {
+      planned.push({ row, ...delivery });
+    }
+  }
+
+  return { planned, skipped };
 }
 
 function deliveryOf(value: unknown): DeliveryPayload {
@@ -182,6 +342,27 @@ function deliveryOf(value: unknown): DeliveryPayload {
     ...(subject === undefined ? {} : { subject }),
   };
 }
+
+/** The `reminders.deliver` payload, for the queue's `queues` map. */
+export const reminderJobSchema: StandardSchemaV1<ReminderJobPayload> = {
+  "~standard": {
+    version: 1,
+    vendor: "better-supabase",
+    validate: (value) => {
+      try {
+        const { occurrenceAt, ...rest } = deliveryOf(value);
+
+        return { value: { ...rest, occurrenceAt: occurrenceAt.toString() } };
+      } catch (error) {
+        return {
+          issues: [
+            { message: error instanceof Error ? error.message : String(error) },
+          ],
+        };
+      }
+    },
+  },
+};
 
 export function createReminders<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -272,8 +453,72 @@ export function createReminders<
         }),
     );
 
+  const schedule: Reminders["schedule"] = (scheduleOptions = {}) =>
+    AsyncResult.from(async () => {
+      const jobs = options.jobs;
+
+      if (jobs === undefined) {
+        return err(
+          dbError(
+            "unexpected",
+            "reminders.schedule needs the jobs queue: pass `jobs` to createReminders",
+            { hint: "REMINDER_JOBS_MISSING" },
+          ),
+        );
+      }
+
+      const now = scheduleOptions.now ?? temporal().Now.instant();
+
+      const window = {
+        from: now.subtract({ minutes: scheduleOptions.lookbackMinutes ?? 15 }),
+        until: now.add({ minutes: scheduleOptions.horizonMinutes ?? 1440 }),
+      };
+
+      const rows = await call("list_reminder_schedule", {}, (value) =>
+        recordsOf(value, "list_reminder_schedule").map(scheduleRowOf),
+      );
+
+      if (!rows.ok) {
+        return rows;
+      }
+
+      const { planned, skipped } = planRows(rows.data, window);
+      let enqueued = 0;
+
+      for (const { row, occurrenceAt, runAt, dedupeKey } of planned) {
+        const job = await jobs.enqueueOnce(
+          REMINDER_DELIVERY_QUEUE,
+          {
+            reminderId: row.reminder,
+            occurrenceAt: occurrenceAt.toString(),
+            organizationId: row.organizationId,
+            ...(row.userId === undefined ? {} : { userId: row.userId }),
+            ...(row.subject === undefined ? {} : { subject: row.subject }),
+          },
+          {
+            dedupeKey,
+            runAt: temporal().Instant.compare(runAt, now) < 0 ? now : runAt,
+            context: { tenant: row.organizationId },
+          },
+        );
+
+        if (!job.ok) {
+          return job;
+        }
+
+        enqueued += job.data.duplicate ? 0 : 1;
+      }
+
+      return ok({
+        planned: planned.length,
+        enqueued,
+        duplicates: planned.length - enqueued,
+        skipped,
+      });
+    });
+
   const client: Reminders<F> = {
-    upsert: (subject, offsetMinutes, values) =>
+    upsert: (subject, when, values) =>
       tenant().andThen((organizationId) =>
         writeFields(fields, values, (checked) =>
           call(
@@ -282,7 +527,9 @@ export function createReminders<
               tenant: organizationId,
               subject_type: subject.type,
               subject_id: subject.id,
-              offset_minutes: offsetMinutes ?? 0,
+              ...(typeof when === "object"
+                ? { offset_minutes: 0, remind_at: when.at }
+                : { offset_minutes: when ?? 0 }),
               fields: checked,
             },
             (value) => {
@@ -310,6 +557,9 @@ export function createReminders<
               id: textOf(row["id"]),
               method: textOf(row["method"]),
               offsetMinutes: Number(row["offsetMinutes"]),
+              ...(row["remindAt"] === undefined || row["remindAt"] === null
+                ? {}
+                : { remindAt: instantOf(row["remindAt"]) }),
             })),
         ),
       ),
@@ -324,6 +574,7 @@ export function createReminders<
     job: async (payload) => {
       await hooked.deliver(deliveryOf(payload)).orThrow();
     },
+    schedule,
   };
 
   const hooked = withBlockHooks(client, options.hooks, {
