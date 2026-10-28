@@ -461,6 +461,11 @@ function pollOf(value: unknown): DeviceCodePoll {
  * sign them with `createSigningKeys` and verify them with
  * `accessTokenResolver`.
  */
+/** @deprecated Use createOauthServer. */
+export function createOAuthServer(options: OauthServerOptions): OauthServer {
+  return createOauthServer(options);
+}
+
 export function createOauthServer(options: OauthServerOptions): OauthServer {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);

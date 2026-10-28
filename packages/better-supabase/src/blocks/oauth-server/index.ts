@@ -1,8 +1,7 @@
-import { createOauthServer } from "./oauth-server.ts";
-
 export {
   type AuthorizationCodeRedemption,
   type AuthorizationCodeRequest,
+  createOAuthServer,
   createOauthServer,
   type DeviceCodePoll,
   type DeviceRequest,
@@ -21,9 +20,6 @@ export {
   type RegisteredOAuthClient,
   type RevokeTokenOptions,
 } from "./oauth-server.ts";
-
-/** @deprecated Use createOauthServer. */
-export const createOAuthServer: typeof createOauthServer = createOauthServer;
 
 export { sqlTransport } from "../../core/block-transport.ts";
 
