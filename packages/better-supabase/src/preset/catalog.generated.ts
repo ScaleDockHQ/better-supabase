@@ -3592,7 +3592,6 @@ export const PRESET_CATALOG: PresetCatalog = {
               "number": "number",
               "identifier": "identifier",
               "revision": "revision",
-              "supersedes": "supersedes_id",
               "title": "title",
               "companyType": "company_type",
               "companyId": "company_id",
@@ -3612,6 +3611,14 @@ export const PRESET_CATALOG: PresetCatalog = {
               "decidedAt": "decided_at",
               "decidedBy": "decided_by",
               "decisionNote": "decision_note",
+              "decidedUser": "decided_user_id",
+              "decidedIp": "decided_ip",
+              "decidedUserAgent": "decided_user_agent",
+              "pricesIncludeTax": "prices_include_tax",
+              "discountBps": "discount_bps",
+              "discountAmount": "discount_amount",
+              "depositBps": "deposit_bps",
+              "depositDue": "deposit_due",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at",
@@ -3698,6 +3705,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "originType": "origin_type",
               "originId": "origin_id",
               "depositBps": "deposit_bps",
+              "pricesIncludeTax": "prices_include_tax",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at",
@@ -16963,6 +16971,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "QuoteAnswer"
+        },
+        {
           "name": "QuoteDecision"
         },
         {
@@ -16970,7 +16981,16 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "QuoteLine"
+        },
+        {
           "name": "QuoteLineInput"
+        },
+        {
+          "name": "QuotePricing"
+        },
+        {
+          "name": "QuoteResponse"
         },
         {
           "name": "Quotes",
@@ -16984,6 +17004,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "QuoteStatus"
+        },
+        {
+          "name": "QuoteTaxLine"
+        },
+        {
+          "name": "QuoteVersion",
+          "fields": true
+        },
+        {
+          "name": "QuoteVersionSummary"
         }
       ],
       "events": {

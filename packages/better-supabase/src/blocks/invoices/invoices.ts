@@ -108,6 +108,8 @@ export interface Invoice<F extends object = Record<never, never>> {
   readonly origin?: RecordRef;
   /** For a deposit invoice: its share of the quote in basis points. */
   readonly depositBps?: number;
+  /** Unit amounts include tax, so tax is counted out of them. */
+  readonly pricesIncludeTax: boolean;
   readonly lines: readonly Line[];
   readonly payments: readonly InvoicePayment[];
   readonly totals: Totals;
@@ -125,6 +127,8 @@ export interface InvoiceInput<F extends object = Record<never, never>> {
   readonly termsDays?: number;
   readonly note?: string;
   readonly origin?: RecordRef;
+  /** Unit amounts include tax. Needs the `prices_include_tax` column. */
+  readonly pricesIncludeTax?: boolean;
   /** Values for the extra columns, by column name. */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
@@ -246,6 +250,7 @@ const KNOWN = new Set([
   "origin_type",
   "origin_id",
   "deposit_bps",
+  "prices_include_tax",
   "created_by",
   "created_at",
   "updated_at",
@@ -321,6 +326,7 @@ function invoiceOf(value: unknown): Invoice {
     origin: refOf(row["origin_type"], row["origin_id"]),
     depositBps:
       typeof row["deposit_bps"] === "number" ? row["deposit_bps"] : undefined,
+    pricesIncludeTax: row["prices_include_tax"] === true,
     lines: recordsOf(row["lines"], "invoice lines").map((line) =>
       lineOf(line, currency),
     ),

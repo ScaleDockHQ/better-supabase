@@ -64,20 +64,73 @@ const OPTIONAL_LINE_COLUMNS = [
   "createdAt",
 ] as const;
 
+/** The line columns of a document a customer answers: sections and options. */
+const DOCUMENT_LINE_COLUMNS = {
+  section: "section",
+  optional: "optional",
+  selected: "selected",
+} as const;
+
 /**
  * A `NAMES.tables` entry for a line table called `name`. The app's own line
  * table can stand in; it may lack the product, discount, tax and creation
- * columns, and its product type may be an enum.
+ * columns, and its product type may be an enum. `document` adds a section
+ * heading and optional lines the customer can take or leave.
  */
-export function lineTableSpec(name: string): BlockSqlTableSpec {
+export function lineTableSpec(
+  name: string,
+  options: { readonly document?: boolean } = {},
+): BlockSqlTableSpec {
   return {
     name,
     app: {},
     lifecycle: { tenant: "tenant", export: true },
-    columns: LINE_COLUMNS,
-    optional: OPTIONAL_LINE_COLUMNS,
+    columns:
+      options.document === true
+        ? { ...LINE_COLUMNS, ...DOCUMENT_LINE_COLUMNS }
+        : LINE_COLUMNS,
+    optional:
+      options.document === true
+        ? [...OPTIONAL_LINE_COLUMNS, ...Object.keys(DOCUMENT_LINE_COLUMNS)]
+        : OPTIONAL_LINE_COLUMNS,
     typed: ["productType"],
   };
+}
+
+/**
+ * Whether `table` declares logical `column` and has it. `ctx.has` throws for a
+ * column the table doesn't declare, and shared SQL runs over tables that
+ * declare different columns.
+ */
+export function declared(
+  ctx: BlockSqlContext,
+  table: string,
+  column: string,
+): boolean {
+  return (
+    Object.hasOwn(ctx.names.tables[table]?.columns ?? {}, column) &&
+    ctx.has(table, column)
+  );
+}
+
+/**
+ * SQL over line alias `alias` that is true when the line counts toward the
+ * totals: every line except an optional one the customer didn't take.
+ */
+export function countedLine(
+  ctx: BlockSqlContext,
+  lines: string,
+  alias: string,
+): string {
+  if (!declared(ctx, lines, "optional")) {
+    return "true";
+  }
+
+  const optional = `${alias}.${ctx.col(lines, "optional")}`;
+
+  return declared(ctx, lines, "selected")
+    ? `(not ${optional} or ${alias}.${ctx.col(lines, "selected")})`
+    : `not ${optional}`;
 }
 
 /**
@@ -144,7 +197,8 @@ export function lineCopyColumns(
     "taxRateBps",
     "taxCode",
     "position",
-  ].filter((column) => ctx.has(lines, column));
+    ...Object.keys(DOCUMENT_LINE_COLUMNS),
+  ].filter((column) => declared(ctx, lines, column));
 }
 
 const LINE_KEYS = ["unitAmount", "product", "fields"] as const;
@@ -176,6 +230,8 @@ export interface LineItems {
    */
   readonly totals?: boolean;
   readonly extras?: readonly ExtraColumn[];
+  /** The logical table the recount writes the record's tax per rate to. */
+  readonly taxLines?: string;
 }
 
 /**
@@ -207,7 +263,7 @@ export function lineItemsSql(
   const t = ctx.table(items.lines);
   const p = ctx.table(items.parent);
   const c = (column: string): string => ctx.col(items.lines, column);
-  const has = (column: string): boolean => ctx.has(items.lines, column);
+  const has = (column: string): boolean => declared(ctx, items.lines, column);
 
   const l = (column: string): string =>
     lineColumn(ctx, items.lines, "l", column);
@@ -259,6 +315,12 @@ export function lineItemsSql(
       ["discountBps", "coalesce((x.value ->> 'discountBps')::integer, 0)"],
       ["taxRateBps", "coalesce((x.value ->> 'taxRateBps')::integer, 0)"],
       ["taxCode", "x.value ->> 'taxCode'"],
+      ["section", "nullif(trim(x.value ->> 'section'), '')"],
+      ["optional", "coalesce((x.value ->> 'optional')::boolean, false)"],
+      [
+        "selected",
+        "coalesce((x.value ->> 'selected')::boolean, not coalesce((x.value ->> 'optional')::boolean, false))",
+      ],
       ["position", "x.ordinality::integer"],
     ] as const
   )
@@ -287,7 +349,7 @@ export function lineItemsSql(
   ${c("parent")} uuid not null references ${p} (${pc("id")}) on delete cascade,${optional("productType")}${optional("productId")}
   ${c("description")} text not null check (length(${c("description")}) between 1 and 2000),
   ${c("quantity")} numeric(18, 4) not null check (${c("quantity")} > 0),
-  ${c("unitAmount")} bigint not null,${optional("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${optional("taxRateBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 100000)`)}${optional("taxCode")}
+  ${c("unitAmount")} bigint not null,${optional("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${optional("taxRateBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 100000)`)}${optional("taxCode")}${optional("section", (section) => `text check (length(${section}) between 1 and 300)`)}${optional("optional", () => "boolean not null default false")}${optional("selected", () => "boolean not null default true")}
   ${c("position")} integer not null${has("createdAt") ? `,\n  ${c("createdAt")} timestamptz not null default now()` : ""}${has("productType") && has("productId") ? `,\n  check ((${c("productType")} is null) = (${c("productId")} is null))` : ""}
 );
 create index if not exists ${sqlIdent(`${name}_parent_idx`)} on ${t} (${c("parent")}, ${c("position")});${
@@ -333,8 +395,9 @@ using (exists (select 1 from ${p} x where x.${pc("id")} = ${c("parent")}));
 
   const recounted = items.totals !== false;
 
-  const triggers = recounted
-    ? `
+  const recountSql = documentTotals(ctx, items)
+    ? documentRecountSql(ctx, items, { setter: options.setter, recount })
+    : `
 -- Writes a record's totals from its lines. A record without lines keeps
 -- zero totals.
 create or replace function ${recount}(parent uuid)
@@ -357,7 +420,10 @@ begin
 end;
 $$;
 revoke execute on function ${recount}(uuid) from public, anon, authenticated;
+`;
 
+  const triggers = recounted
+    ? `${recountSql}
 -- Recounts each record a statement touched once, in id order so concurrent
 -- statements lock the records in the same order. A transition table needs a
 -- trigger per event, so there are three triggers on one function. The
@@ -504,4 +570,188 @@ export function totalColumnsSql(ctx: BlockSqlContext, table: string): string {
     .filter((column) => ctx.has(table, column))
     .map((column) => `${ctx.col(table, column)} bigint not null default 0`)
     .join(",\n  ");
+}
+
+/**
+ * Whether a record's totals need the document recount: prices that include tax,
+ * a discount on the whole record, optional lines or tax per rate. Without any
+ * of them the plain line sums stay, so deals and invoices render as before.
+ */
+export function documentTotals(
+  ctx: BlockSqlContext,
+  items: LineItems,
+): boolean {
+  return (
+    ["pricesIncludeTax", "discountBps", "discountAmount"].some((column) =>
+      declared(ctx, items.parent, column),
+    ) ||
+    declared(ctx, items.lines, "optional") ||
+    (items.taxLines !== undefined && ctx.hasTable(items.taxLines))
+  );
+}
+
+/**
+ * The recount of a record whose totals follow its tax rates.
+ *
+ * Each counted line rounds once to its amount after the line discount. The
+ * record discount (basis points of that sum plus a fixed amount, at most the
+ * sum) is spread over the rate groups in proportion, the last group taking the
+ * rounding, so the groups add up to it exactly. Each group's tax is its lines'
+ * tax less the tax on its share of the discount. With prices that include tax,
+ * an amount is gross and the tax is the part of it at `rate / (10000 + rate)`;
+ * otherwise an amount is net and tax is added on top.
+ */
+function documentRecountSql(
+  ctx: BlockSqlContext,
+  items: LineItems,
+  options: { readonly setter: string; readonly recount: string },
+): string {
+  const t = ctx.table(items.lines);
+  const p = ctx.table(items.parent);
+  const c = (column: string): string => ctx.col(items.lines, column);
+  const pc = (column: string): string => ctx.col(items.parent, column);
+
+  const l = (column: string): string =>
+    lineColumn(ctx, items.lines, "l", column);
+
+  const parentHas = (column: string): boolean =>
+    declared(ctx, items.parent, column);
+
+  const parent = `${options.setter}_recount.parent`;
+  const amount = `round(l.${c("quantity")} * l.${c("unitAmount")})`;
+
+  const discount = declared(ctx, items.lines, "discountBps")
+    ? `round(${amount} * ${l("discountBps")} / 10000.0)`
+    : "0";
+
+  const rate = declared(ctx, items.lines, "taxRateBps") ? l("taxRateBps") : "0";
+
+  const code = declared(ctx, items.lines, "taxCode")
+    ? `l.${c("taxCode")}`
+    : "null::text";
+
+  const counted = countedLine(ctx, items.lines, "l");
+
+  const denominator = (bps: string): string =>
+    `case when v_inclusive then 10000.0 + ${bps} else 10000.0 end`;
+
+  const recordValue = (column: string, otherwise: string): string =>
+    parentHas(column) ? `x.${pc(column)}` : otherwise;
+
+  const totalsSet = (
+    [
+      ["listTotal", "v_list"],
+      ["discountTotal", "v_discount"],
+      ["subtotal", "v_subtotal"],
+      ["taxTotal", "v_tax"],
+      ["total", "v_total"],
+    ] as const
+  )
+    .filter(([column]) => parentHas(column))
+    .map(([column, value]) => `${pc(column)} = ${value}`)
+    .join(",\n    ");
+
+  const taxLines =
+    items.taxLines !== undefined && ctx.hasTable(items.taxLines)
+      ? items.taxLines
+      : undefined;
+
+  const tc = (column: string): string =>
+    ctx.col(taxLines ?? items.parent, column);
+
+  const taxColumn = (column: string): string =>
+    taxLines !== undefined && declared(ctx, taxLines, column)
+      ? `, ${tc(column)}`
+      : "";
+
+  const taxValue = (column: string, value: string): string =>
+    taxLines !== undefined && declared(ctx, taxLines, column)
+      ? `, ${value}`
+      : "";
+
+  const writeTaxLines =
+    taxLines === undefined
+      ? ""
+      : `
+  delete from ${ctx.table(taxLines)} x where x.${tc("parent")} = ${parent};
+  insert into ${ctx.table(taxLines)} (${tc("tenant")}, ${tc("parent")}, ${tc("taxRateBps")}${taxColumn("taxCode")}, ${tc("net")}, ${tc("tax")}, ${tc("gross")}${taxColumn("discount")})
+  select v_tenant, ${parent}, r.rate${taxValue("taxCode", "r.code")}, r.net, r.tax, r.gross${taxValue("discount", "r.discount")}
+  from jsonb_to_recordset(v_groups) r(rate integer, code text, net bigint, tax bigint, gross bigint, discount bigint);`;
+
+  return `
+-- Writes a record's totals from its counted lines: an optional line counts
+-- only when the customer took it. The record discount is spread over the tax
+-- rates in proportion to their amounts, and tax is counted once per rate, so
+-- the totals and the tax per rate always add up.
+create or replace function ${options.recount}(parent uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+  v_inclusive boolean;
+  v_record_bps integer;
+  v_record_amount bigint;
+  v_list bigint;
+  v_line_discount bigint;
+  v_net bigint;
+  v_record_discount bigint;
+  v_groups jsonb;
+  v_discount bigint;
+  v_subtotal bigint;
+  v_tax bigint;
+  v_total bigint;
+begin
+  select x.${pc("tenant")}, ${recordValue("pricesIncludeTax", "false")}, ${recordValue("discountBps", "0")}, ${recordValue("discountAmount", "0")}
+    into v_tenant, v_inclusive, v_record_bps, v_record_amount
+  from ${p} x where x.${pc("id")} = ${parent};
+  select coalesce(sum(${amount}), 0), coalesce(sum(${discount}), 0)
+    into v_list, v_line_discount
+  from ${t} l where l.${c("parent")} = ${parent} and ${counted};
+  v_net := v_list - v_line_discount;
+  v_record_discount := case
+    when v_net > 0 then least(v_net, round(v_net * coalesce(v_record_bps, 0) / 10000.0)::bigint + coalesce(v_record_amount, 0))
+    else 0
+  end;
+  with grouped as (
+    select ${rate} as rate, ${code} as code, sum(${amount} - ${discount}) as amount,
+      sum(round((${amount} - ${discount}) * ${rate} / ${denominator(rate)})) as tax
+    from ${t} l where l.${c("parent")} = ${parent} and ${counted}
+    group by 1, 2
+  ), shared as (
+    select g.rate, g.code, g.amount, g.tax,
+      case when v_net > 0
+        then round(v_record_discount * sum(g.amount) over w / v_net) - round(v_record_discount * (sum(g.amount) over w - g.amount) / v_net)
+        else 0
+      end as share
+    from grouped g
+    window w as (order by g.rate, g.code nulls first rows between unbounded preceding and current row)
+  ), taxed as (
+    select s.rate, s.code, s.share, s.amount - s.share as amount,
+      s.tax - round(s.share * s.rate / ${denominator("s.rate")}) as tax
+    from shared s
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'rate', x.rate,
+      'code', x.code,
+      'net', case when v_inclusive then x.amount - x.tax else x.amount end,
+      'tax', x.tax,
+      'discount', x.share,
+      'gross', case when v_inclusive then x.amount else x.amount + x.tax end
+    ) order by x.rate, x.code nulls first), '[]'::jsonb)
+    into v_groups
+  from taxed x;
+  select coalesce(sum(r.net), 0), coalesce(sum(r.tax), 0), coalesce(sum(r.gross), 0)
+    into v_subtotal, v_tax, v_total
+  from jsonb_to_recordset(v_groups) r(net bigint, tax bigint, gross bigint);
+  v_discount := v_line_discount + v_record_discount;${writeTaxLines}
+  update ${p} x set
+    ${totalsSet}${items.afterTotals === undefined ? "" : `,\n    ${items.afterTotals}`}
+  where x.${pc("id")} = ${parent};
+end;
+$$;
+revoke execute on function ${options.recount}(uuid) from public, anon, authenticated;
+`;
 }

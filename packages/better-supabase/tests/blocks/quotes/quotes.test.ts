@@ -42,7 +42,6 @@ const ROW = {
   number: "1",
   identifier: "Q-1",
   revision: 2,
-  supersedes_id: "q0",
   title: "Rollout",
   company_type: "company",
   company_id: "c1",
@@ -99,7 +98,6 @@ describe("quotes block", () => {
     });
     expect(quote).toMatchObject({
       revision: 2,
-      supersedesId: "q0",
       company: { type: "company", id: "c1" },
       origin: { type: "deal", id: "d1" },
       totals: { total: eur(1_210_000n) },
@@ -147,6 +145,7 @@ describe("quotes block", () => {
       decision: "accepted",
       note: null,
       by: "Els",
+      selected: null,
     });
   });
 
@@ -202,17 +201,20 @@ describe("quotes block", () => {
     const quotes = createQuotes({ transport: t });
     expect(await quotes.view("tok").orThrow()).toMatchObject({
       status: "viewed",
-      total: eur(12n),
+      totals: { listTotal: eur(10n), total: eur(12n) },
+      pricing: { pricesIncludeTax: false, depositDue: eur(0n) },
+      taxLines: [],
     });
     expect(
       await quotes.respond("tok", "accepted", { name: "Els" }).orThrow(),
-    ).toEqual({ status: "accepted" });
+    ).toEqual({ status: "accepted", identifier: "Q-1", revision: 1 });
     expect(await quotes.expire().orThrow()).toBe(3);
     expect(t.calls[1]?.[1]).toEqual({
       token: "tok",
       decision: "accepted",
       name: "Els",
       note: null,
+      selected: null,
     });
   });
 });
@@ -224,7 +226,6 @@ describe("quotes block, defaults", () => {
       status: "rejected",
       contact_type: "person",
       contact_id: "p1",
-      supersedes_id: null,
       origin_type: null,
       origin_id: null,
       viewed_at: "2026-10-16T09:00:00Z",
@@ -258,7 +259,11 @@ describe("quotes block, defaults", () => {
         total: "12",
         lines: [],
       }),
-      respond_to_quote: () => ({ status: "changes_requested" }),
+      respond_to_quote: () => ({
+        status: "changes_requested",
+        identifier: "Q-1",
+        revision: 1,
+      }),
     });
 
     const quotes = createQuotes({ transport: t });
@@ -280,6 +285,7 @@ describe("quotes block, defaults", () => {
       decision: "rejected",
       note: null,
       by: null,
+      selected: null,
     });
     const page = await quotes.view("tok").orThrow();
     expect(page).toMatchObject({ revision: 1, terms: "Net 30" });
@@ -323,5 +329,230 @@ describe("quote fields", () => {
     const updated = await quotes.update("q1", { note: "x" }).orThrow();
     expect(t.calls[1]?.[1]).toEqual({ quote: "q1", attrs: { note: "x" } });
     expect(updated.fields).toEqual({ region: "eu" });
+  });
+});
+
+describe("quote documents", () => {
+  const DOCUMENT = {
+    ...ROW,
+    prices_include_tax: true,
+    discount_bps: 0,
+    discount_amount: "1000",
+    deposit_bps: 3000,
+    deposit_due: "6600",
+    decided_user_id: "g1",
+    decided_ip: "10.0.0.1",
+    decided_user_agent: "Browser/1",
+    lines: [
+      {
+        ...LINE,
+        position: 1,
+        section: "Work",
+        optional: false,
+        selected: true,
+      },
+      { ...LINE, position: 2, optional: true, selected: false },
+      { ...LINE, position: 3, optional: true },
+    ],
+    taxLines: [
+      {
+        taxRateBps: 2100,
+        taxCode: "S",
+        net: "9565",
+        tax: "2009",
+        gross: "11574",
+        discount: "526",
+      },
+      { taxRateBps: 0, net: "10" },
+    ],
+  };
+
+  it("reads pricing, sections, optional lines and tax per rate", async () => {
+    const t = transport({ create_quote: () => DOCUMENT });
+
+    const quote = await createQuotes({ transport: t })
+      .create(
+        "o",
+        {
+          title: "Fit-out",
+          pricesIncludeTax: true,
+          discountAmount: eur(1000n),
+          depositBps: 3000,
+        },
+        [
+          {
+            description: "Support",
+            unitAmount: eur(10_000n),
+            section: "Extras",
+            optional: true,
+          },
+        ],
+      )
+      .orThrow();
+
+    expect(t.calls[0]?.[1]).toMatchObject({
+      attrs: {
+        title: "Fit-out",
+        pricesIncludeTax: true,
+        discountAmount: "1000",
+        depositBps: 3000,
+      },
+      lines: [{ section: "Extras", optional: true }],
+    });
+    expect(quote).toMatchObject({
+      decidedUserId: "g1",
+      decidedIp: "10.0.0.1",
+      decidedUserAgent: "Browser/1",
+      pricing: {
+        pricesIncludeTax: true,
+        discountBps: 0,
+        discountAmount: eur(1000n),
+        depositBps: 3000,
+        depositDue: eur(6600n),
+      },
+      lines: [
+        { position: 1, section: "Work", optional: false, selected: true },
+        { position: 2, optional: true, selected: false },
+        { position: 3, optional: true, selected: false },
+      ],
+      taxLines: [
+        {
+          taxRateBps: 2100,
+          taxCode: "S",
+          net: eur(9565n),
+          tax: eur(2009n),
+          gross: eur(11_574n),
+          discount: eur(526n),
+        },
+        { taxRateBps: 0, net: eur(10n), tax: eur(0n), discount: eur(0n) },
+      ],
+    });
+    expect(quote.fields).toEqual({ region: "eu" });
+    expect(quote.taxLines[1]?.taxCode).toBeUndefined();
+  });
+
+  it("passes the optional lines a customer takes and reads versions", async () => {
+    const t = transport({
+      decide_quote: () => DOCUMENT,
+      respond_to_quote: () => ({
+        status: "accepted",
+        identifier: "Q-1",
+        revision: 2,
+      }),
+      quote_versions: () => [
+        {
+          revision: 1,
+          total: "22000",
+          currency: "EUR",
+          publishedAt: "2026-10-15T09:00:00Z",
+          publishedBy: "u1",
+        },
+        {
+          revision: 2,
+          total: "1",
+          currency: "EUR",
+          publishedAt: "2026-10-16T09:00:00Z",
+        },
+      ],
+      quote_version: () => ({
+        ...DOCUMENT,
+        revision: 1,
+        publishedAt: "2026-10-15T09:00:00Z",
+      }),
+    });
+
+    const quotes = createQuotes({ transport: t });
+    await quotes.decide("q1", "accepted", { selected: [2] }).orThrow();
+    expect(t.calls[0]?.[1]).toMatchObject({ selected: [2] });
+    expect(
+      await quotes
+        .respond("tok", "accepted", { name: "Els", selected: [2, 3] })
+        .orThrow(),
+    ).toEqual({ status: "accepted", identifier: "Q-1", revision: 2 });
+    expect(t.calls[1]?.[1]).toMatchObject({ selected: [2, 3] });
+
+    const versions = await quotes.versions("q1").orThrow();
+    expect(versions).toMatchObject([
+      { revision: 1, total: eur(22_000n), publishedBy: "u1" },
+      { revision: 2, total: eur(1n) },
+    ]);
+    expect(versions[1]?.publishedBy).toBeUndefined();
+    expect(versions[0]?.publishedAt.toString()).toBe("2026-10-15T09:00:00Z");
+
+    const version = await quotes.version("q1", 1).orThrow();
+    expect(t.calls[3]?.[1]).toEqual({ quote: "q1", revision: 1 });
+    expect(version).toMatchObject({
+      revision: 1,
+      quote: { id: "q1", revision: 1 },
+    });
+    expect(version.quote.fields).toEqual({ region: "eu" });
+  });
+
+  it("serves a signed-in guest without a token", async () => {
+    const t = transport({
+      portal_quote: () => ({
+        identifier: "Q-1",
+        revision: 2,
+        title: "Fit-out",
+        status: "viewed",
+        currency: "EUR",
+        pricesIncludeTax: true,
+        discountBps: 500,
+        discountAmount: "0",
+        depositBps: null,
+        depositDue: "0",
+        listTotal: "100",
+        subtotal: "90",
+        discountTotal: "10",
+        taxTotal: "0",
+        total: "90",
+        lines: [{ ...LINE, position: 1, optional: false, selected: true }],
+        taxLines: [
+          { taxRateBps: 0, net: "90", tax: "0", gross: "90", discount: "10" },
+        ],
+      }),
+      respond_to_portal_quote: () => ({
+        status: "rejected",
+        identifier: "Q-1",
+        revision: 2,
+      }),
+    });
+
+    const quotes = createQuotes({ transport: t });
+    const page = await quotes.portalView("q1").orThrow();
+    expect(page).toMatchObject({
+      pricing: { pricesIncludeTax: true, discountBps: 500 },
+      totals: {
+        listTotal: eur(100n),
+        discountTotal: eur(10n),
+        total: eur(90n),
+      },
+      taxLines: [{ discount: eur(10n) }],
+    });
+    expect(page.pricing.depositBps).toBeUndefined();
+    expect(t.calls[0]?.[1]).toEqual({ quote: "q1" });
+
+    await quotes.portalRespond("q1", "rejected").orThrow();
+    await quotes
+      .portalRespond("q1", "accepted", {
+        name: "Els",
+        note: "Yes",
+        selected: [1],
+      })
+      .orThrow();
+    expect(t.calls[1]?.[1]).toEqual({
+      quote: "q1",
+      decision: "rejected",
+      name: null,
+      note: null,
+      selected: null,
+    });
+    expect(t.calls[2]?.[1]).toEqual({
+      quote: "q1",
+      decision: "accepted",
+      name: "Els",
+      note: "Yes",
+      selected: [1],
+    });
   });
 });

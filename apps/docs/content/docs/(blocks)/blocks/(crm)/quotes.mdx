@@ -1,9 +1,9 @@
 ---
 title: Quotes
-description: Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes made from deals.
+description: Quotes with line items, sections and optional lines, document discounts, tax-inclusive prices, deposits and tax per rate, published versions, a public link and a portal the customer answers through, expiry, and quotes made from deals.
 ---
 
-`quotes` is the offer you send a customer: a title, a company and a contact, lines with quantities, unit amounts, discounts and tax in minor units, totals the database keeps, a valid-until date and terms. You send it as a link the customer opens without an account, and they accept it, reject it or ask for changes. A new version is a revision with the same number. With the [deals](/docs/blocks/deals) module installed, a quote starts from a deal.
+`quotes` is the offer you send a customer: a title, a company and a contact, lines with quantities, unit amounts, discounts and tax in minor units, totals the database keeps, a valid-until date and terms. You send it as a link the customer opens without an account, or share it with a signed-in guest, and they accept it, reject it or ask for changes. Every send publishes a version that never changes, so you can show what the customer saw at each revision. With the [deals](/docs/blocks/deals) module installed, a quote starts from a deal.
 
 Reading needs `quotes.read`, and creating, sending and recording decisions needs `quotes.write`. Admins get every permission, and members get `quotes.read` and `quotes.write`.
 
@@ -65,7 +65,7 @@ const rows = useQuotes({ limit: 50 });
 | `accepted`, `rejected` | the customer answered through the link, or `decide` recorded their answer   |
 | `changes_requested`    | the customer asked for changes; it can be edited and sent again, or revised |
 | `expired`              | its valid-until date passed (`expire_quotes`, or an answer after the date)  |
-| `withdrawn`            | a newer revision replaced it                                                |
+| `withdrawn`            | set by your own code; the module doesn't use it                             |
 
 `create` gives a quote the next number (`Q-12`, or the format of a `quote` entity in [numbering](/docs/blocks/numbering)) and a valid-until date `options.validDays` (default 30) from today. Its company and contact are records in `config.subjects` (the parties types `company` and `person` by default), checked like a deal's (`QUOTE_COMPANY_FORBIDDEN`).
 
@@ -78,7 +78,61 @@ The database takes the variant's price in the quote's currency (from
 `unitAmount` or `description`. A variant of another organization or without
 a price in that currency fails with `LINES_INVALID`.
 
-`send` needs at least one line (`QUOTE_EMPTY`). It returns the link's token once; only its hash is stored. `revise(quoteId)` makes a new draft with the same number, the next revision, the same lines and a fresh valid-until date, and withdraws the old one unless it was accepted, which also ends its link.
+`send` needs at least one line (`QUOTE_EMPTY`). It returns the link's token once; only its hash is stored.
+
+## Versions
+
+A quote is one working copy. Each `send` publishes the quote as it is to `quote_versions`: its revision, a snapshot of the row with its lines and tax lines, the total and who sent it. A published version never changes (`QUOTE_VERSION_FROZEN`).
+
+`revise(quoteId)` puts a sent quote back to draft at the next revision, with a fresh valid-until date. It ends the old link and clears the decision, and the next `send` publishes the new revision. A quote with changes requested can also be edited and sent again; that send publishes the next revision too. An accepted quote can't be revised (`QUOTE_ACCEPTED`); start a new quote instead.
+
+```ts
+const history = await db.quotes.versions(quote.id).orThrow();
+// [{ revision: 1, total, publishedAt, publishedBy }, ...]
+const first = await db.quotes.version(quote.id, 1).orThrow();
+first.quote.totals.total; // what the customer saw at revision 1
+```
+
+## Pricing
+
+A quote can take prices that include tax, a discount on the whole document and a deposit:
+
+```ts
+await db.quotes.update(quote.id, {
+  pricesIncludeTax: true,
+  discountBps: 500, // 5% off the quote
+  discountAmount: money(1_000n, "EUR"), // then 10.00 off
+  depositBps: 3000, // ask 30% of the total on acceptance
+});
+```
+
+With `pricesIncludeTax`, unit amounts are gross and the tax is counted out of them, so `total` is the sum of the lines after discounts. Without it, tax is added on top. The document discount comes off after the line discounts: first `discountBps` of the net amount, then `discountAmount`, never more than the net amount.
+
+The database spreads the document discount over the tax rates in proportion to each rate's amount, then computes the tax per rate. `quote.taxLines` holds the result, one line per tax rate and tax code, with its `net`, `tax`, `gross` and its share of the `discount`. These lines add up exactly to `subtotal`, `taxTotal` and `total`, so an invoice can show the tax breakdown a VAT invoice needs. `pricing.depositDue` is `depositBps` of the total.
+
+## Sections and optional lines
+
+A line can sit under a `section` heading and can be `optional`. An optional line is left out of the totals until it is `selected`; a required line always counts.
+
+```ts
+await db.quotes.setLines(quote.id, [
+  {
+    description: "Install",
+    unitAmount: money(121_00n, "EUR"),
+    taxRateBps: 2100,
+    section: "Work",
+  },
+  {
+    description: "Support plan",
+    unitAmount: money(100_00n, "EUR"),
+    taxRateBps: 2100,
+    section: "Extras",
+    optional: true,
+  },
+]);
+```
+
+The customer picks optional lines when they accept: `selected` takes the `position` of each optional line they take (1-based, as in `quote.lines`). The others drop out, the totals and tax lines are counted again, and the quote is accepted at those totals. A position that isn't an optional line answers `QUOTE_SELECTION_INVALID`. The version published when the quote was sent keeps the totals it was sent with.
 
 ## The customer's page
 
@@ -86,12 +140,27 @@ The customer's page calls two functions that run without signing in:
 
 ```ts
 const quote = await quotes.view(token).orThrow(); // marks it viewed
-await quotes.respond(token, "accepted", { name: "Els Jansen" }).orThrow();
+await quotes
+  .respond(token, "accepted", { name: "Els Jansen", selected: [2] })
+  .orThrow();
 ```
 
-`view` returns the quote without internal notes: its identifier, title, status, currency, valid-until date, terms, totals and lines. `respond` takes `accepted`, `rejected` or `changes_requested` with the customer's name and a note; after the valid-until date it expires the quote instead. A withdrawn or unknown link answers `QUOTE_LINK_INVALID`. Rate-limit the page with the [rate-limit](/docs/blocks/sql) module or your edge.
+`view` returns the quote without internal notes: its identifier, title, status, currency, valid-until date, terms, pricing, totals, lines and tax lines. `respond` takes `accepted`, `rejected` or `changes_requested` with the customer's name, a note and the optional lines they take; after the valid-until date it expires the quote instead. It resolves to the new status, the identifier and the revision. A revised or unknown link answers `QUOTE_LINK_INVALID`. Rate-limit the page with the [rate-limit](/docs/blocks/sql) module or your edge.
 
-`decide(quoteId, decision, { by, note })` records an answer the customer gave another way, such as by phone.
+The customer's answer records their name, the time, their IP address (the last `x-forwarded-for` entry) and their user agent, in `decidedBy`, `decidedAt`, `decidedIp` and `decidedUserAgent`.
+
+`decide(quoteId, decision, { by, note, selected })` records an answer the customer gave another way, such as by phone, with the member who recorded it in `decidedUserId`.
+
+## In the portal
+
+A signed-in guest (see [guests](/docs/blocks/guests)) answers without a token. The quote must be shared with them: through a guest grant on the quote, or as a guest of its company or contact. A draft is never shared.
+
+```ts
+const page = await db.quotes.portalView(quoteId).orThrow(); // marks it viewed
+await db.quotes.portalRespond(quoteId, "accepted", { selected: [2] }).orThrow();
+```
+
+`portalView` returns the same view as the link. `portalRespond` records the guest's user id with the name (their email unless you pass `name`), the IP address and the user agent. A quote that isn't shared with the caller answers `QUOTE_NOT_FOUND`.
 
 ## From a deal
 
@@ -99,18 +168,18 @@ await quotes.respond(token, "accepted", { name: "Els Jansen" }).orThrow();
 
 ## Events
 
-| Event                                                                           | Data                                                                  |
-| ------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `quote.created`, `quote.updated`, `quote.sent`, `quote.viewed`, `quote.expired` | `organizationId`, `quoteId`, `subjectType`, `subjectId`, `identifier` |
-| `quote.accepted`                                                                | the same, with `total`, `currency` and `byName`                       |
-| `quote.rejected`, `quote.changes_requested`                                     | the same, with the customer's `note`                                  |
-| `quote.revised`                                                                 | the same, with `revisionId`                                           |
+| Event                                                             | Data                                                                      |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `quote.created`, `quote.updated`, `quote.viewed`, `quote.expired` | `organizationId`, `quoteId`, `subjectType`, `subjectId`, `identifier`     |
+| `quote.sent`, `quote.revised`                                     | the same, with the `revision`                                             |
+| `quote.accepted`                                                  | the same, with `total`, `currency`, `byName`, `revision` and `depositDue` |
+| `quote.rejected`, `quote.changes_requested`                       | the same, with the customer's `note`                                      |
 
 With the [notifications](/docs/blocks/notifications) module installed, the quote's owner gets a notification when the customer answers.
 
 ## Your own fields
 
-`options.extraColumns` adds columns to `quotes`; a revision copies them. `create` and `update` write them from `fields`,
+`options.extraColumns` adds columns to `quotes`; a published version keeps their values. `create` and `update` write them from `fields`,
 and every method that returns a quote return them in `fields`. Pass a Standard Schema as `fields`
 to type them: writes are validated before they reach the database (a
 `validation` error), and reads are parsed. `hooks` refuses, rewrites or
@@ -144,23 +213,27 @@ The module calls `before_quote_send(quote uuid)`, `after_quote_send(quote uuid)`
 
 ## Errors
 
-| Hint                     | Cause                                                                    |
-| ------------------------ | ------------------------------------------------------------------------ |
-| `QUOTE_FORBIDDEN`        | the caller lacks `quotes.write`                                          |
-| `QUOTE_ATTRS_INVALID`    | a missing title or a field with a bad value                              |
-| `QUOTE_NOT_FOUND`        | no quote the caller can edit                                             |
-| `QUOTE_NOT_EDITABLE`     | the quote was sent; revise it                                            |
-| `QUOTE_EMPTY`            | a quote without lines can't be sent                                      |
-| `QUOTE_NOT_OPEN`         | the quote doesn't take an answer now                                     |
-| `QUOTE_NOT_SENT`         | a draft is edited, not revised                                           |
-| `QUOTE_ALREADY_REVISED`  | the quote already has a newer revision                                   |
-| `QUOTE_DECISION_INVALID` | answer `accepted`, `rejected` or `changes_requested`                     |
-| `QUOTE_LINK_INVALID`     | the link is unknown or was withdrawn                                     |
-| `QUOTE_NAME_REQUIRED`    | the customer's answer needs a name                                       |
-| `QUOTE_ORIGIN_NOT_FOUND` | no deal the caller can quote                                             |
-| `CURRENCY_MISMATCH`      | a line isn't in the record's currency; returned before any database call |
-| `CURRENCY_INVALID`       | the currency isn't an ISO 4217 code                                      |
-| `LINES_CURRENCY`         | a line sent straight to SQL isn't in the record's currency               |
+| Hint                                                                                   | Cause                                                                    |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `QUOTE_FORBIDDEN`                                                                      | the caller lacks `quotes.write`                                          |
+| `QUOTE_ATTRS_INVALID`                                                                  | a missing title or a field with a bad value                              |
+| `QUOTE_NOT_FOUND`                                                                      | no quote the caller can edit                                             |
+| `QUOTE_NOT_EDITABLE`                                                                   | the quote was sent; revise it                                            |
+| `QUOTE_ACCEPTED`                                                                       | an accepted quote isn't revised; start a new quote                       |
+| `QUOTE_SELECTION_INVALID`                                                              | `selected` names a position that isn't an optional line                  |
+| `QUOTE_VERSION_FROZEN`                                                                 | a published version never changes                                        |
+| `QUOTE_VERSION_NOT_FOUND`                                                              | the quote has no version at that revision                                |
+| `QUOTE_PRICING_UNSUPPORTED`, `QUOTE_DISCOUNT_UNSUPPORTED`, `QUOTE_DEPOSIT_UNSUPPORTED` | your quotes table has no column for that setting                         |
+| `QUOTE_EMPTY`                                                                          | a quote without lines can't be sent                                      |
+| `QUOTE_NOT_OPEN`                                                                       | the quote doesn't take an answer now                                     |
+| `QUOTE_NOT_SENT`                                                                       | a draft is edited, not revised                                           |
+| `QUOTE_DECISION_INVALID`                                                               | answer `accepted`, `rejected` or `changes_requested`                     |
+| `QUOTE_LINK_INVALID`                                                                   | the link is unknown or was withdrawn                                     |
+| `QUOTE_NAME_REQUIRED`                                                                  | the customer's answer needs a name                                       |
+| `QUOTE_ORIGIN_NOT_FOUND`                                                               | no deal the caller can quote                                             |
+| `CURRENCY_MISMATCH`                                                                    | a line isn't in the record's currency; returned before any database call |
+| `CURRENCY_INVALID`                                                                     | the currency isn't an ISO 4217 code                                      |
+| `LINES_CURRENCY`                                                                       | a line sent straight to SQL isn't in the record's currency               |
 
 ## Without the client
 

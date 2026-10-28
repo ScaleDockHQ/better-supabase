@@ -126,9 +126,11 @@ describe.skipIf(!live)("quotes and invoices", () => {
       expect(seen).toMatchObject({
         identifier: "Q-1",
         status: "viewed",
-        subtotal: eur(1_040_000n),
-        taxTotal: eur(218_400n),
-        total: eur(1_258_400n),
+        totals: {
+          subtotal: eur(1_040_000n),
+          taxTotal: eur(218_400n),
+          total: eur(1_258_400n),
+        },
       });
       expect(hint(await quotes.view("nope"))).toBe("QUOTE_LINK_INVALID");
       expect(
@@ -146,8 +148,8 @@ describe.skipIf(!live)("quotes and invoices", () => {
       const revised = await quotes.revise(quote.id).orThrow();
       expect(revised).toMatchObject({
         identifier: "Q-1",
+        id: quote.id,
         revision: 2,
-        supersedesId: quote.id,
         status: "draft",
       });
       expect(revised.lines).toHaveLength(2);

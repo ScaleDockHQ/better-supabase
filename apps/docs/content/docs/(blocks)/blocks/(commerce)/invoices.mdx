@@ -165,7 +165,9 @@ const deposit = await invoices
 const final = await invoices.fromQuote(quoteId).orThrow();
 ```
 
-The quote must be accepted (`INVOICE_QUOTE_NOT_ACCEPTED`). A deposit invoice has one line for that share of the quote's subtotal at the quote's tax rate. The final invoice copies the quote's lines and subtracts each deposit invoice already issued; it is made once per quote, so calling it again returns the same draft.
+The quote must be accepted (`INVOICE_QUOTE_NOT_ACCEPTED`). A deposit invoice has one line for that share of the quote's subtotal at the quote's average tax rate, or of its total when the quote's prices include tax. The final invoice copies the lines the customer accepted (required lines and the optional lines they selected), adds one `Discount` line per tax rate for the quote's document discount, and subtracts each deposit invoice already issued; it is made once per quote, so calling it again returns the same draft. It takes the quote's `pricesIncludeTax`, so its totals and tax match the accepted quote.
+
+An invoice with `pricesIncludeTax: true` counts tax out of its unit amounts instead of adding it. `create` takes it, a credit note copies it, and `invoice.pricesIncludeTax` reads it. An invoices table of yours without the `prices_include_tax` column refuses it (`INVOICE_PRICING_UNSUPPORTED`).
 
 ## Aging
 

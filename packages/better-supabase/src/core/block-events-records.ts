@@ -205,8 +205,13 @@ export interface QuoteEventData extends SubjectEventData {
   readonly byName?: string;
   /** For `quote.rejected` and `quote.changes_requested`. */
   readonly note?: string | null;
-  /** For `quote.revised`: the new revision. */
-  readonly revisionId?: string;
+  /**
+   * For `quote.sent`, `quote.accepted` and `quote.revised`: the revision sent,
+   * accepted or opened as a draft.
+   */
+  readonly revision?: number;
+  /** For `quote.accepted`: the deposit due, in minor units as text. */
+  readonly depositDue?: string;
 }
 
 /** Events from the invoices module. Amounts are minor units as text. */
