@@ -14,10 +14,12 @@ import {
 } from "../shared.ts";
 import { aiChatExtras } from "./ai-chat-extras.ts";
 import { aiChatMessages } from "./ai-chat-messages.ts";
+import { aiChatParticipants } from "./ai-chat-participants.ts";
 import {
   asText,
   assignments,
   columnOr,
+  participatesIn,
   rowJson,
   writtenPairs,
   AI_RUN_STATES,
@@ -96,6 +98,21 @@ function chats(ctx: BlockSqlContext, names: AiChatNames): string {
   const can = (tenant: string, permission: string): string =>
     ctx.scope.can(tenant, permission);
 
+  /**
+   * `can`, or with `options.tenant: false` any signed-in caller when `tenant`
+   * is null: a chat or project outside every tenant is its owner's alone.
+   */
+  const mayCreate = (tenant: string, permission: string): string =>
+    names.tenantless
+      ? `(case when ${tenant} is null then (select auth.uid()) is not null else ${can(tenant, permission)} end)`
+      : can(tenant, permission);
+
+  const noTenant = raise(
+    "A chat outside a tenant stays private",
+    "22023",
+    "AI_CHAT_NO_TENANT",
+  );
+
   const notFound = raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "%CHAT%");
 
   const visibility = (row: string): string =>
@@ -139,10 +156,11 @@ function chats(ctx: BlockSqlContext, names: AiChatNames): string {
     ]);
 
   const ownProject = (project: string, owner: string, tenant: string): string =>
-    `exists (select 1 from ${t.projects} pr where pr.${p.id} = ${project} and pr.${p.owner} = ${owner} and pr.${p.tenant} = ${tenant})`;
+    `exists (select 1 from ${t.projects} pr where pr.${p.id} = ${project} and pr.${p.owner} = ${owner} and pr.${p.tenant} is not distinct from ${tenant})`;
 
-  return `-- Whether the caller may read a chat: its owner, the service role, or a
--- member with ${perm.read} when the chat is shared with the organization.
+  return `-- Whether the caller may read a chat: its owner, the service role, a
+-- participant, or a member with ${perm.read} when the chat is shared with
+-- the organization.
 create or replace function ${fn("ai_chat_can_read")}(chat uuid)
 returns boolean
 language sql
@@ -157,6 +175,7 @@ as $$
         ${SERVICE_CALLER}
         or x.${ch.owner} = (select auth.uid())
         or (${visibility("x")} = 'organization' and ${can(`x.${ch.tenant}`, perm.read)})
+        or ${participatesIn(ctx, names, "x")}
       )
   );
 $$;
@@ -207,11 +226,14 @@ declare
 begin
   if ${SERVICE_CALLER} then
     v_owner := coalesce((v_fields ->> 'owner_id')::uuid, v_owner);
-  elsif not ${can("create_ai_chat.tenant", perm.create)} then
+  elsif not ${mayCreate("create_ai_chat.tenant", perm.create)} then
     ${raise("You may not start chats here", "42501", "AI_CHAT_FORBIDDEN")}
   end if;
   if v_owner is null then
     ${raise("Sign in first", "42501", "AI_CHAT_FORBIDDEN")}
+  end if;
+  if v_visibility = 'organization' and create_ai_chat.tenant is null then
+    ${noTenant}
   end if;
   if v_visibility = 'organization' and not (${SERVICE_CALLER} or ${can("create_ai_chat.tenant", perm.share)}) then
     ${raise("You may not share chats here", "42501", "AI_CHAT_FORBIDDEN")}
@@ -260,6 +282,9 @@ begin
   end if;
   if v_project is not null and not ${ownProject("v_project", `v_row.${ch.owner}`, `v_row.${ch.tenant}`)} then
     ${raise("No project %", "P0002", "AI_PROJECT_NOT_FOUND", "v_project")}
+  end if;
+  if v_fields ->> 'visibility' = 'organization' and v_row.${ch.tenant} is null then
+    ${noTenant}
   end if;
   if v_fields ->> 'visibility' = 'organization' and ${visibility("v_row")} <> 'organization'
     and not (${SERVICE_CALLER} or ${can(`v_row.${ch.tenant}`, perm.share)}) then
@@ -334,8 +359,8 @@ end;
 $$;
 ${userGrant(`${fn("get_ai_chat")}(uuid)`)}
 
--- The caller's chats, newest activity first: { items, next }. Pass next as
--- after for the following page. search matches titles and message text;
+-- The caller's chats and the chats they take part in, newest activity first:
+-- { items, next }. Pass next as after for the following page. search matches titles and message text;
 -- temporary chats never show.
 create or replace function ${fn("list_ai_chats")}(tenant ${ctx.idType} default null, search text default null, project uuid default null, pinned boolean default null, archived boolean default false, after text default null, size integer default 50)
 returns jsonb
@@ -368,7 +393,7 @@ begin
   into v_items
   from (
     select x.* from ${t.chats} x
-    where x.${ch.owner} = v_uid
+    where (x.${ch.owner} = v_uid or ${participatesIn(ctx, names, "x")})
       and not x.${ch.temporary}
       and (list_ai_chats.tenant is null or x.${ch.tenant} = list_ai_chats.tenant)
       and (list_ai_chats.project is null or x.${ch.project} = list_ai_chats.project)
@@ -393,7 +418,7 @@ $$;
 ${userGrant(`${fn("list_ai_chats")}(${ctx.idType}, text, uuid, boolean, boolean, text, integer)`)}
 
 -- Creates a project (id null, needs ${perm.create}) or changes the caller's
--- own. fields may set name, instructions, default_model, pinned, archived.
+-- own. fields may set name, instructions, default_model, pinned, archived${names.extras.projects.length > 0 ? ",\n-- and the app's extra columns" : ""}.
 create or replace function ${fn("save_ai_project")}(id uuid, tenant ${ctx.idType}, fields jsonb)
 returns jsonb
 language plpgsql
@@ -406,13 +431,13 @@ declare
   v_row ${t.projects};
 begin
   if save_ai_project.id is null then
-    if auth.uid() is null or not ${can("save_ai_project.tenant", perm.create)} then
+    if auth.uid() is null or not ${mayCreate("save_ai_project.tenant", perm.create)} then
       ${raise("You may not create projects here", "42501", "AI_CHAT_FORBIDDEN")}
     end if;
     insert into ${t.projects} (${projectColumns})
     values (${projectValues}
     )
-    returning * into v_row;
+    returning * into v_row;${writeExtraColumns(t.projects, names.extras.projects, "v_fields", `x.${p.id} = v_row.${p.id}`, "v_row")}
     return ${projectJson(ctx, "v_row")};
   end if;
   update ${t.projects} x set
@@ -424,7 +449,7 @@ begin
   returning * into v_row;
   if not found then
     ${raise("No project %", "P0002", "AI_PROJECT_NOT_FOUND", "save_ai_project.id")}
-  end if;
+  end if;${writeExtraColumns(t.projects, names.extras.projects, "v_fields", `x.${p.id} = v_row.${p.id}`, "v_row")}
   return ${projectJson(ctx, "v_row")};
 end;
 $$;
@@ -456,7 +481,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(${projectJson(ctx, "x")} order by ${ctx.has("projects", "pinned") ? `x.${p.pinned} desc, ` : ""}x.${p.updatedAt} desc), '[]'::jsonb)
   from ${t.projects} x
-  where x.${p.owner} = (select auth.uid()) and x.${p.tenant} = list_ai_projects.tenant;
+  where x.${p.owner} = (select auth.uid()) and x.${p.tenant} is not distinct from list_ai_projects.tenant;
 $$;
 ${userGrant(`${fn("list_ai_projects")}(${ctx.idType})`)}`;
 }
@@ -471,6 +496,8 @@ export function aiChatFunctions(
   layout: BlockSqlLayout,
 ): string {
   return `${chats(ctx, names)}
+
+${aiChatParticipants(ctx, names)}
 
 ${aiChatMessages(ctx, names)}
 

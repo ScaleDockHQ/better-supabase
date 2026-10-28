@@ -7,6 +7,7 @@ import type {
   BlockSqlNames,
 } from "../context.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
+import type { AiChatTable } from "./ai-chat-tables.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
@@ -19,7 +20,11 @@ import {
   upgradeSandboxes,
 } from "./ai-chat-sandboxes.ts";
 import { AI_CHAT_CONTRIBUTES } from "./ai-chat-shares.ts";
-import { aiChatTables } from "./ai-chat-tables.ts";
+import {
+  AI_CHAT_EXTRA_OPTIONS,
+  aiChatTables,
+  isAiChatTable,
+} from "./ai-chat-tables.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const PROJECTS = {
@@ -62,6 +67,7 @@ const MESSAGES = {
   id: "id",
   parent: "parent_id",
   owner: "owner_id",
+  author: "author_id",
   role: "role",
   parts: "parts",
   format: "format",
@@ -231,6 +237,14 @@ const HARNESS = {
   updatedAt: "updated_at",
 } as const;
 
+const PARTICIPANTS = {
+  chat: "chat_id",
+  user: "user_id",
+  role: "role",
+  addedBy: "added_by",
+  createdAt: "created_at",
+} as const;
+
 const EVENTS: BlockSqlEvents<AiChatEvents> = {
   "ai_chat_message.completed": {
     subject: "ai-chats",
@@ -277,7 +291,9 @@ const NAMES: BlockSqlNames = {
     "meterUsage",
     "inputMeter",
     "outputMeter",
-    "extraColumns",
+    "tenant",
+    "messages",
+    ...Object.values(AI_CHAT_EXTRA_OPTIONS),
   ],
   tables: {
     projects: {
@@ -295,9 +311,17 @@ const NAMES: BlockSqlNames = {
       columns: CHATS,
       lifecycle: { user: "owner", tenant: "tenant", omit: ["search"] },
     },
+    participants: {
+      app: {},
+      optional: ["addedBy", "createdAt"],
+      typed: ["role"],
+      name: "ai_chat_participants",
+      columns: PARTICIPANTS,
+      lifecycle: { user: "user" },
+    },
     messages: {
       app: {},
-      optional: ["format", "native", "metadata", "model"],
+      optional: ["parent", "author", "format", "native", "metadata", "model"],
       typed: ["role", "status"],
       name: "ai_messages",
       columns: MESSAGES,
@@ -423,6 +447,7 @@ function columnsOf<T extends Readonly<Record<string, string>>>(
 export interface AiChatColumns {
   readonly projects: Columns<typeof PROJECTS>;
   readonly chats: Columns<typeof CHATS>;
+  readonly participants: Columns<typeof PARTICIPANTS>;
   readonly messages: Columns<typeof MESSAGES>;
   readonly runs: Columns<typeof RUNS>;
   readonly approvals: Columns<typeof APPROVALS>;
@@ -457,6 +482,110 @@ export interface AiChatNames {
   readonly sandboxIdleAfter: number;
   /** `options.extraColumns`, which the chats table gets. */
   readonly chatExtras: readonly ExtraColumn[];
+  /** The app columns of each table (`AI_CHAT_EXTRA_OPTIONS`). */
+  readonly extras: { readonly [K in AiChatTable]: readonly ExtraColumn[] };
+  /** `options.tenant: false`: chats and projects may have no tenant. */
+  readonly tenantless: boolean;
+  readonly messages: AiChatMessageMode;
+}
+
+/** How `options.messages` stores the messages. */
+export interface AiChatMessageMode {
+  /** `uuid` ids instead of client-made text ids. */
+  readonly uuid: boolean;
+  /** The SQL type of a message id. */
+  readonly idType: "uuid" | "text";
+  /** A tree with branches (`parent_id`), or one linear list per chat. */
+  readonly tree: boolean;
+  /** `parts` holds the SDK's own parts instead of the canonical ones. */
+  readonly native: boolean;
+  /**
+   * `expression` (text) as a message id: through `ai_message_key`, which
+   * rejects a malformed uuid, when ids are uuids.
+   */
+  readonly id: (expression: string) => string;
+}
+
+const MESSAGE_KEYS: ReadonlySet<string> = new Set(["key", "tree", "parts"]);
+
+/** Reads `options.messages`: `{ key: "text" | "uuid", tree, parts }`. */
+function messageMode(ctx: BlockSqlContext): AiChatMessageMode {
+  const value: unknown = ctx.option("messages") ?? {};
+  const at = "blocks.ai-chat.options.messages";
+
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError(`${at} must be an object`);
+  }
+
+  const entries = new Map<string, unknown>(Object.entries(value));
+
+  for (const key of entries.keys()) {
+    if (!MESSAGE_KEYS.has(key)) {
+      throw new TypeError(`${at} has no key "${key}"`);
+    }
+  }
+
+  const key = entries.get("key") ?? "text";
+  const tree = entries.get("tree") ?? ctx.has("messages", "parent");
+  const parts = entries.get("parts") ?? "canonical";
+
+  if (key !== "text" && key !== "uuid") {
+    throw new TypeError(`${at}.key must be "text" or "uuid"`);
+  }
+
+  if (typeof tree !== "boolean") {
+    throw new TypeError(`${at}.tree must be a boolean`);
+  }
+
+  if (parts !== "canonical" && parts !== "native") {
+    throw new TypeError(`${at}.parts must be "canonical" or "native"`);
+  }
+
+  if (tree && !ctx.has("messages", "parent")) {
+    throw new TypeError(
+      `${at}.tree needs a parent column; map blocks.ai-chat.columns.messages.parent to one or set tree: false`,
+    );
+  }
+
+  const uuid = key === "uuid";
+
+  return {
+    uuid,
+    idType: uuid ? "uuid" : "text",
+    tree,
+    native: parts === "native",
+    id: (expression) =>
+      uuid ? `${ctx.fn("ai_message_key")}(${expression})` : expression,
+  };
+}
+
+/**
+ * The keys of a write's `fields` that aren't columns, which an extra column may
+ * not take. Chats and projects read their extra columns from `fields` itself;
+ * every other table from `fields` under its own key.
+ */
+const EXTRA_RESERVED: { readonly [K in AiChatTable]?: readonly string[] } = {
+  projects: ["organization_id", "owner_id", "default_model", "archived"],
+};
+
+function extrasOf(ctx: BlockSqlContext): AiChatNames["extras"] {
+  const extras: Partial<Record<AiChatTable, readonly ExtraColumn[]>> = {};
+
+  for (const [table, key] of Object.entries(AI_CHAT_EXTRA_OPTIONS)) {
+    if (isAiChatTable(table)) {
+      extras[table] = ctx.extraColumns(
+        table,
+        [
+          ...(table === "chats" ? CHAT_KEYS : ["fields"]),
+          ...(EXTRA_RESERVED[table] ?? []),
+        ],
+        key,
+      );
+    }
+  }
+
+  // SAFETY: the loop sets every key of AI_CHAT_EXTRA_OPTIONS.
+  return extras as AiChatNames["extras"];
 }
 
 /** The keys a chat read returns, which no extra column may shadow. */
@@ -542,10 +671,13 @@ function namesOf(ctx: BlockSqlContext): AiChatNames {
     );
   }
 
+  const extras = extrasOf(ctx);
+
   return {
     c: {
       projects: columnsOf(ctx, "projects", PROJECTS),
       chats: columnsOf(ctx, "chats", CHATS),
+      participants: columnsOf(ctx, "participants", PARTICIPANTS),
       messages: columnsOf(ctx, "messages", MESSAGES),
       runs: columnsOf(ctx, "runs", RUNS),
       approvals: columnsOf(ctx, "approvals", APPROVALS),
@@ -563,6 +695,7 @@ function namesOf(ctx: BlockSqlContext): AiChatNames {
     t: {
       projects: ctx.table("projects"),
       chats: ctx.table("chats"),
+      participants: ctx.table("participants"),
       messages: ctx.table("messages"),
       runs: ctx.table("runs"),
       approvals: ctx.table("approvals"),
@@ -589,7 +722,10 @@ function namesOf(ctx: BlockSqlContext): AiChatNames {
     temporaryTtl: intervalOption(ctx, "temporaryTtl", "1 day"),
     staleAfter: intervalOption(ctx, "staleAfter", "10 minutes"),
     sandboxIdleAfter: sandboxIdleAfter(ctx),
-    chatExtras: ctx.extraColumns("chats", CHAT_KEYS),
+    chatExtras: extras.chats,
+    extras,
+    tenantless: !ctx.flag("tenant", true),
+    messages: messageMode(ctx),
   };
 }
 
@@ -678,6 +814,9 @@ function contract(): readonly BlockSqlContractFunction[] {
     fn("save_ai_project", ["uuid", "{id}", "jsonb"]),
     fn("delete_ai_project", ["uuid"], "boolean"),
     fn("list_ai_projects", ["{id}"]),
+    fn("add_ai_chat_participant", ["uuid", "uuid", "text", "jsonb"]),
+    fn("remove_ai_chat_participant", ["uuid", "uuid"], "boolean"),
+    fn("list_ai_chat_participants", ["uuid"]),
     fn("append_ai_user_message", ["uuid", "jsonb", "text", "text"]),
     fn("save_ai_assistant_message", [
       "uuid",
@@ -753,7 +892,7 @@ export const AI_CHAT: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "AI chat",
   description:
-    "Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.",
+    "Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.",
   requires: ["memberships", "permissions", "streams"],
   integrates: [
     "entitlements",
@@ -764,7 +903,7 @@ export const AI_CHAT: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 4,
+  version: 5,
   names: NAMES,
   upgrades: [
     {
@@ -784,6 +923,12 @@ export const AI_CHAT: BlockSqlDefinition = {
       from: 3,
       description:
         "With usage, release_ai_chat_stream records each run's input and output tokens on the ai.input_tokens and ai.output_tokens meters (options.meterUsage, inputMeter, outputMeter).",
+      sql: () => "",
+    },
+    {
+      from: 4,
+      description:
+        "Adds ai_chat_participants (viewers and editors besides the owner), an author_id on messages, options.tenant: false for chats outside a tenant, options.messages (uuid keys, a linear list, the SDK's own parts) and extra columns on every table. The message key and shape can't change on an existing install.",
       sql: () => "",
     },
   ],

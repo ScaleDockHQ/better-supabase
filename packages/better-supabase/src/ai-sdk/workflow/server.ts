@@ -23,6 +23,7 @@ import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { resumeFromStore, teeToStore } from "../../streams/tee.ts";
 import { WORKFLOW_ATTRIBUTES } from "../../workflow-sdk/attributes.ts";
+import { tenantOf } from "../chat/assistant.ts";
 import { badRequest, readJson, sse } from "../http.ts";
 import { durableStopToken, durableTurnToken } from "./turn.ts";
 
@@ -297,7 +298,9 @@ export function durableChat(options: DurableChatOptions): DurableChat {
       ),
       {
         owner: chat.ownerId,
-        tenant: chat.organizationId,
+        ...(chat.organizationId === undefined
+          ? {}
+          : { tenant: chat.organizationId }),
         kind: "chat",
         ...(options.streamTtl === undefined ? {} : { ttl: options.streamTtl }),
       },
@@ -344,7 +347,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
 
     const input: DurableTurnInput = {
       chatId: chat.id,
-      organizationId: chat.organizationId,
+      ...tenantOf(chat),
       userId: context.userId,
       model,
       messageId,
@@ -360,7 +363,9 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     try {
       const run = await start(options.workflow, [input], {
         attributes: {
-          [WORKFLOW_ATTRIBUTES.tenant]: chat.organizationId,
+          ...(chat.organizationId === undefined
+            ? {}
+            : { [WORKFLOW_ATTRIBUTES.tenant]: chat.organizationId }),
           [WORKFLOW_ATTRIBUTES.actor]: context.userId,
           [WORKFLOW_ATTRIBUTES.key]: `ai-chat:${chat.id}`,
         },

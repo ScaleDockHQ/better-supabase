@@ -95,9 +95,9 @@ function aiProviders(): AiKeys {
  */
 async function withTenantKeys<T extends { readonly gateway: object }>(
   providerOptions: T,
-  organizationId: string,
+  organizationId: string | null,
 ): Promise<T> {
-  if (demoMode()) {
+  if (demoMode() || organizationId === null) {
     return providerOptions;
   }
 
@@ -164,14 +164,15 @@ export function assistant(): ReturnType<typeof createAssistant> {
     }) => {
       const scope = requestScopes.get(context);
 
-      const code = demoMode()
-        ? NO_CODE
-        : await codeSandbox(
-            context.chats.sandboxes,
-            context.organizationId,
-            chat.id,
-            { userId: context.userId, signal: abortSignal },
-          );
+      const code =
+        demoMode() || context.organizationId === null
+          ? NO_CODE
+          : await codeSandbox(
+              context.chats.sandboxes,
+              context.organizationId,
+              chat.id,
+              { userId: context.userId, signal: abortSignal },
+            );
 
       return streamText({
         model: languageModel(model),

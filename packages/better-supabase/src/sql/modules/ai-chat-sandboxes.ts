@@ -3,7 +3,13 @@ import type { AiChatNames } from "./ai-chat.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { raise, serviceGrant, userGrant, revokeTable } from "../shared.ts";
+import {
+  addExtraColumns,
+  raise,
+  serviceGrant,
+  userGrant,
+  revokeTable,
+} from "../shared.ts";
 import {
   appKey,
   asText,
@@ -74,7 +80,7 @@ export function sandboxTable(
 -- idle_seconds or past expires_at.
 create table if not exists ${sandboxes} (
   ${s.id} uuid primary key default gen_random_uuid(),
-  ${s.tenant} ${ctx.idType} not null,
+  ${s.tenant} ${names.tenantless ? ctx.idType : `${ctx.idType} not null`},
   ${s.user} uuid references auth.users (id) on delete cascade,
   ${s.chat} uuid,
   ${s.harness} text check (length(${s.harness}) between 1 and 200),
@@ -93,7 +99,7 @@ create index if not exists ai_sandboxes_open_idx on ${sandboxes} (${s.lastUsedAt
 create index if not exists ai_sandboxes_chat_idx on ${sandboxes} (${s.chat});
 create index if not exists ai_sandboxes_harness_idx on ${sandboxes} (${s.chat}, ${s.harness}) where ${s.harness} is not null;
 create index if not exists ai_sandboxes_tenant_idx on ${sandboxes} (${s.tenant});
-create index if not exists ai_sandboxes_user_idx on ${sandboxes} (${s.user});
+create index if not exists ai_sandboxes_user_idx on ${sandboxes} (${s.user});${names.tenantless && ctx.owns("sandboxes") ? `\nalter table ${sandboxes} alter column ${s.tenant} drop not null;` : ""}${addExtraColumns(sandboxes, names.extras.sandboxes)}
 alter table ${sandboxes} enable row level security;
 ${revokeTable(sandboxes)}
 grant select on ${sandboxes} to authenticated;
@@ -143,7 +149,7 @@ export function harnessSandboxSave(
         ${s.stoppedAt} = null,
         ${s.lastUsedAt} = now(),
         ${s.updatedAt} = now()
-      where cur.${s.tenant} = excluded.${s.tenant};
+      where cur.${s.tenant} is not distinct from excluded.${s.tenant};
       if not found then
         ${raise("sandbox % belongs to another tenant", "42501", "AI_SANDBOX_FORBIDDEN", `${fields} ->> 'sandbox_id'`)}
       end if;
@@ -223,7 +229,7 @@ begin
     ${s.stoppedAt} = null,
     ${s.lastUsedAt} = now(),
     ${s.updatedAt} = now()
-  where cur.${s.tenant} = excluded.${s.tenant}
+  where cur.${s.tenant} is not distinct from excluded.${s.tenant}
   returning * into v_row;
   if not found then
     ${raise("sandbox % belongs to another tenant", "42501", "AI_SANDBOX_FORBIDDEN", "register_ai_sandbox.sandbox_id")}
@@ -348,7 +354,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(${json("x")} order by x.${s.createdAt} desc), '[]')
   from ${sandboxes} x
-  where x.${s.tenant} = list_ai_sandboxes.tenant and (list_ai_sandboxes.chat_id is null or x.${s.chat} = list_ai_sandboxes.chat_id)
+  where x.${s.tenant} is not distinct from list_ai_sandboxes.tenant and (list_ai_sandboxes.chat_id is null or x.${s.chat} = list_ai_sandboxes.chat_id)
 $$;
 ${userGrant(`${fn("list_ai_sandboxes")}(${id}, uuid)`)}`;
 }

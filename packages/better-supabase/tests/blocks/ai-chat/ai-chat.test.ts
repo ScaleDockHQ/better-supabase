@@ -715,4 +715,184 @@ describe("createAiChat", () => {
       error: { kind: "not_found" },
     });
   });
+
+  it("adds, lists and removes participants", async () => {
+    const participant = {
+      chat_id: "c1",
+      user_id: "u2",
+      role: "editor",
+      added_by: "u1",
+      created_at: AT,
+      fields: { note: "hey" },
+    };
+
+    const { user, chat } = fake({
+      add_ai_chat_participant: participant,
+      list_ai_chat_participants: [{ ...participant, role: "owner" }],
+      remove_ai_chat_participant: true,
+    });
+
+    const added = await chat.participants
+      .add("c1", "u2", { role: "editor", fields: { note: "hey" } })
+      .orThrow();
+
+    expect(added).toMatchObject({
+      chatId: "c1",
+      userId: "u2",
+      role: "editor",
+      addedBy: "u1",
+      fields: { note: "hey" },
+    });
+    expect(added.createdAt?.toString()).toBe(AT);
+    expect(lastArgs(user)).toEqual({
+      chat: "c1",
+      participant: "u2",
+      participant_role: "editor",
+      fields: { note: "hey" },
+    });
+
+    await chat.participants.add("c1", "u2").orThrow();
+    expect(lastArgs(user)).toEqual({
+      chat: "c1",
+      participant: "u2",
+      participant_role: undefined,
+      fields: undefined,
+    });
+
+    const [listed] = await chat.participants.list("c1").orThrow();
+    expect(listed?.role).toBe("viewer");
+    expect(await chat.participants.remove("c1", "u2").orThrow()).toBe(true);
+    expect(lastArgs(user)).toEqual({ chat: "c1", participant: "u2" });
+  });
+
+  it("works without a tenant and writes extra fields", async () => {
+    const { user, server, chat } = fake({
+      ...ANSWERS,
+      create_ai_chat: { ...chatRow, organization_id: null },
+      save_ai_project: { ...projectRow, organization_id: null },
+      record_ai_moderation_event: { ...moderationRow, organization_id: null },
+    });
+
+    const created = await chat.chats.create(null).orThrow();
+    expect(created.organizationId).toBeUndefined();
+    expect(lastArgs(user)).toEqual({ tenant: null, fields: {} });
+
+    const project = await chat.projects
+      .create(null, { name: "Mine" }, { color: "red" })
+      .orThrow();
+
+    expect(project.organizationId).toBeUndefined();
+    expect(lastArgs(user)).toEqual({
+      id: null,
+      tenant: null,
+      fields: { color: "red", name: "Mine" },
+    });
+    await chat.projects.list(null).orThrow();
+    expect(lastArgs(user)).toEqual({ tenant: null });
+
+    await chat.messages
+      .appendUser("c1", message, { fields: { thread_kind: "q" } })
+      .orThrow();
+    expect(lastArgs(user)).toMatchObject({
+      message: { ...message, fields: { thread_kind: "q" } },
+    });
+
+    const event = await chat.moderation
+      .record(
+        { stage: "input", action: "flag", category: "pii" },
+        { lang: "en" },
+      )
+      .orThrow();
+
+    expect(event.organizationId).toBeUndefined();
+    expect(lastArgs(server)).toMatchObject({
+      event: { organization_id: null, fields: { lang: "en" } },
+    });
+  });
+
+  it("stores the SDK's own message with parts: native", async () => {
+    const user = vi.fn(
+      async (_schema: string, fn: string, _args: Record<string, unknown>) =>
+        ANSWERS[fn],
+    );
+
+    const server = vi.fn(
+      async (_schema: string, fn: string, _args: Record<string, unknown>) =>
+        ANSWERS[fn],
+    );
+
+    const chat = createAiChat({
+      transport: { call: user },
+      service: { call: server },
+      messages: { key: "uuid", tree: false, parts: "native" },
+    });
+
+    const raw = {
+      id: "m1",
+      role: "user",
+      parts: [{ type: "step-start" }],
+      metadata: { a: 1 },
+    };
+
+    await chat.messages.appendUser("c1", message, { native: raw }).orThrow();
+    expect(lastArgs(user)).toMatchObject({ message: raw });
+
+    await chat.messages
+      .appendUser("c1", message, { native: { ...raw, metadata: undefined } })
+      .orThrow();
+    expect(lastArgs(user)).toMatchObject({
+      message: { id: "m1", role: "user", parts: [{ type: "step-start" }] },
+    });
+
+    await chat.messages.appendUser("c1", message).orThrow();
+    expect(lastArgs(user)).toMatchObject({ message });
+
+    await chat.messages
+      .saveAssistant(
+        "c1",
+        { ...message, role: "assistant" },
+        { parentId: "m1", native: { ...raw, role: "assistant" } },
+      )
+      .orThrow();
+    expect(lastArgs(server)).toMatchObject({
+      message: { role: "assistant", parts: [{ type: "step-start" }] },
+      format: "native",
+    });
+    expect(lastArgs(server)).not.toHaveProperty("native");
+
+    await chat.messages
+      .saveAssistant(
+        "c1",
+        { ...message, role: "assistant" },
+        { parentId: "m1" },
+      )
+      .orThrow();
+    expect(lastArgs(server)).toMatchObject({ native: undefined });
+
+    const reader = fake({
+      ai_message_path: [
+        {
+          ...messageRow,
+          author_id: "u1",
+          format: "native",
+          parts: [{ type: "step-start" }],
+          metadata: { a: 1 },
+        },
+        { ...messageRow, id: "m2", format: "native", parts: null },
+      ],
+    });
+
+    const [first, second] = await reader.chat.messages.path("c1").orThrow();
+    expect(first).toMatchObject({
+      authorId: "u1",
+      parts: [],
+      native: {
+        id: "m1",
+        role: "user",
+        parts: [{ type: "step-start" }],
+        metadata: { a: 1 },
+      },
+    });
+    expect(second?.native).toEqual({ id: "m2", role: "user", parts: [] });
+  });
 });

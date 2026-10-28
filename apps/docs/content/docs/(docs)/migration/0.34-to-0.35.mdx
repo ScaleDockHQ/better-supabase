@@ -164,3 +164,26 @@ with the optional `sessionTags(userId)` hook, and `evictSession`, sign-out and
 
 `sessionStatusRoute` now defaults to `verifySession: false` and reads the
 verified claims only. Pass `verifySession: true` to ask Auth on every check.
+
+## AI chat
+
+`better-supabase upgrade` moves the `ai-chat` module to version 5. It adds the
+`ai_chat_participants` table and an `author_id` column on `ai_messages`, and
+`organization_id` takes nulls when you set `tenant: false`. The new
+[storage options](/docs/blocks/ai-chat#message-storage) (`messages: { key,
+tree, parts }`) apply to new installs only; an existing install keeps a text
+key, the tree and canonical parts.
+
+| 0.34                                                              | 0.35                                                                   |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `chats.create(organizationId: string, input)`                     | `chats.create(organizationId: string \| null, input)`                  |
+| `projects.create(organizationId, input)`                          | `projects.create(organizationId \| null, input, fields?)`              |
+| `organizationId: string` on chats, projects and moderation events | `organizationId: string \| undefined` (a row outside a tenant)         |
+| `AssistantContext.organizationId: string`                         | `organizationId: string \| null`                                       |
+| `moderation.record(event)`                                        | `moderation.record(event, fields?)`, with an optional `organizationId` |
+| private chats: the owner only                                     | the owner and the chat's participants                                  |
+| `chats.list()`: the caller's own chats                            | the chats the caller owns or takes part in                             |
+
+Code that read `chat.organizationId` as a string has to handle `undefined`,
+and assistant hooks that take `context.organizationId` have to handle `null`,
+for example by skipping tenant keys or a tenant quota.

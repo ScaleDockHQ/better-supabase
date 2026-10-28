@@ -101,6 +101,12 @@ export async function POST(
 }
 ```
 
+`organizationId` is `null` for a chat outside a tenant (the block's
+`tenant: false` option). Such a chat skips `quota` and the gateway's `org:`
+tag. With `messages: { key: "uuid" }` on the block, every message id must be
+a uuid; the default `generateId` is `crypto.randomUUID()`, and the client's
+`useChat` needs `generateId: () => crypto.randomUUID()` too.
+
 `waitUntil` keeps the function running until the answer is stored after the
 response is sent: `after` in Next.js, `ctx.waitUntil` on Workers.
 

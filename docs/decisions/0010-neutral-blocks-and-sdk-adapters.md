@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-08
+- Amended by: [0122](0122-ai-chat-storage-participants-tenantless.md)
 
 ## Context
 

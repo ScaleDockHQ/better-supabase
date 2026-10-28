@@ -124,7 +124,10 @@ function researchAgent(input: DurableTurnInput, args: DurableAgentArgs) {
         // oxlint-disable-next-line typescript/no-deprecated -- WorkflowAgent reads approvals only from the tool, not from stream options.
         needsApproval: true,
         execute: async ({ title }) => {
-          await deliverReport(input.organizationId, input.userId, title);
+          if (input.organizationId !== undefined) {
+            await deliverReport(input.organizationId, input.userId, title);
+          }
+
           await recordRunStep(args.runId, {
             key: "report",
             label: "Report sent",

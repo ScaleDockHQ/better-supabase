@@ -3,11 +3,43 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { FinalRunState } from "../../core/run-state.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
-import type { AiRunState, AiRuns } from "./durable.ts";
-import type { AiMessage, AiMessageRole } from "./message.ts";
+import type { AiRuns } from "./durable.ts";
+import type { AiMessage } from "./message.ts";
+import type {
+  AiChatMessageStorage,
+  AiChatRecord,
+  AiChatInput,
+  AiChatPatch,
+  AiChatQuery,
+  AiChatPage,
+  AiProject,
+  AiProjectInput,
+  AiStoredMessage,
+  AiMessageSibling,
+  AiAppendResult,
+  AiAssistantMessageOptions,
+  AiSaveResult,
+  AiStreamClaim,
+  AiRunRelease,
+  AiToolApproval,
+  AiToolApprovalRequest,
+  AiToolPolicy,
+  AiPendingInput,
+  AiPendingInputRequest,
+  AiFeedback,
+  AiChatShare,
+  AiShareLink,
+  SharedAiChat,
+  AiModel,
+  AiModelInput,
+  AiModerationEvent,
+  AiModerationInput,
+  AiChatParticipantRole,
+  AiChatParticipant,
+  AiUserMessageOptions,
+} from "./records.ts";
 import type { AiSandboxes } from "./sandboxes.ts";
 
 import {
@@ -50,307 +82,51 @@ import {
   patchFields,
   projectFields,
   canonical,
+  nativeMessage,
+  participantOf,
 } from "./rows.ts";
 import { aiSandboxes } from "./sandboxes.ts";
 
-export type AiChatVisibility = "private" | "organization";
-
-export interface AiChatRecord {
-  readonly id: string;
-  readonly organizationId: string;
-  readonly ownerId: string;
-  readonly projectId: string | undefined;
-  readonly agentId: string | undefined;
-  readonly title: string;
-  readonly model: string | undefined;
-  readonly visibility: AiChatVisibility;
-  readonly pinned: boolean;
-  readonly archivedAt: Temporal.Instant | undefined;
-  /** A temporary chat expires at `expiresAt` and never reaches the chat list. */
-  readonly temporary: boolean;
-  readonly expiresAt: Temporal.Instant | undefined;
-  /** The message the chat shows: the end of the active branch. */
-  readonly leafId: string | undefined;
-  /** The stream of the answer being written, while one runs. */
-  readonly activeStreamId: string | undefined;
-  readonly activeRunId: string | undefined;
-  readonly lastMessageAt: Temporal.Instant;
-  readonly createdAt: Temporal.Instant;
-  readonly updatedAt: Temporal.Instant;
-}
-
-export interface AiChatInput {
-  /** A client-made id, so a retried create returns the same chat. */
-  readonly id?: string;
-  readonly title?: string;
-  readonly model?: string | null;
-  readonly projectId?: string | null;
-  readonly agentId?: string | null;
-  /** `organization` needs `ai_chat.share`. */
-  readonly visibility?: AiChatVisibility;
-  readonly pinned?: boolean;
-  readonly temporary?: boolean;
-  /** The service role only: the user the chat belongs to. */
-  readonly ownerId?: string;
-}
-
-export interface AiChatPatch {
-  readonly title?: string;
-  readonly model?: string | null;
-  readonly projectId?: string | null;
-  readonly visibility?: AiChatVisibility;
-  readonly pinned?: boolean;
-  readonly archived?: boolean;
-}
-
-export interface AiChatQuery {
-  readonly organizationId?: string | null;
-  /** Full-text search over titles and message text. */
-  readonly search?: string;
-  readonly projectId?: string;
-  readonly pinned?: boolean;
-  readonly archived?: boolean;
-  /** The `next` cursor of the previous page. */
-  readonly cursor?: string;
-  readonly limit?: number;
-}
-
-export interface AiChatPage<F extends object = Record<never, never>> {
-  readonly items: readonly (AiChatRecord & F)[];
-  /** Pass as `after` for the next page; `undefined` on the last one. */
-  readonly next: string | undefined;
-}
-
-export interface AiProject {
-  readonly id: string;
-  readonly organizationId: string;
-  readonly ownerId: string;
-  readonly name: string;
-  readonly instructions: string;
-  readonly defaultModel: string | undefined;
-  readonly pinned: boolean;
-  readonly archivedAt: Temporal.Instant | undefined;
-  readonly createdAt: Temporal.Instant;
-  readonly updatedAt: Temporal.Instant;
-}
-
-export interface AiProjectInput {
-  readonly name?: string;
-  readonly instructions?: string;
-  readonly defaultModel?: string | null;
-  readonly pinned?: boolean;
-  readonly archived?: boolean;
-}
-
-export type AiStoredMessageStatus = "complete" | "aborted" | "error";
-
-/** A message as the tree stores it: the canonical fields plus its place. */
-export interface AiStoredMessage extends AiMessage {
-  readonly parentId: string | undefined;
-  /** `canonical`, or the format `native` holds (such as `ai-sdk-ui`). */
-  readonly format: string;
-  /** The SDK's own message, when `path(..., { native: true })` asks for it. */
-  readonly native: unknown;
-  readonly model: string | undefined;
-  readonly status: AiStoredMessageStatus;
-  readonly createdAt: Temporal.Instant;
-  /** How many messages share this one's parent, itself included. */
-  readonly siblingCount: number;
-  /** Its position among them, from 0, oldest first. */
-  readonly siblingIndex: number;
-}
-
-export interface AiMessageSibling {
-  readonly id: string;
-  readonly role: AiMessageRole;
-  readonly createdAt: Temporal.Instant;
-}
-
-export type AiUserMessageTrigger = "submit-message" | "regenerate-message";
-
-export interface AiAppendResult {
-  /** The stored id: a fresh one when the message edits an earlier one. */
-  readonly messageId: string;
-  readonly parentId: string | undefined;
-  /** `false` for a retry, or for `regenerate-message`, which adds nothing. */
-  readonly created: boolean;
-}
-
-export interface AiAssistantMessageOptions {
-  readonly parentId: string;
-  readonly status?: AiStoredMessageStatus;
-  readonly model?: string;
-  /** The format of `native`, such as `ai-sdk-ui`. */
-  readonly format?: string;
-  readonly native?: unknown;
-  /** The run `runs.claim` returned. */
-  readonly runId?: string | undefined;
-}
-
-export interface AiSaveResult {
-  readonly messageId: string;
-  readonly parentId: string | undefined;
-  readonly created: boolean;
-}
-
-export interface AiStreamClaim {
-  /** `false` while another live stream writes the chat's answer. */
-  readonly claimed: boolean;
-  readonly streamId: string | undefined;
-  readonly runId: string | undefined;
-}
-
-/** How a run ended, as `runs.release` records it. */
-export type AiRunStatus = Extract<AiRunState, FinalRunState>;
-
-export interface AiRunRelease {
-  readonly status?: AiRunStatus;
-  readonly usage?: Readonly<Record<string, unknown>>;
-  readonly generationId?: string;
-  readonly error?: string;
-  readonly costMicroUsd?: number;
-}
-
-export type AiApprovalDecision = "pending" | "approved" | "denied";
-
-export interface AiToolApproval {
-  readonly approvalId: string;
-  readonly chatId: string;
-  readonly runId: string | undefined;
-  readonly messageId: string | undefined;
-  readonly tool: string;
-  readonly toolCallId: string;
-  readonly input: unknown;
-  readonly decision: AiApprovalDecision;
-  readonly reason: string | undefined;
-  readonly signature: string | undefined;
-  readonly decidedBy: string | undefined;
-  readonly decidedAt: Temporal.Instant | undefined;
-  readonly createdAt: Temporal.Instant;
-}
-
-export interface AiToolApprovalRequest {
-  readonly approvalId: string;
-  readonly tool: string;
-  readonly toolCallId: string;
-  readonly input?: unknown;
-  readonly runId?: string;
-  readonly messageId?: string;
-  /**
-   * A signature over the input, so the decision can't be replayed on other
-   * input.
-   */
-  readonly signature?: string;
-}
-
-export type AiToolPolicy = "auto" | "ask" | "deny";
-
-export interface AiPendingInput {
-  readonly id: string;
-  readonly chatId: string;
-  readonly runId: string | undefined;
-  readonly toolCallId: string | undefined;
-  readonly question: string;
-  /** A JSON Schema for the answer. */
-  readonly schema: unknown;
-  readonly answer: unknown;
-  readonly answeredAt: Temporal.Instant | undefined;
-  readonly createdAt: Temporal.Instant;
-}
-
-export interface AiPendingInputRequest {
-  readonly question: string;
-  readonly schema?: unknown;
-  readonly runId?: string;
-  readonly toolCallId?: string;
-}
-
-export interface AiFeedback {
-  readonly chatId: string;
-  readonly messageId: string;
-  /** `1` up, `-1` down, `0` cleared. */
-  readonly rating: -1 | 0 | 1;
-  readonly reason: string | undefined;
-  readonly comment: string | undefined;
-}
-
-export interface AiChatShare {
-  readonly id: string;
-  readonly leafId: string;
-  readonly createdBy: string | undefined;
-  readonly createdAt: Temporal.Instant;
-  readonly revokedAt: Temporal.Instant | undefined;
-}
-
-/** A new share link. The token is shown once; only its hash is stored. */
-export interface AiShareLink {
-  readonly id: string;
-  readonly token: string;
-  readonly leafId: string;
-  readonly createdAt: Temporal.Instant;
-}
-
-export interface SharedAiChat {
-  readonly chat: {
-    readonly id: string;
-    readonly title: string;
-    readonly model: string | undefined;
-    readonly createdAt: Temporal.Instant;
-  };
-  readonly leafId: string;
-  readonly messages: readonly AiStoredMessage[];
-}
-
-export interface AiModel {
-  readonly id: string;
-  readonly provider: string;
-  readonly name: string;
-  readonly pricing: Readonly<Record<string, unknown>>;
-  readonly capabilities: Readonly<Record<string, unknown>>;
-  /** Entitlement keys that unlock it; empty for every tenant. */
-  readonly plans: readonly string[];
-  readonly enabled: boolean;
-  readonly refreshedAt: Temporal.Instant | undefined;
-}
-
-export interface AiModelInput {
-  readonly id: string;
-  readonly provider?: string;
-  readonly name?: string;
-  readonly pricing?: Readonly<Record<string, unknown>>;
-  readonly capabilities?: Readonly<Record<string, unknown>>;
-  readonly plans?: readonly string[];
-  readonly enabled?: boolean;
-}
-
-export type AiModerationStage = "input" | "output" | "tool";
-
-export type AiModerationAction = "allow" | "flag" | "redact" | "block";
-
-export interface AiModerationEvent {
-  readonly id: string;
-  readonly organizationId: string;
-  readonly chatId: string | undefined;
-  readonly messageId: string | undefined;
-  readonly userId: string | undefined;
-  readonly stage: AiModerationStage;
-  /** What the moderator flagged, such as `pii` or `prompt-injection`. */
-  readonly category: string;
-  readonly score: number | undefined;
-  readonly action: AiModerationAction;
-  readonly createdAt: Temporal.Instant;
-}
-
-export interface AiModerationInput {
-  readonly organizationId: string;
-  readonly stage: AiModerationStage;
-  readonly action: AiModerationAction;
-  readonly category: string;
-  readonly chatId?: string;
-  readonly messageId?: string;
-  readonly userId?: string;
-  readonly score?: number;
-}
+export type {
+  AiChatMessageStorage,
+  AiChatVisibility,
+  AiChatRecord,
+  AiChatInput,
+  AiChatPatch,
+  AiChatQuery,
+  AiChatPage,
+  AiProject,
+  AiProjectInput,
+  AiStoredMessageStatus,
+  AiStoredMessage,
+  AiMessageSibling,
+  AiUserMessageTrigger,
+  AiAppendResult,
+  AiAssistantMessageOptions,
+  AiSaveResult,
+  AiStreamClaim,
+  AiRunStatus,
+  AiRunRelease,
+  AiApprovalDecision,
+  AiToolApproval,
+  AiToolApprovalRequest,
+  AiToolPolicy,
+  AiPendingInput,
+  AiPendingInputRequest,
+  AiFeedback,
+  AiChatShare,
+  AiShareLink,
+  SharedAiChat,
+  AiModel,
+  AiModelInput,
+  AiModerationStage,
+  AiModerationAction,
+  AiModerationEvent,
+  AiModerationInput,
+  AiChatParticipantRole,
+  AiChatParticipant,
+  AiUserMessageOptions,
+} from "./records.ts";
 
 export interface AiChatOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -362,6 +138,13 @@ export interface AiChatOptions<
    * `chats.update`, which return a `validation` error for a bad value.
    */
   readonly fields?: S;
+  /**
+   * The message shape `blocks.ai-chat.options.messages` installs, which
+   * `defineBlocks` passes from `blocks.generated.ts`. With `parts: "native"`
+   * the client stores the SDK's own message (the `native` of `appendUser` and
+   * `saveAssistant`) in place of the canonical one.
+   */
+  readonly messages?: AiChatMessageStorage;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: NoInfer<BlockHooks<AiChat<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
@@ -385,9 +168,12 @@ export interface AiChatOptions<
 /** `F` is the extra chat fields `options.fields` describes. */
 export interface AiChat<F extends object = Record<never, never>> {
   readonly chats: {
-    /** Keys besides the input's own are the chat's extra columns. */
+    /**
+     * Keys besides the input's own are the chat's extra columns. `null` makes a
+     * chat outside a tenant, with `options.tenant: false`.
+     */
     create(
-      organizationId: string,
+      organizationId: string | null,
       input?: AiChatInput & Partial<F>,
     ): AsyncResult<AiChatRecord & F>;
     get(chatId: string): AsyncResult<AiChatRecord & F>;
@@ -401,27 +187,49 @@ export interface AiChat<F extends object = Record<never, never>> {
     purge(batch?: number): AsyncResult<number>;
   };
   readonly projects: {
+    /**
+     * `null` makes a project outside a tenant. Keys of `fields` are the project
+     * table's extra columns.
+     */
     create(
-      organizationId: string,
+      organizationId: string | null,
       input: AiProjectInput & { readonly name: string },
+      fields?: Readonly<Record<string, unknown>>,
     ): AsyncResult<AiProject>;
-    update(projectId: string, input: AiProjectInput): AsyncResult<AiProject>;
-    list(organizationId: string): AsyncResult<readonly AiProject[]>;
+    update(
+      projectId: string,
+      input: AiProjectInput,
+      fields?: Readonly<Record<string, unknown>>,
+    ): AsyncResult<AiProject>;
+    list(organizationId: string | null): AsyncResult<readonly AiProject[]>;
     remove(projectId: string): AsyncResult<boolean>;
+  };
+  /** The people besides the owner who take part in a chat. */
+  readonly participants: {
+    /** Adds someone, or changes their role (the owner, or the service role). */
+    add(
+      chatId: string,
+      userId: string,
+      options?: {
+        readonly role?: AiChatParticipantRole;
+        readonly fields?: Readonly<Record<string, unknown>>;
+      },
+    ): AsyncResult<AiChatParticipant>;
+    /** The owner removes anyone; a participant removes themselves. */
+    remove(chatId: string, userId: string): AsyncResult<boolean>;
+    list(chatId: string): AsyncResult<readonly AiChatParticipant[]>;
   };
   readonly messages: {
     /**
      * Stores the user's message under the chat's leaf. A retry with the same id
-     * is a no-op; the same id with other parts is an edit, stored as a sibling
-     * with a fresh id.
+     * is a no-op. In a tree the same id with other parts is an edit, stored as
+     * a sibling with a fresh id; in a linear list it replaces the message and
+     * deletes the ones after it.
      */
     appendUser(
       chatId: string,
       message: AiMessage,
-      options?: {
-        readonly trigger?: AiUserMessageTrigger;
-        readonly messageId?: string;
-      },
+      options?: AiUserMessageOptions,
     ): AsyncResult<AiAppendResult>;
     /** Stores an answer (service role); a retry with the same id updates it. */
     saveAssistant(
@@ -438,7 +246,10 @@ export interface AiChat<F extends object = Record<never, never>> {
       chatId: string,
       messageId: string,
     ): AsyncResult<readonly AiMessageSibling[]>;
-    /** Shows the branch through `messageId`; returns the new leaf. */
+    /**
+     * Shows the branch through `messageId`; returns the new leaf. A linear list
+     * has no branches and answers `AI_CHAT_LINEAR`.
+     */
     switchBranch(chatId: string, messageId: string): AsyncResult<string>;
   };
   /**
@@ -534,7 +345,11 @@ export interface AiChat<F extends object = Record<never, never>> {
     ): AsyncResult<number>;
   };
   readonly moderation: {
-    record(event: AiModerationInput): AsyncResult<AiModerationEvent>;
+    /** Keys of `fields` are the moderation table's extra columns. */
+    record(
+      event: AiModerationInput,
+      fields?: Readonly<Record<string, unknown>>,
+    ): AsyncResult<AiModerationEvent>;
     list(
       organizationId: string,
       size?: number,
@@ -588,6 +403,17 @@ export function createAiChat<
   );
 
   const isTrue = (value: unknown): boolean => value === true;
+
+  const native = options.messages?.parts === "native";
+
+  const messageOf = (
+    message: AiMessage,
+    raw: unknown,
+    fields: Readonly<Record<string, unknown>> | undefined,
+  ): Record<string, unknown> => ({
+    ...(native && raw !== undefined ? nativeMessage(raw) : canonical(message)),
+    ...(fields === undefined ? {} : { fields }),
+  });
 
   const count = (value: unknown): number =>
     typeof value === "number" ? value : Number(value ?? 0);
@@ -646,16 +472,24 @@ export function createAiChat<
       purge: (batch) => service("purge_ai_chats", { batch }, count),
     },
     projects: {
-      create: (organizationId, input) =>
+      create: (organizationId, input, extra = {}) =>
         call(
           "save_ai_project",
-          { id: null, tenant: organizationId, fields: projectFields(input) },
+          {
+            id: null,
+            tenant: organizationId,
+            fields: { ...extra, ...projectFields(input) },
+          },
           projectOf,
         ),
-      update: (projectId, input) =>
+      update: (projectId, input, extra = {}) =>
         call(
           "save_ai_project",
-          { id: projectId, tenant: null, fields: projectFields(input) },
+          {
+            id: projectId,
+            tenant: null,
+            fields: { ...extra, ...projectFields(input) },
+          },
           projectOf,
         ),
       list: (organizationId) =>
@@ -665,13 +499,40 @@ export function createAiChat<
       remove: (projectId) =>
         call("delete_ai_project", { id: projectId }, isTrue),
     },
+    participants: {
+      add: (chatId, userId, addOptions = {}) =>
+        call(
+          "add_ai_chat_participant",
+          {
+            chat: chatId,
+            participant: userId,
+            participant_role: addOptions.role,
+            fields: addOptions.fields,
+          },
+          participantOf,
+        ),
+      remove: (chatId, userId) =>
+        call(
+          "remove_ai_chat_participant",
+          { chat: chatId, participant: userId },
+          isTrue,
+        ),
+      list: (chatId) =>
+        call("list_ai_chat_participants", { chat: chatId }, (value) =>
+          recordsOf(value, "list_ai_chat_participants").map(participantOf),
+        ),
+    },
     messages: {
       appendUser: (chatId, message, appendOptions = {}) =>
         call(
           "append_ai_user_message",
           {
             chat: chatId,
-            message: canonical(message),
+            message: messageOf(
+              message,
+              appendOptions.native,
+              appendOptions.fields,
+            ),
             trigger: appendOptions.trigger,
             message_id: appendOptions.messageId,
           },
@@ -682,15 +543,19 @@ export function createAiChat<
           "save_ai_assistant_message",
           {
             chat: chatId,
-            message: canonical(message),
+            message: messageOf(message, saveOptions.native, saveOptions.fields),
             parent_id: saveOptions.parentId,
             status: saveOptions.status,
             model: saveOptions.model,
-            format: saveOptions.format,
-            native:
-              saveOptions.native === undefined
-                ? undefined
-                : { value: saveOptions.native },
+            ...(native && saveOptions.native !== undefined
+              ? { format: "native" }
+              : {
+                  format: saveOptions.format,
+                  native:
+                    saveOptions.native === undefined
+                      ? undefined
+                      : { value: saveOptions.native },
+                }),
             run: saveOptions.runId,
           },
           savedOf,
@@ -913,12 +778,13 @@ export function createAiChat<
         ),
     },
     moderation: {
-      record: (event) =>
+      record: (event, extra) =>
         service(
           "record_ai_moderation_event",
           {
             event: {
-              organization_id: event.organizationId,
+              ...(extra === undefined ? {} : { fields: extra }),
+              organization_id: event.organizationId ?? null,
               stage: event.stage,
               action: event.action,
               chat_id: event.chatId ?? null,

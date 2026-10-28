@@ -1,12 +1,13 @@
 ---
 title: AI chat
-description: Chats, projects and a branching message tree in a canonical message format, with runs, tool approvals, share links, a model catalog per plan and moderation events.
+description: Chats, projects, participants and a branching message tree (or one linear list) in a canonical message format or the SDK's own parts, with runs, tool approvals, share links, a model catalog per plan and moderation events.
 ---
 
 The `ai-chat` block stores the conversations of an AI assistant: chats and
-projects per user and tenant, a message tree with edits and regenerations
-as branches, the run that writes each answer, tool approvals, share links,
-the models each plan allows and moderation events. It doesn't call a model.
+projects per user and tenant (or per user alone), the people a chat is shared
+with, a message tree with edits and regenerations as branches, the run that
+writes each answer, tool approvals, share links, the models each plan allows
+and moderation events. It doesn't call a model.
 The [AI SDK adapter](/docs/ai-sdk) generates the answers and stores them
 here; another SDK can do the same through the same methods.
 
@@ -18,7 +19,8 @@ better-supabase add ai-chat   # adds tenant, access and streams as well
 | ---------------------- | ---------------------------------------------------------------------------------------------------- |
 | `ai_projects`          | Folders of chats with shared instructions, per owner and tenant                                      |
 | `ai_chats`             | `title`, `model`, `visibility`, `pinned`, `archived_at`, `temporary`, the leaf and the active stream |
-| `ai_messages`          | The tree: `parent_id`, `role`, `parts` in the message format below, `native`, `status`               |
+| `ai_chat_participants` | The viewers and editors of a chat besides its owner                                                  |
+| `ai_messages`          | The tree: `parent_id`, `role`, `author_id`, `parts` in the message format below, `native`, `status`  |
 | `ai_runs`              | One row per answer: model, status, token usage, the gateway's generation id and cost, the engine     |
 | `ai_run_steps`         | The progress of a long run, one row per step key                                                     |
 | `ai_harness_sessions`  | What a coding-agent harness keeps per chat: resume state, continue state and a lock (experimental)   |
@@ -40,9 +42,9 @@ better-supabase add ai-chat   # adds tenant, access and streams as well
 | `ai_chat.moderate` | read the tenant's moderation events                  | `owner`, `admin`           |
 | `ai_chat.admin`    | set tool policies and delete any chat in the tenant  | `owner`, `admin`           |
 
-Private chats are readable by their owner only. Assistant messages, runs,
-approvals and the model catalog are written by the service role, so a
-client can't forge an answer.
+Private chats are readable by their owner and its participants. Assistant
+messages, runs, approvals and the model catalog are written by the service
+role, so a client can't forge an answer.
 
 ## Server
 
@@ -71,19 +73,20 @@ const rows = useAiChat({ limit: 50 });
 `better-supabase/postgres`, pass `sqlTransport(postgres.asUser(claims))` and
 `sqlTransport(postgres.admin)`.
 
-| Group        | Methods                                                                                     |
-| ------------ | ------------------------------------------------------------------------------------------- |
-| `chats`      | `create`, `get`, `list`, `update`, `remove`, `purge` (expired temporary chats)              |
-| `projects`   | `create`, `update`, `list`, `remove`                                                        |
-| `messages`   | `appendUser`, `saveAssistant`, `path`, `siblings`, `switchBranch`                           |
-| `runs`       | `claim`, `release`, `stop`, `setCost`, `get`, `list`, `attach`, `steps`, `pendingApprovals` |
-| `sandboxes`  | `register`, `touch`, `forChat`, `list`, `idle`, `finishStop`, `stopIdle`, `idleStopJob`     |
-| `approvals`  | `request`, `decide`, `list`, `setPolicy`, `policies`                                        |
-| `inputs`     | `open`, `answer`                                                                            |
-| `feedback`   | `rate`                                                                                      |
-| `shares`     | `create`, `revoke`, `list`, `get` (by token, for anyone who has it)                         |
-| `models`     | `allowed` (what the tenant's plans allow), `upsert`                                         |
-| `moderation` | `record`, `list`                                                                            |
+| Group          | Methods                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------- |
+| `chats`        | `create`, `get`, `list`, `update`, `remove`, `purge` (expired temporary chats)              |
+| `projects`     | `create`, `update`, `list`, `remove`                                                        |
+| `participants` | `add`, `remove`, `list`                                                                     |
+| `messages`     | `appendUser`, `saveAssistant`, `path`, `siblings`, `switchBranch`                           |
+| `runs`         | `claim`, `release`, `stop`, `setCost`, `get`, `list`, `attach`, `steps`, `pendingApprovals` |
+| `sandboxes`    | `register`, `touch`, `forChat`, `list`, `idle`, `finishStop`, `stopIdle`, `idleStopJob`     |
+| `approvals`    | `request`, `decide`, `list`, `setPolicy`, `policies`                                        |
+| `inputs`       | `open`, `answer`                                                                            |
+| `feedback`     | `rate`                                                                                      |
+| `shares`       | `create`, `revoke`, `list`, `get` (by token, for anyone who has it)                         |
+| `models`       | `allowed` (what the tenant's plans allow), `upsert`                                         |
+| `moderation`   | `record`, `list`                                                                            |
 
 Every method returns a `Result`. Database errors are `DbError` values, never
 exceptions.
@@ -96,6 +99,79 @@ stored as a sibling. With `trigger: "regenerate-message"` nothing is stored
 and the leaf moves back, so the next answer becomes a sibling of the old
 one. `path(chatId)` returns the active branch from the root, `siblings`
 the alternatives at one message, and `switchBranch` shows another branch.
+
+## Participants
+
+`participants.add(chatId, userId, { role })` shares a chat with one person,
+as a `viewer` (the default) or an `editor`. Viewers read the chat and its
+messages; editors also send messages, stop a reply and switch branches. `add` with another role
+changes it. The chat's owner (holding `ai_chat.share` when the chat has a
+tenant) or the service role adds people. The owner removes anyone, and a
+participant leaves with `participants.remove(chatId, ownUserId)`.
+
+```ts
+await db.aiChat.participants.add(chatId, userId, { role: "editor" }).orThrow();
+const people = await db.aiChat.participants.list(chatId).orThrow();
+```
+
+In a chat with a tenant, a participant has to hold `ai_chat.read` there
+(`AI_CHAT_INVALID` otherwise), and counts only while they are a member, so
+removing someone from the organization also takes away the chats shared with
+them. `chats.list` returns the chats the caller owns or takes part in. Each
+user message records its writer in `author_id` (`authorId` on `path`).
+Adding and removing someone sends `participant.added` and
+`participant.removed` on the chat's topic.
+
+## Without a tenant
+
+`blocks["ai-chat"].options.tenant: false` lets chats and projects live
+outside a tenant, for apps where each user has their own assistant:
+
+```ts title="better-supabase.config.ts"
+blocks: { "ai-chat": { options: { tenant: false } } },
+```
+
+```ts
+const chat = await db.aiChat.chats.create(null, { title: "Ideas" }).orThrow();
+const projects = await db.aiChat.projects.list(null).orThrow();
+```
+
+`organization_id` on `ai_chats` and `ai_projects` takes nulls, and any
+signed-in user may start a chat without one. A chat without a tenant can't be
+shared with an organization (`AI_CHAT_NO_TENANT`), but its owner can share it
+by link or with participants. `organizationId` is `undefined` on such chats,
+and the AI SDK adapter then skips the quota and the `org:` gateway tag. A
+chat that names a tenant still follows the permissions above.
+
+## Message storage
+
+`blocks["ai-chat"].options.messages` chooses how `ai_messages` is keyed and
+what it stores:
+
+| Key     | Values                    | Default       | Sets                                                                    |
+| ------- | ------------------------- | ------------- | ----------------------------------------------------------------------- |
+| `key`   | `"text"`, `"uuid"`        | `"text"`      | The type of the message id and of every column that points at a message |
+| `tree`  | `true`, `false`           | `true`        | A tree with `parent_id`, or one linear list per chat ordered by `seq`   |
+| `parts` | `"canonical"`, `"native"` | `"canonical"` | Parts in the format below, or the SDK's own parts as it sends them      |
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "ai-chat": {
+    options: { messages: { key: "uuid", tree: false, parts: "native" } },
+  },
+},
+```
+
+With `key: "uuid"` every message id must be a uuid, or the call fails with
+`AI_MESSAGE_INVALID`; give the AI SDK `generateId: () => crypto.randomUUID()`.
+With `tree: false` an edit replaces the message and drops the ones after it,
+and `switchBranch` fails with `AI_CHAT_LINEAR`. With `parts: "native"` the
+row keeps the SDK's message as it was sent (`format` is `native`), and the AI
+SDK adapter reads it back without a conversion. Pass the SDK's message as
+`native` to `appendUser` and `saveAssistant`; the AI SDK adapter does.
+
+The key and the storage can't change on an existing install: choose them
+before the first `better-supabase add ai-chat`, or move the rows yourself.
 
 ## Runs and streams
 
@@ -432,6 +508,20 @@ in a `jsonb` check constraint. The version is pinned as
 a new pin, never as an edit to version 1. See [Standards](/docs/standards).
 
 ## Your own fields
+
+Every ai-chat table takes extra columns. `extraColumns` adds them to
+`ai_chats`, and the other tables take their own key:
+
+| Option                                                                                                                                                                                                                                         | Table                  | Write them through                                 |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | -------------------------------------------------- |
+| `projectExtraColumns`                                                                                                                                                                                                                          | `ai_projects`          | `projects.create(org, input, fields)`, `update`    |
+| `participantExtraColumns`                                                                                                                                                                                                                      | `ai_chat_participants` | `participants.add(chatId, userId, { fields })`     |
+| `messageExtraColumns`                                                                                                                                                                                                                          | `ai_messages`          | `appendUser` and `saveAssistant` with `{ fields }` |
+| `moderationExtraColumns`                                                                                                                                                                                                                       | `ai_moderation_events` | `moderation.record(event, fields)`                 |
+| `runExtraColumns`, `stepExtraColumns`, `approvalExtraColumns`, `policyExtraColumns`, `inputExtraColumns`, `sourceExtraColumns`, `feedbackExtraColumns`, `shareExtraColumns`, `modelExtraColumns`, `sandboxExtraColumns`, `harnessExtraColumns` | the rest               | the service role or your own SQL                   |
+
+The SQL functions return a row's extra columns under `fields`, and so does
+`participants.list`. A column the table already has is refused.
 
 `blocks.ai-chat.options.extraColumns` adds columns to the `ai_chats` table,
 keyed by column name with their SQL type. Pass `createAiChat` a Standard Schema
