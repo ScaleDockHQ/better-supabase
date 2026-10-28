@@ -1,226 +1,38 @@
 ---
 title: From 0.34 to 0.35
-description: What to check when upgrading to better-supabase 0.35, where the proxy refreshes through @supabase/ssr, private entries ride in the App Shell and open pages follow role changes.
+description: What to check when upgrading to better-supabase 0.35, where blocks run over more of an app's own tables and time tracking locks only logged time.
 ---
 
-0.35 changes how sessions refresh and how long cached session data lives.
-The proxy and every adapter's middleware refresh through `@supabase/ssr` on
-every request they match. `bsb.cached()` entries stay fresh for 300 seconds
-instead of the token's lifetime. A page can read the session, the
-authorization version and its data in one database call, and an open page
-picks up a role change without waiting for the token to rotate. Run the
-codemod first, then work through the lines it lists:
+0.35.0 has no codemod and no renamed APIs. Blocks run over more of an app's
+own tables, and a few blocks change what they allow. Run
+`better-supabase upgrade` and generate a migration, then check the behaviour
+changes below. The session, cache and block changes that came after 0.35.0
+are in [From 0.35 to 0.37](/docs/migration/0.35-to-0.37).
 
-```sh
-npx better-supabase@latest codemod 0.35 --dry-run
-npx better-supabase@latest codemod 0.35
-```
+## Behaviour changes
 
-## Session refresh
+| Block         | Before                                                           | After                                                                                                                                 |
+| ------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Time tracking | a submitted or approved week refuses every change to its entries | it refuses changes to logged time only (start, end or duration, subject, owner and rate); `options.lockedColumns` lists other columns |
+| Drive         | a node under a held folder can be trashed, deleted or pruned     | it counts as held                                                                                                                     |
+| Drive         | a new top-level node gets an owner grant for its creator         | with `roleFunctions.node`, it gets none; your role function decides                                                                   |
 
-The proxy (`bsb.proxy`) and the middleware of the other adapters refresh
-through `createServerClient` from `@supabase/ssr`, prefetches included.
-Parallel requests with the same refresh token share one call to Auth.
+Code that relied on a locked week refusing a change to the billable flag, the
+note or one of your own columns has to list those columns in
+`options.lockedColumns`.
 
-| 0.34                                                                                                                    | 0.35                                                                |
-| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `refresh: "navigation"`                                                                                                 | `refresh: true` (the default), or a function of the request         |
-| `verifySession: "navigation"`                                                                                           | `verifySession: "document"` (`isDocumentLoad`)                      |
-| `onExpiredPrefetch` on `bsb.proxy()`                                                                                    | removed: a prefetch refreshes, so `protect` never sees it expired   |
-| `shouldRefresh`                                                                                                         | removed; `shouldCheckSession` stays in `better-supabase/next`       |
-| `clearSessionCookies(request, response)`                                                                                | `await clearSessionCookies(request, response)`                      |
-| `writeSession`, `refreshSession`, `pruneSessionChunks`, `sessionEncoding`, `clearSessionAtScopes`, `AUTH_CACHE_HEADERS` | removed: `@supabase/ssr` writes the cookies and their cache headers |
+## New in 0.35
 
-`readSession` and `parseCookies` stay in `better-supabase/ssr`. The codemod
-rewrites the two option values and lists the rest.
-
-A token whose `iss` names another project is now rejected with
-`INVALID_ISSUER`. Set `auth.issuer` to require an exact issuer, or `false` to
-skip the check. The JWKS is fetched with `auth.fetch` and cached once per
-process, so the proxy, the render and the route handlers share one copy. When
-Auth can't be reached, a refresh fails within `timeoutMs` and keeps the
-cookies as they are.
-
-## Server clients and the token memo
-
-The server builds its Supabase clients with `createContextClient` and
-`createAdminClient` from `@supabase/server`. A user's client sends the token
-to PostgREST, Storage and Realtime; the secret-key client is created on first
-use and shared. `bsb.supabaseFor(auth, headers?)` is now
-`bsb.contextClient(auth, headers?)`, and the codemod renames the calls:
-
-```ts
-// 0.34
-const supabase = bsb.supabaseFor(auth);
-
-// 0.35
-const supabase = bsb.contextClient(auth);
-```
-
-Each server keeps one memo of verified tokens. The proxy, `bsb.context()`,
-`getClaims()` and `bsb.snapshot()` look tokens up in it, so a token is
-verified once while it is valid, and `bsb.sessions.evict(userId)` reaches
-every path. The memos inside `resolveAuth` and `accessTokenResolver` are
-gone: called on their own, without `createServer`, they verify every token.
-`sessions: false` now turns off all reuse, so each request verifies again
-(about 0.1 ms); the codemod lists it for review.
-
-| 0.34                                     | 0.35                                                   |
-| ---------------------------------------- | ------------------------------------------------------ |
-| `bsb.supabaseFor(auth, headers?)`        | `bsb.contextClient(auth, headers?)`                    |
-| `sessions: false` skips the session memo | `sessions: false` verifies every token on every call   |
-| `accessTokenResolver` remembers tokens   | it verifies each request; put it behind `createServer` |
-
-## Cache scopes
-
-`bsb.cached()` sets `stale` to 300 seconds, so private entries ride in the
-App Shell. The proxy refreshes every request, so the token's lifetime no
-longer caps the entry; `life: { capToToken: true }` brings the cap back. In
-development a `stale` below 300 seconds warns once.
-
-```ts
-// 0.34
-const { session, db } = await bsb.cached();
-cacheLife({ stale: sessionStale(session) });
-
-// 0.35
-const { session, db } = await bsb.cached();
-```
-
-| 0.34                                         | 0.35                                            |
-| -------------------------------------------- | ----------------------------------------------- |
-| `sessionStale`, `SessionStaleOptions`        | removed: `bsb.cached()` sets the stale time     |
-| `bsb.cached({ life: { min, max } })`         | `bsb.cached({ life: { stale, capToToken } })`   |
-| `bsb.contextFromSession(session, { token })` | `bsb.contextFromSession(await bsb.getClaims())` |
-
-New in the same area:
-
-- `bsb.remote(fn, { share, tenant })` and `bsb.cached({ scope: "remote", key })`
-  read user-scoped data in `"use cache: remote"`, keyed by the user, Auth
-  session, tenant and authorization version, never by the token
-  ([remote scope](/docs/frameworks/next-cache-components#remote-scope)).
-- `bsb.bootstrap({ rpc, args, tenant, redirect })` calls the
-  `bootstrap_<rpc>` wrapper that `blocks.sessions.options.bootstrap`
-  generates: one query for the session check, the authorization version and
-  the page's data
-  ([one database call per page](/docs/frameworks/next-cache-components#one-database-call-per-page)).
-  `proxy({ verifySession: "bootstrap" })` then skips the proxy's Auth call.
-- `bsb.getAccess(source?)` returns the caller's context, session, tenant,
-  authorization version and `can(permission)` from the request, a
-  `SessionSnapshot` or a bootstrap result.
-- `createNext({ rootParams: { locale, brand, tenant } })` adds `bsb.locale()`,
-  `bsb.brand()` and `bsb.tenant()`.
-- `postAuthPath(source, fallback)` reads a safe `?next=` path.
-- `toNextRoute(entries, handler)` and `toNextAction(entries, action)` run
-  `@supabase/middleware` entries around a route handler or Server Action.
-
-The [island pattern](/docs/frameworks/next-islands) puts these together on
-one page.
-
-## Role changes on open pages
-
-`SessionProvider` takes `session` instead of `sessionPromise`, and the
-codemod renames the prop. It accepts a resolved `AuthSession` or a promise.
-
-```tsx
-// 0.34
-<SessionProvider sessionPromise={bsb.claims()}>{children}</SessionProvider>
-
-// 0.35
-<SessionProvider session={bsb.claims()}>{children}</SessionProvider>
-```
-
-To follow role and grant changes, turn on `authzVersions` in the sessions
-block and give the provider a browser client:
-
-```ts title="better-supabase.config.ts"
-blocks: { sessions: { options: { authzVersions: true } } },
-```
-
-```tsx
-<SessionProvider
-  session={bsb.claims()}
-  client={supabase}
-  onAuthzChange={async () => {
-    await refreshSessionCache();
-    router.refresh();
-  }}
-/>
-```
-
-The option adds `better_supabase.user_authz_versions`, the
-`bump_authz_version()` trigger function, `bump_authz_versions(uuid[])` and
-`authz_version(uid)` for the access token hook. A bump broadcasts on
-`AUTHZ_TOPIC` for servers and on the private `authz:<uid>` topic, which only
-that user may read. The visible tab refreshes the token and calls
-`onAuthzChange`, then tells the other tabs over a `BroadcastChannel`.
-`refreshSessionCache` is your re-export of `bsb.refreshSessionCache()` from a
-`"use server"` file; it drops the caller's own `bsb.cached()` entries.
-
-`subscribeAuthzVersions` defaults `topic`, `event` and `userIdKey` to what
-`authzVersions` sends. Authorization providers can add their own cache tags
-with the optional `sessionTags(userId)` hook, and `evictSession`, sign-out and
-`refreshSessionCache` clear them; `apiVersion: 1` stays.
-
-`sessionStatusRoute` now defaults to `verifySession: false` and reads the
-verified claims only. Pass `verifySession: true` to ask Auth on every check.
-
-## AI chat
-
-`better-supabase upgrade` moves the `ai-chat` module to version 5. It adds the
-`ai_chat_participants` table and an `author_id` column on `ai_messages`, and
-`organization_id` takes nulls when you set `tenant: false`. The new
-[storage options](/docs/blocks/ai-chat#message-storage) (`messages: { key,
-tree, parts }`) apply to new installs only; an existing install keeps a text
-key, the tree and canonical parts.
-
-| 0.34                                                              | 0.35                                                                   |
-| ----------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `chats.create(organizationId: string, input)`                     | `chats.create(organizationId: string \| null, input)`                  |
-| `projects.create(organizationId, input)`                          | `projects.create(organizationId \| null, input, fields?)`              |
-| `organizationId: string` on chats, projects and moderation events | `organizationId: string \| undefined` (a row outside a tenant)         |
-| `AssistantContext.organizationId: string`                         | `organizationId: string \| null`                                       |
-| `moderation.record(event)`                                        | `moderation.record(event, fields?)`, with an optional `organizationId` |
-| private chats: the owner only                                     | the owner and the chat's participants                                  |
-| `chats.list()`: the caller's own chats                            | the chats the caller owns or takes part in                             |
-
-Code that read `chat.organizationId` as a string has to handle `undefined`,
-and assistant hooks that take `context.organizationId` have to handle `null`,
-for example by skipping tenant keys or a tenant quota.
-
-## Stock quantities, orders and shipments
-
-Stock is counted in `numeric(20, 6)` now, so a variant can count kilograms
-or metres ([ADR 0127](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0127-fractional-stock-lots-and-allocations.md)).
-Run `better-supabase upgrade` and generate the migration; existing stock keeps
-its value and counts whole items until you call `setStockItem`.
-
-| Before                                                  | After                                                               |
-| ------------------------------------------------------- | ------------------------------------------------------------------- |
-| `stock_levels.on_hand`, `reserved`, `available` integer | `numeric(20, 6)`, and `available` subtracts `held`                  |
-| `before_stock_adjust(uuid, uuid, integer, text)`        | `before_stock_adjust(uuid, uuid, numeric, text)`                    |
-| `before_stock_reserve(uuid, uuid, integer, text, text)` | `before_stock_reserve(uuid, uuid, numeric, text, text)`             |
-| `move_stock(..., quantity integer, ...)`                | `move_stock(..., quantity numeric, ..., detail jsonb)`              |
-| `orderFromQuoteAction({ create })`                      | `orderFromQuoteAction({ clients })`, which calls `orders.fromQuote` |
-| order statuses without `confirmed`                      | `confirmed`, the first status of an order from lines or a quote     |
-| a shipment without stock                                | `shipment.lines`, taken out of inventory when the label is bought   |
-
-Redeclare your stock hooks with a `numeric` quantity: the block looks them
-up by signature, so a hook still declared with `integer` is no longer
-called. Code that switches over the order status needs a `confirmed` case.
-The codemod lists these lines for review.
-
-## Templates, lifecycles and timelines
-
-`better-supabase upgrade` adds a nullable `brand` column to `templates`, the
-`template_schedules` and `template_schedule_runs` tables when `reminders` is
-installed, and a `workflow_version_id` column to `subject_lifecycles` when a
-machine sets `workflow`. Three unions gained members, so an exhaustive
-`switch` over them stops compiling until it handles the new ones:
-
-| 0.34                                                        | 0.35                                                              |
-| ----------------------------------------------------------- | ----------------------------------------------------------------- |
-| `TemplateScope`: `"tenant" \| "system"`                     | adds `"brand"`, for a starter of one brand                        |
-| `ActivitySource`: `event`, `audit`, `delivery`, `run`       | adds `transition` and `message`                                   |
-| `StatusState` without workflow fields                       | adds `workflow` and `workflowVersionId`                           |
-| a timeline lists status changes and comments only as events | also as `transition` and `message` entries; filter with `sources` |
+- `upgrade`, `sync` and doctor render adopted tables with the authorization
+  provider, so calendar `accessFunctions` in the `{ rows, key }` form and
+  drive `roleFunctions` in the `{ rows, roles }` form no longer fail with
+  "needs an authorization provider with functions.rowsWith".
+- Invoices: `options.chargeExtraColumns` adds your columns to charges, set
+  through `charge(id, { fields })`. `options.lineRates: "percent"` keeps line
+  discount and tax rates as percentages in your line table (invoices, quotes
+  and deals).
+- Catalog: `save_product` writes the product's own `price`, `currency` and
+  `trackInventory` without a prices table. `options.variantExtraColumns` and
+  `options.categoryExtraColumns` let `saveVariant` and `saveCategory` write
+  your columns from `fields`.
+- Leave: `columns.types.key` and `columns.requests.partial` can map to `null`.

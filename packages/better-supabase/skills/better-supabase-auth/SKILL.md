@@ -251,5 +251,5 @@ https://bettersupabase.com/docs/frameworks/next-auth.md (sign-in and sign-out),
 https://bettersupabase.com/docs/auth/account-deletion.md,
 https://bettersupabase.com/docs/frameworks/next-cache-components.md,
 https://bettersupabase.com/docs/frameworks/next-islands.md,
-https://bettersupabase.com/docs/migration/0.34-to-0.35.md and
+https://bettersupabase.com/docs/migration/0.35-to-0.37.md and
 https://bettersupabase.com/docs/extending/authorization-providers.md.

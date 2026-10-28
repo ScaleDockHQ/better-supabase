@@ -291,6 +291,7 @@
   "migration/0.3-to-0.4",
   "migration/0.31-to-0.32",
   "migration/0.34-to-0.35",
+  "migration/0.35-to-0.37",
   "migration/0.4-to-0.5",
   "migration/0.5-to-0.6",
   "migration/0.8-to-0.9",
