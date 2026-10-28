@@ -8,6 +8,7 @@ import type { BlockContributions } from "./contributions.ts";
 import type { BlockSqlLayout, BlockSql } from "./module-types.ts";
 import type { ViewColumns } from "./view-columns.ts";
 
+import { installedBlockSubjects } from "../config/block-subjects.ts";
 import { createModuleContext } from "./context.ts";
 import { providerAnswersForGuests } from "./guest-sql.ts";
 import { renamedInstances, rendersOwnInstance } from "./instance-names.ts";
@@ -60,7 +61,17 @@ export function moduleContext(
     {
       ...(modules ? { modules } : {}),
       ...(layout.claims ? { claims: layout.claims } : {}),
-      ...(layout.subjects ? { subjects: layout.subjects } : {}),
+      ...(layout.subjects
+        ? {
+            subjects: installed
+              ? installedBlockSubjects(
+                  layout.subjects,
+                  installed,
+                  layout.modules ?? {},
+                )
+              : layout.subjects,
+          }
+        : {}),
       ...(layout.appTables ? { appTables: Object.keys(layout.appTables) } : {}),
       ...(layout.ownTables ? { ownTables: layout.ownTables } : {}),
       ...(layout.ownViews ? { ownViews: layout.ownViews } : {}),

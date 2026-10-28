@@ -217,6 +217,26 @@ describe("createExpenses", () => {
     expect(fake.calls).toEqual([]);
   });
 
+  it("writes and reads a category's extra columns", async () => {
+    const fake = fakeTransport({
+      save_expense_category: { ...CATEGORY, fields: { gl_code: "4100" } },
+    });
+
+    const saved = await createExpenses({
+      transport: fake.transport,
+      tenant: "org-1",
+    })
+      .saveCategory({
+        key: "travel",
+        name: "Travel",
+        fields: { gl_code: "4100" },
+      })
+      .orThrow();
+
+    expect(saved.fields).toEqual({ gl_code: "4100" });
+    expect(fake.calls[0]?.[1]).toMatchObject({ fields: { gl_code: "4100" } });
+  });
+
   it("drafts a report and edits its lines", async () => {
     const bare = { ...LINE, merchant: null, receipts: null };
 

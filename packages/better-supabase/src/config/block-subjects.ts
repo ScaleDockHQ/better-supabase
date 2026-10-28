@@ -263,3 +263,21 @@ export function withBlockSubjects(
 
   return { ...merged, ...subjects };
 }
+
+export function installedBlockSubjects(
+  subjects: SubjectsConfig,
+  installed: readonly string[],
+  blocks: AnyBlocksConfig,
+): SubjectsConfig {
+  const dropped = new Set(
+    withRequired(installed)
+      .filter((module) => !installed.includes(module))
+      .flatMap((module) => blockSubjectTypes(module, blocks)),
+  );
+
+  return dropped.size === 0
+    ? subjects
+    : Object.fromEntries(
+        Object.entries(subjects).filter(([type]) => !dropped.has(type)),
+      );
+}

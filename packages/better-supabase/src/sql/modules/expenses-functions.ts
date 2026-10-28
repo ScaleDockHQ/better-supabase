@@ -1,4 +1,4 @@
-import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlContext, ExtraColumn } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -9,6 +9,7 @@ import {
   pageSize,
   raise,
   SERVICE_CALLER,
+  updateExtraColumns,
   userGrant,
 } from "../shared.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
@@ -24,6 +25,11 @@ export const EXPENSE_REPORT_SUBJECT = "expense_report";
 
 /** The keys the report reads return next to the extra columns. */
 export const EXPENSE_REPORT_RESERVED = ["fields"] as const;
+
+export const expenseCategoryExtras = (
+  ctx: BlockSqlContext,
+): readonly ExtraColumn[] =>
+  ctx.extraColumns("categories", ["fields"], "categoryExtraColumns");
 
 /** One approver step: anyone with the approve permission. */
 function expensePolicy(ctx: BlockSqlContext): string {
@@ -73,6 +79,12 @@ export function expensesFunctions(ctx: BlockSqlContext): string {
   const reports = standalone ? "" : ctx.table("reports");
   const lines = standalone ? "" : ctx.table("lines");
   const k = (column: string): string => ctx.col("categories", column);
+  const keyed = ctx.has("categories", "key");
+
+  const categoryKey = (row: string): string =>
+    keyed ? `${row}.${k("key")}` : `${row}.${k("id")}::text`;
+
+  const categoryExtras = expenseCategoryExtras(ctx);
   const r = (column: string): string => ctx.col("reports", column);
   const x = (column: string): string => ctx.col("lines", column);
   const ar = approvals?.table("requests") ?? "";
@@ -204,7 +216,7 @@ ${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text)`)}
     `coalesce((select sum(y.${x("amount")}) from ${lines} y where y.${x("report")} = ${row}.${r("id")}), 0)`;
 
   const categoryJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${k("id")}, 'organizationId', ${row}.${k("tenant")}, 'key', ${row}.${k("key")}, 'name', ${row}.${k("name")}, 'currency', ${row}.${k("currency")}, 'limitAmount', ${or("categories", row, "limitAmount")}::text, 'receiptOver', ${or("categories", row, "receiptOver")}::text, 'archivedAt', ${row}.${k("archivedAt")}, 'createdAt', ${row}.${k("createdAt")}, 'updatedAt', ${row}.${k("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${k("id")}, 'organizationId', ${row}.${k("tenant")}, 'key', ${categoryKey(row)}, 'name', ${row}.${k("name")}, 'currency', ${or("categories", row, "currency")}, 'limitAmount', ${or("categories", row, "limitAmount")}::text, 'receiptOver', ${or("categories", row, "receiptOver")}::text, 'archivedAt', ${row}.${k("archivedAt")}, 'createdAt', ${row}.${k("createdAt")}, 'updatedAt', ${row}.${k("updatedAt")}${extraFieldsJson(row, categoryExtras)})`;
 
   const receipts = (line: string): string =>
     attachments === undefined
@@ -298,7 +310,7 @@ ${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text)`)}
     account(
       `${row}.${r("tenant")}`,
       "'expense'",
-      `'expenses:category:' || ${category}.${k("key")} || ':' || ${row}.${r("currency")}`,
+      `'expenses:category:' || ${categoryKey(category)} || ':' || ${row}.${r("currency")}`,
       `'Expenses: ' || ${category}.${k("name")}`,
       `${row}.${r("currency")}`,
       "null, null",
@@ -326,19 +338,66 @@ ${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text)`)}
     ${fail("EXPENSE_REPORT_NOT_FOUND", "no such expense report", "P0002")}
   end if;`;
 
+  const categoryArg = extraFieldsArg(categoryExtras);
+  const categoryArgs = `${idType}, text, text, text, bigint, bigint`;
+
+  const categoryInsert = insertExtraColumns(
+    categories,
+    categoryExtras,
+    "coalesce(save_expense_category.fields, '{}'::jsonb)",
+  );
+
+  const policySets = [
+    ...(ctx.has("categories", "currency")
+      ? [[k("currency"), "save_expense_category.currency"]]
+      : []),
+    ...(limits
+      ? [[k("limitAmount"), "save_expense_category.limit_amount"]]
+      : []),
+    ...(thresholds
+      ? [[k("receiptOver"), "save_expense_category.receipt_over"]]
+      : []),
+  ];
+
+  const insertColumns = `${k("tenant")}${keyed ? `, ${k("key")}` : ""}, ${k("name")}${policySets.map(([column]) => `, ${column}`).join("")}${categoryInsert.columns}`;
+  const insertValues = `save_expense_category.tenant${keyed ? ", save_expense_category.key" : ""}, trim(save_expense_category.name)${policySets.map(([, value]) => `, ${value}`).join("")}${categoryInsert.values}`;
+
+  const categorySets = `${k("name")} = trim(save_expense_category.name)${policySets.map(([column, value]) => `, ${column} = ${value}`).join("")}, ${k("archivedAt")} = null, ${k("updatedAt")} = now()${updateExtraColumns(categories, categoryExtras, "save_expense_category.fields")}`;
+
+  const categoryWrite = keyed
+    ? `  insert into ${categories} as x (${insertColumns})
+  values (${insertValues})
+  on conflict (${k("tenant")}, ${k("key")}) do update set
+    ${categorySets}
+  returning * into v_row;`
+    : `  update ${categories} x set ${categorySets}
+    where x.${k("tenant")} = save_expense_category.tenant and x.${k("id")}::text = save_expense_category.key
+    returning * into v_row;
+  if not found then
+    insert into ${categories} (${insertColumns})
+    values (${insertValues})
+    returning * into v_row;
+  end if;`;
+
   const categoryCheck = (category: string, tenant: string): string => `
   select * into v_category from ${categories} c
     where c.${k("id")} = ${category} and c.${k("tenant")} = ${tenant} and c.${k("archivedAt")} is null;
   if not found then
     ${invalid("EXPENSE_CATEGORY_INVALID", "the category is unknown, archived or not in this organization")}
-  end if;
+  end if;${
+    ctx.has("categories", "currency")
+      ? `
   if v_category.${k("currency")} is not null and v_category.${k("currency")} <> v_row.${r("currency")} then
     ${invalid("EXPENSE_CURRENCY_MISMATCH", "the category's policy is in another currency than the report")}
-  end if;`;
+  end if;`
+      : ""
+  }`;
 
   return `
--- Creates or updates the category with this key and its spend policy.
-create or replace function ${fn("save_expense_category")}(tenant ${idType}, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
+-- Creates or updates the category with this key and its spend policy.${keyed ? "" : "\n-- Without a key column, key is the id of the category to update, and any\n-- other key creates one."} fields:
+-- the extra columns (options.categoryExtraColumns) to set.
+${categoryArg.drop(fn("save_expense_category"), categoryArgs)}
+create or replace function ${fn("save_expense_category")}(tenant ${idType}, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null${categoryArg.param})
 returns jsonb
 language plpgsql
 security definer
@@ -350,10 +409,14 @@ declare
 begin
   if not ${can("save_expense_category.tenant", expenseKey(ctx, "categories"))} then
     ${forbidden("not allowed to manage expense categories")}
-  end if;
+  end if;${
+    keyed
+      ? `
   if save_expense_category.key is null or save_expense_category.key !~ '^[a-z][a-z0-9_]{0,62}$' then
     ${invalid("EXPENSE_CATEGORY_INVALID", "a key is lowercase letters, digits and underscores")}
-  end if;
+  end if;`
+      : ""
+  }
   if nullif(trim(save_expense_category.name), '') is null then
     ${invalid("EXPENSE_CATEGORY_INVALID", "a category needs a name")}
   end if;
@@ -366,7 +429,7 @@ begin
   end if;
   if save_expense_category.receipt_over is not null and save_expense_category.receipt_over < 0 then
     ${invalid("EXPENSE_CATEGORY_INVALID", "a receipt threshold is zero or more minor units")}
-  end if;${unsupported("categories", "limitAmount", "save_expense_category.limit_amount", "EXPENSE_LIMIT_UNSUPPORTED", "this expense categories table has no limit column")}${unsupported("categories", "receiptOver", "save_expense_category.receipt_over", "EXPENSE_RECEIPT_THRESHOLD_UNSUPPORTED", "this expense categories table has no receipt threshold column")}${
+  end if;${unsupported("categories", "currency", "save_expense_category.currency", "EXPENSE_CURRENCY_UNSUPPORTED", "this expense categories table has no currency column")}${unsupported("categories", "limitAmount", "save_expense_category.limit_amount", "EXPENSE_LIMIT_UNSUPPORTED", "this expense categories table has no limit column")}${unsupported("categories", "receiptOver", "save_expense_category.receipt_over", "EXPENSE_RECEIPT_THRESHOLD_UNSUPPORTED", "this expense categories table has no receipt threshold column")}${
     attachments === undefined
       ? `
   if save_expense_category.receipt_over is not null then
@@ -374,19 +437,11 @@ begin
   end if;`
       : ""
   }
-  insert into ${categories} (${k("tenant")}, ${k("key")}, ${k("name")}, ${k("currency")}${also("categories", "limitAmount")}${also("categories", "receiptOver")})
-  values (save_expense_category.tenant, save_expense_category.key, trim(save_expense_category.name), save_expense_category.currency${limits || thresholds ? ",\n    " : ""}${[
-    ...(limits ? ["save_expense_category.limit_amount"] : []),
-    ...(thresholds ? ["save_expense_category.receipt_over"] : []),
-  ].join(", ")})
-  on conflict (${k("tenant")}, ${k("key")}) do update set
-    ${k("name")} = excluded.${k("name")}, ${k("currency")} = excluded.${k("currency")}${limits ? `, ${k("limitAmount")} = excluded.${k("limitAmount")}` : ""},
-    ${thresholds ? `${k("receiptOver")} = excluded.${k("receiptOver")}, ` : ""}${k("archivedAt")} = null, ${k("updatedAt")} = now()
-  returning * into v_row;
+${categoryWrite}
   return ${categoryJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_expense_category")}(${idType}, text, text, text, bigint, bigint)`)}
+${userGrant(`${fn("save_expense_category")}(${categoryArgs}${categoryArg.type})`)}
 
 create or replace function ${fn("archive_expense_category")}(category_id uuid)
 returns jsonb
@@ -663,7 +718,7 @@ begin
   if not found then
     return;
   end if;
-  select jsonb_agg(jsonb_build_object('account', ${categoryAccount("v_row", "c")}, 'amount', q.total) order by c.${k("key")})
+  select jsonb_agg(jsonb_build_object('account', ${categoryAccount("v_row", "c")}, 'amount', q.total) order by ${categoryKey("c")})
     into v_lines
   from (
     select l.${x("category")} as category, sum(l.${x("amount")}) as total

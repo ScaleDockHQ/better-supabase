@@ -88,6 +88,35 @@ receipt on every line above it, and needs the attachments block. Archiving a
 category keeps its lines; a report with a line in an archived category can't
 be submitted.
 
+### Categories over your own table
+
+A categories table of yours may lack the `key` and `currency` columns: map them
+to `null`. Without a key column, a category's `key` is its id: `saveCategory`
+with the id of an existing category updates it, and any other key creates
+one. Without a currency column, map `limitAmount` and `receiptOver` to `null`
+too, since a limit is in a currency. The ledger names a category's account by
+its id then.
+
+`options.categoryExtraColumns` lists other columns of the categories table,
+such as a ledger code or an icon. `saveCategory({ ..., fields })` writes them
+in the same statement, and every category read returns them under `fields`.
+
+```ts title="better-supabase.config.ts"
+expenses: {
+  tables: { reports: null, lines: null, categories: "public.expense_categories" },
+  columns: {
+    categories: {
+      tenant: "organization_id",
+      key: null,
+      currency: null,
+      limitAmount: null,
+      receiptOver: null,
+    },
+  },
+  options: { categoryExtraColumns: { gl_code: "text", icon_name: "text" } },
+},
+```
+
 ## File and submit a report
 
 ```ts
@@ -170,7 +199,7 @@ the report and submit it again. The reports table takes optional
 
 ## Expenses without reports
 
-Map `tables.reports` and `tables.lines` to `null` and each expense is one row of `tables.expenses` instead: the block's own table, or yours. It needs neither the approvals block nor the ledger, and the app decides each expense.
+Map `tables.reports` and `tables.lines` to `null` and each expense is one row of `tables.expenses` instead: the block's own table, or yours. It needs neither the approvals block nor the ledger, and the app decides each expense. Without the ledger, the ledger's subjects (`ledger_account`) aren't registered either, so comments, messaging and search don't reach for its tables.
 
 ```ts title="better-supabase.config.ts"
 blocks: {
@@ -242,23 +271,24 @@ The owner and their manager keep their own access, whatever these keys say.
 
 ## Errors
 
-| Hint                         | Cause                                                                           |
-| ---------------------------- | ------------------------------------------------------------------------------- |
-| `EXPENSES_FORBIDDEN`         | the caller lacks the permission for the change                                  |
-| `EXPENSE_CATEGORY_INVALID`   | the key, name, limit or threshold isn't valid, or a threshold lacks attachments |
-| `EXPENSE_CATEGORY_NOT_FOUND` | no category with this id in the organization                                    |
-| `EXPENSE_CURRENCY_MISMATCH`  | the line's amount or its category's policy isn't in the report's currency       |
-| `EXPENSE_LINE_INVALID`       | the line's day, amount or description isn't valid                               |
-| `EXPENSE_LINE_NOT_FOUND`     | no line with this id that the caller can change                                 |
-| `EXPENSE_POLICY_VIOLATION`   | the report breaks the spend policy; the message lists the findings              |
-| `EXPENSE_REPORT_EMPTY`       | the report has no lines                                                         |
-| `EXPENSE_REPORT_INVALID`     | the title, currency or note isn't valid                                         |
-| `EXPENSE_REPORT_LOCKED`      | the report isn't in a status that allows the change                             |
-| `EXPENSE_REPORT_NOT_FOUND`   | no report with this id that the caller can read                                 |
-| `EXPENSE_INVALID`            | an expense's day, amount, currency or decision isn't valid                      |
-| `EXPENSE_LOCKED`             | the expense isn't in a status that allows the change                            |
-| `EXPENSE_NOT_FOUND`          | no expense with this id that the caller can read                                |
-| `EXPENSE_EMPLOYEE_INVALID`   | no employee has this id, or the caller has no employee record                   |
+| Hint                           | Cause                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------- |
+| `EXPENSES_FORBIDDEN`           | the caller lacks the permission for the change                                  |
+| `EXPENSE_CATEGORY_INVALID`     | the key, name, limit or threshold isn't valid, or a threshold lacks attachments |
+| `EXPENSE_CATEGORY_NOT_FOUND`   | no category with this id in the organization                                    |
+| `EXPENSE_CURRENCY_MISMATCH`    | the line's amount or its category's policy isn't in the report's currency       |
+| `EXPENSE_CURRENCY_UNSUPPORTED` | a category currency for a categories table without a currency column            |
+| `EXPENSE_LINE_INVALID`         | the line's day, amount or description isn't valid                               |
+| `EXPENSE_LINE_NOT_FOUND`       | no line with this id that the caller can change                                 |
+| `EXPENSE_POLICY_VIOLATION`     | the report breaks the spend policy; the message lists the findings              |
+| `EXPENSE_REPORT_EMPTY`         | the report has no lines                                                         |
+| `EXPENSE_REPORT_INVALID`       | the title, currency or note isn't valid                                         |
+| `EXPENSE_REPORT_LOCKED`        | the report isn't in a status that allows the change                             |
+| `EXPENSE_REPORT_NOT_FOUND`     | no report with this id that the caller can read                                 |
+| `EXPENSE_INVALID`              | an expense's day, amount, currency or decision isn't valid                      |
+| `EXPENSE_LOCKED`               | the expense isn't in a status that allows the change                            |
+| `EXPENSE_NOT_FOUND`            | no expense with this id that the caller can read                                |
+| `EXPENSE_EMPLOYEE_INVALID`     | no employee has this id, or the caller has no employee record                   |
 
 ## Events
 

@@ -5,6 +5,7 @@ import { blockOptions, option } from "../options.ts";
 /** `blocks.expenses.options`. */
 export type ExpensesSqlOptions = {
   readonly extraColumns?: ExtraColumns;
+  readonly categoryExtraColumns?: ExtraColumns;
   /**
    * `false` runs expenses without the approvals block: a submitted report waits
    * until `decide_expense_report` approves or rejects it.
@@ -22,6 +23,7 @@ export type ExpensesSqlOptions = {
 export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
   blockOptions<ExpensesSqlOptions>({
     extraColumns: option.extraColumns(),
+    categoryExtraColumns: option.extraColumns(),
     approvals: option.boolean({ default: true }),
     owner: option.string<"user" | "employee">({ default: "user" }),
     companyExpenses: option.boolean({ default: false }),

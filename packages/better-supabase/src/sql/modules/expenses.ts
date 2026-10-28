@@ -15,6 +15,7 @@ import {
   EXPENSE_REPORT_RESERVED,
   EXPENSE_REPORT_SUBJECT,
   expenseApprovals,
+  expenseCategoryExtras,
   expensesFunctions,
 } from "./expenses-functions.ts";
 import {
@@ -104,7 +105,13 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
-  options: ["extraColumns", "approvals", "owner", "companyExpenses"],
+  options: [
+    "extraColumns",
+    "categoryExtraColumns",
+    "approvals",
+    "owner",
+    "companyExpenses",
+  ],
   tables: {
     categories: {
       name: "expense_categories",
@@ -122,7 +129,7 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["limitAmount", "receiptOver"],
+      optional: ["key", "currency", "limitAmount", "receiptOver"],
     },
     reports: {
       name: "expense_reports",
@@ -232,15 +239,13 @@ function tables(ctx: BlockSqlContext): string {
 create table if not exists ${categories} (
   ${k("id")} uuid primary key default gen_random_uuid(),
   ${k("tenant")} ${ctx.idType} not null,
-  ${k("key")} text not null check (${k("key")} ~ '^[a-z][a-z0-9_]{0,62}$'),
-  ${k("name")} text not null check (length(${k("name")}) between 1 and 200),
-  ${k("currency")} char(3) check (${k("currency")} is null or ${k("currency")} ~ '^[A-Z]{3}$'),${column("categories", "limitAmount", (name) => `${name} bigint check (${name} is null or ${name} > 0)`)}${column("categories", "receiptOver", (name) => `${name} bigint check (${name} is null or ${name} >= 0)`)}
+${column("categories", "key", (name) => `${name} text not null check (${name} ~ '^[a-z][a-z0-9_]{0,62}$')`).slice(1)}
+  ${k("name")} text not null check (length(${k("name")}) between 1 and 200),${column("categories", "currency", (name) => `${name} char(3) check (${name} is null or ${name} ~ '^[A-Z]{3}$')`)}${column("categories", "limitAmount", (name) => `${name} bigint check (${name} is null or ${name} > 0)`)}${column("categories", "receiptOver", (name) => `${name} bigint check (${name} is null or ${name} >= 0)`)}
   ${k("archivedAt")} timestamptz,
   ${k("createdAt")} timestamptz not null default now(),
   ${k("updatedAt")} timestamptz not null default now(),
-  unique (${k("tenant")}, ${k("key")}),
-  unique (${k("tenant")}, ${k("id")})${policyCheck}
-);${appUniqueIndex(ctx, "categories", ["tenant", "key"])}${appUniqueIndex(ctx, "categories", ["tenant", "id"])}
+${ctx.has("categories", "key") ? `  unique (${k("tenant")}, ${k("key")}),\n` : ""}  unique (${k("tenant")}, ${k("id")})${policyCheck}
+);${addExtraColumns(categories, expenseCategoryExtras(ctx))}${ctx.has("categories", "key") ? appUniqueIndex(ctx, "categories", ["tenant", "key"]) : ""}${appUniqueIndex(ctx, "categories", ["tenant", "id"])}
 ${lockModuleTable(ctx, "categories", { read: true })}
 drop policy if exists ${index("categories", "read")} on ${categories};
 ${renderPolicy(makePolicy({ table: categories, name: index("categories", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(k("tenant"), read) }), { target: categories })}
@@ -307,6 +312,16 @@ function build(ctx: BlockSqlContext): string {
 
   const approvals = expenseApprovals(ctx);
   const standalone = expensesStandalone(ctx);
+
+  if (
+    !ctx.has("categories", "currency") &&
+    (ctx.has("categories", "limitAmount") ||
+      ctx.has("categories", "receiptOver"))
+  ) {
+    throw new TypeError(
+      "blocks.expenses: a category limit or receipt threshold needs the currency column; map limitAmount and receiptOver to null too",
+    );
+  }
 
   for (const needed of standalone
     ? []
