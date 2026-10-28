@@ -4,7 +4,7 @@
   "title": "Outbox relay route (Hono)",
   "description": "routes/outbox.ts: a Hono route that relays each registered consumer's events.",
   "dependencies": [
-    "better-supabase@^0.33.0",
+    "better-supabase@^0.34.0",
     "hono"
   ],
   "registryDependencies": [
