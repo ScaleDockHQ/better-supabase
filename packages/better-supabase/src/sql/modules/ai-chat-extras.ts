@@ -5,6 +5,7 @@ import type { ApproverCheck } from "./approver.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
+  insertExtraColumns,
   raise,
   SERVICE_CALLER,
   serviceGrant,
@@ -160,7 +161,7 @@ function approvals(
     ["chat", `v_chat.${ch.id}`],
     ["owner", `v_chat.${ch.owner}`],
     ["run", `\n    (${field("run_id")})::uuid`],
-    ["message", field("message_id")],
+    ["message", names.messages.id(field("message_id"))],
     ["tool", `\n    ${field("tool")}`],
     ["toolCall", field("tool_call_id")],
     ["input", "\n    record_ai_tool_approval.approval -> 'input'"],
@@ -519,7 +520,7 @@ function sharing(ctx: BlockSqlContext, names: AiChatNames): string {
 
   const [ratingColumns, ratingValues] = writtenPairs(ctx, "feedback", [
     ["chat", "rate_ai_message.chat"],
-    ["message", "rate_ai_message.message_id"],
+    ["message", names.messages.id("rate_ai_message.message_id")],
     ["user", "auth.uid()"],
     ["rating", "rate_ai_message.rating"],
     ["reason", "rate_ai_message.reason"],
@@ -550,12 +551,12 @@ begin
   if auth.uid() is null or not ${fn("ai_chat_can_read")}(rate_ai_message.chat) then
     ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "rate_ai_message.chat")}
   end if;
-  if not exists (select 1 from ${t.messages} x where x.${m.chat} = rate_ai_message.chat and x.${m.id} = rate_ai_message.message_id) then
+  if not exists (select 1 from ${t.messages} x where x.${m.chat} = rate_ai_message.chat and x.${m.id} = ${names.messages.id("rate_ai_message.message_id")}) then
     ${raise("No message %", "P0002", "AI_MESSAGE_NOT_FOUND", "rate_ai_message.message_id")}
   end if;
   if rate_ai_message.rating is null then
     delete from ${t.feedback} x
-    where x.${f.chat} = rate_ai_message.chat and x.${f.message} = rate_ai_message.message_id and x.${f.user} = auth.uid();
+    where x.${f.chat} = rate_ai_message.chat and x.${f.message} = ${names.messages.id("rate_ai_message.message_id")} and x.${f.user} = auth.uid();
     return null;
   end if;
   insert into ${t.feedback} (${ratingColumns})
@@ -578,7 +579,7 @@ set search_path = ''
 as $$
 declare
   v_chat ${t.chats};
-  v_leaf text;
+  v_leaf ${names.messages.idType};
   v_token text := replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
   v_id uuid;
   v_created timestamptz;
@@ -587,10 +588,10 @@ begin
   if not found or v_chat.${ch.owner} is distinct from auth.uid() then
     ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "share_ai_chat.chat")}
   end if;
-  if not ${can(`v_chat.${ch.tenant}`, perm.share)} then
+  if not ${names.tenantless ? `(v_chat.${ch.tenant} is null or ${can(`v_chat.${ch.tenant}`, perm.share)})` : can(`v_chat.${ch.tenant}`, perm.share)} then
     ${raise("You may not share chats here", "42501", "AI_CHAT_FORBIDDEN")}
   end if;
-  v_leaf := coalesce(share_ai_chat.leaf, v_chat.${ch.leaf});
+  v_leaf := coalesce(${names.messages.id("share_ai_chat.leaf")}, v_chat.${ch.leaf});
   if v_leaf is null or not exists (select 1 from ${t.messages} x where x.${m.chat} = v_chat.${ch.id} and x.${m.id} = v_leaf) then
     ${raise("Nothing to share yet", "P0002", "AI_MESSAGE_NOT_FOUND")}
   end if;
@@ -677,7 +678,7 @@ begin
   return jsonb_build_object(
     'chat', jsonb_build_object('id', v_chat.${ch.id}, 'title', v_chat.${ch.title}, 'model', v_chat.${ch.model}, 'created_at', ${columnOr(ctx, "chats", "v_chat", "createdAt")}),
     'leaf_id', v_share.${sh.leaf},
-    'messages', ${fn("ai_message_path_of")}(v_chat.${ch.id}, v_share.${sh.leaf}, false)
+    'messages', ${fn("ai_message_path_of")}(v_chat.${ch.id}, v_share.${sh.leaf}${names.messages.uuid ? "::text" : ""}, false)
   );
 end;
 $$;
@@ -729,7 +730,10 @@ function catalog(ctx: BlockSqlContext, names: AiChatNames): string {
       `\n    (record_ai_moderation_event.event ->> 'organization_id')::${ctx.idType}`,
     ],
     ["chat", "\n    (record_ai_moderation_event.event ->> 'chat_id')::uuid"],
-    ["message", "\n    record_ai_moderation_event.event ->> 'message_id'"],
+    [
+      "message",
+      `\n    ${names.messages.id("record_ai_moderation_event.event ->> 'message_id'")}`,
+    ],
     ["user", "\n    (record_ai_moderation_event.event ->> 'user_id')::uuid"],
     [
       "stage",
@@ -742,6 +746,12 @@ function catalog(ctx: BlockSqlContext, names: AiChatNames): string {
       `\n    ${ctx.cast("moderation", "action", "record_ai_moderation_event.event ->> 'action'")}`,
     ],
   ]);
+
+  const eventExtras = insertExtraColumns(
+    t.moderation,
+    names.extras.moderation,
+    "coalesce(record_ai_moderation_event.event -> 'fields', '{}'::jsonb)",
+  );
 
   return `-- Upserts models from the gateway (the service role only): models is an
 -- array, or an object whose models key holds one. Each element holds id, and optionally provider, name, pricing, capabilities, plans and
@@ -825,8 +835,8 @@ begin
   if not ${SERVICE_CALLER} then
     ${serviceOnly}
   end if;
-  insert into ${t.moderation} (${eventColumns})
-  values (${eventValues}
+  insert into ${t.moderation} (${eventColumns}${eventExtras.columns})
+  values (${eventValues}${eventExtras.values}
   )
   returning * into v_row;
   return ${moderationJson(ctx, "v_row")};

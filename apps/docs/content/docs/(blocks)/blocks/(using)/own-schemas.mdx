@@ -70,7 +70,8 @@ may be your own enum or domain.
 - `ai-chat`
   - `better_supabase.ai_projects`: `id`, `organization_id`, `owner_id`, `name`, `instructions`, `default_model`, `updated_at`
   - `better_supabase.ai_chats`: `id`, `organization_id`, `owner_id`, `project_id`, `title`, `model`, `visibility`, `is_temporary`, `expires_at`, `current_leaf_id`, `active_stream_id`, `active_run_id`, `last_message_at`, `updated_at`, `search_tsv`; typed: `visibility`
-  - `better_supabase.ai_messages`: `chat_id`, `id`, `parent_id`, `owner_id`, `role`, `parts`, `status`, `seq`, `created_at`, `search_tsv`; typed: `role`, `status`
+  - `better_supabase.ai_chat_participants`: `chat_id`, `user_id`, `role`; typed: `role`
+  - `better_supabase.ai_messages`: `chat_id`, `id`, `owner_id`, `role`, `parts`, `status`, `seq`, `created_at`, `search_tsv`; typed: `role`, `status`
   - `better_supabase.ai_runs`: `id`, `chat_id`, `owner_id`, `assistant_message_id`, `stream_id`, `engine`, `external_run_id`, `model`, `status`, `usage`, `started_at`, `ended_at`; typed: `status`
   - `better_supabase.ai_tool_approvals`: `approval_id`, `chat_id`, `owner_id`, `run_id`, `tool`, `tool_call_id`, `decision`, `decided_at`, `created_at`; typed: `decision`
   - `better_supabase.ai_tool_policies`: `organization_id`, `tool`, `policy`; typed: `policy`

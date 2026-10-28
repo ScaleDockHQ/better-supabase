@@ -1,13 +1,27 @@
 import type { BlockSqlContext } from "../context.ts";
+import type { MessageTreeParts } from "./ai-chat-message-tree.ts";
 import type { AiChatNames } from "./ai-chat.ts";
 
 import { FINAL_RUN_STATES as FINAL } from "../../core/run-state.ts";
 import { sqlString } from "../../core/template.ts";
-import { raise, SERVICE_CALLER, serviceGrant, userGrant } from "../shared.ts";
+import {
+  insertExtraColumns,
+  raise,
+  SERVICE_CALLER,
+  serviceGrant,
+  userGrant,
+  writeExtraColumns,
+} from "../shared.ts";
+import {
+  appendUserMessage,
+  messageKey,
+  messagePaths,
+} from "./ai-chat-message-tree.ts";
 import {
   asText,
   assignments,
   columnOr,
+  participates,
   rowJson,
   variableConflict,
   writtenPairs,
@@ -16,10 +30,21 @@ import { metersOf } from "./usage-meters.ts";
 
 const FINAL_RUN_STATES = FINAL.map(sqlString).join(", ");
 
+/**
+ * The id and kind of a source part `e`: the canonical `source` part, or the AI
+ * SDK's `source-url` and `source-document` parts.
+ */
+const SOURCE_ID = "coalesce(e ->> 'id', e ->> 'sourceId')";
+
+const SOURCE_KIND =
+  "case e ->> 'type' when 'source-url' then 'url' when 'source-document' then 'document' else coalesce(e ->> 'sourceType', 'url') end";
+
 function messageJson(
   ctx: BlockSqlContext,
+  names: AiChatNames,
   row: string,
   native: string,
+  parent: string,
 ): string {
   const nativeJson = ctx.has("messages", "native")
     ? `case when ${native} then ${columnOr(ctx, "messages", row, "native")} end`
@@ -31,13 +56,18 @@ function messageJson(
     row,
     [
       ["id", "id"],
-      ["parent_id", "parent"],
+      ...(names.messages.tree ? [["parent_id", "parent"] as const] : []),
+      ["author_id", "author"],
       ["role", "role"],
       ["parts", "parts"],
       ["metadata", "metadata", "'{}'::jsonb"],
-      ["format", "format", "'canonical'"],
+      ["format", "format", names.messages.native ? "'native'" : "'canonical'"],
     ],
-    `, 'native', ${nativeJson}, ${["model", "status", "createdAt"]
+    `${names.messages.tree ? "" : `, 'parent_id', ${parent}`}, 'native', ${nativeJson}, ${[
+      "model",
+      "status",
+      "createdAt",
+    ]
       .map(
         (column, index) =>
           `'${["model", "status", "created_at"][index]}', ${columnOr(ctx, "messages", row, column)}`,
@@ -105,9 +135,12 @@ export function aiChatMessages(
   const streams = ctx.of("streams");
   const st = (column: string): string => streams.col("streams", column);
 
+  const mode = names.messages;
+  const key = mode.id;
+
   const ownChat = (name: string): string => `
   select * into v_chat from ${t.chats} x where x.${ch.id} = ${name}.chat for update;
-  if not found or not (${SERVICE_CALLER} or coalesce(v_chat.${ch.owner} = (select auth.uid()), false)) then
+  if not found or not (${SERVICE_CALLER} or coalesce(v_chat.${ch.owner} = (select auth.uid()), false) or ${participates(names, `v_chat.${ch.id}`, ["editor"])}) then
     ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", `${name}.chat`)}
   end if;`;
 
@@ -123,7 +156,7 @@ export function aiChatMessages(
     pairs: readonly (readonly [string, string])[],
   ): readonly [string, string] =>
     writtenPairs(ctx, "messages", [
-      ...pairs,
+      ...pairs.filter(([column]) => mode.tree || column !== "parent"),
       ...(ctx.owns("messages") || pairs.some(([column]) => column === "status")
         ? []
         : ([
@@ -136,18 +169,32 @@ export function aiChatMessages(
     ["id", "v_id"],
     ["parent", "v_parent"],
     ["owner", `v_chat.${ch.owner}`],
+    ["author", "auth.uid()"],
     ["role", ctx.cast("messages", "role", "'user'")],
     ["parts", "append_ai_user_message.message -> 'parts'"],
     [
       "metadata",
       "\n    case when jsonb_typeof(append_ai_user_message.message -> 'metadata') = 'object' then append_ai_user_message.message -> 'metadata' else '{}'::jsonb end",
     ],
+    ...(mode.native ? ([["format", "'native'"]] as const) : []),
   ]);
+
+  const userExtras = insertExtraColumns(
+    t.messages,
+    names.extras.messages,
+    "coalesce(append_ai_user_message.message -> 'fields', '{}'::jsonb)",
+  );
+
+  const replyExtras = insertExtraColumns(
+    t.messages,
+    names.extras.messages,
+    "coalesce(save_ai_assistant_message.message -> 'fields', '{}'::jsonb)",
+  );
 
   const [replyColumns, replyValues] = message([
     ["chat", `\n    v_chat.${ch.id}`],
     ["id", "v_id"],
-    ["parent", "save_ai_assistant_message.parent_id"],
+    ["parent", key("save_ai_assistant_message.parent_id")],
     ["owner", `v_chat.${ch.owner}`],
     ["role", ctx.cast("messages", "role", "v_role")],
     ["parts", "\n    save_ai_assistant_message.message -> 'parts'"],
@@ -155,7 +202,10 @@ export function aiChatMessages(
       "metadata",
       "\n    case when jsonb_typeof(save_ai_assistant_message.message -> 'metadata') = 'object' then save_ai_assistant_message.message -> 'metadata' else '{}'::jsonb end",
     ],
-    ["format", "\n    coalesce(save_ai_assistant_message.format, 'canonical')"],
+    [
+      "format",
+      `\n    coalesce(save_ai_assistant_message.format, '${mode.native ? "native" : "canonical"}')`,
+    ],
     ["native", "save_ai_assistant_message.native"],
     ["model", "\n    save_ai_assistant_message.model"],
     ["status", ctx.cast("messages", "status", "v_status")],
@@ -164,11 +214,8 @@ export function aiChatMessages(
   const [sourceColumns, sourceValues] = writtenPairs(ctx, "sources", [
     ["chat", `v_chat.${ch.id}`],
     ["message", "v_id"],
-    ["source", "e ->> 'id'"],
-    [
-      "kind",
-      ctx.cast("sources", "kind", "coalesce(e ->> 'sourceType', 'url')"),
-    ],
+    ["source", SOURCE_ID],
+    ["kind", ctx.cast("sources", "kind", SOURCE_KIND)],
     ["url", "e ->> 'url'"],
     ["title", "e ->> 'title'"],
     ["metadata", "e -> 'providerMetadata'"],
@@ -177,7 +224,7 @@ export function aiChatMessages(
   const [runColumns, runValues] = writtenPairs(ctx, "runs", [
     ["chat", `v_chat.${ch.id}`],
     ["owner", `v_chat.${ch.owner}`],
-    ["message", "claim_ai_chat_stream.message_id"],
+    ["message", key("claim_ai_chat_stream.message_id")],
     ["stream", "claim_ai_chat_stream.stream"],
     ["engine", "coalesce(claim_ai_chat_stream.engine, 'ai-sdk')"],
     ["externalRun", "claim_ai_chat_stream.external_run_id"],
@@ -202,186 +249,19 @@ export function aiChatMessages(
     audit: false,
   });
 
-  return `-- The branch that ends at leaf, root first, with each message's place among
--- its siblings (sibling_index of sibling_count) for the "2 / 3" arrows. No
--- permission check: callers check first.
-create or replace function ${fn("ai_message_path_of")}(chat uuid, leaf text, include_native boolean)
-returns jsonb
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  with recursive up as (
-    select x.*, 0 as depth from ${t.messages} x
-    where x.${m.chat} = ai_message_path_of.chat and x.${m.id} = ai_message_path_of.leaf
-    union all
-    select x.*, up.depth + 1 from ${t.messages} x
-    join up on x.${m.chat} = up.${m.chat} and x.${m.id} = up.${m.parent}
-    where up.depth < 10000
-  )
-  select coalesce(jsonb_agg(
-    ${messageJson(ctx, "up", "ai_message_path_of.include_native")} || jsonb_build_object(
-      'sibling_count', (select count(*) from ${t.messages} sb where sb.${m.chat} = up.${m.chat} and sb.${m.parent} is not distinct from up.${m.parent}),
-      'sibling_index', (select count(*) from ${t.messages} sb where sb.${m.chat} = up.${m.chat} and sb.${m.parent} is not distinct from up.${m.parent} and sb.${m.seq} < up.${m.seq})
-    )
-    order by up.depth desc
-  ), '[]'::jsonb)
-  from up;
-$$;
-revoke execute on function ${fn("ai_message_path_of")}(uuid, text, boolean) from public, anon, authenticated;
+  const parts: MessageTreeParts = {
+    json: (row, native, parent) => messageJson(ctx, names, row, native, parent),
+    ownChat,
+    role,
+    user: [
+      `${userColumns}${userExtras.columns}`,
+      `${userValues}${userExtras.values}`,
+    ],
+  };
 
--- The branch the chat shows (or the one ending at leaf), root first.
-create or replace function ${fn("ai_message_path")}(chat uuid, leaf text default null, include_native boolean default false)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-declare
-  v_leaf text;
-begin
-  if not ${fn("ai_chat_can_read")}(ai_message_path.chat) then
-    ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "ai_message_path.chat")}
-  end if;
-  select coalesce(ai_message_path.leaf, x.${ch.leaf}) into v_leaf from ${t.chats} x where x.${ch.id} = ai_message_path.chat;
-  if v_leaf is null then
-    return '[]'::jsonb;
-  end if;
-  return ${fn("ai_message_path_of")}(ai_message_path.chat, v_leaf, coalesce(ai_message_path.include_native, false));
-end;
-$$;
-${userGrant(`${fn("ai_message_path")}(uuid, text, boolean)`)}
+  return `${messageKey(ctx, names)}${messagePaths(ctx, names, parts)}
 
--- The versions of a message (same parent), oldest first.
-create or replace function ${fn("ai_message_siblings")}(chat uuid, message_id text)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-declare
-  v_parent text;
-begin
-  if not ${fn("ai_chat_can_read")}(ai_message_siblings.chat) then
-    ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "ai_message_siblings.chat")}
-  end if;
-  select x.${m.parent} into v_parent from ${t.messages} x
-  where x.${m.chat} = ai_message_siblings.chat and x.${m.id} = ai_message_siblings.message_id;
-  if not found then
-    ${raise("No message %", "P0002", "AI_MESSAGE_NOT_FOUND", "ai_message_siblings.message_id")}
-  end if;
-  return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x.${m.id}, 'role', x.${m.role}, 'created_at', x.${m.createdAt}) order by x.${m.seq}), '[]'::jsonb)
-    from ${t.messages} x
-    where x.${m.chat} = ai_message_siblings.chat and x.${m.parent} is not distinct from v_parent
-  );
-end;
-$$;
-${userGrant(`${fn("ai_message_siblings")}(uuid, text)`)}
-
--- Shows the branch through message_id: the chat's leaf becomes the newest
--- descendant of message_id, following the latest child at each turn.
-create or replace function ${fn("switch_ai_branch")}(chat uuid, message_id text)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_chat ${t.chats};
-  v_leaf text;
-begin${ownChat("switch_ai_branch")}
-  if not exists (select 1 from ${t.messages} x where x.${m.chat} = switch_ai_branch.chat and x.${m.id} = switch_ai_branch.message_id) then
-    ${raise("No message %", "P0002", "AI_MESSAGE_NOT_FOUND", "switch_ai_branch.message_id")}
-  end if;
-  with recursive down as (
-    select switch_ai_branch.message_id as id, 0 as depth
-    union all
-    select (
-      select c.${m.id} from ${t.messages} c
-      where c.${m.chat} = switch_ai_branch.chat and c.${m.parent} = down.id
-      order by c.${m.seq} desc limit 1
-    ), down.depth + 1
-    from down
-    where down.id is not null and down.depth < 10000
-  )
-  select d.id into v_leaf from down d where d.id is not null order by d.depth desc limit 1;
-  update ${t.chats} x set ${ch.leaf} = v_leaf, ${ch.updatedAt} = now() where x.${ch.id} = switch_ai_branch.chat;
-  perform ${fn("ai_chat_notify")}(switch_ai_branch.chat, null, 'leaf.changed', jsonb_build_object('leafId', v_leaf), false);
-  return jsonb_build_object('leaf_id', v_leaf);
-end;
-$$;
-${userGrant(`${fn("switch_ai_branch")}(uuid, text)`)}
-
--- Stores the user's message. trigger 'submit-message' appends message under
--- the chat's leaf, or, with message_id, as a new version of that message.
--- The id is the client's, so a retry with the same parts is a no-op; the
--- same id with other parts is an edit and gets a fresh id. trigger
--- 'regenerate-message' stores nothing and moves the leaf to the user
--- message whose reply is regenerated. Returns { message_id, parent_id,
--- created }; the reply goes under message_id (or parent_id on regenerate).
-create or replace function ${fn("append_ai_user_message")}(chat uuid, message jsonb, trigger text default 'submit-message', message_id text default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_variable
-declare
-  v_chat ${t.chats};
-  v_existing ${t.messages};
-  v_id text;
-  v_parent text;
-  v_target text;
-begin${ownChat("append_ai_user_message")}
-  if coalesce(append_ai_user_message.trigger, 'submit-message') = 'regenerate-message' then
-    v_target := coalesce(append_ai_user_message.message_id, v_chat.${ch.leaf});
-    select * into v_existing from ${t.messages} x where x.${m.chat} = v_chat.${ch.id} and x.${m.id} = v_target;
-    if not found then
-      ${raise("No message % to regenerate", "P0002", "AI_MESSAGE_NOT_FOUND", "v_target")}
-    end if;
-    v_parent := case when ${role("v_existing")} = 'user' then v_existing.${m.id} else v_existing.${m.parent} end;
-    update ${t.chats} x set ${ch.leaf} = v_parent, ${ch.updatedAt} = now() where x.${ch.id} = v_chat.${ch.id};
-    perform ${fn("ai_chat_notify")}(v_chat.${ch.id}, null, 'leaf.changed', jsonb_build_object('leafId', v_parent), false);
-    return jsonb_build_object('message_id', v_parent, 'parent_id', v_parent, 'created', false);
-  elsif append_ai_user_message.trigger <> 'submit-message' then
-    ${raise("Unknown trigger %", "22023", "AI_MESSAGE_INVALID", "append_ai_user_message.trigger")}
-  end if;
-  if jsonb_typeof(append_ai_user_message.message) is distinct from 'object'
-    or append_ai_user_message.message ->> 'role' is distinct from 'user'
-    or nullif(append_ai_user_message.message ->> 'id', '') is null
-    or jsonb_typeof(append_ai_user_message.message -> 'parts') is distinct from 'array' then
-    ${raise("A user message needs an id, role user and parts", "22023", "AI_MESSAGE_INVALID")}
-  end if;
-  v_id := append_ai_user_message.message ->> 'id';
-  select * into v_existing from ${t.messages} x where x.${m.chat} = v_chat.${ch.id} and x.${m.id} = v_id;
-  if found then
-    if v_existing.${m.parts} = append_ai_user_message.message -> 'parts' then
-      return jsonb_build_object('message_id', v_id, 'parent_id', v_existing.${m.parent}, 'created', false);
-    end if;
-    v_parent := v_existing.${m.parent};
-    v_id := gen_random_uuid()::text;
-  elsif append_ai_user_message.message_id is not null then
-    select x.${m.parent} into v_parent from ${t.messages} x
-    where x.${m.chat} = v_chat.${ch.id} and x.${m.id} = append_ai_user_message.message_id;
-    if not found then
-      ${raise("No message %", "P0002", "AI_MESSAGE_NOT_FOUND", "append_ai_user_message.message_id")}
-    end if;
-  else
-    v_parent := v_chat.${ch.leaf};
-  end if;
-  insert into ${t.messages} (${userColumns})
-  values (${userValues}
-  );
-  update ${t.chats} x set ${ch.leaf} = v_id, ${ch.lastMessageAt} = clock_timestamp(), ${ch.updatedAt} = now() where x.${ch.id} = v_chat.${ch.id};
-  perform ${fn("ai_chat_notify")}(v_chat.${ch.id}, v_chat.${ch.owner}, 'message.saved', jsonb_build_object('messageId', v_id), not v_chat.${ch.temporary});
-  return jsonb_build_object('message_id', v_id, 'parent_id', v_parent, 'created', true);
-end;
-$$;
-${userGrant(`${fn("append_ai_user_message")}(uuid, jsonb, text, text)`)}
+${appendUserMessage(ctx, names, parts)}
 
 -- Stores a reply under parent_id (the service role only): an upsert by id, so
 -- the server saves once at the end and again after a resumed stream. Copies
@@ -395,7 +275,7 @@ as $$
 ${variableConflict(ctx, "messages", "sources", "chats", "runs")}
 declare
   v_chat ${t.chats};
-  v_id text := save_ai_assistant_message.message ->> 'id';
+  v_id ${mode.idType};
   v_role text := coalesce(save_ai_assistant_message.message ->> 'role', 'assistant');
   v_status text := coalesce(save_ai_assistant_message.status, 'complete');
   v_created boolean;
@@ -407,17 +287,18 @@ begin
   if not found then
     ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "save_ai_assistant_message.chat")}
   end if;
-  if nullif(v_id, '') is null or v_role = 'user'
+  if nullif(save_ai_assistant_message.message ->> 'id', '') is null or v_role = 'user'
     or jsonb_typeof(save_ai_assistant_message.message -> 'parts') is distinct from 'array' then
     ${raise("A reply needs an id, a role other than user and parts", "22023", "AI_MESSAGE_INVALID")}
   end if;
+  v_id := ${key("save_ai_assistant_message.message ->> 'id'")};
   if save_ai_assistant_message.parent_id is not null and not exists (
-    select 1 from ${t.messages} x where x.${m.chat} = v_chat.${ch.id} and x.${m.id} = save_ai_assistant_message.parent_id
+    select 1 from ${t.messages} x where x.${m.chat} = v_chat.${ch.id} and x.${m.id} = ${key("save_ai_assistant_message.parent_id")}
   ) then
     ${raise("No message %", "P0002", "AI_MESSAGE_NOT_FOUND", "save_ai_assistant_message.parent_id")}
   end if;
-  insert into ${t.messages} (${replyColumns})
-  values (${replyValues}
+  insert into ${t.messages} (${replyColumns}${replyExtras.columns})
+  values (${replyValues}${replyExtras.values}
   )
   on conflict (${m.chat}, ${m.id}) do update set
     ${m.parts} = excluded.${m.parts},${assignments(ctx, "messages", [
@@ -430,13 +311,13 @@ begin
       ],
     ])}
     ${m.status} = excluded.${m.status}
-  returning (xmax = 0) into v_created;
+  returning (xmax = 0) into v_created;${writeExtraColumns(t.messages, names.extras.messages, "coalesce(save_ai_assistant_message.message -> 'fields', '{}'::jsonb)", `x.${m.chat} = v_chat.${ch.id} and x.${m.id} = v_id`)}
   delete from ${t.sources} x where x.${s.chat} = v_chat.${ch.id} and x.${s.message} = v_id;
   insert into ${t.sources} (${sourceColumns})
-  select distinct on (e ->> 'id') ${sourceValues}
+  select distinct on (${SOURCE_ID}) ${sourceValues}
   from jsonb_array_elements(save_ai_assistant_message.message -> 'parts') e
-  where e ->> 'type' = 'source' and nullif(e ->> 'id', '') is not null and coalesce(e ->> 'sourceType', 'url') in ('url', 'document')
-  order by e ->> 'id';
+  where e ->> 'type' in ('source', 'source-url', 'source-document') and nullif(${SOURCE_ID}, '') is not null and ${SOURCE_KIND} in ('url', 'document')
+  order by ${SOURCE_ID};
   update ${t.chats} x set ${ch.leaf} = v_id, ${ch.lastMessageAt} = clock_timestamp(), ${ch.updatedAt} = now() where x.${ch.id} = v_chat.${ch.id};
   if save_ai_assistant_message.run is not null then
     update ${t.runs} x set ${r.message} = v_id where x.${r.id} = save_ai_assistant_message.run and x.${r.chat} = v_chat.${ch.id};
