@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:28f7c26bddfa09ce9e683a4365af7bad3c2a9d233c0c163497629d438e3b8852
+-- @bsb-hash sha256:d313dc5e60183a1c35bd59bbcfff379a40c59de21113023c1c3278693acc9655
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -643,6 +643,7 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."quotes";
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -758,6 +759,7 @@ as $$
 declare
   v_row "better_supabase"."quotes";
   v_headers jsonb := nullif(current_setting('request.headers', true), '')::jsonb;
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -881,6 +883,7 @@ as $$
 declare
   v_row "better_supabase"."quotes";
   v_headers jsonb := nullif(current_setting('request.headers', true), '')::jsonb;
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1158,7 +1161,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:5251d017aa671c7bec36a3e2270c9f3486fd07106763be63ba453ff504fad286
+-- @bsb-hash sha256:846009e23b718d48969ba7f829cefc6430a942d8abb2098c5d5b2a269d49f0a5
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1806,6 +1809,7 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."quotes";
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1936,6 +1940,7 @@ as $$
 declare
   v_row "better_supabase"."quotes";
   v_headers jsonb := nullif(current_setting('request.headers', true), '')::jsonb;
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2074,6 +2079,7 @@ as $$
 declare
   v_row "better_supabase"."quotes";
   v_headers jsonb := nullif(current_setting('request.headers', true), '')::jsonb;
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2415,7 +2421,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:66b46520e0e4d4c950dc709b46f8ecc9ed67cc7e5078f6ec9c62959e168e6af9
+-- @bsb-hash sha256:8b95e487d5e0b76543e0a07f65fe38a9a9f39ce0b5fee0fb5d83f3ab05aff50b
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3062,6 +3068,7 @@ set search_path = ''
 as $$
 declare
   v_row "app_private"."quotes";
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3177,6 +3184,7 @@ as $$
 declare
   v_row "app_private"."quotes";
   v_headers jsonb := nullif(current_setting('request.headers', true), '')::jsonb;
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3300,6 +3308,7 @@ as $$
 declare
   v_row "app_private"."quotes";
   v_headers jsonb := nullif(current_setting('request.headers', true), '')::jsonb;
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3577,7 +3586,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:a4d13d83735072b97d1f12d4e439a02e7765df2894887162fd80b7f0e98846f1
+-- @bsb-hash sha256:9c7d0a397526d30b55cdd994687ef326ab81c6aa4ec05debd31f281421fb8190
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4219,6 +4228,7 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."quotes";
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -4334,6 +4344,7 @@ as $$
 declare
   v_row "better_supabase"."quotes";
   v_headers jsonb := nullif(current_setting('request.headers', true), '')::jsonb;
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -4457,6 +4468,7 @@ as $$
 declare
   v_row "better_supabase"."quotes";
   v_headers jsonb := nullif(current_setting('request.headers', true), '')::jsonb;
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -4876,7 +4888,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:7d3a8cddb93ae3eb7babe54747644a1baf75f66b60af9f47dbbe239e74e84bfb
+-- @bsb-hash sha256:30377d473ee501bcee7da9c9c6d56179c79d72b20d8ef867c5ce48f46562f688
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5524,6 +5536,7 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."quotes";
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -5639,6 +5652,7 @@ as $$
 declare
   v_row "better_supabase"."quotes";
   v_headers jsonb := nullif(current_setting('request.headers', true), '')::jsonb;
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -5762,6 +5776,7 @@ as $$
 declare
   v_row "better_supabase"."quotes";
   v_headers jsonb := nullif(current_setting('request.headers', true), '')::jsonb;
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -6039,7 +6054,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:c03c4d9502e87ea70922192f2e8077738f52571d21e24139064c610129d071b8
+-- @bsb-hash sha256:94da697cb6cc42bdee7947ec62f4251ef1a52e709bb52bf98024f126a8fc6015
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6681,6 +6696,7 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."quotes";
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -6796,6 +6812,7 @@ as $$
 declare
   v_row "better_supabase"."quotes";
   v_headers jsonb := nullif(current_setting('request.headers', true), '')::jsonb;
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -6919,6 +6936,7 @@ as $$
 declare
   v_row "better_supabase"."quotes";
   v_headers jsonb := nullif(current_setting('request.headers', true), '')::jsonb;
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';

@@ -133,6 +133,7 @@ set search_path = ''
 as $$
 declare
   v_row ${t("quotes")};
+  v_claims text;
 begin
   select * into v_row from ${t("quotes")} x where x.${q("id")} = decide_quote.quote and ${editable("x")} for update;
   if v_row.${q("id")} is null then
@@ -178,6 +179,7 @@ set search_path = ''
 as $$
 declare
   v_row ${t("quotes")};${headers}
+  v_claims text;
 begin
   select * into v_row from ${t("quotes")} x where x.${q("tokenHash")} = ${sha256Hex("respond_to_quote.token")} for update;
   if v_row.${q("id")} is null then
@@ -222,6 +224,7 @@ set search_path = ''
 as $$
 declare
   v_row ${t("quotes")};${headers}
+  v_claims text;
 begin
   select * into v_row from ${t("quotes")} x where x.${q("id")} = respond_to_portal_quote.quote and ${guest} for update;
   if v_row.${q("id")} is null then

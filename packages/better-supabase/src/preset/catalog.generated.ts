@@ -16971,6 +16971,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "QuoteAnswer"
+        },
+        {
           "name": "QuoteDecision"
         },
         {
@@ -16978,7 +16981,16 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "QuoteLine"
+        },
+        {
           "name": "QuoteLineInput"
+        },
+        {
+          "name": "QuotePricing"
+        },
+        {
+          "name": "QuoteResponse"
         },
         {
           "name": "Quotes",
@@ -16992,6 +17004,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "QuoteStatus"
+        },
+        {
+          "name": "QuoteTaxLine"
+        },
+        {
+          "name": "QuoteVersion",
+          "fields": true
+        },
+        {
+          "name": "QuoteVersionSummary"
         }
       ],
       "events": {

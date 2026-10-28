@@ -1,6 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block-data quotes
--- @bsb-hash sha256:7044f9694868452cc0483a7d0f1583c0a8766dc085e18c7b20c4fd78c191ee2e
+-- @bsb-hash sha256:617ed3c1b3a8f972ccf617b08634455216ba9688cb316361743124f46b79c8eb
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -11,6 +11,6 @@ values ('quotes.quote_to_order', 'quotes', 'quote', 'quote.accepted', 'Order eac
 on conflict ("key") do update set "subject_type" = excluded."subject_type", "trigger" = excluded."trigger", "name" = excluded."name", "description" = excluded."description", "actions" = excluded."actions", "enabled" = excluded."enabled", "block" = excluded."block", "updated_at" = now();
 
 insert into better_supabase.blocks (name, version, mode)
-values ('quotes', 2, 'managed')
+values ('quotes', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
