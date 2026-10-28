@@ -91,7 +91,9 @@ export const FILE_EVENTS: BlockSqlEvents<DriveEvents> = {
 };
 
 export const NAMES: BlockSqlNames = {
-  entities: { node: { table: "nodes", singular: "drive_node", primary: true } },
+  entities: {
+    drive_node: { table: "nodes", singular: "drive_node", primary: true },
+  },
   events: EVENTS,
   hooks: [
     "before_drive_node_create",

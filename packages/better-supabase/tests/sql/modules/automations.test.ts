@@ -54,10 +54,10 @@ describe("automations block", () => {
     const sql = body();
 
     for (const permission of [
-      "rules.read",
-      "rules.edit",
-      "rules.publish",
-      "rules.admin",
+      "automations.read",
+      "automations.write",
+      "automations.publish",
+      "automations.manage",
     ]) {
       expect(sql).toContain(`'${permission}'`);
     }

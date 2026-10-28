@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:754b0c13e44ee085fb79b707f9c5be566eccff2eda44bdd08d8c60106ee9c476
+-- @bsb-hash sha256:227ae46a9f6647a3d17bf0ed8c651a447bab4ef0b5154d0243fe640a8d832da4
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -66,7 +66,7 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Custom assistants: instructions, a model, the tools and connectors they may
 -- use and the knowledge they search. An owner keeps an agent private until a
--- member with 'ai.share' publishes it to the organization or the public store.
+-- member with 'agents.publish' publishes it to the organization or the public store.
 create table if not exists "better_supabase"."agents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
@@ -98,7 +98,7 @@ grant all on "better_supabase"."agents" to service_role;
 drop policy if exists agents_read on "better_supabase"."agents";
 create policy agents_read on "better_supabase"."agents"
   for select to authenticated
-  using (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate'))));
+  using (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))));
 
 create table if not exists "better_supabase"."agent_installs" (
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
@@ -153,7 +153,7 @@ create policy agent_skills_read on "better_supabase"."agent_skills"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."agents" x where x."id" = "agent_id"));
 
--- Creates an agent (id null, needs 'ai.create') or changes one its owner or a
+-- Creates an agent (id null, needs 'agents.create') or changes one its owner or a
 -- moderator may change. fields holds the columns to set; visibility and
 -- published_at change through publish_agent only.
 create or replace function "better_supabase"."save_agent"(tenant uuid, id uuid default null, fields jsonb default '{}')
@@ -172,7 +172,7 @@ begin
     raise exception 'fields must be an object' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   if save_agent.id is null then
-    if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_agent.tenant, 'ai.create'), false) then
+    if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_agent.tenant, 'agents.create'), false) then
       raise exception 'you may not create agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
     end if;
     if save_agent.fields ->> 'slug' is null or save_agent.fields ->> 'name' is null then
@@ -183,7 +183,7 @@ begin
     returning * into v_row;
   else
     select * into v_row from "better_supabase"."agents" x where x."id" = save_agent.id and x."organization_id" = save_agent.tenant for update;
-    if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+    if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
       raise exception 'agent % not found', save_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
     end if;
   end if;
@@ -213,7 +213,7 @@ revoke execute on function "better_supabase"."save_agent"(uuid, uuid, jsonb) fro
 grant execute on function "better_supabase"."save_agent"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Publishes an agent to the organization or the public store, or makes it
--- private again. The owner needs 'ai.share'; a moderator may always unpublish.
+-- private again. The owner needs 'agents.publish'; a moderator may always unpublish.
 create or replace function "better_supabase"."publish_agent"(id uuid, visibility text)
 returns jsonb
 language plpgsql
@@ -230,11 +230,11 @@ begin
     raise exception 'visibility is private, organization or public' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = publish_agent.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', publish_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)
-    or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.share'), false))) then
+  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)
+    or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.publish'), false))) then
     raise exception 'you may not publish agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   update "better_supabase"."agents" x set
@@ -263,7 +263,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = delete_agent.id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
     return false;
   end if;
   delete from "better_supabase"."agents" x where x."id" = v_row."id";
@@ -342,7 +342,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', install_agent.tenant, 'ai.read'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', install_agent.tenant, 'agents.read'), false) then
     raise exception 'you may not use agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   if not install_agent.installed then
@@ -354,7 +354,7 @@ begin
     end if;
     return v_count > 0;
   end if;
-  if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate')))) then
+  if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate')))) then
     raise exception 'agent % not found', install_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
   insert into "better_supabase"."agent_installs" ("agent_id", "user_id", "organization_id") values (install_agent.agent_id, auth.uid(), install_agent.tenant)
@@ -387,7 +387,7 @@ begin
   if auth.uid() is null then
     raise exception 'sign in to rate agents' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
-  select * into v_row from "better_supabase"."agents" x where x."id" = rate_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate'))) for update;
+  select * into v_row from "better_supabase"."agents" x where x."id" = rate_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))) for update;
   if not found then
     raise exception 'agent % not found', rate_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
@@ -427,7 +427,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = set_agent_skills.agent_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', set_agent_skills.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
   if jsonb_typeof(v_items) is distinct from 'array' then
@@ -464,7 +464,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."agents" as restricti
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate'))))
+    or (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agents";
 create policy bsb_tenant_scope_insert on "better_supabase"."agents" as restrictive
@@ -531,7 +531,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:2051d030833463bf8c07b1da23e942c930d40125c31c2eed2d760872852c085c
+-- @bsb-hash sha256:be19e89b00f517a4763655c1fdccf837dac99a68e5f9d57420e96b25768007b1
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -596,7 +596,7 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Custom assistants: instructions, a model, the tools and connectors they may
 -- use and the knowledge they search. An owner keeps an agent private until a
--- member with 'ai.share' publishes it to the organization or the public store.
+-- member with 'agents.publish' publishes it to the organization or the public store.
 create table if not exists "better_supabase"."agents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
@@ -628,7 +628,7 @@ grant all on "better_supabase"."agents" to service_role;
 drop policy if exists agents_read on "better_supabase"."agents";
 create policy agents_read on "better_supabase"."agents"
   for select to authenticated
-  using (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate'))));
+  using (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))));
 
 create table if not exists "better_supabase"."agent_installs" (
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
@@ -683,7 +683,7 @@ create policy agent_skills_read on "better_supabase"."agent_skills"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."agents" x where x."id" = "agent_id"));
 
--- Creates an agent (id null, needs 'ai.create') or changes one its owner or a
+-- Creates an agent (id null, needs 'agents.create') or changes one its owner or a
 -- moderator may change. fields holds the columns to set; visibility and
 -- published_at change through publish_agent only.
 create or replace function "better_supabase"."save_agent"(tenant uuid, id uuid default null, fields jsonb default '{}')
@@ -702,7 +702,7 @@ begin
     raise exception 'fields must be an object' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   if save_agent.id is null then
-    if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_agent.tenant, 'ai.create'), false) then
+    if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_agent.tenant, 'agents.create'), false) then
       raise exception 'you may not create agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
     end if;
     if save_agent.fields ->> 'slug' is null or save_agent.fields ->> 'name' is null then
@@ -713,7 +713,7 @@ begin
     returning * into v_row;
   else
     select * into v_row from "better_supabase"."agents" x where x."id" = save_agent.id and x."organization_id" = save_agent.tenant for update;
-    if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+    if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
       raise exception 'agent % not found', save_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
     end if;
   end if;
@@ -752,7 +752,7 @@ revoke execute on function "better_supabase"."save_agent"(uuid, uuid, jsonb) fro
 grant execute on function "better_supabase"."save_agent"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Publishes an agent to the organization or the public store, or makes it
--- private again. The owner needs 'ai.share'; a moderator may always unpublish.
+-- private again. The owner needs 'agents.publish'; a moderator may always unpublish.
 create or replace function "better_supabase"."publish_agent"(id uuid, visibility text)
 returns jsonb
 language plpgsql
@@ -769,11 +769,11 @@ begin
     raise exception 'visibility is private, organization or public' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = publish_agent.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', publish_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)
-    or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.share'), false))) then
+  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)
+    or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.publish'), false))) then
     raise exception 'you may not publish agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   update "better_supabase"."agents" x set
@@ -811,7 +811,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = delete_agent.id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
     return false;
   end if;
   delete from "better_supabase"."agents" x where x."id" = v_row."id";
@@ -899,7 +899,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', install_agent.tenant, 'ai.read'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', install_agent.tenant, 'agents.read'), false) then
     raise exception 'you may not use agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   if not install_agent.installed then
@@ -919,7 +919,7 @@ begin
     end if;
     return v_count > 0;
   end if;
-  if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate')))) then
+  if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate')))) then
     raise exception 'agent % not found', install_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
   insert into "better_supabase"."agent_installs" ("agent_id", "user_id", "organization_id") values (install_agent.agent_id, auth.uid(), install_agent.tenant)
@@ -960,7 +960,7 @@ begin
   if auth.uid() is null then
     raise exception 'sign in to rate agents' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
-  select * into v_row from "better_supabase"."agents" x where x."id" = rate_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate'))) for update;
+  select * into v_row from "better_supabase"."agents" x where x."id" = rate_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))) for update;
   if not found then
     raise exception 'agent % not found', rate_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
@@ -1000,7 +1000,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = set_agent_skills.agent_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', set_agent_skills.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
   if jsonb_typeof(v_items) is distinct from 'array' then
@@ -1037,7 +1037,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."agents" as restricti
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate'))))
+    or (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agents";
 create policy bsb_tenant_scope_insert on "better_supabase"."agents" as restrictive
@@ -1104,7 +1104,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:10f4b0bc0cfb1a63cdd6ffb2608f99e649d5fbfb19a2a5c41f0ca61ea01f9f9b
+-- @bsb-hash sha256:f2de60c98d5c24df0b3d20055bdea8fecf26e502042b76486a3cdf55ee23cb95
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1174,7 +1174,7 @@ alter default privileges in schema "app_private" revoke all on sequences from pu
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Custom assistants: instructions, a model, the tools and connectors they may
 -- use and the knowledge they search. An owner keeps an agent private until a
--- member with 'ai.share' publishes it to the organization or the public store.
+-- member with 'agents.publish' publishes it to the organization or the public store.
 create table if not exists "app_private"."agents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
@@ -1206,7 +1206,7 @@ grant all on "app_private"."agents" to service_role;
 drop policy if exists agents_read on "app_private"."agents";
 create policy agents_read on "app_private"."agents"
   for select to authenticated
-  using (("app_private"."agents"."owner_id" = (select auth.uid()) or ("app_private"."agents"."published_at" is not null and ("app_private"."agents"."visibility" = 'public' or ("app_private"."agents"."visibility" = 'organization' and "app_private"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "app_private"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate'))));
+  using (("app_private"."agents"."owner_id" = (select auth.uid()) or ("app_private"."agents"."published_at" is not null and ("app_private"."agents"."visibility" = 'public' or ("app_private"."agents"."visibility" = 'organization' and "app_private"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or "app_private"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))));
 
 create table if not exists "app_private"."agent_installs" (
   "agent_id" uuid not null references "app_private"."agents" ("id") on delete cascade,
@@ -1261,7 +1261,7 @@ create policy agent_skills_read on "app_private"."agent_skills"
   for select to authenticated
   using (exists (select 1 from "app_private"."agents" x where x."id" = "agent_id"));
 
--- Creates an agent (id null, needs 'ai.create') or changes one its owner or a
+-- Creates an agent (id null, needs 'agents.create') or changes one its owner or a
 -- moderator may change. fields holds the columns to set; visibility and
 -- published_at change through publish_agent only.
 create or replace function "app_private"."save_agent"(tenant uuid, id uuid default null, fields jsonb default '{}')
@@ -1280,7 +1280,7 @@ begin
     raise exception 'fields must be an object' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   if save_agent.id is null then
-    if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_agent.tenant, 'ai.create'), false) then
+    if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_agent.tenant, 'agents.create'), false) then
       raise exception 'you may not create agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
     end if;
     if save_agent.fields ->> 'slug' is null or save_agent.fields ->> 'name' is null then
@@ -1291,7 +1291,7 @@ begin
     returning * into v_row;
   else
     select * into v_row from "app_private"."agents" x where x."id" = save_agent.id and x."organization_id" = save_agent.tenant for update;
-    if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+    if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
       raise exception 'agent % not found', save_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
     end if;
   end if;
@@ -1321,7 +1321,7 @@ revoke execute on function "app_private"."save_agent"(uuid, uuid, jsonb) from pu
 grant execute on function "app_private"."save_agent"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Publishes an agent to the organization or the public store, or makes it
--- private again. The owner needs 'ai.share'; a moderator may always unpublish.
+-- private again. The owner needs 'agents.publish'; a moderator may always unpublish.
 create or replace function "app_private"."publish_agent"(id uuid, visibility text)
 returns jsonb
 language plpgsql
@@ -1338,11 +1338,11 @@ begin
     raise exception 'visibility is private, organization or public' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   select * into v_row from "app_private"."agents" x where x."id" = publish_agent.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', publish_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)
-    or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.share'), false))) then
+  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)
+    or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.publish'), false))) then
     raise exception 'you may not publish agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   update "app_private"."agents" x set
@@ -1371,7 +1371,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "app_private"."agents" x where x."id" = delete_agent.id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
     return false;
   end if;
   delete from "app_private"."agents" x where x."id" = v_row."id";
@@ -1450,7 +1450,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', install_agent.tenant, 'ai.read'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', install_agent.tenant, 'agents.read'), false) then
     raise exception 'you may not use agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   if not install_agent.installed then
@@ -1462,7 +1462,7 @@ begin
     end if;
     return v_count > 0;
   end if;
-  if not exists (select 1 from "app_private"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate')))) then
+  if not exists (select 1 from "app_private"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate')))) then
     raise exception 'agent % not found', install_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
   insert into "app_private"."agent_installs" ("agent_id", "user_id", "organization_id") values (install_agent.agent_id, auth.uid(), install_agent.tenant)
@@ -1495,7 +1495,7 @@ begin
   if auth.uid() is null then
     raise exception 'sign in to rate agents' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
-  select * into v_row from "app_private"."agents" x where x."id" = rate_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate'))) for update;
+  select * into v_row from "app_private"."agents" x where x."id" = rate_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))) for update;
   if not found then
     raise exception 'agent % not found', rate_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
@@ -1535,7 +1535,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "app_private"."agents" x where x."id" = set_agent_skills.agent_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', set_agent_skills.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
   if jsonb_typeof(v_items) is distinct from 'array' then
@@ -1572,7 +1572,7 @@ create policy bsb_tenant_scope_select on "app_private"."agents" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (("app_private"."agents"."owner_id" = (select auth.uid()) or ("app_private"."agents"."published_at" is not null and ("app_private"."agents"."visibility" = 'public' or ("app_private"."agents"."visibility" = 'organization' and "app_private"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "app_private"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate'))))
+    or (("app_private"."agents"."owner_id" = (select auth.uid()) or ("app_private"."agents"."published_at" is not null and ("app_private"."agents"."visibility" = 'public' or ("app_private"."agents"."visibility" = 'organization' and "app_private"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or "app_private"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."agents";
 create policy bsb_tenant_scope_insert on "app_private"."agents" as restrictive
@@ -1639,7 +1639,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:b8d8cad0ac77a3291c9dc3e8d7e4b7c23501852b71d96e3545b5d03fe3b7e8ad
+-- @bsb-hash sha256:238fb73a4a234f2444cd7671745e8ecd3813669749f313f0429098bcd34006d3
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1704,7 +1704,7 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Custom assistants: instructions, a model, the tools and connectors they may
 -- use and the knowledge they search. An owner keeps an agent private until a
--- member with 'ai.share' publishes it to the organization or the public store.
+-- member with 'agents.publish' publishes it to the organization or the public store.
 create table if not exists "better_supabase"."agents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
@@ -1736,7 +1736,7 @@ grant all on "better_supabase"."agents" to service_role;
 drop policy if exists agents_read on "better_supabase"."agents";
 create policy agents_read on "better_supabase"."agents"
   for select to authenticated
-  using (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate'))));
+  using (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))));
 
 create table if not exists "better_supabase"."agent_installs" (
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
@@ -1791,7 +1791,7 @@ create policy agent_skills_read on "better_supabase"."agent_skills"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."agents" x where x."id" = "agent_id"));
 
--- Creates an agent (id null, needs 'ai.create') or changes one its owner or a
+-- Creates an agent (id null, needs 'agents.create') or changes one its owner or a
 -- moderator may change. fields holds the columns to set; visibility and
 -- published_at change through publish_agent only.
 create or replace function "better_supabase"."save_agent"(tenant uuid, id uuid default null, fields jsonb default '{}')
@@ -1810,7 +1810,7 @@ begin
     raise exception 'fields must be an object' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   if save_agent.id is null then
-    if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_agent.tenant, 'ai.create'), false) then
+    if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_agent.tenant, 'agents.create'), false) then
       raise exception 'you may not create agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
     end if;
     if save_agent.fields ->> 'slug' is null or save_agent.fields ->> 'name' is null then
@@ -1821,7 +1821,7 @@ begin
     returning * into v_row;
   else
     select * into v_row from "better_supabase"."agents" x where x."id" = save_agent.id and x."organization_id" = save_agent.tenant for update;
-    if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+    if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
       raise exception 'agent % not found', save_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
     end if;
   end if;
@@ -1851,7 +1851,7 @@ revoke execute on function "better_supabase"."save_agent"(uuid, uuid, jsonb) fro
 grant execute on function "better_supabase"."save_agent"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Publishes an agent to the organization or the public store, or makes it
--- private again. The owner needs 'ai.share'; a moderator may always unpublish.
+-- private again. The owner needs 'agents.publish'; a moderator may always unpublish.
 create or replace function "better_supabase"."publish_agent"(id uuid, visibility text)
 returns jsonb
 language plpgsql
@@ -1868,11 +1868,11 @@ begin
     raise exception 'visibility is private, organization or public' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = publish_agent.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', publish_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)
-    or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.share'), false))) then
+  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)
+    or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.publish'), false))) then
     raise exception 'you may not publish agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   update "better_supabase"."agents" x set
@@ -1901,7 +1901,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = delete_agent.id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
     return false;
   end if;
   delete from "better_supabase"."agents" x where x."id" = v_row."id";
@@ -1980,7 +1980,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', install_agent.tenant, 'ai.read'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', install_agent.tenant, 'agents.read'), false) then
     raise exception 'you may not use agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   if not install_agent.installed then
@@ -1992,7 +1992,7 @@ begin
     end if;
     return v_count > 0;
   end if;
-  if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate')))) then
+  if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate')))) then
     raise exception 'agent % not found', install_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
   insert into "better_supabase"."agent_installs" ("agent_id", "user_id", "organization_id") values (install_agent.agent_id, auth.uid(), install_agent.tenant)
@@ -2025,7 +2025,7 @@ begin
   if auth.uid() is null then
     raise exception 'sign in to rate agents' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
-  select * into v_row from "better_supabase"."agents" x where x."id" = rate_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate'))) for update;
+  select * into v_row from "better_supabase"."agents" x where x."id" = rate_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))) for update;
   if not found then
     raise exception 'agent % not found', rate_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
@@ -2065,7 +2065,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = set_agent_skills.agent_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', set_agent_skills.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
   if jsonb_typeof(v_items) is distinct from 'array' then
@@ -2102,7 +2102,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."agents" as restricti
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate'))))
+    or (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agents";
 create policy bsb_tenant_scope_insert on "better_supabase"."agents" as restrictive
@@ -2263,7 +2263,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:25148e19c032e6cd7395a5cbf5ce780dd7cbaca1104beca173d45ce25997273f
+-- @bsb-hash sha256:4bb622275495676ed6645d2ce2b396b54f0047a7f49c9c6fa8a2cb3afca866c1
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2344,7 +2344,7 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Custom assistants: instructions, a model, the tools and connectors they may
 -- use and the knowledge they search. An owner keeps an agent private until a
--- member with 'ai.share' publishes it to the organization or the public store.
+-- member with 'agents.publish' publishes it to the organization or the public store.
 -- better_supabase.agents is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."agents" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."agents" add column if not exists "organization_id" uuid;
@@ -2373,7 +2373,7 @@ grant all on "better_supabase"."agents" to service_role;
 drop policy if exists bsb_agents_select on "better_supabase"."agents";
 create policy bsb_agents_select on "better_supabase"."agents"
   for select to authenticated
-  using (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate'))));
+  using (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))));
 
 -- better_supabase.agent_installs is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."agent_installs" add column if not exists "agent_id" uuid references "better_supabase"."agents" ("id") on delete cascade;
@@ -2421,7 +2421,7 @@ create policy bsb_agent_skills_select on "better_supabase"."agent_skills"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."agents" x where x."id" = "agent_id"));
 
--- Creates an agent (id null, needs 'ai.create') or changes one its owner or a
+-- Creates an agent (id null, needs 'agents.create') or changes one its owner or a
 -- moderator may change. fields holds the columns to set; visibility and
 -- published_at change through publish_agent only.
 create or replace function "better_supabase"."save_agent"(tenant uuid, id uuid default null, fields jsonb default '{}')
@@ -2440,7 +2440,7 @@ begin
     raise exception 'fields must be an object' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   if save_agent.id is null then
-    if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_agent.tenant, 'ai.create'), false) then
+    if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_agent.tenant, 'agents.create'), false) then
       raise exception 'you may not create agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
     end if;
     if save_agent.fields ->> 'slug' is null or save_agent.fields ->> 'name' is null then
@@ -2451,7 +2451,7 @@ begin
     returning * into v_row;
   else
     select * into v_row from "better_supabase"."agents" x where x."id" = save_agent.id and x."organization_id" = save_agent.tenant for update;
-    if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+    if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
       raise exception 'agent % not found', save_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
     end if;
   end if;
@@ -2481,7 +2481,7 @@ revoke execute on function "better_supabase"."save_agent"(uuid, uuid, jsonb) fro
 grant execute on function "better_supabase"."save_agent"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Publishes an agent to the organization or the public store, or makes it
--- private again. The owner needs 'ai.share'; a moderator may always unpublish.
+-- private again. The owner needs 'agents.publish'; a moderator may always unpublish.
 create or replace function "better_supabase"."publish_agent"(id uuid, visibility text)
 returns jsonb
 language plpgsql
@@ -2498,11 +2498,11 @@ begin
     raise exception 'visibility is private, organization or public' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = publish_agent.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', publish_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)
-    or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.share'), false))) then
+  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)
+    or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.publish'), false))) then
     raise exception 'you may not publish agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   update "better_supabase"."agents" x set
@@ -2531,7 +2531,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = delete_agent.id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
     return false;
   end if;
   delete from "better_supabase"."agents" x where x."id" = v_row."id";
@@ -2610,7 +2610,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', install_agent.tenant, 'ai.read'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', install_agent.tenant, 'agents.read'), false) then
     raise exception 'you may not use agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   if not install_agent.installed then
@@ -2622,7 +2622,7 @@ begin
     end if;
     return v_count > 0;
   end if;
-  if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate')))) then
+  if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate')))) then
     raise exception 'agent % not found', install_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
   insert into "better_supabase"."agent_installs" ("agent_id", "user_id", "organization_id") values (install_agent.agent_id, auth.uid(), install_agent.tenant)
@@ -2655,7 +2655,7 @@ begin
   if auth.uid() is null then
     raise exception 'sign in to rate agents' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
-  select * into v_row from "better_supabase"."agents" x where x."id" = rate_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate'))) for update;
+  select * into v_row from "better_supabase"."agents" x where x."id" = rate_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))) for update;
   if not found then
     raise exception 'agent % not found', rate_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
@@ -2695,7 +2695,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = set_agent_skills.agent_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', set_agent_skills.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
   if jsonb_typeof(v_items) is distinct from 'array' then
@@ -2732,7 +2732,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."agents" as restricti
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate'))))
+    or (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agents";
 create policy bsb_tenant_scope_insert on "better_supabase"."agents" as restrictive
@@ -2799,7 +2799,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:5ba0dd571422082721e76abf5cc49cb8678fedf2996319c6b74213ab81228479
+-- @bsb-hash sha256:b3707d26d64339bc38335a0e510bc0b558dbdcb660c6211057eccdbc54471334
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2864,7 +2864,7 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Custom assistants: instructions, a model, the tools and connectors they may
 -- use and the knowledge they search. An owner keeps an agent private until a
--- member with 'ai.share' publishes it to the organization or the public store.
+-- member with 'agents.publish' publishes it to the organization or the public store.
 create table if not exists "better_supabase"."agents" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
@@ -2896,7 +2896,7 @@ grant all on "better_supabase"."agents" to service_role;
 drop policy if exists agents_read on "better_supabase"."agents";
 create policy agents_read on "better_supabase"."agents"
   for select to authenticated
-  using (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."org_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."org_id" in (select better_supabase.tenant_ids_with('ai.moderate'))));
+  using (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."org_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or "better_supabase"."agents"."org_id" in (select better_supabase.tenant_ids_with('agents.moderate'))));
 
 create table if not exists "better_supabase"."agent_installs" (
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
@@ -2951,7 +2951,7 @@ create policy agent_skills_read on "better_supabase"."agent_skills"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."agents" x where x."id" = "agent_id"));
 
--- Creates an agent (id null, needs 'ai.create') or changes one its owner or a
+-- Creates an agent (id null, needs 'agents.create') or changes one its owner or a
 -- moderator may change. fields holds the columns to set; visibility and
 -- published_at change through publish_agent only.
 create or replace function "better_supabase"."save_agent"(tenant uuid, id uuid default null, fields jsonb default '{}')
@@ -2970,7 +2970,7 @@ begin
     raise exception 'fields must be an object' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   if save_agent.id is null then
-    if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_agent.tenant, 'ai.create'), false) then
+    if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_agent.tenant, 'agents.create'), false) then
       raise exception 'you may not create agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
     end if;
     if save_agent.fields ->> 'slug' is null or save_agent.fields ->> 'name' is null then
@@ -2981,7 +2981,7 @@ begin
     returning * into v_row;
   else
     select * into v_row from "better_supabase"."agents" x where x."id" = save_agent.id and x."org_id" = save_agent.tenant for update;
-    if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai.moderate'), false)) then
+    if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'agents.moderate'), false)) then
       raise exception 'agent % not found', save_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
     end if;
   end if;
@@ -3011,7 +3011,7 @@ revoke execute on function "better_supabase"."save_agent"(uuid, uuid, jsonb) fro
 grant execute on function "better_supabase"."save_agent"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Publishes an agent to the organization or the public store, or makes it
--- private again. The owner needs 'ai.share'; a moderator may always unpublish.
+-- private again. The owner needs 'agents.publish'; a moderator may always unpublish.
 create or replace function "better_supabase"."publish_agent"(id uuid, visibility text)
 returns jsonb
 language plpgsql
@@ -3028,11 +3028,11 @@ begin
     raise exception 'visibility is private, organization or public' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = publish_agent.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', publish_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai.moderate'), false)
-    or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."org_id", 'ai.share'), false))) then
+  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'agents.moderate'), false)
+    or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."org_id", 'agents.publish'), false))) then
     raise exception 'you may not publish agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   update "better_supabase"."agents" x set
@@ -3061,7 +3061,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = delete_agent.id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'agents.moderate'), false)) then
     return false;
   end if;
   delete from "better_supabase"."agents" x where x."id" = v_row."id";
@@ -3140,7 +3140,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', install_agent.tenant, 'ai.read'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', install_agent.tenant, 'agents.read'), false) then
     raise exception 'you may not use agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   if not install_agent.installed then
@@ -3152,7 +3152,7 @@ begin
     end if;
     return v_count > 0;
   end if;
-  if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."org_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or x."org_id" in (select better_supabase.tenant_ids_with('ai.moderate')))) then
+  if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."org_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."org_id" in (select better_supabase.tenant_ids_with('agents.moderate')))) then
     raise exception 'agent % not found', install_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
   insert into "better_supabase"."agent_installs" ("agent_id", "user_id", "org_id") values (install_agent.agent_id, auth.uid(), install_agent.tenant)
@@ -3185,7 +3185,7 @@ begin
   if auth.uid() is null then
     raise exception 'sign in to rate agents' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
-  select * into v_row from "better_supabase"."agents" x where x."id" = rate_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."org_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or x."org_id" in (select better_supabase.tenant_ids_with('ai.moderate'))) for update;
+  select * into v_row from "better_supabase"."agents" x where x."id" = rate_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."org_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."org_id" in (select better_supabase.tenant_ids_with('agents.moderate'))) for update;
   if not found then
     raise exception 'agent % not found', rate_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
@@ -3225,7 +3225,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = set_agent_skills.agent_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', set_agent_skills.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
   if jsonb_typeof(v_items) is distinct from 'array' then
@@ -3262,7 +3262,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."agents" as restricti
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."org_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."org_id" in (select better_supabase.tenant_ids_with('ai.moderate'))))
+    or (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."org_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or "better_supabase"."agents"."org_id" in (select better_supabase.tenant_ids_with('agents.moderate'))))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agents";
 create policy bsb_tenant_scope_insert on "better_supabase"."agents" as restrictive

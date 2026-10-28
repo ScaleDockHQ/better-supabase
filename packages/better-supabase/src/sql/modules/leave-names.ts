@@ -43,8 +43,8 @@ const EVENTS: BlockSqlEvents<LeaveEvents> = {
 
 export const LEAVE_NAMES: BlockSqlNames = {
   entities: {
-    request: { table: "requests", singular: "leave_request", primary: true },
-    type: { table: "types", singular: "leave_type" },
+    leave_request: { table: "requests", singular: "leave_request", primary: true },
+    leave_type: { table: "types", singular: "leave_type" },
   },
   events: EVENTS,
   hooks: ["before_leave_request", "after_leave_request"],

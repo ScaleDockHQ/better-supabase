@@ -89,7 +89,7 @@ describe("block contributions", () => {
         "time-tracking": {},
         shifts: {
           block: "time-tracking",
-          entities: { entry: "shift" },
+          entities: { time_entry: "shift" },
           uses: { approvals: "approvals" },
         },
       }),

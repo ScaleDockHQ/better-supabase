@@ -68,7 +68,9 @@ const KEY_KEYS: readonly string[] = [
 ];
 
 const NAMES: BlockSqlNames = {
-  entities: { key: { table: "keys", singular: "api_key", primary: true } },
+  entities: {
+    api_key: { table: "keys", singular: "api_key", primary: true },
+  },
   events: EVENTS,
   options: ["scopes", "kinds", "touchInterval", "prefix", "extraColumns"],
   tables: {

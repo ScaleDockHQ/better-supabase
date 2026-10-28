@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:955396de59a3cbf21a80b9b6ac65431b13aa90d520f6731b652ce5a4e5af174a
+-- @bsb-hash sha256:a942230d0d8d7c1d0aa89c7394fdbf91c8b1b8a248535738965789899ba34155
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,7 +45,7 @@ grant all on "better_supabase"."field_changes" to service_role;
 drop policy if exists field_changes_read on "better_supabase"."field_changes";
 create policy field_changes_read on "better_supabase"."field_changes"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
 
 -- A record's changes, newest first, optionally of one field. before is the id
@@ -75,7 +75,7 @@ as $$
       and x."subject_id" = field_history.subject_id
       and (field_history.field is null or x."field" = field_history.field)
       and (field_history.before is null or x."id" < field_history.before)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'field_history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
     order by x."id" desc
     limit least(greatest(coalesce(field_history.max_count, 50), 1), 500)
   ) z
@@ -104,7 +104,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."field_changes" as re
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_changes";
 create policy bsb_tenant_scope_insert on "better_supabase"."field_changes" as restrictive
@@ -150,7 +150,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:955396de59a3cbf21a80b9b6ac65431b13aa90d520f6731b652ce5a4e5af174a
+-- @bsb-hash sha256:a942230d0d8d7c1d0aa89c7394fdbf91c8b1b8a248535738965789899ba34155
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -194,7 +194,7 @@ grant all on "better_supabase"."field_changes" to service_role;
 drop policy if exists field_changes_read on "better_supabase"."field_changes";
 create policy field_changes_read on "better_supabase"."field_changes"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
 
 -- A record's changes, newest first, optionally of one field. before is the id
@@ -224,7 +224,7 @@ as $$
       and x."subject_id" = field_history.subject_id
       and (field_history.field is null or x."field" = field_history.field)
       and (field_history.before is null or x."id" < field_history.before)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'field_history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
     order by x."id" desc
     limit least(greatest(coalesce(field_history.max_count, 50), 1), 500)
   ) z
@@ -253,7 +253,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."field_changes" as re
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_changes";
 create policy bsb_tenant_scope_insert on "better_supabase"."field_changes" as restrictive
@@ -299,7 +299,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:741b0106710efde3faa883e8141b3d2ca78cb6185701dad050670a51bac73d7c
+-- @bsb-hash sha256:a0d1728cbf8a7960dc507a1bb18e53408bde265df174a5b9bf5e9db67f867099
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -348,7 +348,7 @@ grant all on "app_private"."field_changes" to service_role;
 drop policy if exists field_changes_read on "app_private"."field_changes";
 create policy field_changes_read on "app_private"."field_changes"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
 
 -- A record's changes, newest first, optionally of one field. before is the id
@@ -378,7 +378,7 @@ as $$
       and x."subject_id" = field_history.subject_id
       and (field_history.field is null or x."field" = field_history.field)
       and (field_history.before is null or x."id" < field_history.before)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'field_history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
     order by x."id" desc
     limit least(greatest(coalesce(field_history.max_count, 50), 1), 500)
   ) z
@@ -407,7 +407,7 @@ create policy bsb_tenant_scope_select on "app_private"."field_changes" as restri
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."field_changes";
 create policy bsb_tenant_scope_insert on "app_private"."field_changes" as restrictive
@@ -453,7 +453,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:5463221a005834b60912f59a1a1be41a29333a8e03457c0564a44dbb6ab4ccbb
+-- @bsb-hash sha256:0650dc832ff053f62963cfdd198b40c44c59aa99b768b9aebedf8f461e8315cb
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -497,7 +497,7 @@ grant all on "better_supabase"."field_changes" to service_role;
 drop policy if exists field_changes_read on "better_supabase"."field_changes";
 create policy field_changes_read on "better_supabase"."field_changes"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
 
 -- A record's changes, newest first, optionally of one field. before is the id
@@ -527,7 +527,7 @@ as $$
       and x."subject_id" = field_history.subject_id
       and (field_history.field is null or x."field" = field_history.field)
       and (field_history.before is null or x."id" < field_history.before)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'field_history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
     order by x."id" desc
     limit least(greatest(coalesce(field_history.max_count, 50), 1), 500)
   ) z
@@ -556,7 +556,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."field_changes" as re
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_changes";
 create policy bsb_tenant_scope_insert on "better_supabase"."field_changes" as restrictive
@@ -615,7 +615,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:b5d14a165a0a553253ac282af75f3eedb8a1ea9138db234e3613e5a4dcb3e31c
+-- @bsb-hash sha256:f2b00513c9f3ef7aea09a44bca016370bdb1a8c08290d0bb297097b895d950f3
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -657,7 +657,7 @@ grant all on "better_supabase"."field_changes" to service_role;
 drop policy if exists bsb_field_changes_select on "better_supabase"."field_changes";
 create policy bsb_field_changes_select on "better_supabase"."field_changes"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
 
 -- A record's changes, newest first, optionally of one field. before is the id
@@ -687,7 +687,7 @@ as $$
       and x."subject_id" = field_history.subject_id
       and (field_history.field is null or x."field" = field_history.field)
       and (field_history.before is null or x."id" < field_history.before)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'field_history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
     order by x."id" desc
     limit least(greatest(coalesce(field_history.max_count, 50), 1), 500)
   ) z
@@ -716,7 +716,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."field_changes" as re
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_changes";
 create policy bsb_tenant_scope_insert on "better_supabase"."field_changes" as restrictive
@@ -762,7 +762,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:2a50c1c7332dce5b4fde334fd00e3263baf1b99dd22fe5c90c9b3796e9eceea9
+-- @bsb-hash sha256:c5b66a216485ca784ae947f40abb2e836f046310de330d9d97b3696269bdfcc7
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -806,7 +806,7 @@ grant all on "better_supabase"."field_changes" to service_role;
 drop policy if exists field_changes_read on "better_supabase"."field_changes";
 create policy field_changes_read on "better_supabase"."field_changes"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+  using ("org_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
 
 -- A record's changes, newest first, optionally of one field. before is the id
@@ -836,7 +836,7 @@ as $$
       and x."subject_id" = field_history.subject_id
       and (field_history.field is null or x."field" = field_history.field)
       and (field_history.before is null or x."id" < field_history.before)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."org_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."org_id", 'field_history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
     order by x."id" desc
     limit least(greatest(coalesce(field_history.max_count, 50), 1), 500)
   ) z
@@ -865,7 +865,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."field_changes" as re
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+    or ("org_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_changes";
 create policy bsb_tenant_scope_insert on "better_supabase"."field_changes" as restrictive

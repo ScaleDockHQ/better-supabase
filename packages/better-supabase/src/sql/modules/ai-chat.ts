@@ -279,7 +279,7 @@ const EVENTS: BlockSqlEvents<AiChatEvents> = {
 const NAMES: BlockSqlNames = {
   entities: {
     chat: { table: "chats", singular: "ai_chat", primary: true },
-    project: { table: "projects", singular: "ai_project" },
+    ai_project: { table: "projects", singular: "ai_project" },
   },
   events: EVENTS,
   options: [

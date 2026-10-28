@@ -46,7 +46,9 @@ const EVENTS: BlockSqlEvents<ShareLinksEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
-  entities: { link: { table: "links", singular: "share_link", primary: true } },
+  entities: {
+    share_link: { table: "links", singular: "share_link", primary: true },
+  },
   events: EVENTS,
   options: ["extraColumns", "tokenHash", "fullRows"],
   tables: {

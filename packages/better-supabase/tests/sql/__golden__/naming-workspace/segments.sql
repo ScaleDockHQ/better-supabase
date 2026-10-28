@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:d3d49412bf8f07ceb7c6cbac790afc963f6391c4e393e3333ed1cf9414337b1e
+-- @bsb-hash sha256:573bec6d05ac19f9ae8a3b8b970e56d49a8ddc21c692850679787c4d78b30f4c
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -131,7 +131,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not coalesce(better_supabase.can('tenant', save_segment.tenant, 'segments.edit'), false) then
+  if not coalesce(better_supabase.can('tenant', save_segment.tenant, 'segments.write'), false) then
     raise exception 'You need segments.edit to save a segment' using errcode = '42501', hint = 'SEGMENT_FORBIDDEN';
   end if;
   if jsonb_typeof(segment) is distinct from 'object' then
@@ -209,7 +209,7 @@ begin
   if v_row."id" is null then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'segments.edit'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'segments.write'), false)) then
     raise exception 'You need segments.edit to remove a segment' using errcode = '42501', hint = 'SEGMENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."segments" x where x."id" = v_row."id";
@@ -375,7 +375,7 @@ begin
   if v_tenant is null then
     raise exception 'No segment has this id' using errcode = 'P0002', hint = 'SEGMENT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'segments.edit'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'segments.write'), false)) then
     raise exception 'You need segments.edit to refresh a segment' using errcode = '42501', hint = 'SEGMENT_FORBIDDEN';
   end if;
   return "better_supabase"."evaluate_segment"(refresh_segment.segment);

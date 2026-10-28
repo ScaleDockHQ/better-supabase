@@ -51,7 +51,9 @@ const EVENTS: BlockSqlEvents<SavedViewsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
-  entities: { view: { table: "views", singular: "saved_view", primary: true } },
+  entities: {
+    saved_view: { table: "views", singular: "saved_view", primary: true },
+  },
   events: EVENTS,
   hooks: ["before_view_save", "after_view_save"],
   options: ["extraColumns"],

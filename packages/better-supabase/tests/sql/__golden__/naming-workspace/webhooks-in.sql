@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:1719c75f374c6b5e2d362daf129131312217bc1b92817de9aedc278c44092ec1
+-- @bsb-hash sha256:1a15a0141de0e7514261ee8a4b28a2e04f47e17ad52f2ca3a6c249e2eb2cf801
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -129,7 +129,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  return query select better_supabase.tenant_ids_with('webhooks.read');
+  return query select better_supabase.tenant_ids_with('incoming_webhooks.read');
 end;
 $$;
 revoke execute on function "better_supabase"."incoming_webhook_tenant_ids"() from public, anon;
@@ -218,7 +218,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), tenant, 'webhooks.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), tenant, 'incoming_webhooks.manage'), false)) then
     raise exception 'Not allowed to manage incoming webhooks' using errcode = '42501', hint = 'WEBHOOK_IN_FORBIDDEN';
   end if;
   if verify not in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret') then
@@ -272,7 +272,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into previous from "better_supabase"."incoming_webhooks" e where e."id" = endpoint for update;
-  if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
+  if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'incoming_webhooks.manage'), false)) then
     raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
   end if;
   if rotate_secret then
@@ -315,7 +315,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into previous from "better_supabase"."incoming_webhooks" e where e."id" = endpoint for update;
-  if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
+  if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'incoming_webhooks.manage'), false)) then
     raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
   end if;
   v_secret := case previous."verify"
@@ -364,7 +364,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into previous from "better_supabase"."incoming_webhooks" e where e."id" = endpoint for update;
-  if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
+  if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'incoming_webhooks.manage'), false)) then
     raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
   end if;
   if name is not null and btrim(name) = '' then
@@ -423,7 +423,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select e."tenant" into tenant from "better_supabase"."incoming_webhooks" e where e."id" = endpoint;
-  if tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), tenant, 'webhooks.manage'), false)) then
+  if tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), tenant, 'incoming_webhooks.manage'), false)) then
     return false;
   end if;
   update "better_supabase"."incoming_webhooks" e set "enabled" = set_incoming_webhook_enabled.enabled where e."id" = endpoint;
@@ -446,7 +446,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select e."tenant" into tenant from "better_supabase"."incoming_webhooks" e where e."id" = endpoint;
-  if tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), tenant, 'webhooks.manage'), false)) then
+  if tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), tenant, 'incoming_webhooks.manage'), false)) then
     return false;
   end if;
   delete from "better_supabase"."incoming_webhooks" e where e."id" = endpoint;

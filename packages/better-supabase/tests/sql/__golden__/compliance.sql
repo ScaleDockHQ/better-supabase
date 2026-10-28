@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:fe38e56b070e70768228592a2131ed7be3113f6959589d00be4986f631736211
+-- @bsb-hash sha256:f26f78ca3c9b150ae02a1ef1e0c491670da4c745d4b83ba1d74cd667bd6a7563
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -118,7 +118,7 @@ grant all on "better_supabase"."control_frameworks" to service_role;
 drop policy if exists control_frameworks_read on "better_supabase"."control_frameworks";
 create policy control_frameworks_read on "better_supabase"."control_frameworks"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "better_supabase"."controls" (
   "id" uuid primary key default gen_random_uuid(),
@@ -145,7 +145,7 @@ grant all on "better_supabase"."controls" to service_role;
 drop policy if exists controls_read on "better_supabase"."controls";
 create policy controls_read on "better_supabase"."controls"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "better_supabase"."evidence_tasks" (
   "id" uuid primary key default gen_random_uuid(),
@@ -174,7 +174,7 @@ grant all on "better_supabase"."evidence_tasks" to service_role;
 drop policy if exists evidence_tasks_read on "better_supabase"."evidence_tasks";
 create policy evidence_tasks_read on "better_supabase"."evidence_tasks"
   for select to authenticated
-  using ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "better_supabase"."control_evidence" (
   "id" uuid primary key default gen_random_uuid(),
@@ -201,7 +201,7 @@ grant all on "better_supabase"."control_evidence" to service_role;
 drop policy if exists control_evidence_read on "better_supabase"."control_evidence";
 create policy control_evidence_read on "better_supabase"."control_evidence"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "better_supabase"."policies" (
   "id" uuid primary key default gen_random_uuid(),
@@ -228,7 +228,7 @@ grant all on "better_supabase"."policies" to service_role;
 drop policy if exists policies_read on "better_supabase"."policies";
 create policy policies_read on "better_supabase"."policies"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')));
 
 create table if not exists "better_supabase"."policy_acknowledgements" (
   "id" uuid primary key default gen_random_uuid(),
@@ -250,7 +250,7 @@ grant all on "better_supabase"."policy_acknowledgements" to service_role;
 drop policy if exists policy_acknowledgements_read on "better_supabase"."policy_acknowledgements";
 create policy policy_acknowledgements_read on "better_supabase"."policy_acknowledgements"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
 create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null)
@@ -266,7 +266,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   insert into "better_supabase"."control_frameworks" ("tenant_id", "key", "name", "version", "description")
@@ -317,7 +317,7 @@ begin
   if not found then
     raise exception 'framework not found' using errcode = 'P0002', hint = 'CONTROL_FRAMEWORK_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if nullif(trim(save_control.code), '') is null or nullif(trim(save_control.title), '') is null then
@@ -455,7 +455,7 @@ begin
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
     end if;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'controls.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
     raise exception 'not allowed to collect evidence' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if add_control_evidence.attachment_id is null and nullif(trim(add_control_evidence.note), '') is null then
@@ -497,7 +497,7 @@ begin
   if not found then
     raise exception 'evidence not found' using errcode = 'P0002', hint = 'CONTROL_EVIDENCE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   delete from "better_supabase"."control_evidence" x where x."id" = v_row."id";
@@ -527,7 +527,7 @@ begin
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if nullif(trim(save_evidence_task.title), '') is null then
@@ -662,7 +662,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_policy.tenant, 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_policy.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if save_policy.owner_id is not null and not exists (
@@ -711,7 +711,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if v_row."archived_at" is not null then
@@ -751,7 +751,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   update "better_supabase"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
@@ -783,7 +783,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.acknowledge'), false) then
+  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.acknowledge'), false) then
     raise exception 'not allowed to acknowledge policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if v_row."current_version_id" is null or v_row."archived_at" is not null then
@@ -812,7 +812,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_policies.tenant, 'controls.read'), false)) or coalesce(better_supabase.can('tenant', list_policies.tenant, 'controls.acknowledge'), false)) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_policies.tenant, 'compliance.read'), false)) or coalesce(better_supabase.can('tenant', list_policies.tenant, 'compliance.acknowledge'), false)) then
     raise exception 'not allowed to read policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   return (
@@ -845,7 +845,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.read'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.read'), false)) then
     raise exception 'not allowed to read policy acknowledgements' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   return jsonb_build_object(
@@ -886,7 +886,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."control_frameworks" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."control_frameworks";
 create policy bsb_tenant_scope_insert on "better_supabase"."control_frameworks" as restrictive
@@ -907,7 +907,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."controls" as restric
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."controls";
 create policy bsb_tenant_scope_insert on "better_supabase"."controls" as restrictive
@@ -928,7 +928,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."control_evidence" as
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."control_evidence";
 create policy bsb_tenant_scope_insert on "better_supabase"."control_evidence" as restrictive
@@ -949,7 +949,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."evidence_tasks" as r
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."evidence_tasks";
 create policy bsb_tenant_scope_insert on "better_supabase"."evidence_tasks" as restrictive
@@ -970,7 +970,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."policies" as restric
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
 create policy bsb_tenant_scope_insert on "better_supabase"."policies" as restrictive
@@ -991,7 +991,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."policy_acknowledgeme
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements";
 create policy bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements" as restrictive
@@ -1037,7 +1037,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:2f0228ccaa9356d9543aedc467e16ef2fbf6c30f1de98e9800e5381f4a5281d0
+-- @bsb-hash sha256:52ee2196f06851449e2c99146ae43f9a6c410232458b4bc2c18b8886f64aabc9
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1154,7 +1154,7 @@ grant all on "better_supabase"."control_frameworks" to service_role;
 drop policy if exists control_frameworks_read on "better_supabase"."control_frameworks";
 create policy control_frameworks_read on "better_supabase"."control_frameworks"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "better_supabase"."controls" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1181,7 +1181,7 @@ grant all on "better_supabase"."controls" to service_role;
 drop policy if exists controls_read on "better_supabase"."controls";
 create policy controls_read on "better_supabase"."controls"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "better_supabase"."evidence_tasks" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1210,7 +1210,7 @@ grant all on "better_supabase"."evidence_tasks" to service_role;
 drop policy if exists evidence_tasks_read on "better_supabase"."evidence_tasks";
 create policy evidence_tasks_read on "better_supabase"."evidence_tasks"
   for select to authenticated
-  using ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "better_supabase"."control_evidence" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1237,7 +1237,7 @@ grant all on "better_supabase"."control_evidence" to service_role;
 drop policy if exists control_evidence_read on "better_supabase"."control_evidence";
 create policy control_evidence_read on "better_supabase"."control_evidence"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "better_supabase"."policies" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1264,7 +1264,7 @@ grant all on "better_supabase"."policies" to service_role;
 drop policy if exists policies_read on "better_supabase"."policies";
 create policy policies_read on "better_supabase"."policies"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')));
 
 create table if not exists "better_supabase"."policy_acknowledgements" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1286,7 +1286,7 @@ grant all on "better_supabase"."policy_acknowledgements" to service_role;
 drop policy if exists policy_acknowledgements_read on "better_supabase"."policy_acknowledgements";
 create policy policy_acknowledgements_read on "better_supabase"."policy_acknowledgements"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
 create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null)
@@ -1302,7 +1302,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   insert into "better_supabase"."control_frameworks" ("tenant_id", "key", "name", "version", "description")
@@ -1353,7 +1353,7 @@ begin
   if not found then
     raise exception 'framework not found' using errcode = 'P0002', hint = 'CONTROL_FRAMEWORK_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if nullif(trim(save_control.code), '') is null or nullif(trim(save_control.title), '') is null then
@@ -1500,7 +1500,7 @@ begin
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
     end if;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'controls.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
     raise exception 'not allowed to collect evidence' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if add_control_evidence.attachment_id is null and nullif(trim(add_control_evidence.note), '') is null then
@@ -1555,7 +1555,7 @@ begin
   if not found then
     raise exception 'evidence not found' using errcode = 'P0002', hint = 'CONTROL_EVIDENCE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   delete from "better_supabase"."control_evidence" x where x."id" = v_row."id";
@@ -1585,7 +1585,7 @@ begin
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if nullif(trim(save_evidence_task.title), '') is null then
@@ -1744,7 +1744,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_policy.tenant, 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_policy.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if save_policy.owner_id is not null and not exists (
@@ -1793,7 +1793,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if v_row."archived_at" is not null then
@@ -1842,7 +1842,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   update "better_supabase"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
@@ -1874,7 +1874,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.acknowledge'), false) then
+  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.acknowledge'), false) then
     raise exception 'not allowed to acknowledge policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if v_row."current_version_id" is null or v_row."archived_at" is not null then
@@ -1912,7 +1912,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_policies.tenant, 'controls.read'), false)) or coalesce(better_supabase.can('tenant', list_policies.tenant, 'controls.acknowledge'), false)) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_policies.tenant, 'compliance.read'), false)) or coalesce(better_supabase.can('tenant', list_policies.tenant, 'compliance.acknowledge'), false)) then
     raise exception 'not allowed to read policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   return (
@@ -1945,7 +1945,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.read'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.read'), false)) then
     raise exception 'not allowed to read policy acknowledgements' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   return jsonb_build_object(
@@ -1986,7 +1986,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."control_frameworks" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."control_frameworks";
 create policy bsb_tenant_scope_insert on "better_supabase"."control_frameworks" as restrictive
@@ -2007,7 +2007,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."controls" as restric
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."controls";
 create policy bsb_tenant_scope_insert on "better_supabase"."controls" as restrictive
@@ -2028,7 +2028,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."control_evidence" as
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."control_evidence";
 create policy bsb_tenant_scope_insert on "better_supabase"."control_evidence" as restrictive
@@ -2049,7 +2049,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."evidence_tasks" as r
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."evidence_tasks";
 create policy bsb_tenant_scope_insert on "better_supabase"."evidence_tasks" as restrictive
@@ -2070,7 +2070,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."policies" as restric
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
 create policy bsb_tenant_scope_insert on "better_supabase"."policies" as restrictive
@@ -2091,7 +2091,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."policy_acknowledgeme
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements";
 create policy bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements" as restrictive
@@ -2137,7 +2137,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:5187992ea0d8bdaca63ef8b1ac7da8634f07df86b2d9822e9b2e843087228c6d
+-- @bsb-hash sha256:1dd969f502c37acc15713add76e2688402c192ae58eee9c5b13b75c19949ba3f
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2259,7 +2259,7 @@ grant all on "app_private"."control_frameworks" to service_role;
 drop policy if exists control_frameworks_read on "app_private"."control_frameworks";
 create policy control_frameworks_read on "app_private"."control_frameworks"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "app_private"."controls" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2286,7 +2286,7 @@ grant all on "app_private"."controls" to service_role;
 drop policy if exists controls_read on "app_private"."controls";
 create policy controls_read on "app_private"."controls"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "app_private"."evidence_tasks" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2315,7 +2315,7 @@ grant all on "app_private"."evidence_tasks" to service_role;
 drop policy if exists evidence_tasks_read on "app_private"."evidence_tasks";
 create policy evidence_tasks_read on "app_private"."evidence_tasks"
   for select to authenticated
-  using ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "app_private"."control_evidence" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2342,7 +2342,7 @@ grant all on "app_private"."control_evidence" to service_role;
 drop policy if exists control_evidence_read on "app_private"."control_evidence";
 create policy control_evidence_read on "app_private"."control_evidence"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "app_private"."policies" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2369,7 +2369,7 @@ grant all on "app_private"."policies" to service_role;
 drop policy if exists policies_read on "app_private"."policies";
 create policy policies_read on "app_private"."policies"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')));
 
 create table if not exists "app_private"."policy_acknowledgements" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2391,7 +2391,7 @@ grant all on "app_private"."policy_acknowledgements" to service_role;
 drop policy if exists policy_acknowledgements_read on "app_private"."policy_acknowledgements";
 create policy policy_acknowledgements_read on "app_private"."policy_acknowledgements"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
 create or replace function "app_private"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null)
@@ -2407,7 +2407,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   insert into "app_private"."control_frameworks" ("tenant_id", "key", "name", "version", "description")
@@ -2458,7 +2458,7 @@ begin
   if not found then
     raise exception 'framework not found' using errcode = 'P0002', hint = 'CONTROL_FRAMEWORK_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if nullif(trim(save_control.code), '') is null or nullif(trim(save_control.title), '') is null then
@@ -2596,7 +2596,7 @@ begin
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
     end if;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'controls.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
     raise exception 'not allowed to collect evidence' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if add_control_evidence.attachment_id is null and nullif(trim(add_control_evidence.note), '') is null then
@@ -2638,7 +2638,7 @@ begin
   if not found then
     raise exception 'evidence not found' using errcode = 'P0002', hint = 'CONTROL_EVIDENCE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   delete from "app_private"."control_evidence" x where x."id" = v_row."id";
@@ -2668,7 +2668,7 @@ begin
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if nullif(trim(save_evidence_task.title), '') is null then
@@ -2803,7 +2803,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_policy.tenant, 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_policy.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if save_policy.owner_id is not null and not exists (
@@ -2852,7 +2852,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if v_row."archived_at" is not null then
@@ -2892,7 +2892,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   update "app_private"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
@@ -2924,7 +2924,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.acknowledge'), false) then
+  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.acknowledge'), false) then
     raise exception 'not allowed to acknowledge policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if v_row."current_version_id" is null or v_row."archived_at" is not null then
@@ -2953,7 +2953,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_policies.tenant, 'controls.read'), false)) or coalesce(better_supabase.can('tenant', list_policies.tenant, 'controls.acknowledge'), false)) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_policies.tenant, 'compliance.read'), false)) or coalesce(better_supabase.can('tenant', list_policies.tenant, 'compliance.acknowledge'), false)) then
     raise exception 'not allowed to read policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   return (
@@ -2986,7 +2986,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.read'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.read'), false)) then
     raise exception 'not allowed to read policy acknowledgements' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   return jsonb_build_object(
@@ -3027,7 +3027,7 @@ create policy bsb_tenant_scope_select on "app_private"."control_frameworks" as r
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."control_frameworks";
 create policy bsb_tenant_scope_insert on "app_private"."control_frameworks" as restrictive
@@ -3048,7 +3048,7 @@ create policy bsb_tenant_scope_select on "app_private"."controls" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."controls";
 create policy bsb_tenant_scope_insert on "app_private"."controls" as restrictive
@@ -3069,7 +3069,7 @@ create policy bsb_tenant_scope_select on "app_private"."control_evidence" as res
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."control_evidence";
 create policy bsb_tenant_scope_insert on "app_private"."control_evidence" as restrictive
@@ -3090,7 +3090,7 @@ create policy bsb_tenant_scope_select on "app_private"."evidence_tasks" as restr
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."evidence_tasks";
 create policy bsb_tenant_scope_insert on "app_private"."evidence_tasks" as restrictive
@@ -3111,7 +3111,7 @@ create policy bsb_tenant_scope_select on "app_private"."policies" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."policies";
 create policy bsb_tenant_scope_insert on "app_private"."policies" as restrictive
@@ -3132,7 +3132,7 @@ create policy bsb_tenant_scope_select on "app_private"."policy_acknowledgements"
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."policy_acknowledgements";
 create policy bsb_tenant_scope_insert on "app_private"."policy_acknowledgements" as restrictive
@@ -3178,7 +3178,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:a4c35043297f4a9209cc8029fbe9773cc737f0fb8d2b50d6a155fc79a726e719
+-- @bsb-hash sha256:cde27baf274ce8e2b007d6334d71d131f0075425d3d1bb1a0ad1ab90f91a45dc
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3295,7 +3295,7 @@ grant all on "better_supabase"."control_frameworks" to service_role;
 drop policy if exists control_frameworks_read on "better_supabase"."control_frameworks";
 create policy control_frameworks_read on "better_supabase"."control_frameworks"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "better_supabase"."controls" (
   "id" uuid primary key default gen_random_uuid(),
@@ -3322,7 +3322,7 @@ grant all on "better_supabase"."controls" to service_role;
 drop policy if exists controls_read on "better_supabase"."controls";
 create policy controls_read on "better_supabase"."controls"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "better_supabase"."evidence_tasks" (
   "id" uuid primary key default gen_random_uuid(),
@@ -3351,7 +3351,7 @@ grant all on "better_supabase"."evidence_tasks" to service_role;
 drop policy if exists evidence_tasks_read on "better_supabase"."evidence_tasks";
 create policy evidence_tasks_read on "better_supabase"."evidence_tasks"
   for select to authenticated
-  using ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "better_supabase"."control_evidence" (
   "id" uuid primary key default gen_random_uuid(),
@@ -3378,7 +3378,7 @@ grant all on "better_supabase"."control_evidence" to service_role;
 drop policy if exists control_evidence_read on "better_supabase"."control_evidence";
 create policy control_evidence_read on "better_supabase"."control_evidence"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "better_supabase"."policies" (
   "id" uuid primary key default gen_random_uuid(),
@@ -3405,7 +3405,7 @@ grant all on "better_supabase"."policies" to service_role;
 drop policy if exists policies_read on "better_supabase"."policies";
 create policy policies_read on "better_supabase"."policies"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')));
 
 create table if not exists "better_supabase"."policy_acknowledgements" (
   "id" uuid primary key default gen_random_uuid(),
@@ -3427,7 +3427,7 @@ grant all on "better_supabase"."policy_acknowledgements" to service_role;
 drop policy if exists policy_acknowledgements_read on "better_supabase"."policy_acknowledgements";
 create policy policy_acknowledgements_read on "better_supabase"."policy_acknowledgements"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
 create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null)
@@ -3443,7 +3443,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   insert into "better_supabase"."control_frameworks" ("tenant_id", "key", "name", "version", "description")
@@ -3494,7 +3494,7 @@ begin
   if not found then
     raise exception 'framework not found' using errcode = 'P0002', hint = 'CONTROL_FRAMEWORK_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if nullif(trim(save_control.code), '') is null or nullif(trim(save_control.title), '') is null then
@@ -3632,7 +3632,7 @@ begin
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
     end if;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'controls.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
     raise exception 'not allowed to collect evidence' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if add_control_evidence.attachment_id is null and nullif(trim(add_control_evidence.note), '') is null then
@@ -3674,7 +3674,7 @@ begin
   if not found then
     raise exception 'evidence not found' using errcode = 'P0002', hint = 'CONTROL_EVIDENCE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   delete from "better_supabase"."control_evidence" x where x."id" = v_row."id";
@@ -3704,7 +3704,7 @@ begin
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if nullif(trim(save_evidence_task.title), '') is null then
@@ -3839,7 +3839,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_policy.tenant, 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_policy.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if save_policy.owner_id is not null and not exists (
@@ -3888,7 +3888,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if v_row."archived_at" is not null then
@@ -3928,7 +3928,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   update "better_supabase"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
@@ -3960,7 +3960,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.acknowledge'), false) then
+  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.acknowledge'), false) then
     raise exception 'not allowed to acknowledge policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if v_row."current_version_id" is null or v_row."archived_at" is not null then
@@ -3989,7 +3989,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_policies.tenant, 'controls.read'), false)) or coalesce(better_supabase.can('tenant', list_policies.tenant, 'controls.acknowledge'), false)) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_policies.tenant, 'compliance.read'), false)) or coalesce(better_supabase.can('tenant', list_policies.tenant, 'compliance.acknowledge'), false)) then
     raise exception 'not allowed to read policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   return (
@@ -4022,7 +4022,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.read'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.read'), false)) then
     raise exception 'not allowed to read policy acknowledgements' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   return jsonb_build_object(
@@ -4063,7 +4063,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."control_frameworks" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."control_frameworks";
 create policy bsb_tenant_scope_insert on "better_supabase"."control_frameworks" as restrictive
@@ -4084,7 +4084,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."controls" as restric
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."controls";
 create policy bsb_tenant_scope_insert on "better_supabase"."controls" as restrictive
@@ -4105,7 +4105,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."control_evidence" as
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."control_evidence";
 create policy bsb_tenant_scope_insert on "better_supabase"."control_evidence" as restrictive
@@ -4126,7 +4126,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."evidence_tasks" as r
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."evidence_tasks";
 create policy bsb_tenant_scope_insert on "better_supabase"."evidence_tasks" as restrictive
@@ -4147,7 +4147,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."policies" as restric
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
 create policy bsb_tenant_scope_insert on "better_supabase"."policies" as restrictive
@@ -4168,7 +4168,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."policy_acknowledgeme
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements";
 create policy bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements" as restrictive
@@ -4391,7 +4391,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:844dec21d54979d17c57c6f5182fe5d53c95b2ac188614f5a28f376f32269d3f
+-- @bsb-hash sha256:ad5c744d6cb474bb5d89e7c5dfa46700320a66738bf6ff13b388b5c11eb0f56f
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4506,7 +4506,7 @@ grant all on "better_supabase"."control_frameworks" to service_role;
 drop policy if exists bsb_control_frameworks_read on "better_supabase"."control_frameworks";
 create policy bsb_control_frameworks_read on "better_supabase"."control_frameworks"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 -- better_supabase.controls is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."controls" add column if not exists "id" uuid default gen_random_uuid();
@@ -4529,7 +4529,7 @@ grant all on "better_supabase"."controls" to service_role;
 drop policy if exists bsb_controls_read on "better_supabase"."controls";
 create policy bsb_controls_read on "better_supabase"."controls"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 -- better_supabase.evidence_tasks is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."evidence_tasks" add column if not exists "id" uuid default gen_random_uuid();
@@ -4553,7 +4553,7 @@ grant all on "better_supabase"."evidence_tasks" to service_role;
 drop policy if exists bsb_evidence_tasks_read on "better_supabase"."evidence_tasks";
 create policy bsb_evidence_tasks_read on "better_supabase"."evidence_tasks"
   for select to authenticated
-  using ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 -- better_supabase.control_evidence is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."control_evidence" add column if not exists "id" uuid default gen_random_uuid();
@@ -4574,7 +4574,7 @@ grant all on "better_supabase"."control_evidence" to service_role;
 drop policy if exists bsb_control_evidence_read on "better_supabase"."control_evidence";
 create policy bsb_control_evidence_read on "better_supabase"."control_evidence"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 -- better_supabase.policies is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."policies" add column if not exists "id" uuid default gen_random_uuid();
@@ -4598,7 +4598,7 @@ grant all on "better_supabase"."policies" to service_role;
 drop policy if exists bsb_policies_read on "better_supabase"."policies";
 create policy bsb_policies_read on "better_supabase"."policies"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')));
 
 -- better_supabase.policy_acknowledgements is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."policy_acknowledgements" add column if not exists "id" uuid default gen_random_uuid();
@@ -4617,7 +4617,7 @@ grant all on "better_supabase"."policy_acknowledgements" to service_role;
 drop policy if exists bsb_policy_acknowledgements_read on "better_supabase"."policy_acknowledgements";
 create policy bsb_policy_acknowledgements_read on "better_supabase"."policy_acknowledgements"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
 create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null)
@@ -4633,7 +4633,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   insert into "better_supabase"."control_frameworks" ("tenant_id", "key", "name", "version", "description")
@@ -4684,7 +4684,7 @@ begin
   if not found then
     raise exception 'framework not found' using errcode = 'P0002', hint = 'CONTROL_FRAMEWORK_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if nullif(trim(save_control.code), '') is null or nullif(trim(save_control.title), '') is null then
@@ -4822,7 +4822,7 @@ begin
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
     end if;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'controls.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
     raise exception 'not allowed to collect evidence' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if add_control_evidence.attachment_id is null and nullif(trim(add_control_evidence.note), '') is null then
@@ -4864,7 +4864,7 @@ begin
   if not found then
     raise exception 'evidence not found' using errcode = 'P0002', hint = 'CONTROL_EVIDENCE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   delete from "better_supabase"."control_evidence" x where x."id" = v_row."id";
@@ -4894,7 +4894,7 @@ begin
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if nullif(trim(save_evidence_task.title), '') is null then
@@ -5029,7 +5029,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_policy.tenant, 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_policy.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if save_policy.owner_id is not null and not exists (
@@ -5078,7 +5078,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if v_row."archived_at" is not null then
@@ -5118,7 +5118,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   update "better_supabase"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
@@ -5150,7 +5150,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.acknowledge'), false) then
+  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.acknowledge'), false) then
     raise exception 'not allowed to acknowledge policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if v_row."current_version_id" is null or v_row."archived_at" is not null then
@@ -5179,7 +5179,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_policies.tenant, 'controls.read'), false)) or coalesce(better_supabase.can('tenant', list_policies.tenant, 'controls.acknowledge'), false)) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_policies.tenant, 'compliance.read'), false)) or coalesce(better_supabase.can('tenant', list_policies.tenant, 'compliance.acknowledge'), false)) then
     raise exception 'not allowed to read policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   return (
@@ -5212,7 +5212,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.read'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.read'), false)) then
     raise exception 'not allowed to read policy acknowledgements' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   return jsonb_build_object(
@@ -5253,7 +5253,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."control_frameworks" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."control_frameworks";
 create policy bsb_tenant_scope_insert on "better_supabase"."control_frameworks" as restrictive
@@ -5274,7 +5274,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."controls" as restric
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."controls";
 create policy bsb_tenant_scope_insert on "better_supabase"."controls" as restrictive
@@ -5295,7 +5295,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."control_evidence" as
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."control_evidence";
 create policy bsb_tenant_scope_insert on "better_supabase"."control_evidence" as restrictive
@@ -5316,7 +5316,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."evidence_tasks" as r
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."evidence_tasks";
 create policy bsb_tenant_scope_insert on "better_supabase"."evidence_tasks" as restrictive
@@ -5337,7 +5337,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."policies" as restric
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
 create policy bsb_tenant_scope_insert on "better_supabase"."policies" as restrictive
@@ -5358,7 +5358,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."policy_acknowledgeme
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements";
 create policy bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements" as restrictive
@@ -5404,7 +5404,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:248129f7aafcaeae71f02d72030d405ef1e7534a8fd0a8976c95c82297e6008f
+-- @bsb-hash sha256:ccaa0874a21a56deb2e77e2c8f6f437f2f0c5791904c5c1ebdab0d09ee20b519
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5521,7 +5521,7 @@ grant all on "better_supabase"."control_frameworks" to service_role;
 drop policy if exists control_frameworks_read on "better_supabase"."control_frameworks";
 create policy control_frameworks_read on "better_supabase"."control_frameworks"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("org_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "better_supabase"."controls" (
   "id" uuid primary key default gen_random_uuid(),
@@ -5548,7 +5548,7 @@ grant all on "better_supabase"."controls" to service_role;
 drop policy if exists controls_read on "better_supabase"."controls";
 create policy controls_read on "better_supabase"."controls"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("org_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "better_supabase"."evidence_tasks" (
   "id" uuid primary key default gen_random_uuid(),
@@ -5577,7 +5577,7 @@ grant all on "better_supabase"."evidence_tasks" to service_role;
 drop policy if exists evidence_tasks_read on "better_supabase"."evidence_tasks";
 create policy evidence_tasks_read on "better_supabase"."evidence_tasks"
   for select to authenticated
-  using ("assignee_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("assignee_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "better_supabase"."control_evidence" (
   "id" uuid primary key default gen_random_uuid(),
@@ -5604,7 +5604,7 @@ grant all on "better_supabase"."control_evidence" to service_role;
 drop policy if exists control_evidence_read on "better_supabase"."control_evidence";
 create policy control_evidence_read on "better_supabase"."control_evidence"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("org_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 create table if not exists "better_supabase"."policies" (
   "id" uuid primary key default gen_random_uuid(),
@@ -5631,7 +5631,7 @@ grant all on "better_supabase"."policies" to service_role;
 drop policy if exists policies_read on "better_supabase"."policies";
 create policy policies_read on "better_supabase"."policies"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('controls.read')) or "org_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')));
+  using ("org_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "org_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')));
 
 create table if not exists "better_supabase"."policy_acknowledgements" (
   "id" uuid primary key default gen_random_uuid(),
@@ -5653,7 +5653,7 @@ grant all on "better_supabase"."policy_acknowledgements" to service_role;
 drop policy if exists policy_acknowledgements_read on "better_supabase"."policy_acknowledgements";
 create policy policy_acknowledgements_read on "better_supabase"."policy_acknowledgements"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('controls.read')));
+  using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
 create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null)
@@ -5669,7 +5669,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   insert into "better_supabase"."control_frameworks" ("org_id", "key", "name", "version", "description")
@@ -5720,7 +5720,7 @@ begin
   if not found then
     raise exception 'framework not found' using errcode = 'P0002', hint = 'CONTROL_FRAMEWORK_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."org_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."org_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if nullif(trim(save_control.code), '') is null or nullif(trim(save_control.title), '') is null then
@@ -5858,7 +5858,7 @@ begin
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
     end if;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."org_id", 'controls.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."org_id", 'compliance.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
     raise exception 'not allowed to collect evidence' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if add_control_evidence.attachment_id is null and nullif(trim(add_control_evidence.note), '') is null then
@@ -5900,7 +5900,7 @@ begin
   if not found then
     raise exception 'evidence not found' using errcode = 'P0002', hint = 'CONTROL_EVIDENCE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   delete from "better_supabase"."control_evidence" x where x."id" = v_row."id";
@@ -5930,7 +5930,7 @@ begin
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."org_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."org_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
   if nullif(trim(save_evidence_task.title), '') is null then
@@ -6065,7 +6065,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_policy.tenant, 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_policy.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if save_policy.owner_id is not null and not exists (
@@ -6114,7 +6114,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if v_row."archived_at" is not null then
@@ -6154,7 +6154,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'controls.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   update "better_supabase"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
@@ -6186,7 +6186,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."org_id", 'controls.acknowledge'), false) then
+  if v_me is null or not coalesce(better_supabase.can('tenant', v_row."org_id", 'compliance.acknowledge'), false) then
     raise exception 'not allowed to acknowledge policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   if v_row."current_version_id" is null or v_row."archived_at" is not null then
@@ -6215,7 +6215,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_policies.tenant, 'controls.read'), false)) or coalesce(better_supabase.can('tenant', list_policies.tenant, 'controls.acknowledge'), false)) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_policies.tenant, 'compliance.read'), false)) or coalesce(better_supabase.can('tenant', list_policies.tenant, 'compliance.acknowledge'), false)) then
     raise exception 'not allowed to read policies' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   return (
@@ -6248,7 +6248,7 @@ begin
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'POLICY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'controls.read'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'compliance.read'), false)) then
     raise exception 'not allowed to read policy acknowledgements' using errcode = '42501', hint = 'POLICY_FORBIDDEN';
   end if;
   return jsonb_build_object(
@@ -6289,7 +6289,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."control_frameworks" 
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("org_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."control_frameworks";
 create policy bsb_tenant_scope_insert on "better_supabase"."control_frameworks" as restrictive
@@ -6310,7 +6310,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."controls" as restric
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("org_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."controls";
 create policy bsb_tenant_scope_insert on "better_supabase"."controls" as restrictive
@@ -6331,7 +6331,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."control_evidence" as
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("org_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."control_evidence";
 create policy bsb_tenant_scope_insert on "better_supabase"."control_evidence" as restrictive
@@ -6352,7 +6352,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."evidence_tasks" as r
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("assignee_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("assignee_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."evidence_tasks";
 create policy bsb_tenant_scope_insert on "better_supabase"."evidence_tasks" as restrictive
@@ -6373,7 +6373,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."policies" as restric
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('controls.read')) or "org_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')))
+    or ("org_id" in (select better_supabase.tenant_ids_with('compliance.read')) or "org_id" in (select better_supabase.tenant_ids_with('compliance.acknowledge')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
 create policy bsb_tenant_scope_insert on "better_supabase"."policies" as restrictive
@@ -6394,7 +6394,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."policy_acknowledgeme
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('controls.read')))
+    or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements";
 create policy bsb_tenant_scope_insert on "better_supabase"."policy_acknowledgements" as restrictive

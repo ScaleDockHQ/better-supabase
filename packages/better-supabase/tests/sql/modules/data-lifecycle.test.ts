@@ -35,7 +35,7 @@ describe("data-lifecycle module", () => {
 
   it("cancels a deletion with the cancelDelete permission while the tenant is disabled", () => {
     expect(sqlOf(["organizations", "data-lifecycle"])).toContain(
-      `coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)`,
+      `coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'data_lifecycle.delete'), false)`,
     );
 
     const custom = renderBlocks(["data-lifecycle"], {

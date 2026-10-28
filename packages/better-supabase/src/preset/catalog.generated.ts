@@ -382,7 +382,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "keys",
       "entities": {
         "specs": {
-          "key": {
+          "api_key": {
             "table": "keys",
             "singular": "api_key",
             "primary": true
@@ -667,7 +667,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "entries",
       "entities": {
         "specs": {
-          "entry": {
+          "waitlist_entry": {
             "table": "entries",
             "singular": "waitlist_entry",
             "plural": "waitlist_entries",
@@ -693,7 +693,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         "keys": {
           "manage": "waitlist.manage",
-          "invite": "members.invite"
+          "invite": "waitlist.invite"
         }
       }
     },
@@ -814,7 +814,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "definitions",
       "entities": {
         "specs": {
-          "definition": {
+          "workflow_definition": {
             "table": "definitions",
             "singular": "workflow_definition",
             "primary": true
@@ -843,11 +843,11 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "workflow.read",
-          "run": "workflow.run",
-          "edit": "workflow.edit",
-          "publish": "workflow.publish",
-          "admin": "workflow.admin"
+          "read": "workflow_editor.read",
+          "run": "workflow_editor.run",
+          "edit": "workflow_editor.write",
+          "publish": "workflow_editor.publish",
+          "admin": "workflow_editor.manage"
         }
       }
     },
@@ -950,7 +950,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "singular": "ai_chat",
             "primary": true
           },
-          "project": {
+          "ai_project": {
             "table": "projects",
             "singular": "ai_project"
           }
@@ -1023,7 +1023,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "files",
       "entities": {
         "specs": {
-          "document": {
+          "ai_document": {
             "table": "documents",
             "singular": "ai_document",
             "primary": true
@@ -1046,8 +1046,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "upload": "ai.create",
-          "manage": "ai.admin"
+          "upload": "ai_files.upload",
+          "manage": "ai_files.manage"
         }
       }
     },
@@ -1075,7 +1075,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "entities": {
         "specs": {
-          "document": {
+          "knowledge_document": {
             "table": "documents",
             "singular": "knowledge_document",
             "primary": true
@@ -1105,9 +1105,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "ai.read",
-          "write": "ai.create",
-          "manage": "ai.admin"
+          "read": "knowledge.read",
+          "write": "knowledge.write",
+          "manage": "knowledge.manage"
         }
       }
     },
@@ -1170,8 +1170,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "ai.read",
-          "manage": "ai.admin"
+          "read": "memory.read",
+          "manage": "memory.manage"
         }
       }
     },
@@ -1224,10 +1224,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "ai.read",
-          "create": "ai.create",
-          "publish": "ai.share",
-          "moderate": "ai.moderate"
+          "read": "agents.read",
+          "create": "agents.create",
+          "publish": "agents.publish",
+          "moderate": "agents.moderate"
         }
       }
     },
@@ -1247,7 +1247,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "servers",
       "entities": {
         "specs": {
-          "server": {
+          "connector_server": {
             "table": "servers",
             "singular": "connector_server",
             "primary": true
@@ -1274,9 +1274,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "ai.read",
-          "use": "ai.create",
-          "manage": "ai.admin"
+          "read": "connectors.read",
+          "use": "connectors.use",
+          "manage": "connectors.manage"
         }
       }
     },
@@ -1328,8 +1328,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "create": "ai.create",
-          "manage": "ai.admin"
+          "create": "ai_schedules.create",
+          "manage": "ai_schedules.manage"
         }
       }
     },
@@ -1556,7 +1556,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "keys": {
           "manage": "custom_fields.manage",
           "read": "custom_fields.read",
-          "sensitive": "custom_fields.sensitive.read"
+          "sensitive": "custom_fields.read_sensitive"
         }
       }
     },
@@ -1580,7 +1580,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "links",
       "entities": {
         "specs": {
-          "link": {
+          "share_link": {
             "table": "links",
             "singular": "share_link",
             "primary": true
@@ -1733,7 +1733,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "views",
       "entities": {
         "specs": {
-          "view": {
+          "saved_view": {
             "table": "views",
             "singular": "saved_view",
             "primary": true
@@ -1760,8 +1760,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "views.read",
-          "share": "views.share"
+          "read": "saved_views.read",
+          "share": "saved_views.share"
         }
       }
     },
@@ -2248,7 +2248,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "requests",
       "entities": {
         "specs": {
-          "request": {
+          "access_request": {
             "table": "requests",
             "singular": "access_request",
             "primary": true
@@ -2483,7 +2483,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "locations",
       "entities": {
         "specs": {
-          "location": {
+          "inventory_location": {
             "table": "locations",
             "singular": "inventory_location",
             "primary": true
@@ -2561,7 +2561,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "nodes",
       "entities": {
         "specs": {
-          "node": {
+          "drive_node": {
             "table": "nodes",
             "singular": "drive_node",
             "primary": true
@@ -2875,7 +2875,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "requests",
       "entities": {
         "specs": {
-          "request": {
+          "signature_request": {
             "table": "requests",
             "singular": "signature_request",
             "primary": true
@@ -2931,7 +2931,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "entries",
       "entities": {
         "specs": {
-          "entry": {
+          "time_entry": {
             "table": "entries",
             "singular": "time_entry",
             "plural": "time_entries",
@@ -3228,9 +3228,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "parties.read",
-          "write": "parties.write",
-          "manage": "parties.manage"
+          "read": "contacts.read",
+          "write": "contacts.write",
+          "manage": "contacts.manage"
         }
       }
     },
@@ -3300,9 +3300,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "engagements.read",
-          "write": "engagements.write",
-          "manage": "engagements.manage"
+          "read": "activities.read",
+          "write": "activities.write",
+          "manage": "activities.manage"
         }
       }
     },
@@ -3561,9 +3561,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "work_items.read",
-          "write": "work_items.write",
-          "manage": "work_items.manage"
+          "read": "tasks.read",
+          "write": "tasks.write",
+          "manage": "tasks.manage"
         }
       }
     },
@@ -3769,7 +3769,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "policies",
       "entities": {
         "specs": {
-          "policy": {
+          "sla_policy": {
             "table": "policies",
             "singular": "sla_policy",
             "plural": "sla_policies",
@@ -3853,8 +3853,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "targets.read",
-          "manage": "targets.manage"
+          "read": "goals.read",
+          "manage": "goals.manage"
         }
       }
     },
@@ -4283,12 +4283,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "requests",
       "entities": {
         "specs": {
-          "request": {
+          "leave_request": {
             "table": "requests",
             "singular": "leave_request",
             "primary": true
           },
-          "type": {
+          "leave_type": {
             "table": "types",
             "singular": "leave_type"
           }
@@ -4395,10 +4395,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "rules.read",
-          "edit": "rules.edit",
-          "publish": "rules.publish",
-          "admin": "rules.admin"
+          "read": "automations.read",
+          "edit": "automations.write",
+          "publish": "automations.publish",
+          "admin": "automations.manage"
         }
       }
     },
@@ -5732,10 +5732,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "controls.read",
-          "manage": "controls.manage",
-          "collect": "controls.collect",
-          "acknowledge": "controls.acknowledge"
+          "read": "compliance.read",
+          "manage": "compliance.manage",
+          "collect": "compliance.collect",
+          "acknowledge": "compliance.acknowledge"
         }
       }
     },
@@ -6207,7 +6207,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "activity.read"
+          "read": "timeline.read"
         }
       }
     },
@@ -6312,10 +6312,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "mail.read",
-          "connect": "mail.connect",
-          "send": "mail.send",
-          "manage": "mail.manage"
+          "read": "mail_sync.read",
+          "connect": "mail_sync.connect",
+          "send": "mail_sync.send",
+          "manage": "mail_sync.manage"
         }
       }
     },
@@ -6366,7 +6366,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         "keys": {
           "read": "segments.read",
-          "edit": "segments.edit"
+          "edit": "segments.write"
         }
       }
     },
@@ -6486,7 +6486,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "entities": {
         "specs": {
-          "snapshot": {
+          "forecast_snapshot": {
             "table": "snapshots",
             "singular": "forecast_snapshot",
             "primary": true
@@ -16355,7 +16355,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/oauth-server"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "OauthServerEvents",
+        "types": [
+          "oauth_client.registered",
+          "oauth_client.deleted",
+          "oauth_grant.created",
+          "oauth_grant.revoked"
+        ]
+      }
     },
     {
       "name": "onboarding",

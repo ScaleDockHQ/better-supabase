@@ -47,7 +47,7 @@ const EVENTS: BlockSqlEvents<SlaEvents> = {
 
 const NAMES: BlockSqlNames = {
   entities: {
-    policy: {
+    sla_policy: {
       table: "policies",
       singular: "sla_policy",
       plural: "sla_policies",
