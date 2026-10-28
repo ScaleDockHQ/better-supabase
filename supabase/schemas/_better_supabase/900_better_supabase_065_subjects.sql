@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:8402b9aadfa42cec42c501dd7262c508f5a4334724b5eb222cfc62f2ef81e587
+-- @bsb-hash sha256:6deaefa5b91eb348daedd5c353714eadf28d39a5f014480bea10073d4ad05d9d
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -49,7 +49,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select '{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,customer,drive_node,application,project,task}'::text[]
+  select '{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -135,6 +135,8 @@ begin
       return (select s."name"::text from "public"."customers" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
     when 'drive_node' then
       return (select s."name"::text from "better_supabase"."drive_nodes" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
+    when 'change_request' then
+      return (select s."title"::text from "public"."change_requests" s where s."id" = (subject_title.subject_id)::uuid);
     when 'project' then
       return (select s."name"::text from "public"."projects" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
     when 'task' then
@@ -173,6 +175,8 @@ begin
       return (select '/customers/' || s."id"::text from "public"."customers" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
     when 'application' then
       return (select '/people/hiring' from "better_supabase"."applications" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'change_request' then
+      return (select '/change-requests/' || s."id"::text from "public"."change_requests" s where s."id" = (subject_url.subject_id)::uuid);
     when 'project' then
       return (select '/projects/' || s."id"::text from "public"."projects" s where s."id" = (subject_url.subject_id)::uuid and s."deleted_at" is null);
     when 'task' then
@@ -429,6 +433,12 @@ begin
       'title', null::text, 'url', '/people/hiring'))
     from "better_supabase"."applications" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'application')::uuid[])), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'change_request', 'id', s."id"::text,
+      'title', s."title"::text, 'url', '/change-requests/' || s."id"::text))
+    from "public"."change_requests" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'change_request')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'project', 'id', s."id"::text,
@@ -835,6 +845,12 @@ begin
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'hiring.write'), false)
           else true
         end)
+      );
+    when 'change_request' then
+      return exists (
+        select 1 from "public"."change_requests" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and true
       );
     when 'project' then
       return exists (
@@ -1309,6 +1325,12 @@ begin
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'hiring.write'), false)
           else false
         end
+      );
+    when 'change_request' then
+      return exists (
+        select 1 from "public"."change_requests" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and false
       );
     when 'project' then
       return exists (

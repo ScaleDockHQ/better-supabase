@@ -152,6 +152,20 @@ for (const event of batch) {
 
 The workflow's steps then call `machine.pause()` while it waits (a client reply, a signature), `machine.setFlag()` when a step escalates, and `machine.transition()` when it is done. The trigger still checks each edge, so a workflow can't move a record along an edge the machine doesn't allow, and a member who moves the record by hand while it is paused gets `STATE_PAUSED`.
 
+### A machine read from a workflow version
+
+A machine can also take its statuses and edges from a published workflow-editor version, so the team that edits the process edits the machine. Set `workflow` to the definition's slug and leave out `initial`, `transitions` and `order`:
+
+```ts title="better-supabase.config.ts"
+machines: {
+  change_request: { column: "status", workflow: "change-requests" },
+},
+```
+
+The graph's stages are the nodes with a string `config.stage`, in graph order. A path from one stage to the next, through nodes without a stage (a sleep, an approval, a condition), is an allowed edge, and a stage's `config.returnsTo` lists the earlier stages it may go back to. The initial status is the trigger's own stage, else the first stage after the trigger.
+
+A new record pins the newest published version of the definition, the organization's own before a system one, in its lifecycle row (`state()` returns it as `workflow` and `workflowVersionId`), and keeps checking its edges against that version after a new one is published. A record created before the machine pins the published version on its first transition. The trigger refuses an insert while the definition has no published version (`STATE_LIFECYCLE_UNPUBLISHED`, Postgres `55000`), and a status that isn't a stage or an edge the version doesn't draw (`STATE_TRANSITION_INVALID`, `22023`). A workflow machine needs the workflow-editor module and keeps a lifecycle row, so it can't set `lifecycle: false`.
+
 ## Transitions that need approval
 
 `requiresApproval` lists edges, in the shape of `transitions`, that only an approved request of the [approvals](/docs/blocks/approvals) module may make. Any other caller gets `STATE_APPROVAL_REQUIRED`; the service role can still make them. Pair it with an approvals policy whose `run` is `{ transition: "<status>" }` on a subject type named after the machine.

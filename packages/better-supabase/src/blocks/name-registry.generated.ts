@@ -1646,7 +1646,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "history": "id" | "tenant" | "subjectType" | "subjectId" | "fromStatus" | "toStatus" | "actor" | "actorName" | "actorEmail" | "ip" | "userAgent" | "reason" | "createdAt";
       readonly "stages": "id" | "tenant" | "subjectType" | "subjectId" | "label" | "outcome" | "display" | "clearedAt" | "createdAt";
-      readonly "lifecycles": "id" | "tenant" | "subjectType" | "subjectId" | "version" | "flags" | "pausedAt" | "pausedUntil" | "pauseReason" | "pausedBy" | "createdAt" | "updatedAt";
+      readonly "lifecycles": "id" | "tenant" | "subjectType" | "subjectId" | "version" | "flags" | "pausedAt" | "pausedUntil" | "pauseReason" | "pausedBy" | "workflowVersion" | "createdAt" | "updatedAt";
     };
     readonly functions: "list_status_history" | "list_status_stages" | "pause_lifecycle" | "resume_lifecycle" | "set_lifecycle_flag" | "status_state" | "transition";
     readonly actions: never;
@@ -1720,16 +1720,18 @@ export interface BlockNameRegistry {
   };
   readonly "templates": {
     readonly tables: {
-      readonly "templates": "id" | "tenant" | "scope" | "key" | "type" | "name" | "language" | "isDefault" | "settings" | "forkedFrom" | "forkedFromVersion" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "templates": "id" | "tenant" | "scope" | "brand" | "key" | "type" | "name" | "language" | "isDefault" | "settings" | "forkedFrom" | "forkedFromVersion" | "createdBy" | "createdAt" | "updatedAt";
       readonly "versions": "id" | "template" | "version" | "body" | "hash" | "publishedAt" | "createdBy" | "createdAt";
       readonly "applications": "id" | "template" | "version" | "tenant" | "subjectType" | "subjectId" | "appliedBy" | "appliedAt";
       readonly "workflows": "id" | "template" | "definition" | "inputs" | "enabled" | "createdBy" | "createdAt";
+      readonly "schedules": "id" | "template" | "tenant" | "input" | "enabled" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "runs": "schedule" | "tenant" | "occurrence" | "application" | "createdAt";
     };
     readonly functions: "fork_template" | "publish_template_version" | "record_template_application" | "remove_template" | "save_template" | "save_template_draft" | "set_default_template" | "sync_templates" | "template_applications_list" | "template_apply_target" | "template_get" | "template_versions_list" | "templates_list";
     readonly actions: "read" | "apply" | "manage";
     readonly hooks: "before_template_save" | "after_template_save" | "before_template_apply" | "after_template_apply";
     readonly entities: {
-      readonly "template": "id" | "tenant_id" | "scope" | "key" | "type" | "name" | "language" | "is_default" | "settings" | "forked_from" | "forked_from_version" | "created_by" | "created_at" | "updated_at";
+      readonly "template": "id" | "tenant_id" | "scope" | "brand" | "key" | "type" | "name" | "language" | "is_default" | "settings" | "forked_from" | "forked_from_version" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: "template";
   };

@@ -9,6 +9,9 @@ import type { betterSupabase } from "./index";
 
 type AppDb = DbOf<typeof betterSupabase>;
 
+export const { useList: useChangeRequests, useOne: useChangeRequest } =
+  defineDataHooks("changeRequests", (db: AppDb) => db.changeRequests);
+
 export const { useList: useClientNotes, useOne: useClientNote } =
   defineDataHooks("clientNotes", (db: AppDb) => db.clientNotes);
 

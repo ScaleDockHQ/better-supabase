@@ -241,6 +241,36 @@ describe("templates client", () => {
     expect(fake.calls.map(([fn]) => fn)).toEqual(["template_apply_target"]);
   });
 
+  it("maps brand templates and syncs brand starters", async () => {
+    const fake = transport({
+      templates_list: () => [
+        { ...TEMPLATE, tenant: null, scope: "brand", brand: "acme" },
+      ],
+      sync_templates: () => 1,
+    });
+
+    const templates = createTemplates({ transport: fake, types: { project } });
+    const [row] = await templates.list("o").orThrow();
+    expect(row).toMatchObject({ scope: "brand", brand: "acme" });
+
+    await templates
+      .sync([
+        {
+          key: "launch",
+          brand: "acme",
+          type: "project",
+          name: "Launch",
+          settings: { color: "red" },
+          body: { tasks: [] },
+        },
+      ])
+      .orThrow();
+
+    expect(fake.calls[1]?.[1]).toMatchObject({
+      starters: [{ key: "launch", brand: "acme" }],
+    });
+  });
+
   it("validates starters before syncing them", async () => {
     const fake = transport({ sync_templates: () => 2 });
     const templates = createTemplates({ transport: fake, types: { project } });

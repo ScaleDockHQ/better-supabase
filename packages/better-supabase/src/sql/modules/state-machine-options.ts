@@ -3,6 +3,7 @@ import type { EntityNames } from "../../core/entity-naming.ts";
 import type { BlockSqlContext } from "../context.ts";
 
 import { tenantColumnOf } from "../subject-registry.ts";
+import { workflowOf } from "./state-machine-lifecycle.ts";
 
 const NAME = /^[a-z][a-z0-9_]*$/;
 const ID_TYPE = /^[a-z][a-z0-9_ ]{0,62}$/;
@@ -29,6 +30,11 @@ export interface Machine {
   readonly order: readonly string[];
   /** The flags `set_lifecycle_flag` accepts. */
   readonly flags: readonly string[];
+  /**
+   * The workflow-editor definition slug whose published version is the machine:
+   * its stages, transitions and initial status come from the graph.
+   */
+  readonly workflow?: string;
   /**
    * Where the history lives: unset for the block's `status_history`, `"app"`
    * when the app writes and reads its own history, or an app table the block
@@ -135,10 +141,17 @@ function machine(
     own[key] = value;
   }
 
-  const record =
+  const given =
     own["table"] === undefined
       ? { ...registered(name, registry, where, naming), ...own }
       : own;
+
+  const workflow = workflowOf(given, where);
+
+  const record =
+    workflow === undefined
+      ? given
+      : { ...given, initial: "", transitions: {}, lifecycle: true };
 
   const table = record["table"];
   const column = record["column"];
@@ -257,6 +270,7 @@ function machine(
     version,
     order,
     flags,
+    ...(workflow === undefined ? {} : { workflow }),
     ...(history === undefined ? {} : { history }),
   };
 }

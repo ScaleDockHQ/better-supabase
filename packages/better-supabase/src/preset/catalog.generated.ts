@@ -1501,6 +1501,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit",
         "approvals",
+        "workflow-editor",
         "bulk"
       ],
       "manifest": "state-machine",
@@ -3030,7 +3031,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit",
         "workflow-editor",
-        "jsonb-schemas"
+        "jsonb-schemas",
+        "reminders"
       ],
       "manifest": "templates",
       "scopes": [
@@ -3052,6 +3054,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "id": "id",
               "tenant": "tenant_id",
               "scope": "scope",
+              "brand": "brand",
               "key": "key",
               "type": "type",
               "name": "name",
@@ -6166,7 +6169,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "notifications",
         "subjects",
         "audit",
-        "workflows"
+        "workflows",
+        "state-machine",
+        "messaging"
       ],
       "manifest": "timeline",
       "scopes": [
@@ -18135,6 +18140,18 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "TemplateJobs"
+        },
+        {
+          "name": "TemplateOccurrence"
+        },
+        {
+          "name": "TemplateRecurPayload"
+        },
+        {
+          "name": "TemplateRecurring"
+        },
+        {
           "name": "TemplateRunStart"
         },
         {
@@ -18143,6 +18160,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "TemplatesApplyOutput"
+        },
+        {
+          "name": "TemplateSchedule"
+        },
+        {
+          "name": "TemplateScheduleInput"
+        },
+        {
+          "name": "TemplateScheduleOptions"
+        },
+        {
+          "name": "TemplateScheduleResult"
         },
         {
           "name": "TemplateScope"
@@ -18178,7 +18207,15 @@ export const PRESET_CATALOG: PresetCatalog = {
           "template.published",
           "template.applied"
         ]
-      }
+      },
+      "schedules": [
+        {
+          "name": "recurring",
+          "cron": "*/5 * * * *",
+          "runs": "recurring.schedule()",
+          "description": "Enqueues a templates.recur job for each recurring template occurrence due in the next day."
+        }
+      ]
     },
     {
       "name": "memberships",

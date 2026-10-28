@@ -242,6 +242,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0125: `inbox_drafts` keeps one open reply draft per staff member and conversation; the service role suggests AI drafts the team sends or discards.
 - 0126: `workflow_node_kinds` registers the app's own node kinds (`defineNodeKind`, run as steps); definitions take a `purpose` and one default lifecycle workflow per subject type.
 - 0127: Stock is `numeric` with a unit scale and posts base units; lots, serials, bins, average cost, document allocations, orders from lines or a quote, and shipment lines.
+- 0128: Templates gain brand starters and schedules on reminders' rules; a machine reads its edges from a workflow version; timelines add transitions and messages.
 
 ## Pre-release pins
 

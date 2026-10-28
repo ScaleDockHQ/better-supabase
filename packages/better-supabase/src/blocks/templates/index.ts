@@ -36,6 +36,18 @@ export {
 } from "./merge-fields.ts";
 
 export {
+  TEMPLATE_RECUR_QUEUE,
+  type TemplateJobs,
+  type TemplateOccurrence,
+  type TemplateRecurPayload,
+  type TemplateRecurring,
+  type TemplateSchedule,
+  type TemplateScheduleInput,
+  type TemplateScheduleOptions,
+  type TemplateScheduleResult,
+} from "./recurring.ts";
+
+export {
   TEMPLATES_APPLY_STEP,
   templatesApplyStep,
   type TemplatesApplyOutput,

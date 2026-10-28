@@ -38,16 +38,26 @@ import {
  * Where a timeline entry comes from: `event` for an `activity_entries` row that
  * `activitySink()` wrote, `audit` for an audit log entry on the subject's row
  * (with the `audit` and `subjects` modules), `delivery` for a notification
- * delivery about the subject (with `notifications`) and `run` for a workflow
- * run on it (with `workflows`).
+ * delivery about the subject (with `notifications`), `run` for a workflow run
+ * on it (with `workflows`), `transition` for a status change of the subject
+ * (with `state-machine`) and `message` for a message in the subject's
+ * conversation (with `messaging`).
  */
-export type ActivitySource = "event" | "audit" | "delivery" | "run";
+export type ActivitySource =
+  | "event"
+  | "audit"
+  | "delivery"
+  | "run"
+  | "transition"
+  | "message";
 
 const ACTIVITY_SOURCES: readonly ActivitySource[] = [
   "event",
   "audit",
   "delivery",
   "run",
+  "transition",
+  "message",
 ];
 
 function sourceOf(value: unknown): ActivitySource {

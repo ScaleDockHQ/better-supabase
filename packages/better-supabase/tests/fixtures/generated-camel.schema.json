@@ -1,6 +1,129 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$defs": {
+    "changeRequestsRow": {
+      "title": "Change requests",
+      "description": "@bsb subject type=change_request id-type=uuid tenant=organization_id title=title url=/change-requests/{id}",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "title",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "changeRequestsInsert": {
+      "title": "Change requests insert",
+      "description": "@bsb subject type=change_request id-type=uuid tenant=organization_id title=title url=/change-requests/{id}",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        }
+      },
+      "required": [
+        "organizationId",
+        "title"
+      ],
+      "additionalProperties": false
+    },
+    "changeRequestsUpdate": {
+      "title": "Change requests update",
+      "description": "@bsb subject type=change_request id-type=uuid tenant=organization_id title=title url=/change-requests/{id}",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        }
+      },
+      "additionalProperties": false
+    },
     "clientNotesRow": {
       "title": "Client notes",
       "description": "@bsb encrypted diagnosis=text birth_date=date",
@@ -1128,6 +1251,12 @@
           "type": "string",
           "format": "date-time",
           "readOnly": true
+        },
+        "brand": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -1135,7 +1264,8 @@
         "name",
         "slug",
         "createdAt",
-        "updatedAt"
+        "updatedAt",
+        "brand"
       ],
       "additionalProperties": false
     },
@@ -1162,6 +1292,12 @@
           "type": "string",
           "format": "date-time",
           "readOnly": true
+        },
+        "brand": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -1193,6 +1329,12 @@
           "type": "string",
           "format": "date-time",
           "readOnly": true
+        },
+        "brand": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false

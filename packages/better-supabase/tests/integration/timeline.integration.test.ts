@@ -162,8 +162,15 @@ describe.skipIf(!live)("activity", () => {
       ).toEqual([]);
       await s.asRole(member);
       expect(
-        (await activity.list(subject).orThrow()).map((entry) => entry.actorId),
+        (await activity.list(subject, { sources: ["event"] }).orThrow()).map(
+          (entry) => entry.actorId,
+        ),
       ).toEqual([owner.id, member.id]);
+      expect(
+        (await activity.list(subject, { sources: ["message"] }).orThrow()).map(
+          (entry) => [entry.type, entry.actorId, entry.summary],
+        ),
+      ).toEqual([["message.sent", owner.id, "Looks good"]]);
       expect(
         await s.hint("select better_supabase.record_activity('{}')"),
       ).toMatch(/permission denied/);

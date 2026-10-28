@@ -4,6 +4,31 @@ import { z } from "zod/mini";
 
 import type { InsertOf, Json, RowOf, UpdateOf } from "./generated-camel.ts";
 
+export const changeRequestsRow: z.ZodMiniType<RowOf<'changeRequests'>> = z.object({
+  id: z.guid(),
+  organizationId: z.guid(),
+  title: z.string().check(z.minLength(1), z.maxLength(200)),
+  status: z.nullable(z.string()),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+}).check(z.meta({ title: "Change requests", description: "@bsb subject type=change_request id-type=uuid tenant=organization_id title=title url=/change-requests/{id}" }));
+export const changeRequestsInsert: z.ZodMiniType<InsertOf<'changeRequests'>> = z.object({
+  id: z.exactOptional(z.guid()),
+  organizationId: z.guid(),
+  title: z.string().check(z.minLength(1), z.maxLength(200)),
+  status: z.exactOptional(z.nullable(z.string())),
+  createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
+}).check(z.meta({ title: "Change requests insert", description: "@bsb subject type=change_request id-type=uuid tenant=organization_id title=title url=/change-requests/{id}" }));
+export const changeRequestsUpdate: z.ZodMiniType<UpdateOf<'changeRequests'>> = z.object({
+  id: z.exactOptional(z.guid()),
+  organizationId: z.exactOptional(z.guid()),
+  title: z.exactOptional(z.string().check(z.minLength(1), z.maxLength(200))),
+  status: z.exactOptional(z.nullable(z.string())),
+  createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
+}).check(z.meta({ title: "Change requests update", description: "@bsb subject type=change_request id-type=uuid tenant=organization_id title=title url=/change-requests/{id}" }));
+
 export const clientNotesRow: z.ZodMiniType<RowOf<'clientNotes'>> = z.object({
   id: z.guid(),
   organizationId: z.guid(),
@@ -229,6 +254,7 @@ export const organizationsRow: z.ZodMiniType<RowOf<'organizations'>> = z.object(
   slug: z.string(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
+  brand: z.nullable(z.string()),
 }).check(z.meta({ title: "Organizations" }));
 export const organizationsInsert: z.ZodMiniType<InsertOf<'organizations'>> = z.object({
   id: z.exactOptional(z.guid()),
@@ -236,6 +262,7 @@ export const organizationsInsert: z.ZodMiniType<InsertOf<'organizations'>> = z.o
   slug: z.string(),
   createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
   updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  brand: z.exactOptional(z.nullable(z.string())),
 }).check(z.meta({ title: "Organizations insert" }));
 export const organizationsUpdate: z.ZodMiniType<UpdateOf<'organizations'>> = z.object({
   id: z.exactOptional(z.guid()),
@@ -243,6 +270,7 @@ export const organizationsUpdate: z.ZodMiniType<UpdateOf<'organizations'>> = z.o
   slug: z.exactOptional(z.string()),
   createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
   updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  brand: z.exactOptional(z.nullable(z.string())),
 }).check(z.meta({ title: "Organizations update" }));
 
 export const planFeaturesRow: z.ZodMiniType<RowOf<'planFeatures'>> = z.object({
@@ -471,6 +499,7 @@ export const tasksViewRow: z.ZodMiniType<RowOf<'tasksView'>> = z.object({
 
 /** Write validators; the generated schema installs them through `validation`. */
 export const validators: {
+  readonly changeRequests: { readonly insert: typeof changeRequestsInsert; readonly update: typeof changeRequestsUpdate };
   readonly clientNotes: { readonly insert: typeof clientNotesInsert; readonly update: typeof clientNotesUpdate };
   readonly contacts: { readonly insert: typeof contactsInsert; readonly update: typeof contactsUpdate };
   readonly customerTags: { readonly insert: typeof customerTagsInsert; readonly update: typeof customerTagsUpdate };
@@ -487,6 +516,7 @@ export const validators: {
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
   readonly tasks: { readonly insert: typeof tasksInsert; readonly update: typeof tasksUpdate };
 } = {
+  changeRequests: { insert: changeRequestsInsert, update: changeRequestsUpdate },
   clientNotes: { insert: clientNotesInsert, update: clientNotesUpdate },
   contacts: { insert: contactsInsert, update: contactsUpdate },
   customerTags: { insert: customerTagsInsert, update: customerTagsUpdate },

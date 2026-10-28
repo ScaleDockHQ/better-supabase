@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:96b27487444e5b3191c097c257f2e5e1166526460e293562465d2ae6c2f6e4e3
+-- @bsb-hash sha256:1a16b70e1bb12879353b1ad95fa6ae2d58595932a9823f9a1b4ceb2bbd56e772
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -68,7 +68,7 @@ create extension if not exists pgcrypto with schema extensions;
 
 -- Templates of a type (an invoice, a project, an email): a tenant's own, or
 -- a system starter (no tenant) that sync_templates keeps by key and tenants
--- fork. forked_from: the template and version a fork copied.
+-- fork, or with options.brand a starter of one brand. forked_from: the template and version a fork copied.
 create table if not exists "better_supabase"."templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
@@ -277,7 +277,7 @@ as $$
   )
     order by x."is_default" desc, x."scope" desc, x."name", x."id"), '[]'::jsonb)
   from "better_supabase"."templates" x
-  where (x."tenant_id" = templates_list.tenant or x."scope" = 'system')
+  where (x."scope" = 'system' or x."tenant_id" = templates_list.tenant)
     and (templates_list.type is null or x."type" = templates_list.type)
     and (templates_list.language is null or x."language" = templates_list.language)
 $$;
@@ -546,7 +546,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_src from "better_supabase"."templates" x where x."id" = fork_template.source;
-  if not found or not (v_src."scope" = 'system' or v_src."tenant_id" is not distinct from fork_template.tenant) then
+  if not found or not (v_src."scope" = 'system' or v_src."tenant_id" = fork_template.tenant) then
     raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
   end if;
   if fork_template.tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (fork_template.tenant is not null and coalesce(better_supabase.can('tenant', fork_template.tenant, 'templates.manage'), false))) then
@@ -610,6 +610,9 @@ begin
   for v_starter in select value from jsonb_array_elements(sync_templates.starters) loop
     if coalesce(v_starter ->> 'key', '') !~ '^[a-z0-9][a-z0-9_.-]{0,99}$' or not (v_starter ? 'body') then
       raise exception 'Each starter needs a key and a body' using errcode = '22023', hint = 'TEMPLATE_INVALID';
+    end if;
+    if v_starter ? 'brand' then
+      raise exception 'this templates table has no brand column' using errcode = '22023', hint = 'TEMPLATE_BRAND_UNSUPPORTED';
     end if;
     select * into v_row from "better_supabase"."templates" x where x."tenant_id" is null and x."key" = v_starter ->> 'key' for update;
     if not found then
@@ -911,7 +914,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:f44e295efe248f613003645579ae940f3d17fee10b825755d187ec4d6fcab3da
+-- @bsb-hash sha256:54dab34aab480d6015365f2bd8c4572d0d6ffedc9168130212e603271c1b0dcc
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -970,6 +973,22 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_applications";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."template_schedules";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_schedules";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_schedules";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_schedules";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_schedules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."template_schedule_runs";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_schedule_runs";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_schedule_runs";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_schedule_runs";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_schedule_runs";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -978,7 +997,7 @@ create extension if not exists pgcrypto with schema extensions;
 
 -- Templates of a type (an invoice, a project, an email): a tenant's own, or
 -- a system starter (no tenant) that sync_templates keeps by key and tenants
--- fork. forked_from: the template and version a fork copied.
+-- fork, or with options.brand a starter of one brand. forked_from: the template and version a fork copied.
 create table if not exists "better_supabase"."templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
@@ -1245,7 +1264,7 @@ as $$
   )
     order by x."is_default" desc, x."scope" desc, x."name", x."id"), '[]'::jsonb)
   from "better_supabase"."templates" x
-  where (x."tenant_id" = templates_list.tenant or x."scope" = 'system')
+  where (x."scope" = 'system' or x."tenant_id" = templates_list.tenant)
     and (templates_list.type is null or x."type" = templates_list.type)
     and (templates_list.language is null or x."language" = templates_list.language)
 $$;
@@ -1523,7 +1542,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_src from "better_supabase"."templates" x where x."id" = fork_template.source;
-  if not found or not (v_src."scope" = 'system' or v_src."tenant_id" is not distinct from fork_template.tenant) then
+  if not found or not (v_src."scope" = 'system' or v_src."tenant_id" = fork_template.tenant) then
     raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
   end if;
   if fork_template.tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (fork_template.tenant is not null and coalesce(better_supabase.can('tenant', fork_template.tenant, 'templates.manage'), false))) then
@@ -1590,6 +1609,9 @@ begin
   for v_starter in select value from jsonb_array_elements(sync_templates.starters) loop
     if coalesce(v_starter ->> 'key', '') !~ '^[a-z0-9][a-z0-9_.-]{0,99}$' or not (v_starter ? 'body') then
       raise exception 'Each starter needs a key and a body' using errcode = '22023', hint = 'TEMPLATE_INVALID';
+    end if;
+    if v_starter ? 'brand' then
+      raise exception 'this templates table has no brand column' using errcode = '22023', hint = 'TEMPLATE_BRAND_UNSUPPORTED';
     end if;
     select * into v_row from "better_supabase"."templates" x where x."tenant_id" is null and x."key" = v_starter ->> 'key' for update;
     if not found then
@@ -1928,6 +1950,321 @@ $$;
 revoke execute on function "better_supabase"."template_workflows_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."template_workflows_list"(uuid) to authenticated, service_role;
 
+-- Recurring records: each schedule applies template_id in tenant_id with
+-- input at every occurrence of its rule in "better_supabase"."recurrence_rules"
+-- (subject_type 'template_schedule'). The client expands the rules and enqueues
+-- one job per occurrence.
+create table if not exists "better_supabase"."template_schedules" (
+  "id" uuid primary key default gen_random_uuid(),
+  "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "input" jsonb not null default '{}'::jsonb
+    check (jsonb_typeof("input") = 'object' and pg_column_size("input") <= 65536),
+  "enabled" boolean not null default true,
+  "created_by" uuid references auth.users (id) on delete set null,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+create index if not exists template_schedules_tenant_idx on "better_supabase"."template_schedules" ("tenant_id", "template_id");
+create index if not exists template_schedules_template_idx on "better_supabase"."template_schedules" ("template_id");
+create index if not exists template_schedules_created_by_idx on "better_supabase"."template_schedules" ("created_by");
+alter table "better_supabase"."template_schedules" enable row level security;
+revoke all on "better_supabase"."template_schedules" from public, anon, authenticated;
+grant select on "better_supabase"."template_schedules" to authenticated;
+grant all on "better_supabase"."template_schedules" to service_role;
+drop policy if exists template_schedules_read on "better_supabase"."template_schedules";
+create policy template_schedules_read on "better_supabase"."template_schedules"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
+
+-- One row per occurrence a schedule claimed, and the application it made.
+create table if not exists "better_supabase"."template_schedule_runs" (
+  "schedule_id" uuid not null references "better_supabase"."template_schedules" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "occurrence_at" timestamptz not null,
+  "application_id" uuid references "better_supabase"."template_applications" ("id") on delete set null,
+  "created_at" timestamptz not null default now(),
+  primary key ("schedule_id", "occurrence_at")
+);
+create index if not exists template_schedule_runs_tenant_idx on "better_supabase"."template_schedule_runs" ("tenant_id", "occurrence_at" desc);
+create index if not exists template_schedule_runs_application_idx on "better_supabase"."template_schedule_runs" ("application_id");
+alter table "better_supabase"."template_schedule_runs" enable row level security;
+revoke all on "better_supabase"."template_schedule_runs" from public, anon, authenticated;
+grant select on "better_supabase"."template_schedule_runs" to authenticated;
+grant all on "better_supabase"."template_schedule_runs" to service_role;
+drop policy if exists template_schedule_runs_read on "better_supabase"."template_schedule_runs";
+create policy template_schedule_runs_read on "better_supabase"."template_schedule_runs"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
+
+-- A removed schedule (or one its template took with it) drops its rule.
+create or replace function "better_supabase"."template_schedule_removed"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from "better_supabase"."recurrence_rules" u where u."tenant_id" = old."tenant_id"
+      and u."subject_type" = 'template_schedule'
+      and u."subject_id" = old."id"::text;
+  return old;
+end;
+$$;
+revoke execute on function "better_supabase"."template_schedule_removed"() from public, anon, authenticated;
+drop trigger if exists "bsb_template_schedule_removed" on "better_supabase"."template_schedules";
+create trigger "bsb_template_schedule_removed" after delete on "better_supabase"."template_schedules"
+for each row execute function "better_supabase"."template_schedule_removed"();
+
+-- Creates a schedule (schedule_id null) or changes one: template_id applies
+-- in tenant with input at each occurrence of rrule from dtstart in tzid.
+-- templates.manage in tenant; the template must be visible there.
+create or replace function "better_supabase"."save_template_schedule"(schedule_id uuid, template_id uuid, tenant uuid, dtstart timestamptz, tzid text, rrule text, input jsonb, enabled boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tpl "better_supabase"."templates"%rowtype;
+  v_row "better_supabase"."template_schedules"%rowtype;
+  v_rule "better_supabase"."recurrence_rules"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if save_template_schedule.tenant is null then
+    raise exception 'A schedule needs a tenant' using errcode = '22023', hint = 'TEMPLATE_INVALID';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_template_schedule.tenant is not null and coalesce(better_supabase.can('tenant', save_template_schedule.tenant, 'templates.manage'), false))) then
+    raise exception 'You may not schedule templates here' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
+  end if;
+  if save_template_schedule.dtstart is null or coalesce(length(save_template_schedule.rrule), 0) not between 1 and 1000 then
+    raise exception 'A schedule needs a start and a rule' using errcode = '22023', hint = 'TEMPLATE_SCHEDULE_INVALID';
+  end if;
+  if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = coalesce(save_template_schedule.tzid, 'UTC')) then
+    raise exception 'tzid must be an IANA time zone' using errcode = '22023', hint = 'TEMPLATE_SCHEDULE_INVALID';
+  end if;
+  if save_template_schedule.input is not null and jsonb_typeof(save_template_schedule.input) <> 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'TEMPLATE_INVALID';
+  end if;
+  select * into v_tpl from "better_supabase"."templates" x where x."id" = save_template_schedule.template_id;
+  if not found or not (v_tpl."scope" = 'system' or v_tpl."tenant_id" = save_template_schedule.tenant) then
+    raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
+  end if;
+  if save_template_schedule.schedule_id is null then
+    insert into "better_supabase"."template_schedules" ("template_id", "tenant_id", "input", "enabled", "created_by")
+    values (v_tpl."id", save_template_schedule.tenant, coalesce(save_template_schedule.input, '{}'::jsonb),
+      coalesce(save_template_schedule.enabled, true), (select auth.uid()))
+    returning * into v_row;
+  else
+    update "better_supabase"."template_schedules" x set
+      "template_id" = v_tpl."id",
+      "input" = coalesce(save_template_schedule.input, x."input"),
+      "enabled" = coalesce(save_template_schedule.enabled, x."enabled"),
+      "updated_at" = now()
+    where x."id" = save_template_schedule.schedule_id and x."tenant_id" = save_template_schedule.tenant
+    returning * into v_row;
+    if not found then
+      raise exception 'No such schedule' using errcode = 'P0002', hint = 'TEMPLATE_SCHEDULE_NOT_FOUND';
+    end if;
+  end if;
+  update "better_supabase"."recurrence_rules" u set
+    "dtstart" = save_template_schedule.dtstart,
+    "tzid" = coalesce(save_template_schedule.tzid, 'UTC'),
+    "rrule" = save_template_schedule.rrule
+  where u."tenant_id" = v_row."tenant_id"
+      and u."subject_type" = 'template_schedule'
+      and u."subject_id" = v_row."id"::text
+  returning * into v_rule;
+  if not found then
+    insert into "better_supabase"."recurrence_rules" ("tenant_id", "subject_type", "subject_id", "dtstart", "tzid", "rrule")
+    values (v_row."tenant_id", 'template_schedule', v_row."id"::text, save_template_schedule.dtstart,
+      coalesce(save_template_schedule.tzid, 'UTC'), save_template_schedule.rrule)
+    returning * into v_rule;
+  end if;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'template', v_row."template_id",
+    'tenant', v_row."tenant_id",
+    'input', v_row."input",
+    'enabled', v_row."enabled",
+    'dtstart', v_rule."dtstart",
+    'tzid', v_rule."tzid",
+    'rrule', v_rule."rrule",
+    'createdBy', v_row."created_by",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."save_template_schedule"(uuid, uuid, uuid, timestamptz, text, text, jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."save_template_schedule"(uuid, uuid, uuid, timestamptz, text, text, jsonb, boolean) to authenticated, service_role;
+
+-- Removes a schedule and its rule. templates.manage in its tenant.
+create or replace function "better_supabase"."remove_template_schedule"(schedule_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."template_schedules"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."template_schedules" x where x."id" = remove_template_schedule.schedule_id;
+  if not found then
+    return false;
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'templates.manage'), false))) then
+    raise exception 'You may not remove this schedule' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."template_schedules" x where x."id" = v_row."id";
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_template_schedule"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_template_schedule"(uuid) to authenticated, service_role;
+
+-- The tenant's schedules with their rules, of one template when given.
+-- templates.read in tenant.
+create or replace function "better_supabase"."template_schedules_list"(tenant uuid, template_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', template_schedules_list.tenant, 'templates.read'), false)) then
+    raise exception 'You may not read schedules here' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+    'id', x."id",
+    'template', x."template_id",
+    'tenant', x."tenant_id",
+    'input', x."input",
+    'enabled', x."enabled",
+    'dtstart', u."dtstart",
+    'tzid', u."tzid",
+    'rrule', u."rrule",
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ) order by x."created_at", x."id"), '[]'::jsonb)
+    from "better_supabase"."template_schedules" x
+    left join "better_supabase"."recurrence_rules" u on u."tenant_id" = x."tenant_id"
+      and u."subject_type" = 'template_schedule'
+      and u."subject_id" = x."id"::text
+    where x."tenant_id" = template_schedules_list.tenant
+      and (template_schedules_list.template_id is null or x."template_id" = template_schedules_list.template_id)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."template_schedules_list"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."template_schedules_list"(uuid, uuid) to authenticated, service_role;
+
+-- Every enabled schedule with its rule, for the client to expand.
+create or replace function "better_supabase"."list_template_schedule"()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', x."id",
+    'template', x."template_id",
+    'tenant', x."tenant_id",
+    'input', x."input",
+    'enabled', x."enabled",
+    'dtstart', u."dtstart",
+    'tzid', u."tzid",
+    'rrule', u."rrule",
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ) order by x."id"), '[]'::jsonb)
+  from "better_supabase"."template_schedules" x
+  join "better_supabase"."recurrence_rules" u on u."tenant_id" = x."tenant_id"
+      and u."subject_type" = 'template_schedule'
+      and u."subject_id" = x."id"::text
+  where x."enabled" and u."rrule" is not null
+$$;
+revoke execute on function "better_supabase"."list_template_schedule"() from public, anon, authenticated;
+grant execute on function "better_supabase"."list_template_schedule"() to service_role;
+
+-- Claims one occurrence of an enabled schedule: the schedule when the
+-- occurrence is new or hasn't recorded an application yet, else null.
+create or replace function "better_supabase"."claim_template_occurrence"(schedule_id uuid, occurrence_at timestamptz)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."template_schedules"%rowtype;
+  v_rule "better_supabase"."recurrence_rules"%rowtype;
+begin
+  select * into v_row from "better_supabase"."template_schedules" x where x."id" = claim_template_occurrence.schedule_id and x."enabled";
+  if not found then
+    return null;
+  end if;
+  insert into "better_supabase"."template_schedule_runs" ("schedule_id", "tenant_id", "occurrence_at")
+  values (v_row."id", v_row."tenant_id", claim_template_occurrence.occurrence_at)
+  on conflict ("schedule_id", "occurrence_at") do nothing;
+  if not found and exists (select 1 from "better_supabase"."template_schedule_runs" y
+      where y."schedule_id" = v_row."id" and y."occurrence_at" = claim_template_occurrence.occurrence_at
+        and y."application_id" is not null) then
+    return null;
+  end if;
+  select * into v_rule from "better_supabase"."recurrence_rules" u where u."tenant_id" = v_row."tenant_id"
+      and u."subject_type" = 'template_schedule'
+      and u."subject_id" = v_row."id"::text;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'template', v_row."template_id",
+    'tenant', v_row."tenant_id",
+    'input', v_row."input",
+    'enabled', v_row."enabled",
+    'dtstart', v_rule."dtstart",
+    'tzid', v_rule."tzid",
+    'rrule', v_rule."rrule",
+    'createdBy', v_row."created_by",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."claim_template_occurrence"(uuid, timestamptz) from public, anon, authenticated;
+grant execute on function "better_supabase"."claim_template_occurrence"(uuid, timestamptz) to service_role;
+
+-- Records the application an occurrence made. False when it already had one.
+create or replace function "better_supabase"."finish_template_occurrence"(schedule_id uuid, occurrence_at timestamptz, application_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  update "better_supabase"."template_schedule_runs" y set "application_id" = finish_template_occurrence.application_id
+  where y."schedule_id" = finish_template_occurrence.schedule_id
+    and y."occurrence_at" = finish_template_occurrence.occurrence_at
+    and y."application_id" is null;
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."finish_template_occurrence"(uuid, timestamptz, uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."finish_template_occurrence"(uuid, timestamptz, uuid) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1986,6 +2323,48 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_app
 create policy bsb_tenant_scope_delete on "better_supabase"."template_applications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."template_schedules";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_schedules";
+create policy bsb_tenant_scope_select on "better_supabase"."template_schedules" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_schedules";
+create policy bsb_tenant_scope_insert on "better_supabase"."template_schedules" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_schedules";
+create policy bsb_tenant_scope_update on "better_supabase"."template_schedules" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_schedules";
+create policy bsb_tenant_scope_delete on "better_supabase"."template_schedules" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."template_schedule_runs";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_schedule_runs";
+create policy bsb_tenant_scope_select on "better_supabase"."template_schedule_runs" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_schedule_runs";
+create policy bsb_tenant_scope_insert on "better_supabase"."template_schedule_runs" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_schedule_runs";
+create policy bsb_tenant_scope_update on "better_supabase"."template_schedule_runs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_schedule_runs";
+create policy bsb_tenant_scope_delete on "better_supabase"."template_schedule_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2019,7 +2398,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:d3bd8b71d5c36f8dc9acdb03a726bde0253bcabcbb5db28ea9c1a7d5096ddf6e
+-- @bsb-hash sha256:cbbab7bba9e9d8ef06773287ed2e60e9861a0bbcf8adcdfe0d3296921cbcddda
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2091,7 +2470,7 @@ create extension if not exists pgcrypto with schema extensions;
 
 -- Templates of a type (an invoice, a project, an email): a tenant's own, or
 -- a system starter (no tenant) that sync_templates keeps by key and tenants
--- fork. forked_from: the template and version a fork copied.
+-- fork, or with options.brand a starter of one brand. forked_from: the template and version a fork copied.
 create table if not exists "app_private"."templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
@@ -2300,7 +2679,7 @@ as $$
   )
     order by x."is_default" desc, x."scope" desc, x."name", x."id"), '[]'::jsonb)
   from "app_private"."templates" x
-  where (x."tenant_id" = templates_list.tenant or x."scope" = 'system')
+  where (x."scope" = 'system' or x."tenant_id" = templates_list.tenant)
     and (templates_list.type is null or x."type" = templates_list.type)
     and (templates_list.language is null or x."language" = templates_list.language)
 $$;
@@ -2569,7 +2948,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_src from "app_private"."templates" x where x."id" = fork_template.source;
-  if not found or not (v_src."scope" = 'system' or v_src."tenant_id" is not distinct from fork_template.tenant) then
+  if not found or not (v_src."scope" = 'system' or v_src."tenant_id" = fork_template.tenant) then
     raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
   end if;
   if fork_template.tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (fork_template.tenant is not null and coalesce(better_supabase.can('tenant', fork_template.tenant, 'templates.manage'), false))) then
@@ -2633,6 +3012,9 @@ begin
   for v_starter in select value from jsonb_array_elements(sync_templates.starters) loop
     if coalesce(v_starter ->> 'key', '') !~ '^[a-z0-9][a-z0-9_.-]{0,99}$' or not (v_starter ? 'body') then
       raise exception 'Each starter needs a key and a body' using errcode = '22023', hint = 'TEMPLATE_INVALID';
+    end if;
+    if v_starter ? 'brand' then
+      raise exception 'this templates table has no brand column' using errcode = '22023', hint = 'TEMPLATE_BRAND_UNSUPPORTED';
     end if;
     select * into v_row from "app_private"."templates" x where x."tenant_id" is null and x."key" = v_starter ->> 'key' for update;
     if not found then
@@ -2934,7 +3316,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:b34bebf58a8d75546fbaf0a3a640a6b2d53ea5926577d683723ed66d08505a7a
+-- @bsb-hash sha256:960c5b77a18e9c3db17c7105697f66f3c4e86a162ef5f2aa8745e65eda00972b
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3001,7 +3383,7 @@ create extension if not exists pgcrypto with schema extensions;
 
 -- Templates of a type (an invoice, a project, an email): a tenant's own, or
 -- a system starter (no tenant) that sync_templates keeps by key and tenants
--- fork. forked_from: the template and version a fork copied.
+-- fork, or with options.brand a starter of one brand. forked_from: the template and version a fork copied.
 create table if not exists "better_supabase"."templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
@@ -3210,7 +3592,7 @@ as $$
   )
     order by x."is_default" desc, x."scope" desc, x."name", x."id"), '[]'::jsonb)
   from "better_supabase"."templates" x
-  where (x."tenant_id" = templates_list.tenant or x."scope" = 'system')
+  where (x."scope" = 'system' or x."tenant_id" = templates_list.tenant)
     and (templates_list.type is null or x."type" = templates_list.type)
     and (templates_list.language is null or x."language" = templates_list.language)
 $$;
@@ -3479,7 +3861,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_src from "better_supabase"."templates" x where x."id" = fork_template.source;
-  if not found or not (v_src."scope" = 'system' or v_src."tenant_id" is not distinct from fork_template.tenant) then
+  if not found or not (v_src."scope" = 'system' or v_src."tenant_id" = fork_template.tenant) then
     raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
   end if;
   if fork_template.tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (fork_template.tenant is not null and coalesce(better_supabase.can('tenant', fork_template.tenant, 'templates.manage'), false))) then
@@ -3543,6 +3925,9 @@ begin
   for v_starter in select value from jsonb_array_elements(sync_templates.starters) loop
     if coalesce(v_starter ->> 'key', '') !~ '^[a-z0-9][a-z0-9_.-]{0,99}$' or not (v_starter ? 'body') then
       raise exception 'Each starter needs a key and a body' using errcode = '22023', hint = 'TEMPLATE_INVALID';
+    end if;
+    if v_starter ? 'brand' then
+      raise exception 'this templates table has no brand column' using errcode = '22023', hint = 'TEMPLATE_BRAND_UNSUPPORTED';
     end if;
     select * into v_row from "better_supabase"."templates" x where x."tenant_id" is null and x."key" = v_starter ->> 'key' for update;
     if not found then
@@ -3985,7 +4370,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:01584329c0559be193a2dd3ced6d3bfc3250e363af982c5c382e7acb3dc6b50d
+-- @bsb-hash sha256:59df2860f01f1b42e740c691a7e84e758c0d7448648f6948a5a205286635e3bd
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4068,7 +4453,7 @@ create extension if not exists pgcrypto with schema extensions;
 
 -- Templates of a type (an invoice, a project, an email): a tenant's own, or
 -- a system starter (no tenant) that sync_templates keeps by key and tenants
--- fork. forked_from: the template and version a fork copied.
+-- fork, or with options.brand a starter of one brand. forked_from: the template and version a fork copied.
 -- better_supabase.templates is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."templates" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."templates" add column if not exists "tenant_id" uuid;
@@ -4269,7 +4654,7 @@ as $$
   )
     order by x."is_default" desc, x."scope"::text desc, x."name", x."id"), '[]'::jsonb)
   from "better_supabase"."templates" x
-  where (x."tenant_id" = templates_list.tenant or x."scope" = 'system')
+  where (x."scope" = 'system' or x."tenant_id" = templates_list.tenant)
     and (templates_list.type is null or x."type" = templates_list.type)
     and (templates_list.language is null or x."language" = templates_list.language)
 $$;
@@ -4538,7 +4923,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_src from "better_supabase"."templates" x where x."id" = fork_template.source;
-  if not found or not (v_src."scope" = 'system' or v_src."tenant_id" is not distinct from fork_template.tenant) then
+  if not found or not (v_src."scope" = 'system' or v_src."tenant_id" = fork_template.tenant) then
     raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
   end if;
   if fork_template.tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (fork_template.tenant is not null and coalesce(better_supabase.can('tenant', fork_template.tenant, 'templates.manage'), false))) then
@@ -4602,6 +4987,9 @@ begin
   for v_starter in select value from jsonb_array_elements(sync_templates.starters) loop
     if coalesce(v_starter ->> 'key', '') !~ '^[a-z0-9][a-z0-9_.-]{0,99}$' or not (v_starter ? 'body') then
       raise exception 'Each starter needs a key and a body' using errcode = '22023', hint = 'TEMPLATE_INVALID';
+    end if;
+    if v_starter ? 'brand' then
+      raise exception 'this templates table has no brand column' using errcode = '22023', hint = 'TEMPLATE_BRAND_UNSUPPORTED';
     end if;
     select * into v_row from "better_supabase"."templates" x where x."tenant_id" is null and x."key" = v_starter ->> 'key' for update;
     if not found then
@@ -4903,7 +5291,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:20a235c219b5a343f5ba67df72d880b8aee20bf276c18e5054391cc71d02e1c2
+-- @bsb-hash sha256:69e65b53c96df0cf4378b86c9c0d725adc4ef1ed0b997fb7ad3081ed8ea4dca7
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4970,7 +5358,7 @@ create extension if not exists pgcrypto with schema extensions;
 
 -- Templates of a type (an invoice, a project, an email): a tenant's own, or
 -- a system starter (no tenant) that sync_templates keeps by key and tenants
--- fork. forked_from: the template and version a fork copied.
+-- fork, or with options.brand a starter of one brand. forked_from: the template and version a fork copied.
 create table if not exists "better_supabase"."templates" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
@@ -5179,7 +5567,7 @@ as $$
   )
     order by x."is_default" desc, x."scope" desc, x."name", x."id"), '[]'::jsonb)
   from "better_supabase"."templates" x
-  where (x."org_id" = templates_list.tenant or x."scope" = 'system')
+  where (x."scope" = 'system' or x."org_id" = templates_list.tenant)
     and (templates_list.type is null or x."type" = templates_list.type)
     and (templates_list.language is null or x."language" = templates_list.language)
 $$;
@@ -5448,7 +5836,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_src from "better_supabase"."templates" x where x."id" = fork_template.source;
-  if not found or not (v_src."scope" = 'system' or v_src."org_id" is not distinct from fork_template.tenant) then
+  if not found or not (v_src."scope" = 'system' or v_src."org_id" = fork_template.tenant) then
     raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
   end if;
   if fork_template.tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (fork_template.tenant is not null and coalesce(better_supabase.can('tenant', fork_template.tenant, 'templates.manage'), false))) then
@@ -5512,6 +5900,9 @@ begin
   for v_starter in select value from jsonb_array_elements(sync_templates.starters) loop
     if coalesce(v_starter ->> 'key', '') !~ '^[a-z0-9][a-z0-9_.-]{0,99}$' or not (v_starter ? 'body') then
       raise exception 'Each starter needs a key and a body' using errcode = '22023', hint = 'TEMPLATE_INVALID';
+    end if;
+    if v_starter ? 'brand' then
+      raise exception 'this templates table has no brand column' using errcode = '22023', hint = 'TEMPLATE_BRAND_UNSUPPORTED';
     end if;
     select * into v_row from "better_supabase"."templates" x where x."org_id" is null and x."key" = v_starter ->> 'key' for update;
     if not found then

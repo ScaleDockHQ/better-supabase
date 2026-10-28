@@ -48,6 +48,8 @@ const SOURCE_COMMENTS: Readonly<Record<ActivitySourceName, string>> = {
   audit: "audit for an audit log entry on the subject's row",
   delivery: "delivery for a notification delivery about the subject",
   run: "run for a workflow run on the subject",
+  transition: "transition for a state-machine status change of the subject",
+  message: "message for a message in the subject's conversation",
 };
 
 function sourcesComment(sources: readonly ActivitySourceName[]): string {
@@ -230,7 +232,14 @@ export const ACTIVITY: BlockSqlDefinition = {
   description:
     "An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.",
   requires: ["memberships", "permissions"],
-  integrates: ["notifications", "subjects", "audit", "workflows"],
+  integrates: [
+    "notifications",
+    "subjects",
+    "audit",
+    "workflows",
+    "state-machine",
+    "messaging",
+  ],
   target: "schema",
   modes: ["managed", "custom"],
   names: NAMES,

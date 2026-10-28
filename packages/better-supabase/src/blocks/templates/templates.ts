@@ -12,6 +12,7 @@ import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { WorkflowEditor } from "../workflow-editor/types.ts";
 import type { MergeFieldCatalog } from "./merge-fields.ts";
+import type { TemplateJobs, TemplateRecurring } from "./recurring.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -32,11 +33,15 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { createTemplateRecurring } from "./recurring.ts";
 
-/** Where a template lives: one organization, or every one as a system starter. */
-export type TemplateScope = "tenant" | "system";
+/**
+ * Where a template lives: one organization, every organization of one brand
+ * (`options.brand`), or every one as a system starter.
+ */
+export type TemplateScope = "tenant" | "brand" | "system";
 
-const SCOPES: readonly TemplateScope[] = ["tenant", "system"];
+const SCOPES: readonly TemplateScope[] = ["tenant", "brand", "system"];
 
 /**
  * A template type, such as `invoice` or `project`: Standard Schemas for its
@@ -93,9 +98,11 @@ export function defineTemplateType<Settings = unknown, Body = unknown>(
 /** A template. `F` types the extra columns the `fields` schema describes. */
 export interface Template<F extends object = Record<never, never>> {
   readonly id: string;
-  /** `undefined` for a system template. */
+  /** `undefined` for a system or brand template. */
   readonly organizationId: string | undefined;
   readonly scope: TemplateScope;
+  /** The brand of a brand template; `undefined` otherwise. */
+  readonly brand: string | undefined;
   /** The key `sync` keeps a system template by. */
   readonly key: string | undefined;
   readonly type: string;
@@ -178,9 +185,14 @@ export interface TemplateInput<F extends object = Record<never, never>> {
   readonly fields?: Partial<F>;
 }
 
-/** A system template `sync` keeps, by key. */
+/** A system template `sync` keeps, by key (and brand). */
 export interface TemplateStarter {
   readonly key: string;
+  /**
+   * Makes it a starter of one brand, for the organizations whose brand column
+   * (`options.brand`) holds this value.
+   */
+  readonly brand?: string;
   readonly type: string;
   readonly name: string;
   readonly language?: string;
@@ -269,6 +281,8 @@ export interface Templates<F extends object = Record<never, never>> {
     template: string,
     options: ApplyOptions,
   ): AsyncResult<TemplateApplyResult>;
+  /** Templates applied on a recurrence rule. Needs the reminders module. */
+  readonly recurring: TemplateRecurring;
   readonly applications: {
     /** Newest first, at most 200. */
     list(
@@ -300,6 +314,11 @@ export interface TemplatesOptions<
   readonly types?: Readonly<Record<string, TemplateType>>;
   /** Starts the attached workflows; `createWorkflowEditor` as the caller. */
   readonly workflows?: Pick<WorkflowEditor, "run">;
+  /**
+   * The jobs queue `recurring.schedule` enqueues occurrences on, such as the
+   * client `createQueue` returns.
+   */
+  readonly jobs?: TemplateJobs;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: NoInfer<BlockHooks<Templates<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
@@ -319,6 +338,7 @@ function templateOf(row: Record<string, unknown>): Template {
     id: textOf(row["id"]),
     organizationId: optionalText(row["tenant"]),
     scope: enumOrThrow(row["scope"], SCOPES, "template scope"),
+    brand: optionalText(row["brand"]),
     key: optionalText(row["key"]),
     type: textOf(row["type"]),
     name: textOf(row["name"]),
@@ -568,6 +588,7 @@ export function createTemplates<
 
           rows.push({
             key: starter.key,
+            ...(starter.brand === undefined ? {} : { brand: starter.brand }),
             type: starter.type,
             name: starter.name,
             ...(starter.language === undefined
@@ -737,6 +758,11 @@ export function createTemplates<
 
         return ok({ application: recorded.data, subject, runs });
       }),
+    recurring: createTemplateRecurring({
+      call,
+      apply: (template, applyOptions) => hooked.apply(template, applyOptions),
+      ...(options.jobs === undefined ? {} : { jobs: options.jobs }),
+    }),
     applications: {
       list: (organizationId, filter = {}) =>
         call(
@@ -753,8 +779,10 @@ export function createTemplates<
     },
   };
 
-  return withBlockHooks(client, options.hooks, {
+  const hooked = withBlockHooks(client, options.hooks, {
     block: "templates",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }
