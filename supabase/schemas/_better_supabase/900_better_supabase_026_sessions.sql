@@ -1,6 +1,6 @@
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:394c09baa9eef8798c956cd6b048b398e3b4f9907721e6f440361a030277d476
+-- @bsb-hash sha256:712c0ec39f6158d75b01bd1f8060f445a88f70622e8cf9300dbbd49b7ed559a8
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -231,6 +231,119 @@ create policy bsb_session_active on "public"."tasks" as restrictive
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
 
+-- blocks['sessions'].options.authzVersions: one authorization version per
+-- user. Attach better_supabase.bump_authz_version() to the tables a user's
+-- access comes from; the access token hook reads better_supabase.authz_version().
+create table if not exists better_supabase.user_authz_versions (
+  user_id uuid primary key references auth.users on delete cascade,
+  version bigint not null default 1,
+  updated_at timestamptz not null default now()
+);
+
+alter table better_supabase.user_authz_versions enable row level security;
+
+revoke all on better_supabase.user_authz_versions from public, anon, authenticated;
+grant select on better_supabase.user_authz_versions to supabase_auth_admin;
+grant all on better_supabase.user_authz_versions to service_role;
+
+drop policy if exists bsb_authz_versions_auth_admin on better_supabase.user_authz_versions;
+create policy bsb_authz_versions_auth_admin on better_supabase.user_authz_versions
+  for select to supabase_auth_admin
+  using (true);
+
+-- The version the access token hook copies into authz_ver; 0 before the
+-- first bump.
+create or replace function better_supabase.authz_version(p_user uuid)
+returns bigint
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (select v.version from better_supabase.user_authz_versions v where v.user_id = p_user),
+    0
+  )
+$$;
+
+revoke execute on function better_supabase.authz_version(uuid) from public, anon, authenticated;
+grant execute on function better_supabase.authz_version(uuid) to supabase_auth_admin, service_role;
+
+-- Bumps the versions of many users at once, for changes no trigger sees.
+create or replace function better_supabase.bump_authz_versions(p_users uuid[])
+returns void
+language sql
+volatile
+security definer
+set search_path = ''
+as $$
+  insert into better_supabase.user_authz_versions as v (user_id)
+  select distinct u from unnest(p_users) u where u is not null
+  on conflict (user_id) do update
+    set version = v.version + 1, updated_at = now()
+$$;
+
+revoke execute on function better_supabase.bump_authz_versions(uuid[]) from public, anon, authenticated;
+grant execute on function better_supabase.bump_authz_versions(uuid[]) to service_role;
+
+-- A row trigger: bumps the user in the row's user_id column, or in the column
+-- named by the trigger's first argument, before and after an update.
+create or replace function better_supabase.bump_authz_version()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  col text := coalesce(tg_argv[0], 'user_id');
+begin
+  perform better_supabase.bump_authz_versions(array[
+    (to_jsonb(new) ->> col)::uuid,
+    (to_jsonb(old) ->> col)::uuid
+  ]);
+  return null;
+end;
+$$;
+
+revoke execute on function better_supabase.bump_authz_version() from public, anon, authenticated;
+
+-- Sends { user_id, version } as the changed event on the server topic, which
+-- no user may join, and on the user's own authz:<uid> topic.
+create or replace function better_supabase.broadcast_authz_version()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
+    perform realtime.send(jsonb_build_object('user_id', new.user_id, 'version', new.version), 'changed', 'better_supabase:authz', true);
+  end if;
+  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
+    perform realtime.send(jsonb_build_object('user_id', new.user_id, 'version', new.version), 'changed', 'authz:' || new.user_id::text, true);
+  end if;
+  return null;
+end;
+$$;
+
+revoke execute on function better_supabase.broadcast_authz_version() from public, anon, authenticated;
+
+drop trigger if exists bsb_authz_versions_broadcast on better_supabase.user_authz_versions;
+create trigger bsb_authz_versions_broadcast
+  after insert or update on better_supabase.user_authz_versions
+  for each row execute function better_supabase.broadcast_authz_version();
+
+do $$
+begin
+  if to_regclass('realtime.messages') is not null then
+    drop policy if exists bsb_authz_versions_receive on realtime.messages;
+create policy bsb_authz_versions_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'authz:' || (select auth.uid())::text);
+  end if;
+end;
+$$;
+
 -- blocks.sessions.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -282,6 +395,24 @@ set search_path = ''
 as $$ select "better_supabase"."end_my_session"($1) $$;
 revoke execute on function "api"."end_my_session"(uuid) from public, anon, service_role;
 grant execute on function "api"."end_my_session"(uuid) to authenticated;
+
+create or replace function "api"."authz_version"(p_user uuid)
+returns bigint
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."authz_version"($1) $$;
+revoke execute on function "api"."authz_version"(uuid) from public, anon, authenticated;
+grant execute on function "api"."authz_version"(uuid) to service_role;
+
+create or replace function "api"."bump_authz_versions"(p_users uuid[])
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."bump_authz_versions"($1) $$;
+revoke execute on function "api"."bump_authz_versions"(uuid[]) from public, anon, authenticated;
+grant execute on function "api"."bump_authz_versions"(uuid[]) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

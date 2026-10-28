@@ -201,7 +201,7 @@ server-verified session instead: pass a `bsb.claims()` promise to
 ```tsx title="Server Component, inside <Suspense>"
 import { SessionProvider } from "better-supabase/react";
 
-<SessionProvider sessionPromise={getSession()}>
+<SessionProvider session={getSession()}>
   <SideNav />
 </SessionProvider>;
 ```
@@ -227,6 +227,64 @@ export function SideNav() {
 
 See [Cache Components](/docs/frameworks/next-cache-components) for the full
 pattern, including role-filtered menus.
+
+### Refresh when permissions change
+
+With the sessions module's `authzVersions` option, the database bumps a
+user's authorization version whenever their roles or grants change and
+broadcasts it on the private topic `authz:<uid>`, which only that user may
+read. Give `SessionProvider` a browser client and it listens there: on a new
+version it refreshes the token, then calls `onAuthzChange`. The page keeps
+its cached shell and reloads only what the new claims change.
+
+```tsx title="src/lib/supabase/session-refresh.tsx"
+"use client";
+
+import type { AuthSession } from "better-supabase";
+import type { ReactNode } from "react";
+
+import { SessionProvider } from "better-supabase/react";
+import { useRouter } from "next/navigation";
+
+import { refreshSessionCache } from "@/app/actions/session";
+import { supabase } from "@/lib/supabase/client";
+
+export function SessionRefresh(props: {
+  session: Promise<AuthSession>;
+  children: ReactNode;
+}) {
+  const router = useRouter();
+
+  return (
+    <SessionProvider
+      session={props.session}
+      client={supabase}
+      onAuthzChange={async () => {
+        await refreshSessionCache();
+        router.refresh();
+      }}
+    >
+      {props.children}
+    </SessionProvider>
+  );
+}
+```
+
+```ts title="src/app/actions/session.ts"
+"use server";
+
+import { bsb } from "@/lib/supabase/server";
+
+export const refreshSessionCache = bsb.refreshSessionCache;
+```
+
+`bsb.refreshSessionCache()` drops the caller's own `bsb.cached()` entries:
+the session tag, the session id tag and the authorization provider's
+`sessionTags`. Only the visible tab refreshes the token. It tells the app's
+other tabs over the `better-supabase:session` `BroadcastChannel` (`channel`,
+`false` for none), and they run `onAuthzChange` without a second refresh. A
+hidden tab that hears the broadcast itself waits until it becomes visible.
+`onError` receives a failed refresh.
 
 ## A tenant from the URL
 

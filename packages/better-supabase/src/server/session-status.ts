@@ -56,7 +56,8 @@ export interface SessionStatusRouteOptions {
   /**
    * Ask Auth whether the session still exists, one network call per check, so a
    * revoked session or a ban shows up before the token expires. Defaults to
-   * true.
+   * false: the route reads the verified claims only, and the proxy's
+   * `verifySession` and the `authz:<uid>` broadcast catch revocations.
    */
   readonly verifySession?: boolean;
   /**
@@ -172,7 +173,7 @@ export function sessionStatusRoute(
   server: SessionStatusServer,
   options: SessionStatusRouteOptions = {},
 ): (request: Request) => Promise<Response> {
-  const verifySession = options.verifySession ?? true;
+  const verifySession = options.verifySession ?? false;
   const refresh = options.refresh ?? false;
 
   return async (request) => {

@@ -673,15 +673,20 @@ expiring the user's cache entries.
 
 To evict on other instances too, have the database broadcast each change on
 a private Realtime channel, and subscribe from the module that creates the
-cache:
+cache. The sessions module's `authzVersions` option does the database part:
+it adds `better_supabase.user_authz_versions`, a `bump_authz_version()`
+trigger for your role tables (`bump_authz_versions(uuid[])` for a batch),
+`better_supabase.authz_version(uid)` for your access token hook, and a
+broadcast on `AUTHZ_TOPIC` for servers and on `authz:<uid>` for the user:
+
+```ts title="better-supabase.config.ts"
+blocks: { sessions: { options: { authzVersions: true } } },
+```
 
 ```sql
-perform realtime.send(
-  jsonb_build_object('user_id', new.user_id, 'version', new.version),
-  'changed',
-  'authz-versions',
-  true
-);
+create trigger user_roles_authz_version
+  after insert or update or delete on app.user_roles
+  for each row execute function better_supabase.bump_authz_version();
 ```
 
 ```ts title="src/lib/supabase/authz.ts"
@@ -691,12 +696,25 @@ export const versions = createVersionCache();
 
 subscribeAuthzVersions({
   client: serviceClient,
-  topic: "authz-versions",
-  event: "changed",
-  userIdKey: "user_id",
   versions,
   onError: (error) => console.warn(error),
 });
+```
+
+With your own trigger, pass `topic`, `event` and `userIdKey` to match what
+it sends (defaults `AUTHZ_TOPIC`, `"changed"` and `"user_id"`).
+
+A provider that caches its own entries in `bsb.cached()` scopes returns
+their tags from `sessionTags(userId)` in its authorization hooks. Cached
+entries then carry those tags, and `evictSession`, sign-out and
+`bsb.refreshSessionCache()` clear them with the session tags:
+
+```ts
+export const authorization: AuthorizationHooks = {
+  apiVersion: 1,
+  name: "my-provider",
+  sessionTags: (userId) => [`my-provider:${userId}`],
+};
 ```
 
 The subscriber joins with the service-role client, so the channel needs no

@@ -63,4 +63,18 @@ await bsb.cached({ life: { stale: 900 } });
       expect.stringContaining("SessionSnapshot"),
     ]);
   });
+
+  it("renames the SessionProvider sessionPromise prop and flags sessionStatusRoute", () => {
+    const source = `<SessionProvider sessionPromise={bsb.claims()}>{children}</SessionProvider>;
+export const GET = sessionStatusRoute(bsb);
+`;
+
+    const result = applyCodemod(v035, source, "app/layout.tsx");
+
+    expect(result.text)
+      .toBe(`<SessionProvider session={bsb.claims()}>{children}</SessionProvider>;
+export const GET = sessionStatusRoute(bsb);
+`);
+    expect(result.review.map((line) => line.line)).toEqual([2]);
+  });
 });

@@ -6164,6 +6164,10 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "authzVersions": {
+                "type": "boolean",
+                "default": false
+              },
               "bootstrap": {},
               "exclude": {
                 "type": "array",

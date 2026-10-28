@@ -16,9 +16,12 @@ interface Edit {
 
 const POLICY = /(?<![\w$])(refresh|verifySession)(\s*:\s*)(["'])navigation\3/g;
 
+const SESSION_PROMISE = /(?<![\w$.])sessionPromise(?=\s*=\s*\{)/g;
+
 /**
- * `refresh: "navigation"` is `refresh: true`, and `verifySession: "navigation"`
- * is `verifySession: "document"`, where the key is code.
+ * `refresh: "navigation"` is `refresh: true`, `verifySession: "navigation"` is
+ * `verifySession: "document"`, and `<SessionProvider sessionPromise={...}>` is
+ * `session={...}`, where the key is code.
  */
 function renamePolicies(text: string): {
   readonly text: string;
@@ -26,17 +29,30 @@ function renamePolicies(text: string): {
 } {
   const ranges = codeRanges(text);
 
-  const edits: Edit[] = [...text.matchAll(POLICY)]
-    .filter((match) =>
-      ranges.some(([start, end]) => match.index >= start && match.index < end),
-    )
-    .map((match) => ({
-      start: match.index,
-      end: match.index + match[0].length,
-      text: `${match[1]}${match[2]}${
-        match[1] === "refresh" ? "true" : `${match[3]}document${match[3]}`
-      }`,
-    }));
+  const inCode = (match: RegExpMatchArray): boolean =>
+    ranges.some(
+      ([start, end]) =>
+        match.index !== undefined && match.index >= start && match.index < end,
+    );
+
+  const edits: Edit[] = [
+    ...[...text.matchAll(POLICY)]
+      .filter(inCode)
+      .map((match) => ({
+        start: match.index,
+        end: match.index + match[0].length,
+        text: `${match[1]}${match[2]}${
+          match[1] === "refresh" ? "true" : `${match[3]}document${match[3]}`
+        }`,
+      })),
+    ...[...text.matchAll(SESSION_PROMISE)]
+      .filter(inCode)
+      .map((match) => ({
+        start: match.index,
+        end: match.index + match[0].length,
+        text: "session",
+      })),
+  ];
 
   let result = text;
 
@@ -50,7 +66,7 @@ function renamePolicies(text: string): {
 export const CODEMOD_0_35: Codemod = {
   name: "0.35",
   description:
-    'Rewrites refresh: "navigation" to refresh: true and verifySession: "navigation" to verifySession: "document", and lists for review the lines that use onExpiredPrefetch, shouldRefresh, clearSessionCookies (now async), the removed cookie codec (writeSession, refreshSession, AUTH_CACHE_HEADERS, pruneSessionChunks, sessionEncoding, clearSessionAtScopes), sessionStale, life.min and life.max, and contextFromSession with a token',
+    'Rewrites refresh: "navigation" to refresh: true, verifySession: "navigation" to verifySession: "document" and the SessionProvider sessionPromise prop to session, and lists for review the lines that use onExpiredPrefetch, shouldRefresh, clearSessionCookies (now async), the removed cookie codec (writeSession, refreshSession, AUTH_CACHE_HEADERS, pruneSessionChunks, sessionEncoding, clearSessionAtScopes), sessionStale, life.min and life.max, and contextFromSession with a token',
   review: [
     {
       pattern: /\bonExpiredPrefetch\b/,
@@ -88,6 +104,11 @@ export const CODEMOD_0_35: Codemod = {
       pattern: /\bcontextFromSession\([^)]*\{\s*token\b/,
       message:
         "`contextFromSession(session, { token })` is gone: pass the `SessionSnapshot` from `bsb.getClaims()`, which builds the context without verifying again",
+    },
+    {
+      pattern: /\bsessionStatusRoute\(/,
+      message:
+        "`sessionStatusRoute` reads the verified claims only now (`verifySession` defaults to false): pass `verifySession: true` to keep asking Auth on every check",
     },
   ],
   source: renamePolicies,

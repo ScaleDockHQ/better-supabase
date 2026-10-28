@@ -448,3 +448,48 @@ describe("cachedLife", () => {
     ]);
   });
 });
+
+describe("authorization provider session tags", () => {
+  const bsb = createNext(defineSupabase(schema), {
+    env,
+    cacheTags: false,
+    auth: { jwks: signer.jwks },
+    authorization: {
+      apiVersion: 1,
+      name: "provider",
+      sessionTags: (userId) => [`provider:${userId}`],
+    },
+  });
+
+  it("tags cached entries and clears the tags on evict and refresh", async () => {
+    const token = await signer.sign({ sub: USER, session_id: "s1" });
+    mocks.headers = new Headers({ authorization: `Bearer ${token}` });
+    mocks.cacheTag.mockReset();
+    await bsb.cached();
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith(
+      sessionTag(USER),
+      `provider:${USER}`,
+      "bsb:session-id:s1",
+    );
+
+    mocks.updateTag.mockReset();
+    await bsb.evictSession(USER);
+    expect(mocks.updateTag.mock.calls).toEqual([
+      [sessionTag(USER)],
+      [`provider:${USER}`],
+    ]);
+
+    mocks.updateTag.mockReset();
+    await bsb.refreshSessionCache();
+    expect(mocks.updateTag.mock.calls).toEqual([
+      [sessionTag(USER)],
+      [`provider:${USER}`],
+      ["bsb:session-id:s1"],
+    ]);
+
+    mocks.updateTag.mockReset();
+    mocks.headers = new Headers();
+    await bsb.refreshSessionCache();
+    expect(mocks.updateTag).not.toHaveBeenCalled();
+  });
+});

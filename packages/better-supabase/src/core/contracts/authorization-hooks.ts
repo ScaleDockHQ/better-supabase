@@ -238,6 +238,12 @@ export interface AuthorizationHooks {
   readonly approverOf?: ApproverOf;
   readonly tickets?: { readonly subject: TicketSubject };
   readonly delegation?: { readonly permissions: DelegationPermissions };
+  /**
+   * The provider's own cache tags for a user, such as the tag of its permission
+   * snapshot. `bsb.cached()` entries carry them, and `evictSession`, sign-out
+   * and `refreshSessionCache` clear them with the session tags.
+   */
+  readonly sessionTags?: (userId: string) => readonly string[];
 }
 
 /** Types `hooks` and freezes it; better-supabase never mutates a provider. */

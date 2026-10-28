@@ -186,9 +186,9 @@ export function SessionWatch() {
 The route answers `{ status, userId, fingerprint, expiresAt, support }` with
 `Cache-Control: no-store`: `active`, `expired` (the token expired and the
 proxy refreshes it on the next navigation), `ended`, `banned` or
-`signed_out`. It asks Auth whether the session still exists on every check
-(`verifySession: false` skips that) and refreshes nothing unless `refresh:
-true`. `fingerprint` is a SHA-256 of the claims that decide access (all but
+`signed_out`. It reads the verified claims from the cookie and refreshes
+nothing unless `refresh: true`; `verifySession: true` also asks Auth whether
+the session still exists, one network call per check. `fingerprint` is a SHA-256 of the claims that decide access (all but
 `exp`, `iat`, `nbf`, `jti` and `ignoreClaims`) and of the running support
 session, so a role or tenant change, or a support session that starts, ends
 or switches target, changes it. `claimsFingerprint(claims, support)` computes
@@ -214,8 +214,11 @@ fires after something else refreshed the token: a navigation through the
 proxy, or a route created with `refresh: true`, which refreshes a cookie
 that is about to expire. `sessionStatusRoute` doesn't refresh by default, so
 a role or tenant change reaches an open page when the current access token
-rotates, not when the database changes. An ended session or a ban shows up
-on the next check, because the route asks Auth about those directly.
+rotates, not when the database changes; the sessions module's
+`authzVersions` broadcast closes that gap
+([Refresh when permissions change](/docs/frontend/react#refresh-when-permissions-change)).
+An ended session or a ban shows up once the proxy refreshes, or on the next
+check with `verifySession: true`.
 
 ### Auth outages
 

@@ -73,7 +73,7 @@ describe("sessionStatusRoute", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store, private");
     expect(response.headers.get("set-cookie")).toBe("applied=1");
-    expect(bs.calls).toEqual([{ verifySession: true, refresh: false }]);
+    expect(bs.calls).toEqual([{ verifySession: false, refresh: false }]);
     expect(await response.json()).toEqual({
       status: "active",
       userId: "u1",

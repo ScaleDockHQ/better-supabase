@@ -11,13 +11,12 @@ declare
   changed_organization uuid := coalesce(new.organization_id, old.organization_id);
   changed_role uuid := coalesce(new.role_id, old.role_id);
 begin
-  insert into rbac.user_authz_versions as v (user_id)
-  select m.user_id
-  from public.memberships m
-  where m.organization_id = changed_organization
-    and m.role = changed_role
-  on conflict (user_id) do update
-    set version = v.version + 1, updated_at = now();
+  perform better_supabase.bump_authz_versions(array(
+    select m.user_id
+    from public.memberships m
+    where m.organization_id = changed_organization
+      and m.role = changed_role
+  ));
 
   return null;
 end;

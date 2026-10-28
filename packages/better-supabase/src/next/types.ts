@@ -384,6 +384,14 @@ export interface BetterNext<
     options?: { readonly tags?: readonly string[] },
   ): Promise<void>;
   /**
+   * A Server Action for `<SessionProvider onAuthzChange>`: drops the caller's
+   * own cached entries (the session and session id tags, plus the authorization
+   * provider's `sessionTags`) after the browser refreshed its token, and evicts
+   * them from the authorization version cache. Re-export it from a `"use
+   * server"` file. A signed-out caller is a no-op.
+   */
+  refreshSessionCache(): Promise<void>;
+  /**
    * Counts on the server and returns a serializable seed for
    * `useLiveCount(seed)`, so the badge renders with a number and the client
    * only refetches on changes. Pass `db` inside `'use cache: private'` (from
