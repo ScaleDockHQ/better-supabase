@@ -764,6 +764,105 @@ $$;`,
     }
   });
 
+  it("updates a draft's header in one statement and deletes drafts only", async () => {
+    const member = "55555555-5555-4555-8555-555555555555";
+
+    const asMember = `perform set_config('request.jwt.claims', '{"sub":"${member}","role":"authenticated"}', true);
+  perform set_config('request.jwt.claim.sub', '${member}', true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);`;
+
+    const refused = (call: string): string => `begin
+    perform ${call};
+    raise exception 'allowed: ${call.replaceAll("'", "''")}';
+  exception when others then
+    if sqlerrm like 'allowed: %' then
+      raise;
+    end if;
+  end;`;
+
+    const app = `${APP}
+alter table public.bills add column intro text;
+alter table public.bills add constraint bills_intro check ((title = 'Special') = (intro is not null));
+`;
+
+    await expect(
+      run(
+        `create table public.denied (permission text primary key);
+insert into public.denied values ('invoice.delete');
+create or replace function better_supabase.can(scope text, scope_id uuid, permission text)
+returns boolean language sql stable as $$ select not exists (select 1 from public.denied d where d.permission = can.permission) $$;
+do $$
+declare
+  v_id uuid;
+  v_issued uuid;
+  v_invoice jsonb;
+begin
+  ${asMember}
+  v_id := (better_supabase.create_invoice('${TENANT}', '{"title": "Draft", "currency": "EUR"}'::jsonb,
+    '[{"description": "Work", "quantity": 1, "unitAmount": "1000"}]'::jsonb) ->> 'id')::uuid;
+  v_invoice := better_supabase.update_invoice(v_id, '{"title": "Special", "intro": "Hello", "termsDays": 7}'::jsonb);
+  if (select row(title, intro, terms_days)::text from public.bills where id = v_id) <> '(Special,Hello,7)'
+    or v_invoice ->> 'intro' <> 'Hello' then
+    raise exception 'updated %', v_invoice;
+  end if;
+  perform better_supabase.update_invoice(v_id, '{"termsDays": 10}'::jsonb);
+  if (select row(title, intro, terms_days)::text from public.bills where id = v_id) <> '(Special,Hello,10)' then
+    raise exception 'kept %', (select row_to_json(b) from public.bills b where id = v_id);
+  end if;
+  perform better_supabase.update_invoice(v_id, '{"title": "Plain", "intro": null}'::jsonb);
+  ${refused(`better_supabase.update_invoice(v_id, '{"title": " "}'::jsonb)`)}
+  ${refused(`better_supabase.update_invoice(v_id, '{"note": "no column"}'::jsonb)`)}
+  ${refused("better_supabase.delete_invoice(v_id)")}
+  ${SERVICE}
+  v_issued := (better_supabase.create_invoice('${TENANT}', '{"title": "Final", "currency": "EUR"}'::jsonb,
+    '[{"description": "Work", "quantity": 1, "unitAmount": "1000"}]'::jsonb) ->> 'id')::uuid;
+  perform better_supabase.issue_invoice(v_issued, current_date);
+  ${refused(`better_supabase.update_invoice(v_issued, '{"title": "Changed"}'::jsonb)`)}
+  ${refused("better_supabase.delete_invoice(v_issued)")}
+  if not better_supabase.delete_invoice(v_id) then
+    raise exception 'delete returned false';
+  end if;
+  if exists (select 1 from public.bills where id = v_id)
+    or exists (select 1 from better_supabase.invoice_lines where parent_id = v_id) then
+    raise exception 'deleted %', (select row_to_json(b) from public.bills b where id = v_id);
+  end if;
+  if (select title from public.bills where id = v_issued) <> 'Final' then
+    raise exception 'issued changed';
+  end if;
+end;
+$$;`,
+        {
+          invoices: {
+            ...BLOCKS["invoices"],
+            options: { extraColumns: { intro: "text" } },
+            permissions: { delete: "invoice.delete" },
+          },
+        },
+        app,
+      ),
+    ).resolves.toBeUndefined();
+
+    const body = (blocks: AnyBlocksConfig, name: string): string => {
+      const sql = renderBlocks(["invoices"], { modules: blocks })
+        .filter((file) => file.module === "invoices")
+        .map((file) => file.contents)
+        .join("\n");
+
+      const start = sql.indexOf(`function "better_supabase"."${name}"(`);
+
+      return sql.slice(start, sql.indexOf("$$;", start));
+    };
+
+    expect(body({}, "update_invoice")).toContain("'invoices.write'");
+    expect(body({}, "delete_invoice")).toContain("'invoices.write'");
+    expect(
+      body(
+        { invoices: { permissions: { update: "invoice.update" } } },
+        "delete_invoice",
+      ),
+    ).toContain("'invoice.update'");
+  });
+
   it("leaves the totals trigger out when the app owns the totals", () => {
     const sql = renderBlocks(["invoices"], {
       modules: { invoices: { options: { totals: "app" } } },

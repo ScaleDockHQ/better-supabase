@@ -137,6 +137,17 @@ export interface InvoiceInput<F extends object = Record<never, never>> {
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
+export interface InvoicePatch<F extends object = Record<never, never>> {
+  readonly title?: string;
+  readonly company?: RecordRef | null;
+  readonly contact?: RecordRef | null;
+  readonly termsDays?: number | null;
+  readonly note?: string | null;
+  readonly depositBps?: number | null;
+  readonly pricesIncludeTax?: boolean;
+  readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
+}
+
 /** What is owed in one currency, by days past due. */
 export interface InvoiceAging {
   readonly currency: string;
@@ -156,6 +167,8 @@ export interface Invoices<F extends object = Record<never, never>> {
     input: InvoiceInput<F>,
     lines?: readonly LineInput[],
   ): AsyncResult<Invoice<F>>;
+  update(invoiceId: string, patch: InvoicePatch<F>): AsyncResult<Invoice<F>>;
+  delete(invoiceId: string): AsyncResult<boolean>;
   setLines(invoiceId: string, lines: readonly LineInput[]): AsyncResult<Totals>;
   /** Issues a draft: the next number, issue and due dates, frozen lines. */
   issue(
@@ -405,6 +418,19 @@ export function createInvoices<
           }),
       );
     },
+    update: (invoiceId, patch) => {
+      const { fields: extra, ...rest } = patch;
+
+      return AsyncResult.from(() => fields.write({ ...extra })).andThen(
+        (valid) =>
+          invoice("update_invoice", {
+            invoice: invoiceId,
+            attrs: attrsArg({ ...rest, ...valid }),
+          }),
+      );
+    },
+    delete: (invoiceId) =>
+      call("delete_invoice", { invoice: invoiceId }, (value) => value === true),
     setLines: (invoiceId, lines) => {
       const invalid = amountsError(
         undefined,

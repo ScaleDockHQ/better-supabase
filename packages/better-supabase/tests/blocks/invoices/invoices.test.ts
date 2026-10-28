@@ -113,6 +113,29 @@ describe("invoices block", () => {
     ]);
   });
 
+  it("updates a draft's header and deletes a draft", async () => {
+    const t = transport({
+      update_invoice: () => ({ ...ROW, status: "draft", intro: "Hello" }),
+      delete_invoice: () => true,
+    });
+
+    const invoices = createInvoices({ transport: t });
+
+    const updated = await invoices
+      .update("i1", { title: "New", note: null, fields: { intro: "Hello" } })
+      .orThrow();
+
+    expect(updated.fields).toMatchObject({ intro: "Hello" });
+    expect(await invoices.delete("i1").orThrow()).toBe(true);
+    expect(t.calls).toEqual([
+      [
+        "update_invoice",
+        { invoice: "i1", attrs: { title: "New", note: null, intro: "Hello" } },
+      ],
+      ["delete_invoice", { invoice: "i1" }],
+    ]);
+  });
+
   it("reads balances, payments and the deposit share", async () => {
     const t = transport({ issue_invoice: () => ROW });
 

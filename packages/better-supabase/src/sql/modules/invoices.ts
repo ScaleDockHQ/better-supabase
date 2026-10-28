@@ -38,6 +38,8 @@ const INVOICE = [
 
 const EVENTS: BlockSqlEvents<InvoicesEvents> = {
   "invoice.created": { subject: "invoices", payload: [...INVOICE] },
+  "invoice.updated": { subject: "invoices", payload: [...INVOICE] },
+  "invoice.deleted": { subject: "invoices", payload: [...INVOICE] },
   "invoice.issued": {
     subject: "invoices",
     payload: [...INVOICE, "total", "currency", "dueOn"],
@@ -352,6 +354,11 @@ function build(ctx: BlockSqlContext): string {
     void: finer("void", "manage"),
     writeOff: finer("writeOff", "manage"),
     reverse: finer("reverse", "manage"),
+    remove: sqlString(
+      ctx.config.permissions["delete"] ??
+        ctx.config.permissions["update"] ??
+        ctx.permissionKey("write", keys.write),
+    ),
     company: ctx.text("company", "company"),
     contact: ctx.text("contact", "person"),
     prefix: ctx.text("prefix", "INV-"),
@@ -385,6 +392,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "jsonb", "jsonb"],
       returns: "jsonb",
     },
+    { name: "update_invoice", args: ["uuid", "jsonb"], returns: "jsonb" },
+    { name: "delete_invoice", args: ["uuid"], returns: "boolean" },
     { name: "set_invoice_lines", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "issue_invoice", args: ["uuid", "date", "date"], returns: "jsonb" },
     {
