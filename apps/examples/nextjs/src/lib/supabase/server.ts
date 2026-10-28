@@ -30,13 +30,16 @@ const options: NextOptions = {
 
 // Built here, not inside `createNext`, so the testing route can read its
 // session memo: how many renders verified a token instead of reusing one.
-const server = createServer(betterSupabase, options);
+const bsbServer = createServer(betterSupabase, options);
 
-export const bsb = createNext(betterSupabase, { ...options, server });
+export const bsb = createNext(betterSupabase, {
+  ...options,
+  server: bsbServer,
+});
 
 /** Hits and misses of the verified-session memo, for `/api/bs-sessions`. */
 export function sessionStats() {
-  return server.sessions.stats();
+  return bsbServer.sessions.stats();
 }
 
 /**
