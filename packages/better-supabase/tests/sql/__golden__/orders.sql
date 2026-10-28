@@ -2288,7 +2288,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@3 managed
--- @bsb-hash sha256:f26d885cfa9c123bba46c8e0db73c07db391b564dc27cd82b4b99dab1aecfa7a
+-- @bsb-hash sha256:467f105bc23b472d2877b05d3de2d8340672920aac57a15140749421fb36fe7c
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3455,7 +3455,7 @@ begin
   v_reservation := "better_supabase"."reserve_stock"(v_line.variant, v_location, v_line.quantity, 'order', v_order.id::text, now() + interval '30 minutes');
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
     update "better_supabase"."order_lines" x set "location_id" = v_location, "reservation_id" = (v_reservation ->> 'id')::uuid,
-      "backordered" = (v_reservation ->> 'available')::integer < 0
+      "backordered" = (v_reservation ->> 'available')::numeric < 0
     where x."id" = v_line.id;
   end loop;
   perform "better_supabase"."redeem_promotions"(v_order.id, v_priced -> 'promotions');

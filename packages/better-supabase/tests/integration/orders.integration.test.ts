@@ -95,7 +95,7 @@ describe.skipIf(!live)("orders module in Postgres", () => {
   const available = async (variantId: string): Promise<number> =>
     (
       await session.rows<{ available: number }>(
-        "select available from better_supabase.stock_levels where variant_id = $1 and location_id = $2",
+        "select available::float8 as available from better_supabase.stock_levels where variant_id = $1 and location_id = $2",
         [variantId, warehouse],
       )
     )[0]?.available ?? 0;
@@ -370,7 +370,7 @@ describe.skipIf(!live)("orders module in Postgres", () => {
     const onHand = async (): Promise<number> =>
       (
         await session.rows<{ on_hand: number }>(
-          "select on_hand from better_supabase.stock_levels where variant_id = $1 and location_id = $2",
+          "select on_hand::float8 as on_hand from better_supabase.stock_levels where variant_id = $1 and location_id = $2",
           [tee, warehouse],
         )
       )[0]!.on_hand;

@@ -196,7 +196,7 @@ function reserveLines(ctx: BlockSqlContext, minutes: number): string {
     end if;
     ${asService(`v_reservation := ${inventory.fn("reserve_stock")}(v_line.variant, v_location, v_line.quantity, 'order', v_order.id::text, now() + interval '${String(minutes)} minutes');`)}
     update ${ctx.table("orderLines")} x set ${ol("location")} = v_location, ${ol("reservation")} = (v_reservation ->> 'id')::uuid,
-      ${ol("backordered")} = (v_reservation ->> 'available')::integer < 0
+      ${ol("backordered")} = (v_reservation ->> 'available')::numeric < 0
     where x.${ol("id")} = v_line.id;
   end loop;`;
 }

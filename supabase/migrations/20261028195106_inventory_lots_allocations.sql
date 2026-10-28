@@ -1923,6 +1923,145 @@ begin
 end;
 $function$;
 
+CREATE OR REPLACE FUNCTION better_supabase.place_order(cart uuid, tax jsonb DEFAULT NULL::jsonb, expected_total bigint DEFAULT NULL::bigint, location uuid DEFAULT NULL::uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_cart record;
+  v_order record;
+  v_line record;
+  v_priced jsonb;
+  v_tax bigint := 0;
+  v_line_tax bigint;
+  v_invalid boolean;
+  v_inclusive boolean := false;
+  v_total bigint;
+  v_seq bigint;
+  v_number text;
+  v_id uuid;
+  v_location uuid;
+  v_reservation jsonb;
+  v_claims text;
+begin
+  if auth.role() is distinct from 'service_role' then
+    raise exception 'only the service role can do this' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  select x."tenant_id" as tenant, x."user_id" as owner, x."status" as status, x."currency" as currency,
+    x."email" as email, x."shipping_address" as shipping_address, x."billing_address" as billing_address
+  into v_cart from "better_supabase"."carts" x where x."id" = place_order.cart for update;
+  if not found then
+    raise exception 'cart not found' using errcode = 'P0002', hint = 'ORDERS_CART_NOT_FOUND';
+  end if;
+  if v_cart.status = 'converted' then
+    select x."id" into v_id from "better_supabase"."orders" x where x."cart_id" = place_order.cart;
+    if v_id is not null then
+      return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', false);
+    end if;
+  end if;
+  if v_cart.status <> 'open' then
+    raise exception 'the cart is no longer open' using errcode = '55000', hint = 'ORDERS_CART_CLOSED';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_order_place"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using place_order.cart;
+    end if;
+  end;
+  v_priced := "better_supabase"."cart_totals"(place_order.cart);
+  if jsonb_array_length(v_priced -> 'lines') = 0 then
+    raise exception 'the cart has no lines to order' using errcode = '55000', hint = 'ORDERS_CART_EMPTY';
+  end if;
+  if jsonb_array_length(v_priced -> 'problems') > 0 then
+    raise exception 'the cart can''t be ordered: %', v_priced -> 'problems' using errcode = '55000', hint = 'ORDERS_CART_INVALID';
+  end if;
+  if place_order.expected_total is not null and (v_priced ->> 'total')::bigint <> place_order.expected_total then
+    raise exception 'the cart''s total changed; price it and quote tax again' using errcode = '40001', hint = 'ORDERS_PRICE_CHANGED';
+  end if;
+  if place_order.tax is not null then
+    if jsonb_typeof(place_order.tax) <> 'object' or (case when (place_order.tax ->> 'totalTax') ~ '^[0-9]{1,18}$' then (place_order.tax ->> 'totalTax')::bigint end) is null
+      or coalesce(place_order.tax ->> 'currency', v_cart.currency) <> v_cart.currency then
+      raise exception 'tax is a quote in the cart''s currency with a totalTax of zero or more' using errcode = '22023', hint = 'ORDERS_TAX_INVALID';
+    end if;
+    v_tax := (case when (place_order.tax ->> 'totalTax') ~ '^[0-9]{1,18}$' then (place_order.tax ->> 'totalTax')::bigint end);
+    v_inclusive := coalesce((place_order.tax ->> 'inclusive')::boolean, false);
+    select coalesce(sum((case when (e ->> 'tax') ~ '^[0-9]{1,18}$' then (e ->> 'tax')::bigint end)), 0), coalesce(bool_or((case when (e ->> 'tax') ~ '^[0-9]{1,18}$' then (e ->> 'tax')::bigint end) is null), false)
+    into v_line_tax, v_invalid
+    from jsonb_array_elements(coalesce(place_order.tax -> 'lines', '[]'::jsonb)) e;
+    if v_invalid or (jsonb_array_length(coalesce(place_order.tax -> 'lines', '[]'::jsonb)) > 0 and v_line_tax <> v_tax) then
+      raise exception 'the tax lines don''t add up to totalTax' using errcode = '22023', hint = 'ORDERS_TAX_INVALID';
+    end if;
+  end if;
+  v_total := (v_priced ->> 'total')::bigint + case when v_inclusive then 0 else v_tax end;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_cart.tenant::text || ':commerce:order', 0));
+  select coalesce(max(x."sequence"), 0) + 1 into v_seq from "better_supabase"."orders" x where x."tenant_id" = v_cart.tenant;
+  v_number := v_seq::text;
+  insert into "better_supabase"."orders" ("tenant_id", "number", "sequence", "cart_id", "customer_id", "email", "currency",
+    "subtotal", "discount_total", "shipping_total", "tax_total", "total", "tax_inclusive",
+    "shipping_address", "billing_address", "shipping", "promotions", "tax")
+  values (v_cart.tenant, v_number, v_seq, place_order.cart, v_cart.owner, v_cart.email, v_cart.currency,
+    (v_priced ->> 'subtotal')::bigint, (v_priced ->> 'discountTotal')::bigint, (v_priced ->> 'shippingTotal')::bigint,
+    v_tax, v_total, v_inclusive, v_cart.shipping_address, v_cart.billing_address, v_priced -> 'shipping',
+    v_priced -> 'promotions', place_order.tax)
+  returning "id" into v_id;
+  insert into "better_supabase"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title",
+    "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping")
+  select v_cart.tenant, v_id, e.n, (e.l ->> 'variantId')::uuid, (e.l ->> 'productId')::uuid, e.l ->> 'sku', e.l ->> 'title',
+    (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, (e.l ->> 'subtotal')::bigint, (e.l ->> 'discount')::bigint,
+    coalesce((select (case when (t ->> 'tax') ~ '^[0-9]{1,18}$' then (t ->> 'tax')::bigint end) from jsonb_array_elements(coalesce(place_order.tax -> 'lines', '[]'::jsonb)) t
+      where t ->> 'lineId' = e.l ->> 'id' limit 1), 0),
+    (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean
+  from jsonb_array_elements(v_priced -> 'lines') with ordinality as e(l, n);
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = v_id;
+  for v_line in
+    select x."id" as id, x."variant_id" as variant, x."quantity" as quantity,
+      cv."track_inventory" as tracked, cv."allow_backorder" as backorder
+    from "better_supabase"."order_lines" x join "better_supabase"."product_variants" cv on cv."id" = x."variant_id"
+    where x."order_id" = v_order.id
+    order by x."position"
+  loop
+    continue when not v_line.tracked;
+    select loc."id" into v_location
+    from "better_supabase"."inventory_locations" loc
+    left join "better_supabase"."stock_levels" s on s."location_id" = loc."id" and s."variant_id" = v_line.variant
+    where loc."tenant_id" = v_cart.tenant and loc."active" and (place_order.location is null or loc."id" = place_order.location)
+    order by (coalesce(s."available", 0) >= v_line.quantity) desc, coalesce(s."available", 0) desc, loc."code"
+    limit 1;
+    if v_location is null then
+      if not v_line.backorder then
+        raise exception 'a line is out of stock' using errcode = '23514', hint = 'ORDERS_OUT_OF_STOCK';
+      end if;
+      update "better_supabase"."order_lines" x set "backordered" = true where x."id" = v_line.id;
+      continue;
+    end if;
+    v_claims := current_setting('request.jwt.claims', true);
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  v_reservation := "better_supabase"."reserve_stock"(v_line.variant, v_location, v_line.quantity, 'order', v_order.id::text, now() + interval '30 minutes');
+  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    update "better_supabase"."order_lines" x set "location_id" = v_location, "reservation_id" = (v_reservation ->> 'id')::uuid,
+      "backordered" = (v_reservation ->> 'available')::numeric < 0
+    where x."id" = v_line.id;
+  end loop;
+  perform "better_supabase"."redeem_promotions"(v_order.id, v_priced -> 'promotions');
+  update "better_supabase"."carts" x set "status" = 'converted', "converted_at" = now(), "updated_at" = now()
+  where x."id" = place_order.cart;
+  perform "better_supabase".emit_event('order.placed', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer, 'currency', v_order.currency, 'subtotal', v_priced ->> 'subtotal', 'discountTotal', v_priced ->> 'discountTotal', 'shippingTotal', v_priced ->> 'shippingTotal', 'taxTotal', v_tax::text, 'total', v_order.total::text, 'units', (select coalesce(sum(l."quantity"), 0)::text from "better_supabase"."order_lines" l where l."order_id" = v_order.id)), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_order_place"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_order.id;
+    end if;
+  end;
+  return "better_supabase"."order_json"(v_order.id) || jsonb_build_object('created', true);
+end;
+$function$;
+
 CREATE OR REPLACE FUNCTION better_supabase.place_purchase_order(purchase_order uuid)
  RETURNS boolean
  LANGUAGE plpgsql
@@ -3329,6 +3468,10 @@ ALTER TABLE "better_supabase"."stock_transfer_lines" ADD CONSTRAINT "stock_trans
 
 CREATE UNIQUE INDEX orders_origin_idx ON better_supabase.orders USING btree (tenant_id, origin_type, origin_id) WHERE ((origin_id IS NOT NULL) AND (status <> 'cancelled'::text));
 
+CREATE INDEX shipment_lines_allocation_idx ON better_supabase.shipment_lines USING btree (allocation_id);
+
+CREATE INDEX shipment_lines_location_idx ON better_supabase.shipment_lines USING btree (location_id);
+
 CREATE INDEX shipment_lines_variant_idx ON better_supabase.shipment_lines USING btree (variant_id, location_id);
 
 CREATE INDEX stock_allocations_document_idx ON better_supabase.stock_allocations USING btree (tenant_id, document_type, document_id);
@@ -3336,6 +3479,8 @@ CREATE INDEX stock_allocations_document_idx ON better_supabase.stock_allocations
 CREATE INDEX stock_allocations_location_idx ON better_supabase.stock_allocations USING btree (location_id);
 
 CREATE INDEX stock_allocations_open_idx ON better_supabase.stock_allocations USING btree (variant_id, location_id, created_at) WHERE (status = 'open'::text);
+
+CREATE INDEX stock_allocations_variant_idx ON better_supabase.stock_allocations USING btree (variant_id);
 
 CREATE INDEX stock_bins_tenant_idx ON better_supabase.stock_bins USING btree (tenant_id);
 
@@ -3351,7 +3496,11 @@ CREATE INDEX stock_items_tenant_idx ON better_supabase.stock_items USING btree (
 
 CREATE INDEX stock_lots_expiry_idx ON better_supabase.stock_lots USING btree (tenant_id, expires_on) WHERE (expires_on IS NOT NULL);
 
-CREATE INDEX stock_serials_location_idx ON better_supabase.stock_serials USING btree (location_id) WHERE (status = 'in_stock'::text);
+CREATE INDEX stock_serials_bin_idx ON better_supabase.stock_serials USING btree (bin_id);
+
+CREATE INDEX stock_serials_location_id_idx ON better_supabase.stock_serials USING btree (location_id);
+
+CREATE INDEX stock_serials_lot_idx ON better_supabase.stock_serials USING btree (lot_id);
 
 CREATE INDEX stock_serials_movement_idx ON better_supabase.stock_serials USING btree (movement_id);
 

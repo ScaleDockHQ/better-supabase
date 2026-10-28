@@ -70,6 +70,7 @@ create table if not exists ${t} (
 create index if not exists stock_allocations_document_idx on ${t} (${a("tenant")}, ${a("documentType")}, ${a("documentId")});
 create index if not exists stock_allocations_open_idx on ${t} (${a("variant")}, ${a("location")}, ${a("createdAt")}) where ${a("status")} = 'open';
 create index if not exists stock_allocations_location_idx on ${t} (${a("location")});
+create index if not exists stock_allocations_variant_idx on ${t} (${a("variant")});
 ${lock("allocations")}
 ${read("allocations")}
 `;

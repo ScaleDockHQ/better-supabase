@@ -33,7 +33,7 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
 
   const level = async (variant: string, location: string): Promise<Level> => {
     const [row] = await session.rows<Level>(
-      "select on_hand, reserved, incoming, available from better_supabase.stock_levels where variant_id = $1 and location_id = $2",
+      "select on_hand::float8 as on_hand, reserved::float8 as reserved, incoming::float8 as incoming, available::float8 as available from better_supabase.stock_levels where variant_id = $1 and location_id = $2",
       [variant, location],
     );
 
@@ -269,8 +269,8 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
       expect.objectContaining({
         subjectType: "product_variant",
         subjectId: mug,
-        available: "4",
-        reorderPoint: "4",
+        available: "4.000000",
+        reorderPoint: "4.000000",
       }),
     ]);
   });

@@ -190,7 +190,9 @@ create table if not exists ${t("serials")} (
   ${s("updatedAt")} timestamptz not null default now(),
   unique (${s("variant")}, ${s("serial")})
 );
-create index if not exists stock_serials_location_idx on ${t("serials")} (${s("location")}) where ${s("status")} = 'in_stock';
+create index if not exists stock_serials_location_id_idx on ${t("serials")} (${s("location")});
+create index if not exists stock_serials_bin_idx on ${t("serials")} (${s("bin")});
+create index if not exists stock_serials_lot_idx on ${t("serials")} (${s("lot")});
 create index if not exists stock_serials_movement_idx on ${t("serials")} (${s("movement")});
 create index if not exists stock_serials_tenant_idx on ${t("serials")} (${s("tenant")});
 ${lock("serials")}

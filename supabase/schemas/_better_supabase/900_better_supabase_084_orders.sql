@@ -1,6 +1,6 @@
 -- better-supabase module: orders
 -- @bsb-block orders@3 managed
--- @bsb-hash sha256:7f7993fc94ee7019f40fde6c04794ce8b732163f672f92a61110e89e3f310d06
+-- @bsb-hash sha256:35ede4bb2ee1fd6baa91a1bd25f247bca6f5ee377855fea78002adebec313482
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1167,7 +1167,7 @@ begin
   v_reservation := "better_supabase"."reserve_stock"(v_line.variant, v_location, v_line.quantity, 'order', v_order.id::text, now() + interval '30 minutes');
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
     update "better_supabase"."order_lines" x set "location_id" = v_location, "reservation_id" = (v_reservation ->> 'id')::uuid,
-      "backordered" = (v_reservation ->> 'available')::integer < 0
+      "backordered" = (v_reservation ->> 'available')::numeric < 0
     where x."id" = v_line.id;
   end loop;
   perform "better_supabase"."redeem_promotions"(v_order.id, v_priced -> 'promotions');

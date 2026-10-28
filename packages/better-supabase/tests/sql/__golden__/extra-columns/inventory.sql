@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@3 managed
--- @bsb-hash sha256:8ebe894909d70dfb20fa34f1188f8e05a9e9c19a1c416030cd1cedf1ec743cd0
+-- @bsb-hash sha256:d434c398a8dad6d2af8ee074b523d51cdf283094a5b3242d76a124a8b0f1440a
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -391,7 +391,9 @@ create table if not exists "better_supabase"."stock_serials" (
   "updated_at" timestamptz not null default now(),
   unique ("variant_id", "serial")
 );
-create index if not exists stock_serials_location_idx on "better_supabase"."stock_serials" ("location_id") where "status" = 'in_stock';
+create index if not exists stock_serials_location_id_idx on "better_supabase"."stock_serials" ("location_id");
+create index if not exists stock_serials_bin_idx on "better_supabase"."stock_serials" ("bin_id");
+create index if not exists stock_serials_lot_idx on "better_supabase"."stock_serials" ("lot_id");
 create index if not exists stock_serials_movement_idx on "better_supabase"."stock_serials" ("movement_id");
 create index if not exists stock_serials_tenant_idx on "better_supabase"."stock_serials" ("tenant_id");
 alter table "better_supabase"."stock_serials" enable row level security;
@@ -448,6 +450,7 @@ create table if not exists "better_supabase"."stock_allocations" (
 create index if not exists stock_allocations_document_idx on "better_supabase"."stock_allocations" ("tenant_id", "document_type", "document_id");
 create index if not exists stock_allocations_open_idx on "better_supabase"."stock_allocations" ("variant_id", "location_id", "created_at") where "status" = 'open';
 create index if not exists stock_allocations_location_idx on "better_supabase"."stock_allocations" ("location_id");
+create index if not exists stock_allocations_variant_idx on "better_supabase"."stock_allocations" ("variant_id");
 alter table "better_supabase"."stock_allocations" enable row level security;
 revoke all on "better_supabase"."stock_allocations" from public, anon, authenticated;
 grant select on "better_supabase"."stock_allocations" to authenticated;

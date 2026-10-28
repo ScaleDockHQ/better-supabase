@@ -91,6 +91,10 @@ export function linesTable(ctx: BlockSqlContext): string {
     ? `\n  ${l("allocation")} uuid${inventory === undefined ? "" : ` references ${inventory.table("allocations")} (${inventory.col("allocations", "id")}) on delete set null`},`
     : "";
 
+  const allocationIndex = ctx.has("lines", "allocation")
+    ? `\ncreate index if not exists ${sqlIdent(`${name}_allocation_idx`)} on ${lines} (${l("allocation")});`
+    : "";
+
   return `
 -- The stock a shipment carries out, and what comes back. An outbound line
 -- leaves stock when the shipment gets its label; a return line comes back
@@ -113,6 +117,7 @@ create table if not exists ${lines} (
   unique (${l("shipment")}, ${l("position")})
 );
 create index if not exists ${sqlIdent(`${name}_variant_idx`)} on ${lines} (${l("variant")}, ${l("location")});
+create index if not exists ${sqlIdent(`${name}_location_idx`)} on ${lines} (${l("location")});${allocationIndex}
 ${lockModuleTable(ctx, "lines", { read: true })}
 drop policy if exists ${policyName} on ${lines};
 ${renderPolicy(makePolicy({ table: lines, name: policyName, command: "select", roles: ["authenticated"], using: ctx.scope.check(l("tenant"), read) }), { target: lines })}

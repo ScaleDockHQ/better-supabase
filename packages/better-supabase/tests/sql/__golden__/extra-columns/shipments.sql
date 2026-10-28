@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@2 managed
--- @bsb-hash sha256:ca12dabe39173cb0fac0c8c947407efe2e465bdeb6ae0f5110a6d01a0d29af0b
+-- @bsb-hash sha256:0e03e965ffc30ce1fad984112cf527b059b70400908fa3014ca573235b6e2fae
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -195,6 +195,8 @@ create table if not exists "better_supabase"."shipment_lines" (
   unique ("shipment_id", "position")
 );
 create index if not exists "shipment_lines_variant_idx" on "better_supabase"."shipment_lines" ("variant_id", "location_id");
+create index if not exists "shipment_lines_location_idx" on "better_supabase"."shipment_lines" ("location_id");
+create index if not exists "shipment_lines_allocation_idx" on "better_supabase"."shipment_lines" ("allocation_id");
 alter table "better_supabase"."shipment_lines" enable row level security;
 revoke all on "better_supabase"."shipment_lines" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_lines" to authenticated;
