@@ -4706,6 +4706,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "status": "status",
               "enrolledBy": "enrolled_by",
               "enrolledAt": "enrolled_at",
+              "startsAt": "starts_at",
+              "endsAt": "ends_at",
               "completedAt": "completed_at",
               "cancelledAt": "cancelled_at",
               "updatedAt": "updated_at"
@@ -9553,7 +9555,22 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "Enrollment"
         },
         {
+          "name": "EnrollmentAssignee"
+        },
+        {
+          "name": "EnrollmentDates"
+        },
+        {
+          "name": "EnrollmentDue"
+        },
+        {
           "name": "EnrollmentEventData"
+        },
+        {
+          "name": "EnrollmentOpenStep"
+        },
+        {
+          "name": "EnrollmentOpenStepsFilter"
         },
         {
           "name": "EnrollmentProgram"
@@ -9569,6 +9586,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "Enrollments"
+        },
+        {
+          "name": "EnrollmentScheduledStep"
         },
         {
           "name": "EnrollmentsEvents"

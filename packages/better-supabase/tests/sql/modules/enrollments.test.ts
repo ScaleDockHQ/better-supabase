@@ -47,9 +47,7 @@ describe("enrollments module", () => {
     expect(sql).toContain('"ends_at" timestamptz');
     expect(sql).toContain('"completed_at" timestamptz default now()');
     expect(sql).toContain("a step due date is { days, from }");
-    expect(sql).toMatch(
-      /function \S+"enrollment_schedule"\(enrollment_id uuid\)/,
-    );
+    expect(sql).toMatch(/function \S+"enrollment_schedule"\(target uuid\)/);
     expect(sql).toContain(
       'revoke execute on function "better_supabase"."enrollment_schedule"',
     );

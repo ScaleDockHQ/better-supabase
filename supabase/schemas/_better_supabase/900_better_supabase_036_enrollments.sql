@@ -1,6 +1,6 @@
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:ca7c27b9eb726bb3b420d46201e4336cd4f88b42f3782f69e87ee8f9cfdd9f28
+-- @bsb-hash sha256:0d34d64e86a91c45605f27ebf4a8fe68a00b3546feb9b895ae3d1432753d3949
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -246,7 +246,7 @@ revoke execute on function "better_supabase"."enrollment_ensure"(uuid, text, int
 -- stays null until the enrollment has one. Completed rows keep their
 -- completion; open rows of steps without a schedule go. Module programs
 -- (keys with a colon) are not in the programs table and render nothing.
-create or replace function "better_supabase"."enrollment_schedule"(enrollment_id uuid)
+create or replace function "better_supabase"."enrollment_schedule"(target uuid)
 returns void
 language plpgsql
 security definer
@@ -258,7 +258,7 @@ declare
   v_program "better_supabase"."enrollment_programs";
   v_plan jsonb;
 begin
-  select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_schedule.enrollment_id;
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_schedule.target;
   if v_row."id" is null or v_row."tenant_id" is null then
     return;
   end if;
@@ -321,16 +321,21 @@ begin
   v_was := v_row."status";
   -- An open row of a step with a schedule is completed in place.
   if enrollment_mark.done then
-    insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "completed_by", "completed_at")
-    values (v_row."id", v_row."tenant_id", enrollment_mark.step, enrollment_mark.actor, now())
-    on conflict ("enrollment_id", "step") do update
-    set "completed_by" = excluded."completed_by", "completed_at" = excluded."completed_at"
-    where y."completed_at" is null;
+    update "better_supabase"."enrollment_steps" y
+    set "completed_by" = enrollment_mark.actor, "completed_at" = now()
+    where y."enrollment_id" = v_row."id" and y."step" = enrollment_mark.step and y."completed_at" is null;
+    get diagnostics v_count = row_count;
+    if v_count = 0 then
+      insert into "better_supabase"."enrollment_steps" ("enrollment_id", "tenant_id", "step", "completed_by", "completed_at")
+      values (v_row."id", v_row."tenant_id", enrollment_mark.step, enrollment_mark.actor, now())
+      on conflict do nothing;
+      get diagnostics v_count = row_count;
+    end if;
   else
     delete from "better_supabase"."enrollment_steps" x
     where x."enrollment_id" = v_row."id" and x."step" = enrollment_mark.step and x."completed_at" is not null;
+    get diagnostics v_count = row_count;
   end if;
-  get diagnostics v_count = row_count;
   if v_count = 0 then
     return false;
   end if;

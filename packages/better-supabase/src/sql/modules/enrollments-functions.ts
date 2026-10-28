@@ -267,16 +267,21 @@ begin
   v_was := v_row.${e("status")};
   -- An open row of a step with a schedule is completed in place.
   if enrollment_mark.done then
-    insert into ${steps} as y (${s("enrollment")}, ${s("tenant")}, ${s("step")}, ${s("completedBy")}, ${s("completedAt")})
-    values (v_row.${e("id")}, v_row.${e("tenant")}, enrollment_mark.step, enrollment_mark.actor, now())
-    on conflict (${s("enrollment")}, ${s("step")}) do update
-    set ${s("completedBy")} = excluded.${s("completedBy")}, ${s("completedAt")} = excluded.${s("completedAt")}
-    where y.${s("completedAt")} is null;
+    update ${steps} y
+    set ${s("completedBy")} = enrollment_mark.actor, ${s("completedAt")} = now()
+    where y.${s("enrollment")} = v_row.${e("id")} and y.${s("step")} = enrollment_mark.step and y.${s("completedAt")} is null;
+    get diagnostics v_count = row_count;
+    if v_count = 0 then
+      insert into ${steps} (${s("enrollment")}, ${s("tenant")}, ${s("step")}, ${s("completedBy")}, ${s("completedAt")})
+      values (v_row.${e("id")}, v_row.${e("tenant")}, enrollment_mark.step, enrollment_mark.actor, now())
+      on conflict do nothing;
+      get diagnostics v_count = row_count;
+    end if;
   else
     delete from ${steps} x
     where x.${s("enrollment")} = v_row.${e("id")} and x.${s("step")} = enrollment_mark.step and x.${s("completedAt")} is not null;
+    get diagnostics v_count = row_count;
   end if;
-  get diagnostics v_count = row_count;
   if v_count = 0 then
     return false;
   end if;${

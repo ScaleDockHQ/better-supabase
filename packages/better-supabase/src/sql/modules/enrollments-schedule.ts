@@ -101,7 +101,7 @@ export function scheduleInternals(ctx: BlockSqlContext): string {
 -- stays null until the enrollment has one. Completed rows keep their
 -- completion; open rows of steps without a schedule go. Module programs
 -- (keys with a colon) are not in the programs table and render nothing.
-create or replace function ${fn("enrollment_schedule")}(enrollment_id uuid)
+create or replace function ${fn("enrollment_schedule")}(target uuid)
 returns void
 language plpgsql
 security definer
@@ -113,7 +113,7 @@ declare
   v_program ${programs};
   v_plan jsonb;
 begin
-  select * into v_row from ${enrollments} x where x.${e("id")} = enrollment_schedule.enrollment_id;
+  select * into v_row from ${enrollments} x where x.${e("id")} = enrollment_schedule.target;
   if v_row.${e("id")} is null or v_row.${e("tenant")} is null then
     return;
   end if;
