@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:99919a7f84a40bd3af1df08327253ff5bba343bf31327a138daf86011e2329f4
+-- @bsb-hash sha256:646fc5497649a1cc47ab25bf024e27b9226c54a5de58794c5942727368689ddc
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -200,8 +200,8 @@ security definer
 set search_path = ''
 as $$
 begin
-  -- employees keeps employee_id current, also on a locked week.
-  if tg_op = 'UPDATE' and (to_jsonb(new) - 'employee_id') = (to_jsonb(old) - 'employee_id') then
+  -- Only a change to logged time (options.lockedColumns) touches the week.
+  if tg_op = 'UPDATE' and (new."started_at", new."ended_at", new."subject_type", new."subject_id", new."user_id", new."rate", new."rate_currency") is not distinct from (old."started_at", old."ended_at", old."subject_type", old."subject_id", old."user_id", old."rate", old."rate_currency") then
     return new;
   end if;
   if tg_op in ('UPDATE', 'DELETE') and "better_supabase"."time_week_locked"(old."tenant_id", old."user_id", old."started_at") then
@@ -956,7 +956,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:004f40c6aaf92b22af89b8fd200bc06f3169657f0b9bce4639e83a500998a4b8
+-- @bsb-hash sha256:8181b1a59aaf7aa4d2d71a6193ad3ebe0765e213368d2208d6b7fcd78f10c14b
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1155,8 +1155,8 @@ security definer
 set search_path = ''
 as $$
 begin
-  -- employees keeps employee_id current, also on a locked week.
-  if tg_op = 'UPDATE' and (to_jsonb(new) - 'employee_id') = (to_jsonb(old) - 'employee_id') then
+  -- Only a change to logged time (options.lockedColumns) touches the week.
+  if tg_op = 'UPDATE' and (new."started_at", new."ended_at", new."subject_type", new."subject_id", new."user_id", new."rate", new."rate_currency") is not distinct from (old."started_at", old."ended_at", old."subject_type", old."subject_id", old."user_id", old."rate", old."rate_currency") then
     return new;
   end if;
   if tg_op in ('UPDATE', 'DELETE') and "better_supabase"."time_week_locked"(old."tenant_id", old."user_id", old."started_at") then
@@ -1938,7 +1938,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:31ad106c572c15d66255ab434758baaaab55bf22c1ec5880e99935a39eddbd77
+-- @bsb-hash sha256:be6b5feb665b7c305b2610ec250f7f52a1d46ef1b26ac13bb4ea90f9c7fb6add
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2142,8 +2142,8 @@ security definer
 set search_path = ''
 as $$
 begin
-  -- employees keeps employee_id current, also on a locked week.
-  if tg_op = 'UPDATE' and (to_jsonb(new) - 'employee_id') = (to_jsonb(old) - 'employee_id') then
+  -- Only a change to logged time (options.lockedColumns) touches the week.
+  if tg_op = 'UPDATE' and (new."started_at", new."ended_at", new."subject_type", new."subject_id", new."user_id", new."rate", new."rate_currency") is not distinct from (old."started_at", old."ended_at", old."subject_type", old."subject_id", old."user_id", old."rate", old."rate_currency") then
     return new;
   end if;
   if tg_op in ('UPDATE', 'DELETE') and "app_private"."time_week_locked"(old."tenant_id", old."user_id", old."started_at") then
@@ -2898,7 +2898,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:db850ef638f3437918b3e61add1e5549bde0c745d9e93a2009793b86b461de5d
+-- @bsb-hash sha256:8bcc6c3f32ff072abbe3d15b571b72837d08c9c3eb982a3af7ccf1673b92e0a6
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3097,8 +3097,8 @@ security definer
 set search_path = ''
 as $$
 begin
-  -- employees keeps employee_id current, also on a locked week.
-  if tg_op = 'UPDATE' and (to_jsonb(new) - 'employee_id') = (to_jsonb(old) - 'employee_id') then
+  -- Only a change to logged time (options.lockedColumns) touches the week.
+  if tg_op = 'UPDATE' and (new."started_at", new."ended_at", new."subject_type", new."subject_id", new."user_id", new."rate", new."rate_currency") is not distinct from (old."started_at", old."ended_at", old."subject_type", old."subject_id", old."user_id", old."rate", old."rate_currency") then
     return new;
   end if;
   if tg_op in ('UPDATE', 'DELETE') and "better_supabase"."time_week_locked"(old."tenant_id", old."user_id", old."started_at") then
@@ -4000,7 +4000,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:dfa0be4931458b1e1bfed883e39a8dc9812ea399f930e231fd9767f51b57c348
+-- @bsb-hash sha256:ea3095a7b7a5fa3c3ae6698c6e7646f8aa6c1836309ca7222a863211d82997cb
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4177,8 +4177,8 @@ security definer
 set search_path = ''
 as $$
 begin
-  -- employees keeps employee_id current, also on a locked week.
-  if tg_op = 'UPDATE' and (to_jsonb(new) - 'employee_id') = (to_jsonb(old) - 'employee_id') then
+  -- Only a change to logged time (options.lockedColumns) touches the week.
+  if tg_op = 'UPDATE' and (new."started_at", new."ended_at", new."subject_type", new."subject_id", new."user_id", new."rate", new."rate_currency") is not distinct from (old."started_at", old."ended_at", old."subject_type", old."subject_id", old."user_id", old."rate", old."rate_currency") then
     return new;
   end if;
   if tg_op in ('UPDATE', 'DELETE') and "better_supabase"."time_week_locked"(old."tenant_id", old."user_id", old."started_at") then
@@ -4933,7 +4933,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:731858dd0e6656265ba070e8a181835e97de44e2a61b259959689f608bd90c24
+-- @bsb-hash sha256:451292cf16618e7e9e63439aacbb07554d6453a8c6a3e563bc61955f68f4568f
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5132,8 +5132,8 @@ security definer
 set search_path = ''
 as $$
 begin
-  -- employees keeps employee_id current, also on a locked week.
-  if tg_op = 'UPDATE' and (to_jsonb(new) - 'employee_id') = (to_jsonb(old) - 'employee_id') then
+  -- Only a change to logged time (options.lockedColumns) touches the week.
+  if tg_op = 'UPDATE' and (new."started_at", new."ended_at", new."subject_type", new."subject_id", new."user_id", new."rate", new."rate_currency") is not distinct from (old."started_at", old."ended_at", old."subject_type", old."subject_id", old."user_id", old."rate", old."rate_currency") then
     return new;
   end if;
   if tg_op in ('UPDATE', 'DELETE') and "better_supabase"."time_week_locked"(old."org_id", old."user_id", old."started_at") then

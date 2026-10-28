@@ -31,6 +31,7 @@ import {
   durationEntries,
   entryEnded,
   entrySubjects,
+  lockedColumns,
   timeOwner,
 } from "./time-tracking-owner.ts";
 import {
@@ -114,6 +115,7 @@ const NAMES: BlockSqlNames = {
     "owner",
     "overlap",
     "timers",
+    "lockedColumns",
   ],
   tables: {
     entries: {
@@ -309,6 +311,13 @@ function build(ctx: BlockSqlContext): string {
   } = owner;
 
   const ended = (alias: string): string => entryEnded(ctx, alias);
+
+  const locked = lockedColumns(
+    ctx,
+    subjectColumns,
+    employeeMode,
+    Object.keys(NAMES.tables["entries"]?.columns ?? {}),
+  );
 
   // Whether row `alias` is a running timer.
   const running = (alias: string): string =>
@@ -595,15 +604,11 @@ security definer
 set search_path = ''
 as $$
 begin
-${
-  employeeMode
-    ? ""
-    : `  -- employees keeps employee_id current, also on a locked week.
-  if tg_op = 'UPDATE' and (to_jsonb(new) - 'employee_id') = (to_jsonb(old) - 'employee_id') then
+  -- Only a change to logged time (options.lockedColumns) touches the week.
+  if tg_op = 'UPDATE' and ${locked.length === 0 ? "true" : `(${locked.map((column) => `new.${column}`).join(", ")}) is not distinct from (${locked.map((column) => `old.${column}`).join(", ")})`} then
     return new;
   end if;
-`
-}  if tg_op in ('UPDATE', 'DELETE') and ${fn("time_week_locked")}(old.${e("tenant")}, old.${eOwner}, old.${e("startedAt")}) then
+  if tg_op in ('UPDATE', 'DELETE') and ${fn("time_week_locked")}(old.${e("tenant")}, old.${eOwner}, old.${e("startedAt")}) then
     ${fail("TIME_PERIOD_LOCKED", "this week's timesheet is submitted or approved", "55000")}
   end if;
   if tg_op in ('INSERT', 'UPDATE') and ${fn("time_week_locked")}(new.${e("tenant")}, new.${eOwner}, new.${e("startedAt")}) then

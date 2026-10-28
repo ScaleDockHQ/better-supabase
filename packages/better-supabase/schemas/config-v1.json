@@ -6473,6 +6473,12 @@
               "timers": {
                 "type": "string",
                 "default": "one"
+              },
+              "lockedColumns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             }
           }

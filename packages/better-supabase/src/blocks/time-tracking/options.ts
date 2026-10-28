@@ -31,6 +31,13 @@ export type TimeTrackingSqlOptions = {
    * running and `stop_timer` takes the entry. Needs `overlap: "allow"`.
    */
   readonly timers?: "one" | "many";
+  /**
+   * The entry columns a submitted or approved week refuses to change, as
+   * logical names (`startedAt`) or the table's own column names. Default: the
+   * ones that change logged time (start, end or duration, subject, owner and
+   * rate), so a billable flag, a note or a link column stays writable.
+   */
+  readonly lockedColumns?: readonly string[];
 };
 
 export const timeTrackingSqlOptions: BlockOptionsSchema<TimeTrackingSqlOptions> =
@@ -46,4 +53,5 @@ export const timeTrackingSqlOptions: BlockOptionsSchema<TimeTrackingSqlOptions> 
     owner: option.string<"user" | "employee">({ default: "user" }),
     overlap: option.string<"refuse" | "allow">({ default: "refuse" }),
     timers: option.string<"one" | "many">({ default: "one" }),
+    lockedColumns: option.strings(),
   });

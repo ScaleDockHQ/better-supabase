@@ -267,3 +267,59 @@ ${userGrant(`${fn("time_is_my_employee")}(${ctx.idType}, uuid)`)}
     helper,
   };
 }
+
+const IDENT = /^[a-z_][a-z0-9_$]*$/u;
+
+/**
+ * `options.lockedColumns`: the entry columns a submitted or approved week
+ * refuses to change, as logical names or the table's own column names. By
+ * default the ones that change logged time: start, end or duration, subject,
+ * owner and rate.
+ */
+export function lockedColumns(
+  ctx: BlockSqlContext,
+  subjectColumns: readonly string[],
+  employeeMode: boolean,
+  logical: readonly string[],
+): readonly string[] {
+  const raw = ctx.option("lockedColumns");
+  const e = (column: string): string => ctx.col("entries", column);
+
+  if (raw === undefined) {
+    return [
+      ...new Set([
+        e("startedAt"),
+        ...(durationEntries(ctx)
+          ? [e("seconds"), e("runningSince")]
+          : [e("endedAt")]),
+        ...subjectColumns,
+        e("user"),
+        ...(employeeMode ? [e("employee")] : []),
+        e("rate"),
+        e("rateCurrency"),
+      ]),
+    ];
+  }
+
+  if (
+    !Array.isArray(raw) ||
+    !raw.every(
+      (column) =>
+        typeof column === "string" &&
+        ((logical.includes(column) && ctx.has("entries", column)) ||
+          IDENT.test(column)),
+    )
+  ) {
+    throw new TypeError(
+      `${WHERE}.lockedColumns takes entry columns: logical names such as startedAt, or the table's own column names`,
+    );
+  }
+
+  return [
+    ...new Set(
+      raw.map((column: string) =>
+        logical.includes(column) ? e(column) : sqlIdent(column),
+      ),
+    ),
+  ];
+}
