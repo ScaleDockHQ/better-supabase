@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:8e57dc3365d802daf81411b5b315af3eab88e3a4ec0403e8476974522b6d4d3f
+-- @bsb-hash sha256:fdca37801ab42b6a8eeea1dc553ce707151fd309cd9c8eead3e694812c88d18c
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -68,7 +68,7 @@ create extension if not exists pgcrypto with schema extensions;
 
 -- Templates of a type (an invoice, a project, an email): a tenant's own, or
 -- a system starter (no tenant) that sync_templates keeps by key and tenants
--- fork. forked_from: the template and version a fork copied.
+-- fork, or with options.brand a starter of one brand. forked_from: the template and version a fork copied.
 create table if not exists "better_supabase"."templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
@@ -282,7 +282,7 @@ as $$
   ) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")))
     order by x."is_default" desc, x."scope" desc, x."name", x."id"), '[]'::jsonb)
   from "better_supabase"."templates" x
-  where (x."tenant_id" = templates_list.tenant or x."scope" = 'system')
+  where (x."scope" = 'system' or x."tenant_id" = templates_list.tenant)
     and (templates_list.type is null or x."type" = templates_list.type)
     and (templates_list.language is null or x."language" = templates_list.language)
 $$;
@@ -551,7 +551,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_src from "better_supabase"."templates" x where x."id" = fork_template.source;
-  if not found or not (v_src."scope" = 'system' or v_src."tenant_id" is not distinct from fork_template.tenant) then
+  if not found or not (v_src."scope" = 'system' or v_src."tenant_id" = fork_template.tenant) then
     raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
   end if;
   if fork_template.tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (fork_template.tenant is not null and coalesce(better_supabase.can('tenant', fork_template.tenant, 'templates.manage'), false))) then
@@ -615,6 +615,9 @@ begin
   for v_starter in select value from jsonb_array_elements(sync_templates.starters) loop
     if coalesce(v_starter ->> 'key', '') !~ '^[a-z0-9][a-z0-9_.-]{0,99}$' or not (v_starter ? 'body') then
       raise exception 'Each starter needs a key and a body' using errcode = '22023', hint = 'TEMPLATE_INVALID';
+    end if;
+    if v_starter ? 'brand' then
+      raise exception 'this templates table has no brand column' using errcode = '22023', hint = 'TEMPLATE_BRAND_UNSUPPORTED';
     end if;
     select * into v_row from "better_supabase"."templates" x where x."tenant_id" is null and x."key" = v_starter ->> 'key' for update;
     if not found then

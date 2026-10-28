@@ -151,7 +151,7 @@ export interface TemplateRecurringDeps {
   readonly jobs?: TemplateJobs;
 }
 
-export function scheduleOf(row: Record<string, unknown>): TemplateSchedule {
+function scheduleOf(row: Record<string, unknown>): TemplateSchedule {
   return {
     id: textOf(row["id"]),
     template: textOf(row["template"]),

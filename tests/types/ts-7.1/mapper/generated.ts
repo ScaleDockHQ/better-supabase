@@ -35,6 +35,6 @@ export const topics = {
   "notifications": "organization:{organizationId}:notifications:{userId}",
   "customers": "organization:{organizationId}:customers"
 } as const;
-export const subjectTypes = ["project", "task"] as const;
+export const subjectTypes = ["change_request", "project", "task"] as const;
 
 export const schema: typeof typedSchema = defineSchema(meta, [updatedAtExtension(), createdByExtension(), trashExtension(), membershipsExtension()]);

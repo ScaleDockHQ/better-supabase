@@ -12,7 +12,7 @@ import {
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 
 /** The subject type a schedule's rule has in reminders' `recurrence_rules`. */
-export const SCHEDULE_SUBJECT = "template_schedule";
+const SCHEDULE_SUBJECT = "template_schedule";
 
 const MAX_INPUT_BYTES = 65_536;
 
@@ -20,7 +20,7 @@ const MAX_INPUT_BYTES = 65_536;
  * Whether recurring records render: reminders keeps their rules, so it must be
  * installed with its `rrule` column (`ruleFormat: "rrule"`).
  */
-export function recurringEnabled(ctx: BlockSqlContext): boolean {
+function recurringEnabled(ctx: BlockSqlContext): boolean {
   if (
     !ctx.installed("reminders") ||
     !ctx.hasTable("schedules") ||

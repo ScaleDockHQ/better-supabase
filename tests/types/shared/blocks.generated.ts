@@ -126,6 +126,7 @@ export const blockEventSchemas = {
  * @public
  */
 export const urls = {
+  changeRequest: (v: { readonly id: string | number }) => `/change-requests/${String(v.id)}`,
   project: (v: { readonly id: string | number }) => `/projects/${String(v.id)}`,
   task: (v: { readonly projectId: string | number }) => `/projects/${String(v.projectId)}`,
 } as const;

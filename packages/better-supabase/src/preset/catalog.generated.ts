@@ -18140,6 +18140,18 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "TemplateJobs"
+        },
+        {
+          "name": "TemplateOccurrence"
+        },
+        {
+          "name": "TemplateRecurPayload"
+        },
+        {
+          "name": "TemplateRecurring"
+        },
+        {
           "name": "TemplateRunStart"
         },
         {
@@ -18148,6 +18160,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "TemplatesApplyOutput"
+        },
+        {
+          "name": "TemplateSchedule"
+        },
+        {
+          "name": "TemplateScheduleInput"
+        },
+        {
+          "name": "TemplateScheduleOptions"
+        },
+        {
+          "name": "TemplateScheduleResult"
         },
         {
           "name": "TemplateScope"
