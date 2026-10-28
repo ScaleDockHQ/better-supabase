@@ -1861,7 +1861,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "share-links",
         "reminders",
         "outbox",
-        "leave"
+        "leave",
+        "organizations"
       ],
       "manifest": "calendar",
       "scopes": [
@@ -2434,7 +2435,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "rank": "rank",
               "createdAt": "created_at",
               "updatedAt": "updated_at",
-              "price": "price"
+              "price": "price",
+              "status": "status"
             }
           }
         },
@@ -4250,6 +4252,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "employees",
         "share-links",
+        "teams",
         "approvals"
       ],
       "manifest": "leave",
@@ -4309,6 +4312,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "allowance": "allowance",
               "carryoverMax": "carryover_max",
               "color": "color",
+              "autoApprove": "auto_approve",
               "archivedAt": "archived_at",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -7757,6 +7761,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "CalendarEventStatus"
         },
         {
+          "name": "CalendarFeedData",
+          "fields": true
+        },
+        {
           "name": "CalendarGrant"
         },
         {
@@ -7785,6 +7793,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "CalendarTransparency"
+        },
+        {
+          "name": "CalendarUserFeedData",
+          "fields": true
         },
         {
           "name": "CalendarVisibility"
@@ -8438,6 +8450,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "ProductMediaInput"
+        },
+        {
+          "name": "ProductPatch"
         },
         {
           "name": "ProductStatus"
@@ -9267,6 +9282,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "LeaveRequestListOptions"
         },
         {
+          "name": "LeaveRequestUpdate",
+          "fields": true
+        },
+        {
           "name": "LeaveType"
         },
         {
@@ -9280,6 +9299,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "leave.approved",
           "leave.cancelled",
           "leave.rejected",
+          "leave.updated",
+          "leave.split",
           "leave.adjusted"
         ]
       }
@@ -10610,7 +10631,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "expense.submitted",
           "expense.approved",
           "expense.rejected",
-          "expense.reimbursed"
+          "expense.reimbursed",
+          "expense.withdrawn",
+          "expense.deleted"
         ]
       }
     },
