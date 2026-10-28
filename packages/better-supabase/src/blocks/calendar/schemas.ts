@@ -10,20 +10,19 @@ export const calendarAlarmSchema: EntitySchema<CalendarAlarm> =
     title: "CalendarAlarm",
     fields: {
       id: { kind: "string", optional: true },
-      action: { kind: "enum", values: ["display", "email", "audio"] },
-      triggerMinutes: {
+      method: { kind: "enum", values: ["display", "email", "audio"] },
+      offsetMinutes: {
         kind: "integer",
-        optional: true,
         minimum: -525_600,
         maximum: 525_600,
         description:
-          "Minutes from the start (or end), RFC 5545 sign: -15 fires 15 minutes before.",
+          "Minutes before the start (or end); negative fires after. Ignored with at.",
       },
       related: { kind: "enum", values: ["start", "end"], optional: true },
-      triggerAt: {
+      at: {
         kind: "instant",
         optional: true,
-        description: "An absolute trigger, instead of triggerMinutes.",
+        description: "An absolute time, instead of offsetMinutes.",
       },
       repeat: { kind: "integer", optional: true, minimum: 0 },
       repeatMinutes: { kind: "integer", optional: true, minimum: 1 },

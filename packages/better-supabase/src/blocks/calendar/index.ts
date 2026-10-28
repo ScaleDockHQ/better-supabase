@@ -47,7 +47,6 @@ export {
   type AttendeeRole,
   type CalendarAttendee,
   type CalendarEventStatus,
-  type CalendarReminder,
   type IcsEvent,
   type IcsSource,
   type ParsedIcs,
@@ -81,4 +80,8 @@ export type { CalendarEvents } from "./events.ts";
 
 export { calendarAlarmSchema, calendarEventInputSchema } from "./schemas.ts";
 
-export type { CalendarAlarm, CalendarAlarmAction } from "./alarms.ts";
+export type {
+  CalendarAlarm,
+  CalendarAlarmAction,
+  CalendarReminder,
+} from "./alarms.ts";

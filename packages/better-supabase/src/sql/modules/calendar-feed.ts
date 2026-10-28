@@ -2,8 +2,8 @@ import type { BlockSqlContext } from "../context.ts";
 import type { FeedOptions } from "../feed-options.ts";
 
 import { isRecord } from "../../core/guards.ts";
-import { sqlIdent } from "../../core/template.ts";
 import { feedOptions, feedWindow } from "../feed-options.ts";
+import { alarmsArray } from "./calendar-alarms.ts";
 import {
   accessForCall,
   calendarFeatures,
@@ -20,6 +20,14 @@ const UUID = "'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'";
 
 /** `blocks.calendar.options.feed`, checked against what the calendar has. */
 export function calendarFeed(ctx: BlockSqlContext): FeedOptions {
+  const raw = ctx.option("feed");
+
+  if (isRecord(raw) && raw["reminders"] !== undefined) {
+    throw new TypeError(
+      "blocks.calendar.options.feed.reminders is replaced by the alarms table: map your table as blocks.calendar.tables.alarms and its columns under columns.alarms",
+    );
+  }
+
   const feed = feedOptions(ctx, "blocks.calendar.options");
 
   if (
@@ -34,60 +42,12 @@ export function calendarFeed(ctx: BlockSqlContext): FeedOptions {
   return feed;
 }
 
-const IDENT = /^[a-z_][a-z0-9_$]*$/u;
-
-interface FeedReminders {
-  readonly table: string;
-  readonly event: string;
-  readonly offsetMinutes: string;
-  readonly method: string | undefined;
-  readonly user: string | undefined;
-}
-
-function feedReminders(ctx: BlockSqlContext): FeedReminders | undefined {
-  const feed = ctx.option("feed");
-  const raw = isRecord(feed) ? feed["reminders"] : undefined;
-
-  if (raw === undefined) {
-    return undefined;
-  }
-
-  const where = "blocks.calendar.options.feed.reminders";
-
-  const ident = (value: unknown): value is string =>
-    typeof value === "string" && IDENT.test(value);
-
-  if (
-    !isRecord(raw) ||
-    typeof raw["table"] !== "string" ||
-    !raw["table"].split(".").every((part) => IDENT.test(part)) ||
-    raw["table"].split(".").length !== 2 ||
-    !ident(raw["event"]) ||
-    !ident(raw["offsetMinutes"]) ||
-    (raw["method"] !== undefined && !ident(raw["method"])) ||
-    (raw["user"] !== undefined && !ident(raw["user"]))
-  ) {
-    throw new TypeError(
-      `${where} takes { table: "schema.table", event, offsetMinutes, method?, user? } with column names`,
-    );
-  }
-
-  return {
-    table: raw["table"]
-      .split(".")
-      .map((part) => sqlIdent(part))
-      .join("."),
-    event: sqlIdent(raw["event"]),
-    offsetMinutes: sqlIdent(raw["offsetMinutes"]),
-    method: raw["method"] === undefined ? undefined : sqlIdent(raw["method"]),
-    user: raw["user"] === undefined ? undefined : sqlIdent(raw["user"]),
-  };
-}
-
 /**
  * The events of a feed, as a JSON array: those of the calendars `where` selects
- * (over `k` and `e`), in the feed's window and visibility for `creator`, with
- * the creator's reminders, at most the feed's limit.
+ * (over `k` and `e`), in the feed's window and visibility for `creator`, at
+ * most the feed's limit. Each event's `reminders` are its alarms for `creator`
+ * and the creator's reminders from the reminders block, one list `toIcs` writes
+ * as `VALARM`s.
  */
 function feedEvents(
   ctx: BlockSqlContext,
@@ -111,23 +71,31 @@ function feedEvents(
         ? eventAccessForCall(ctx, e("id"), creator)
         : "true";
 
-  const alarms = feedReminders(ctx);
+  const alarms = ctx.hasTable("alarms")
+    ? alarmsArray(ctx, e("id"), creator)
+    : undefined;
 
-  const reminders = alarms
-    ? ` || jsonb_build_object('reminders', coalesce((select jsonb_agg(jsonb_build_object('method', ${alarms.method === undefined ? "'notification'" : `r.${alarms.method}::text`}, 'offsetMinutes', r.${alarms.offsetMinutes}) order by r.${alarms.offsetMinutes}) from ${alarms.table} r where r.${alarms.event} = ${e("id")}${alarms.user === undefined ? "" : ` and (r.${alarms.user} is null or r.${alarms.user} = ${creator})`}), '[]'::jsonb))`
-    : ctx.installed("reminders") && ctx.of("reminders").hasTable("reminders")
+  const own =
+    ctx.installed("reminders") && ctx.of("reminders").hasTable("reminders")
       ? (() => {
           const r = ctx.of("reminders");
           const c = (column: string) => `r.${r.col("reminders", column)}`;
 
-          return ` || jsonb_build_object('reminders', coalesce((select jsonb_agg(jsonb_build_object('method', ${c("method")}, 'offsetMinutes', ${c("offsetMinutes")}) order by ${c("offsetMinutes")}) from ${r.table("reminders")} r where ${c("subjectType")} = 'calendar_event' and ${c("subjectId")} = ${e("id")}::text and ${c("user")} = ${creator}), '[]'::jsonb))`;
+          return `coalesce((select jsonb_agg(jsonb_build_object('method', ${c("method")}, 'offsetMinutes', ${c("offsetMinutes")}) order by ${c("offsetMinutes")}) from ${r.table("reminders")} r where ${c("subjectType")} = 'calendar_event' and ${c("subjectId")} = ${e("id")}::text and ${c("user")} = ${creator}), '[]'::jsonb)`;
         })()
-      : "";
+      : undefined;
+
+  const parts = [alarms, own].filter((part) => part !== undefined);
+
+  const item =
+    parts.length === 0
+      ? eventJson(ctx, attendees)
+      : `(${eventJson(ctx, attendees)} - 'alarms') || jsonb_build_object('reminders', ${parts.join(" || ")})`;
 
   return `coalesce((
       select jsonb_agg(f.item order by f.starts)
       from (
-        select ${eventJson(ctx, attendees)}${reminders} as item, ${e("startsAt")} as starts
+        select ${item} as item, ${e("startsAt")} as starts
         from ${events} e
         join ${calendars} k on ${k("id")} = ${e("calendar")}
         where ${where}

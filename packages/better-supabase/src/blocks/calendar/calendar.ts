@@ -17,7 +17,6 @@ import type {
   AttendeeRole,
   CalendarAttendee,
   CalendarEventStatus,
-  CalendarReminder,
   IcsEvent,
 } from "./ics.ts";
 import type {
@@ -46,7 +45,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
-import { alarmItem, alarmOf } from "./alarms.ts";
+import { alarmItem, alarmOf, reminderOf } from "./alarms.ts";
 import {
   CALENDAR_EVENT_KINDS,
   CALENDAR_TRANSPARENCIES,
@@ -322,16 +321,6 @@ function attendeeOf(value: Record<string, unknown>): CalendarAttendee {
     ...text("subjectId"),
     ...flag("organizer"),
     ...flag("optional"),
-  };
-}
-
-function reminderOf(value: Record<string, unknown>): CalendarReminder {
-  return {
-    method: optionalText(value["method"]) ?? "notification",
-    offsetMinutes:
-      typeof value["offsetMinutes"] === "number"
-        ? Math.trunc(value["offsetMinutes"])
-        : 0,
   };
 }
 

@@ -1,4 +1,4 @@
-import type { CalendarAlarm } from "./alarms.ts";
+import type { CalendarAlarm, CalendarReminder } from "./alarms.ts";
 import type { CalendarTransparency } from "./availability.ts";
 import type { ContentLine } from "./ics-text.ts";
 
@@ -33,11 +33,6 @@ export interface CalendarAttendee {
   readonly subjectId?: string;
   readonly organizer?: boolean;
   readonly optional?: boolean;
-}
-
-export interface CalendarReminder {
-  readonly method: string;
-  readonly offsetMinutes: number;
 }
 
 /** One `VEVENT`, ready for `importIcs` or `upsert`. */
@@ -698,22 +693,8 @@ function eventLines(event: IcsSource, stamp: Temporal.Instant): string[] {
     );
   }
 
-  for (const alarm of event.alarms ?? []) {
+  for (const alarm of [...(event.alarms ?? []), ...(event.reminders ?? [])]) {
     lines.push(...alarmLines(alarm, event));
-  }
-
-  for (const reminder of event.reminders ?? []) {
-    const minutes = Math.trunc(reminder.offsetMinutes);
-    const trigger = `${minutes > 0 ? "-" : ""}PT${String(Math.abs(minutes))}M`;
-
-    lines.push(
-      "BEGIN:VALARM",
-      "ACTION:DISPLAY",
-      `DESCRIPTION:${escapeText(event.title)}`,
-      `TRIGGER:${trigger}`,
-      `X-BSB-METHOD:${escapeText(reminder.method)}`,
-      "END:VALARM",
-    );
   }
 
   lines.push("END:VEVENT");

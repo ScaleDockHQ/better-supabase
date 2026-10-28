@@ -685,8 +685,8 @@ describe("calendar alarms", () => {
           alarms: [
             {
               id: "a1",
-              action: "display",
-              triggerMinutes: -10,
+              method: "display",
+              offsetMinutes: 10,
               related: "start",
             },
           ],
@@ -698,15 +698,16 @@ describe("calendar alarms", () => {
     const [first] = await calendar.occurrences(["c1"], range).orThrow();
 
     expect(first!.event.alarms).toEqual([
-      { id: "a1", action: "display", triggerMinutes: -10, related: "start" },
+      { method: "display", offsetMinutes: 10, id: "a1" },
     ]);
 
     await calendar
       .editFollowing(first!, {
         alarms: [
           {
-            action: "email",
-            triggerAt: Temporal.Instant.from("2026-03-22T18:00:00Z"),
+            method: "email",
+            offsetMinutes: 0,
+            at: Temporal.Instant.from("2026-03-22T18:00:00Z"),
           },
         ],
       })
@@ -715,7 +716,7 @@ describe("calendar alarms", () => {
     expect(calls[1]?.args).toEqual({
       calendar_id: "c1",
       item: {
-        alarms: [{ action: "email", triggerAt: "2026-03-22T18:00:00Z" }],
+        alarms: [{ method: "email", at: "2026-03-22T18:00:00Z" }],
         id: "s1",
       },
     });

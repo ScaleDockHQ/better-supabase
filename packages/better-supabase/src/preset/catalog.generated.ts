@@ -8014,7 +8014,7 @@ export const PRESET_CATALOG: PresetCatalog = {
                       "id": {
                         "type": "string"
                       },
-                      "action": {
+                      "method": {
                         "type": "string",
                         "enum": [
                           "display",
@@ -8022,11 +8022,11 @@ export const PRESET_CATALOG: PresetCatalog = {
                           "audio"
                         ]
                       },
-                      "triggerMinutes": {
+                      "offsetMinutes": {
                         "type": "integer",
                         "minimum": -525600,
                         "maximum": 525600,
-                        "description": "Minutes from the start (or end), RFC 5545 sign: -15 fires 15 minutes before."
+                        "description": "Minutes before the start (or end); negative fires after. Ignored with at."
                       },
                       "related": {
                         "type": "string",
@@ -8035,10 +8035,10 @@ export const PRESET_CATALOG: PresetCatalog = {
                           "end"
                         ]
                       },
-                      "triggerAt": {
+                      "at": {
                         "type": "string",
                         "format": "date-time",
-                        "description": "An absolute trigger, instead of triggerMinutes."
+                        "description": "An absolute time, instead of offsetMinutes."
                       },
                       "repeat": {
                         "type": "integer",
@@ -8056,7 +8056,8 @@ export const PRESET_CATALOG: PresetCatalog = {
                       }
                     },
                     "required": [
-                      "action"
+                      "method",
+                      "offsetMinutes"
                     ],
                     "additionalProperties": false
                   },
@@ -8307,7 +8308,7 @@ export const PRESET_CATALOG: PresetCatalog = {
                       "id": {
                         "type": "string"
                       },
-                      "action": {
+                      "method": {
                         "type": "string",
                         "enum": [
                           "display",
@@ -8315,11 +8316,11 @@ export const PRESET_CATALOG: PresetCatalog = {
                           "audio"
                         ]
                       },
-                      "triggerMinutes": {
+                      "offsetMinutes": {
                         "type": "integer",
                         "minimum": -525600,
                         "maximum": 525600,
-                        "description": "Minutes from the start (or end), RFC 5545 sign: -15 fires 15 minutes before."
+                        "description": "Minutes before the start (or end); negative fires after. Ignored with at."
                       },
                       "related": {
                         "type": "string",
@@ -8328,10 +8329,10 @@ export const PRESET_CATALOG: PresetCatalog = {
                           "end"
                         ]
                       },
-                      "triggerAt": {
+                      "at": {
                         "type": "string",
                         "format": "date-time",
-                        "description": "An absolute trigger, instead of triggerMinutes."
+                        "description": "An absolute time, instead of offsetMinutes."
                       },
                       "repeat": {
                         "type": "integer",
@@ -8349,7 +8350,8 @@ export const PRESET_CATALOG: PresetCatalog = {
                       }
                     },
                     "required": [
-                      "action"
+                      "method",
+                      "offsetMinutes"
                     ],
                     "additionalProperties": false
                   },

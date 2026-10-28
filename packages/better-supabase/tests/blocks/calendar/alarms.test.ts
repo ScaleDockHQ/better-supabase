@@ -31,11 +31,12 @@ const EVENT: IcsSource = {
     { email: "jane@example.test", role: "required", response: "accepted" },
   ],
   alarms: [
-    { action: "display", triggerMinutes: -15 },
-    { action: "audio", triggerMinutes: 5, related: "end" },
+    { method: "display", offsetMinutes: 15 },
+    { method: "audio", offsetMinutes: -5, related: "end" },
     {
-      action: "email",
-      triggerAt: at("2026-03-01T18:00:00Z"),
+      method: "email",
+      offsetMinutes: 0,
+      at: at("2026-03-01T18:00:00Z"),
       repeat: 2,
       repeatMinutes: 10,
       description: "Bring the numbers",
@@ -64,16 +65,12 @@ describe("calendar alarms in iCalendar", () => {
     const [event] = parseIcs(text).events;
 
     expect(event?.alarms).toEqual([
+      { method: "display", offsetMinutes: 15, description: "Review" },
+      { method: "audio", offsetMinutes: -5, related: "end" },
       {
-        action: "display",
-        triggerMinutes: -15,
-        related: "start",
-        description: "Review",
-      },
-      { action: "audio", triggerMinutes: 5, related: "end" },
-      {
-        action: "email",
-        triggerAt: at("2026-03-01T18:00:00Z"),
+        method: "email",
+        offsetMinutes: 0,
+        at: at("2026-03-01T18:00:00Z"),
         repeat: 2,
         repeatMinutes: 10,
         description: "Bring the numbers",
@@ -82,7 +79,7 @@ describe("calendar alarms in iCalendar", () => {
     ]);
   });
 
-  it("skips the per-user reminders toIcs writes", () => {
+  it("writes reminders through the same VALARM path and skips them on import", () => {
     const text = toIcs(
       [
         {
@@ -94,6 +91,9 @@ describe("calendar alarms in iCalendar", () => {
       { now: at("2026-01-01T00:00:00Z") },
     );
 
+    expect(text).toContain(
+      "ACTION:DISPLAY\r\nTRIGGER:-PT15M\r\nDESCRIPTION:Review\r\nX-BSB-METHOD:notification\r\nEND:VALARM",
+    );
     expect(parseIcs(text).events[0]?.alarms).toBeUndefined();
   });
 });
@@ -119,10 +119,10 @@ describe("readAlarm", () => {
   it("reads weeks, days, hours and seconds as whole minutes", () => {
     expect(
       readAlarm([line("ACTION", "display"), line("TRIGGER", "-P1W2DT3H4M59S")]),
-    ).toEqual({ action: "display", triggerMinutes: -13_144, related: "start" });
+    ).toEqual({ method: "display", offsetMinutes: 13_144 });
     expect(
       readAlarm([line("ACTION", "DISPLAY"), line("TRIGGER", "-PT0S")]),
-    ).toEqual({ action: "display", triggerMinutes: 0, related: "start" });
+    ).toEqual({ method: "display", offsetMinutes: 0 });
   });
 
   it("keeps a repeat only with a positive interval", () => {
@@ -133,7 +133,7 @@ describe("readAlarm", () => {
         line("REPEAT", "3"),
         line("DURATION", "PT0M"),
       ]),
-    ).toEqual({ action: "display", triggerMinutes: 0, related: "start" });
+    ).toEqual({ method: "display", offsetMinutes: 0 });
   });
 });
 
@@ -141,10 +141,10 @@ describe("alarm rows", () => {
   it("reads a row and writes an item", () => {
     const alarm = alarmOf({
       id: "a1",
-      action: "email",
-      triggerMinutes: -60,
+      method: "email",
+      offsetMinutes: 60,
       related: "end",
-      triggerAt: null,
+      at: null,
       repeat: 1,
       repeatMinutes: 5,
       description: "Soon",
@@ -152,34 +152,38 @@ describe("alarm rows", () => {
     });
 
     expect(alarm).toEqual({
+      method: "email",
+      offsetMinutes: 60,
       id: "a1",
-      action: "email",
-      triggerMinutes: -60,
       related: "end",
       repeat: 1,
       repeatMinutes: 5,
       description: "Soon",
     });
     expect(alarmItem(alarm)).toEqual({
-      action: "email",
-      triggerMinutes: -60,
+      method: "email",
+      offsetMinutes: 60,
       related: "end",
       repeat: 1,
       repeatMinutes: 5,
       description: "Soon",
     });
     expect(
-      alarmItem({ action: "display", triggerAt: at("2026-03-01T18:00:00Z") }),
-    ).toEqual({ action: "display", triggerAt: "2026-03-01T18:00:00Z" });
-    expect(alarmOf({ action: "beep", repeat: 0 })).toEqual({
-      action: "display",
-      related: "start",
+      alarmItem({
+        method: "display",
+        offsetMinutes: 0,
+        at: at("2026-03-01T18:00:00Z"),
+      }),
+    ).toEqual({ method: "display", at: "2026-03-01T18:00:00Z" });
+    expect(alarmOf({ method: "beep", repeat: 0 })).toEqual({
+      method: "display",
+      offsetMinutes: 0,
     });
   });
 
   it("leaves an audio alarm without a description", () => {
     expect(
-      alarmLines({ action: "audio", triggerMinutes: 0 }, { title: "T" }),
+      alarmLines({ method: "audio", offsetMinutes: 0 }, { title: "T" }),
     ).toEqual(["BEGIN:VALARM", "ACTION:AUDIO", "TRIGGER:PT0M", "END:VALARM"]);
   });
 });

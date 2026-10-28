@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:838c3fcd87fc6a0b115577afa8536bae836b985c6e4dd77d203ea32ab823e167
+-- @bsb-hash sha256:c27a94eb42833f33abebe3bc96ee8d9ce24f026bdbd82284066dce5877cf4cce
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -225,9 +225,10 @@ create table if not exists "better_supabase"."calendar_event_alarms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "event_id" uuid not null references "better_supabase"."calendar_events" ("id") on delete cascade,
-  "action" text not null default 'display',
-  "trigger_minutes" integer,
-  "trigger_related" text not null default 'start',
+  "user_id" uuid,
+  "method" text not null default 'display',
+  "offset_minutes" integer,
+  "related_to" text not null default 'start',
   "trigger_at" timestamptz,
   "repeat_count" integer not null default 0,
   "repeat_minutes" integer,
@@ -244,15 +245,32 @@ do $$
 begin
   if not exists (
     select 1 from pg_constraint
-    where conrelid = '"better_supabase"."calendar_event_alarms"'::regclass and conname = 'calendar_event_alarms_action_check'
+    where conrelid = '"better_supabase"."calendar_event_alarms"'::regclass and conname = 'calendar_event_alarms_method_check'
   ) then
-    alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_action_check"
-      check ("action" in ('display', 'email', 'audio')) not valid;
+    alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_method_check"
+      check ("method" in ('display', 'email', 'audio')) not valid;
     begin
-      alter table "better_supabase"."calendar_event_alarms" validate constraint "calendar_event_alarms_action_check";
+      alter table "better_supabase"."calendar_event_alarms" validate constraint "calendar_event_alarms_method_check";
     exception when check_violation then
       raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_action_check', '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_action_check';
+        '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_method_check', '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_method_check';
+    end;
+  end if;
+end;
+$$;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."calendar_event_alarms"'::regclass and conname = 'calendar_event_alarms_offset_check'
+  ) then
+    alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_offset_check"
+      check ("offset_minutes" between -525600 and 525600) not valid;
+    begin
+      alter table "better_supabase"."calendar_event_alarms" validate constraint "calendar_event_alarms_offset_check";
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_offset_check', '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_offset_check';
     end;
   end if;
 end;
@@ -264,7 +282,7 @@ begin
     where conrelid = '"better_supabase"."calendar_event_alarms"'::regclass and conname = 'calendar_event_alarms_trigger_check'
   ) then
     alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_trigger_check"
-      check ("trigger_minutes" between -525600 and 525600) not valid;
+      check (("offset_minutes" is null) <> ("trigger_at" is null)) not valid;
     begin
       alter table "better_supabase"."calendar_event_alarms" validate constraint "calendar_event_alarms_trigger_check";
     exception when check_violation then
@@ -278,27 +296,10 @@ do $$
 begin
   if not exists (
     select 1 from pg_constraint
-    where conrelid = '"better_supabase"."calendar_event_alarms"'::regclass and conname = 'calendar_event_alarms_trigger_kind_check'
-  ) then
-    alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_trigger_kind_check"
-      check (("trigger_minutes" is null) <> ("trigger_at" is null)) not valid;
-    begin
-      alter table "better_supabase"."calendar_event_alarms" validate constraint "calendar_event_alarms_trigger_kind_check";
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_trigger_kind_check', '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_trigger_kind_check';
-    end;
-  end if;
-end;
-$$;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
     where conrelid = '"better_supabase"."calendar_event_alarms"'::regclass and conname = 'calendar_event_alarms_related_check'
   ) then
     alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_related_check"
-      check ("trigger_related" in ('start', 'end')) not valid;
+      check ("related_to" in ('start', 'end')) not valid;
     begin
       alter table "better_supabase"."calendar_event_alarms" validate constraint "calendar_event_alarms_related_check";
     exception when check_violation then
@@ -328,7 +329,7 @@ $$;
 drop policy if exists calendar_event_alarms_read on "better_supabase"."calendar_event_alarms";
 create policy calendar_event_alarms_read on "better_supabase"."calendar_event_alarms"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) and ("user_id" is null or "user_id" = (select auth.uid())));
 create table if not exists "better_supabase"."calendar_working_hours" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -506,19 +507,19 @@ begin
     if exists (
       select 1 from jsonb_array_elements(v_item -> 'alarms') x
       where jsonb_typeof(x) <> 'object'
-        or coalesce(x ->> 'action', 'display') not in ('display', 'email', 'audio')
+        or coalesce(x ->> 'method', 'display') not in ('display', 'email', 'audio')
         or coalesce(x ->> 'related', 'start') not in ('start', 'end')
-        or (x ->> 'triggerMinutes' is null) = (x ->> 'triggerAt' is null)
-        or abs(coalesce((x ->> 'triggerMinutes')::integer, 0)) > 525600
+        or (x ->> 'offsetMinutes' is null) = (x ->> 'at' is null)
+        or abs(coalesce((x ->> 'offsetMinutes')::integer, 0)) > 525600
         or coalesce((x ->> 'repeat')::integer, 0) < 0
         or (coalesce((x ->> 'repeat')::integer, 0) > 0) <> (x ->> 'repeatMinutes' is not null)
         or coalesce((x ->> 'repeatMinutes')::integer, 1) <= 0
     ) then
-      raise exception 'each alarm needs an action of display, email or audio, triggerMinutes or triggerAt, and repeat with repeatMinutes' using errcode = '22023', hint = 'CALENDAR_EVENT_INVALID';
+      raise exception 'each alarm needs a method of display, email or audio, offsetMinutes or at, and repeat with repeatMinutes' using errcode = '22023', hint = 'CALENDAR_EVENT_INVALID';
     end if;
-    delete from "better_supabase"."calendar_event_alarms" where "event_id" = v_id;
-    insert into "better_supabase"."calendar_event_alarms" ("tenant_id", "event_id", "action", "trigger_minutes", "trigger_related", "trigger_at", "repeat_count", "repeat_minutes", "description", "summary")
-    select v_tenant, v_id, coalesce(x ->> 'action', 'display'), (x ->> 'triggerMinutes')::integer, coalesce(x ->> 'related', 'start'), (x ->> 'triggerAt')::timestamptz, coalesce((x ->> 'repeat')::integer, 0), (x ->> 'repeatMinutes')::integer, x ->> 'description', x ->> 'summary'
+    delete from "better_supabase"."calendar_event_alarms" where "event_id" = v_id and "user_id" is null;
+    insert into "better_supabase"."calendar_event_alarms" ("tenant_id", "event_id", "offset_minutes", "method", "related_to", "trigger_at", "repeat_count", "repeat_minutes", "description", "summary")
+    select v_tenant, v_id, (x ->> 'offsetMinutes')::integer, coalesce(x ->> 'method', 'display'), coalesce(x ->> 'related', 'start'), (x ->> 'at')::timestamptz, coalesce((x ->> 'repeat')::integer, 0), (x ->> 'repeatMinutes')::integer, x ->> 'description', x ->> 'summary'
     from jsonb_array_elements(v_item -> 'alarms') x;
   end if;
   if exists (select 1 from "better_supabase"."calendar_events" where "id" = v_id and "ends_at" < "starts_at") then
@@ -729,7 +730,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', e."id", 'calendarId', e."calendar_id", 'uid', e."uid", 'title', e."title", 'startsAt', e."starts_at", 'endsAt', e."ends_at", 'allDay', e."all_day", 'tz', e."tz", 'status', e."status", 'rrule', e."rrule", 'exdates', to_jsonb(e."exdates"), 'recurrenceId', e."recurrence_id", 'originalStart', e."original_start", 'description', e."description", 'location', e."location", 'color', e."color", 'subjectType', e."subject_type", 'subjectId', e."subject_id") || jsonb_build_object('updatedAt', e."updated_at", 'kind', e."kind", 'transparency', e."transparency", 'autoDecline', e."auto_decline", 'attendees', coalesce((select jsonb_agg(jsonb_build_object('email', a."email", 'name', a."name", 'userId', a."user_id", 'role', a."role", 'response', a."response") order by a."email") from "better_supabase"."calendar_attendees" a where a."event_id" = e."id"), '[]'::jsonb), 'alarms', coalesce((select jsonb_agg(jsonb_build_object('id', l."id", 'action', l."action", 'triggerMinutes', l."trigger_minutes", 'related', l."trigger_related", 'triggerAt', l."trigger_at", 'repeat', l."repeat_count", 'repeatMinutes', l."repeat_minutes", 'description', l."description", 'summary', l."summary") order by l."created_at", l."id") from "better_supabase"."calendar_event_alarms" l where l."event_id" = e."id"), '[]'::jsonb)) order by e."starts_at", e."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', e."id", 'calendarId', e."calendar_id", 'uid', e."uid", 'title', e."title", 'startsAt', e."starts_at", 'endsAt', e."ends_at", 'allDay', e."all_day", 'tz', e."tz", 'status', e."status", 'rrule', e."rrule", 'exdates', to_jsonb(e."exdates"), 'recurrenceId', e."recurrence_id", 'originalStart', e."original_start", 'description', e."description", 'location', e."location", 'color', e."color", 'subjectType', e."subject_type", 'subjectId', e."subject_id") || jsonb_build_object('updatedAt', e."updated_at", 'kind', e."kind", 'transparency', e."transparency", 'autoDecline', e."auto_decline", 'attendees', coalesce((select jsonb_agg(jsonb_build_object('email', a."email", 'name', a."name", 'userId', a."user_id", 'role', a."role", 'response', a."response") order by a."email") from "better_supabase"."calendar_attendees" a where a."event_id" = e."id"), '[]'::jsonb), 'alarms', coalesce((select jsonb_agg(jsonb_build_object('id', l."id", 'method', l."method", 'offsetMinutes', l."offset_minutes", 'related', l."related_to", 'at', l."trigger_at", 'repeat', l."repeat_count", 'repeatMinutes', l."repeat_minutes", 'description', l."description", 'summary', l."summary") order by l."offset_minutes" nulls last, l."trigger_at", l."id") from "better_supabase"."calendar_event_alarms" l where l."event_id" = e."id" and (l."user_id" is null or l."user_id" = (select auth.uid()))), '[]'::jsonb)) order by e."starts_at", e."id"), '[]'::jsonb)
   from "better_supabase"."calendar_events" e
   where e."calendar_id" = any (list_calendar_events.calendar_ids)
     and e."starts_at" < list_calendar_events.range_end
@@ -1393,7 +1394,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."calendar_event_alarm
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) and ("user_id" is null or "user_id" = (select auth.uid())))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendar_event_alarms";
 create policy bsb_tenant_scope_insert on "better_supabase"."calendar_event_alarms" as restrictive

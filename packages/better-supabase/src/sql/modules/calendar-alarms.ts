@@ -19,10 +19,11 @@ const list = (values: readonly string[]): string =>
   `(${values.map((value) => `'${value}'`).join(", ")})`;
 
 /**
- * The `calendar_event_alarms` table: one row per `VALARM` of an event, with a
- * relative trigger (`trigger_minutes`, RFC 5545 sign, from the start or end) or
- * an absolute one (`trigger_at`). It is event data, the same for everyone who
- * reads the event; per-user reminders stay in the reminders block.
+ * The `calendar_event_alarms` table: one row per `VALARM` of an event, with an
+ * offset in minutes before the start or end (`offset_minutes`, the reminders
+ * block's sign) or an absolute time (`trigger_at`). A row without a user is
+ * event data, the same for everyone who reads the event; a row with one counts
+ * only for that user. An app keeps its own alarms by mapping `tables.alarms`.
  */
 export function alarmsTable(ctx: BlockSqlContext): string {
   if (!ctx.hasTable("alarms")) {
@@ -38,12 +39,19 @@ export function alarmsTable(ctx: BlockSqlContext): string {
     `${l("id")} uuid primary key default gen_random_uuid()`,
     `${l("tenant")} ${ctx.idType} not null`,
     `${l("event")} uuid not null references ${ctx.table("events")} (${ctx.col("events", "id")}) on delete cascade`,
-    `${l("action")} text not null default 'display'`,
-    `${l("trigger")} integer`,
+    ...(
+      [
+        ["user", "uuid"],
+        ["method", "text not null default 'display'"],
+      ] as const
+    )
+      .filter(([column]) => ctx.has("alarms", column))
+      .map(([column, type]) => `${l(column)} ${type}`),
+    `${l("offsetMinutes")} integer`,
     ...(
       [
         ["related", "text not null default 'start'"],
-        ["triggerAt", "timestamptz"],
+        ["at", "timestamptz"],
         ["repeat", "integer not null default 0"],
         ["repeatMinutes", "integer"],
         ["description", "text"],
@@ -57,25 +65,27 @@ export function alarmsTable(ctx: BlockSqlContext): string {
 
   const checks = ctx.owns("alarms")
     ? [
+        ...(ctx.has("alarms", "method")
+          ? [
+              addCheck({
+                table: alarms,
+                name: `${name}_method_check`,
+                expression: `${l("method")} in ${list(ALARM_ACTIONS)}`,
+              }),
+            ]
+          : []),
         addCheck({
           table: alarms,
-          name: `${name}_action_check`,
-          expression: `${l("action")} in ${list(ALARM_ACTIONS)}`,
+          name: `${name}_offset_check`,
+          expression: `${l("offsetMinutes")} between -${TRIGGER_BOUND} and ${TRIGGER_BOUND}`,
         }),
         addCheck({
           table: alarms,
           name: `${name}_trigger_check`,
-          expression: `${l("trigger")} between -${TRIGGER_BOUND} and ${TRIGGER_BOUND}`,
+          expression: ctx.has("alarms", "at")
+            ? `(${l("offsetMinutes")} is null) <> (${l("at")} is null)`
+            : `${l("offsetMinutes")} is not null`,
         }),
-        ...(ctx.has("alarms", "triggerAt")
-          ? [
-              addCheck({
-                table: alarms,
-                name: `${name}_trigger_kind_check`,
-                expression: `(${l("trigger")} is null) <> (${l("triggerAt")} is null)`,
-              }),
-            ]
-          : []),
         ...(ctx.has("alarms", "related")
           ? [
               addCheck({
@@ -101,6 +111,10 @@ export function alarmsTable(ctx: BlockSqlContext): string {
     ? eventAccessCall(ctx, l("event"), "read", "(select auth.uid())")
     : ctx.scope.check(l("tenant"), read);
 
+  const own = ctx.has("alarms", "user")
+    ? ` and (${l("user")} is null or ${l("user")} = (select auth.uid()))`
+    : "";
+
   return `
 create table if not exists ${alarms} (
   ${columns.join(",\n  ")}
@@ -114,14 +128,14 @@ ${renderPolicy(
     name: `${name}_read`,
     command: "select",
     roles: ["authenticated"],
-    using,
+    using: `${using}${own}`,
   }),
   { drop: true, target: alarms },
 )}
 `;
 }
 
-/** `item ->> key` as the column's type, or nothing when the column is absent. */
+/** `item ->> key` as the column's type, for the columns the table has. */
 function alarmValues(
   ctx: BlockSqlContext,
 ): readonly (readonly [string, string])[] {
@@ -130,16 +144,18 @@ function alarmValues(
   const values: [string, string][] = [
     [l("tenant"), "v_tenant"],
     [l("event"), "v_id"],
-    [
-      l("action"),
-      ctx.cast("alarms", "action", "coalesce(x ->> 'action', 'display')"),
-    ],
-    [l("trigger"), "(x ->> 'triggerMinutes')::integer"],
+    [l("offsetMinutes"), "(x ->> 'offsetMinutes')::integer"],
   ];
 
   const optional: readonly (readonly [string, string])[] = [
+    [
+      "method",
+      ctx.has("alarms", "method")
+        ? ctx.cast("alarms", "method", "coalesce(x ->> 'method', 'display')")
+        : "",
+    ],
     ["related", "coalesce(x ->> 'related', 'start')"],
-    ["triggerAt", "(x ->> 'triggerAt')::timestamptz"],
+    ["at", "(x ->> 'at')::timestamptz"],
     ["repeat", "coalesce((x ->> 'repeat')::integer, 0)"],
     ["repeatMinutes", "(x ->> 'repeatMinutes')::integer"],
     ["description", "x ->> 'description'"],
@@ -158,7 +174,7 @@ function alarmValues(
 /**
  * The statements of `save_calendar_event` that replace the event's alarms when
  * the item has an `alarms` array. They run after the event row exists, with
- * `v_id` and `v_tenant` set.
+ * `v_id` and `v_tenant` set, and leave the alarms of single users alone.
  */
 export function alarmWrites(ctx: BlockSqlContext): string {
   if (!ctx.hasTable("alarms")) {
@@ -171,6 +187,18 @@ export function alarmWrites(ctx: BlockSqlContext): string {
   const invalid = (message: string): string =>
     fail("CALENDAR_EVENT_INVALID", message, "22023");
 
+  const unsupported = (
+    [
+      ["method", "coalesce(x ->> 'method', 'display') <> 'display'"],
+      ["related", "coalesce(x ->> 'related', 'start') <> 'start'"],
+      ["at", "x ->> 'at' is not null"],
+      ["repeat", "coalesce((x ->> 'repeat')::integer, 0) <> 0"],
+    ] as const
+  )
+    .filter(([column]) => !ctx.has("alarms", column))
+    .map(([, test]) => `\n        or ${test}`)
+    .join("");
+
   return `
   if v_item ? 'alarms' then
     if jsonb_typeof(v_item -> 'alarms') <> 'array' or jsonb_array_length(v_item -> 'alarms') > ${ALARM_LIMIT} then
@@ -179,21 +207,48 @@ export function alarmWrites(ctx: BlockSqlContext): string {
     if exists (
       select 1 from jsonb_array_elements(v_item -> 'alarms') x
       where jsonb_typeof(x) <> 'object'
-        or coalesce(x ->> 'action', 'display') not in ${list(ALARM_ACTIONS)}
+        or coalesce(x ->> 'method', 'display') not in ${list(ALARM_ACTIONS)}
         or coalesce(x ->> 'related', 'start') not in ('start', 'end')
-        or (x ->> 'triggerMinutes' is null) = (x ->> 'triggerAt' is null)${ctx.has("alarms", "triggerAt") ? "" : "\n        or x ->> 'triggerAt' is not null"}
-        or abs(coalesce((x ->> 'triggerMinutes')::integer, 0)) > ${TRIGGER_BOUND}
+        or (x ->> 'offsetMinutes' is null) = (x ->> 'at' is null)
+        or abs(coalesce((x ->> 'offsetMinutes')::integer, 0)) > ${TRIGGER_BOUND}
         or coalesce((x ->> 'repeat')::integer, 0) < 0
         or (coalesce((x ->> 'repeat')::integer, 0) > 0) <> (x ->> 'repeatMinutes' is not null)
-        or coalesce((x ->> 'repeatMinutes')::integer, 1) <= 0
+        or coalesce((x ->> 'repeatMinutes')::integer, 1) <= 0${unsupported}
     ) then
-      ${invalid("each alarm needs an action of display, email or audio, triggerMinutes or triggerAt, and repeat with repeatMinutes")}
+      ${invalid("each alarm needs a method of display, email or audio, offsetMinutes or at, and repeat with repeatMinutes")}
     end if;
-    delete from ${alarms} where ${ctx.col("alarms", "event")} = v_id;
+    delete from ${alarms} where ${ctx.col("alarms", "event")} = v_id${ctx.has("alarms", "user") ? ` and ${ctx.col("alarms", "user")} is null` : ""};
     insert into ${alarms} (${values.map(([column]) => column).join(", ")})
     select ${values.map(([, value]) => value).join(", ")}
     from jsonb_array_elements(v_item -> 'alarms') x;
   end if;`;
+}
+
+/**
+ * The alarms of event `event` that `viewer` gets, as a jsonb array in the
+ * `CalendarReminder` shape: the event's own and the viewer's.
+ */
+export function alarmsArray(
+  ctx: BlockSqlContext,
+  event: string,
+  viewer: string,
+): string {
+  const l = (column: string) => `l.${ctx.col("alarms", column)}`;
+
+  const optional = (key: string, column: string, fallback = "null"): string =>
+    `'${key}', ${ctx.has("alarms", column) ? l(column) : fallback}`;
+
+  const method = ctx.has("alarms", "method")
+    ? ctx.label("alarms", "method", l("method"))
+    : "'display'";
+
+  const json = `jsonb_build_object('id', ${l("id")}, 'method', ${method}, 'offsetMinutes', ${l("offsetMinutes")}, ${optional("related", "related", "'start'")}, ${optional("at", "at")}, ${optional("repeat", "repeat", "0")}, ${optional("repeatMinutes", "repeatMinutes")}, ${optional("description", "description")}, ${optional("summary", "summary")})`;
+
+  const own = ctx.has("alarms", "user")
+    ? ` and (${l("user")} is null or ${l("user")} = ${viewer})`
+    : "";
+
+  return `coalesce((select jsonb_agg(${json} order by ${l("offsetMinutes")} nulls last, ${ctx.has("alarms", "at") ? `${l("at")}, ` : ""}${l("id")}) from ${ctx.table("alarms")} l where ${l("event")} = ${event}${own}), '[]'::jsonb)`;
 }
 
 /** `, 'alarms', [...]` for an event row `e`, or nothing without the table. */
@@ -202,12 +257,5 @@ export function alarmsJson(ctx: BlockSqlContext): string {
     return "";
   }
 
-  const l = (column: string) => `l.${ctx.col("alarms", column)}`;
-
-  const optional = (key: string, column: string, fallback = "null"): string =>
-    `'${key}', ${ctx.has("alarms", column) ? l(column) : fallback}`;
-
-  const json = `jsonb_build_object('id', ${l("id")}, 'action', ${ctx.label("alarms", "action", l("action"))}, 'triggerMinutes', ${l("trigger")}, ${optional("related", "related", "'start'")}, ${optional("triggerAt", "triggerAt")}, ${optional("repeat", "repeat", "0")}, ${optional("repeatMinutes", "repeatMinutes")}, ${optional("description", "description")}, ${optional("summary", "summary")})`;
-
-  return `, 'alarms', coalesce((select jsonb_agg(${json} order by ${ctx.has("alarms", "createdAt") ? `${l("createdAt")}, ` : ""}${l("id")}) from ${ctx.table("alarms")} l where ${l("event")} = e.${ctx.col("events", "id")}), '[]'::jsonb)`;
+  return `, 'alarms', ${alarmsArray(ctx, `e.${ctx.col("events", "id")}`, "(select auth.uid())")}`;
 }

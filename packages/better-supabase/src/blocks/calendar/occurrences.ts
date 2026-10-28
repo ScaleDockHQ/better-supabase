@@ -1,13 +1,9 @@
-import type { CalendarAlarm } from "./alarms.ts";
+import type { CalendarAlarm, CalendarReminder } from "./alarms.ts";
 import type {
   CalendarEventKind,
   CalendarTransparency,
 } from "./availability.ts";
-import type {
-  CalendarAttendee,
-  CalendarEventStatus,
-  CalendarReminder,
-} from "./ics.ts";
+import type { CalendarAttendee, CalendarEventStatus } from "./ics.ts";
 
 import { temporal } from "../../core/temporal-required.ts";
 import { expandRule } from "../reminders/rrule.ts";
