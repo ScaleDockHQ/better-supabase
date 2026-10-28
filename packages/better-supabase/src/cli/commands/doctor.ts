@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
@@ -31,6 +32,7 @@ import {
 } from "../doctor/inputs.ts";
 import { LIVE_CODES, openLive } from "../doctor/live-source.ts";
 import { locate } from "../doctor/locate.ts";
+import { NEXT_CONFIG_FILES, VERCEL_FILES } from "../doctor/next-cache.ts";
 import {
   explainClaims,
   FLAG_FORMATS,
@@ -323,6 +325,10 @@ export async function runDoctor(
             : { database: options.database }),
         };
 
+  const vercel = VERCEL_FILES.some((path) =>
+    existsSync(resolve(config.root, path)),
+  );
+
   const [
     snapshot,
     envFiles,
@@ -334,6 +340,7 @@ export async function runDoctor(
     contentMapper,
     stackEnv,
     localStacks,
+    nextConfig,
   ] = await Promise.all([
     options.snapshot ?? loadSnapshot(config, env, source, pg, opened.open),
     Promise.all(ENV_FILES.map((path) => readText(config.root, path))).then(
@@ -365,6 +372,9 @@ export async function runDoctor(
       (rules.some((rule) => rule.code === "BS700" || rule.code === "BS701")
         ? loadLocalStackCheck(config.root, env)
         : undefined),
+    Promise.all(
+      NEXT_CONFIG_FILES.map((path) => readText(config.root, path)),
+    ).then((files) => files.find((file) => file !== undefined)),
   ]).catch(async (cause: unknown) => {
     await opened.close();
     throw cause;
@@ -393,6 +403,8 @@ export async function runDoctor(
     ...(stackEnv ? { stackEnv } : {}),
     shellEnv: env[PROCESS_ENV] ?? {},
     ...(localStacks ? { localStacks } : {}),
+    ...(nextConfig ? { nextConfig } : {}),
+    vercel,
     ...(live.advisors ? { advisors: live.advisors } : {}),
     ...(live.database ? { database: live.database } : {}),
     ...(stats ? { stats } : {}),

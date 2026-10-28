@@ -43,6 +43,7 @@ import { skippedForMetadata } from "./metadata.ts";
 import { MIGRATION_SAFETY_RULES } from "./migration-safety.ts";
 import { moduleFiles } from "./module-files.ts";
 import { MODULE_RULES } from "./modules.ts";
+import { NEXT_CACHE_RULES } from "./next-cache.ts";
 import { NOT_VALID_RULES } from "./not-valid.ts";
 import { PGDELTA_RULES } from "./pgdelta.ts";
 import { POLICY_RULES } from "./policies.ts";
@@ -154,6 +155,13 @@ export interface DoctorContext {
   readonly shellEnv?: Readonly<Record<string, string | undefined>>;
   /** The machine's shared memory segments and managed stacks (BS700, BS701). */
   readonly localStacks?: LocalStackCheck;
+  /** The project's `next.config` file (BS608). */
+  readonly nextConfig?: TextFile;
+  /**
+   * Whether the project deploys to Vercel, which provides a remote cache
+   * (BS608).
+   */
+  readonly vercel?: boolean;
 }
 
 export interface Rule {
@@ -1119,6 +1127,7 @@ export const RULES: readonly Rule[] = [
   ...SCHEMA_DESIGN_RULES,
   ...HOOK_RULES,
   ...COOKIE_RULES,
+  ...NEXT_CACHE_RULES,
   ...CLAIM_RULES,
   ...REMOVED_API_RULES,
   ...AUTHORIZATION_RULES,

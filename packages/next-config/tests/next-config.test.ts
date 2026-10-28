@@ -23,3 +23,21 @@ describe("createNextConfig headers", () => {
     expect(rules.at(-1)).toStrictEqual(own);
   });
 });
+
+describe("createNextConfig remoteCacheHandler", () => {
+  it("sets cacheHandlers.remote next to the app's other handlers", () => {
+    expect(createNextConfig().cacheHandlers).toBeUndefined();
+    expect(
+      createNextConfig({
+        remoteCacheHandler: "./cache/remote.mjs",
+        cacheHandlers: { default: "./cache/default.mjs" },
+      }).cacheHandlers,
+    ).toStrictEqual({
+      default: "./cache/default.mjs",
+      remote: "./cache/remote.mjs",
+    });
+    expect(
+      createNextConfig({ remoteCacheHandler: "./r.mjs" }),
+    ).not.toHaveProperty("remoteCacheHandler");
+  });
+});

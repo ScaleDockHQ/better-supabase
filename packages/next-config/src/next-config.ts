@@ -71,13 +71,33 @@ function resolveBuildScope(
   return shell["VERCEL_ENV"] === "production" ? "full" : "minimal";
 }
 
+export interface NextConfigOverrides extends NextConfig {
+  /**
+   * The module path of the `'use cache: remote'` handler
+   * (`cacheHandlers.remote`). Vercel provides one; self-hosted apps that use
+   * `bsb.remote()` set it, or remote entries live in each instance's memory.
+   */
+  readonly remoteCacheHandler?: string;
+}
+
 /**
  * The shared baseline for the docs and marketing apps. `experimental`,
  * `compiler` and `typescript` merge key by key, and `headers` runs after the
  * security rules so an app can add to them.
  */
-export function createNextConfig(overrides: NextConfig = {}): NextConfig {
-  const { experimental, typescript, compiler, headers, ...rest } = overrides;
+export function createNextConfig(
+  overrides: NextConfigOverrides = {},
+): NextConfig {
+  const {
+    experimental,
+    typescript,
+    compiler,
+    headers,
+    remoteCacheHandler,
+    cacheHandlers,
+    ...rest
+  } = overrides;
+
   // GitHub Actions builds are never deployed and never restore .next/cache. Vercel sets CI too,
   // but restores the cache, so it doesn't count here.
   const githubActions = process.env["GITHUB_ACTIONS"] === "true";
@@ -85,7 +105,7 @@ export function createNextConfig(overrides: NextConfig = {}): NextConfig {
   // Next copies config-time env changes into its initial env, so build workers see this too.
   process.env["BSB_BUILD_SCOPE"] = resolveBuildScope();
 
-  return {
+  const config: NextConfig = {
     reactCompiler: true,
     enablePrerenderSourceMaps: !githubActions,
     typedRoutes: true,
@@ -139,4 +159,12 @@ export function createNextConfig(overrides: NextConfig = {}): NextConfig {
       ];
     },
   };
+
+  if (remoteCacheHandler !== undefined) {
+    config.cacheHandlers = { ...cacheHandlers, remote: remoteCacheHandler };
+  } else if (cacheHandlers !== undefined) {
+    config.cacheHandlers = cacheHandlers;
+  }
+
+  return config;
 }
