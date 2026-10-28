@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:817aa72103ff0909af50ad64679f594498f1383296ce93c2df19d436ae66b342
+-- @bsb-hash sha256:874b523b55450793dec7d4cce4c5829c388495f9cde0d6d4faa01a89f1496361
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -168,8 +168,7 @@ revoke execute on function "better_supabase"."drive_node_held"(uuid) from public
 grant execute on function "better_supabase"."drive_node_held"(uuid) to authenticated, service_role;
 
 
--- The caller's role on a node: the highest of the grants on it and its
--- ancestors that name them, one of their teams or their organization role. drive.manage is owner everywhere. Grants
+-- The caller's role on a node: the highest of the grants on it and its ancestors that name them, one of their teams or their organization role. drive.manage is owner everywhere. Grants
 -- need drive.read in the node's organization too.
 create or replace function "better_supabase"."drive_role"(node uuid)
 returns text

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:58dec4fad6c554079662f5cd60f490ca534433ddc8112acf9866068096245ca0
+-- @bsb-hash sha256:13bc5c9e1f5be4f09d5ac46b128110bf482d7c4f798fa34c25840bcc2f9c2174
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -168,8 +168,7 @@ revoke execute on function "better_supabase"."drive_node_held"(uuid) from public
 grant execute on function "better_supabase"."drive_node_held"(uuid) to authenticated, service_role;
 
 
--- The caller's role on a node: the highest of the grants on it and its
--- ancestors that name them, one of their teams or their organization role. drive.manage is owner everywhere. Grants
+-- The caller's role on a node: the highest of the grants on it and its ancestors that name them, one of their teams or their organization role. drive.manage is owner everywhere. Grants
 -- need drive.read in the node's organization too.
 create or replace function "better_supabase"."drive_role"(node uuid)
 returns text
@@ -1107,7 +1106,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:7af898cae2f643e2291377790336fe126738ddbd5165b8e6481f67b6aef516b1
+-- @bsb-hash sha256:a3654de64d43bc963766a7db6cb10bc21317bc379ed15ccfe8882ebf931a93a8
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1274,8 +1273,7 @@ revoke execute on function "better_supabase"."drive_node_held"(uuid) from public
 grant execute on function "better_supabase"."drive_node_held"(uuid) to authenticated, service_role;
 
 
--- The caller's role on a node: the highest of the grants on it and its
--- ancestors that name them, one of their teams or their organization role. drive.manage is owner everywhere. Grants
+-- The caller's role on a node: the highest of the grants on it and its ancestors that name them, one of their teams or their organization role. drive.manage is owner everywhere. Grants
 -- need drive.read in the node's organization too.
 create or replace function "better_supabase"."drive_role"(node uuid)
 returns text
@@ -2283,7 +2281,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:5c224d0b35a0f10729b94fa3c5cb24a9bd8adf933e6a40ef3c7792045698de34
+-- @bsb-hash sha256:6d99ece4845fa8d4e4db52aab92f1562c23a96e248394ddc461bb87b20ecd468
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2455,8 +2453,7 @@ revoke execute on function "app_private"."drive_node_held"(uuid) from public, an
 grant execute on function "app_private"."drive_node_held"(uuid) to authenticated, service_role;
 
 
--- The caller's role on a node: the highest of the grants on it and its
--- ancestors that name them, one of their teams or their organization role. drive.manage is owner everywhere. Grants
+-- The caller's role on a node: the highest of the grants on it and its ancestors that name them, one of their teams or their organization role. drive.manage is owner everywhere. Grants
 -- need drive.read in the node's organization too.
 create or replace function "app_private"."drive_role"(node uuid)
 returns text
@@ -3394,7 +3391,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:ac4e7d59e196cf5610690b210506bf7454ff48e94e614ba75f5f7a5fd57b1a84
+-- @bsb-hash sha256:9116e52c6c1db13f53f53db63654f0bdb2a1e6c8e5bda27d282edea01289f16b
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3561,8 +3558,7 @@ revoke execute on function "better_supabase"."drive_node_held"(uuid) from public
 grant execute on function "better_supabase"."drive_node_held"(uuid) to authenticated, service_role;
 
 
--- The caller's role on a node: the highest of the grants on it and its
--- ancestors that name them, one of their teams or their organization role. drive.manage is owner everywhere. Grants
+-- The caller's role on a node: the highest of the grants on it and its ancestors that name them, one of their teams or their organization role. drive.manage is owner everywhere. Grants
 -- need drive.read in the node's organization too.
 create or replace function "better_supabase"."drive_role"(node uuid)
 returns text
@@ -4684,7 +4680,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:b93db2758e65a214efa6e5ddf61c3b5043d41d0b9b2cf0beac5853bb3063f0b8
+-- @bsb-hash sha256:a0cff59b25dd83309e916d6ffae683b3faa2e51fe7581c0344b22c4dc9b1aaf7
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4793,8 +4789,7 @@ revoke execute on function "better_supabase"."drive_node_held"(uuid) from public
 grant execute on function "better_supabase"."drive_node_held"(uuid) to authenticated, service_role;
 
 
--- The caller's role on a node: the highest of the grants on it and its
--- ancestors that name them, one of their teams or their organization role. drive.manage is owner everywhere. Grants
+-- The caller's role on a node: the highest of the grants on it and its ancestors that name them, one of their teams or their organization role. drive.manage is owner everywhere. Grants
 -- need drive.read in the node's organization too.
 create or replace function "better_supabase"."drive_role"(node uuid)
 returns text
@@ -4902,7 +4897,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', ($1)."id", 'organizationId', ($1)."tenant_id", 'driveId', null, 'parentId', ($1)."parent_id", 'kind', ($1)."kind", 'name', ($1)."name", 'rank', ($1)."rank", 'source', ($1)."source", 'externalId', ($1)."external_id", 'externalMetadata', ($1)."external_metadata", 'legalHoldUntil', ($1)."legal_hold_until", 'createdBy', ($1)."created_by", 'createdAt', ($1)."created_at", 'updatedAt', ($1)."updated_at", 'deletedAt', ($1)."deleted_at")
+  select jsonb_build_object('id', ($1)."id", 'organizationId', ($1)."tenant_id", 'driveId', ($1)."drive_id", 'parentId', ($1)."parent_id", 'kind', ($1)."kind", 'name', ($1)."name", 'rank', ($1)."rank", 'source', ($1)."source", 'externalId', ($1)."external_id", 'externalMetadata', ($1)."external_metadata", 'legalHoldUntil', ($1)."legal_hold_until", 'createdBy', ($1)."created_by", 'createdAt', ($1)."created_at", 'updatedAt', ($1)."updated_at", 'deletedAt', ($1)."deleted_at")
 $$;
 revoke execute on function "better_supabase"."drive_node_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
 
@@ -5026,7 +5021,7 @@ begin
   loop
     exit when not exists (
       select 1 from "better_supabase"."drive_nodes" x
-      where x."tenant_id" = drive_free_name.tenant and x."parent_id" is not distinct from drive_free_name.parent and x."deleted_at" is null
+      where x."tenant_id" = drive_free_name.tenant and x."parent_id" is not distinct from drive_free_name.parent and x."drive_id" = drive_free_name.drive and x."deleted_at" is null
         and lower(x."name") = lower(v_try) and x."id" is distinct from drive_free_name.exclude
     );
     if drive_free_name.conflict <> 'rename' then
@@ -5107,10 +5102,13 @@ declare
   v_last text;
 begin
   select * into v_parent from "better_supabase"."drive_nodes" x where x."id" = drive_insert_node.parent;
+  if drive_insert_node.parent is not null then
+    v_drive := v_parent."drive_id";
+  end if;
   v_name := "better_supabase"."drive_free_name"(drive_insert_node.tenant, v_drive, drive_insert_node.parent, drive_insert_node.name, null, drive_insert_node.conflict);
   v_fields := jsonb_populate_record(null::"better_supabase"."drive_nodes", coalesce(drive_insert_node.fields, '{}'::jsonb));
   select max(x."rank") into v_last from "better_supabase"."drive_nodes" x
-  where x."tenant_id" = drive_insert_node.tenant and x."parent_id" is not distinct from drive_insert_node.parent and x."deleted_at" is null;
+  where x."tenant_id" = drive_insert_node.tenant and x."parent_id" is not distinct from drive_insert_node.parent and x."drive_id" = v_drive and x."deleted_at" is null;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_drive_node_create"(uuid, uuid, text, text)');
   begin
@@ -5119,8 +5117,8 @@ begin
         using drive_insert_node.tenant, drive_insert_node.parent, drive_insert_node.kind, v_name;
     end if;
   end;
-  insert into "better_supabase"."drive_nodes" ("tenant_id", "parent_id", "kind", "name", "rank", "source", "created_by")
-  values (drive_insert_node.tenant, drive_insert_node.parent, drive_insert_node.kind, v_name, case
+  insert into "better_supabase"."drive_nodes" ("tenant_id", "drive_id", "parent_id", "kind", "name", "rank", "source", "created_by")
+  values (drive_insert_node.tenant, v_drive, drive_insert_node.parent, drive_insert_node.kind, v_name, case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -5309,7 +5307,7 @@ begin
   if v_name = v_node."name" then
     return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
   end if;
-  v_name := "better_supabase"."drive_free_name"(v_node."tenant_id", null, v_node."parent_id", v_name, v_node."id",
+  v_name := "better_supabase"."drive_free_name"(v_node."tenant_id", v_node."drive_id", v_node."parent_id", v_name, v_node."id",
     case when "better_supabase"."drive_conflict"(drive_rename.conflict) = 'rename' then 'rename' else 'fail' end);
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_drive_node_rename"(uuid, text)');
@@ -5374,6 +5372,7 @@ begin
   end if;
   v_previous := v_node."parent_id";
   if drive_move.parent is null then
+    v_target := coalesce(drive_move.drive, v_node."drive_id");
     if v_previous is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ("better_supabase"."drive_can"(v_node."id", 'owner') and coalesce(better_supabase.can('tenant', v_node."tenant_id", 'drive.create'), false))) then
       raise exception 'not allowed to move this item to the top of the drive' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
     end if;
@@ -5382,6 +5381,7 @@ begin
     if v_node."id" = any ("better_supabase"."drive_ancestors"(drive_move.parent)) then
       raise exception 'a folder can''t move into itself or its own subfolder' using errcode = '22023', hint = 'DRIVE_MOVE_CYCLE';
     end if;
+    select x."drive_id" into v_target from "better_supabase"."drive_nodes" x where x."id" = drive_move.parent;
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_drive_node_move"(uuid, uuid)');
@@ -5391,7 +5391,7 @@ begin
         using v_node."id", drive_move.parent;
     end if;
   end;
-  if v_previous is distinct from drive_move.parent then
+  if v_previous is distinct from drive_move.parent or v_target is distinct from v_node."drive_id" then
     v_name := "better_supabase"."drive_free_name"(v_node."tenant_id", v_target, drive_move.parent, v_node."name", v_node."id",
       case when "better_supabase"."drive_conflict"(drive_move.conflict) = 'rename' then 'rename' else 'fail' end);
     if drive_move.parent is null and auth.uid() is not null then
@@ -5402,9 +5402,9 @@ begin
     end if;
     if drive_move.rank is null then
       select max(x."rank") into v_last from "better_supabase"."drive_nodes" x
-      where x."tenant_id" = v_node."tenant_id" and x."parent_id" is not distinct from drive_move.parent and x."deleted_at" is null;
+      where x."tenant_id" = v_node."tenant_id" and x."parent_id" is not distinct from drive_move.parent and x."drive_id" = v_target and x."deleted_at" is null;
     end if;
-    update "better_supabase"."drive_nodes" x set "parent_id" = drive_move.parent, "name" = v_name, "rank" = coalesce(drive_move.rank, case
+    update "better_supabase"."drive_nodes" x set "parent_id" = drive_move.parent, "name" = v_name, "drive_id" = v_target, "rank" = coalesce(drive_move.rank, case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -5732,7 +5732,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:d9770bfaa59a272554c9a2885aa96ec1df018f1e0f22447f8c6d2c4c8da4a2dc
+-- @bsb-hash sha256:a18d08ceedf90c5cb252e78dec3f6a1a1f03fa4b2158bb2e8d94035adb5cc581
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5899,8 +5899,7 @@ revoke execute on function "better_supabase"."drive_node_held"(uuid) from public
 grant execute on function "better_supabase"."drive_node_held"(uuid) to authenticated, service_role;
 
 
--- The caller's role on a node: the highest of the grants on it and its
--- ancestors that name them, one of their teams or their organization role. drive.manage is owner everywhere. Grants
+-- The caller's role on a node: the highest of the grants on it and its ancestors that name them, one of their teams or their organization role. drive.manage is owner everywhere. Grants
 -- need drive.read in the node's organization too.
 create or replace function "better_supabase"."drive_role"(node uuid)
 returns text

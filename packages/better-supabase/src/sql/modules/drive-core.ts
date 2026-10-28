@@ -52,6 +52,7 @@ export function driveCoreSql(kit: DriveKit): string {
     record,
     dataAudit,
     principalMatch,
+    drivePrincipalMatch,
     grantLive,
     nodeJson,
     withRole,
@@ -61,6 +62,10 @@ export function driveCoreSql(kit: DriveKit): string {
     insertValues,
     directGrant,
     siblings,
+    nodeRole,
+    driveRole,
+    readPolicy,
+    driveColumn,
   } = kit;
 
   const tables = driveTablesSql(kit);
@@ -130,9 +135,7 @@ ${userGrant(`${fn("drive_node_held")}(uuid)`)}
 ${
   drives
     ? `
--- The caller's role on a drive: ${OPERATIONS["drive.manage"]} is ${roles.top},
--- the owner holds ${roles.top} too${roles.member === undefined ? "" : `, options.memberRole (${roles.member}) covers every member with ${OPERATIONS["drive.read"]}`}, and a grant that names them or one of their teams
--- adds its role. ${OPERATIONS["drive.read"]} in the drive's organization is required.
+-- The caller's role on a drive: ${driveRole === undefined ? `${OPERATIONS["drive.manage"]} is ${roles.top}, the owner holds ${roles.top} too${roles.member === undefined ? "" : `, options.memberRole (${roles.member}) covers every member with ${OPERATIONS["drive.read"]}`}, and a grant that names them or one of their teams adds its role` : `options.roleFunctions.drive (${driveRole}) decides it`}. ${OPERATIONS["drive.read"]} in the drive's organization is required.
 create or replace function ${fn("drive_drive_role")}(drive uuid)
 returns text
 language plpgsql
@@ -153,13 +156,13 @@ begin
   select d.${d("tenant")}, d.${d("owner")} into v_tenant, v_owner from ${D} d where d.${d("id")} = drive_drive_role.drive;
   if v_tenant is null or v_uid is null or not ${ctx.can("tenant", "v_tenant", read)} then
     return null;
-  end if;
+  end if;${driveRole === undefined ? "" : `\n  return (select r from ${driveRole}(drive_drive_role.drive, v_uid) r where r = any (${rolesArray}));`}
   if ${ctx.can("tenant", "v_tenant", manage)} or v_owner = v_uid then
     return ${sqlString(roles.top)};
   end if;
   select max(${rank(`dg.${dg("role")}`)}) into v_rank from ${DG} dg
   where dg.${dg("drive")} = drive_drive_role.drive${driveGrantLive("dg")}
-    and ${principalMatch("dg", "v_uid", "v_tenant")};
+    and ${drivePrincipalMatch("dg", "v_uid", "v_tenant")};
   ${roles.member === undefined ? "" : `v_rank := greatest(coalesce(v_rank, 0), ${rank(sqlString(roles.member))});`}
   if coalesce(v_rank, 0) = 0 then
     return null;
@@ -189,7 +192,9 @@ stable
 security definer
 set search_path = ''
 as $$
-  select d.${d("id")} from ${D} d
+${
+  driveRole === undefined
+    ? `  select d.${d("id")} from ${D} d
   where ${SERVICE_CALLER}
     or (auth.uid() is not null
       and d.${d("tenant")} in (select ${ctx.scope.ids(read)})
@@ -201,15 +206,20 @@ as $$
     and ${rank(`dg.${dg("role")}`)} >= ${rank(sqlString(roles.read))}
     and ${rank(sqlString(roles.read))} > 0
     and d.${d("tenant")} in (select ${ctx.scope.ids(read)})
-    and ${principalMatch("dg", "auth.uid()", `d.${d("tenant")}`)}
+    and ${drivePrincipalMatch("dg", "auth.uid()", `d.${d("tenant")}`)}`
+    : `  select d.${d("id")} from ${D} d
+  where ${SERVICE_CALLER}
+    or (auth.uid() is not null
+      and d.${d("tenant")} in (select ${ctx.scope.ids(read)})
+      and (${driveRole}(d.${d("id")}, auth.uid())) = any (${rolesArray}))`
+}
 $$;
 ${userGrant(`${fn("drive_drive_readable_ids")}()`)}
 `
     : ""
 }
 
--- The caller's role on a node: the highest of the grants on it and its
--- ancestors that name them, one of their teams or their organization role${roles.member === undefined ? "" : `, and options.memberRole (${roles.member}) for every member with ${OPERATIONS["drive.read"]}`}. ${OPERATIONS["drive.manage"]} is ${roles.top} everywhere. Grants
+-- The caller's role on a node: ${nodeRole === undefined ? `the highest of the grants on it and its ancestors that name them, one of their teams or their organization role${roles.member === undefined ? "" : `, and options.memberRole (${roles.member}) for every member with ${OPERATIONS["drive.read"]}`}. ${OPERATIONS["drive.manage"]} is ${roles.top} everywhere` : `options.roleFunctions.node (${nodeRole}) decides it`}. Grants
 -- need ${OPERATIONS["drive.read"]} in the node's organization too.
 create or replace function ${fn("drive_role")}(node uuid)
 returns text
@@ -231,7 +241,7 @@ begin
   select x.${n("tenant")}${drives ? `, x.${n("drive")}` : ""} into v_tenant${drives ? ", v_drive" : ""} from ${T} x where x.${n("id")} = drive_role.node;
   if v_tenant is null or v_uid is null or not ${ctx.can("tenant", "v_tenant", read)} then
     return null;
-  end if;
+  end if;${nodeRole === undefined ? "" : `\n  return (select r from ${nodeRole}(drive_role.node, v_uid) r where r = any (${rolesArray}));`}
   if ${ctx.can("tenant", "v_tenant", manage)} then
     return ${sqlString(roles.top)};
   end if;
@@ -285,7 +295,9 @@ stable
 security definer
 set search_path = ''
 as $$
-  select x.${n("id")} from ${T} x
+${
+  nodeRole === undefined
+    ? `  select x.${n("id")} from ${T} x
   where ${SERVICE_CALLER}
     or (auth.uid() is not null
       and x.${n("tenant")} in (select ${ctx.scope.ids(read)})
@@ -314,9 +326,15 @@ as $$
     and ${rank(`dg.${dg("role")}`)} >= ${rank(sqlString(roles.read))}
     and ${rank(sqlString(roles.read))} > 0
     and x.${n("tenant")} in (select ${ctx.scope.ids(read)})
-    and ${principalMatch("dg", "auth.uid()", `x.${n("tenant")}`)}`
+    and ${drivePrincipalMatch("dg", "auth.uid()", `x.${n("tenant")}`)}`
         : ""
-    }
+    }`
+    : `  select x.${n("id")} from ${T} x
+  where ${SERVICE_CALLER}
+    or (auth.uid() is not null
+      and x.${n("tenant")} in (select ${ctx.scope.ids(read)})
+      and (${nodeRole}(x.${n("id")}, auth.uid())) = any (${rolesArray}))`
+}
 $$;
 ${userGrant(`${fn("drive_readable_ids")}()`)}
 
@@ -331,19 +349,19 @@ as $$
 $$;
 revoke execute on function ${fn("drive_node_json")}(${T}) from public, anon, authenticated;
 ${
-  ctx.manages
+  ctx.manages && readPolicy
     ? `
 ${renderPolicy(makePolicy({ table: T, name: ctx.naming.rename("drive_nodes_read"), command: "select", roles: ["authenticated"], using: `${ctx.has("nodes", "deletedAt") ? `${n("deletedAt")} is null and ` : ""}${n("id")} in (select ${fn("drive_readable_ids")}())` }), { drop: true, target: T })}
 `
     : ""
 }${
-    drives && D !== undefined && ctx.owns("drives")
+    readPolicy && drives && D !== undefined && ctx.owns("drives")
       ? `
 ${renderPolicy(makePolicy({ table: D, name: ctx.naming.rename("drive_drives_read"), command: "select", roles: ["authenticated"], using: `${d("id")} in (select ${fn("drive_drive_readable_ids")}())` }), { drop: true, target: D })}
 `
       : ""
   }${
-    drives && DG !== undefined && ctx.owns("driveGrants")
+    readPolicy && drives && DG !== undefined && ctx.owns("driveGrants")
       ? `
 ${renderPolicy(makePolicy({ table: DG, name: ctx.naming.rename("drive_drive_grants_read"), command: "select", roles: ["authenticated"], using: `${dg("drive")} in (select ${fn("drive_drive_readable_ids")}())` }), { drop: true, target: DG })}
 `
@@ -508,7 +526,7 @@ declare
   v_last text;
 begin
   select * into v_parent from ${T} x where x.${n("id")} = drive_insert_node.parent;${
-    drives
+    driveColumn
       ? `
   if drive_insert_node.parent is not null then
     v_drive := v_parent.${n("drive")};
@@ -708,7 +726,7 @@ begin
   if v_name = v_node.${n("name")} then
     return ${withRole("v_node")};
   end if;
-  v_name := ${fn("drive_free_name")}(v_node.${n("tenant")}, ${drives ? `v_node.${n("drive")}` : "null"}, v_node.${n("parent")}, v_name, v_node.${n("id")},
+  v_name := ${fn("drive_free_name")}(v_node.${n("tenant")}, ${driveColumn ? `v_node.${n("drive")}` : "null"}, v_node.${n("parent")}, v_name, v_node.${n("id")},
     case when ${fn("drive_conflict")}(drive_rename.conflict) = 'rename' then 'rename' else 'fail' end);
   ${ctx.hook("before_drive_node_rename", [
     ["uuid", `v_node.${n("id")}`],
@@ -762,9 +780,13 @@ begin
   }
   v_previous := v_node.${n("parent")};
   if drive_move.parent is null then${
+    driveColumn
+      ? `
+    v_target := coalesce(drive_move.drive, v_node.${n("drive")});`
+      : ""
+  }${
     drives
       ? `
-    v_target := coalesce(drive_move.drive, v_node.${n("drive")});
     if v_target is null then
       ${fail("DRIVE_REQUIRED", "a top-level item needs a drive", "22023")}
     end if;
@@ -791,9 +813,13 @@ begin
     if v_node.${n("id")} = any (${fn("drive_ancestors")}(drive_move.parent)) then
       ${fail("DRIVE_MOVE_CYCLE", "a folder can't move into itself or its own subfolder", "22023")}
     end if;${
+      driveColumn
+        ? `
+    select x.${n("drive")} into v_target from ${T} x where x.${n("id")} = drive_move.parent;`
+        : ""
+    }${
       drives
         ? `
-    select x.${n("drive")} into v_target from ${T} x where x.${n("id")} = drive_move.parent;
     if v_target is distinct from v_node.${n("drive")} and not (${SERVICE_CALLER} or ${canShare(`v_node.${n("id")}`)}) then
       ${forbidden("move this item to another drive")}
     end if;`
@@ -804,7 +830,7 @@ begin
     ["uuid", `v_node.${n("id")}`],
     ["uuid", "drive_move.parent"],
   ])}
-  if v_previous is distinct from drive_move.parent${drives ? ` or v_target is distinct from v_node.${n("drive")}` : ""} then
+  if v_previous is distinct from drive_move.parent${driveColumn ? ` or v_target is distinct from v_node.${n("drive")}` : ""} then
     v_name := ${fn("drive_free_name")}(v_node.${n("tenant")}, v_target, drive_move.parent, v_node.${n("name")}, v_node.${n("id")},
       case when ${fn("drive_conflict")}(drive_move.conflict) = 'rename' then 'rename' else 'fail' end);
     if drive_move.parent is null and auth.uid() is not null then
@@ -819,7 +845,7 @@ begin
     end if;`
         : ""
     }
-    update ${T} x set ${n("parent")} = drive_move.parent, ${n("name")} = v_name${drives ? `, ${n("drive")} = v_target` : ""}${ranked ? `, ${n("rank")} = coalesce(drive_move.rank, ${rankAfter("v_last")})` : ""}${touch}
+    update ${T} x set ${n("parent")} = drive_move.parent, ${n("name")} = v_name${driveColumn ? `, ${n("drive")} = v_target` : ""}${ranked ? `, ${n("rank")} = coalesce(drive_move.rank, ${rankAfter("v_last")})` : ""}${touch}
     where x.${n("id")} = v_node.${n("id")}
     returning * into v_node;
     ${record("drive.node_moved", "v_node", `, 'parentId', v_node.${n("parent")}, 'previousParentId', v_previous`, dataAudit("v_node", "moved"))}
