@@ -113,8 +113,30 @@ describe("stack prune", () => {
       },
     ]);
     expect(calls).toEqual([
-      ["stack", "destroy", "--stack-id", "gone"],
+      ["stack", "destroy", "--stack-id", "gone", "--yes"],
       ["stack", "stop", "--stack-id", "idle"],
+    ]);
+  });
+
+  it("passes --yes to supabase stack destroy only after consent", async () => {
+    const calls: string[][] = [];
+
+    await expect(
+      runStackPrune(
+        "/code/app",
+        {},
+        env,
+        () => {
+          throw new Error("consent_required");
+        },
+        deps(calls),
+      ),
+    ).rejects.toThrow("consent_required");
+    expect(calls).toEqual([]);
+
+    await runStackPrune("/code/app", {}, env, () => {}, deps(calls));
+    expect(calls).toEqual([
+      ["stack", "destroy", "--stack-id", "gone", "--yes"],
     ]);
   });
 
@@ -129,7 +151,9 @@ describe("stack prune", () => {
       deps(calls, 1),
     );
 
-    expect(calls).toEqual([["stack", "destroy", "--stack-id", "gone"]]);
+    expect(calls).toEqual([
+      ["stack", "destroy", "--stack-id", "gone", "--yes"],
+    ]);
     expect(result).toMatchObject({ code: 1, errorCode: "supabase_cli_failed" });
   });
 });
@@ -268,7 +292,7 @@ describe("stack commands through the CLI", () => {
 
     expect(prune.code).toBe(0);
     expect(await readFile(join(dir, "calls.log"), "utf-8")).toBe(
-      "stack destroy --stack-id gone\n",
+      "stack destroy --stack-id gone --yes\n",
     );
   });
 });
