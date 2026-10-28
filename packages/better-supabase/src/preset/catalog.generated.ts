@@ -2162,6 +2162,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "drive",
         "teams",
         "state-machine",
+        "employees",
+        "automations",
         "subjects"
       ],
       "manifest": "approvals",
@@ -2195,6 +2197,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "expiresAt": "expires_at",
               "remindedAt": "reminded_at",
               "decidedAt": "decided_at",
+              "fingerprint": "fingerprint",
+              "consumedAt": "consumed_at",
               "createdAt": "created_at"
             }
           }
@@ -7249,6 +7253,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ApprovalListOptions"
         },
         {
+          "name": "ApprovalMode"
+        },
+        {
+          "name": "ApprovalPolicyInput"
+        },
+        {
           "name": "ApprovalRequest"
         },
         {
@@ -7256,6 +7266,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "ApprovalRequestInput"
+        },
+        {
+          "name": "ApprovalRequirement"
         },
         {
           "name": "Approvals",
@@ -7272,6 +7285,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "ApprovalStep"
+        },
+        {
+          "name": "ApprovalTenantPolicy"
         }
       ],
       "events": {
@@ -7282,7 +7298,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "approval.rejected",
           "approval.cancelled",
           "approval.expired",
-          "approval.delegated"
+          "approval.delegated",
+          "approval.consumed",
+          "approval_policy.saved",
+          "approval_policy.removed"
         ]
       }
     },

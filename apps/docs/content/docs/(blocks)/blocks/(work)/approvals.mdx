@@ -1,6 +1,6 @@
 ---
 title: Approvals
-description: Approval requests with steps per subject type and action, approvers by permission, role, team or user, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
+description: Approval requests with steps per subject type and action, approvers by permission, role, team, user or the requester's manager, tenant policies that tighten the configured ones, confirm or authorize modes, single-use approvals bound to a request fingerprint, delegation, expiry and reminders.
 ---
 
 `approvals` files a request for an action on a subject (send an invoice, publish a page), asks each step's approvers in turn, and runs what the policy unlocks once the last step is approved. Requests snapshot their policy, so a config change leaves pending requests alone. Filing a request needs `approvals.request` and read access to the subject, reading other people's requests needs `approvals.read`, and cancelling someone else's request needs `approvals.manage`. Who may decide a step comes from the policy, not from a permission key.
@@ -70,17 +70,94 @@ blocks: {
 },
 ```
 
-| Option              | Default | What it does                                                                                                                                       |
-| ------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `steps[].approvers` | none    | `permission`, `role` (membership role), `team` (a [teams](/docs/blocks/teams) id) or `users`; any match may decide                                 |
-| `steps[].required`  | `1`     | Approvals the step needs; `"all"` with `users` means every listed user                                                                             |
-| `expiresIn`         | none    | An ISO 8601 duration such as `P7D`; `expire_approvals()` closes the request after it                                                               |
-| `selfApproval`      | `false` | Whether the requester may decide a step                                                                                                            |
-| `run`               | none    | `{ transition: "<status>" }` through the [state machine](/docs/blocks/state-machine), or `{ queue: "<queue>" }` through [jobs](/docs/blocks/queue) |
+| Option              | Default       | What it does                                                                                                                                       |
+| ------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `steps[].approvers` | none          | `permission`, `role` (membership role), `team` (a [teams](/docs/blocks/teams) id), `users` or `manager: true`; any match may decide                |
+| `steps[].required`  | `1`           | Approvals the step needs; `"all"` with `users` means every listed user                                                                             |
+| `expiresIn`         | none          | An ISO 8601 duration such as `P7D`; `expire_approvals()` closes the request after it                                                               |
+| `selfApproval`      | `false`       | Whether the requester may decide a step                                                                                                            |
+| `mode`              | `"authorize"` | `"confirm"` lets the requester approve their own request as a second look; see [confirm or authorize](#confirm-or-authorize)                       |
+| `run`               | none          | `{ transition: "<status>" }` through the [state machine](/docs/blocks/state-machine), or `{ queue: "<queue>" }` through [jobs](/docs/blocks/queue) |
 
 A subject can have one pending request per action (`APPROVAL_PENDING`). A rejection on any step closes the request. An approver decides a step once, and `delegate(id, userId)` hands their place on the step to another member of the organization, who is then asked.
 
 Policies are fixed per subject type and action. To pick one by the record's values, such as the finance chain for an expense over 500, give each chain its own action and let a tenant-edited [rule](/docs/blocks/automations#actions) choose it: `approvalsAction` from `better-supabase/blocks/automations` files the request for the action in the matching rule's `config.action`.
+
+## Confirm or authorize
+
+A policy's `mode` says what an approval proves. `authorize`, the default, means someone other than the requester decided every step (unless `selfApproval` is on). `confirm` means the requester looked again: they may approve their own request, and their approval finishes it at once, whatever steps remain. Other approvers still decide the steps as usual. Use `confirm` for a deliberate second click before a risky action, and `authorize` when another person has to agree.
+
+`steps[].approvers.manager: true` lets the requester's manager decide the step. The manager comes from the [employees](/docs/blocks/employees) block: the requester's employee record names a manager, whose user decides while they are an active member of the organization and not offboarded. A policy that names a manager needs the employees block in managed mode.
+
+## Tenant policies
+
+With `options.tenantPolicies: true`, each organization keeps its own policies in the `approval_policies` table, and the configured policies act as the platform's floor. A tenant policy names the subject type and action of a configured policy (`APPROVAL_POLICY_UNKNOWN` otherwise) and can only tighten it:
+
+- its steps run after the floor's steps and those of earlier tenant policies;
+- `authorize` outranks `confirm`, and `confirm` outranks a floor that asks for nothing;
+- `selfApproval` stays on only when every matching policy allows it;
+- the shortest `expiresIn` wins.
+
+A floor with `steps: []` asks for nothing until a tenant policy adds a step or a mode, so an organization can opt into approvals for an action the platform leaves open. Without `tenantPolicies`, a floor needs at least one step or `mode: "confirm"`.
+
+`conditions` is a [filter tree](/docs/platform/list#filter-trees) over the subject type's [rule fields](/docs/blocks/automations#fields), matched against the request's `payload`. A policy without conditions always applies. Conditions need the [automations](/docs/blocks/automations) block; without it, saving a policy with conditions fails with `APPROVAL_CONDITIONS_UNSUPPORTED`.
+
+```ts
+await db.approvals
+  .savePolicy({
+    subjectType: "invoice",
+    action: "send",
+    name: "Large invoices",
+    conditions: {
+      id: "root",
+      type: "group",
+      combinator: "and",
+      rules: [
+        {
+          id: "amount",
+          type: "rule",
+          path: ["amount"],
+          operator: "gt",
+          value: 10000,
+        },
+      ],
+    },
+    steps: [{ approvers: { manager: true }, required: 1 }],
+  })
+  .orThrow();
+
+const needed = await db.approvals
+  .requirement("invoice", "send", { amount: 25000 })
+  .orThrow();
+```
+
+Saving and removing a policy needs `approvals.manage` and goes to the audit log; `listPolicies` needs `approvals.read`. `requirement(subjectType, action, payload)` returns the merged policy for a payload, or `null` when nothing is required, so the app can run the action without a request. `request` refuses a request nothing requires with `APPROVAL_NOT_REQUIRED`.
+
+## Use an approval once
+
+`isApproved` answers whether a subject was approved, which suits a status change. For an operation such as a refund or an export, bind the approval to the exact request and use it once. Pass a fingerprint when you file the request, and call `consume` with the same fingerprint right before the operation runs:
+
+```ts
+import { approvalFingerprint } from "better-supabase/blocks/approvals";
+
+const operation = { refund: invoiceId, amount: 2500, currency: "EUR" };
+const fingerprint = await approvalFingerprint(operation);
+
+const request = await db.approvals
+  .request(invoice, { action: "refund", payload: operation, fingerprint })
+  .orThrow();
+```
+
+Once the request is approved, the code that runs the refund consumes it first:
+
+```ts
+await db.approvals
+  .consume(request.id, await approvalFingerprint(operation))
+  .orThrow();
+await refund(operation);
+```
+
+`approvalFingerprint` hashes the value as JSON with sorted keys, with SHA-256. `consume` marks the request `consumedAt` and fails with `APPROVAL_NOT_APPROVED` before the final approval, `APPROVAL_CONSUMED` on a second call and `APPROVAL_FINGERPRINT_MISMATCH` when the operation changed. The requester, a member with `approvals.manage` and the service role may consume a request.
 
 ## Run the approved action
 
@@ -190,7 +267,7 @@ select cron.schedule('remind-approvals', '0 9 * * *', 'select better_supabase.re
 
 With the [notifications](/docs/blocks/notifications) module, the current step's approvers get `approval.requested` (and `approval.reminder`), a delegate gets `approval.delegated`, and the requester gets `approval.approved`, `approval.rejected` or `approval.expired`. Approvers named by permission are reached through the notification's permission audience.
 
-The module records `approval.requested`, `approval.approved`, `approval.rejected`, `approval.cancelled`, `approval.expired` and `approval.delegated`, each with `organizationId`, `subjectType`, `subjectId`, the request `id`, `action`, `status` and `step`. Every event but `approval.expired` also goes to the [audit log](/docs/blocks/audit). It calls `before_approval_request`, `after_approval_request`, `before_approval_decide` and `after_approval_decide`.
+The module records `approval.requested`, `approval.approved`, `approval.rejected`, `approval.cancelled`, `approval.expired`, `approval.delegated` and `approval.consumed`, each with `organizationId`, `subjectType`, `subjectId`, the request `id`, `action`, `status` and `step`. Tenant policies record `approval_policy.saved` and `approval_policy.removed` with `organizationId`, `id`, `subjectType` and `action`. Every event but `approval.expired` also goes to the [audit log](/docs/blocks/audit). It calls `before_approval_request`, `after_approval_request`, `before_approval_decide` and `after_approval_decide`.
 
 ## With ReUI
 

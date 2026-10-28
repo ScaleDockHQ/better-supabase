@@ -90,6 +90,7 @@ const SUBJECT_EVENTS = [
   "approval.cancelled",
   "approval.expired",
   "approval.delegated",
+  "approval.consumed",
   "document.created",
   "document.suggested",
   "document.suggestion_accepted",

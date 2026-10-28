@@ -2,13 +2,18 @@ export {
   type ApprovalApprovers,
   type ApprovalDecision,
   type ApprovalListOptions,
+  type ApprovalMode,
+  type ApprovalPolicyInput,
   type ApprovalRequest,
   type ApprovalRequestDetail,
   type ApprovalRequestInput,
+  type ApprovalRequirement,
   type Approvals,
   type ApprovalsOptions,
   type ApprovalStatus,
   type ApprovalStep,
+  type ApprovalTenantPolicy,
+  approvalFingerprint,
   createApprovals,
 } from "./approvals.ts";
 

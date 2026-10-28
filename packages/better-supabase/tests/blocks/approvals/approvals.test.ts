@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { createApprovals } from "../../../src/blocks/approvals/index.ts";
+import {
+  approvalFingerprint,
+  createApprovals,
+} from "../../../src/blocks/approvals/index.ts";
+import { sha256Hex } from "../../../src/core/block-helpers.ts";
 
 function transport(results: Record<string, (args: unknown) => unknown>) {
   const calls: [string, unknown][] = [];
@@ -281,6 +285,228 @@ describe("approvals client", () => {
     expect((await approvals.list()).ok).toBe(false);
     expect(fake.calls).toHaveLength(0);
     expect(await approvals.isApproved(INVOICE, "send").orThrow()).toBe(false);
+  });
+
+  it("checks requirements, consumes once and manages tenant policies", async () => {
+    const conditions = {
+      id: "root",
+      type: "group",
+      combinator: "and",
+      rules: [
+        {
+          id: "c1",
+          type: "rule",
+          path: ["amount"],
+          operator: "gt",
+          value: 1000,
+        },
+      ],
+    };
+
+    const POLICY = {
+      id: "p1",
+      organizationId: "o",
+      subjectType: "invoice",
+      action: "send",
+      name: "Large invoices",
+      conditions,
+      mode: "authorize",
+      steps: [{ approvers: { manager: true } }],
+      selfApproval: false,
+      expiresIn: "3 days",
+      enabled: true,
+      createdAt: "2026-10-01T00:00:00Z",
+      updatedAt: "2026-10-02T00:00:00Z",
+    };
+
+    let required = true;
+
+    const fake = transport({
+      approval_requirement: () =>
+        required
+          ? {
+              mode: "confirm",
+              steps: [],
+              selfApproval: true,
+              expiresIn: "1 day",
+              policies: ["p1"],
+            }
+          : null,
+      request_approval: () => ({
+        ...REQUEST,
+        mode: "confirm",
+        fingerprint: "ab",
+      }),
+      consume_approval: () => ({
+        ...REQUEST,
+        status: "approved",
+        consumedAt: "2026-10-03T00:00:00Z",
+      }),
+      list_approval_policies: () => [
+        POLICY,
+        {
+          ...POLICY,
+          id: "p2",
+          conditions: null,
+          expiresIn: null,
+          updatedAt: null,
+        },
+      ],
+      save_approval_policy: () => POLICY,
+      remove_approval_policy: () => true,
+    });
+
+    const approvals = createApprovals({
+      transport: fake,
+      schema: "app",
+      tenant: "o",
+    });
+
+    expect(
+      await approvals.requirement("invoice", "send", { amount: 5 }).orThrow(),
+    ).toEqual({
+      mode: "confirm",
+      steps: [],
+      selfApproval: true,
+      expiresIn: "1 day",
+      policies: ["p1"],
+    });
+    required = false;
+    expect(await approvals.requirement("invoice", "send").orThrow()).toBeNull();
+
+    const fingerprint = await approvalFingerprint({ b: 1, a: [1, undefined] });
+
+    const request = await approvals
+      .request(INVOICE, { action: "send", fingerprint })
+      .orThrow();
+
+    expect(request).toMatchObject({ mode: "confirm", fingerprint: "ab" });
+
+    const consumed = await approvals.consume("r1", fingerprint).orThrow();
+    expect(consumed.consumedAt?.toString()).toBe("2026-10-03T00:00:00Z");
+    expect(consumed.mode).toBe("authorize");
+    await approvals.consume("r1").orThrow();
+
+    const [first, second] = await approvals.listPolicies().orThrow();
+    expect(first).toMatchObject({
+      id: "p1",
+      conditions,
+      steps: [{ approvers: { manager: true }, required: 1 }],
+      expiresIn: "3 days",
+    });
+    expect(first?.updatedAt?.toString()).toBe("2026-10-02T00:00:00Z");
+    expect(second?.conditions).toBeUndefined();
+    expect(second?.expiresIn).toBeUndefined();
+    await approvals
+      .listPolicies({ subjectType: "invoice", pageSize: 5 })
+      .orThrow();
+
+    const saved = await approvals
+      .savePolicy({ subjectType: "invoice", action: "send", name: "Large" })
+      .orThrow();
+
+    expect(saved.name).toBe("Large invoices");
+    expect(await approvals.removePolicy("p1").orThrow()).toBe(true);
+
+    expect(fake.calls).toEqual([
+      [
+        "approval_requirement",
+        {
+          tenant: "o",
+          subject_type: "invoice",
+          action: "send",
+          subject: { amount: 5 },
+        },
+      ],
+      [
+        "approval_requirement",
+        { tenant: "o", subject_type: "invoice", action: "send", subject: {} },
+      ],
+      [
+        "request_approval",
+        {
+          tenant: "o",
+          subject_type: "invoice",
+          subject_id: "i1",
+          action: "send",
+          reason: null,
+          payload: {},
+          fingerprint,
+        },
+      ],
+      ["consume_approval", { request_id: "r1", fingerprint }],
+      ["consume_approval", { request_id: "r1", fingerprint: null }],
+      [
+        "list_approval_policies",
+        { tenant: "o", subject_type: null, page_size: null },
+      ],
+      [
+        "list_approval_policies",
+        { tenant: "o", subject_type: "invoice", page_size: 5 },
+      ],
+      [
+        "save_approval_policy",
+        {
+          tenant: "o",
+          policy: { subjectType: "invoice", action: "send", name: "Large" },
+        },
+      ],
+      ["remove_approval_policy", { policy_id: "p1" }],
+    ]);
+  });
+
+  it("fingerprints JSON with sorted keys", async () => {
+    const one = await approvalFingerprint({
+      b: [1, { d: 2, c: null }],
+      a: "x",
+    });
+
+    const two = await approvalFingerprint({
+      a: "x",
+      b: [1, { c: null, d: 2 }],
+    });
+
+    expect(one).toBe(two);
+    expect(one).toMatch(/^[0-9a-f]{64}$/);
+    expect(one).toBe(await sha256Hex('{"a":"x","b":[1,{"c":null,"d":2}]}'));
+    expect(await approvalFingerprint({ a: undefined })).toBe(
+      await sha256Hex("{}"),
+    );
+    expect(await approvalFingerprint([undefined])).toBe(
+      await sha256Hex("[null]"),
+    );
+    expect(await approvalFingerprint(undefined)).toBe(await sha256Hex("null"));
+    expect(await approvalFingerprint({ b: 1, a: 2 })).not.toBe(
+      await approvalFingerprint({ b: 2, a: 1 }),
+    );
+  });
+
+  it("refuses conditions that are not a filter group", async () => {
+    const fake = transport({
+      list_approval_policies: () => [
+        {
+          id: "p1",
+          organizationId: "o",
+          subjectType: "invoice",
+          action: "send",
+          name: "Bad",
+          conditions: { type: "rule" },
+          mode: "confirm",
+          steps: [],
+          selfApproval: false,
+          enabled: true,
+          createdAt: "2026-10-01T00:00:00Z",
+        },
+      ],
+    });
+
+    const approvals = createApprovals({
+      transport: fake,
+      schema: "app",
+      tenant: "o",
+    });
+
+    expect((await approvals.listPolicies()).ok).toBe(false);
   });
 
   it("refuses a status it doesn't know", async () => {
