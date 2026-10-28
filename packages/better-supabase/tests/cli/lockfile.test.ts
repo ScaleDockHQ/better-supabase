@@ -96,6 +96,16 @@ describe("lockedVersions", () => {
       [],
     );
   });
+
+  it("reads nothing from a package-lock.json without packages", () => {
+    expect(
+      lockedVersions(
+        "package-lock.json",
+        "better-supabase",
+        JSON.stringify({ lockfileVersion: 1, dependencies: {} }),
+      ),
+    ).toEqual([]);
+  });
 });
 
 describe("lockedPackage", () => {

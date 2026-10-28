@@ -106,4 +106,20 @@ describe("BS351", () => {
       ),
     ).toEqual([]);
   });
+
+  it("stays quiet when the blocks create no tables", async () => {
+    expect(
+      await runRules(
+        {
+          config: resolveConfig({ blocks: ["mfa"] }, "/project"),
+          snapshot: base,
+          configToml: undefined,
+          envFiles: [],
+          gitignore: "",
+          sources: [WRITES],
+        },
+        BLOCK_WRITE_RULES,
+      ),
+    ).toEqual([]);
+  });
 });
