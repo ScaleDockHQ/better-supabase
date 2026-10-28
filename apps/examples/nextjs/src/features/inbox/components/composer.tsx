@@ -19,7 +19,7 @@ import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Later } from "../inbox-types";
 
-import { reply, scheduleReply } from "../inbox-actions";
+import { reply, saveDraft, scheduleReply } from "../inbox-actions";
 import { LaterItems } from "./later-items";
 
 const TYPING_EVERY_MS = 2000;
@@ -54,6 +54,8 @@ export function Composer({
       toast.error(errorMessage(error));
     },
   });
+
+  const draft = useAction(saveDraft);
 
   const later = useAction(scheduleReply, {
     onSuccess: () => {
@@ -94,6 +96,11 @@ export function Composer({
           note ? t("Write a note only staff see") : t("Write a reply")
         }
         className={note ? "bg-chart-4/10" : undefined}
+        onBlur={() => {
+          if (!empty) {
+            void draft.run({ conversationId, body, note });
+          }
+        }}
         onChange={(event) => {
           setBody(event.target.value);
 
