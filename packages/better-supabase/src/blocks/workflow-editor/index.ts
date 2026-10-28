@@ -20,6 +20,8 @@ export {
   type WorkflowCredential,
   type WorkflowDefinition,
   type WorkflowDefinitionGrant,
+  type WorkflowPurpose,
+  type WorkflowResolved,
   type WorkflowDefinitionScope,
   type WorkflowGrantAction,
   type WorkflowGrantPrincipal,
@@ -53,11 +55,23 @@ export {
   type WorkflowGraphEdge,
   type WorkflowGraphNode,
   type WorkflowNodeKind,
+  type ValidateGraphOptions,
+  type WorkflowBuiltinNodeKind,
+  type WorkflowNodeKindInfo,
+  isBuiltinNodeKind,
+  WORKFLOW_BUILTIN_NODE_KINDS,
 } from "./graph.ts";
+
+export {
+  defineNodeKind,
+  type WorkflowNodeKindDefinition,
+  type WorkflowNodeKindRow,
+} from "./node-kinds.ts";
 
 export {
   executeGraph,
   type GraphApprovalCall,
+  type GraphNodeCall,
   type GraphRunFields,
   graphRunFields,
   type GraphRuntime,

@@ -1867,7 +1867,7 @@ export interface BlockNameRegistry {
   };
   readonly "workflow-editor": {
     readonly tables: {
-      readonly "definitions": "id" | "tenant" | "slug" | "name" | "description" | "subjectTypes" | "scope" | "forkedFrom" | "forkedFromVersion" | "restricted" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "definitions": "id" | "tenant" | "slug" | "name" | "description" | "subjectTypes" | "scope" | "forkedFrom" | "forkedFromVersion" | "restricted" | "purpose" | "isDefault" | "createdBy" | "createdAt" | "updatedAt";
       readonly "optOuts": "tenant" | "definition" | "createdBy" | "createdAt";
       readonly "grants": "id" | "definition" | "principalKind" | "principalId" | "action" | "createdBy" | "createdAt";
       readonly "versions": "id" | "definition" | "version" | "graph" | "compiled" | "status" | "createdBy" | "createdAt" | "publishedAt" | "publishedBy" | "owner" | "permissions" | "inputSchema";
@@ -1875,15 +1875,16 @@ export interface BlockNameRegistry {
       readonly "webhookTokens": "tokenHash" | "trigger" | "createdAt";
       readonly "credentials": "id" | "tenant" | "kind" | "name" | "ref" | "scopes" | "createdBy" | "createdAt";
       readonly "steps": "name" | "title" | "description" | "inputSchema" | "outputSchema" | "credentialKind" | "operation" | "updatedAt";
+      readonly "nodeKinds": "kind" | "title" | "description" | "branches" | "configSchema" | "updatedAt";
       readonly "nodeRuns": "run" | "node" | "status" | "attempts" | "output" | "error" | "startedAt" | "endedAt";
       readonly "alerts": "id" | "definition" | "onEvent" | "threshold" | "channel" | "createdBy" | "createdAt";
       readonly "alertFires": "alert" | "run" | "firedAt";
     };
-    readonly functions: "check_workflow_alerts" | "fork_workflow_definition" | "publish_workflow_version" | "record_workflow_node_run" | "remove_workflow_alert" | "remove_workflow_credential" | "remove_workflow_definition" | "remove_workflow_trigger" | "rotate_workflow_webhook_token" | "save_workflow_alert" | "save_workflow_credential" | "save_workflow_definition" | "save_workflow_draft" | "save_workflow_trigger" | "set_workflow_definition_grant" | "set_workflow_opt_out" | "start_test_run" | "sync_workflow_steps" | "validate_workflow_graph" | "workflow_alerts_list" | "workflow_credential_get" | "workflow_credentials_list" | "workflow_definition_get" | "workflow_definition_grants_list" | "workflow_definitions_list" | "workflow_graph_permissions" | "workflow_node_runs_list" | "workflow_run_principal" | "workflow_runs_alert" | "workflow_start_target" | "workflow_steps_list" | "workflow_subject_start_target" | "workflow_triggers_list" | "workflow_version_get" | "workflow_versions_list" | "workflow_webhook_target";
+    readonly functions: "check_workflow_alerts" | "fork_workflow_definition" | "publish_workflow_version" | "record_workflow_node_run" | "remove_workflow_alert" | "remove_workflow_credential" | "remove_workflow_definition" | "remove_workflow_trigger" | "resolve_workflow_definition" | "rotate_workflow_webhook_token" | "save_workflow_alert" | "save_workflow_credential" | "save_workflow_definition" | "save_workflow_draft" | "save_workflow_trigger" | "set_workflow_definition_grant" | "set_workflow_definition_purpose" | "set_workflow_opt_out" | "start_test_run" | "sync_workflow_node_kinds" | "sync_workflow_steps" | "validate_workflow_graph" | "workflow_alerts_list" | "workflow_credential_get" | "workflow_credentials_list" | "workflow_definition_get" | "workflow_definition_grants_list" | "workflow_definitions_list" | "workflow_graph_permissions" | "workflow_node_kinds_list" | "workflow_node_runs_list" | "workflow_run_principal" | "workflow_runs_alert" | "workflow_start_target" | "workflow_steps_list" | "workflow_subject_start_target" | "workflow_triggers_list" | "workflow_version_get" | "workflow_versions_list" | "workflow_webhook_target";
     readonly actions: "read" | "run" | "edit" | "publish" | "admin";
     readonly hooks: never;
     readonly entities: {
-      readonly "definition": "id" | "tenant_id" | "slug" | "name" | "description" | "subject_types" | "scope" | "forked_from" | "forked_from_version" | "restricted" | "created_by" | "created_at" | "updated_at";
+      readonly "definition": "id" | "tenant_id" | "slug" | "name" | "description" | "subject_types" | "scope" | "forked_from" | "forked_from_version" | "restricted" | "purpose" | "is_default" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: "definition";
   };

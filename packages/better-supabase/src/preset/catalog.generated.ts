@@ -834,6 +834,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "forkedFrom": "forked_from",
               "forkedFromVersion": "forked_from_version",
               "restricted": "restricted",
+              "purpose": "purpose",
+              "isDefault": "is_default",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"

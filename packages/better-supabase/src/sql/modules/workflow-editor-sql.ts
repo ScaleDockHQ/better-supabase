@@ -320,6 +320,8 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'forkedFrom', ${or(alias, "forkedFrom", "null")},
     'forkedFromVersion', ${or(alias, "forkedFromVersion", "null")},
     'restricted', ${alias}.${cd("restricted")},
+    'purpose', ${or(alias, "purpose", "'automation'")},
+    'isDefault', ${or(alias, "isDefault", "false")},
     'createdBy', ${alias}.${cd("createdBy")},
     'createdAt', ${alias}.${cd("createdAt")},
     'updatedAt', ${alias}.${cd("updatedAt")}
@@ -553,6 +555,15 @@ export function definitionColumnsSql(
         )
       : undefined,
     add("restricted", "boolean not null default false"),
+    has("purpose")
+      ? add(
+          "purpose",
+          `text not null default 'automation'\n  check (${cd("purpose")} in ('automation', 'lifecycle'))`,
+        )
+      : undefined,
+    has("isDefault")
+      ? add("isDefault", "boolean not null default false")
+      : undefined,
     scoped && !app
       ? ensureCheck(
           d,

@@ -6,6 +6,8 @@ export {
   graphStarter,
   nodeRunReporter,
   type CompiledGraph,
+  type CompileGraphOptions,
+  type GraphNodeStep,
   type GraphRunMeta,
   type GraphStarterOptions,
   type GraphStep,
@@ -15,6 +17,7 @@ export {
 export {
   executeGraph,
   type GraphApprovalCall,
+  type GraphNodeCall,
   type GraphRuntime,
   type GraphStepCall,
 } from "../../blocks/workflow-editor/executor.ts";

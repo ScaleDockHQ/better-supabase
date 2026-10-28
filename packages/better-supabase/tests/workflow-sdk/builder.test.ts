@@ -2,12 +2,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   GraphApprovalCall,
+  GraphNodeCall,
   GraphStepCall,
 } from "../../src/blocks/workflow-editor/executor.ts";
 import type { BuilderStartCall } from "../../src/blocks/workflow-editor/workflow-editor.ts";
 
 import { executeGraph } from "../../src/blocks/workflow-editor/executor.ts";
-import { fakeRuntime, GRAPH } from "../blocks/workflow-editor/fixture.ts";
+import {
+  CUSTOM_GRAPH,
+  CUSTOM_KINDS,
+  fakeRuntime,
+  GRAPH,
+} from "../blocks/workflow-editor/fixture.ts";
 
 const start = vi.fn(async (..._args: unknown[]) => ({ runId: "wrun_new" }));
 
@@ -99,6 +105,8 @@ const CALL: BuilderStartCall = {
     forkedFrom: undefined,
     forkedFromVersion: undefined,
     restricted: false,
+    purpose: "automation",
+    isDefault: false,
     fields: {},
   },
   version: {
@@ -647,5 +655,102 @@ describe("nodeRunReporter", () => {
     });
 
     expect(await lossy(call, async () => 5)).toBe(5);
+  });
+});
+
+describe("the app's own node kinds", () => {
+  const score = async (call: GraphNodeCall): Promise<unknown> =>
+    call.kind === "score.check"
+      ? (call.input as { score: number }).score >= 5
+      : `sent ${String(call.config["channel"])}`;
+
+  function loadCustom(
+    source: string,
+    aliases: Readonly<Record<string, string>>,
+  ): Compiled {
+    const runtime = fakeRuntime("pro", undefined);
+
+    // oxlint-disable-next-line eslint/no-new-func, typescript/no-implied-eval -- the test runs the compiled source the way the SDK's VM does.
+    const factory = new Function(
+      "steps",
+      "sleep",
+      "createHook",
+      `${source}\nreturn workflow;`,
+    );
+
+    const steps = Object.fromEntries(
+      Object.keys(aliases).map((alias) => [alias, score]),
+    );
+
+    const sleep = (ms: number) => runtime.sleep(ms);
+
+    return factory(steps, sleep, undefined) as Compiled;
+  }
+
+  it("compiles their nodes to steps that run like executeGraph", async () => {
+    expect(() => compileGraph(CUSTOM_GRAPH)).toThrow("has an unknown kind");
+    const compiled = compileGraph(CUSTOM_GRAPH, { nodes: CUSTOM_KINDS });
+    expect(compiled.aliases).toEqual({});
+    expect(Object.values(compiled.nodeAliases ?? {})).toEqual([
+      "score.check",
+      "notify",
+      "notify",
+    ]);
+    expect(compiledGraphOf(JSON.parse(JSON.stringify(compiled)))).toEqual(
+      compiled,
+    );
+    expect(
+      compiledGraphOf({ ...compiled, nodeAliases: { a: 1 } }),
+    ).toBeUndefined();
+    expect(compiledGraphOf({ ...compiled, nodeAliases: [] })).toBeUndefined();
+
+    const run = loadCustom(compiled.source, compiled.nodeAliases ?? {});
+
+    for (const value of [9, 0]) {
+      const expected = await executeGraph(
+        CUSTOM_GRAPH,
+        { score: value },
+        { ...fakeRuntime("pro", undefined), nodes: CUSTOM_KINDS, node: score },
+      );
+
+      expect(await run({ score: value }, { runKey: "k" })).toEqual(expected);
+    }
+
+    expect(
+      await run({ score: 9 }, { runKey: "k", mode: "test", stubs: {} }),
+    ).toEqual({
+      start: { score: 9 },
+      score: { stubbed: true },
+      ping: { stubbed: true },
+    });
+  });
+
+  it("binds each node's step by kind, and refuses a kind it wasn't given", async () => {
+    const notify = { stepId: "notify" };
+    const check = { stepId: "check" };
+
+    const call = { ...CALL, version: { ...CALL.version, graph: CUSTOM_GRAPH } };
+
+    await graphStarter({
+      steps: {},
+      nodeKinds: CUSTOM_KINDS,
+      nodes: { "score.check": check, notify },
+      dynamic: true,
+    })(call);
+    const [, , options] = start.mock.calls[0] ?? [];
+
+    const bound = (
+      options as { experimental_dynamic: { steps: Record<string, unknown> } }
+    ).experimental_dynamic.steps;
+
+    expect(Object.values(bound)).toEqual([check, notify, notify]);
+    await expect(
+      graphStarter({
+        steps: {},
+        nodeKinds: CUSTOM_KINDS,
+        nodes: { notify },
+        dynamic: true,
+      })(call),
+    ).rejects.toThrow('a node of kind "score.check"');
   });
 });

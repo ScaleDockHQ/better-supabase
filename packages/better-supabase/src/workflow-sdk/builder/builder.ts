@@ -4,6 +4,7 @@ import { getStepMetadata, getWorkflowMetadata } from "workflow";
 import { start } from "workflow/api";
 
 import type {
+  GraphNodeCall,
   GraphStepCall,
   GraphSubject,
 } from "../../blocks/workflow-editor/executor.ts";
@@ -11,6 +12,7 @@ import type {
   WorkflowGraph,
   WorkflowGraphEdge,
   WorkflowGraphNode,
+  WorkflowNodeKindInfo,
 } from "../../blocks/workflow-editor/graph.ts";
 import type {
   BuilderStartCall,
@@ -22,7 +24,9 @@ import type { WorkflowFn } from "../workflow-sdk.ts";
 
 import { startNodeOf } from "../../blocks/workflow-editor/executor.ts";
 import {
+  branchesOn,
   durationMs,
+  isBuiltinNodeKind,
   isGraphRecord,
   topologicalOrder,
   validateGraph,
@@ -52,6 +56,17 @@ export interface CompiledGraph {
    * node).
    */
   readonly aliases: Readonly<Record<string, string>>;
+  /**
+   * The app's own node kind each `steps.<alias>` call runs, by alias (one alias
+   * per node of such a kind).
+   */
+  readonly nodeAliases?: Readonly<Record<string, string>>;
+}
+
+/** What `compileGraph` needs besides the graph. */
+export interface CompileGraphOptions {
+  /** The app's own node kinds (`defineNodeKind`) the graph may use. */
+  readonly nodes?: readonly WorkflowNodeKindInfo[];
 }
 
 /** The second argument of a compiled or static run. */
@@ -133,10 +148,27 @@ const RUNTIME = `  const results = {};
   }
 `;
 
-function nodeBody(node: WorkflowGraphNode, alias: string | undefined): string {
+function customNodeBody(
+  node: WorkflowGraphNode,
+  alias: string | undefined,
+  branches: boolean,
+): string {
   const id = literal(node.id);
 
-  switch (node.kind) {
+  return `const output = testing ? stub(${id}, { stubbed: true }) : await steps.${alias ?? ""}({ node: ${id}, kind: ${literal(node.kind)}, config: ${literal(node.config ?? {})}, input, results: Object.assign({}, results), runKey, version: versionId, tenant, subject });
+    results[${id}] = output === undefined ? null : output;
+    ran[${id}] = ${branches ? "Boolean(output)" : "true"};`;
+}
+
+function nodeBody(node: WorkflowGraphNode, alias: string | undefined): string {
+  const id = literal(node.id);
+  const kind = node.kind;
+
+  if (!isBuiltinNodeKind(kind)) {
+    throw new TypeError(`workflow-editor: unknown node kind ${kind}`);
+  }
+
+  switch (kind) {
     case "trigger": {
       return `results[${id}] = input;\n    ran[${id}] = true;`;
     }
@@ -168,7 +200,7 @@ function nodeBody(node: WorkflowGraphNode, alias: string | undefined): string {
     }
 
     default: {
-      const unknown: never = node.kind;
+      const unknown: never = kind;
       throw new TypeError(
         `workflow-editor: unknown node kind ${String(unknown)}`,
       );
@@ -193,8 +225,11 @@ const guard = (edges: readonly WorkflowGraphEdge[]): string =>
  * `executeGraph` does. Throws when the graph is invalid or the source is over
  * 128 KiB. Pass it as `compile` to `createWorkflowEditor`.
  */
-export function compileGraph(graph: WorkflowGraph): CompiledGraph {
-  const errors = validateGraph(graph);
+export function compileGraph(
+  graph: WorkflowGraph,
+  options: CompileGraphOptions = {},
+): CompiledGraph {
+  const errors = validateGraph(graph, { nodes: options.nodes ?? [] });
 
   if (errors.length > 0) {
     throw new TypeError(`workflow-editor: ${errors.join("; ")}`);
@@ -209,16 +244,25 @@ export function compileGraph(graph: WorkflowGraph): CompiledGraph {
 
   const triggers = graph.nodes.filter((node) => node.kind === "trigger");
   const aliases: Record<string, string> = {};
+  const nodeAliases: Record<string, string> = {};
+  const kinds = new Map((options.nodes ?? []).map((info) => [info.kind, info]));
 
   const blocks = order.map((node, index) => {
     let alias: string | undefined;
+    const custom = !isBuiltinNodeKind(node.kind);
 
     if (node.kind === "step") {
       alias = aliasOf(node, index);
       aliases[alias] = node.step ?? "";
+    } else if (custom) {
+      alias = aliasOf(node, index);
+      nodeAliases[alias] = node.kind;
     }
 
-    const body = nodeBody(node, alias);
+    const body = custom
+      ? customNodeBody(node, alias, branchesOn(node.kind, kinds))
+      : nodeBody(node, alias);
+
     const comment = `  // ${node.kind} node ${String(index)}`;
 
     if (node.kind === "trigger") {
@@ -260,6 +304,7 @@ ${blocks.join("\n")}
     exportName: EXPORT_NAME,
     source,
     aliases,
+    ...(Object.keys(nodeAliases).length > 0 ? { nodeAliases } : {}),
   };
 }
 
@@ -286,12 +331,30 @@ export function compiledGraphOf(value: unknown): CompiledGraph | undefined {
     aliases[alias] = step;
   }
 
+  const nodeAliases: Record<string, string> = {};
+  const storedNodes = value["nodeAliases"];
+
+  if (storedNodes !== undefined) {
+    if (!isGraphRecord(storedNodes)) {
+      return undefined;
+    }
+
+    for (const [alias, kind] of Object.entries(storedNodes)) {
+      if (typeof kind !== "string") {
+        return undefined;
+      }
+
+      nodeAliases[alias] = kind;
+    }
+  }
+
   return {
     engine: "workflow-sdk",
     format: 1,
     exportName: value["exportName"],
     source: value["source"],
     aliases,
+    ...(storedNodes === undefined ? {} : { nodeAliases }),
   };
 }
 
@@ -300,9 +363,24 @@ export type GraphStep =
   | ((call: GraphStepCall) => Promise<unknown>)
   | { readonly stepId: string };
 
+/**
+ * The step that runs nodes of an app's own kind: a `"use step"` function, or `{
+ * stepId }`.
+ */
+export type GraphNodeStep =
+  | ((call: GraphNodeCall) => Promise<unknown>)
+  | { readonly stepId: string };
+
 export interface GraphStarterOptions {
   /** The library's step functions by step name; each takes a `GraphStepCall`. */
   readonly steps: Readonly<Record<string, GraphStep>>;
+  /** The app's own node kinds (`defineNodeKind`) graphs may use. */
+  readonly nodeKinds?: readonly WorkflowNodeKindInfo[];
+  /**
+   * The steps that run nodes of the app's own kinds, by kind; each takes a
+   * `GraphNodeCall`. The static executor passes them as `runtime.node` itself.
+   */
+  readonly nodes?: Readonly<Record<string, GraphNodeStep>>;
   /**
    * The static executor: a `"use workflow"` function that calls
    * `executeGraph(graph, input, { ...graphRunFields(meta), step, sleep,
@@ -445,8 +523,8 @@ export function graphStarter(options: GraphStarterOptions): BuilderStarter {
         );
       }
 
-      const compiled = compileGraph(graph);
-      const steps: Record<string, GraphStep> = {};
+      const compiled = compileGraph(graph, { nodes: options.nodeKinds ?? [] });
+      const steps: Record<string, GraphStep | GraphNodeStep> = {};
 
       for (const [alias, name] of Object.entries(compiled.aliases)) {
         const step = options.steps[name];
@@ -454,6 +532,18 @@ export function graphStarter(options: GraphStarterOptions): BuilderStarter {
         if (step === undefined) {
           throw new Error(
             `better-supabase: the graph uses step "${name}", which was not passed to graphStarter`,
+          );
+        }
+
+        steps[alias] = step;
+      }
+
+      for (const [alias, kind] of Object.entries(compiled.nodeAliases ?? {})) {
+        const step = options.nodes?.[kind];
+
+        if (step === undefined) {
+          throw new Error(
+            `better-supabase: the graph has a node of kind "${kind}", whose step was not passed to graphStarter's nodes`,
           );
         }
 

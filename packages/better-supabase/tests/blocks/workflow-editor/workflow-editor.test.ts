@@ -290,6 +290,85 @@ describe("createWorkflowEditor", () => {
     ]);
   });
 
+  it("sets a definition's purpose, resolves the default, and syncs node kinds", async () => {
+    const lifecycle = { ...DEFINITION, purpose: "lifecycle", isDefault: true };
+
+    const { transport, calls } = fake({
+      set_workflow_definition_purpose: () => lifecycle,
+      resolve_workflow_definition: (args) =>
+        args["subject_type"] === "deal"
+          ? { definition: lifecycle, version: published }
+          : null,
+      sync_workflow_node_kinds: () => 1,
+      workflow_node_kinds_list: () => [
+        {
+          kind: "notify",
+          title: "Notify",
+          branches: false,
+          configSchema: null,
+        },
+      ],
+    });
+
+    const builder = createWorkflowEditor({
+      transport,
+      nodes: [
+        {
+          apiVersion: 1,
+          kind: "notify",
+          title: "Notify",
+          configSchema: { type: "object" },
+        },
+      ],
+    });
+
+    const set = await builder.definitions
+      .setPurpose("d1", "lifecycle", { isDefault: true })
+      .orThrow();
+
+    expect(set).toMatchObject({ purpose: "lifecycle", isDefault: true });
+    await builder.definitions.setPurpose("d1", "automation").orThrow();
+
+    const resolved = await builder.definitions
+      .resolve("t1", { subjectType: "deal" })
+      .orThrow();
+
+    expect(resolved?.definition.isDefault).toBe(true);
+    expect(resolved?.version.version).toBe(1);
+    expect(
+      await builder.definitions
+        .resolve("t1", { purpose: "lifecycle" })
+        .orThrow(),
+    ).toBeUndefined();
+    expect(await builder.nodeKinds.sync().orThrow()).toBe(1);
+    expect(await builder.nodeKinds.list().orThrow()).toEqual([
+      {
+        kind: "notify",
+        title: "Notify",
+        description: undefined,
+        branches: false,
+        configSchema: {},
+      },
+    ]);
+    expect(calls.map((call) => call.args)).toEqual([
+      { definition: "d1", purpose: "lifecycle", is_default: true },
+      { definition: "d1", purpose: "automation", is_default: false },
+      { tenant: "t1", purpose: "lifecycle", subject_type: "deal" },
+      { tenant: "t1", purpose: "lifecycle", subject_type: undefined },
+      {
+        kinds: {
+          notify: {
+            title: "Notify",
+            description: undefined,
+            branches: false,
+            configSchema: { type: "object" },
+          },
+        },
+      },
+      {},
+    ]);
+  });
+
   it("compiles on publish, unless the version is already published", async () => {
     let status = "draft";
 

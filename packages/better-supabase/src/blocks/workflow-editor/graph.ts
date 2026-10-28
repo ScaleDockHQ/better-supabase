@@ -15,20 +15,48 @@ export const isGraphRecord = (
 ): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-export type WorkflowNodeKind =
+/** The node kinds every graph may use. */
+export type WorkflowBuiltinNodeKind =
   | "trigger"
   | "step"
   | "sleep"
   | "approval"
   | "condition";
 
-const WORKFLOW_NODE_KINDS: readonly WorkflowNodeKind[] = [
+/** A built-in kind, or the app's own kind from `defineNodeKind`. */
+export type WorkflowNodeKind = WorkflowBuiltinNodeKind | (string & {});
+
+export const WORKFLOW_BUILTIN_NODE_KINDS: readonly WorkflowBuiltinNodeKind[] = [
   "trigger",
   "step",
   "sleep",
   "approval",
   "condition",
 ];
+
+/** Whether `kind` is one of the built-in node kinds. */
+export const isBuiltinNodeKind = (
+  kind: string,
+): kind is WorkflowBuiltinNodeKind =>
+  WORKFLOW_BUILTIN_NODE_KINDS.some((known) => known === kind);
+
+/**
+ * The shape of an app's own node kind; `workflow_node_kinds` checks the same
+ * pattern.
+ */
+export const NODE_KIND_PATTERN: RegExp = /^[a-z][a-z0-9_.-]{0,62}$/;
+
+/**
+ * What validation needs to know about an app's own node kind: `defineNodeKind`
+ * returns it.
+ */
+export interface WorkflowNodeKindInfo {
+  readonly kind: string;
+  /** Whether its edges take a `true` or `false` branch on its output. */
+  readonly branches?: boolean;
+  /** Problems with a node of this kind, as messages; empty when it may run. */
+  readonly validate?: (node: WorkflowGraphNode) => readonly string[];
+}
 
 export type WorkflowConditionOperator =
   | "equals"
@@ -451,16 +479,22 @@ export function topologicalOrder(
   return order.length === graph.nodes.length ? order : undefined;
 }
 
-/** `value` as a node, or `undefined` when its id or kind is missing. */
+/**
+ * `value` as a node, or `undefined` when its id is missing or its kind is
+ * neither built in nor shaped like an app's own kind.
+ */
 export function nodeOf(value: unknown): WorkflowGraphNode | undefined {
   if (!isGraphRecord(value)) {
     return undefined;
   }
 
-  const id = value["id"];
-  const kind = WORKFLOW_NODE_KINDS.find((known) => known === value["kind"]);
+  const { id, kind } = value;
 
-  if (typeof id !== "string" || kind === undefined) {
+  if (
+    typeof id !== "string" ||
+    typeof kind !== "string" ||
+    !(isBuiltinNodeKind(kind) || NODE_KIND_PATTERN.test(kind))
+  ) {
     return undefined;
   }
 
@@ -506,19 +540,82 @@ export function edgeOf(value: unknown): WorkflowGraphEdge | undefined {
  */
 const NODE_ID = /^[A-Za-z0-9_-]{1,100}$/;
 
-const BRANCHING: ReadonlySet<WorkflowNodeKind> = new Set([
-  "condition",
-  "approval",
-]);
+const BRANCHING: ReadonlySet<string> = new Set(["condition", "approval"]);
+
+export interface ValidateGraphOptions {
+  /**
+   * The step library's names: every step node must use one (`publish` checks it
+   * again in SQL).
+   */
+  readonly steps?: Iterable<string>;
+  /**
+   * The app's own node kinds (`defineNodeKind`); a node of a kind that is
+   * neither built in nor here is an error.
+   */
+  readonly nodes?: Iterable<WorkflowNodeKindInfo>;
+}
+
+/** Whether a node of `kind` branches, given the app's own kinds. */
+export function branchesOn(
+  kind: string,
+  nodes: ReadonlyMap<string, WorkflowNodeKindInfo>,
+): boolean {
+  return BRANCHING.has(kind) || nodes.get(kind)?.branches === true;
+}
+
+function builtinErrors(
+  node: WorkflowGraphNode,
+  kind: WorkflowBuiltinNodeKind,
+  library: ReadonlySet<string> | undefined,
+): readonly string[] {
+  const { id } = node;
+
+  switch (kind) {
+    case "trigger":
+    case "approval": {
+      return [];
+    }
+
+    case "step": {
+      if (typeof node.step !== "string" || node.step.length === 0) {
+        return [`Node ${id} names no step`];
+      }
+
+      return library !== undefined && !library.has(node.step)
+        ? [
+            `Node ${id} uses step ${node.step}, which is not in the step library`,
+          ]
+        : [];
+    }
+
+    case "sleep": {
+      return durationMs(node.config?.["duration"]) === undefined
+        ? [`Node ${id} has no valid duration`]
+        : [];
+    }
+
+    case "condition": {
+      return conditionOf(node) === undefined
+        ? [`Node ${id} has no valid condition`]
+        : [];
+    }
+
+    default: {
+      const unknown: never = kind;
+
+      return [`Node ${id} has an unknown kind ${String(unknown)}`];
+    }
+  }
+}
 
 /**
- * Problems that keep `graph` from running, as messages; empty when it can. Pass
- * the step library's names to check that every step node uses one (`publish`
- * checks it again in SQL).
+ * Problems that keep `graph` from running, as messages; empty when it can.
+ * `options.steps` checks step nodes against the library and `options.nodes`
+ * lists the app's own node kinds.
  */
 export function validateGraph(
   graph: unknown,
-  steps?: Iterable<string>,
+  options: ValidateGraphOptions = {},
 ): readonly string[] {
   if (
     !isGraphRecord(graph) ||
@@ -529,7 +626,14 @@ export function validateGraph(
   }
 
   const errors: string[] = [];
-  const library = steps === undefined ? undefined : new Set(steps);
+
+  const library =
+    options.steps === undefined ? undefined : new Set(options.steps);
+
+  const kinds = new Map(
+    [...(options.nodes ?? [])].map((info) => [info.kind, info]),
+  );
+
   const nodes = new Map<string, WorkflowGraphNode>();
   let triggers = 0;
 
@@ -556,48 +660,18 @@ export function validateGraph(
 
     nodes.set(id, node);
 
-    switch (node.kind) {
-      case "trigger": {
-        triggers += 1;
-        break;
-      }
+    if (isBuiltinNodeKind(node.kind)) {
+      triggers += node.kind === "trigger" ? 1 : 0;
+      errors.push(...builtinErrors(node, node.kind, library));
+      continue;
+    }
 
-      case "step": {
-        if (typeof node.step !== "string" || node.step.length === 0) {
-          errors.push(`Node ${id} names no step`);
-        } else if (library !== undefined && !library.has(node.step)) {
-          errors.push(
-            `Node ${id} uses step ${node.step}, which is not in the step library`,
-          );
-        }
+    const custom = kinds.get(node.kind);
 
-        break;
-      }
-
-      case "sleep": {
-        if (durationMs(node.config?.["duration"]) === undefined) {
-          errors.push(`Node ${id} has no valid duration`);
-        }
-
-        break;
-      }
-
-      case "approval": {
-        break;
-      }
-
-      case "condition": {
-        if (conditionOf(node) === undefined) {
-          errors.push(`Node ${id} has no valid condition`);
-        }
-
-        break;
-      }
-
-      default: {
-        const unknown: never = node.kind;
-        errors.push(`Node ${id} has an unknown kind ${String(unknown)}`);
-      }
+    if (custom === undefined) {
+      errors.push(`Node ${id} has an unknown kind`);
+    } else {
+      errors.push(...(custom.validate?.(node) ?? []));
     }
   }
 
@@ -637,7 +711,7 @@ export function validateGraph(
     if (branch !== undefined) {
       if (branch !== "true" && branch !== "false") {
         errors.push(`Edge ${id} has a branch other than "true" or "false"`);
-      } else if (source !== undefined && !BRANCHING.has(source.kind)) {
+      } else if (source !== undefined && !branchesOn(source.kind, kinds)) {
         errors.push(`Edge ${id} branches from a ${source.kind} node`);
       }
     }

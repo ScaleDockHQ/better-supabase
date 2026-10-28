@@ -17,6 +17,11 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
+import {
+  definitionPurposeSql,
+  nodeKindsDdl,
+  nodeKindsSql,
+} from "./workflow-editor-nodes.ts";
 import { builderPublisherSql } from "./workflow-editor-publisher.ts";
 import {
   builderRuntimeSql,
@@ -77,11 +82,20 @@ const NAMES: BlockSqlNames = {
         forkedFrom: "forked_from",
         forkedFromVersion: "forked_from_version",
         restricted: "restricted",
+        purpose: "purpose",
+        isDefault: "is_default",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["subjectTypes", "scope", "forkedFrom", "forkedFromVersion"],
+      optional: [
+        "subjectTypes",
+        "scope",
+        "forkedFrom",
+        "forkedFromVersion",
+        "purpose",
+        "isDefault",
+      ],
       typed: ["scope"],
     },
     optOuts: {
@@ -183,6 +197,18 @@ const NAMES: BlockSqlNames = {
       },
       optional: ["description"],
     },
+    nodeKinds: {
+      name: "workflow_node_kinds",
+      app: {},
+      columns: {
+        kind: "kind",
+        title: "title",
+        description: "description",
+        branches: "branches",
+        configSchema: "config_schema",
+        updatedAt: "updated_at",
+      },
+    },
     nodeRuns: {
       name: "workflow_node_runs",
       app: {},
@@ -219,14 +245,6 @@ const NAMES: BlockSqlNames = {
     },
   },
 };
-
-const WORKFLOW_NODE_KINDS = [
-  "trigger",
-  "step",
-  "sleep",
-  "approval",
-  "condition",
-] as const;
 
 const WORKFLOW_TRIGGER_KINDS = [
   "manual",
@@ -449,6 +467,8 @@ alter table ${l} add column if not exists ${cl("operation")} text
 ${lockModuleTable(ctx, "steps", { read: true })}
 ${renderPolicy(makePolicy({ table: l, name: "workflow_step_library_read", command: "select", roles: ["authenticated"], using: "true" }), { drop: true, target: l })}
 
+${nodeKindsDdl(ctx)}
+
 -- The status of each node of a run, by node id, written by the engine.
 create table if not exists ${n} (
   ${cn("run")} uuid not null references ${r} (${cr("id")}) on delete cascade,
@@ -491,57 +511,7 @@ create table if not exists ${f} (
 create index if not exists workflow_alert_fires_run_idx on ${f} (${cf("run")});
 ${lockModuleTable(ctx, "alertFires")}
 
--- Problems that keep a graph from being published, as messages; empty when
--- it may be. The step names must be in the step library.
-create or replace function ${fn("validate_workflow_graph")}(graph jsonb)
-returns jsonb
-language plpgsql
-stable
-set search_path = ''
-as $$
-declare
-  v_errors text[] := '{}';
-  v_nodes jsonb := coalesce(graph -> 'nodes', 'null'::jsonb);
-  v_edges jsonb := coalesce(graph -> 'edges', '[]'::jsonb);
-  v_node jsonb;
-  v_edge jsonb;
-  v_ids text[] := '{}';
-  v_triggers integer := 0;
-begin
-  if jsonb_typeof(v_nodes) <> 'array' or jsonb_typeof(v_edges) <> 'array' then
-    return jsonb_build_array('A graph has a nodes array and an edges array');
-  end if;
-  for v_node in select value from jsonb_array_elements(v_nodes) loop
-    if coalesce(jsonb_typeof(v_node -> 'id'), '') <> 'string' or (v_node ->> 'id') !~ '^[A-Za-z0-9_-]{1,100}$' then
-      v_errors := array_append(v_errors, 'Every node has an id of 1 to 100 letters, digits, underscores or hyphens');
-      continue;
-    end if;
-    if (v_node ->> 'id') = any (v_ids) then
-      v_errors := array_append(v_errors, format('Node %s appears twice', v_node ->> 'id'));
-    end if;
-    v_ids := array_append(v_ids, v_node ->> 'id');
-    if coalesce(v_node ->> 'kind', '') not in (${list(WORKFLOW_NODE_KINDS)}) then
-      v_errors := array_append(v_errors, format('Node %s has an unknown kind', v_node ->> 'id'));
-    elsif v_node ->> 'kind' = 'trigger' then
-      v_triggers := v_triggers + 1;
-    elsif v_node ->> 'kind' = 'step' and not exists (
-      select 1 from ${l} s where s.${cl("name")} = v_node ->> 'step'
-    ) then
-      v_errors := array_append(v_errors, format('Node %s uses step %s, which is not in the step library', v_node ->> 'id', coalesce(v_node ->> 'step', 'null')));
-    end if;
-  end loop;
-  if v_triggers < 1 then
-    v_errors := array_append(v_errors, 'A graph has at least one trigger node');
-  end if;
-  for v_edge in select value from jsonb_array_elements(v_edges) loop
-    if not coalesce((v_edge ->> 'source') = any (v_ids), false) or not coalesce((v_edge ->> 'target') = any (v_ids), false) then
-      v_errors := array_append(v_errors, format('Edge %s joins a node that does not exist', coalesce(v_edge ->> 'id', '?')));
-    end if;
-  end loop;
-  return to_jsonb(v_errors);
-end;
-$$;
-${callable(`${fn("validate_workflow_graph")}(jsonb)`)}
+${nodeKindsSql(ctx, s)}
 
 -- Creates a definition, or renames the one with the same tenant and slug:
 -- the service role or workflow.edit in tenant (and an edit grant on a
@@ -867,6 +837,8 @@ as $$
 $$;
 ${callable(`${fn("workflow_version_get")}(uuid)`)}
 
+${definitionPurposeSql(ctx, s)}
+
 ${builderStartsSql(ctx, s)}
 
 ${builderRuntimeSql(s)}`;
@@ -968,6 +940,22 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "remove_workflow_credential", args: ["uuid"], returns: "jsonb" },
     { name: "sync_workflow_steps", args: ["jsonb"], returns: "integer" },
     { name: "workflow_steps_list", args: [], returns: "jsonb" },
+    { name: "sync_workflow_node_kinds", args: ["jsonb"], returns: "integer" },
+    { name: "workflow_node_kinds_list", args: [], returns: "jsonb" },
+    ...(ctx.has("definitions", "purpose") && ctx.has("definitions", "isDefault")
+      ? [
+          {
+            name: "set_workflow_definition_purpose",
+            args: ["uuid", "text", "boolean"],
+            returns: "jsonb",
+          },
+          {
+            name: "resolve_workflow_definition",
+            args: ["{id}", "text", "text"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
     {
       name: "record_workflow_node_run",
       args: ["text", "text", "text", "integer", "jsonb", "text"],
@@ -995,7 +983,7 @@ export const WORKFLOW_BUILDER: BlockSqlDefinition = {
   integrates: ["service-accounts", "subjects", "teams"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   upgrades: [
     {
       from: 1,
@@ -1011,6 +999,12 @@ export const WORKFLOW_BUILDER: BlockSqlDefinition = {
         ctx.manages
           ? `${ctx.owns("triggers") ? `delete from ${ctx.table("triggers")} where ${ctx.col("triggers", "kind")} = 'event';\n` : ""}drop function if exists ${ctx.fn("workflow_event_targets")}(text, ${ctx.idType});`
           : "",
+    },
+    {
+      from: 3,
+      description:
+        "Definitions gain purpose (automation or lifecycle) and is_default; workflow_node_kinds is the registry of the app's own node kinds, synced by sync_workflow_node_kinds, and validate_workflow_graph accepts them; set_workflow_definition_purpose, resolve_workflow_definition and workflow_node_kinds_list are new.",
+      sql: () => "",
     },
   ],
   names: NAMES,
