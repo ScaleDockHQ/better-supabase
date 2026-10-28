@@ -49,8 +49,8 @@ export function driveGrantsSql(kit: DriveKit): string {
       : `case when v_type = 'team' then (select t.${teams.col("teams", "id")} from ${teams.table("teams")} t where t.${teams.col("teams", "id")}::text = drive_share.principal_id) end`;
 
   const grantValues = typed
-    ? `v_node.${n("tenant")}, v_node.${n("id")}, v_type, drive_share.principal_id, drive_share.role${expiring ? ", drive_share.expires_at" : ""}${ctx.has("grants", "createdBy") ? ", auth.uid()" : ""}`
-    : `v_node.${n("tenant")}, v_node.${n("id")}, case when v_type = 'user' then drive_share.principal_id::uuid end${teamColumn ? `, ${teamValue}` : ""}, drive_share.role${expiring ? ", drive_share.expires_at" : ""}${ctx.has("grants", "createdBy") ? ", auth.uid()" : ""}`;
+    ? `v_node.${n("tenant")}, v_node.${n("id")}, v_type, drive_share.principal_id, ${ctx.cast("grants", "role", "drive_share.role")}${expiring ? ", drive_share.expires_at" : ""}${ctx.has("grants", "createdBy") ? ", auth.uid()" : ""}`
+    : `v_node.${n("tenant")}, v_node.${n("id")}, case when v_type = 'user' then drive_share.principal_id::uuid end${teamColumn ? `, ${teamValue}` : ""}, ${ctx.cast("grants", "role", "drive_share.role")}${expiring ? ", drive_share.expires_at" : ""}${ctx.has("grants", "createdBy") ? ", auth.uid()" : ""}`;
 
   const samePrincipal = (alias: string): string =>
     `${principalType(alias)} = v_type and ${principalId(alias)} = drive_share.principal_id`;
