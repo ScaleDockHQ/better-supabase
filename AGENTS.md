@@ -236,6 +236,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0119: Tenant approval policies tighten config floors with conditions and a confirm or authorize mode; manager approvers; approvals consumed once against a fingerprint.
 - 0120: Quotes publish immutable `quote_versions` and revise in place; document discounts, VAT-inclusive prices and deposits count per tax rate into `quote_tax_lines`.
 - 0121: Enrollment steps carry an assignee and a due date, rendered into open `enrollment_steps` rows with `due_at`.
+- 0122: ai-chat runs without a tenant (`tenant: false`), shares chats through `ai_chat_participants`, and `messages` keys a linear list by uuid with native parts (amends 0010).
 
 ## Pre-release pins
 
