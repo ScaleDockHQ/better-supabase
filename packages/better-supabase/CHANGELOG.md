@@ -1,5 +1,52 @@
 # better-supabase
 
+## 0.37.0
+
+### Minor Changes
+
+- [#513](https://github.com/ScaleDockHQ/better-supabase/pull/513) [`dec1680`](https://github.com/ScaleDockHQ/better-supabase/commit/dec16807d5c6c1d826e5892f8f2b908a733bb612) Thanks [@mick340](https://github.com/mick340)! - Adopter gaps, round 38: one-statement updates, a whole option matrix, finer keys for invoices and expenses, and confidential leave.
+  
+  - Updates write the extra columns in the same `update` as the block's own columns: `save_product` (with `kind` and the price settings), `save_variant`, `save_category`, `update_expense`, `update_leave_request` and `save_calendar_event`. A table check across a block column and an extra column, such as `(kind = 'digital') = (delivery is not null)`, now holds when a product changes kind.
+  - Catalog: `setOptions(productId, options, { titleSeparator? })` (`set_product_options`) replaces a product's options by name and makes its variants the full matrix in one transaction. Variants of a surviving combination keep their id, duplicates and variants of removed values are deleted or archived, missing combinations get a new variant, and titles become the values joined by `" / "`. `options.maxVariants` (default 100) caps the matrix.
+  - Invoices: optional `permissions.create`, `update`, `issue`, `payment`, `credit` and `charge` (falling back to `write`) and `void`, `writeOff` and `reverse` (falling back to `manage`).
+  - Expenses without reports: optional `permissions.create`, `update`, `delete` (for someone else's expenses), `reimburse` and `categories`, each falling back to `manage`. `reimburse` also covers `reimburse_expense_report`, and `categories` the category functions with reports.
+  - Leave: `columns.types.confidential` maps a boolean column of your own types table. Leave of a confidential type is left out of `list`, `balances`, `ledger`, the feeds and the read policy for anyone but the employee, their manager and holders of `permissions.readConfidential` (`manage` when unset).
+  - Leave feed: `options.feed.names` reads first and last name when the employees block uses `name: "split"`, and `options.feed.typeKey` names the types column `hideTypes` matches, such as `category`.
+  
+  Configs that set none of the new keys or columns behave as before.
+
+- [#509](https://github.com/ScaleDockHQ/better-supabase/pull/509) [`f88bad5`](https://github.com/ScaleDockHQ/better-supabase/commit/f88bad5b21d83d2ed0edaa28d868b384b3331503) Thanks [@martijn00](https://github.com/martijn00)! - Inventory counts fractional units with lots, serials, expiry, bins and average cost; orders come from lines or a quote; and shipments carry stock (ADR 0127).
+  
+  - `setStockItem(variantId, { unit, scale, tracking, tracksExpiry, costing, currency })` gives a variant a unit with up to 6 decimals, lot or serial tracking and weighted average cost. The ledger posts base units (the quantity times ten to the scale).
+  - Every movement takes a `detail` with `binId`, `lotId` or `lot` and `serials`. `saveBin` (with `hold` bins), `saveLot`, `stockDetail`, `expiringLots`, `expireLots` and `stockValuation` read and age the stock. Stock leaves first-expiry-first-out, and sales skip hold bins and expired lots.
+  - `allocate`, `fulfillAllocation`, `restoreAllocation`, `releaseAllocations` and `listAllocations` hold stock for a document line in `stock_allocations`, with backorders that fill as stock arrives. Events: `allocation.created`, `allocation.filled`, `allocation.released`.
+  - `orders.fromLines(organizationId, input)` and `orders.fromQuote(quoteId)` make a `confirmed` order, once per origin or quote, and allocate its lines. `orderFromQuoteAction` calls `orders.fromQuote` when you pass no `create`.
+  - `shipments.setLines(id, lines)` and `shipments.receiveReturn(id, lines)` with the new `shipment_lines` table: the label takes the lines out of inventory, cancelling puts them back, and returns are restocked, held or scrapped (`shipment.return_received`).
+  
+  Breaking changes:
+  
+  | Before                                                    | After                                                            |
+  | --------------------------------------------------------- | ---------------------------------------------------------------- |
+  | integer stock columns and functions                       | `numeric(20, 6)`; `available` is on hand minus reserved and held |
+  | `before_stock_adjust(uuid, uuid, integer, text)`          | `before_stock_adjust(uuid, uuid, numeric, text)`                 |
+  | `before_stock_reserve(uuid, uuid, integer, text, text)`   | `before_stock_reserve(uuid, uuid, numeric, text, text)`          |
+  | `move_stock(..., quantity integer, ...)`                  | `move_stock(..., quantity numeric, ..., detail jsonb)`           |
+  | `OrderStatus` without `confirmed`                         | `confirmed`, the first status of an order from a document        |
+  | `orderFromQuoteAction({ create })` with `create` required | `create` optional                                                |
+  | `Shipment` without `lines`                                | `Shipment.lines`                                                 |
+  
+  Raw SQL reads of the stock columns now return decimal strings such as `"7.000000"`, and stock event payloads carry them the same way (`available`, `reorderPoint`).
+  
+  `better-supabase codemod 0.37` lists the stock hooks declared with an `integer` quantity, the order status switches and `orderFromQuoteAction` calls for review.
+
+- [#510](https://github.com/ScaleDockHQ/better-supabase/pull/510) [`576d7bd`](https://github.com/ScaleDockHQ/better-supabase/commit/576d7bd33d40760177b4e43328ff69a3506d048f) Thanks [@martijn00](https://github.com/martijn00)! - Templates take brand starters: with `blocks.templates.options.brand` set to the table and column that hold a tenant's brand, a starter `sync` saves with a `brand` reaches every organization of that brand. `templates.recurring` applies a template at each occurrence of a recurrence rule kept in reminders: `upsert`, `list` and `remove` manage schedules, `recurring.schedule()` (a manifest schedule every five minutes) enqueues one `templates.recur` job per occurrence on the `jobs` client, and `recurring.job` applies it once. A state-machine machine with `workflow: "<slug>"` reads its stages and edges from the published workflow-editor version and pins that version per record. Timelines add `transition` entries from the status history and `message` entries from the record's conversation.
+  
+  Breaking: `TemplateScope` adds `"brand"`, `ActivitySource` adds `"transition"` and `"message"`, and `StatusState` adds `workflow` and `workflowVersionId`, so exhaustive switches over them need the new cases. Nothing is renamed. Run `better-supabase upgrade` and `db diff` to add the `brand` column, the schedule tables (with `reminders`) and the lifecycle's `workflow_version_id`.
+
+### Patch Changes
+
+- [#512](https://github.com/ScaleDockHQ/better-supabase/pull/512) [`74f9528`](https://github.com/ScaleDockHQ/better-supabase/commit/74f9528de152d3080b460bfe2a9b78f77175a9df) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase codemod 0.37` makes every rewrite from 0.35 to 0.37 and lists the rest for review: the session, cache and block changes of 0.36.0 and the stock and order changes of 0.37.0. The new [From 0.35 to 0.37](https://bettersupabase.com/docs/migration/0.35-to-0.37) guide covers upgrading from 0.35 to 0.36 or 0.37 and says which release brought each change. The 0.34 to 0.35 guide now lists only what 0.35.0 shipped. `codemod 0.35`, which 0.36.0 shipped, keeps its rewrites and review lines.
+
 ## 0.36.0
 
 ### Minor Changes
