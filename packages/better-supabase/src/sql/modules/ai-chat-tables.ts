@@ -169,7 +169,7 @@ export function appKey(
  * A condition true when the caller takes part in chat `chat` (an expression)
  * through `ai_chat_participants`, in one of `roles` (any role when empty).
  */
-export function participates(
+function participates(
   names: AiChatNames,
   chat: string,
   roles: readonly ("viewer" | "editor")[] = [],

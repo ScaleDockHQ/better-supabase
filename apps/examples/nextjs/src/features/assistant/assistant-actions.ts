@@ -5,7 +5,7 @@ import * as v from "valibot";
 
 import { bsb } from "@/lib/supabase/server";
 
-import { aiChat, aiFiles } from "./assistant-server";
+import { aiFiles } from "./assistant-server";
 
 /** 10 MB: a signed upload; larger files would use TUS. */
 const MAX_SIZE = 10 * 1024 * 1024;
@@ -57,36 +57,4 @@ export const confirmAttachment = bsb.action(
         filename: file.filename,
         url: aiFileUrl(file),
       })),
-);
-
-/**
- * Shares one of the caller's chats with a teammate. A viewer reads it; an
- * editor also sends messages. The teammate must be able to read the
- * organization's chats.
- */
-export const shareChatWith = bsb.action(
-  {
-    input: v.object({
-      chatId: v.pipe(v.string(), v.uuid()),
-      userId: v.pipe(v.string(), v.uuid()),
-      role: v.picklist(["viewer", "editor"]),
-    }),
-    requireTenant: true,
-    permission: "ai_chat.share",
-  },
-  ({ chatId, userId, role }, { supabase }) =>
-    aiChat(supabase).participants.add(chatId, userId, { role }),
-);
-
-/** Takes a teammate off a chat, or lets the caller leave one. */
-export const removeChatParticipant = bsb.action(
-  {
-    input: v.object({
-      chatId: v.pipe(v.string(), v.uuid()),
-      userId: v.pipe(v.string(), v.uuid()),
-    }),
-    requireTenant: true,
-  },
-  ({ chatId, userId }, { supabase }) =>
-    aiChat(supabase).participants.remove(chatId, userId),
 );
