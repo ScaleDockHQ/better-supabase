@@ -175,6 +175,13 @@ describe("createKnowledge", () => {
       calls.find((c) => c.fn === "list_knowledge_documents")?.args,
     ).toEqual({ tenant: "o1", scope: "user", scope_id: "u1", max_rows: 5 });
     expect(await knowledge.documents.remove("d1").orThrow()).toBe(true);
+
+    await knowledge.ingest
+      .text(null, { title: "Handbook", text: "shared", collectionId: "c1" })
+      .orThrow();
+    expect(
+      calls.findLast((c) => c.fn === "create_knowledge_document")?.args,
+    ).toMatchObject({ tenant: null, collection_id: "c1" });
   });
 
   it("ingests a file through ai-files and the extractor", async () => {

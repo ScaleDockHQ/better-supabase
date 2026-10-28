@@ -186,8 +186,12 @@ export interface Knowledge {
   /** Collections of documents with a visibility, a priority and grants. */
   readonly collections: KnowledgeCollections;
   readonly documents: {
+    /**
+     * Creates a document. `organizationId` null creates a system document,
+     * which every tenant reads (service role).
+     */
     create(
-      organizationId: string,
+      organizationId: string | null,
       document: NewKnowledgeDocument,
     ): AsyncResult<KnowledgeDocument>;
     get(documentId: string): AsyncResult<KnowledgeDocument>;
@@ -209,9 +213,12 @@ export interface Knowledge {
     remove(documentId: string): AsyncResult<boolean>;
   };
   readonly ingest: {
-    /** Creates a document from text and writes its chunks. */
+    /**
+     * Creates a document from text and writes its chunks; null creates a system
+     * document (service role).
+     */
     text(
-      organizationId: string,
+      organizationId: string | null,
       document: NewKnowledgeDocument & { readonly text: string },
     ): AsyncResult<KnowledgeDocument>;
     /** Creates a document from a ready ai-files file and writes its chunks. */
@@ -481,7 +488,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
       : AsyncResult.err(notFound());
 
   const create = (
-    organizationId: string,
+    organizationId: string | null,
     document: NewKnowledgeDocument,
   ): AsyncResult<KnowledgeDocument> =>
     call(
@@ -515,7 +522,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
     ).andThen(found);
 
   const fromText = (
-    organizationId: string,
+    organizationId: string | null,
     document: NewKnowledgeDocument,
     text: string,
   ): AsyncResult<KnowledgeDocument> =>
