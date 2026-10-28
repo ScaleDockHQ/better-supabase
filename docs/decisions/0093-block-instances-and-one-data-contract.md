@@ -1,6 +1,6 @@
 # 0093: Install blocks as named instances behind one data contract
 
-- Status: accepted
+- Status: partly superseded by 0129
 - Date: 2026-10-22
 
 ## Context

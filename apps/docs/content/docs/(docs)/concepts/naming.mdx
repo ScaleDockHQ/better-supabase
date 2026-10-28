@@ -48,6 +48,31 @@ The data verbs are the same on every table and every instance: `list`,
 and `delete` write; `attach` and `detach` link a row to a record. "Feature"
 only means a feature flag.
 
+## Block naming
+
+Every block follows one convention, recorded in
+[ADR 0129](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0129-one-naming-convention-for-blocks.md).
+The block name is the stem for everything a block installs, so one word
+finds the tables, the permissions, the events, the errors and the docs.
+
+| Thing            | Rule                                                                                     | Example                                 |
+| ---------------- | ---------------------------------------------------------------------------------------- | --------------------------------------- |
+| block            | kebab-case, unchanged                                                                    | `service-accounts`                      |
+| entity key       | its singular, unique across blocks; a generic noun takes the block noun as a prefix      | `compliance_policy`, `drive_node`       |
+| table            | the plural of its entity; a link, log or history table starts with the entity's singular | `compliance_policies`, `task_assignees` |
+| permission key   | `<area>.<verb>`, area is the block name in snake_case                                    | `compliance.read`                       |
+| permission verbs | `read`, `write`, `delete`, `manage`, plus domain verbs; never `view`, `edit` or `admin`  | `cases.close`, `risks.assess`           |
+| event type       | `<entity singular>.<past tense verb>`                                                    | `compliance_policy.updated`             |
+| hint code        | `<ENTITY>_<REASON>`                                                                      | `CONTROL_FORBIDDEN`                     |
+| SQL function     | `create_<entity>`, `update_<entity>`, `get_<entity>`, `list_<entities>`                  | `create_task`                           |
+| docs page        | the block's plain name in title case, at `/docs/blocks/<block-name>`                     | "Tasks"                                 |
+
+Event verbs are `created`, `updated`, `deleted`, `archived`, `restored` and
+`purged`; a save emits `created` or `updated`, a removal emits `deleted`,
+and a changed attribute emits `<attribute>_changed`. `subject` is the SQL
+word and `record` the docs word, and the columns `subject_type` and
+`subject_id` keep their names.
+
 ## Definition and instances
 
 `betterSupabase` is the definition from `defineSupabase`. It holds the schema

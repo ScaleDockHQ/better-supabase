@@ -4,6 +4,60 @@ A block is one or more SQL modules plus, optionally, a TypeScript side under
 `better-supabase/blocks/<name>`. Read `database.md` first for the fixture
 workflow; this page is the checklist for a new block.
 
+## Naming
+
+One convention for every block (ADR 0129; the docs Naming page carries the
+reader-facing version).
+
+1. Block names are kebab-case, and existing block names do not change.
+2. An entity key equals its `singular`, and entity keys are unique across
+   all blocks. A generic noun (`document`, `request`, `entry`, `policy`,
+   `task`, `type`, `location`, `key`, `link`, `view`, `field`, `node`,
+   `server`, `snapshot`, `definition`, `project`) takes the block noun as a
+   prefix (`knowledge_document`, `leave_request`, `drive_node`). The block
+   that owns the plain noun keeps it (`documents` keeps `document`, `tasks`
+   keeps `task` and `project`).
+3. A table is the plural of its entity in snake_case (`compliance_policy`
+   becomes `compliance_policies`). A table that is not an entity (a link,
+   log or history table) starts with its entity's singular
+   (`task_assignees`, `case_actions`). Uncountable nouns stay singular
+   (`control_evidence`, `webhook_inbox`, `scim_sync_log`, `custom_emoji`).
+   Acronym prefixes of a standard stay (`ssf_*`, `scim_*`, `oauth_*`).
+4. `subject` is the SQL term and `record` is the docs term. The columns
+   `subject_type` and `subject_id`, the `subjects` module and the
+   `subject.*` events keep their names.
+5. A permission key is `<area>.<verb>`, and the area is the block name in
+   snake_case. `messaging`, `comments` and `channels` share `messages.*`
+   because they share one table; `channels` keeps `channels.*` for channel
+   settings. `organizations` owns `organization.*`, `members.*` and
+   `platform.*`.
+6. Permission verbs are `read`, `write`, `delete` (only when deleting
+   differs from writing) and `manage`, plus domain verbs (`approve`,
+   `submit`, `review`, `acknowledge`, `collect`, `assign`, `grant`,
+   `assess`, `close`, `invite`, `record`). Never `view`, `edit` or
+   `admin`, and a key never has three parts.
+7. An event type is `<entity singular>.<past tense verb>`, where the entity
+   is the one that changed, whichever block wrote it. Lifecycle verbs are
+   `created`, `updated`, `deleted`, `archived`, `restored` and `purged`.
+   Never `saved`, `removed`, `upserted` or `<attribute>_set`.
+8. A hint code is `<ENTITY>_<REASON>` in upper snake case, from the entity
+   singular (`CONTROL_FORBIDDEN`, `TASK_NOT_FOUND`).
+9. SQL functions are named from the entity singular through `ctx.fn`:
+   `create_<entity>`, `update_<entity>`, `get_<entity>`,
+   `list_<entities>`, `delete_<entity>`, plus domain verbs
+   (`close_case`, `assess_risk`). Hooks are `before_<entity>_<action>` and
+   `after_<entity>_<action>`.
+10. Exports are `create<Pascal>`, `<camel>Block` and `<camel>Events`.
+    Acronyms are written as words: `createOauthServer`.
+11. A docs page title is the block's plain name in title case, optionally
+    with a short qualifier. The first sentence names the block by its block
+    name, and the URL is `/docs/blocks/<block-name>`.
+12. The manifest `category` decides the docs folder through `BLOCK_GROUPS`
+    in `scripts/docs-drift.ts`.
+
+Renames land through the maps in `src/core/renames.ts`, the module data
+step, the `codemod 0.36` rename and the doctor checks.
+
 ## The SQL module
 
 - One file in `src/sql/modules/<name>.ts` exporting a `BlockSqlDefinition`
@@ -39,14 +93,14 @@ workflow; this page is the checklist for a new block.
 - Name module functions, triggers, indexes and policies through `ctx.fn`,
   `ctx.trigger` or `ctx.naming.rename(...)`, never a literal that contains
   `organization` or one of the module's entity nouns, so
-  `blocks.memberships.entities.organization` and `blocks.<name>.entities` rename
+  `blocks.memberships.names.organization` and `blocks.<name>.names` rename
   them (`tests/sql/__golden__/naming-workspace`,
   `tests/sql/entity-renames.test.ts`). Name a table's index or policy after
   the table (`${ctx.tableName("comments").name}_read`), so it follows the
   rename. Parameter names stay, and so do block-scoped names that start with
   `bs_<block>_` (constraints, storage policies, settings) and storage paths,
   because renaming them would orphan the old objects or files. Add the module's keys to
-  `MODULE_PERMISSIONS` and `MODULE_PERMISSION_SCOPES` in
+  `OPERATIONS` and `MODULE_PERMISSION_SCOPES` in
   `src/sql/modules/permissions-model.ts`, and to `DEFAULT_ROLES` when a default
   role should hold them.
 - Every entity a user can rename goes in `NAMES.entities` (ADR 0060): its
@@ -174,7 +228,7 @@ never add a new block to one.
 - Calls go through a `BlockTransport` with `blockCall` from
   `src/core/block-helpers.ts` (re-exported by `src/blocks/shared.ts`), and
   return `AsyncResult`. Row coercers (`textOf`, `recordOf`,
-  `optionalInstant`, `enumOrThrow`), `mappersOf`, `pageOf` and
+  `optionalInstant`, `enumOrThrow`), `pageOf` and
   `injectableOf` live there too; don't copy them into a block.
 - Options use `mappers` for error mappers and `{ limit, cursor }`
   (`CursorPageOptions`) for pages. An injectable function or object takes an
