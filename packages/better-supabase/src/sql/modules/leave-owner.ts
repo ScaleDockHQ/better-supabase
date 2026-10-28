@@ -34,6 +34,21 @@ export function leavePartsMapped(ctx: BlockSqlContext): boolean {
   return mapped(ctx, "requests", "startPart");
 }
 
+export function leaveAutoApproveMapped(ctx: BlockSqlContext): boolean {
+  return mapped(ctx, "types", "autoApprove");
+}
+
+/**
+ * Whether leave types say which requests need no approval: the block's own
+ * types table, or a mapped `columns.types.autoApprove`.
+ */
+export function leaveAutoApprove(ctx: BlockSqlContext): boolean {
+  return (
+    ctx.has("types", "autoApprove") &&
+    (leaveAutoApproveMapped(ctx) || ctx.owns("types"))
+  );
+}
+
 export function leaveBalancesTable(ctx: BlockSqlContext): boolean {
   if (typeof ctx.config.tables["balances"] !== "string") {
     return false;

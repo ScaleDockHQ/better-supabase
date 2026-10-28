@@ -85,6 +85,10 @@ const approvals = createApprovals({ transport });
 await approvals.approve(request.approvalId!).orThrow();
 ```
 
+`update(requestId, change)` changes a pending or approved request: its dates, `partial` or `startPart` and `endPart`, `hours`, `note` (an empty note clears it) or `fields`; what it leaves out keeps its value. The requester changes a pending request, which goes back to approval (the open approval request is cancelled and a new one opened). A member with `leave.manage` (or the employee's manager) also changes approved leave, which is booked again for the new amount, so a balance follows shortened or moved leave. `split(requestId, { gapStarts, gapEnds })` takes a gap out of approved leave, such as sick days during a holiday: the request ends the day before `gapStarts`, and a new approved request (`split`) takes the days after `gapEnds`, each booked for its own working days. The gap needs leave on both sides; shorten with `update` otherwise.
+
+A type with `autoApprove: true` needs no approval: its requests are approved when they are made, also by the requester, and booked at once. Sick leave is the common case. The block's own types table has the column; on your table map `columns.types.autoApprove`.
+
 `cancel(requestId)` cancels a pending request, or an approved one before the leave starts, for its requester, and any request for a member with `leave.manage`. It cancels a pending approval request with it. Cancelling an approved request writes an entry that gives the days back. `list` returns the caller's requests, earliest first, and `userId` or `everyone: true` read other members' with `leave.read`; `status`, `from` and `to` narrow it.
 
 ## Balances
@@ -164,6 +168,21 @@ const link = await shareLinks
 const feed = await leave.feed(link.token).orThrow();
 ```
 
+Each entry has `startPart` and `endPart`. `options.feed` takes more:
+
+| Option      | Effect                                                                                                                                                       |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `teams`     | with the [teams](/docs/blocks/teams) block, a link of subject type `leave_team_feed` whose subject id is a team's id shares the leave of that team's members |
+| `names`     | each entry carries the employee's `name`; needs the employees block                                                                                          |
+| `hideTypes` | type keys whose `type` name the feed leaves out, such as `["sick"]`                                                                                          |
+| `fields`    | each entry carries the request's extra columns, such as start and end times                                                                                  |
+
+```ts
+leave: {
+  options: { feed: { teams: true, names: true, hideTypes: ["sick"], fields: true } },
+}
+```
+
 ## Errors
 
 | Hint                      | Cause                                                                                               |
@@ -174,12 +193,12 @@ const feed = await leave.feed(link.token).orThrow();
 | `LEAVE_BALANCE_EXCEEDED`  | the request is more than the available balance                                                      |
 | `LEAVE_TYPE_NOT_FOUND`    | no active type has this id                                                                          |
 | `LEAVE_REQUEST_NOT_FOUND` | no request the caller can see has this id                                                           |
-| `LEAVE_REQUEST_CLOSED`    | the request is already cancelled                                                                    |
+| `LEAVE_REQUEST_CLOSED`    | the request is already cancelled or decided, or only approved leave is split                        |
 | `LEAVE_EMPLOYEE_INVALID`  | no employee has this id, or the caller has no employee record                                       |
 
 ## Events
 
-The block records `leave.requested`, `leave.approved`, `leave.rejected` (without the approvals block) and `leave.cancelled` with `organizationId`, `id`, `userId`, `typeId`, `startsOn`, `endsOn`, `amount` and `approvalId`, and `leave.adjusted` with `kind`, `amount` and `period` for grants and adjustments. See [events](/docs/extending/events).
+The block records `leave.requested`, `leave.approved`, `leave.rejected` (without the approvals block), `leave.cancelled`, `leave.updated` and `leave.split` (the new request) with `organizationId`, `id`, `userId`, `typeId`, `startsOn`, `endsOn`, `amount` and `approvalId`, and `leave.adjusted` with `kind`, `amount` and `period` for grants and adjustments. See [events](/docs/extending/events).
 
 The block takes `hooks` around its methods; see [extending blocks](/docs/extending/blocks).
 

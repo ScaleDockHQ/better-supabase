@@ -10,6 +10,7 @@ export {
   type LeavePartial,
   type LeaveRequest,
   type LeaveRequestInput,
+  type LeaveRequestUpdate,
   type LeaveRequestListOptions,
   type LeaveFeed,
   type LeaveFeedEntry,
