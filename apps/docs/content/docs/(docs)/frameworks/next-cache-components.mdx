@@ -177,8 +177,8 @@ export default function CustomersPage() {
 
 ## 3. Share the session with Client Components
 
-`SessionProvider` takes the unresolved promise and `useSession()` unwraps it
-with `use()`. Create the promise **inside** the boundary, never at the top of
+`SessionProvider` takes the unresolved promise as `session` and
+`useSession()` unwraps it with `use()`. Create the promise **inside** the boundary, never at the top of
 a layout:
 
 ```tsx title="src/features/navigation/components/app-nav.tsx"
@@ -186,7 +186,7 @@ import { SessionProvider } from "better-supabase/react";
 
 export function AppNav() {
   return (
-    <SessionProvider sessionPromise={getSession()}>
+    <SessionProvider session={getSession()}>
       <SideNav />
     </SessionProvider>
   );
@@ -211,6 +211,11 @@ export function SideNav() {
 `react-server` build of `better-supabase/react` exports it as a client
 reference. Server Components that need the session call `getSession()`
 directly. Within a request that hits the same private cache entry.
+
+To pick up a role or grant change without waiting for the token to rotate,
+turn on the sessions module's `authzVersions` option and give the provider a
+browser client
+([Refresh when permissions change](/docs/frontend/react#refresh-when-permissions-change)).
 
 ## 4. Roles and permissions
 
