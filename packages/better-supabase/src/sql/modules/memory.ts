@@ -13,7 +13,8 @@ import {
   revokeTable,
 } from "../shared.ts";
 import { embeddingColumn, textSearchConfig } from "./knowledge.ts";
-import { asText, lockModuleTable } from "./over-app.ts";
+import { DOCUMENTS, memoryDocumentsSql } from "./memory-documents.ts";
+import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const MEMORIES = {
@@ -32,10 +33,30 @@ const MEMORIES = {
   model: "embedding_model",
   sourceMessage: "source_message_id",
   supersededBy: "superseded_by",
+  subjectType: "subject_type",
+  subjectId: "subject_id",
+  category: "category",
+  confidence: "confidence",
+  expiresAt: "expires_at",
+  deletedAt: "deleted_at",
+  useCount: "use_count",
+  lastUsedAt: "last_used_at",
   tsv: "tsv",
   createdAt: "created_at",
   updatedAt: "updated_at",
 } as const;
+
+/** The memory columns version 3 added, each optional on an adopted table. */
+const ADDED = [
+  "subjectType",
+  "subjectId",
+  "category",
+  "confidence",
+  "expiresAt",
+  "deletedAt",
+  "useCount",
+  "lastUsedAt",
+] as const;
 
 const MESSAGE_EMBEDDINGS = {
   chat: "chat_id",
@@ -45,16 +66,6 @@ const MESSAGE_EMBEDDINGS = {
   embedding: "embedding",
   model: "embedding_model",
   createdAt: "created_at",
-} as const;
-
-const DOCUMENTS = {
-  scopeKey: "scope_key",
-  path: "path",
-  content: "content",
-  version: "version",
-  expiresAt: "expires_at",
-  createdAt: "created_at",
-  updatedAt: "updated_at",
 } as const;
 
 const NAMES: BlockSqlNames = {
@@ -71,7 +82,7 @@ const NAMES: BlockSqlNames = {
     memories: {
       name: "memories",
       columns: MEMORIES,
-      optional: ["model", "sourceMessage", "tsv", "createdAt"],
+      optional: ["model", "sourceMessage", "tsv", "createdAt", ...ADDED],
       typed: ["scope", "kind"],
       app: {},
       lifecycle: { user: "owner", tenant: "tenant" },
@@ -99,7 +110,13 @@ const NAMES: BlockSqlNames = {
 const PATH_PATTERN = "^/memories(/[A-Za-z0-9._ -]+)*$";
 
 /** The namespaces a memory belongs to. */
-const SCOPES = "'user', 'agent', 'chat', 'project', 'organization'";
+const SCOPES = "'user', 'agent', 'chat', 'project', 'organization', 'record'";
+
+/** The scopes whose memory has no owner and only admins change. */
+const SHARED = "'organization', 'record'";
+
+/** A category: a lowercase slug. */
+const CATEGORY_PATTERN = "^[a-z0-9][a-z0-9_-]*$";
 
 /** A `.` or `..` segment. */
 const DOT_SEGMENT = "(^|/)[.]{1,2}(/|$)";
@@ -139,6 +156,13 @@ const MEMORY_JSON = [
   "version",
   "model",
   "sourceMessage",
+  "subjectType",
+  "subjectId",
+  "category",
+  "confidence",
+  "expiresAt",
+  "useCount",
+  "lastUsedAt",
   "createdAt",
   "updatedAt",
 ] as const;
@@ -148,7 +172,6 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const fn = (name: string): string => ctx.fn(name);
   const m = presentColumns(ctx, "memories", MEMORIES);
   const e = presentColumns(ctx, "messageEmbeddings", MESSAGE_EMBEDDINGS);
-  const d = presentColumns(ctx, "documents", DOCUMENTS);
 
   const memory = (column: keyof typeof MEMORIES): boolean =>
     ctx.has("memories", column);
@@ -156,11 +179,25 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const message = (column: keyof typeof MESSAGE_EMBEDDINGS): boolean =>
     ctx.has("messageEmbeddings", column);
 
-  const doc = (column: keyof typeof DOCUMENTS): boolean =>
-    ctx.has("documents", column);
-
   const line = (present: boolean, definition: string): string =>
     present ? `\n  ${definition},` : "";
+
+  const subject = memory("subjectType") && memory("subjectId");
+
+  const subjectColumns = subject ? `, ${m.subjectType}, ${m.subjectId}` : "";
+
+  // A deleted memory stays until purge_memories removes it; an expired one
+  // drops out of reads and searches the same way.
+  const column = (row: string, key: keyof typeof MEMORIES): string =>
+    row ? `${row}.${m[key]}` : m[key];
+
+  const live = (row: string): string =>
+    memory("deletedAt") ? ` and ${column(row, "deletedAt")} is null` : "";
+
+  const fresh = (row: string): string =>
+    memory("expiresAt")
+      ? ` and (${column(row, "expiresAt")} is null or ${column(row, "expiresAt")} > now())`
+      : "";
 
   const unique = (table: string, what: string, columns: string): string =>
     ctx.owns(table)
@@ -172,7 +209,6 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const memories = ctx.table("memories");
   const messageEmbeddings = ctx.table("messageEmbeddings");
-  const documents = ctx.table("documents");
   const permissions = moduleOperations("memory");
   const read = ctx.permission("read", permissions.read);
   const manage = ctx.permission("manage", permissions.manage);
@@ -220,7 +256,9 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   v_agent := (${name}.ns ->> 'agent_id')::uuid;
   v_chat := (${name}.ns ->> 'chat_id')::uuid;
   v_project := (${name}.ns ->> 'project_id')::uuid;
-  v_owner := case when v_scope = 'organization' then null when ${SERVICE_CALLER} then (${name}.ns ->> 'owner_id')::uuid else auth.uid() end;
+  v_subject_type := nullif(${name}.ns ->> 'subject_type', '');
+  v_subject_id := nullif(${name}.ns ->> 'subject_id', '');
+  v_owner := case when v_scope in (${SHARED}) then null when ${SERVICE_CALLER} then (${name}.ns ->> 'owner_id')::uuid else auth.uid() end;
   if not ${SERVICE_CALLER} and (auth.uid() is null or not ${ctx.scope.can(`${name}.tenant`, read)}) then
     ${raise("you may not use memory here", "42501", "MEMORY_FORBIDDEN")}
   end if;
@@ -228,13 +266,15 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     or (v_scope = 'agent') <> (v_agent is not null)
     or (v_scope = 'chat') <> (v_chat is not null)
     or (v_scope = 'project') <> (v_project is not null)
-    or (v_scope <> 'organization' and v_owner is null) then
+    or (v_scope = 'record') <> (v_subject_id is not null)
+    or (v_subject_id is not null) <> (v_subject_type is not null)${subject ? "" : "\n    or v_scope = 'record'"}
+    or (v_scope not in (${SHARED}) and v_owner is null) then
     ${raise("ns % is not a memory namespace", "22023", "MEMORY_NAMESPACE", `${name}.ns`)}
   end if;${
     writes
       ? `
-  if v_scope = 'organization' and not (${SERVICE_CALLER} or ${ctx.scope.can(`${name}.tenant`, manage)}) then
-    ${raise("only admins change organization memory", "42501", "MEMORY_FORBIDDEN")}
+  if v_scope in (${SHARED}) and not (${SERVICE_CALLER} or ${ctx.scope.can(`${name}.tenant`, manage)}) then
+    ${raise("only admins change organization and record memory", "42501", "MEMORY_FORBIDDEN")}
   end if;`
       : ""
   }`;
@@ -244,10 +284,12 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   v_agent uuid;
   v_chat uuid;
   v_project uuid;
+  v_subject_type text;
+  v_subject_id text;
   v_owner uuid;`;
 
   const inNamespace = (row: string, tenant: string): string =>
-    `${row}.${m.tenant} = ${tenant} and ${row}.${m.owner} is not distinct from v_owner and ${asText(ctx, "memories", `${row}.${m.scope}`)} = v_scope and ${row}.${m.agent} is not distinct from v_agent and ${row}.${m.chat} is not distinct from v_chat and ${row}.${m.project} is not distinct from v_project and ${row}.${m.supersededBy} is null`;
+    `${row}.${m.tenant} = ${tenant} and ${row}.${m.owner} is not distinct from v_owner and ${asText(ctx, "memories", `${row}.${m.scope}`)} = v_scope and ${row}.${m.agent} is not distinct from v_agent and ${row}.${m.chat} is not distinct from v_chat and ${row}.${m.project} is not distinct from v_project${subject ? ` and ${row}.${m.subjectType} is not distinct from v_subject_type and ${row}.${m.subjectId} is not distinct from v_subject_id` : ""} and ${row}.${m.supersededBy} is null${live(row)}`;
 
   const checkPath = (path: string): string => `
   if ${path} is null or length(${path}) > 500 or ${path} !~ ${sqlString(PATH_PATTERN)} or ${path} ~ ${sqlString(DOT_SEGMENT)} then
@@ -259,18 +301,87 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     ${raise("memory content is limited to % characters", "22023", "MEMORY_TOO_LARGE", String(maxContent))}
   end if;`;
 
+  const subjectInsert = subject ? `, ${m.subjectType}, ${m.subjectId}` : "";
+
+  const subjectValues = subject ? ", v_subject_type, v_subject_id" : "";
+
+  const saved = (
+    [
+      ["model", "memory_save.model"],
+      ["sourceMessage", "memory_save.source_message_id"],
+      ["category", "memory_save.category"],
+      ["confidence", "memory_save.confidence"],
+      ["expiresAt", "memory_save.expires_at"],
+    ] as const
+  ).filter(([key]) => memory(key));
+
+  const savedColumns = saved.map(([key]) => `, ${m[key]}`).join("");
+
+  const savedValues = saved.map(([, value]) => `, ${value}`).join("");
+
+  const forgetCheck = (row: string): string =>
+    `${SERVICE_CALLER} or coalesce(${row}.${m.owner} = auth.uid(), false) or (${row}.${m.scope} in (${SHARED}) and ${ctx.scope.can(`${row}.${m.tenant}`, manage)})`;
+
   const fileNotFound = (path: string): string =>
     raise("% not found", "P0002", "MEMORY_NOT_FOUND", path);
 
   const signature = (name: string, args: string): string =>
     `${fn(name)}(${args})`;
 
+  const restoreAndPurge = (): string => `
+-- Restores a deleted memory, with the same rights as memory_forget. Fails
+-- when a live file already has its path.
+create or replace function ${fn("memory_restore")}(memory_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${memories}%rowtype;
+begin
+  select * into v_row from ${memories} x where x.${m.id} = memory_restore.memory_id and x.${m.deletedAt} is not null;
+  if not found or not (${forgetCheck("v_row")}) then
+    return false;
+  end if;
+  update ${memories} x set ${m.deletedAt} = null, ${m.updatedAt} = now() where x.${m.id} = v_row.${m.id};
+  return true;
+exception when unique_violation then
+  ${raise("% already exists", "23505", "MEMORY_EXISTS", `v_row.${m.path}`)}
+end;
+$$;
+${userGrant(signature("memory_restore", "uuid"))}
+
+-- Removes memories deleted more than retention_days ago${memory("expiresAt") ? " and expired ones" : ""}, up to
+-- batch rows, and returns how many it removed.
+create or replace function ${fn("purge_memories")}(retention_days integer default 30, batch integer default 1000)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  delete from ${memories} x
+  where x.${m.id} in (
+    select y.${m.id} from ${memories} y
+    where y.${m.deletedAt} < now() - make_interval(days => greatest(purge_memories.retention_days, 0))${memory("expiresAt") ? `\n      or y.${m.expiresAt} < now()` : ""}
+    limit least(greatest(purge_memories.batch, 1), 10000)
+  );
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+${serviceGrant(signature("purge_memories", "integer, integer"))}
+`;
+
   return `${schemaPreamble(ctx)}
 -- Memory for AI assistants. Core memory is a small set of files under
 -- /memories that the model reads and edits with view, create, str_replace,
 -- insert, delete and rename; archival memory is a list of facts found by
--- similarity. Each belongs to a user, an agent, a chat, a project or the
--- organization.
+-- similarity. Each belongs to a user, an agent, a chat, a project, the
+-- organization or a record.
 create table if not exists ${memories} (
   ${m.id} uuid primary key default gen_random_uuid(),
   ${m.tenant} ${id} not null,
@@ -284,26 +395,26 @@ create table if not exists ${memories} (
   ${m.content} text not null check (length(${m.content}) <= ${String(maxContent)}),
   ${m.version} integer not null default 1,
   ${m.embedding} ${embedding.column},${line(memory("model"), `${m.model} text`)}${line(memory("sourceMessage"), `${m.sourceMessage} text`)}
-  ${m.supersededBy} uuid references ${memories} (${m.id}) on delete set null,${line(memory("tsv"), `${m.tsv} tsvector generated always as (to_tsvector(${config}::regconfig, ${m.content})) stored`)}${line(memory("createdAt"), `${m.createdAt} timestamptz not null default now()`)}
+  ${m.supersededBy} uuid references ${memories} (${m.id}) on delete set null,${line(memory("subjectType"), `${m.subjectType} text`)}${line(memory("subjectId"), `${m.subjectId} text`)}${line(memory("category"), `${m.category} text check (${m.category} ~ ${sqlString(CATEGORY_PATTERN)})`)}${line(memory("confidence"), `${m.confidence} real check (${m.confidence} between 0 and 1)`)}${line(memory("expiresAt"), `${m.expiresAt} timestamptz`)}${line(memory("deletedAt"), `${m.deletedAt} timestamptz`)}${line(memory("useCount"), `${m.useCount} integer not null default 0`)}${line(memory("lastUsedAt"), `${m.lastUsedAt} timestamptz`)}${line(memory("tsv"), `${m.tsv} tsvector generated always as (to_tsvector(${config}::regconfig, ${m.content})) stored`)}${line(memory("createdAt"), `${m.createdAt} timestamptz not null default now()`)}
   ${m.updatedAt} timestamptz not null default now(),
   check ((${m.kind} = 'core') = (${m.path} is not null)),
-  check ((${m.scope} = 'organization') = (${m.owner} is null))
+  constraint memories_owner_check check ((${m.scope} in (${SHARED})) = (${m.owner} is null))${subject ? `,\n  constraint memories_subject_check check ((${m.scope} = 'record') = (${m.subjectId} is not null) and (${m.subjectId} is null) = (${m.subjectType} is null))` : ""}
 );
-create unique index if not exists ${ctx.naming.rename("memories_path_idx")} on ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.project}, ${m.path}) nulls not distinct
-  where ${m.path} is not null and ${m.supersededBy} is null;
+create unique index if not exists ${ctx.naming.rename("memories_path_idx")} on ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.project}${subjectColumns}, ${m.path}) nulls not distinct
+  where ${m.path} is not null and ${m.supersededBy} is null${live("")};
 create index if not exists ${ctx.naming.rename("memories_owner_idx")} on ${memories} (${m.owner}, ${m.tenant}) where ${m.owner} is not null;
 create index if not exists ${ctx.naming.rename("memories_tenant_idx")} on ${memories} (${m.tenant}, ${m.scope});
 create index if not exists ${ctx.naming.rename("memories_chat_idx")} on ${memories} (${m.chat}) where ${m.chat} is not null;
 create index if not exists ${ctx.naming.rename("memories_project_idx")} on ${memories} (${m.project}) where ${m.project} is not null;
-create index if not exists ${ctx.naming.rename("memories_superseded_idx")} on ${memories} (${m.supersededBy}) where ${m.supersededBy} is not null;
+${subject ? `create index if not exists ${ctx.naming.rename("memories_subject_idx")} on ${memories} (${m.subjectType}, ${m.subjectId}) where ${m.subjectId} is not null;\n` : ""}${memory("deletedAt") ? `create index if not exists ${ctx.naming.rename("memories_deleted_idx")} on ${memories} (${m.deletedAt}) where ${m.deletedAt} is not null;\n` : ""}${memory("expiresAt") ? `create index if not exists ${ctx.naming.rename("memories_expires_idx")} on ${memories} (${m.expiresAt}) where ${m.expiresAt} is not null;\n` : ""}create index if not exists ${ctx.naming.rename("memories_superseded_idx")} on ${memories} (${m.supersededBy}) where ${m.supersededBy} is not null;
 create index if not exists ${ctx.naming.rename("memories_embedding_idx")} on ${memories} using hnsw (${m.embedding} ${embedding.opclass});
 ${memory("tsv") ? `create index if not exists ${ctx.naming.rename("memories_tsv_idx")} on ${memories} using gin (${m.tsv});\n` : ""}create index if not exists ${ctx.naming.rename("memories_pending_embedding_idx")} on ${memories} (${m.updatedAt})
-  where ${m.embedding} is null and ${m.supersededBy} is null;
+  where ${m.embedding} is null and ${m.supersededBy} is null${live("")};
 alter table ${memories} enable row level security;
 ${revokeTable(memories)}
 grant select on ${memories} to authenticated;
 grant all on ${memories} to service_role;
-${renderPolicy(makePolicy({ table: memories, name: ctx.naming.rename("memories_read"), command: "select", roles: ["authenticated"], using: `${m.owner} = (select auth.uid()) or (${m.scope} = 'organization' and ${ctx.scope.check(m.tenant, read)})` }), { drop: true, target: memories })}
+${renderPolicy(makePolicy({ table: memories, name: ctx.naming.rename("memories_read"), command: "select", roles: ["authenticated"], using: `(${m.owner} = (select auth.uid()) or (${m.scope} in (${SHARED}) and ${ctx.scope.check(m.tenant, read)}))${live("")}` }), { drop: true, target: memories })}
 
 -- One embedding per message, so an assistant can recall earlier chats.
 -- Temporary chats get none.
@@ -377,8 +488,8 @@ begin${namespace("memory_create", true)}${checkPath("memory_create.path")}${chec
     if coalesce(memory_create.expected_version, 0) <> 0 then
       ${fileNotFound("memory_create.path")}
     end if;
-    insert into ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.project}, ${m.kind}, ${m.path}, ${m.content})
-    values (memory_create.tenant, v_owner, ${ctx.cast("memories", "scope", "v_scope")}, v_agent, v_chat, v_project, 'core', memory_create.path, memory_create.content)
+    insert into ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.project}${subjectInsert}, ${m.kind}, ${m.path}, ${m.content})
+    values (memory_create.tenant, v_owner, ${ctx.cast("memories", "scope", "v_scope")}, v_agent, v_chat, v_project${subjectValues}, 'core', memory_create.path, memory_create.content)
     returning * into v_row;
   end if;
   return ${memoryJson("v_row")};
@@ -454,7 +565,8 @@ end;
 $$;
 ${userGrant(signature("memory_insert", `${id}, text, integer, text, jsonb`))}
 
--- Deletes a file, or a directory and everything under it. Returns the count.
+-- Deletes a file, or a directory and everything under it, and returns the
+-- count. A deleted file stays restorable until purge_memories removes it.
 create or replace function ${fn("memory_delete")}(tenant ${id}, path text, ns jsonb default '{}')
 returns integer
 language plpgsql
@@ -464,7 +576,7 @@ as $$
 declare${declare}
   v_count integer;
 begin${namespace("memory_delete", true)}${checkPath("memory_delete.path")}
-  delete from ${memories} x
+  ${memory("deletedAt") ? `update ${memories} x set ${m.deletedAt} = now(), ${m.updatedAt} = now()` : `delete from ${memories} x`}
   where ${inNamespace("x", "memory_delete.tenant")}
     and (x.${m.path} = memory_delete.path or x.${m.path} like replace(replace(memory_delete.path, '_', '\\_'), '%', '\\%') || '/%');
   get diagnostics v_count = row_count;
@@ -522,7 +634,7 @@ begin${namespace("memory_list", false)}
   select coalesce(jsonb_agg(${memoryJson("x")} order by x.${m.path}, ${createdAt("x")} desc), '[]') into v_rows
   from (
     select * from ${memories} y
-    where ${inNamespace("y", "memory_list.tenant")} and ${asText(ctx, "memories", `y.${m.kind}`)} = memory_list.kind
+    where ${inNamespace("y", "memory_list.tenant")}${fresh("y")} and ${asText(ctx, "memories", `y.${m.kind}`)} = memory_list.kind
     order by y.${m.path}, ${createdAt("y")} desc
     limit least(greatest(memory_list.max_rows, 1), 1000)
   ) x;
@@ -531,14 +643,20 @@ end;
 $$;
 ${userGrant(signature("memory_list", `${id}, jsonb, text, integer`))}
 
--- Saves an archival fact, with its embedding when the caller has one.
+-- Saves an archival fact, with its embedding when the caller has one, a
+-- category, a confidence from 0 to 1 that weighs it in searches, and the time
+-- it expires.
+drop function if exists ${signature("memory_save", `${id}, text, jsonb, ${embedding.type}, text, text`)};
 create or replace function ${fn("memory_save")}(
   tenant ${id},
   content text,
   ns jsonb default '{}',
   embedding ${embedding.type} default null,
   model text default null,
-  source_message_id text default null
+  source_message_id text default null,
+  category text default null,
+  confidence real default null,
+  expires_at timestamptz default null
 )
 returns jsonb
 language plpgsql
@@ -551,16 +669,23 @@ begin${namespace("memory_save", true)}
   if coalesce(length(memory_save.content), 0) = 0 then
     ${raise("memory content is empty", "22023", "MEMORY_EMPTY")}
   end if;${checkContent("memory_save.content")}
-  insert into ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.project}, ${m.kind}, ${m.content}, ${m.embedding}${memory("model") ? `, ${m.model}` : ""}${memory("sourceMessage") ? `, ${m.sourceMessage}` : ""})
-  values (memory_save.tenant, v_owner, ${ctx.cast("memories", "scope", "v_scope")}, v_agent, v_chat, v_project, 'archival', memory_save.content, memory_save.embedding${memory("model") ? ", memory_save.model" : ""}${memory("sourceMessage") ? ", memory_save.source_message_id" : ""})
+  if memory_save.confidence is not null and not memory_save.confidence between 0 and 1 then
+    ${raise("confidence % is not between 0 and 1", "22023", "MEMORY_CONFIDENCE", "memory_save.confidence")}
+  end if;
+  if memory_save.category is not null and memory_save.category !~ ${sqlString(CATEGORY_PATTERN)} then
+    ${raise("category % is not a lowercase slug", "22023", "MEMORY_CATEGORY", "memory_save.category")}
+  end if;
+  insert into ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.project}${subjectInsert}, ${m.kind}, ${m.content}, ${m.embedding}${savedColumns})
+  values (memory_save.tenant, v_owner, ${ctx.cast("memories", "scope", "v_scope")}, v_agent, v_chat, v_project${subjectValues}, 'archival', memory_save.content, memory_save.embedding${savedValues})
   returning * into v_row;
   return ${memoryJson("v_row")};
 end;
 $$;
-${userGrant(signature("memory_save", `${id}, text, jsonb, ${embedding.type}, text, text`))}
+${userGrant(signature("memory_save", `${id}, text, jsonb, ${embedding.type}, text, text, text, real, timestamptz`))}
 
 -- Archival facts of a namespace ranked by reciprocal rank fusion of vector
--- and full-text search, each with its cosine similarity when it has one.
+-- and full-text search, weighed by confidence, each with its cosine
+-- similarity when it has one. Counts each fact it returns as a use.
 -- Volatile because it sets hnsw.iterative_scan, which it puts back before
 -- returning so the rest of the caller's transaction keeps its own setting.
 create or replace function ${fn("memory_search")}(
@@ -584,7 +709,7 @@ begin${namespace("memory_search", false)}
   perform set_config('hnsw.iterative_scan', 'relaxed_order', true);
   with scoped as materialized (
     select x.${m.id} as id from ${memories} x
-    where ${inNamespace("x", "memory_search.tenant")} and x.${m.kind} = 'archival'
+    where ${inNamespace("x", "memory_search.tenant")}${fresh("x")} and x.${m.kind} = 'archival'
   ),
   vector_hits as materialized (
     select t.${m.id} as id, t.${m.embedding} ${embedding.distance} memory_search.query_embedding as distance
@@ -602,13 +727,24 @@ begin${namespace("memory_search", false)}
     where memory_search.query_text is not null and ${tsv("t")} @@ q and t.${m.id} in (select scoped.id from scoped)
     limit v_candidates
   ),
-  fused as (
-    select coalesce(v.id, x.id) as id, v.distance,
-      coalesce(1.0 / (60 + v.rank), 0) + coalesce(1.0 / (60 + x.rank), 0) as score
-    from vector_ranked v full join text_ranked x on x.id = v.id
+  fused as materialized (
+    select r.id, r.distance, r.score${memory("confidence") ? ` * coalesce(t.${m.confidence}, 1)` : ""} as score
+    from (
+      select coalesce(v.id, x.id) as id, v.distance,
+        coalesce(1.0 / (60 + v.rank), 0) + coalesce(1.0 / (60 + x.rank), 0) as score
+      from vector_ranked v full join text_ranked x on x.id = v.id
+    ) r join ${memories} t on t.${m.id} = r.id
     order by score desc
     limit least(greatest(memory_search.k, 1), 100)
-  )
+  )${
+    memory("useCount") || memory("lastUsedAt")
+      ? `,
+  used as (
+    update ${memories} t set ${[memory("useCount") ? `${m.useCount} = t.${m.useCount} + 1` : "", memory("lastUsedAt") ? `${m.lastUsedAt} = now()` : ""].filter(Boolean).join(", ")}
+    from fused f where t.${m.id} = f.id
+  )`
+      : ""
+  }
   select coalesce(jsonb_agg(${memoryJson("t")} || jsonb_build_object('score', f.score, 'similarity', 1 - f.distance) order by f.score desc), '[]')
   into v_rows
   from fused f join ${memories} t on t.${m.id} = f.id;
@@ -618,8 +754,10 @@ end;
 $$;
 ${userGrant(signature("memory_search", `${id}, ${embedding.type}, text, jsonb, integer`))}
 
--- Forgets a memory: its owner, an admin for organization memory, or the
--- service role. superseded_by points a replaced fact at its successor.
+-- Forgets a memory: its owner, an admin for organization or record memory,
+-- or the service role. superseded_by points a replaced fact at its
+-- successor; otherwise the memory is deleted and stays restorable until
+-- purge_memories removes it.
 create or replace function ${fn("memory_forget")}(memory_id uuid, superseded_by uuid default null)
 returns boolean
 language plpgsql
@@ -630,11 +768,11 @@ declare
   v_row ${memories}%rowtype;
 begin
   select * into v_row from ${memories} x where x.${m.id} = memory_forget.memory_id;
-  if not found or not (${SERVICE_CALLER} or coalesce(v_row.${m.owner} = auth.uid(), false) or (v_row.${m.scope} = 'organization' and ${ctx.scope.can(`v_row.${m.tenant}`, manage)})) then
+  if not found or not (${forgetCheck("v_row")}) then
     return false;
   end if;
   if memory_forget.superseded_by is null then
-    delete from ${memories} x where x.${m.id} = v_row.${m.id};
+    ${memory("deletedAt") ? `update ${memories} x set ${m.deletedAt} = coalesce(x.${m.deletedAt}, now()), ${m.updatedAt} = now()` : `delete from ${memories} x`} where x.${m.id} = v_row.${m.id};
   else
     update ${memories} x set ${m.supersededBy} = memory_forget.superseded_by, ${m.updatedAt} = now() where x.${m.id} = v_row.${m.id};
   end if;
@@ -642,7 +780,7 @@ begin
 end;
 $$;
 ${userGrant(signature("memory_forget", "uuid, uuid"))}
-
+${memory("deletedAt") ? restoreAndPurge() : ""}
 -- content_hash is the md5 of the content that was embedded: a memory edited
 -- since then keeps waiting instead of taking a vector of its old text.
 drop function if exists ${signature("set_memory_embedding", `uuid, ${embedding.type}, text`)};
@@ -693,7 +831,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', x.${m.id}, 'content', x.${m.content}, 'hash', md5(x.${m.content}))), '[]')
   from (
-    select * from ${memories} y where y.${m.embedding} is null and y.${m.supersededBy} is null
+    select * from ${memories} y where y.${m.embedding} is null and y.${m.supersededBy} is null${live("y")}${fresh("y")}
     order by y.${m.updatedAt}
     limit least(greatest(pending_memory_embeddings.batch, 1), 2048)
   ) x
@@ -764,101 +902,7 @@ end;
 $$;
 ${userGrant(signature("recall_ai_messages", `${id}, ${embedding.type}, integer, uuid, uuid`))}
 
--- Documents an agent runtime keeps under an opaque scope key, such as eve's
--- file memory and its replay records. Only the service role reads or writes
--- them; a write names the version it read, so a stale write fails.
-create table if not exists ${documents} (
-  ${d.scopeKey} text not null check (length(${d.scopeKey}) <= 4096),
-  ${d.path} text not null check (length(${d.path}) <= 1024),
-  ${d.content} text not null check (length(${d.content}) <= ${String(maxContent)}),
-  ${d.version} bigint not null default 1,${line(doc("expiresAt"), `${d.expiresAt} timestamptz`)}${line(doc("createdAt"), `${d.createdAt} timestamptz not null default now()`)}${line(doc("updatedAt"), `${d.updatedAt} timestamptz not null default now()`)}
-  primary key (${d.scopeKey}, ${d.path})
-);${unique("documents", "path", `${d.scopeKey}, ${d.path}`)}
-${doc("expiresAt") ? `create index if not exists ${ctx.naming.rename("memory_documents_expires_idx")} on ${documents} (${d.expiresAt}) where ${d.expiresAt} is not null;\n` : ""}${lockModuleTable(ctx, "documents")}
-
--- A document and its version, or null.
-create or replace function ${fn("memory_document_read")}(scope_key text, path text)
-returns jsonb
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select jsonb_build_object('content', x.${d.content}, 'version', x.${d.version}::text)
-  from ${documents} x
-  where x.${d.scopeKey} = memory_document_read.scope_key and x.${d.path} = memory_document_read.path${doc("expiresAt") ? `\n    and (x.${d.expiresAt} is null or x.${d.expiresAt} > now())` : ""}
-$$;
-${serviceGrant(signature("memory_document_read", "text, text"))}
-
--- Writes a document when its version is still expected_version; null means
--- it must not exist yet. Otherwise raises MEMORY_DOCUMENT_CONFLICT.
-create or replace function ${fn("memory_document_write")}(scope_key text, path text, content text, expected_version text default null, expires_in integer default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row ${documents}%rowtype;
-  v_expires timestamptz := case when memory_document_write.expires_in is null then null else now() + make_interval(secs => memory_document_write.expires_in) end;
-begin${checkContent("memory_document_write.content")}${
-    doc("expiresAt")
-      ? `
-  delete from ${documents} x
-  where x.${d.scopeKey} = memory_document_write.scope_key and x.${d.path} = memory_document_write.path
-    and x.${d.expiresAt} <= now();`
-      : ""
-  }
-  if memory_document_write.expected_version is null then
-    insert into ${documents} (${d.scopeKey}, ${d.path}, ${d.content}${doc("expiresAt") ? `, ${d.expiresAt}` : ""})
-    values (memory_document_write.scope_key, memory_document_write.path, memory_document_write.content${doc("expiresAt") ? ", v_expires" : ""})
-    on conflict (${d.scopeKey}, ${d.path}) do nothing
-    returning * into v_row;
-  else
-    update ${documents} x set ${[`${d.content} = memory_document_write.content`, `${d.version} = x.${d.version} + 1`].join(", ")}${
-      doc("expiresAt") || doc("updatedAt")
-        ? `,\n      ${[...(doc("expiresAt") ? [`${d.expiresAt} = v_expires`] : []), ...(doc("updatedAt") ? [`${d.updatedAt} = now()`] : [])].join(", ")}`
-        : ""
-    }
-    where x.${d.scopeKey} = memory_document_write.scope_key and x.${d.path} = memory_document_write.path
-      and x.${d.version}::text = memory_document_write.expected_version
-    returning * into v_row;
-  end if;
-  if not found then
-    ${raise("% changed since version %", "40001", "MEMORY_DOCUMENT_CONFLICT", "memory_document_write.path", "coalesce(memory_document_write.expected_version, 'none')")}
-  end if;
-  return jsonb_build_object('content', v_row.${d.content}, 'version', v_row.${d.version}::text);
-end;
-$$;
-${serviceGrant(signature("memory_document_write", "text, text, text, text, integer"))}
-
--- Deletes expired documents, at most batch. Returns how many.
-create or replace function ${fn("purge_memory_documents")}(batch integer default 1000)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_count integer;
-begin${
-    doc("expiresAt")
-      ? `
-  delete from ${documents} x
-  where (x.${d.scopeKey}, x.${d.path}) in (
-    select y.${d.scopeKey}, y.${d.path} from ${documents} y
-    where y.${d.expiresAt} <= now()
-    limit least(greatest(purge_memory_documents.batch, 1), 10000)
-  );
-  get diagnostics v_count = row_count;`
-      : `
-  v_count := 0;`
-  }
-  return v_count;
-end;
-$$;
-${serviceGrant(signature("purge_memory_documents", "integer"))}`;
+${memoryDocumentsSql(ctx, maxContent)}`;
 }
 
 function upgradeProjectScope(ctx: BlockSqlContext): string {
@@ -881,7 +925,12 @@ ${replaceColumnCheck({
   expression: `${ctx.col("memories", "scope")} in (${SCOPES})`,
 })}
 -- The module file creates the path index again with the project column.
-do $$
+${dropPathIndex(memories)}`;
+}
+
+/** Drops the path index so the module file creates it with its new columns. */
+function dropPathIndex(memories: string): string {
+  return `do $$
 declare
   v_index regclass;
 begin
@@ -896,6 +945,55 @@ end;
 $$;`;
 }
 
+/**
+ * Version 3: memories gain a record scope, a category, a confidence, an expiry,
+ * soft deletes and use counts. The module file creates the path index again
+ * with the subject columns and without deleted rows.
+ */
+function upgradeRecordScope(ctx: BlockSqlContext): string {
+  if (!ctx.owns("memories")) {
+    return "";
+  }
+
+  const memories = ctx.table("memories");
+  const col = (key: keyof typeof MEMORIES): string => ctx.col("memories", key);
+
+  return `alter table ${memories}
+  add column if not exists ${col("subjectType")} text,
+  add column if not exists ${col("subjectId")} text,
+  add column if not exists ${col("category")} text check (${col("category")} ~ ${sqlString(CATEGORY_PATTERN)}),
+  add column if not exists ${col("confidence")} real check (${col("confidence")} between 0 and 1),
+  add column if not exists ${col("expiresAt")} timestamptz,
+  add column if not exists ${col("deletedAt")} timestamptz,
+  add column if not exists ${col("useCount")} integer not null default 0,
+  add column if not exists ${col("lastUsedAt")} timestamptz;
+${replaceColumnCheck({
+  table: memories,
+  column: col("scope"),
+  name: "memories_scope_check",
+  expression: `${col("scope")} in (${SCOPES})`,
+})}
+do $$
+declare
+  v_name text;
+begin
+  for v_name in
+    select c.conname from pg_catalog.pg_constraint c
+    where c.conrelid = ${sqlString(memories)}::regclass and c.contype = 'c'
+      and pg_catalog.pg_get_constraintdef(c.oid) like '%''organization''%IS NULL%'
+      and pg_catalog.pg_get_constraintdef(c.oid) not like '%ANY%'
+  loop
+    execute format('alter table ${memories} drop constraint %I', v_name);
+  end loop;
+end;
+$$;
+alter table ${memories} drop constraint if exists memories_owner_check;
+alter table ${memories} add constraint memories_owner_check check ((${col("scope")} in (${SHARED})) = (${col("owner")} is null));
+alter table ${memories} drop constraint if exists memories_subject_check;
+alter table ${memories} add constraint memories_subject_check check ((${col("scope")} = 'record') = (${col("subjectId")} is not null) and (${col("subjectId")} is null) = (${col("subjectType")} is null));
+${dropPathIndex(memories)}`;
+}
+
 export const MEMORY: BlockSqlDefinition = {
   name: "memory",
   scopes: ["tenant"],
@@ -905,7 +1003,7 @@ export const MEMORY: BlockSqlDefinition = {
   requires: ["memberships", "permissions", "vector-search"],
   integrates: ["ai-chat"],
   target: "schema",
-  version: 2,
+  version: 3,
   names: NAMES,
   upgrades: [
     {
@@ -913,6 +1011,12 @@ export const MEMORY: BlockSqlDefinition = {
       description:
         "Memories gain a project scope: a project_id column, the scope check allows 'project', and the path index covers the project.",
       sql: upgradeProjectScope,
+    },
+    {
+      from: 2,
+      description:
+        "Memories gain a record scope, a category, a confidence, an expiry, soft deletes with restore and purge, and use counts. The path index covers the subject and skips deleted rows.",
+      sql: upgradeRecordScope,
     },
   ],
   build,

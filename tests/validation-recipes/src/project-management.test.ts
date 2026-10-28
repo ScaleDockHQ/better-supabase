@@ -47,11 +47,9 @@ describe.skipIf(!live)("project management recipe", () => {
         .create({ type: "task", id: subjectId }, { body: "Picked this up" })
         .orThrow();
       expect(
-        await stateMachine.transition(
-          { type: "task", id: subjectId },
-          "todo",
-          "blocked",
-        ),
+        await stateMachine.transition({ type: "task", id: subjectId }, "todo", {
+          reason: "blocked",
+        }),
       ).toMatchObject({ ok: true });
 
       await watchers.relay();

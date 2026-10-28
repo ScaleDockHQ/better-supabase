@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const sqlOf = (
   modules: AnyBlocksConfig = {},
@@ -96,7 +97,7 @@ describe("state machine", () => {
     [
       "a history that is not an object",
       { quote: { ...quote, history: true } },
-      "history must be an object",
+      'history must be "app" or an object',
     ],
     [
       "a history without a table",
@@ -112,6 +113,26 @@ describe("state machine", () => {
         },
       },
       "history.from must be a column name",
+    ],
+    [
+      "a history write that is not a boolean",
+      {
+        quote: {
+          ...quote,
+          history: { table: "public.quote_history", write: "no" },
+        },
+      },
+      "history.write must be true or false",
+    ],
+    [
+      "an invalid actor detail column",
+      {
+        quote: {
+          ...quote,
+          history: { table: "public.quote_history", ip: "bad column" },
+        },
+      },
+      "history.ip must be a column name",
     ],
   ])("rejects %s", (_name, machines, message) => {
     expect(() => sqlOf({ "state-machine": { options: { machines } } })).toThrow(
@@ -397,5 +418,74 @@ describe("state machine", () => {
     expect(sql).toContain(`"org_id"`);
     expect(sql).toContain(`"quote_history"`);
     expect(sql).toContain(`"was"`);
+  });
+
+  const machineSql = (history: unknown): string =>
+    sqlOf({
+      "state-machine": {
+        options: { machines: { quote: { ...quote, history } } },
+      },
+    });
+
+  it("keeps the actor details in its own history table", () => {
+    const sql = machineSql(undefined);
+
+    expect(sql).toContain('"actor_name" text,');
+    expect(sql).toContain('"ip_address" inet,');
+    expect(sql).toContain(
+      `regexp_replace(h."ip_address"::text, '/(32|128)$', '') as "ip"`,
+    );
+    expect(sql).toContain(
+      "nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'ip', '')::inet",
+    );
+    expect(sql).toContain("reason text default null, actor jsonb default null");
+    expect(sql).toContain("STATE_ACTOR_INVALID");
+    expect(sql).toContain(
+      'drop function if exists "better_supabase"."transition"(text, text, text, text);',
+    );
+  });
+
+  it("writes no history for history: app and refuses to read it", () => {
+    const sql = machineSql("app");
+
+    expect(sql).not.toContain('insert into "better_supabase"."status_history"');
+    expect(sql).not.toContain("insert into better_supabase.status_history");
+    expect(sql).toContain("STATE_HISTORY_APP");
+  });
+
+  it("only reads an app history table with write: false", () => {
+    const sql = machineSql({
+      table: "public.quote_history",
+      write: false,
+      actorName: "who",
+    });
+
+    expect(sql).not.toContain(`insert into "public"."quote_history"`);
+    expect(sql).toContain(`h."who"::text as "actorName"`);
+    expect(sql).toContain(`null::text as "userAgent"`);
+  });
+
+  it("writes the mapped actor details to an app history table", () => {
+    const sql = machineSql({
+      table: "public.quote_history",
+      actorEmail: "email",
+      userAgent: "agent",
+    });
+
+    expect(sql).toMatch(
+      /insert into "public"\."quote_history" \([^)]*"email", "agent"\)/,
+    );
+  });
+
+  it("adds the actor columns and drops the old transition on upgrade", () => {
+    const [plan] = upgradePlan([{ module: "state-machine", version: 2 }]);
+    expect(plan?.to).toBe(3);
+    const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
+
+    expect(sql).toContain('add column if not exists "actor_name" text;');
+    expect(sql).toContain('add column if not exists "ip_address" inet;');
+    expect(sql).toContain(
+      'drop function if exists "better_supabase"."transition"(text, text, text, text);',
+    );
   });
 });

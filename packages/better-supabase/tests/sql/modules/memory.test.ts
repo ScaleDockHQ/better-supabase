@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("memory", { modules })!;
@@ -51,9 +52,10 @@ describe("memory module", () => {
     expect(sql).toContain("MEMORY_NO_MATCH");
   });
 
-  it("lets only admins change organization memory", () => {
+  it("lets only admins change organization and record memory", () => {
     const sql = body();
-    expect(sql).toContain("only admins change organization memory");
+    expect(sql).toContain("only admins change organization and record memory");
+    expect(sql).toContain("v_scope in ('organization', 'record')");
     expect(sql).toContain("'ai.admin'");
   });
 
@@ -111,5 +113,104 @@ describe("memory module", () => {
         ),
       );
     }
+  });
+
+  it("scopes memory to a record through its subject", () => {
+    const sql = body();
+    expect(sql).toContain('"subject_type" text,');
+    expect(sql).toContain('"subject_id" text,');
+    expect(sql).toContain(
+      "constraint memories_owner_check check ((\"scope\" in ('organization', 'record')) = (\"owner_id\" is null))",
+    );
+    expect(sql).toContain("constraint memories_subject_check");
+    expect(sql).toContain(
+      "v_subject_id := nullif(memory_view.ns ->> 'subject_id', '');",
+    );
+    expect(sql).toContain('x."subject_id" is not distinct from v_subject_id');
+    expect(sql).toContain('"project_id", "subject_type", "subject_id", "path"');
+  });
+
+  it("rejects the record scope when the table has no subject columns", () => {
+    const sql = body({
+      memory: { columns: { memories: { subjectType: null, subjectId: null } } },
+    });
+
+    expect(sql).not.toContain('"subject_id"');
+    expect(sql).toContain("\n    or v_scope = 'record'");
+  });
+
+  it("saves a category, a confidence and an expiry", () => {
+    const sql = body();
+    expect(sql).toContain(
+      'drop function if exists "better_supabase"."memory_save"(uuid, text, jsonb, extensions.vector, text, text);',
+    );
+    expect(sql).toContain(
+      "category text default null,\n  confidence real default null,\n  expires_at timestamptz default null",
+    );
+    expect(sql).toContain("MEMORY_CONFIDENCE");
+    expect(sql).toContain("MEMORY_CATEGORY");
+    expect(sql).toContain(
+      ", memory_save.category, memory_save.confidence, memory_save.expires_at)",
+    );
+  });
+
+  it("weighs search by confidence and counts uses", () => {
+    const sql = body();
+    expect(sql).toContain('r.score * coalesce(t."confidence", 1) as score');
+    expect(sql).toContain(
+      'set "use_count" = t."use_count" + 1, "last_used_at" = now()',
+    );
+    expect(sql).toContain('x."expires_at" > now()');
+  });
+
+  it("soft deletes, restores and purges memories", () => {
+    const sql = body();
+    expect(sql).toContain(
+      'update "better_supabase"."memories" x set "deleted_at" = now(), "updated_at" = now()',
+    );
+    expect(sql).toContain('function "better_supabase"."memory_restore"(');
+    expect(sql).toContain('function "better_supabase"."purge_memories"(');
+    expect(sql).toContain(
+      'where "path" is not null and "superseded_by" is null and "deleted_at" is null;',
+    );
+    expect(sql).toContain('set "deleted_at" = coalesce(x."deleted_at", now())');
+  });
+
+  it("hard deletes and skips use counts when the columns are gone", () => {
+    const sql = body({
+      memory: {
+        columns: {
+          memories: {
+            deletedAt: null,
+            expiresAt: null,
+            useCount: null,
+            lastUsedAt: null,
+            confidence: null,
+            category: null,
+          },
+        },
+      },
+    });
+
+    expect(sql).not.toContain("memory_restore");
+    expect(sql).not.toContain("used as (");
+    expect(sql).not.toContain('y."expires_at" > now()');
+    expect(sql).toContain("as score\n    from (");
+    expect(sql).toContain(
+      'delete from "better_supabase"."memories" x\n  where',
+    );
+  });
+
+  it("upgrades version 2 memories in place", () => {
+    const [plan] = upgradePlan([{ module: "memory", version: 2 }]);
+    expect(plan?.to).toBe(3);
+    const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
+    expect(sql).toContain('add column if not exists "subject_type" text');
+    expect(sql).toContain(
+      'add column if not exists "use_count" integer not null default 0',
+    );
+    expect(sql).toContain("memories_scope_check");
+    expect(sql).toContain("add constraint memories_owner_check");
+    expect(sql).toContain("c.relname = 'memories_path_idx'");
   });
 });

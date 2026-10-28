@@ -5,6 +5,8 @@ export {
   type StatusChange,
   type StatusStage,
   type StatusState,
+  type TransitionActor,
+  type TransitionOptions,
 } from "./state-machine.ts";
 
 export { stateMachineBlock } from "./manifest.ts";

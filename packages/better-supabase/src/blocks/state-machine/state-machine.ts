@@ -62,8 +62,30 @@ export interface StatusChange {
   readonly from: string | undefined;
   readonly to: string;
   readonly actorId: string | undefined;
+  /** The actor details `transition()` passed, where the history keeps them. */
+  readonly actorName: string | undefined;
+  readonly actorEmail: string | undefined;
+  readonly ip: string | undefined;
+  readonly userAgent: string | undefined;
   readonly reason: string | undefined;
   readonly createdAt: Temporal.Instant;
+}
+
+/**
+ * Who made a change, for the history row: a portal visitor who isn't an auth
+ * user, or the request's IP address and user agent.
+ */
+export interface TransitionActor {
+  readonly name?: string;
+  readonly email?: string;
+  /** An IPv4 or IPv6 address; anything else fails with `STATE_ACTOR_INVALID`. */
+  readonly ip?: string;
+  readonly userAgent?: string;
+}
+
+export interface TransitionOptions {
+  readonly reason?: string;
+  readonly actor?: TransitionActor;
 }
 
 /** One row of a machine's stages timeline, from `stages()`. */
@@ -86,7 +108,7 @@ export interface StateMachine<S extends string = string> {
   transition(
     subject: RecordRef<S>,
     to: string,
-    reason?: string,
+    options?: TransitionOptions,
   ): AsyncResult<boolean>;
   /**
    * Pauses the record (`lifecycle: true`): transitions fail with `STATE_PAUSED`
@@ -153,6 +175,10 @@ function changeOf(row: Record<string, unknown>): StatusChange {
     from: optionalText(row["from"]),
     to: textOf(row["to"]),
     actorId: optionalText(row["actorId"]),
+    actorName: optionalText(row["actorName"]),
+    actorEmail: optionalText(row["actorEmail"]),
+    ip: optionalText(row["ip"]),
+    userAgent: optionalText(row["userAgent"]),
     reason: optionalText(row["reason"]),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
   };
@@ -178,14 +204,15 @@ export function createStateMachine<S extends string = string>(
   const isTrue = (value: unknown): boolean => value === true;
 
   const client: StateMachine<S> = {
-    transition: (subject, to, reason) =>
+    transition: (subject, to, change = {}) =>
       call(
         "transition",
         {
           subject_type: subject.type,
           subject_id: subject.id,
           to_status: to,
-          reason: reason ?? null,
+          reason: change.reason ?? null,
+          actor: change.actor ?? null,
         },
         isTrue,
       ),

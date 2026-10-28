@@ -7,6 +7,7 @@ import type {
   MemoryNamespace,
   MemoryOptions,
   MemoryRecord,
+  MemorySaveOptions,
   MemoryView,
 } from "./types.ts";
 
@@ -36,6 +37,7 @@ export type {
   MemoryHooks,
   MemoryOptions,
   MemoryRecord,
+  MemorySaveOptions,
   MemoryScope,
   MemoryView,
   RecalledMessage,
@@ -58,6 +60,11 @@ const nsArg = (ns: MemoryNamespace = {}): Record<string, string> => {
 
   if (ns.projectId !== undefined) {
     arg["project_id"] = ns.projectId;
+  }
+
+  if (ns.subject !== undefined) {
+    arg["subject_type"] = ns.subject.type;
+    arg["subject_id"] = ns.subject.id;
   }
 
   if (ns.ownerId !== undefined) {
@@ -195,7 +202,7 @@ export function createMemory(options: MemoryOptions): Memory {
     organizationId: string,
     content: string,
     ns: MemoryNamespace | undefined,
-    saveOptions: { readonly sourceMessageId?: string } = {},
+    saveOptions: MemorySaveOptions = {},
     viaService = false,
     embedded?: string,
   ): AsyncResult<MemoryRecord> =>
@@ -212,6 +219,9 @@ export function createMemory(options: MemoryOptions): Memory {
           embedding,
           model: embedding === undefined ? undefined : embedder?.model,
           source_message_id: saveOptions.sourceMessageId,
+          category: saveOptions.category,
+          confidence: saveOptions.confidence,
+          expires_at: saveOptions.expiresAt?.toString(),
         },
         memoryOf,
       ),
@@ -353,6 +363,21 @@ export function createMemory(options: MemoryOptions): Memory {
           "memory_forget",
           { memory_id: memoryId, superseded_by: forgetOptions.supersededBy },
           (value) => value === true,
+        ),
+      restore: (memoryId) =>
+        call(
+          "memory_restore",
+          { memory_id: memoryId },
+          (value) => value === true,
+        ),
+      purge: (purgeOptions = {}) =>
+        service(
+          "purge_memories",
+          {
+            retention_days: purgeOptions.retentionDays,
+            batch: purgeOptions.batch,
+          },
+          Number,
         ),
     },
     recall: {

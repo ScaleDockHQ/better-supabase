@@ -21,7 +21,7 @@ import {
   SERVICE_CALLER,
   userGrant,
 } from "../shared.ts";
-import { machines } from "./state-machine-options.ts";
+import { ACTOR_FIELDS, machines } from "./state-machine-options.ts";
 
 const SUBJECT = ["organizationId", "subjectType", "subjectId"] as const;
 
@@ -58,9 +58,14 @@ const NAMES: BlockSqlNames = {
         fromStatus: "from_status",
         toStatus: "to_status",
         actor: "actor_user_id",
+        actorName: "actor_name",
+        actorEmail: "actor_email",
+        ip: "ip_address",
+        userAgent: "user_agent",
         reason: "reason",
         createdAt: "created_at",
       },
+      optional: ["actorName", "actorEmail", "ip", "userAgent"],
       typed: ["fromStatus", "toStatus"],
     },
     stages: {
@@ -111,6 +116,71 @@ const OP_SETTING = "better_supabase.lifecycle_op";
 
 /** Set by the trigger when a lifecycle call changed the row. */
 const CHANGED_SETTING = "better_supabase.lifecycle_changed";
+
+/** The actor `transition()` passes to the trigger: name, email, ip, userAgent. */
+const ACTOR_SETTING = "better_supabase.transition_actor";
+
+const REASON =
+  "nullif(current_setting('better_supabase.transition_reason', true), '')";
+
+/** One field of the actor `transition()` passed, as SQL. */
+function actorField(field: string): string {
+  const value = `nullif(nullif(current_setting('${ACTOR_SETTING}', true), '')::jsonb ->> ${sqlString(field)}, '')`;
+
+  return field === "ip" ? `${value}::inet` : value;
+}
+
+/** The history columns and values a transition writes. */
+function historyWrite(ctx: BlockSqlContext, item: Machine): string {
+  const hist = item.history;
+  const from = `old.${sqlIdent(item.column)}::text`;
+  const to = `new.${sqlIdent(item.column)}::text`;
+
+  if (hist === "app" || hist?.write === false) {
+    return "";
+  }
+
+  if (hist !== undefined) {
+    const table = quotedTable(hist.table);
+
+    const columns: [string, string][] = [
+      [hist.subject, `new.${sqlIdent(item.idColumn)}`],
+      [hist.tenant, `new.${sqlIdent(item.tenantColumn)}`],
+      [hist.from, asColumnType(table, hist.from, from)],
+      [hist.to, asColumnType(table, hist.to, to)],
+      [hist.actor, "auth.uid()"],
+      [hist.reason, REASON],
+      ...ACTOR_FIELDS.flatMap(([key, field]): [string, string][] => {
+        const column = hist[key];
+
+        return column === undefined
+          ? []
+          : [[column, asColumnType(table, column, actorField(field))]];
+      }),
+    ];
+
+    return `insert into ${table} (${columns.map(([column]) => sqlIdent(column)).join(", ")})
+        values (${columns.map(([, value]) => value).join(", ")});`;
+  }
+
+  const h = (column: string): string => ctx.col("history", column);
+
+  const columns: [string, string][] = [
+    [h("tenant"), `new.${sqlIdent(item.tenantColumn)}`],
+    [h("subjectType"), sqlString(item.name)],
+    [h("subjectId"), `new.${sqlIdent(item.idColumn)}::text`],
+    [h("fromStatus"), ctx.cast("history", "fromStatus", from)],
+    [h("toStatus"), ctx.cast("history", "toStatus", to)],
+    [h("actor"), "auth.uid()"],
+    [h("reason"), REASON],
+    ...ACTOR_FIELDS.flatMap(([key, field]): [string, string][] =>
+      ctx.has("history", key) ? [[h(key), actorField(field)]] : [],
+    ),
+  ];
+
+  return `insert into ${ctx.table("history")} (${columns.map(([column]) => column).join(", ")})
+        values (${columns.map(([, value]) => value).join(", ")});`;
+}
 
 /**
  * `<alias>.<id> = <value>`, on the id column's own type when the machine names
@@ -324,8 +394,6 @@ function lifecycleInsert(ctx: BlockSqlContext, item: Machine): string {
 }
 
 function trigger(ctx: BlockSqlContext, item: Machine): string {
-  const history = ctx.table("history");
-
   const allowed = Object.entries(item.transitions)
     .map(
       ([from, to]) =>
@@ -336,13 +404,7 @@ function trigger(ctx: BlockSqlContext, item: Machine): string {
   const target = quotedTable(item.table);
   const tenant = `new.${sqlIdent(item.tenantColumn)}::text`;
   const subjectId = `new.${sqlIdent(item.idColumn)}::text`;
-  const hist = item.history;
-
-  const write = hist
-    ? `insert into ${quotedTable(hist.table)} (${sqlIdent(hist.subject)}, ${sqlIdent(hist.tenant)}, ${sqlIdent(hist.from)}, ${sqlIdent(hist.to)}, ${sqlIdent(hist.actor)}, ${sqlIdent(hist.reason)})
-        values (new.${sqlIdent(item.idColumn)}, new.${sqlIdent(item.tenantColumn)}, ${asColumnType(quotedTable(hist.table), hist.from, `old.${sqlIdent(item.column)}::text`)}, ${asColumnType(quotedTable(hist.table), hist.to, `new.${sqlIdent(item.column)}::text`)}, auth.uid(), nullif(current_setting('better_supabase.transition_reason', true), ''));`
-    : `insert into ${history} (${ctx.col("history", "tenant")}, ${ctx.col("history", "subjectType")}, ${ctx.col("history", "subjectId")}, ${ctx.col("history", "fromStatus")}, ${ctx.col("history", "toStatus")}, ${ctx.col("history", "actor")}, ${ctx.col("history", "reason")})
-        values (new.${sqlIdent(item.tenantColumn)}, ${sqlString(item.name)}, new.${sqlIdent(item.idColumn)}::text, ${ctx.cast("history", "fromStatus", `old.${sqlIdent(item.column)}::text`)}, ${ctx.cast("history", "toStatus", `new.${sqlIdent(item.column)}::text`)}, auth.uid(), nullif(current_setting('better_supabase.transition_reason', true), ''));`;
+  const write = historyWrite(ctx, item);
 
   const declare = item.lifecycle
     ? `declare
@@ -380,7 +442,7 @@ ${declare}begin
   ${stageWrite(ctx, item, "advance")}
   ${ctx.record({
     type: "status.changed",
-    payload: `jsonb_build_object('organizationId', ${tenant}, 'subjectType', ${sqlString(item.name)}, 'subjectId', ${subjectId}, 'from', old.${sqlIdent(item.column)}::text, 'to', new.${sqlIdent(item.column)}::text, 'reason', nullif(current_setting('better_supabase.transition_reason', true), ''))`,
+    payload: `jsonb_build_object('organizationId', ${tenant}, 'subjectType', ${sqlString(item.name)}, 'subjectId', ${subjectId}, 'from', old.${sqlIdent(item.column)}::text, 'to', new.${sqlIdent(item.column)}::text, 'reason', ${REASON})`,
     tenant,
     subject: `'statuses/${item.name}/' || ${subjectId}`,
     audit: false,
@@ -449,6 +511,16 @@ ${list.map((item) => `      when ${sqlString(item.name)} then exists (select 1 f
   );
 }
 
+const ACTOR_TYPES: Readonly<Record<(typeof ACTOR_FIELDS)[number][0], string>> =
+  { actorName: "text", actorEmail: "text", ip: "inet", userAgent: "text" };
+
+/** The history table's actor detail columns the app keeps. */
+function actorColumns(ctx: BlockSqlContext): string {
+  return ACTOR_FIELDS.filter(([key]) => ctx.has("history", key))
+    .map(([key]) => `\n  ${ctx.col("history", key)} ${ACTOR_TYPES[key]},`)
+    .join("");
+}
+
 function tables(ctx: BlockSqlContext, list: readonly Machine[]): string {
   if (!ctx.manages) {
     return "";
@@ -506,7 +578,7 @@ ${readPolicy(ctx.table("lifecycles"), "subject_lifecycles_read", l("subjectType"
   ${h("subjectId")} text not null,
   ${h("fromStatus")} text,
   ${h("toStatus")} text not null,
-  ${h("actor")} uuid,
+  ${h("actor")} uuid,${actorColumns(ctx)}
   ${h("reason")} text,
   ${h("createdAt")} timestamptz not null default now()
 );
@@ -604,16 +676,38 @@ ${life}
   const history = (item: Machine): string => {
     const hist = item.history;
 
+    if (hist === "app") {
+      return `      ${fail("STATE_HISTORY_APP", "the app keeps this machine's history; read it from the app's own table", "0A000")}`;
+    }
+
+    const details = ACTOR_FIELDS.map(([key]) => {
+      const column =
+        hist === undefined
+          ? ctx.has("history", key)
+            ? `h.${ctx.col("history", key)}::text`
+            : undefined
+          : hist[key] === undefined
+            ? undefined
+            : `h.${sqlIdent(hist[key])}::text`;
+
+      const value =
+        key === "ip" && column !== undefined
+          ? `regexp_replace(${column}, '/(32|128)$', '')`
+          : column;
+
+      return `${value ?? "null::text"} as ${sqlIdent(key)}`;
+    }).join(", ");
+
     const rows = hist
       ? `select h.${sqlIdent(hist.id)}::text as id, h.${sqlIdent(hist.from)}::text as from_status, h.${sqlIdent(hist.to)}::text as to_status,
-          h.${sqlIdent(hist.actor)}::text as actor, h.${sqlIdent(hist.reason)}::text as reason, h.${sqlIdent(hist.createdAt)} as created_at
+          h.${sqlIdent(hist.actor)}::text as actor, ${details}, h.${sqlIdent(hist.reason)}::text as reason, h.${sqlIdent(hist.createdAt)} as created_at
         from ${quotedTable(hist.table)} h
         where h.${sqlIdent(hist.subject)}::text = list_status_history.subject_id
           and (list_status_history.before is null or h.${sqlIdent(hist.createdAt)} < list_status_history.before)
         order by h.${sqlIdent(hist.createdAt)} desc
         limit ${limit}`
       : `select h.${ctx.col("history", "id")}::text as id, h.${ctx.col("history", "fromStatus")} as from_status, h.${ctx.col("history", "toStatus")} as to_status,
-          h.${ctx.col("history", "actor")}::text as actor, h.${ctx.col("history", "reason")} as reason, h.${ctx.col("history", "createdAt")} as created_at
+          h.${ctx.col("history", "actor")}::text as actor, ${details}, h.${ctx.col("history", "reason")} as reason, h.${ctx.col("history", "createdAt")} as created_at
         from ${ctx.table("history")} h
         where h.${ctx.col("history", "subjectType")} = ${sqlString(item.name)}
           and h.${ctx.col("history", "subjectId")} = list_status_history.subject_id
@@ -624,7 +718,8 @@ ${life}
     return `${visible(item, "list_status_history")}
       return coalesce((
         select jsonb_agg(jsonb_build_object('id', r.id, 'from', r.from_status, 'to', r.to_status,
-          'actorId', r.actor, 'reason', r.reason, 'createdAt', r.created_at) order by r.created_at desc, r.id desc)
+          'actorId', r.actor, 'actorName', r."actorName", 'actorEmail', r."actorEmail", 'ip', r.ip, 'userAgent', r."userAgent",
+          'reason', r.reason, 'createdAt', r.created_at) order by r.created_at desc, r.id desc)
         from (${rows}) r
       ), '[]'::jsonb);`;
   };
@@ -733,9 +828,13 @@ function build(ctx: BlockSqlContext): string {
 ${tables(ctx, list)}
 ${list.map((item) => trigger(ctx, item)).join("\n")}
 
+drop function if exists ${ctx.fn("transition")}(text, text, text, text);
+
 -- Sets the status as the caller, so the subject table's policies decide
--- whether they may update the record; the trigger checks the edge.
-create or replace function ${ctx.fn("transition")}(subject_type text, subject_id text, to_status text, reason text)
+-- whether they may update the record; the trigger checks the edge. actor
+-- carries the name, email, ip and userAgent the history row keeps, e.g. for
+-- a portal visitor who isn't an auth user.
+create or replace function ${ctx.fn("transition")}(subject_type text, subject_id text, to_status text, reason text default null, actor jsonb default null)
 returns boolean
 language plpgsql
 security invoker
@@ -744,7 +843,18 @@ as $$
 declare
   v_found boolean;
 begin
+  if transition.actor is not null then
+    if jsonb_typeof(transition.actor) <> 'object' then
+      ${fail("STATE_ACTOR_INVALID", "actor must be an object of name, email, ip and userAgent", "22023")}
+    end if;
+    begin
+      perform nullif(transition.actor ->> 'ip', '')::inet;
+    exception when invalid_text_representation then
+      ${fail("STATE_ACTOR_INVALID", "actor.ip must be an IP address", "22023")}
+    end;
+  end if;
   perform set_config('better_supabase.transition_reason', coalesce(transition.reason, ''), true);
+  perform set_config('${ACTOR_SETTING}', coalesce(transition.actor::text, ''), true);
   ${ctx.hook("before_status_transition", [
     ["text", "transition.subject_type"],
     ["text", "transition.subject_id"],
@@ -753,6 +863,7 @@ begin
   ${transition}
   v_found := found;
   perform set_config('better_supabase.transition_reason', '', true);
+  perform set_config('${ACTOR_SETTING}', '', true);
   if not v_found then
     ${NOT_FOUND}
   end if;
@@ -763,7 +874,7 @@ begin
   return true;
 end;
 $$;
-${userGrant(`${ctx.fn("transition")}(text, text, text, text)`)}
+${userGrant(`${ctx.fn("transition")}(text, text, text, text, jsonb)`)}
 
 -- Pauses the record until a time (or until resume_lifecycle when null); the
 -- trigger refuses transitions meanwhile (STATE_PAUSED). As the caller.
@@ -806,7 +917,7 @@ function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "transition",
-      args: ["text", "text", "text", "text"],
+      args: ["text", "text", "text", "text", "jsonb"],
       returns: "boolean",
     },
     {
@@ -830,11 +941,25 @@ function contract(): readonly BlockSqlContractFunction[] {
   ];
 }
 
+function upgradeActorColumns(ctx: BlockSqlContext): string {
+  const columns = ctx.owns("history")
+    ? ACTOR_FIELDS.filter(([key]) => ctx.has("history", key)).map(
+        ([key]) =>
+          `alter table ${ctx.table("history")} add column if not exists ${ctx.col("history", key)} ${ACTOR_TYPES[key]};`,
+      )
+    : [];
+
+  return [
+    ...columns,
+    `drop function if exists ${ctx.fn("transition")}(text, text, text, text);`,
+  ].join("\n");
+}
+
 const CONTRIBUTES: BlockContributes = {
   bulk: (own) => [
     {
       name: "stateMachine.transition",
-      run: `perform ${own.fn("transition")}(bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'to', bulk_row.args ->> 'reason');`,
+      run: `perform ${own.fn("transition")}(bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'to', bulk_row.args ->> 'reason', bulk_row.args -> 'actor');`,
     },
   ],
 };
@@ -850,13 +975,19 @@ export const STATE_MACHINE: BlockSqlDefinition = {
   integrates: ["outbox", "audit", "approvals"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "transition() runs as the caller, so the subject table's update policy applies, and raises STATE_SUBJECT_NOT_FOUND when no row changed; subject_lifecycles and the pause, resume, flag and reader functions are new.",
       sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        'status_history keeps the actor name, email, IP address and user agent that transition() takes as actor; history: "app" leaves the history to the app, and history.write: false only reads the app table.',
+      sql: upgradeActorColumns,
     },
   ],
   names: NAMES,

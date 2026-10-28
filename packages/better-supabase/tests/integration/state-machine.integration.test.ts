@@ -139,9 +139,11 @@ describe.skipIf(!live)("state machine", () => {
       expect((await machine.state(subject).orThrow()).status).toBe("draft");
 
       await s.asRole(member);
-      expect(await machine.transition(subject, "sent", "ready").orThrow()).toBe(
-        true,
-      );
+      expect(
+        await machine
+          .transition(subject, "sent", { reason: "ready" })
+          .orThrow(),
+      ).toBe(true);
       const sent = await machine.state(subject).orThrow();
       expect(sent).toMatchObject({
         status: "sent",
