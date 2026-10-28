@@ -260,7 +260,7 @@ begin
   if v_order.status = 'cancelled' then
     return false;
   end if;
-  if v_order.status not in ('pending_payment', 'confirmed') or exists (select 1 from "better_supabase"."fulfillments" y
+  if v_order.status::text not in ('pending_payment', 'confirmed') or exists (select 1 from "better_supabase"."fulfillments" y
     where y."order_id" = v_order.id and y."status" in ('shipped', 'delivered')) then
     raise exception 'only an order waiting for payment or a confirmed one with nothing shipped can be cancelled; refund a paid one' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
   end if;
@@ -541,7 +541,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
-  if v_order.status not in ('paid', 'confirmed') then
+  if v_order.status::text not in ('paid', 'confirmed') then
     raise exception 'only a paid or confirmed order can be fulfilled' using errcode = '55000', hint = 'ORDERS_NOT_PAID';
   end if;
   declare
@@ -2265,7 +2265,7 @@ begin
   select coalesce(sum(x."captured"), 0) into v_paid from "better_supabase"."order_payments" x
   where x."order_id" = v_order.id and x."status" = 'succeeded';
   update "better_supabase"."orders" x set "paid_total" = v_paid, "updated_at" = now() where x."id" = v_order.id;
-  if v_order.status in ('pending_payment', 'confirmed') and v_paid >= v_order.total then
+  if v_order.status::text in ('pending_payment', 'confirmed') and v_paid >= v_order.total then
     perform "better_supabase"."order_transition"(v_order.id, 'paid');
     for v_line in
       select x."id" as id, x."variant_id" as variant, x."quantity" as quantity,
@@ -3012,7 +3012,7 @@ begin
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
   end loop;
   perform "better_supabase".emit_event('fulfillment.shipped', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_fulfillment.id, 'orderId', v_order.id, 'number', v_order.number, 'carrier', (select x."carrier" from "better_supabase"."fulfillments" x where x."id" = v_fulfillment.id), 'trackingNumber', (select x."tracking_number" from "better_supabase"."fulfillments" x where x."id" = v_fulfillment.id)), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
-  if v_order.status in ('paid', 'confirmed')
+  if v_order.status::text in ('paid', 'confirmed')
     and not exists (select 1 from "better_supabase"."order_lines" l where l."order_id" = v_order.id and l."quantity_fulfilled" < l."quantity")
     and not exists (select 1 from "better_supabase"."fulfillments" x where x."order_id" = v_order.id and x."status" = 'pending') then
     perform "better_supabase"."order_transition"(v_order.id, 'fulfilled');
