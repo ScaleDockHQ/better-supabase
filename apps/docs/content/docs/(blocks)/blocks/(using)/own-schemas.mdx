@@ -156,7 +156,7 @@ may be your own enum or domain.
   - `better_supabase.products`: `id`, `tenant_id`, `slug`, `title`, `status`, `created_at`, `updated_at`; typed: `status`, `kind`
   - `better_supabase.product_options`: `id`, `tenant_id`, `product_id`, `name`, `rank`
   - `better_supabase.product_option_values`: `id`, `tenant_id`, `option_id`, `value`, `rank`
-  - `better_supabase.product_variants`: `id`, `tenant_id`, `product_id`, `sku`, `allow_backorder`, `rank`, `created_at`, `updated_at`
+  - `better_supabase.product_variants`: `id`, `tenant_id`, `product_id`, `sku`, `allow_backorder`, `rank`, `created_at`, `updated_at`; typed with values: `status`
   - `better_supabase.product_variant_values`: `tenant_id`, `variant_id`, `option_value_id`
   - `better_supabase.price_lists`: `id`, `tenant_id`, `name`, `customer_group`, `created_at`
   - `better_supabase.product_prices`: `id`, `tenant_id`, `variant_id`, `currency`, `amount`, `created_at`, `updated_at`
