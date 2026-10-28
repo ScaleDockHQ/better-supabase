@@ -7,7 +7,7 @@ import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { sqlList as list } from "./workflow-editor-starts.ts";
 
 /** The node kinds every graph may use; the registry adds the app's own. */
-export const WORKFLOW_BUILTIN_NODE_KINDS = [
+const WORKFLOW_BUILTIN_NODE_KINDS = [
   "trigger",
   "step",
   "sleep",
@@ -18,7 +18,7 @@ export const WORKFLOW_BUILTIN_NODE_KINDS = [
 const BRANCHING = ["condition", "approval"] as const;
 
 /** What a definition is for: `lifecycle` owns a record's status path. */
-export const WORKFLOW_PURPOSES = ["automation", "lifecycle"] as const;
+const WORKFLOW_PURPOSES = ["automation", "lifecycle"] as const;
 
 /**
  * The node kind registry: the app's own kinds (`defineNodeKind`), synced by

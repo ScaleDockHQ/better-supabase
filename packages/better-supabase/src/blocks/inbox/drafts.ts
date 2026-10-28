@@ -86,7 +86,7 @@ export interface InboxDrafts {
 const SOURCES: readonly InboxDraftSource[] = ["user", "ai"];
 const STATUSES: readonly InboxDraftStatus[] = ["draft", "sent", "discarded"];
 
-export function draftOf(value: unknown): InboxDraft {
+function draftOf(value: unknown): InboxDraft {
   const row = recordOf(value, "inbox_draft");
   const input = recordOrEmpty(row["input"]);
   const format = input["format"];
