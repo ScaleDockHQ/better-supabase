@@ -708,7 +708,7 @@ describe("createCompliance", () => {
   });
 });
 
-describe("controls block", () => {
+describe("compliance block", () => {
   it("names the block and validates the inputs", () => {
     expect(complianceBlock.name).toBe("compliance");
     expect(

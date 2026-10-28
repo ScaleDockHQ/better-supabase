@@ -1,0 +1,31 @@
+---
+title: RLS on every new table
+description: An event trigger that turns on row level security for every table created outside the Supabase-managed schemas.
+---
+
+`rls-guard` enables row level security on every table created outside the
+schemas Supabase or Postgres own. A new table is therefore never readable
+through the Data API before it has policies: without a policy it denies every
+API role.
+
+```bash
+better-supabase add rls-guard
+```
+
+Install it as `postgres`; supautils lets that role create event triggers.
+
+## What it covers
+
+The trigger runs after `CREATE TABLE`, `CREATE TABLE AS`, `SELECT INTO` and an
+`ALTER TABLE` that turned RLS off. It skips `auth`, `storage`, `realtime`,
+`extensions`, `vault`, `graphql`, `pgbouncer`, `supabase_migrations` and the
+other managed schemas, and every `pg_*` schema.
+
+## Functions
+
+| Function                    | Returns         | Meaning                                           |
+| --------------------------- | --------------- | ------------------------------------------------- |
+| `enable_rls_on_new_table()` | `event_trigger` | Enables RLS on each new table in the command list |
+
+The event trigger is named `bsb_ensure_rls` and stays outside your tables, so
+`db diff` does not plan it per table.

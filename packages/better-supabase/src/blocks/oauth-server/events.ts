@@ -15,7 +15,7 @@ export interface OAuthGrantEventData {
 }
 
 /** The events of the `oauth-server` block: type to data. */
-export type OAuthServerEvents = {
+export type OauthServerEvents = {
   readonly "oauth_client.registered": OAuthClientEventData;
   readonly "oauth_client.deleted": OAuthClientEventData;
   readonly "oauth_grant.created": OAuthGrantEventData;
@@ -23,7 +23,7 @@ export type OAuthServerEvents = {
 };
 
 /** The `oauth-server` block's event types, for its manifest and `onBlockEvent`. */
-export const oauthServerEvents: Events<OAuthServerEvents> = defineEvents({
+export const oauthServerEvents: Events<OauthServerEvents> = defineEvents({
   "oauth_client.registered": event<OAuthClientEventData>(),
   "oauth_client.deleted": event<OAuthClientEventData>(),
   "oauth_grant.created": event<OAuthGrantEventData>(),

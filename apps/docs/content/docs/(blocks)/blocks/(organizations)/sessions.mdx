@@ -1,0 +1,10 @@
+---
+title: Sessions
+description: session_active() and the session tables that restrictive policies use to revoke a session before its token expires.
+---
+
+`sessions` records a session per sign-in and exposes `session_active()`, so a
+restrictive policy can revoke a session before its token expires. The
+[sessions guide](/docs/auth/sessions) covers the tables, the revocation path
+and how the proxy refreshes a session without calling the Auth server for a
+valid token.

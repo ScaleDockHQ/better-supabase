@@ -21,7 +21,7 @@ const RECIPES_DIR = join(import.meta.dirname, "../../../../scripts/recipes");
 
 /** Blocks whose creator is not `create<Name>(options)`. */
 const CREATOR_NAME: readonly string[] = [
-  // createOAuthServer keeps the OAuth casing every other export uses.
+  // createOauthServer keeps the OAuth casing every other export uses.
   "oauth-server",
 ];
 

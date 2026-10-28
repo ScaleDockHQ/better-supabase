@@ -1,5 +1,5 @@
 ---
-title: Jobs, idempotency and webhook inbox
+title: Queue
 description: Background jobs on Supabase Queues, safe retries and exactly-once webhook handling on the Postgres you already have.
 ---
 
@@ -937,7 +937,7 @@ block.
 
 To keep messages in a table your app already has, map it in
 `blocks.webhook-inbox.tables`; see
-[Over your own tables](/docs/blocks/webhooks-in#over-your-own-tables).
+[Over your own tables](/docs/blocks/incoming-webhooks#over-your-own-tables).
 
 `secrets` verifies [Standard Webhooks](/docs/standards) signatures. Pass
 `verify` to use a provider's own scheme instead. `receive` answers `202` for

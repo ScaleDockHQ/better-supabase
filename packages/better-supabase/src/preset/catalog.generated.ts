@@ -97,7 +97,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "idempotency",
       "title": "Idempotency keys",
-      "category": "developer",
+      "category": "automation",
       "requires": [],
       "integrates": [],
       "manifest": "idempotency"
@@ -105,7 +105,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "webhook-inbox",
       "title": "Webhook inbox",
-      "category": "developer",
+      "category": "automation",
       "requires": [],
       "integrates": [
         "data-lifecycle"
@@ -182,7 +182,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "rate-limit",
       "title": "Write rate limits",
-      "category": "developer",
+      "category": "automation",
       "requires": [],
       "integrates": [],
       "manifest": "rate-limit"
@@ -15147,7 +15147,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "idempotency"
       ],
-      "category": "developer",
+      "category": "automation",
       "client": {
         "export": "idempotencyBlock",
         "subpath": "better-supabase/blocks/queue"
@@ -15195,7 +15195,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "rate-limit"
       ],
-      "category": "developer",
+      "category": "automation",
       "client": {
         "export": "rateLimitBlock",
         "subpath": "better-supabase/blocks/queue"
@@ -15208,7 +15208,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "webhook-inbox"
       ],
-      "category": "developer",
+      "category": "automation",
       "client": {
         "export": "webhookInboxBlock",
         "subpath": "better-supabase/blocks/queue"

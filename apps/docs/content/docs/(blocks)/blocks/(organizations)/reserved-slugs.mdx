@@ -1,0 +1,45 @@
+---
+title: Reserved slugs
+description: A slug format and length check and a list of reserved words such as admin, api and www, enforced by a trigger.
+---
+
+`reserved-slugs` keeps the slugs an app must not hand out: `admin`, `api`,
+`www` and the rest. A trigger checks a slug's format, its length and the
+reserved list on every insert and update, so a route never collides with a
+tenant's own slug.
+
+```bash
+better-supabase add reserved-slugs
+```
+
+```ts
+import { reservedSlugsBlock } from "better-supabase/blocks/reserved-slugs";
+```
+
+## Options
+
+| Option      | Default           | Meaning          |
+| ----------- | ----------------- | ---------------- |
+| `slugs`     | the built-in list | Words to reserve |
+| `minLength` | `3`               | Shortest slug    |
+| `maxLength` | `63`              | Longest slug     |
+
+The list goes into `reserved_slugs` with a `reason` when the table has one.
+
+## Track a table
+
+```sql
+select better_supabase.track_slug('public.organizations');
+```
+
+The trigger calls `slug_problem`, which returns `null` for a valid slug or the
+hint code to raise: `SLUG_INVALID`, `SLUG_TOO_SHORT`, `SLUG_TOO_LONG` or
+`SLUG_RESERVED`.
+
+## Functions
+
+| Function                          | Returns   | Meaning                             |
+| --------------------------------- | --------- | ----------------------------------- |
+| `slug_problem(slug)`              | `text`    | The hint code, or `null`            |
+| `enforce_slug()`                  | `trigger` | Raises the hint for an invalid slug |
+| `track_slug(target, column_name)` | `void`    | Adds the trigger to a table         |

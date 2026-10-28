@@ -19,7 +19,7 @@ import {
 import { moduleOperations } from "./permissions-model.ts";
 
 /** The framework, control, evidence and evidence task functions. */
-export function controlsFunctions(ctx: BlockSqlContext): string {
+export function complianceFunctions(ctx: BlockSqlContext): string {
   const frameworks = ctx.table("frameworks");
   const controls = ctx.table("controls");
   const evidence = ctx.table("evidence");

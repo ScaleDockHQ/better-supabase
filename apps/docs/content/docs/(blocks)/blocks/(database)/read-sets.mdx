@@ -1,0 +1,10 @@
+---
+title: Read sets
+description: One stable security invoker view that returns the ids a caller may read for a table.
+---
+
+`read-sets` renders one `stable`, `security invoker` function per registered
+table that returns the ids the caller may read, so a list query, a search or a
+report shares the same access rule as the table's policies. The
+[read sets guide](/docs/repository/read-sets) covers the generated function,
+its signature and how a block uses it.

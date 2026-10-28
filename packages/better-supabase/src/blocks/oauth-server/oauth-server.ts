@@ -43,7 +43,7 @@ export type OAuthClientAuthMethod = (typeof AUTH_METHODS)[number];
 /** A grant type a client may use. */
 export type OAuthGrantType = (typeof GRANT_TYPES)[number];
 
-export interface OAuthServerOptions extends BlockOptions {
+export interface OauthServerOptions extends BlockOptions {
   /** How long an authorization code is valid, in seconds. Default: 60. */
   readonly codeSeconds?: number;
   /** How long a device code is valid, in seconds. Default: 600. */
@@ -51,7 +51,7 @@ export interface OAuthServerOptions extends BlockOptions {
   /** The minimum seconds between device code polls. Default: 5. */
   readonly deviceInterval?: number;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: NoInfer<BlockHooks<OAuthServer>>;
+  readonly hooks?: NoInfer<BlockHooks<OauthServer>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
 }
@@ -219,7 +219,7 @@ export interface RevokeTokenOptions {
  * The `oauth-server` storage as typed calls. Service role only, except the
  * signed-in user's `my_oauth_grants` and `revoke_my_oauth_grant`.
  */
-export interface OAuthServer {
+export interface OauthServer {
   /**
    * Registers a client (RFC 7591) and returns its secret and registration token
    * once.
@@ -461,7 +461,7 @@ function pollOf(value: unknown): DeviceCodePoll {
  * sign them with `createSigningKeys` and verify them with
  * `accessTokenResolver`.
  */
-export function createOAuthServer(options: OAuthServerOptions): OAuthServer {
+export function createOauthServer(options: OauthServerOptions): OauthServer {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const codeSeconds = options.codeSeconds ?? 60;
@@ -489,7 +489,7 @@ export function createOAuthServer(options: OAuthServerOptions): OAuthServer {
       (value) => value === true,
     );
 
-  const client: OAuthServer = {
+  const client: OauthServer = {
     registerClient: (metadata, registerOptions = {}) => {
       const method = metadata.tokenEndpointAuthMethod ?? "client_secret_basic";
       const grantTypes = metadata.grantTypes ?? ["authorization_code"];

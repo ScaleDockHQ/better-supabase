@@ -1,0 +1,53 @@
+---
+title: Subjects
+description: The app-wide record registry: titles, URLs, access checks, record summaries, my work and Realtime presence per record.
+---
+
+`subjects` is the record registry from `config.subjects`. It resolves a
+record's title and URL, checks whether a caller can act on it, summarises a
+record for notifications and the activity feed, lists the caller's work across
+every installed block, and opens Realtime presence for readers of a record.
+
+```bash
+better-supabase add subjects
+```
+
+```ts
+import { createSubjects } from "better-supabase/blocks/subjects";
+```
+
+Register a type once in `config.subjects`; every block that stores
+`subject_type` and `subject_id` reads through it. The
+[record types guide](/docs/repository/record-types) has the config.
+
+## Functions
+
+| Function                                  | Returns   | Meaning                                              |
+| ----------------------------------------- | --------- | ---------------------------------------------------- |
+| `subject_types()`                         | `text[]`  | The registered types                                 |
+| `subject_title(type, id)`                 | `text`    | The record's title                                   |
+| `subject_url(type, id)`                   | `text`    | The record's path                                    |
+| `subject_titles(jsonb)`                   | `jsonb`   | Titles for a batch of `{ type, id }` refs            |
+| `can_subject(type, id, action)`           | `boolean` | Whether the caller may act on the record             |
+| `can_subject_for(user, type, id, action)` | `boolean` | The same check for another member                    |
+| `record_summary(type, id, fields, since)` | `jsonb`   | A record summary for notifications and the feed      |
+| `my_work(tenant, limit)`                  | `jsonb`   | Open work for the caller across the installed blocks |
+| `subject_presence_allowed(type)`          | `boolean` | Whether presence is open on `presence:<type>:<id>`   |
+
+## Access
+
+`can_subject` runs the subject's permission check and still requires row
+visibility. A subject entry can also name a SQL function for an action with
+`permissions: { comment: { check: "..." } }`; `can_subject` calls it for that
+action.
+
+## My work
+
+`my_work` groups the caller's open items by block (`tasks`, `cases`,
+`approvals`, `enrollments` and the blocks that register a `my_work` branch).
+Each item carries its subject, title, due date and state.
+
+## Presence
+
+A reader of a record joins `presence:<type>:<id>`. The registry refuses the
+topic when `subject_presence_allowed` returns false for the type.

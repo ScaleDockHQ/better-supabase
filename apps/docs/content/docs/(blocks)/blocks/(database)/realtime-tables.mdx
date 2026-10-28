@@ -1,0 +1,43 @@
+---
+title: Realtime table changes
+description: A payload-free change signal per statement on a table topic, so a live query refetches through RLS instead of trusting the payload.
+---
+
+`realtime-tables` broadcasts one change signal per statement, with no row
+data. A client that listens refetches through RLS, so a subscriber never sees
+a row it cannot read. The topic is
+`bsb:t:<schema>.<table>[:<tenant>]`, or `bsb:t:<schema>.<table>:u:<user>`
+for a `realtime.users` table.
+
+```bash
+better-supabase add realtime-tables
+```
+
+## Track a table
+
+```sql
+select better_supabase.track_realtime('public.invoices');
+select better_supabase.untrack_realtime('public.invoices');
+```
+
+`track_realtime` adds statement triggers for insert, update and delete.
+
+## Topics
+
+| Topic                            | Who receives it                                              |
+| -------------------------------- | ------------------------------------------------------------ |
+| `bsb:t:public.invoices`          | Every subscriber on the table                                |
+| `bsb:t:public.invoices:<tenant>` | A member of that tenant, checked against current memberships |
+| `bsb:t:public.invoices:u:<user>` | That user                                                    |
+
+A tenant topic stays closed without `memberships`, because nothing else says
+who belongs.
+
+## Functions
+
+| Function                   | Returns   | Meaning                                          |
+| -------------------------- | --------- | ------------------------------------------------ |
+| `broadcast_changes()`      | `trigger` | Sends the change signal for one statement        |
+| `broadcast_topic()`        | `trigger` | Sends to the topic derived from the changed rows |
+| `track_realtime(target)`   | `void`    | Adds the triggers                                |
+| `untrack_realtime(target)` | `void`    | Removes them                                     |

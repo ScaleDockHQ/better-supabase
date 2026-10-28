@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { BlockTransport } from "../../src/core/block-transport.ts";
 
-import { createOAuthServer } from "../../src/blocks/oauth-server/oauth-server.ts";
+import { createOauthServer } from "../../src/blocks/oauth-server/oauth-server.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 
 const INVALID = { status: "invalid" };
@@ -16,7 +16,7 @@ const recording = (answer: unknown = INVALID) => {
 describe(`PKCE (RFC 7636, ${SPEC_PINS.rfc7636})`, () => {
   it("sends S256 of the verifier from Appendix B", async () => {
     const { call, transport } = recording();
-    const oauth = createOAuthServer({ transport });
+    const oauth = createOauthServer({ transport });
 
     await oauth.redeemAuthorizationCode({
       code: "code",
@@ -31,7 +31,7 @@ describe(`PKCE (RFC 7636, ${SPEC_PINS.rfc7636})`, () => {
 
   it("refuses the plain method and a verifier outside section 4.1", async () => {
     const { call, transport } = recording();
-    const oauth = createOAuthServer({ transport });
+    const oauth = createOauthServer({ transport });
 
     const plain = await oauth.createAuthorizationCode({
       clientId: "client",
@@ -71,7 +71,7 @@ describe(`Client registration (RFC 7591, ${SPEC_PINS.rfc7591}; RFC 9700, ${SPEC_
       updatedAt: "2026-10-18T00:00:00Z",
     });
 
-    const oauth = createOAuthServer({ transport });
+    const oauth = createOauthServer({ transport });
 
     const registered = await oauth
       .registerClient({ redirectUris: ["https://app.example.com/cb"] })
@@ -95,7 +95,7 @@ describe(`Client registration (RFC 7591, ${SPEC_PINS.rfc7591}; RFC 9700, ${SPEC_
     "/relative",
   ])("refuses the redirect URI %s (RFC 9700 section 2.1)", async (uri) => {
     const { call, transport } = recording();
-    const oauth = createOAuthServer({ transport });
+    const oauth = createOauthServer({ transport });
 
     expect(await oauth.registerClient({ redirectUris: [uri] })).toMatchObject({
       ok: false,
@@ -106,7 +106,7 @@ describe(`Client registration (RFC 7591, ${SPEC_PINS.rfc7591}; RFC 9700, ${SPEC_
 
   it("allows http on a loopback host (RFC 8252 section 7.3)", async () => {
     const { call, transport } = recording(null);
-    const oauth = createOAuthServer({ transport });
+    const oauth = createOauthServer({ transport });
 
     await oauth.updateClient("client", {
       redirectUris: ["http://127.0.0.1:8976/cb"],
@@ -119,7 +119,7 @@ describe(`Client registration (RFC 7591, ${SPEC_PINS.rfc7591}; RFC 9700, ${SPEC_
 describe(`Device authorization (RFC 8628, ${SPEC_PINS.rfc8628})`, () => {
   it("issues an eight-consonant user code and the section 3.2 fields", async () => {
     const { call, transport } = recording(true);
-    const oauth = createOAuthServer({ transport });
+    const oauth = createOauthServer({ transport });
 
     const issued = await oauth
       .createDeviceCode("client", "contacts:read")
@@ -147,7 +147,7 @@ describe(`Device authorization (RFC 8628, ${SPEC_PINS.rfc8628})`, () => {
     [{ status: "expired_token" }, { status: "expired_token" }],
   ])("maps the section 3.5 response %o", async (answer, expected) => {
     const { transport } = recording(answer);
-    const oauth = createOAuthServer({ transport });
+    const oauth = createOauthServer({ transport });
 
     expect(await oauth.pollDeviceCode("device", "client").orThrow()).toEqual(
       expected,
@@ -156,7 +156,7 @@ describe(`Device authorization (RFC 8628, ${SPEC_PINS.rfc8628})`, () => {
 
   it("matches a user code typed with a dash and in lower case", async () => {
     const { call, transport } = recording(true);
-    const oauth = createOAuthServer({ transport });
+    const oauth = createOauthServer({ transport });
 
     await oauth.approveDeviceCode("bdfg-hjkl", "user");
 

@@ -1,0 +1,42 @@
+---
+title: pgTAP helpers
+description: Test helpers for supabase test db: create a user, authenticate as one, and check RLS, policies, audit coverage and partitions.
+---
+
+`pgtap` writes the helpers your database tests share into `supabase/tests`,
+never into your schema. They run first and commit, so every later test file
+can create users and act as one the way PostgREST does.
+
+```bash
+better-supabase add pgtap
+```
+
+## Functions
+
+| Function                                                | Returns | Meaning                                            |
+| ------------------------------------------------------- | ------- | -------------------------------------------------- |
+| `tests.create_user(email, app_metadata, user_metadata)` | `uuid`  | Inserts an `auth.users` row and returns its id     |
+| `tests.authenticate_as(user_id, claims)`                | `void`  | Runs the rest of the transaction as that user      |
+| `tests.authenticate_as_anon()`                          | `void`  | Runs as `anon`                                     |
+| `tests.clear_authentication()`                          | `void`  | Returns to the test role                           |
+| `tests.every_table_has_rls(schema_name)`                | `setof` | Fails for each table without RLS                   |
+| `tests.rls_enabled(schema_name)`                        | `setof` | The tables with RLS                                |
+| `tests.policies_use(schema_name, pattern)`              | `setof` | Fails for a policy that does not match the pattern |
+| `tests.no_anon_policies(schema_name)`                   | `setof` | Fails for a policy that targets `anon`             |
+| `tests.every_table_audited(schema_name, exempt)`        | `setof` | Fails for a table without an audit trigger         |
+| `tests.partitions_have_rls(schema_name)`                | `setof` | Fails for a partition without RLS                  |
+
+## A test file
+
+```sql
+begin;
+select plan(3);
+select tests.create_user('owner@example.com') as owner \gset
+select tests.authenticate_as(:'owner');
+select lives_ok($$ select public.create_invoice(...) $$, 'the owner creates an invoice');
+select is((select count(*) from tests.every_table_has_rls('public')), 0::bigint, 'every table has RLS');
+select * from finish();
+rollback;
+```
+
+`supabase test db` runs the files in `supabase/tests` against the local stack.

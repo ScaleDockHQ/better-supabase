@@ -15,6 +15,13 @@
     "access-requests",
     "identities",
     "domains",
-    "compliance"
+    "compliance",
+    "grants",
+    "mfa",
+    "subjects",
+    "reserved-slugs",
+    "permissions",
+    "sessions",
+    "impersonation"
   ]
 }

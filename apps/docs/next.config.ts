@@ -105,6 +105,21 @@ const config = createNextConfig({
         permanent: true,
       },
       {
+        source: "/docs/registry/ui-recipes/service-principals-table",
+        destination: "/docs/registry/ui-recipes/service-accounts-table",
+        permanent: true,
+      },
+      {
+        source: "/docs/blocks/webhooks-out",
+        destination: "/docs/blocks/webhooks",
+        permanent: true,
+      },
+      {
+        source: "/docs/blocks/webhooks-in",
+        destination: "/docs/blocks/incoming-webhooks",
+        permanent: true,
+      },
+      {
         source: "/docs/blocks/flows",
         destination: "/docs/blocks/automations",
         permanent: true,

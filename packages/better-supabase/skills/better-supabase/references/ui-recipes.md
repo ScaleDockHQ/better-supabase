@@ -20793,9 +20793,9 @@ export function WebhookEndpointsSkeleton() {
 }
 ```
 
-## Service principals table
+## Service accounts table
 
-Machine identities with their scopes, last use and a button to disable one. It loads its data on the server through the block's client; the [service-accounts block](https://bettersupabase.com/blocks/service-accounts) must be installed (`npx better-supabase add service-accounts`). Page: https://bettersupabase.com/recipes/service-principals-table.
+Machine identities with their scopes, last use and a button to disable one. It loads its data on the server through the block's client; the [service-accounts block](https://bettersupabase.com/blocks/service-accounts) must be installed (`npx better-supabase add service-accounts`). Page: https://bettersupabase.com/recipes/service-accounts-table.
 
 Web, with shadcn components:
 
@@ -20860,7 +20860,7 @@ export async function ServicePrincipalsTable() {
   ]);
 
   return (
-    <Card data-recipe="service-principals-table">
+    <Card data-recipe="service-accounts-table">
       <CardHeader>
         <CardTitle>{t("Service principals")}</CardTitle>
         <CardDescription>

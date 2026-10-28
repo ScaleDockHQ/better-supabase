@@ -1,0 +1,48 @@
+---
+title: Data API grants
+description: The complete Data API privileges for the tables and functions in the expose config, or grants derived from the policies.
+---
+
+`grants` writes the Data API privileges of your tables and functions: for
+each table or function in `config.expose`, exactly the listed privileges are
+granted to `anon`, `authenticated` and `service_role`, and the rest are
+revoked. RLS still decides which rows a role sees; grants decide whether the
+role reaches the table at all.
+
+```bash
+better-supabase add grants
+```
+
+A project with default privileges turned off grants a new table to no Data
+API role. `grants` closes that gap without hand-written SQL.
+
+## The expose config
+
+```ts title="better-supabase.config.ts"
+expose: {
+  tables: [
+    { table: "public.invoices", role: "authenticated", privileges: ["select", "insert", "update"] },
+  ],
+  functions: [{ function: "search_invoices(text, integer)", roles: ["authenticated"] }],
+},
+```
+
+`upgrade` rewrites the grant statements when the config changes. A privilege
+that names columns resolves them against the declared columns; run
+`better-supabase upgrade` after adding one.
+
+## Grants from policies
+
+With `blocks.grants.options.fromPolicies`, every table `expose` does not list
+gets `service_role` privileges, and a declared table with RLS on and no
+permissive policy reaching it becomes service-only. This is the safe default
+for an app that declares tables but does not list each one.
+
+| Option         | Type    | Meaning                                                       |
+| -------------- | ------- | ------------------------------------------------------------- |
+| `fromPolicies` | boolean | Derive table grants from the policies when `expose` omits one |
+
+## Without the client
+
+`grants` has no client and no SQL functions. It renders `revoke` and `grant`
+statements in the module schema file, so `db diff` shows each change.

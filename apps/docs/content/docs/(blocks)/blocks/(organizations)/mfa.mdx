@@ -1,0 +1,48 @@
+---
+title: MFA enforcement
+description: mfa_satisfied() for restrictive policies, and the controllers that enrol a factor and ask for step-up.
+---
+
+`mfa` adds `mfa_satisfied()`, a function a restrictive policy uses to require
+a verified factor in the current session. It returns true when the caller has
+no verified factor, or when the session reached `aal2` after verifying one, so
+it only restricts accounts that enrolled.
+
+```bash
+better-supabase add mfa
+```
+
+```ts
+import {
+  createMfaController,
+  createStepUpController,
+  needsStepUp,
+} from "better-supabase/blocks/mfa";
+```
+
+## A restrictive policy
+
+```sql
+create policy mfa_required on public.invoices as restrictive
+  for all to authenticated
+  using ((select better_supabase.mfa_satisfied()))
+  with check ((select better_supabase.mfa_satisfied()));
+```
+
+A restrictive policy applies on top of the table's other policies, so the
+tenant scope still decides which rows the caller sees.
+
+## Functions
+
+| Function          | Returns   | Meaning                                                           |
+| ----------------- | --------- | ----------------------------------------------------------------- |
+| `mfa_satisfied()` | `boolean` | No verified factor, or a verified factor in this session (`aal2`) |
+
+The function is `security definer`, because `authenticated` cannot read
+`auth.mfa_factors`.
+
+## Client
+
+`createMfaController` enrols and verifies a factor; `createStepUpController`
+asks for the code when `needsStepUp(snapshot)` is true. Both are headless
+controllers (ADR 0030) and work with the `/react` hooks.

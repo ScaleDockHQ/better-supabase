@@ -160,7 +160,7 @@ there is nothing to send, and throw to retry later.
 
 ## WebhookSigner
 
-Adds the signature headers to an [outgoing webhook](/docs/blocks/webhooks-out).
+Adds the signature headers to an [outgoing webhook](/docs/blocks/webhooks).
 It has `apiVersion: 1`, a `name` and `sign({ id, body, timestamp, secrets })`,
 which returns the headers. `secrets` lists every live secret, newest first;
 sign with each so receivers keep verifying while a secret rotates. The same
@@ -182,7 +182,7 @@ secret and keeps the previous ones live for `overlap`.
 
 ## IncomingDestination
 
-Where [incoming webhooks](/docs/blocks/webhooks-in#sending-deliveries-to-a-queue)
+Where [incoming webhooks](/docs/blocks/incoming-webhooks#sending-deliveries-to-a-queue)
 put a verified delivery. It has `apiVersion: 1`, a `name` and
 `deliver(delivery)`, which gets the endpoint's id, tenant and metadata, the
 source, the message id, the type, the payload and the kept headers. It
