@@ -3,6 +3,7 @@ import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { asColumnType } from "../column-type.ts";
 import {
+  countedLine,
   lineColumn,
   lineCopyColumns,
   lineFieldsJson,
@@ -299,6 +300,30 @@ export function invoiceFunctions(
           const ql = (column: string): string => quotes.col("lines", column);
           const deposits = has("depositBps");
 
+          const inclusive =
+            has("pricesIncludeTax") && quotes.has("quotes", "pricesIncludeTax")
+              ? `v_quote.${q("pricesIncludeTax")}`
+              : "false";
+
+          // What a deposit is a share of: the amount the prices are given in.
+          const base = (alias: string): string =>
+            `case when ${inclusive} then ${alias}.${q("total")} else ${alias}.${q("subtotal")} end`;
+
+          const taxLines = quotes.hasTable("taxLines")
+            ? (column: string): string => quotes.col("taxLines", column)
+            : undefined;
+
+          // The document discount as one line per tax rate, its share of
+          // each, so the invoice counts the tax the quote counted.
+          const discountLines =
+            taxLines !== undefined && quotes.has("taxLines", "discount")
+              ? `
+    select v_lines || coalesce(jsonb_agg(jsonb_build_object('description', 'Discount', 'quantity', 1, 'unitAmount', (-x.${taxLines("discount")})::text,
+        'taxRateBps', x.${taxLines("taxRateBps")}, 'taxCode', ${quotes.has("taxLines", "taxCode") ? `x.${taxLines("taxCode")}` : "null"}) order by x.${taxLines("taxRateBps")}), '[]'::jsonb)
+      into v_lines
+    from ${quotes.table("taxLines")} x where x.${taxLines("parent")} = v_quote.${q("id")} and x.${taxLines("discount")} <> 0;`
+              : "";
+
           const party = (kind: "company" | "contact"): string =>
             (kind === "company" ? company : contact) &&
             quotes.has("quotes", `${kind}Type`) &&
@@ -322,10 +347,10 @@ export function invoiceFunctions(
         'discountBps', ${lineColumn(quotes, "lines", "x", "discountBps")}, 'taxRateBps', ${lineColumn(quotes, "lines", "x", "taxRateBps")}, 'taxCode', ${lineColumn(quotes, "lines", "x", "taxCode")},
         'product', case when ${lineColumn(quotes, "lines", "x", "productType")} is null then null else jsonb_build_object('type', ${lineColumn(quotes, "lines", "x", "productType")}, 'id', ${lineColumn(quotes, "lines", "x", "productId")}) end
       ) order by x.${ql("position")}), '[]'::jsonb) into v_lines
-    from ${quotes.table("lines")} x where x.${ql("parent")} = v_quote.${q("id")};${
+    from ${quotes.table("lines")} x where x.${ql("parent")} = v_quote.${q("id")} and ${countedLine(quotes, "lines", "x")};${discountLines}${
       deposits
         ? `
-    select v_lines || coalesce(jsonb_agg(jsonb_build_object('description', 'Deposit ' || d.${i("identifier")}, 'quantity', 1, 'unitAmount', (-d.${i("subtotal")})::text,
+    select v_lines || coalesce(jsonb_agg(jsonb_build_object('description', 'Deposit ' || d.${i("identifier")}, 'quantity', 1, 'unitAmount', (-(case when ${inclusive} then d.${i("total")} else d.${i("subtotal")} end))::text,
         'taxRateBps', case when d.${i("subtotal")} = 0 then 0 else round(d.${i("taxTotal")} * 10000.0 / d.${i("subtotal")})::integer end)), '[]'::jsonb)
       into v_lines
     from ${t("invoices")} d
@@ -336,12 +361,12 @@ export function invoiceFunctions(
     v_lines := jsonb_build_array(jsonb_build_object(
       'description', 'Deposit ' || (invoice_from_quote.deposit_bps / 100.0)::text || '% of ' || v_quote.${q("identifier")},
       'quantity', 1,
-      'unitAmount', round(v_quote.${q("subtotal")}::numeric * invoice_from_quote.deposit_bps / 10000)::bigint::text,
+      'unitAmount', round(${base("v_quote")}::numeric * invoice_from_quote.deposit_bps / 10000)::bigint::text,
       'taxRateBps', case when v_quote.${q("subtotal")} = 0 then 0 else round(v_quote.${q("taxTotal")} * 10000.0 / v_quote.${q("subtotal")})::integer end));
   end if;
   v_row := null;
   return ${fn("create_invoice")}(v_quote.${q("tenant")}, jsonb_build_object(
-    'title', v_quote.${q("title")}, 'currency', v_quote.${q("currency")}, 'depositBps', invoice_from_quote.deposit_bps,
+    'title', v_quote.${q("title")}, 'currency', v_quote.${q("currency")}, 'depositBps', invoice_from_quote.deposit_bps,${has("pricesIncludeTax") ? ` 'pricesIncludeTax', ${inclusive},` : ""}
     'company', ${party("company")},
     'contact', ${party("contact")},
     'origin', jsonb_build_object('type', 'quote', 'id', v_quote.${q("id")}::text)), v_lines);`;
@@ -514,10 +539,10 @@ begin
     ${fail("INVOICE_ORIGIN_UNSUPPORTED", "this invoices table takes only a quote as the origin", "22023")}
   end if;`
       : ""
-  }${refuse(has("depositBps"), "create_invoice.attrs ->> 'depositBps'", "DEPOSIT", "deposit column")}
+  }${refuse(has("depositBps"), "create_invoice.attrs ->> 'depositBps'", "DEPOSIT", "deposit column")}${refuse(has("pricesIncludeTax"), "nullif(create_invoice.attrs ->> 'pricesIncludeTax', 'false')", "PRICING", "prices_include_tax column")}
   begin
     insert into ${t("invoices")} (${i("tenant")}, ${i("title")}${also("companyType")}${also("companyId")}${also("contactType")}${also("contactId")}, ${i("currency")},
-      ${i("termsDays")}${also("note")}${also("originType")}${also("originId")}${also("depositBps")}${also("createdBy")})
+      ${i("termsDays")}${also("note")}${also("originType")}${also("originId")}${also("depositBps")}${also("pricesIncludeTax")}${also("createdBy")})
     values (${valueLines(
       "      ",
       ["create_invoice.tenant", "trim(create_invoice.attrs ->> 'title')"],
@@ -551,6 +576,10 @@ begin
         present(
           "depositBps",
           "(create_invoice.attrs ->> 'depositBps')::integer",
+        ),
+        present(
+          "pricesIncludeTax",
+          "coalesce((create_invoice.attrs ->> 'pricesIncludeTax')::boolean, false)",
         ),
         present("createdBy", "auth.uid()"),
       ],
@@ -747,6 +776,7 @@ begin
       i("currency"),
       i("termsDays"),
       present("note", copy("note")),
+      present("pricesIncludeTax", copy("pricesIncludeTax")),
       present("createdBy", copy("createdBy")),
     ],
   )})
@@ -768,6 +798,7 @@ begin
       `v_original.${i("currency")}`,
       "0",
       present("note", "nullif(trim(credit_invoice.note), '')"),
+      present("pricesIncludeTax", `v_original.${copy("pricesIncludeTax")}`),
       present("createdBy", "auth.uid()"),
     ],
   )})

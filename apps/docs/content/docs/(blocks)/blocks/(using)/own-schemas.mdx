@@ -457,8 +457,10 @@ may be your own enum or domain.
   - `better_supabase.job_messages`: `id`, `queue`, `message`, `attempts`, `enqueued_at`, `visible_at`, `archived_at`, `dead`, `dedupe_key`, `max_attempts`
   - `better_supabase.job_schedules`: `job_name`, `schedule`, `timezone`, `queue`, `payload`, `next_run`, `last_run`, `locked_until`, `created_at`, `tenant`, `first_after`
 - `quotes`
-  - `better_supabase.quotes`: `id`, `tenant_id`, `number`, `identifier`, `revision`, `supersedes_id`, `title`, `owner_user_id`, `currency`, `status`, `valid_until`, `token_hash`, `sent_at`, `decided_at`, `decided_by`, `created_at`, `updated_at`, `list_total`, `discount_total`, `subtotal`, `tax_total`, `total`; typed: `status`
+  - `better_supabase.quotes`: `id`, `tenant_id`, `number`, `identifier`, `revision`, `title`, `owner_user_id`, `currency`, `status`, `valid_until`, `token_hash`, `sent_at`, `decided_at`, `decided_by`, `created_at`, `updated_at`, `list_total`, `discount_total`, `subtotal`, `tax_total`, `total`; typed: `status`
   - `better_supabase.quote_lines`: `id`, `tenant_id`, `parent_id`, `description`, `quantity`, `unit_amount`, `position`; typed: `product_type`
+  - `better_supabase.quote_versions`: `id`, `tenant_id`, `quote_id`, `revision`, `snapshot`, `total`, `currency`, `published_at`
+  - `better_supabase.quote_tax_lines`: `id`, `tenant_id`, `parent_id`, `tax_rate_bps`, `net`, `tax`, `gross`
 - `rate-limit`
   - `better_supabase.rate_limit_rules`: `scope`, `max_requests`, `period`, `key_claim`
   - `better_supabase.rate_limits`: `scope`, `key`, `window_start`, `hits`, `period`

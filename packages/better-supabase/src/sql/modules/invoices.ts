@@ -138,6 +138,7 @@ const NAMES: BlockSqlNames = {
         originType: "origin_type",
         originId: "origin_id",
         depositBps: "deposit_bps",
+        pricesIncludeTax: "prices_include_tax",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -154,6 +155,7 @@ const NAMES: BlockSqlNames = {
         "originType",
         "originId",
         "depositBps",
+        "pricesIncludeTax",
         "createdBy",
         "listTotal",
         "discountTotal",
@@ -256,7 +258,7 @@ create table if not exists ${t("invoices")} (
   ${i("paidTotal")} bigint not null default 0,
   ${i("creditedTotal")} bigint not null default 0,
   ${i("paidAt")} timestamptz,
-  ${i("voidedAt")} timestamptz,${column("voidReason", "text")}${column("note", "text")}${column("originType", "text")}${column("originId", "text")}${ctx.has("invoices", "depositBps") ? `\n  ${i("depositBps")} integer check (${i("depositBps")} > 0 and ${i("depositBps")} < 10000),` : ""}${column("createdBy", "uuid")}
+  ${i("voidedAt")} timestamptz,${column("voidReason", "text")}${column("note", "text")}${column("originType", "text")}${column("originId", "text")}${ctx.has("invoices", "depositBps") ? `\n  ${i("depositBps")} integer check (${i("depositBps")} > 0 and ${i("depositBps")} < 10000),` : ""}${column("pricesIncludeTax", "boolean not null default false")}${column("createdBy", "uuid")}
   ${i("createdAt")} timestamptz not null default now(),
   ${i("updatedAt")} timestamptz not null default now(),
   ${totalColumnsSql(ctx, "invoices")},

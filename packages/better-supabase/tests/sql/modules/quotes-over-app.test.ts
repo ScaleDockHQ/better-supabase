@@ -191,12 +191,15 @@ begin
     raise exception 'public_quote did not mark it viewed';
   end if;
   v_revised := better_supabase.revise_quote(v_id);
-  if (v_revised ->> 'revision')::int <> 2 or (select state from public.proposals where id = v_id) <> 'withdrawn' then
+  if (v_revised ->> 'id')::uuid <> v_id or (v_revised ->> 'revision')::int <> 2 or (select state from public.proposals where id = v_id) <> 'draft' then
     raise exception 'revised %', v_revised;
   end if;
-  perform better_supabase.send_quote((v_revised ->> 'id')::uuid);
-  perform better_supabase.decide_quote((v_revised ->> 'id')::uuid, 'accepted', 'fine', 'Ann');
-  if (select state from public.proposals where id = (v_revised ->> 'id')::uuid) <> 'accepted' then
+  perform better_supabase.send_quote(v_id);
+  if (select array_agg(revision order by revision) from better_supabase.quote_versions where quote_id = v_id) <> array[1, 2] then
+    raise exception 'versions %', better_supabase.quote_versions(v_id);
+  end if;
+  perform better_supabase.decide_quote(v_id, 'accepted', 'fine', 'Ann');
+  if (select state from public.proposals where id = v_id) <> 'accepted' then
     raise exception 'decision missed';
   end if;
 end;

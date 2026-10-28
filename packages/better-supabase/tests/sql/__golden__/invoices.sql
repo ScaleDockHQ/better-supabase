@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:d29ff82d72242734f3f3c8d5edb67a635f47a2c7be7884f1d1f8f293671ffa8c
+-- @bsb-hash sha256:63c9acb9e8c44268540d7f419ec8ec2dd877dd9a826823efeb900bcb9a9dc479
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -101,6 +101,7 @@ create table if not exists "better_supabase"."invoices" (
   "origin_type" text,
   "origin_id" text,
   "deposit_bps" integer check ("deposit_bps" > 0 and "deposit_bps" < 10000),
+  "prices_include_tax" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -182,13 +183,13 @@ begin
   end if;
   begin
     insert into "better_supabase"."invoices" ("tenant_id", "title", "company_type", "company_id", "contact_type", "contact_id", "currency",
-      "terms_days", "note", "origin_type", "origin_id", "deposit_bps", "created_by")
+      "terms_days", "note", "origin_type", "origin_id", "deposit_bps", "prices_include_tax", "created_by")
     values (create_invoice.tenant, trim(create_invoice.attrs ->> 'title'),
       case when v_company_id is null then null else v_company_type end, v_company_id,
       case when v_contact_id is null then null else v_contact_type end, v_contact_id,
       upper(coalesce(create_invoice.attrs ->> 'currency', 'EUR')), case when create_invoice.attrs ? 'termsDays' then (create_invoice.attrs ->> 'termsDays')::integer else 30 end,
       create_invoice.attrs ->> 'note', create_invoice.attrs -> 'origin' ->> 'type', create_invoice.attrs -> 'origin' ->> 'id',
-      (create_invoice.attrs ->> 'depositBps')::integer, auth.uid())
+      (create_invoice.attrs ->> 'depositBps')::integer, coalesce((create_invoice.attrs ->> 'pricesIncludeTax')::boolean, false), auth.uid())
     returning * into v_row;
   exception when check_violation or invalid_text_representation then
     raise exception 'an invoice field has an invalid value' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
@@ -238,8 +239,10 @@ drop policy if exists "invoice_lines_read" on "better_supabase"."invoice_lines";
 create policy "invoice_lines_read" on "better_supabase"."invoice_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"));
 
--- Writes a record's totals from its lines. A record without lines keeps
--- zero totals.
+-- Writes a record's totals from its counted lines: an optional line counts
+-- only when the customer took it. The record discount is spread over the tax
+-- rates in proportion to their amounts, and tax is counted once per rate, so
+-- the totals and the tax per rate always add up.
 create or replace function "better_supabase"."set_invoice_lines_recount"(parent uuid)
 returns void
 language plpgsql
@@ -247,19 +250,69 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_tenant uuid;
+  v_inclusive boolean;
+  v_record_bps integer;
+  v_record_amount bigint;
   v_list bigint;
+  v_line_discount bigint;
+  v_net bigint;
+  v_record_discount bigint;
+  v_groups jsonb;
   v_discount bigint;
+  v_subtotal bigint;
   v_tax bigint;
+  v_total bigint;
 begin
-  select coalesce(sum(round(l."quantity" * l."unit_amount")), 0), coalesce(sum(round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)), 0), coalesce(sum(round((round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / 10000.0)), 0)
-    into v_list, v_discount, v_tax
-  from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent;
+  select x."tenant_id", x."prices_include_tax", 0, 0
+    into v_tenant, v_inclusive, v_record_bps, v_record_amount
+  from "better_supabase"."invoices" x where x."id" = set_invoice_lines_recount.parent;
+  select coalesce(sum(round(l."quantity" * l."unit_amount")), 0), coalesce(sum(round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)), 0)
+    into v_list, v_line_discount
+  from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent and true;
+  v_net := v_list - v_line_discount;
+  v_record_discount := case
+    when v_net > 0 then least(v_net, round(v_net * coalesce(v_record_bps, 0) / 10000.0)::bigint + coalesce(v_record_amount, 0))
+    else 0
+  end;
+  with grouped as (
+    select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) as amount,
+      sum(round((round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
+    from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent and true
+    group by 1, 2
+  ), shared as (
+    select g.rate, g.code, g.amount, g.tax,
+      case when v_net > 0
+        then round(v_record_discount * sum(g.amount) over w / v_net) - round(v_record_discount * (sum(g.amount) over w - g.amount) / v_net)
+        else 0
+      end as share
+    from grouped g
+    window w as (order by g.rate, g.code nulls first rows between unbounded preceding and current row)
+  ), taxed as (
+    select s.rate, s.code, s.share, s.amount - s.share as amount,
+      s.tax - round(s.share * s.rate / case when v_inclusive then 10000.0 + s.rate else 10000.0 end) as tax
+    from shared s
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'rate', x.rate,
+      'code', x.code,
+      'net', case when v_inclusive then x.amount - x.tax else x.amount end,
+      'tax', x.tax,
+      'discount', x.share,
+      'gross', case when v_inclusive then x.amount else x.amount + x.tax end
+    ) order by x.rate, x.code nulls first), '[]'::jsonb)
+    into v_groups
+  from taxed x;
+  select coalesce(sum(r.net), 0), coalesce(sum(r.tax), 0), coalesce(sum(r.gross), 0)
+    into v_subtotal, v_tax, v_total
+  from jsonb_to_recordset(v_groups) r(net bigint, tax bigint, gross bigint);
+  v_discount := v_line_discount + v_record_discount;
   update "better_supabase"."invoices" x set
     "list_total" = v_list,
     "discount_total" = v_discount,
-    "subtotal" = v_list - v_discount,
+    "subtotal" = v_subtotal,
     "tax_total" = v_tax,
-    "total" = v_list - v_discount + v_tax
+    "total" = v_total
   where x."id" = set_invoice_lines_recount.parent;
 end;
 $$;
@@ -605,10 +658,10 @@ begin
     raise exception 'only an issued invoice is credited' using errcode = '55000', hint = 'INVOICE_NOT_CREDITABLE';
   end if;
   insert into "better_supabase"."invoices" ("tenant_id", "kind", "original_id", "title", "company_type", "company_id", "contact_type", "contact_id",
-    "currency", "terms_days", "note", "created_by")
+    "currency", "terms_days", "note", "prices_include_tax", "created_by")
   values (v_original."tenant_id", 'credit_note', v_original."id", 'Credit for ' || coalesce(v_original."identifier", v_original."title"),
     v_original."company_type", v_original."company_id", v_original."contact_type", v_original."contact_id",
-    v_original."currency", 0, nullif(trim(credit_invoice.note), ''), auth.uid())
+    v_original."currency", 0, nullif(trim(credit_invoice.note), ''), v_original."prices_include_tax", auth.uid())
   returning * into v_row;
   if credit_invoice.lines is null then
     insert into "better_supabase"."invoice_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
@@ -1023,7 +1076,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:5179d7fc7af757f90970bc179936bde28b4dc9ffe090cf0f4cedd5853b395416
+-- @bsb-hash sha256:485f1feaa97ed0a8197ff4ad23ea4a2334abdfce8c2ce29b36e6cb51a1baaf96
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1123,6 +1176,7 @@ create table if not exists "better_supabase"."invoices" (
   "origin_type" text,
   "origin_id" text,
   "deposit_bps" integer check ("deposit_bps" > 0 and "deposit_bps" < 10000),
+  "prices_include_tax" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -1204,13 +1258,13 @@ begin
   end if;
   begin
     insert into "better_supabase"."invoices" ("tenant_id", "title", "company_type", "company_id", "contact_type", "contact_id", "currency",
-      "terms_days", "note", "origin_type", "origin_id", "deposit_bps", "created_by")
+      "terms_days", "note", "origin_type", "origin_id", "deposit_bps", "prices_include_tax", "created_by")
     values (create_invoice.tenant, trim(create_invoice.attrs ->> 'title'),
       case when v_company_id is null then null else v_company_type end, v_company_id,
       case when v_contact_id is null then null else v_contact_type end, v_contact_id,
       upper(coalesce(create_invoice.attrs ->> 'currency', 'EUR')), case when create_invoice.attrs ? 'termsDays' then (create_invoice.attrs ->> 'termsDays')::integer else 30 end,
       create_invoice.attrs ->> 'note', create_invoice.attrs -> 'origin' ->> 'type', create_invoice.attrs -> 'origin' ->> 'id',
-      (create_invoice.attrs ->> 'depositBps')::integer, auth.uid())
+      (create_invoice.attrs ->> 'depositBps')::integer, coalesce((create_invoice.attrs ->> 'pricesIncludeTax')::boolean, false), auth.uid())
     returning * into v_row;
   exception when check_violation or invalid_text_representation then
     raise exception 'an invoice field has an invalid value' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
@@ -1265,8 +1319,10 @@ drop policy if exists "invoice_lines_read" on "better_supabase"."invoice_lines";
 create policy "invoice_lines_read" on "better_supabase"."invoice_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"));
 
--- Writes a record's totals from its lines. A record without lines keeps
--- zero totals.
+-- Writes a record's totals from its counted lines: an optional line counts
+-- only when the customer took it. The record discount is spread over the tax
+-- rates in proportion to their amounts, and tax is counted once per rate, so
+-- the totals and the tax per rate always add up.
 create or replace function "better_supabase"."set_invoice_lines_recount"(parent uuid)
 returns void
 language plpgsql
@@ -1274,19 +1330,69 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_tenant uuid;
+  v_inclusive boolean;
+  v_record_bps integer;
+  v_record_amount bigint;
   v_list bigint;
+  v_line_discount bigint;
+  v_net bigint;
+  v_record_discount bigint;
+  v_groups jsonb;
   v_discount bigint;
+  v_subtotal bigint;
   v_tax bigint;
+  v_total bigint;
 begin
-  select coalesce(sum(round(l."quantity" * l."unit_amount")), 0), coalesce(sum(round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)), 0), coalesce(sum(round((round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / 10000.0)), 0)
-    into v_list, v_discount, v_tax
-  from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent;
+  select x."tenant_id", x."prices_include_tax", 0, 0
+    into v_tenant, v_inclusive, v_record_bps, v_record_amount
+  from "better_supabase"."invoices" x where x."id" = set_invoice_lines_recount.parent;
+  select coalesce(sum(round(l."quantity" * l."unit_amount")), 0), coalesce(sum(round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)), 0)
+    into v_list, v_line_discount
+  from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent and true;
+  v_net := v_list - v_line_discount;
+  v_record_discount := case
+    when v_net > 0 then least(v_net, round(v_net * coalesce(v_record_bps, 0) / 10000.0)::bigint + coalesce(v_record_amount, 0))
+    else 0
+  end;
+  with grouped as (
+    select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) as amount,
+      sum(round((round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
+    from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent and true
+    group by 1, 2
+  ), shared as (
+    select g.rate, g.code, g.amount, g.tax,
+      case when v_net > 0
+        then round(v_record_discount * sum(g.amount) over w / v_net) - round(v_record_discount * (sum(g.amount) over w - g.amount) / v_net)
+        else 0
+      end as share
+    from grouped g
+    window w as (order by g.rate, g.code nulls first rows between unbounded preceding and current row)
+  ), taxed as (
+    select s.rate, s.code, s.share, s.amount - s.share as amount,
+      s.tax - round(s.share * s.rate / case when v_inclusive then 10000.0 + s.rate else 10000.0 end) as tax
+    from shared s
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'rate', x.rate,
+      'code', x.code,
+      'net', case when v_inclusive then x.amount - x.tax else x.amount end,
+      'tax', x.tax,
+      'discount', x.share,
+      'gross', case when v_inclusive then x.amount else x.amount + x.tax end
+    ) order by x.rate, x.code nulls first), '[]'::jsonb)
+    into v_groups
+  from taxed x;
+  select coalesce(sum(r.net), 0), coalesce(sum(r.tax), 0), coalesce(sum(r.gross), 0)
+    into v_subtotal, v_tax, v_total
+  from jsonb_to_recordset(v_groups) r(net bigint, tax bigint, gross bigint);
+  v_discount := v_line_discount + v_record_discount;
   update "better_supabase"."invoices" x set
     "list_total" = v_list,
     "discount_total" = v_discount,
-    "subtotal" = v_list - v_discount,
+    "subtotal" = v_subtotal,
     "tax_total" = v_tax,
-    "total" = v_list - v_discount + v_tax
+    "total" = v_total
   where x."id" = set_invoice_lines_recount.parent;
 end;
 $$;
@@ -1632,10 +1738,10 @@ begin
     raise exception 'only an issued invoice is credited' using errcode = '55000', hint = 'INVOICE_NOT_CREDITABLE';
   end if;
   insert into "better_supabase"."invoices" ("tenant_id", "kind", "original_id", "title", "company_type", "company_id", "contact_type", "contact_id",
-    "currency", "terms_days", "note", "created_by")
+    "currency", "terms_days", "note", "prices_include_tax", "created_by")
   values (v_original."tenant_id", 'credit_note', v_original."id", 'Credit for ' || coalesce(v_original."identifier", v_original."title"),
     v_original."company_type", v_original."company_id", v_original."contact_type", v_original."contact_id",
-    v_original."currency", 0, nullif(trim(credit_invoice.note), ''), auth.uid())
+    v_original."currency", 0, nullif(trim(credit_invoice.note), ''), v_original."prices_include_tax", auth.uid())
   returning * into v_row;
   if credit_invoice.lines is null then
     insert into "better_supabase"."invoice_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
@@ -2035,8 +2141,12 @@ begin
         'discountBps', x."discount_bps", 'taxRateBps', x."tax_rate_bps", 'taxCode', x."tax_code",
         'product', case when x."product_type" is null then null else jsonb_build_object('type', x."product_type", 'id', x."product_id") end
       ) order by x."position"), '[]'::jsonb) into v_lines
-    from "better_supabase"."quote_lines" x where x."parent_id" = v_quote."id";
-    select v_lines || coalesce(jsonb_agg(jsonb_build_object('description', 'Deposit ' || d."identifier", 'quantity', 1, 'unitAmount', (-d."subtotal")::text,
+    from "better_supabase"."quote_lines" x where x."parent_id" = v_quote."id" and (not x."optional" or x."selected");
+    select v_lines || coalesce(jsonb_agg(jsonb_build_object('description', 'Discount', 'quantity', 1, 'unitAmount', (-x."discount")::text,
+        'taxRateBps', x."tax_rate_bps", 'taxCode', x."tax_code") order by x."tax_rate_bps"), '[]'::jsonb)
+      into v_lines
+    from "better_supabase"."quote_tax_lines" x where x."parent_id" = v_quote."id" and x."discount" <> 0;
+    select v_lines || coalesce(jsonb_agg(jsonb_build_object('description', 'Deposit ' || d."identifier", 'quantity', 1, 'unitAmount', (-(case when v_quote."prices_include_tax" then d."total" else d."subtotal" end))::text,
         'taxRateBps', case when d."subtotal" = 0 then 0 else round(d."tax_total" * 10000.0 / d."subtotal")::integer end)), '[]'::jsonb)
       into v_lines
     from "better_supabase"."invoices" d
@@ -2045,12 +2155,12 @@ begin
     v_lines := jsonb_build_array(jsonb_build_object(
       'description', 'Deposit ' || (invoice_from_quote.deposit_bps / 100.0)::text || '% of ' || v_quote."identifier",
       'quantity', 1,
-      'unitAmount', round(v_quote."subtotal"::numeric * invoice_from_quote.deposit_bps / 10000)::bigint::text,
+      'unitAmount', round(case when v_quote."prices_include_tax" then v_quote."total" else v_quote."subtotal" end::numeric * invoice_from_quote.deposit_bps / 10000)::bigint::text,
       'taxRateBps', case when v_quote."subtotal" = 0 then 0 else round(v_quote."tax_total" * 10000.0 / v_quote."subtotal")::integer end));
   end if;
   v_row := null;
   return "better_supabase"."create_invoice"(v_quote."tenant_id", jsonb_build_object(
-    'title', v_quote."title", 'currency', v_quote."currency", 'depositBps', invoice_from_quote.deposit_bps,
+    'title', v_quote."title", 'currency', v_quote."currency", 'depositBps', invoice_from_quote.deposit_bps, 'pricesIncludeTax', v_quote."prices_include_tax",
     'company', case when v_quote."company_id" is null then null else jsonb_build_object('type', v_quote."company_type", 'id', v_quote."company_id") end,
     'contact', case when v_quote."contact_id" is null then null else jsonb_build_object('type', v_quote."contact_type", 'id', v_quote."contact_id") end,
     'origin', jsonb_build_object('type', 'quote', 'id', v_quote."id"::text)), v_lines);
@@ -2168,7 +2278,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:6a64f5bbf1b808be86e85d47e29e473c654fcab350fa038595839ed65da02237
+-- @bsb-hash sha256:3f612069362087bfd60cb3d7161e208246ca3cfff8086963659d0eca01e31fc5
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2273,6 +2383,7 @@ create table if not exists "app_private"."invoices" (
   "origin_type" text,
   "origin_id" text,
   "deposit_bps" integer check ("deposit_bps" > 0 and "deposit_bps" < 10000),
+  "prices_include_tax" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -2354,13 +2465,13 @@ begin
   end if;
   begin
     insert into "app_private"."invoices" ("tenant_id", "title", "company_type", "company_id", "contact_type", "contact_id", "currency",
-      "terms_days", "note", "origin_type", "origin_id", "deposit_bps", "created_by")
+      "terms_days", "note", "origin_type", "origin_id", "deposit_bps", "prices_include_tax", "created_by")
     values (create_invoice.tenant, trim(create_invoice.attrs ->> 'title'),
       case when v_company_id is null then null else v_company_type end, v_company_id,
       case when v_contact_id is null then null else v_contact_type end, v_contact_id,
       upper(coalesce(create_invoice.attrs ->> 'currency', 'EUR')), case when create_invoice.attrs ? 'termsDays' then (create_invoice.attrs ->> 'termsDays')::integer else 30 end,
       create_invoice.attrs ->> 'note', create_invoice.attrs -> 'origin' ->> 'type', create_invoice.attrs -> 'origin' ->> 'id',
-      (create_invoice.attrs ->> 'depositBps')::integer, auth.uid())
+      (create_invoice.attrs ->> 'depositBps')::integer, coalesce((create_invoice.attrs ->> 'pricesIncludeTax')::boolean, false), auth.uid())
     returning * into v_row;
   exception when check_violation or invalid_text_representation then
     raise exception 'an invoice field has an invalid value' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
@@ -2410,8 +2521,10 @@ drop policy if exists "invoice_lines_read" on "app_private"."invoice_lines";
 create policy "invoice_lines_read" on "app_private"."invoice_lines" for select to authenticated
 using (exists (select 1 from "app_private"."invoices" x where x."id" = "parent_id"));
 
--- Writes a record's totals from its lines. A record without lines keeps
--- zero totals.
+-- Writes a record's totals from its counted lines: an optional line counts
+-- only when the customer took it. The record discount is spread over the tax
+-- rates in proportion to their amounts, and tax is counted once per rate, so
+-- the totals and the tax per rate always add up.
 create or replace function "app_private"."set_invoice_lines_recount"(parent uuid)
 returns void
 language plpgsql
@@ -2419,19 +2532,69 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_tenant uuid;
+  v_inclusive boolean;
+  v_record_bps integer;
+  v_record_amount bigint;
   v_list bigint;
+  v_line_discount bigint;
+  v_net bigint;
+  v_record_discount bigint;
+  v_groups jsonb;
   v_discount bigint;
+  v_subtotal bigint;
   v_tax bigint;
+  v_total bigint;
 begin
-  select coalesce(sum(round(l."quantity" * l."unit_amount")), 0), coalesce(sum(round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)), 0), coalesce(sum(round((round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / 10000.0)), 0)
-    into v_list, v_discount, v_tax
-  from "app_private"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent;
+  select x."tenant_id", x."prices_include_tax", 0, 0
+    into v_tenant, v_inclusive, v_record_bps, v_record_amount
+  from "app_private"."invoices" x where x."id" = set_invoice_lines_recount.parent;
+  select coalesce(sum(round(l."quantity" * l."unit_amount")), 0), coalesce(sum(round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)), 0)
+    into v_list, v_line_discount
+  from "app_private"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent and true;
+  v_net := v_list - v_line_discount;
+  v_record_discount := case
+    when v_net > 0 then least(v_net, round(v_net * coalesce(v_record_bps, 0) / 10000.0)::bigint + coalesce(v_record_amount, 0))
+    else 0
+  end;
+  with grouped as (
+    select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) as amount,
+      sum(round((round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
+    from "app_private"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent and true
+    group by 1, 2
+  ), shared as (
+    select g.rate, g.code, g.amount, g.tax,
+      case when v_net > 0
+        then round(v_record_discount * sum(g.amount) over w / v_net) - round(v_record_discount * (sum(g.amount) over w - g.amount) / v_net)
+        else 0
+      end as share
+    from grouped g
+    window w as (order by g.rate, g.code nulls first rows between unbounded preceding and current row)
+  ), taxed as (
+    select s.rate, s.code, s.share, s.amount - s.share as amount,
+      s.tax - round(s.share * s.rate / case when v_inclusive then 10000.0 + s.rate else 10000.0 end) as tax
+    from shared s
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'rate', x.rate,
+      'code', x.code,
+      'net', case when v_inclusive then x.amount - x.tax else x.amount end,
+      'tax', x.tax,
+      'discount', x.share,
+      'gross', case when v_inclusive then x.amount else x.amount + x.tax end
+    ) order by x.rate, x.code nulls first), '[]'::jsonb)
+    into v_groups
+  from taxed x;
+  select coalesce(sum(r.net), 0), coalesce(sum(r.tax), 0), coalesce(sum(r.gross), 0)
+    into v_subtotal, v_tax, v_total
+  from jsonb_to_recordset(v_groups) r(net bigint, tax bigint, gross bigint);
+  v_discount := v_line_discount + v_record_discount;
   update "app_private"."invoices" x set
     "list_total" = v_list,
     "discount_total" = v_discount,
-    "subtotal" = v_list - v_discount,
+    "subtotal" = v_subtotal,
     "tax_total" = v_tax,
-    "total" = v_list - v_discount + v_tax
+    "total" = v_total
   where x."id" = set_invoice_lines_recount.parent;
 end;
 $$;
@@ -2777,10 +2940,10 @@ begin
     raise exception 'only an issued invoice is credited' using errcode = '55000', hint = 'INVOICE_NOT_CREDITABLE';
   end if;
   insert into "app_private"."invoices" ("tenant_id", "kind", "original_id", "title", "company_type", "company_id", "contact_type", "contact_id",
-    "currency", "terms_days", "note", "created_by")
+    "currency", "terms_days", "note", "prices_include_tax", "created_by")
   values (v_original."tenant_id", 'credit_note', v_original."id", 'Credit for ' || coalesce(v_original."identifier", v_original."title"),
     v_original."company_type", v_original."company_id", v_original."contact_type", v_original."contact_id",
-    v_original."currency", 0, nullif(trim(credit_invoice.note), ''), auth.uid())
+    v_original."currency", 0, nullif(trim(credit_invoice.note), ''), v_original."prices_include_tax", auth.uid())
   returning * into v_row;
   if credit_invoice.lines is null then
     insert into "app_private"."invoice_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
@@ -3195,7 +3358,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:05938f3c066bf3f35fbfd89790015d73b0d85af1fcf42131ee3fdde45f0a7a52
+-- @bsb-hash sha256:105de944c111a5a3d9a2873f0a2213bc99ae771a60d146c8958d38c57a3b83e7
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3295,6 +3458,7 @@ create table if not exists "better_supabase"."invoices" (
   "origin_type" text,
   "origin_id" text,
   "deposit_bps" integer check ("deposit_bps" > 0 and "deposit_bps" < 10000),
+  "prices_include_tax" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -3376,13 +3540,13 @@ begin
   end if;
   begin
     insert into "better_supabase"."invoices" ("tenant_id", "title", "company_type", "company_id", "contact_type", "contact_id", "currency",
-      "terms_days", "note", "origin_type", "origin_id", "deposit_bps", "created_by")
+      "terms_days", "note", "origin_type", "origin_id", "deposit_bps", "prices_include_tax", "created_by")
     values (create_invoice.tenant, trim(create_invoice.attrs ->> 'title'),
       case when v_company_id is null then null else v_company_type end, v_company_id,
       case when v_contact_id is null then null else v_contact_type end, v_contact_id,
       upper(coalesce(create_invoice.attrs ->> 'currency', 'EUR')), case when create_invoice.attrs ? 'termsDays' then (create_invoice.attrs ->> 'termsDays')::integer else 30 end,
       create_invoice.attrs ->> 'note', create_invoice.attrs -> 'origin' ->> 'type', create_invoice.attrs -> 'origin' ->> 'id',
-      (create_invoice.attrs ->> 'depositBps')::integer, auth.uid())
+      (create_invoice.attrs ->> 'depositBps')::integer, coalesce((create_invoice.attrs ->> 'pricesIncludeTax')::boolean, false), auth.uid())
     returning * into v_row;
   exception when check_violation or invalid_text_representation then
     raise exception 'an invoice field has an invalid value' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
@@ -3432,8 +3596,10 @@ drop policy if exists "invoice_lines_read" on "better_supabase"."invoice_lines";
 create policy "invoice_lines_read" on "better_supabase"."invoice_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"));
 
--- Writes a record's totals from its lines. A record without lines keeps
--- zero totals.
+-- Writes a record's totals from its counted lines: an optional line counts
+-- only when the customer took it. The record discount is spread over the tax
+-- rates in proportion to their amounts, and tax is counted once per rate, so
+-- the totals and the tax per rate always add up.
 create or replace function "better_supabase"."set_invoice_lines_recount"(parent uuid)
 returns void
 language plpgsql
@@ -3441,19 +3607,69 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_tenant uuid;
+  v_inclusive boolean;
+  v_record_bps integer;
+  v_record_amount bigint;
   v_list bigint;
+  v_line_discount bigint;
+  v_net bigint;
+  v_record_discount bigint;
+  v_groups jsonb;
   v_discount bigint;
+  v_subtotal bigint;
   v_tax bigint;
+  v_total bigint;
 begin
-  select coalesce(sum(round(l."quantity" * l."unit_amount")), 0), coalesce(sum(round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)), 0), coalesce(sum(round((round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / 10000.0)), 0)
-    into v_list, v_discount, v_tax
-  from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent;
+  select x."tenant_id", x."prices_include_tax", 0, 0
+    into v_tenant, v_inclusive, v_record_bps, v_record_amount
+  from "better_supabase"."invoices" x where x."id" = set_invoice_lines_recount.parent;
+  select coalesce(sum(round(l."quantity" * l."unit_amount")), 0), coalesce(sum(round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)), 0)
+    into v_list, v_line_discount
+  from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent and true;
+  v_net := v_list - v_line_discount;
+  v_record_discount := case
+    when v_net > 0 then least(v_net, round(v_net * coalesce(v_record_bps, 0) / 10000.0)::bigint + coalesce(v_record_amount, 0))
+    else 0
+  end;
+  with grouped as (
+    select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) as amount,
+      sum(round((round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
+    from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent and true
+    group by 1, 2
+  ), shared as (
+    select g.rate, g.code, g.amount, g.tax,
+      case when v_net > 0
+        then round(v_record_discount * sum(g.amount) over w / v_net) - round(v_record_discount * (sum(g.amount) over w - g.amount) / v_net)
+        else 0
+      end as share
+    from grouped g
+    window w as (order by g.rate, g.code nulls first rows between unbounded preceding and current row)
+  ), taxed as (
+    select s.rate, s.code, s.share, s.amount - s.share as amount,
+      s.tax - round(s.share * s.rate / case when v_inclusive then 10000.0 + s.rate else 10000.0 end) as tax
+    from shared s
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'rate', x.rate,
+      'code', x.code,
+      'net', case when v_inclusive then x.amount - x.tax else x.amount end,
+      'tax', x.tax,
+      'discount', x.share,
+      'gross', case when v_inclusive then x.amount else x.amount + x.tax end
+    ) order by x.rate, x.code nulls first), '[]'::jsonb)
+    into v_groups
+  from taxed x;
+  select coalesce(sum(r.net), 0), coalesce(sum(r.tax), 0), coalesce(sum(r.gross), 0)
+    into v_subtotal, v_tax, v_total
+  from jsonb_to_recordset(v_groups) r(net bigint, tax bigint, gross bigint);
+  v_discount := v_line_discount + v_record_discount;
   update "better_supabase"."invoices" x set
     "list_total" = v_list,
     "discount_total" = v_discount,
-    "subtotal" = v_list - v_discount,
+    "subtotal" = v_subtotal,
     "tax_total" = v_tax,
-    "total" = v_list - v_discount + v_tax
+    "total" = v_total
   where x."id" = set_invoice_lines_recount.parent;
 end;
 $$;
@@ -3799,10 +4015,10 @@ begin
     raise exception 'only an issued invoice is credited' using errcode = '55000', hint = 'INVOICE_NOT_CREDITABLE';
   end if;
   insert into "better_supabase"."invoices" ("tenant_id", "kind", "original_id", "title", "company_type", "company_id", "contact_type", "contact_id",
-    "currency", "terms_days", "note", "created_by")
+    "currency", "terms_days", "note", "prices_include_tax", "created_by")
   values (v_original."tenant_id", 'credit_note', v_original."id", 'Credit for ' || coalesce(v_original."identifier", v_original."title"),
     v_original."company_type", v_original."company_id", v_original."contact_type", v_original."contact_id",
-    v_original."currency", 0, nullif(trim(credit_invoice.note), ''), auth.uid())
+    v_original."currency", 0, nullif(trim(credit_invoice.note), ''), v_original."prices_include_tax", auth.uid())
   returning * into v_row;
   if credit_invoice.lines is null then
     insert into "better_supabase"."invoice_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
@@ -4343,7 +4559,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:2f7a1384683b1d68e4200e91cb4a41bd3a3020a083c4af65a6ab4a1b96a2d960
+-- @bsb-hash sha256:8b707e51529ebd8bc97fc1cc63349505fad86198e57cd15c1dd2aced40b3a3dd
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4459,6 +4675,7 @@ alter table "better_supabase"."invoices" add column if not exists "note" text;
 alter table "better_supabase"."invoices" add column if not exists "origin_type" text;
 alter table "better_supabase"."invoices" add column if not exists "origin_id" text;
 alter table "better_supabase"."invoices" add column if not exists "deposit_bps" integer check ("deposit_bps" > 0 and "deposit_bps" < 10000);
+alter table "better_supabase"."invoices" add column if not exists "prices_include_tax" boolean not null default false;
 alter table "better_supabase"."invoices" add column if not exists "created_by" uuid;
 alter table "better_supabase"."invoices" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."invoices" add column if not exists "updated_at" timestamptz not null default now();
@@ -4532,13 +4749,13 @@ begin
   end if;
   begin
     insert into "better_supabase"."invoices" ("tenant_id", "title", "company_type", "company_id", "contact_type", "contact_id", "currency",
-      "terms_days", "note", "origin_type", "origin_id", "deposit_bps", "created_by")
+      "terms_days", "note", "origin_type", "origin_id", "deposit_bps", "prices_include_tax", "created_by")
     values (create_invoice.tenant, trim(create_invoice.attrs ->> 'title'),
       case when v_company_id is null then null else v_company_type end, v_company_id,
       case when v_contact_id is null then null else v_contact_type end, v_contact_id,
       upper(coalesce(create_invoice.attrs ->> 'currency', 'EUR')), case when create_invoice.attrs ? 'termsDays' then (create_invoice.attrs ->> 'termsDays')::integer else 30 end,
       create_invoice.attrs ->> 'note', create_invoice.attrs -> 'origin' ->> 'type', create_invoice.attrs -> 'origin' ->> 'id',
-      (create_invoice.attrs ->> 'depositBps')::integer, auth.uid())
+      (create_invoice.attrs ->> 'depositBps')::integer, coalesce((create_invoice.attrs ->> 'pricesIncludeTax')::boolean, false), auth.uid())
     returning * into v_row;
   exception when check_violation or invalid_text_representation then
     raise exception 'an invoice field has an invalid value' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
@@ -4586,8 +4803,10 @@ drop policy if exists bsb_invoice_lines_select on "better_supabase"."invoice_lin
 create policy bsb_invoice_lines_select on "better_supabase"."invoice_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"));
 
--- Writes a record's totals from its lines. A record without lines keeps
--- zero totals.
+-- Writes a record's totals from its counted lines: an optional line counts
+-- only when the customer took it. The record discount is spread over the tax
+-- rates in proportion to their amounts, and tax is counted once per rate, so
+-- the totals and the tax per rate always add up.
 create or replace function "better_supabase"."set_invoice_lines_recount"(parent uuid)
 returns void
 language plpgsql
@@ -4595,19 +4814,69 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_tenant uuid;
+  v_inclusive boolean;
+  v_record_bps integer;
+  v_record_amount bigint;
   v_list bigint;
+  v_line_discount bigint;
+  v_net bigint;
+  v_record_discount bigint;
+  v_groups jsonb;
   v_discount bigint;
+  v_subtotal bigint;
   v_tax bigint;
+  v_total bigint;
 begin
-  select coalesce(sum(round(l."quantity" * l."unit_amount")), 0), coalesce(sum(round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)), 0), coalesce(sum(round((round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / 10000.0)), 0)
-    into v_list, v_discount, v_tax
-  from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent;
+  select x."tenant_id", x."prices_include_tax", 0, 0
+    into v_tenant, v_inclusive, v_record_bps, v_record_amount
+  from "better_supabase"."invoices" x where x."id" = set_invoice_lines_recount.parent;
+  select coalesce(sum(round(l."quantity" * l."unit_amount")), 0), coalesce(sum(round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)), 0)
+    into v_list, v_line_discount
+  from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent and true;
+  v_net := v_list - v_line_discount;
+  v_record_discount := case
+    when v_net > 0 then least(v_net, round(v_net * coalesce(v_record_bps, 0) / 10000.0)::bigint + coalesce(v_record_amount, 0))
+    else 0
+  end;
+  with grouped as (
+    select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) as amount,
+      sum(round((round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
+    from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent and true
+    group by 1, 2
+  ), shared as (
+    select g.rate, g.code, g.amount, g.tax,
+      case when v_net > 0
+        then round(v_record_discount * sum(g.amount) over w / v_net) - round(v_record_discount * (sum(g.amount) over w - g.amount) / v_net)
+        else 0
+      end as share
+    from grouped g
+    window w as (order by g.rate, g.code nulls first rows between unbounded preceding and current row)
+  ), taxed as (
+    select s.rate, s.code, s.share, s.amount - s.share as amount,
+      s.tax - round(s.share * s.rate / case when v_inclusive then 10000.0 + s.rate else 10000.0 end) as tax
+    from shared s
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'rate', x.rate,
+      'code', x.code,
+      'net', case when v_inclusive then x.amount - x.tax else x.amount end,
+      'tax', x.tax,
+      'discount', x.share,
+      'gross', case when v_inclusive then x.amount else x.amount + x.tax end
+    ) order by x.rate, x.code nulls first), '[]'::jsonb)
+    into v_groups
+  from taxed x;
+  select coalesce(sum(r.net), 0), coalesce(sum(r.tax), 0), coalesce(sum(r.gross), 0)
+    into v_subtotal, v_tax, v_total
+  from jsonb_to_recordset(v_groups) r(net bigint, tax bigint, gross bigint);
+  v_discount := v_line_discount + v_record_discount;
   update "better_supabase"."invoices" x set
     "list_total" = v_list,
     "discount_total" = v_discount,
-    "subtotal" = v_list - v_discount,
+    "subtotal" = v_subtotal,
     "tax_total" = v_tax,
-    "total" = v_list - v_discount + v_tax
+    "total" = v_total
   where x."id" = set_invoice_lines_recount.parent;
 end;
 $$;
@@ -4954,10 +5223,10 @@ begin
     raise exception 'only an issued invoice is credited' using errcode = '55000', hint = 'INVOICE_NOT_CREDITABLE';
   end if;
   insert into "better_supabase"."invoices" ("tenant_id", "kind", "original_id", "title", "company_type", "company_id", "contact_type", "contact_id",
-    "currency", "terms_days", "note", "created_by")
+    "currency", "terms_days", "note", "prices_include_tax", "created_by")
   values (v_original."tenant_id", 'credit_note', v_original."id", 'Credit for ' || coalesce(v_original."identifier", v_original."title"),
     v_original."company_type", v_original."company_id", v_original."contact_type", v_original."contact_id",
-    v_original."currency", 0, nullif(trim(credit_invoice.note), ''), auth.uid())
+    v_original."currency", 0, nullif(trim(credit_invoice.note), ''), v_original."prices_include_tax", auth.uid())
   returning * into v_row;
   if credit_invoice.lines is null then
     insert into "better_supabase"."invoice_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
@@ -5372,7 +5641,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:b74f32eeaf91d1d5075bead0d13b2349fd0fe8cd0f249c4281e1bf5484ebaf58
+-- @bsb-hash sha256:6106208777aa4e394ce924898ea79d56fb0c8a5f9797ac151c00d72e45e7a56d
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5472,6 +5741,7 @@ create table if not exists "better_supabase"."invoices" (
   "origin_type" text,
   "origin_id" text,
   "deposit_bps" integer check ("deposit_bps" > 0 and "deposit_bps" < 10000),
+  "prices_include_tax" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -5553,13 +5823,13 @@ begin
   end if;
   begin
     insert into "better_supabase"."invoices" ("org_id", "title", "company_type", "company_id", "contact_type", "contact_id", "currency",
-      "terms_days", "note", "origin_type", "origin_id", "deposit_bps", "created_by")
+      "terms_days", "note", "origin_type", "origin_id", "deposit_bps", "prices_include_tax", "created_by")
     values (create_invoice.tenant, trim(create_invoice.attrs ->> 'title'),
       case when v_company_id is null then null else v_company_type end, v_company_id,
       case when v_contact_id is null then null else v_contact_type end, v_contact_id,
       upper(coalesce(create_invoice.attrs ->> 'currency', 'EUR')), case when create_invoice.attrs ? 'termsDays' then (create_invoice.attrs ->> 'termsDays')::integer else 30 end,
       create_invoice.attrs ->> 'note', create_invoice.attrs -> 'origin' ->> 'type', create_invoice.attrs -> 'origin' ->> 'id',
-      (create_invoice.attrs ->> 'depositBps')::integer, auth.uid())
+      (create_invoice.attrs ->> 'depositBps')::integer, coalesce((create_invoice.attrs ->> 'pricesIncludeTax')::boolean, false), auth.uid())
     returning * into v_row;
   exception when check_violation or invalid_text_representation then
     raise exception 'an invoice field has an invalid value' using errcode = '22023', hint = 'INVOICE_ATTRS_INVALID';
@@ -5609,8 +5879,10 @@ drop policy if exists "invoice_lines_read" on "better_supabase"."invoice_lines";
 create policy "invoice_lines_read" on "better_supabase"."invoice_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"));
 
--- Writes a record's totals from its lines. A record without lines keeps
--- zero totals.
+-- Writes a record's totals from its counted lines: an optional line counts
+-- only when the customer took it. The record discount is spread over the tax
+-- rates in proportion to their amounts, and tax is counted once per rate, so
+-- the totals and the tax per rate always add up.
 create or replace function "better_supabase"."set_invoice_lines_recount"(parent uuid)
 returns void
 language plpgsql
@@ -5618,19 +5890,69 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_tenant uuid;
+  v_inclusive boolean;
+  v_record_bps integer;
+  v_record_amount bigint;
   v_list bigint;
+  v_line_discount bigint;
+  v_net bigint;
+  v_record_discount bigint;
+  v_groups jsonb;
   v_discount bigint;
+  v_subtotal bigint;
   v_tax bigint;
+  v_total bigint;
 begin
-  select coalesce(sum(round(l."quantity" * l."unit_amount")), 0), coalesce(sum(round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)), 0), coalesce(sum(round((round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / 10000.0)), 0)
-    into v_list, v_discount, v_tax
-  from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent;
+  select x."org_id", x."prices_include_tax", 0, 0
+    into v_tenant, v_inclusive, v_record_bps, v_record_amount
+  from "better_supabase"."invoices" x where x."id" = set_invoice_lines_recount.parent;
+  select coalesce(sum(round(l."quantity" * l."unit_amount")), 0), coalesce(sum(round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)), 0)
+    into v_list, v_line_discount
+  from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent and true;
+  v_net := v_list - v_line_discount;
+  v_record_discount := case
+    when v_net > 0 then least(v_net, round(v_net * coalesce(v_record_bps, 0) / 10000.0)::bigint + coalesce(v_record_amount, 0))
+    else 0
+  end;
+  with grouped as (
+    select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) as amount,
+      sum(round((round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
+    from "better_supabase"."invoice_lines" l where l."parent_id" = set_invoice_lines_recount.parent and true
+    group by 1, 2
+  ), shared as (
+    select g.rate, g.code, g.amount, g.tax,
+      case when v_net > 0
+        then round(v_record_discount * sum(g.amount) over w / v_net) - round(v_record_discount * (sum(g.amount) over w - g.amount) / v_net)
+        else 0
+      end as share
+    from grouped g
+    window w as (order by g.rate, g.code nulls first rows between unbounded preceding and current row)
+  ), taxed as (
+    select s.rate, s.code, s.share, s.amount - s.share as amount,
+      s.tax - round(s.share * s.rate / case when v_inclusive then 10000.0 + s.rate else 10000.0 end) as tax
+    from shared s
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'rate', x.rate,
+      'code', x.code,
+      'net', case when v_inclusive then x.amount - x.tax else x.amount end,
+      'tax', x.tax,
+      'discount', x.share,
+      'gross', case when v_inclusive then x.amount else x.amount + x.tax end
+    ) order by x.rate, x.code nulls first), '[]'::jsonb)
+    into v_groups
+  from taxed x;
+  select coalesce(sum(r.net), 0), coalesce(sum(r.tax), 0), coalesce(sum(r.gross), 0)
+    into v_subtotal, v_tax, v_total
+  from jsonb_to_recordset(v_groups) r(net bigint, tax bigint, gross bigint);
+  v_discount := v_line_discount + v_record_discount;
   update "better_supabase"."invoices" x set
     "list_total" = v_list,
     "discount_total" = v_discount,
-    "subtotal" = v_list - v_discount,
+    "subtotal" = v_subtotal,
     "tax_total" = v_tax,
-    "total" = v_list - v_discount + v_tax
+    "total" = v_total
   where x."id" = set_invoice_lines_recount.parent;
 end;
 $$;
@@ -5976,10 +6298,10 @@ begin
     raise exception 'only an issued invoice is credited' using errcode = '55000', hint = 'INVOICE_NOT_CREDITABLE';
   end if;
   insert into "better_supabase"."invoices" ("org_id", "kind", "original_id", "title", "company_type", "company_id", "contact_type", "contact_id",
-    "currency", "terms_days", "note", "created_by")
+    "currency", "terms_days", "note", "prices_include_tax", "created_by")
   values (v_original."org_id", 'credit_note', v_original."id", 'Credit for ' || coalesce(v_original."identifier", v_original."title"),
     v_original."company_type", v_original."company_id", v_original."contact_type", v_original."contact_id",
-    v_original."currency", 0, nullif(trim(credit_invoice.note), ''), auth.uid())
+    v_original."currency", 0, nullif(trim(credit_invoice.note), ''), v_original."prices_include_tax", auth.uid())
   returning * into v_row;
   if credit_invoice.lines is null then
     insert into "better_supabase"."invoice_lines" ("org_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")

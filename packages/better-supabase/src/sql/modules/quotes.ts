@@ -9,6 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { QuoteNames } from "./quotes-functions.ts";
 
 import { QUOTE_TO_ORDER } from "../../blocks/quotes/automations.ts";
+import { guestOr } from "../guest-sql.ts";
 import {
   lineExtraColumns,
   lineTableSpec,
@@ -16,11 +17,21 @@ import {
   totalColumnsSql,
 } from "../line-items-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, schemaPreamble } from "../shared.ts";
+import {
+  addExtraColumns,
+  fail,
+  schemaPreamble,
+  triggerGrant,
+} from "../shared.ts";
 import { shippedAutomation } from "./automation-defaults.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
-import { quoteFunctions, quoteOrigin, quoteParty } from "./quotes-functions.ts";
+import {
+  quoteFunctions,
+  quoteGuest,
+  quoteOrigin,
+  quoteParty,
+} from "./quotes-functions.ts";
 
 const QUOTE = [
   "organizationId",
@@ -33,16 +44,23 @@ const QUOTE = [
 const EVENTS: BlockSqlEvents<QuotesEvents> = {
   "quote.created": { subject: "quotes", payload: [...QUOTE] },
   "quote.updated": { subject: "quotes", payload: [...QUOTE] },
-  "quote.sent": { subject: "quotes", payload: [...QUOTE] },
+  "quote.sent": { subject: "quotes", payload: [...QUOTE, "revision"] },
   "quote.viewed": { subject: "quotes", payload: [...QUOTE] },
   "quote.accepted": {
     subject: "quotes",
-    payload: [...QUOTE, "total", "currency", "byName"],
+    payload: [
+      ...QUOTE,
+      "total",
+      "currency",
+      "byName",
+      "revision",
+      "depositDue",
+    ],
   },
   "quote.rejected": { subject: "quotes", payload: [...QUOTE, "note"] },
   "quote.changes_requested": { subject: "quotes", payload: [...QUOTE, "note"] },
   "quote.expired": { subject: "quotes", payload: [...QUOTE] },
-  "quote.revised": { subject: "quotes", payload: [...QUOTE, "revisionId"] },
+  "quote.revised": { subject: "quotes", payload: [...QUOTE, "revision"] },
 };
 
 const NAMES: BlockSqlNames = {
@@ -84,7 +102,6 @@ const NAMES: BlockSqlNames = {
         number: "number",
         identifier: "identifier",
         revision: "revision",
-        supersedes: "supersedes_id",
         title: "title",
         companyType: "company_type",
         companyId: "company_id",
@@ -104,6 +121,14 @@ const NAMES: BlockSqlNames = {
         decidedAt: "decided_at",
         decidedBy: "decided_by",
         decisionNote: "decision_note",
+        decidedUser: "decided_user_id",
+        decidedIp: "decided_ip",
+        decidedUserAgent: "decided_user_agent",
+        pricesIncludeTax: "prices_include_tax",
+        discountBps: "discount_bps",
+        discountAmount: "discount_amount",
+        depositBps: "deposit_bps",
+        depositDue: "deposit_due",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -120,11 +145,54 @@ const NAMES: BlockSqlNames = {
         "originId",
         "viewedAt",
         "decisionNote",
+        "decidedUser",
+        "decidedIp",
+        "decidedUserAgent",
+        "pricesIncludeTax",
+        "discountBps",
+        "discountAmount",
+        "depositBps",
+        "depositDue",
         "createdBy",
       ],
       typed: ["status"],
     },
-    lines: lineTableSpec("quote_lines"),
+    lines: lineTableSpec("quote_lines", { document: true }),
+    versions: {
+      name: "quote_versions",
+      app: {},
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        quote: "quote_id",
+        revision: "revision",
+        snapshot: "snapshot",
+        total: "total",
+        currency: "currency",
+        publishedBy: "published_by",
+        publishedAt: "published_at",
+      },
+      optional: ["publishedBy"],
+    },
+    taxLines: {
+      name: "quote_tax_lines",
+      app: {},
+      optionalTable: true,
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        parent: "parent_id",
+        taxRateBps: "tax_rate_bps",
+        taxCode: "tax_code",
+        net: "net",
+        tax: "tax",
+        gross: "gross",
+        discount: "discount",
+      },
+      optional: ["taxCode", "discount"],
+    },
   },
 };
 
@@ -139,8 +207,13 @@ function tables(ctx: BlockSqlContext, n: QuoteNames): string {
   const origin = quoteOrigin(ctx);
 
   // A column definition, left out when the app maps the column to null.
-  const column = (logical: string, definition: string): string =>
-    ctx.has("quotes", logical) ? `\n  ${q(logical)} ${definition},` : "";
+  const column = (
+    logical: string,
+    definition: string | ((name: string) => string),
+  ): string =>
+    ctx.has("quotes", logical)
+      ? `\n  ${q(logical)} ${typeof definition === "string" ? definition : definition(q(logical))},`
+      : "";
 
   const constraints = [
     `unique (${q("tenant")}, ${q("number")}, ${q("revision")})`,
@@ -159,7 +232,6 @@ create table if not exists ${t("quotes")} (
   ${q("number")} bigint not null,
   ${q("identifier")} text not null,
   ${q("revision")} integer not null default 1,
-  ${q("supersedes")} uuid references ${t("quotes")} (${q("id")}) on delete set null,
   ${q("title")} text not null check (length(${q("title")}) between 1 and 300),${column("companyType", "text")}${column("companyId", "text")}${column("contactType", "text")}${column("contactId", "text")}
   ${q("owner")} uuid,
   ${q("currency")} char(3) not null check (${q("currency")} ~ '^[A-Z]{3}$'),
@@ -168,17 +240,85 @@ create table if not exists ${t("quotes")} (
   ${q("tokenHash")} text unique,
   ${q("sentAt")} timestamptz,${column("viewedAt", "timestamptz")}
   ${q("decidedAt")} timestamptz,
-  ${q("decidedBy")} text,${column("decisionNote", "text")}${column("createdBy", "uuid")}
+  ${q("decidedBy")} text,${column("decisionNote", "text")}${column("decidedUser", "uuid")}${column("decidedIp", "text")}${column("decidedUserAgent", "text")}${column("pricesIncludeTax", "boolean not null default false")}${column("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${column("discountAmount", (amount) => `bigint not null default 0 check (${amount} >= 0)`)}${column("depositBps", (bps) => `integer check (${bps} > 0 and ${bps} < 10000)`)}${column("depositDue", "bigint not null default 0")}${column("createdBy", "uuid")}
   ${q("createdAt")} timestamptz not null default now(),
   ${q("updatedAt")} timestamptz not null default now(),
   ${totalColumnsSql(ctx, "quotes")},
   ${constraints.join(",\n  ")}
 );
 create index if not exists ${ctx.naming.rename("quotes_tenant_status_idx")} on ${t("quotes")} (${q("tenant")}, ${q("status")}, ${q("createdAt")} desc);${origin ? `\ncreate index if not exists ${ctx.naming.rename("quotes_origin_idx")} on ${t("quotes")} (${q("originType")}, ${q("originId")});` : ""}
-create index if not exists ${ctx.naming.rename("quotes_supersedes_idx")} on ${t("quotes")} (${q("supersedes")});${addExtraColumns(t("quotes"), n.extras)}${appUniqueIndex(ctx, "quotes", ["tokenHash"])}
+${addExtraColumns(t("quotes"), n.extras)}${appUniqueIndex(ctx, "quotes", ["tokenHash"])}
 ${lockModuleTable(ctx, "quotes", { read: true })}
-${renderPolicy(makePolicy({ table: t("quotes"), name: ctx.naming.rename("quotes_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(q("tenant"), n.read) }), { drop: true, target: t("quotes") })}
-`;
+${renderPolicy(makePolicy({ table: t("quotes"), name: ctx.naming.rename("quotes_read"), command: "select", roles: ["authenticated"], using: guestOr(ctx.scope.check(q("tenant"), n.read), [quoteGuest(ctx, n, "")]) }), { drop: true, target: t("quotes") })}
+${childTables(ctx, n)}`;
+}
+
+// The versions and tax lines of a quote, read through the quote's own policy.
+// A version never changes once published.
+function childTables(ctx: BlockSqlContext, n: QuoteNames): string {
+  const { t, c } = n;
+  const v = (column: string): string => c("versions", column);
+  const x = (column: string): string => c("taxLines", column);
+
+  const readable = (table: string, parent: string): string =>
+    renderPolicy(
+      makePolicy({
+        table: t(table),
+        name: ctx.naming.rename(`${ctx.tableName(table).name}_read`),
+        command: "select",
+        roles: ["authenticated"],
+        using: `exists (select 1 from ${t("quotes")} q where q.${c("quotes", "id")} = ${parent})`,
+      }),
+      { drop: true, target: t(table) },
+    );
+
+  const frozen = ctx.trigger("quote_versions_frozen");
+
+  const taxLines = ctx.hasTable("taxLines")
+    ? `
+create table if not exists ${t("taxLines")} (
+  ${x("id")} uuid primary key default gen_random_uuid(),
+  ${x("tenant")} ${ctx.idType} not null,
+  ${x("parent")} uuid not null references ${t("quotes")} (${c("quotes", "id")}) on delete cascade,
+  ${x("taxRateBps")} integer not null,${ctx.has("taxLines", "taxCode") ? `\n  ${x("taxCode")} text,` : ""}
+  ${x("net")} bigint not null,
+  ${x("tax")} bigint not null,
+  ${x("gross")} bigint not null${ctx.has("taxLines", "discount") ? `,\n  ${x("discount")} bigint not null default 0` : ""}
+);
+create index if not exists ${ctx.naming.rename("quote_tax_lines_parent_idx")} on ${t("taxLines")} (${x("parent")});
+${lockModuleTable(ctx, "taxLines", { read: true })}
+${readable("taxLines", x("parent"))}
+`
+    : "";
+
+  return `
+create table if not exists ${t("versions")} (
+  ${v("id")} uuid primary key default gen_random_uuid(),
+  ${v("tenant")} ${ctx.idType} not null,
+  ${v("quote")} uuid not null references ${t("quotes")} (${c("quotes", "id")}) on delete cascade,
+  ${v("revision")} integer not null,
+  ${v("snapshot")} jsonb not null,
+  ${v("total")} bigint not null,
+  ${v("currency")} char(3) not null,${ctx.has("versions", "publishedBy") ? `\n  ${v("publishedBy")} uuid,` : ""}
+  ${v("publishedAt")} timestamptz not null default now(),
+  unique (${v("quote")}, ${v("revision")})
+);
+${lockModuleTable(ctx, "versions", { read: true })}
+${readable("versions", v("quote"))}
+create or replace function better_supabase.${frozen.replaceAll('"', "")}()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  ${fail("QUOTE_VERSION_FROZEN", "a published quote version never changes", "55000")}
+end;
+$$;
+${triggerGrant(`better_supabase.${frozen.replaceAll('"', "")}()`)}
+drop trigger if exists ${frozen} on ${t("versions")};
+create trigger ${frozen} before update on ${t("versions")}
+for each row execute function better_supabase.${frozen.replaceAll('"', "")}();
+${taxLines}`;
 }
 
 function build(ctx: BlockSqlContext): string {
@@ -213,8 +353,9 @@ function build(ctx: BlockSqlContext): string {
   };
 
   return `${schemaPreamble(ctx)}
--- Quotes: line items and totals, a revision chain, sending with a public
--- link the customer accepts, rejects or asks changes through, and expiry.
+-- Quotes: line items, sections, optional lines, discounts and tax per rate,
+-- published versions, sending with a public link or to the signed-in portal
+-- the customer accepts, rejects or asks changes through, and expiry.
 ${tables(ctx, n)}${quoteFunctions(ctx, n)}`;
 }
 
@@ -230,14 +371,22 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "send_quote", args: ["uuid"], returns: "jsonb" },
     {
       name: "decide_quote",
-      args: ["uuid", "text", "text", "text"],
+      args: ["uuid", "text", "text", "text", "jsonb"],
       returns: "jsonb",
     },
     { name: "revise_quote", args: ["uuid"], returns: "jsonb" },
+    { name: "quote_versions", args: ["uuid"], returns: "jsonb" },
+    { name: "quote_version", args: ["uuid", "integer"], returns: "jsonb" },
+    { name: "portal_quote", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "respond_to_portal_quote",
+      args: ["uuid", "text", "text", "text", "jsonb"],
+      returns: "jsonb",
+    },
     { name: "public_quote", args: ["text"], returns: "jsonb" },
     {
       name: "respond_to_quote",
-      args: ["text", "text", "text", "text"],
+      args: ["text", "text", "text", "text", "jsonb"],
       returns: "jsonb",
     },
     { name: "expire_quotes", args: [], returns: "integer" },
@@ -252,7 +401,7 @@ export const QUOTES: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Quotes",
   description:
-    "Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.",
+    "Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.",
   requires: ["memberships", "permissions", "subjects"],
   integrates: [
     "outbox",
@@ -266,12 +415,18 @@ export const QUOTES: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "With catalog, set_quote_lines prices a line that names a product variant and has no unitAmount from the catalog, in the quote's currency, and titles it when it has no description.",
+      sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "A quote is one working copy: send_quote publishes an immutable snapshot to quote_versions and revise_quote reopens the same quote at the next revision, so supersedes_id goes and an accepted quote can't be revised (QUOTE_ACCEPTED). Quotes gain prices_include_tax, a document discount (discount_bps, discount_amount), a deposit (deposit_bps, deposit_due) and the answer's user, address and browser; lines gain section, optional and selected; quote_tax_lines keeps the tax per rate. decide_quote and respond_to_quote take the selected optional lines, and portal_quote and respond_to_portal_quote serve signed-in guests. Earlier revisions made before the upgrade stay as their own quotes.",
       sql: () => "",
     },
   ],

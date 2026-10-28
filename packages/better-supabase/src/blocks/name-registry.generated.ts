@@ -928,7 +928,7 @@ export interface BlockNameRegistry {
   };
   readonly "invoices": {
     readonly tables: {
-      readonly "invoices": "id" | "tenant" | "kind" | "number" | "identifier" | "original" | "title" | "companyType" | "companyId" | "contactType" | "contactId" | "currency" | "status" | "termsDays" | "issuedOn" | "dueOn" | "paidTotal" | "creditedTotal" | "paidAt" | "voidedAt" | "voidReason" | "writeOffReason" | "note" | "originType" | "originId" | "depositBps" | "createdBy" | "createdAt" | "updatedAt" | "listTotal" | "discountTotal" | "subtotal" | "taxTotal" | "total";
+      readonly "invoices": "id" | "tenant" | "kind" | "number" | "identifier" | "original" | "title" | "companyType" | "companyId" | "contactType" | "contactId" | "currency" | "status" | "termsDays" | "issuedOn" | "dueOn" | "paidTotal" | "creditedTotal" | "paidAt" | "voidedAt" | "voidReason" | "writeOffReason" | "note" | "originType" | "originId" | "depositBps" | "pricesIncludeTax" | "createdBy" | "createdAt" | "updatedAt" | "listTotal" | "discountTotal" | "subtotal" | "taxTotal" | "total";
       readonly "lines": "id" | "tenant" | "parent" | "productType" | "productId" | "description" | "quantity" | "unitAmount" | "discountBps" | "taxRateBps" | "taxCode" | "position" | "createdAt";
       readonly "charges": "id" | "tenant" | "invoice" | "amount" | "currency" | "description" | "createdBy" | "createdAt";
     };
@@ -936,7 +936,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_invoice_issue" | "after_invoice_issue" | "before_invoice_payment" | "after_invoice_payment";
     readonly entities: {
-      readonly "invoice": "id" | "tenant_id" | "kind" | "number" | "identifier" | "original_id" | "title" | "company_type" | "company_id" | "contact_type" | "contact_id" | "currency" | "status" | "terms_days" | "issued_on" | "due_on" | "paid_total" | "credited_total" | "paid_at" | "voided_at" | "void_reason" | "write_off_reason" | "note" | "origin_type" | "origin_id" | "deposit_bps" | "created_by" | "created_at" | "updated_at" | "list_total" | "discount_total" | "subtotal" | "tax_total" | "total";
+      readonly "invoice": "id" | "tenant_id" | "kind" | "number" | "identifier" | "original_id" | "title" | "company_type" | "company_id" | "contact_type" | "contact_id" | "currency" | "status" | "terms_days" | "issued_on" | "due_on" | "paid_total" | "credited_total" | "paid_at" | "voided_at" | "void_reason" | "write_off_reason" | "note" | "origin_type" | "origin_id" | "deposit_bps" | "prices_include_tax" | "created_by" | "created_at" | "updated_at" | "list_total" | "discount_total" | "subtotal" | "tax_total" | "total";
     };
     readonly primary: "invoice";
   };
@@ -1324,14 +1324,16 @@ export interface BlockNameRegistry {
   };
   readonly "quotes": {
     readonly tables: {
-      readonly "quotes": "id" | "tenant" | "number" | "identifier" | "revision" | "supersedes" | "title" | "companyType" | "companyId" | "contactType" | "contactId" | "owner" | "currency" | "status" | "validUntil" | "terms" | "note" | "originType" | "originId" | "tokenHash" | "sentAt" | "viewedAt" | "decidedAt" | "decidedBy" | "decisionNote" | "createdBy" | "createdAt" | "updatedAt" | "listTotal" | "discountTotal" | "subtotal" | "taxTotal" | "total";
-      readonly "lines": "id" | "tenant" | "parent" | "productType" | "productId" | "description" | "quantity" | "unitAmount" | "discountBps" | "taxRateBps" | "taxCode" | "position" | "createdAt";
+      readonly "quotes": "id" | "tenant" | "number" | "identifier" | "revision" | "title" | "companyType" | "companyId" | "contactType" | "contactId" | "owner" | "currency" | "status" | "validUntil" | "terms" | "note" | "originType" | "originId" | "tokenHash" | "sentAt" | "viewedAt" | "decidedAt" | "decidedBy" | "decisionNote" | "decidedUser" | "decidedIp" | "decidedUserAgent" | "pricesIncludeTax" | "discountBps" | "discountAmount" | "depositBps" | "depositDue" | "createdBy" | "createdAt" | "updatedAt" | "listTotal" | "discountTotal" | "subtotal" | "taxTotal" | "total";
+      readonly "lines": "id" | "tenant" | "parent" | "productType" | "productId" | "description" | "quantity" | "unitAmount" | "discountBps" | "taxRateBps" | "taxCode" | "position" | "createdAt" | "section" | "optional" | "selected";
+      readonly "versions": "id" | "tenant" | "quote" | "revision" | "snapshot" | "total" | "currency" | "publishedBy" | "publishedAt";
+      readonly "taxLines": "id" | "tenant" | "parent" | "taxRateBps" | "taxCode" | "net" | "tax" | "gross" | "discount";
     };
-    readonly functions: "create_quote" | "decide_quote" | "expire_quotes" | "public_quote" | "respond_to_quote" | "revise_quote" | "send_quote" | "set_quote_lines" | "set_quote_lines_recount" | "update_quote";
+    readonly functions: "create_quote" | "decide_quote" | "expire_quotes" | "portal_quote" | "public_quote" | "quote_version" | "quote_versions" | "respond_to_portal_quote" | "respond_to_quote" | "revise_quote" | "send_quote" | "set_quote_lines" | "set_quote_lines_recount" | "update_quote";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_quote_send" | "after_quote_send" | "before_quote_accept" | "after_quote_accept";
     readonly entities: {
-      readonly "quote": "id" | "tenant_id" | "number" | "identifier" | "revision" | "supersedes_id" | "title" | "company_type" | "company_id" | "contact_type" | "contact_id" | "owner_user_id" | "currency" | "status" | "valid_until" | "terms" | "note" | "origin_type" | "origin_id" | "token_hash" | "sent_at" | "viewed_at" | "decided_at" | "decided_by" | "decision_note" | "created_by" | "created_at" | "updated_at" | "list_total" | "discount_total" | "subtotal" | "tax_total" | "total";
+      readonly "quote": "id" | "tenant_id" | "number" | "identifier" | "revision" | "title" | "company_type" | "company_id" | "contact_type" | "contact_id" | "owner_user_id" | "currency" | "status" | "valid_until" | "terms" | "note" | "origin_type" | "origin_id" | "token_hash" | "sent_at" | "viewed_at" | "decided_at" | "decided_by" | "decision_note" | "decided_user_id" | "decided_ip" | "decided_user_agent" | "prices_include_tax" | "discount_bps" | "discount_amount" | "deposit_bps" | "deposit_due" | "created_by" | "created_at" | "updated_at" | "list_total" | "discount_total" | "subtotal" | "tax_total" | "total";
     };
     readonly primary: "quote";
   };
