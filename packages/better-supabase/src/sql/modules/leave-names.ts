@@ -61,7 +61,12 @@ export const LEAVE_NAMES: BlockSqlNames = {
     types: {
       name: "leave_types",
       app: {
-        unused: (ctx) => (leaveAutoApproveMapped(ctx) ? [] : ["autoApprove"]),
+        unused: (ctx) => [
+          ...(leaveAutoApproveMapped(ctx) ? [] : ["autoApprove"]),
+          ...(typeof ctx.config.columns["types"]?.["confidential"] === "string"
+            ? []
+            : ["confidential"]),
+        ],
       },
       lifecycle: { tenant: "tenant", export: true },
       columns: {
@@ -76,11 +81,19 @@ export const LEAVE_NAMES: BlockSqlNames = {
         carryoverMax: "carryover_max",
         color: "color",
         autoApprove: "auto_approve",
+        confidential: "confidential",
         archivedAt: "archived_at",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["key", "allowance", "carryoverMax", "color", "autoApprove"],
+      optional: [
+        "key",
+        "allowance",
+        "carryoverMax",
+        "color",
+        "autoApprove",
+        "confidential",
+      ],
       typed: ["unit"],
     },
     requests: {

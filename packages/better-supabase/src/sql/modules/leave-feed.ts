@@ -2,10 +2,16 @@ import type { BlockSqlContext } from "../context.ts";
 import type { ShareLinkContribution } from "../contributions.ts";
 
 import { isRecord } from "../../core/guards.ts";
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { feedDateWindow, feedOptions } from "../feed-options.ts";
 import { extraFieldsJson } from "../shared.ts";
-import { leaveByEmployee, leavePartsMapped } from "./leave-owner.ts";
+import { splitName } from "./employees-options.ts";
+import {
+  leaveByEmployee,
+  leaveConfidentialFilter,
+  leaveConfidentialKey,
+  leavePartsMapped,
+} from "./leave-owner.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { liveShareLink, touchShareLink } from "./share-links.ts";
 
@@ -73,6 +79,7 @@ interface LeaveFeedExtras {
   readonly names: boolean;
   /** Type keys whose name the feed leaves out. */
   readonly hideTypes: readonly string[];
+  readonly typeKey: string | undefined;
   /** A `leave_team_feed` link shares one team's leave. */
   readonly teams: boolean;
   /** Each entry carries the request's extra columns. */
@@ -82,7 +89,23 @@ interface LeaveFeedExtras {
 function leaveFeedExtras(ctx: BlockSqlContext): LeaveFeedExtras {
   const raw = ctx.option("feed") ?? {};
   const feed = isRecord(raw) ? raw : {};
-  const { names = false, hideTypes = [], teams = false, fields = false } = feed;
+
+  const {
+    names = false,
+    hideTypes = [],
+    typeKey,
+    teams = false,
+    fields = false,
+  } = feed;
+
+  if (
+    typeKey !== undefined &&
+    (typeof typeKey !== "string" || !/^[a-z_][a-z0-9_]*$/u.test(typeKey))
+  ) {
+    throw new TypeError(
+      `${FEED_WHERE}.typeKey is a column name of the leave types table`,
+    );
+  }
 
   for (const [key, value] of Object.entries({ names, teams, fields })) {
     if (typeof value !== "boolean") {
@@ -101,6 +124,16 @@ function leaveFeedExtras(ctx: BlockSqlContext): LeaveFeedExtras {
     throw new TypeError(`${FEED_WHERE}.names needs the employees block`);
   }
 
+  if (
+    names === true &&
+    !splitName(ctx.of("employees")) &&
+    !ctx.of("employees").has("employees", "name")
+  ) {
+    throw new TypeError(
+      `${FEED_WHERE}.names needs columns.employees.name or the employees block's split name`,
+    );
+  }
+
   if (teams === true && !ctx.installed("teams")) {
     throw new TypeError(`${FEED_WHERE}.teams needs the teams block`);
   }
@@ -108,6 +141,7 @@ function leaveFeedExtras(ctx: BlockSqlContext): LeaveFeedExtras {
   return {
     names: names === true,
     hideTypes,
+    typeKey,
     teams: teams === true,
     fields: fields === true,
   };
@@ -118,9 +152,13 @@ function employeeName(ctx: BlockSqlContext, row: string): string {
   const staff = ctx.of("employees");
   const y = (column: string): string => `y.${staff.col("employees", column)}`;
 
+  const name = splitName(staff)
+    ? `concat_ws(' ', ${y("firstName")}${staff.has("employees", "lastName") ? `, ${y("lastName")}` : ""})`
+    : y("name");
+
   return leaveByEmployee(ctx)
-    ? `(select ${y("name")} from ${staff.table("employees")} y where ${y("id")} = ${row}.${ctx.col("requests", "employee")})`
-    : `(select ${y("name")} from ${staff.table("employees")} y where ${y("tenant")} = ${row}.${ctx.col("requests", "tenant")} and ${y("user")} = ${row}.${ctx.col("requests", "user")} limit 1)`;
+    ? `(select ${name} from ${staff.table("employees")} y where ${y("id")} = ${row}.${ctx.col("requests", "employee")})`
+    : `(select ${name} from ${staff.table("employees")} y where ${y("tenant")} = ${row}.${ctx.col("requests", "tenant")} and ${y("user")} = ${row}.${ctx.col("requests", "user")} limit 1)`;
 }
 
 const read = (ctx: BlockSqlContext): string =>
@@ -191,7 +229,7 @@ export function leaveFeed(ctx: BlockSqlContext): string {
   const typeName =
     extras.hideTypes.length === 0
       ? ty("name")
-      : `case when ${leaveTypeKey(ctx, "t")} = any (${sqlString(`{${extras.hideTypes.join(",")}}`)}::text[]) then null else ${ty("name")} end`;
+      : `case when ${extras.typeKey === undefined ? leaveTypeKey(ctx, "t") : `t.${sqlIdent(extras.typeKey)}::text`} = any (${sqlString(`{${extras.hideTypes.join(",")}}`)}::text[]) then null else ${ty("name")} end`;
 
   const teamFilter =
     teams === undefined
@@ -242,7 +280,7 @@ begin
         from ${ctx.table("requests")} r
         join ${ctx.table("types")} t on ${ty("id")} = ${q("type")}
         where ${q("tenant")} = v_tenant and ${q("approvedAt")} is not null and ${q("cancelledAt")} is null
-          and ${feedDateWindow(feed, q("startsOn"), q("endsOn"))}${teamFilter}
+          and ${feedDateWindow(feed, q("startsOn"), q("endsOn"))}${teamFilter}${leaveConfidentialFilter(ctx, q("type"), ctx.scope.canUser("v_creator", "v_tenant", leaveConfidentialKey(ctx)))}
         order by ${q("startsOn")}, ${q("id")}
         limit ${String(feed.limit)}
       ) x

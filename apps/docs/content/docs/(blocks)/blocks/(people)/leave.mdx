@@ -157,6 +157,22 @@ blocks: {
 
 The balance on a date is the sum of the rows effective by then, where a credit that has expired counts only as far as the debits used it: taken leave uses the credits that expire first. `balances` reads it at the end of `period`, or today for this year, and a request checks it on its start date. Approving a request adds a `taken` row dated on its start, and cancelling it deletes that row. `adjust` adds a row and takes `expiresOn`. `closePeriod` adds an `expiry` row on 31 December for the balance above `carryoverMax`; it needs `effectiveOn`. An `idempotencyKey` needs `key`.
 
+### Confidential leave types
+
+Every member with `leave.read` reads everyone's leave, which is right for a team calendar but not for sick leave. Over your own types table, map `columns.types.confidential` to a boolean column, and leave of a confidential type stays with the people allowed to see it: the employee, their manager (with `options.owner: "employee"`) and members with `permissions.readConfidential` (`leave.manage` when unset). `list`, `balances`, `ledger` and the feeds leave the others out, and so does the read policy of the block's own requests table.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  leave: {
+    tables: { types: "public.time_off_types", requests: "public.time_off_requests" },
+    columns: { types: { confidential: "is_confidential" } },
+    permissions: { read: "time_off.read", readConfidential: "time_off.read_sickness" },
+  },
+},
+```
+
+A column derived from another one works too, such as `is_confidential boolean generated always as (category = 'sick') stored`. A feed shows confidential leave only while the link's creator holds the key.
+
 ### A feed of approved leave
 
 With [share-links](/docs/blocks/share-links), the organization's approved leave can be shared as a feed, for example to subscribe in a calendar app. A member with `leave.read` creates a link of subject type `leave_feed` whose subject id is the organization's id, and `feed(token)` (or `leave_feed(token)`, open to `anon`) returns the approved requests a year back and everything ahead. The link stops working when it is revoked or expires, and when its creator no longer holds `leave.read`. Turn the requests into iCalendar all-day events in your feed route.
@@ -173,8 +189,9 @@ Each entry has `startPart` and `endPart`. `options.feed` takes more:
 | Option      | Effect                                                                                                                                                       |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `teams`     | with the [teams](/docs/blocks/teams) block, a link of subject type `leave_team_feed` whose subject id is a team's id shares the leave of that team's members |
-| `names`     | each entry carries the employee's `name`; needs the employees block                                                                                          |
+| `names`     | each entry carries the employee's `name`, or first and last name with the employees block's `name: "split"`; needs the employees block                       |
 | `hideTypes` | type keys whose `type` name the feed leaves out, such as `["sick"]`                                                                                          |
+| `typeKey`   | the types table column `hideTypes` matches, such as `category`, instead of the type key                                                                      |
 | `fields`    | each entry carries the request's extra columns, such as start and end times                                                                                  |
 
 ```ts
