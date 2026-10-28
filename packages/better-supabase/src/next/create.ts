@@ -68,7 +68,7 @@ import {
 import { resourceRouter } from "../server/resources.ts";
 import { defaultExpose, guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
-import { runBootstrap } from "./bootstrap.ts";
+import { bootstrapSchema, runBootstrap } from "./bootstrap.ts";
 import {
   cachedLife,
   invalidateAll,
@@ -643,8 +643,7 @@ export function createNext<
         return signedOutBootstrap(view, tenant);
       }
 
-      const schema =
-        bootstrapOptions.schema ?? options.bootstrapSchema ?? "better_supabase";
+      const schema = bootstrapSchema(bootstrapOptions, options, betterSupabase);
 
       const args = { ...bootstrapOptions.args, ...(tenant ? { tenant } : {}) };
       const calls = bootstrapCalls();

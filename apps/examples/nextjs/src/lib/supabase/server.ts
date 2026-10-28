@@ -18,9 +18,6 @@ const options: NextOptions = {
     // Matches `src/app/api/bs-stats/route.ts`, where `bsb.debugRoute()` is mounted.
     route: "/api/bs-stats",
   },
-  // `bsb.bootstrap()` calls `api.bootstrap_<rpc>`: the config's `sql.api`,
-  // the one module schema PostgREST exposes.
-  bootstrapSchema: "api",
   // Applies when SUPABASE_READ_URL is set: reads stay on the primary this long after a write.
   replicas: { pinMs: 5000 },
   // `permission` on actions, routes and resources: granted from the token's

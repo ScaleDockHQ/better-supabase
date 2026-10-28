@@ -181,6 +181,17 @@ export interface SchemaMeta {
   readonly realtime?: Readonly<Record<string, RealtimeTableMeta>>;
   /** Claim names from `config.claims` that differ from the defaults. */
   readonly claims?: Partial<ClaimsMeta>;
+  /**
+   * Where the sessions block's `bootstrap_<name>` wrappers are callable, when
+   * that isn't `better_supabase`: its `api` schema (`sql.api` by default), else
+   * its own `schema`.
+   */
+  readonly bootstrap?: BootstrapMeta;
+}
+
+/** `SchemaMeta.bootstrap`: the schema `bsb.bootstrap()` calls by default. */
+export interface BootstrapMeta {
+  readonly schema: string;
 }
 
 /** The claim names the SQL modules, codegen and runtime defaults agree on. */

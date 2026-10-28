@@ -48,5 +48,8 @@ export default {
   "buckets": {
     "customerLogos": {"id":"customer-logos","public":true,"path":"{organizationId}/{customerId}/logo/{version}.webp","policy":"tenant","fileSizeLimit":"5MiB","allowedMimeTypes":["image/png","image/jpeg","image/webp"]},
     "avatars": {"id":"avatars","public":true,"path":"{userId}/avatar-{version}.{ext}","policy":"owner","fileSizeLimit":"2MiB","allowedMimeTypes":["image/png","image/jpeg","image/webp","image/gif","image/avif"]}
+  },
+  "bootstrap": {
+    "schema": "api"
   }
 };

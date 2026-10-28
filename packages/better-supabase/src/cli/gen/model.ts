@@ -29,7 +29,7 @@ import type {
 
 import { DEFAULT_CLAIMS, tenantClaimPaths } from "../../config/index.ts";
 import { toCamel } from "../../index.ts";
-import { resolveProviderSql } from "../../sql/index.ts";
+import { resolveBlock, resolveProviderSql } from "../../sql/index.ts";
 import { providerTruncatedClaim } from "../authorization.ts";
 import { CliError } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
@@ -904,9 +904,35 @@ function assembleMeta(
     ...(Object.keys(claimOverrides).length > 0
       ? { claims: claimOverrides }
       : {}),
+    ...bootstrapMeta(config),
   };
 
   return meta;
+}
+
+/**
+ * The schema the sessions block's `bootstrap_<name>` wrappers are callable in:
+ * the API schema, unless its `functions` list leaves them out, else the module
+ * schema. Omitted when that is `better_supabase`, the runtime default.
+ */
+function bootstrapMeta(config: ResolvedConfig): Pick<SchemaMeta, "bootstrap"> {
+  const sessions = config.blocks["sessions"];
+
+  if (sessions?.options?.["bootstrap"] === undefined) {
+    return {};
+  }
+
+  const block = resolveBlock(sessions);
+  const api = block.api;
+
+  const wrapped =
+    api !== undefined &&
+    (api.functions === undefined ||
+      api.functions.some((name) => name.startsWith("bootstrap_")));
+
+  const schema = wrapped ? api.schema : block.schema;
+
+  return schema === "better_supabase" ? {} : { bootstrap: { schema } };
 }
 
 /** Builds the codegen model from a snapshot and config. */

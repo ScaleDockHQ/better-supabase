@@ -58,8 +58,10 @@ Both scopes tag entries with the session tags and the tables, so
 `evictSession`, sign-out and `refreshSessionCache` drop them, and both call
 the same inner loader. The proxy's `verifySession: "bootstrap"` skips the
 Auth call on document loads and leaves the check to the wrapper. `bsb.bootstrap`
-calls `NextOptions.bootstrapSchema`, which defaults to `better_supabase`; an
-app that exposes only its API schema to PostgREST sets it to that schema.
+calls the schema `gen` records for the sessions block in the schema metadata
+(`meta.bootstrap.schema`: its `api`, then `sql.api`, else its own `schema`),
+so an app that exposes only its API schema to PostgREST needs no option;
+`NextOptions.bootstrapSchema` and the call's `schema` override it.
 
 ## Alternatives considered
 
@@ -77,6 +79,5 @@ app that exposes only its API schema to PostgREST sets it to that schema.
 A page with ten islands makes one bootstrap RPC per load, and a remote entry
 serves a second instance without the RPC. The Next.js example's islands page
 and its Playwright tests check both. The app writes one SQL function per page
-and lists it in the config. `bootstrapSchema` doesn't follow
-`blocks.sessions.api` yet, so an app with an API schema sets both; revisit
-when the option can read the config.
+and lists it in the config. The default schema comes from the generated
+metadata, so an app that changes the sessions block's `api` reruns `gen`.

@@ -82,8 +82,9 @@ export interface NextOptions extends ServerOptions {
    */
   readonly rootParams?: NextRootParams;
   /**
-   * The schema `bsb.bootstrap()` calls: the sessions module's API schema
-   * (`blocks.sessions.api`, then `sql.api`). Defaults to `better_supabase`.
+   * The schema `bsb.bootstrap()` calls. Defaults to the one `gen` records from
+   * the sessions block (`blocks.sessions.api`, then `sql.api`, then its
+   * `schema`), else `better_supabase`.
    */
   readonly bootstrapSchema?: string;
 }
@@ -898,8 +899,8 @@ export type BootstrapOptions<T extends string = string> = CachedOptions<T> & {
   /** Passed to the app's function as its one `jsonb` argument. */
   readonly args?: Readonly<Record<string, unknown>>;
   /**
-   * The schema to call. Defaults to `NextOptions.bootstrapSchema`, else
-   * `better_supabase`.
+   * The schema to call. Defaults to `NextOptions.bootstrapSchema`, then the
+   * schema `gen` records for the sessions block, else `better_supabase`.
    */
   readonly schema?: string;
   /**

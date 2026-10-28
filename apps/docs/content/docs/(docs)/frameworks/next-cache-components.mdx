@@ -486,6 +486,11 @@ export async function getHome(organizationId: string) {
 }
 ```
 
+When the sessions block has an API schema (`blocks.sessions.api` or
+`sql.api`), the wrapper is also in that schema, and `gen` records it so
+`bsb.bootstrap()` calls it there. Set `bootstrapSchema` in `createNext()` or
+`schema` on the call to pick another one.
+
 `app.home_data(args jsonb)` receives `args` plus the tenant. The result is
 plain data (`session`, `sessionActive`, `authzVersion`, `tenant`, `data`), so
 it can cross into Client Components. When the Auth session ended,

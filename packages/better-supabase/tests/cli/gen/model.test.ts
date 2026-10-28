@@ -497,6 +497,53 @@ describe("buildModel claims", () => {
   });
 });
 
+describe("buildModel bootstrap", () => {
+  const bootstrap = { home: "public.home_data" };
+
+  it("records the sessions block's API schema for bsb.bootstrap()", async () => {
+    const viaSql = await model(() => ({}), {
+      database: { sql: { api: "api" } },
+      blocks: { sessions: { options: { bootstrap } } },
+    });
+
+    const viaBlock = await model(() => ({}), {
+      blocks: { sessions: { api: "rpc", options: { bootstrap } } },
+    });
+
+    const ownSchema = await model(() => ({}), {
+      blocks: { sessions: { schema: "auth_x", options: { bootstrap } } },
+    });
+
+    expect(viaSql.meta.bootstrap).toEqual({ schema: "api" });
+    expect(viaBlock.meta.bootstrap).toEqual({ schema: "rpc" });
+    expect(ownSchema.meta.bootstrap).toEqual({ schema: "auth_x" });
+  });
+
+  it("records nothing for the default schema or without bootstrap wrappers", async () => {
+    const plain = await model(() => ({}), {
+      blocks: { sessions: { options: { bootstrap } } },
+    });
+
+    const none = await model(() => ({}), {
+      database: { sql: { api: "api" } },
+      blocks: { sessions: {} },
+    });
+
+    const filtered = await model(() => ({}), {
+      blocks: {
+        sessions: {
+          api: { schema: "api", functions: ["session_active"] },
+          options: { bootstrap },
+        },
+      },
+    });
+
+    expect(plain.meta.bootstrap).toBeUndefined();
+    expect(none.meta.bootstrap).toBeUndefined();
+    expect(filtered.meta.bootstrap).toBeUndefined();
+  });
+});
+
 describe("buildModel comments", () => {
   it("puts table and column comments in the meta, mapping @deprecated", async () => {
     const built = await model((generator) => {

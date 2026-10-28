@@ -164,10 +164,11 @@ cache fails with `Could not resolve "better-supabase/blocks/..."`.
   menus there make their own calls, so the page's budget (one token
   verification, one `bootstrap_islands` call) would fail. Keep new budget
   pages outside it too.
-- `bsb.bootstrap()` calls the wrapper in the schema that `createNext()`'s
-  `bootstrapSchema` names, `better_supabase` by default; it doesn't follow
-  `blocks.sessions.api`. The example's wrappers are in `api`, so
-  `src/lib/supabase/server.ts` sets `bootstrapSchema: "api"`.
+- `bsb.bootstrap()` calls the wrapper in the schema `gen` records for the
+  sessions block (`meta.bootstrap.schema`: its `api`, then `sql.api`), so the
+  example reaches `api.bootstrap_islands` without options. Run `gen` after
+  changing the sessions block's `api` or `schema`, or the call keeps the old
+  schema.
 - A verification is a session memo miss. The e2e test reads the counts from
   `/api/bs-sessions` (`bsb.sessions.stats()`), which answers only in a build
   with `EXPOSE_TESTING_API=1`.
