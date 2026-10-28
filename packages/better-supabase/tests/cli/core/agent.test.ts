@@ -215,6 +215,31 @@ describe("consent", () => {
     }).toThrow(/for another command or another target/);
   });
 
+  it("keeps the token when only presentation flags change", () => {
+    const argv = ["dev", "stack", "prune", "--stop-idle"];
+    const token = consentToken(argv, request);
+
+    for (const extra of [
+      ["--yes"],
+      ["-y"],
+      ["--json"],
+      ["--no-json"],
+      ["--no-color"],
+      ["--debug"],
+      ["--agent", "yes"],
+      ["--agent=no"],
+    ]) {
+      expect(consentToken([...argv, ...extra], request)).toBe(token);
+    }
+
+    expect(() => {
+      checkConsent([...argv, "--yes", "--confirm", token], request, token);
+    }).not.toThrow();
+    expect(consentToken(["dev", "stack", "prune"], request)).not.toBe(token);
+    expect(consentToken([...argv, "--env", "ci"], request)).not.toBe(token);
+    expect(consentToken([...argv, "--", "--yes"], request)).not.toBe(token);
+  });
+
   it("treats only this machine as a local database", () => {
     expect(
       isLocalDatabaseUrl("postgresql://postgres@127.0.0.1:54322/postgres"),

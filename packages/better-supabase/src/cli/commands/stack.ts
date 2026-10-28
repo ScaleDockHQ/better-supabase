@@ -172,11 +172,14 @@ export async function runStackPrune(
       continue;
     }
 
+    // The Supabase CLI refuses to destroy without --yes; requireConsent above
+    // already has the user's answer.
     const result = await deps.supabase(
       [
         "stack",
         verb,
         ...group.flatMap((action) => ["--stack-id", action.stack.id]),
+        ...(verb === "destroy" ? ["--yes"] : []),
       ],
       root,
       env,

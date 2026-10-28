@@ -256,6 +256,42 @@ export interface ConsentRequest {
   readonly detail: string;
 }
 
+/** Global flags that change how a run talks, never what it changes. */
+const PRESENTATION_FLAGS: ReadonlySet<string> = new Set([
+  "yes",
+  "json",
+  "color",
+  "debug",
+]);
+
+/**
+ * `argv` without `--confirm` and the presentation flags, so adding `--yes` or
+ * `--json` to the run the user agreed to keeps its token.
+ */
+function consentArgv(argv: readonly string[]): string[] {
+  const out: string[] = [];
+  const rest = withoutOption(withoutOption(argv, "--confirm"), "--agent");
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index] ?? "";
+
+    if (arg === "--") {
+      out.push(...rest.slice(index));
+      break;
+    }
+
+    const name = arg.startsWith("--")
+      ? arg.slice(2).split("=")[0]?.replace(/^no-/, "")
+      : undefined;
+
+    if (arg !== "-y" && (name === undefined || !PRESENTATION_FLAGS.has(name))) {
+      out.push(arg);
+    }
+  }
+
+  return out;
+}
+
 /**
  * The token for one request on one command line, so a consent covers only that
  * run.
@@ -265,13 +301,7 @@ export function consentToken(
   request: ConsentRequest,
 ): string {
   return createHash("sha256")
-    .update(
-      JSON.stringify([
-        request.effect,
-        request.detail,
-        withoutOption(argv, "--confirm"),
-      ]),
-    )
+    .update(JSON.stringify([request.effect, request.detail, consentArgv(argv)]))
     .digest("hex")
     .slice(0, 16);
 }
