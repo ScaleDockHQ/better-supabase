@@ -1,6 +1,6 @@
 -- better-supabase module: workflow-editor
--- @bsb-block workflow-editor@3 managed
--- @bsb-hash sha256:4bd2920fbb21da28a5b58c5a16cb9f97f186d28d49c27e2dd317bec308d54e88
+-- @bsb-block workflow-editor@4 managed
+-- @bsb-hash sha256:4ba080e0fe50ca4296acf6a55da8a33aa8cec32e0ce4f0ace27b309e2b8230ef
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -101,6 +101,9 @@ alter table "better_supabase"."workflow_definitions" add column if not exists "s
 alter table "better_supabase"."workflow_definitions" add column if not exists "forked_from" uuid references "better_supabase"."workflow_definitions" ("id") on delete set null;
 alter table "better_supabase"."workflow_definitions" add column if not exists "forked_from_version" integer check ("forked_from_version" > 0);
 alter table "better_supabase"."workflow_definitions" add column if not exists "restricted" boolean not null default false;
+alter table "better_supabase"."workflow_definitions" add column if not exists "purpose" text not null default 'automation'
+  check ("purpose" in ('automation', 'lifecycle'));
+alter table "better_supabase"."workflow_definitions" add column if not exists "is_default" boolean not null default false;
 do $$
 begin
   if coalesce(obj_description((
@@ -293,6 +296,25 @@ create policy workflow_step_library_read on "better_supabase"."workflow_step_lib
   for select to authenticated
   using (true);
 
+-- The app's own node kinds (defineNodeKind), synced from code. branches:
+-- whether the kind's edges take a true or false branch.
+create table if not exists "better_supabase"."workflow_node_kinds" (
+  "kind" text primary key check ("kind" ~ '^[a-z][a-z0-9_.-]{0,62}$' and "kind" not in ('trigger', 'step', 'sleep', 'approval', 'condition')),
+  "title" text not null check (length("title") between 1 and 200),
+  "description" text,
+  "branches" boolean not null default false,
+  "config_schema" jsonb not null default '{}'::jsonb,
+  "updated_at" timestamptz not null default now()
+);
+alter table "better_supabase"."workflow_node_kinds" enable row level security;
+revoke all on "better_supabase"."workflow_node_kinds" from public, anon, authenticated;
+grant select on "better_supabase"."workflow_node_kinds" to authenticated;
+grant all on "better_supabase"."workflow_node_kinds" to service_role;
+drop policy if exists workflow_node_kinds_read on "better_supabase"."workflow_node_kinds";
+create policy workflow_node_kinds_read on "better_supabase"."workflow_node_kinds"
+  for select to authenticated
+  using (true);
+
 -- The status of each node of a run, by node id, written by the engine.
 create table if not exists "better_supabase"."workflow_node_runs" (
   "run_id" uuid not null references "better_supabase"."workflow_runs" ("id") on delete cascade,
@@ -349,8 +371,62 @@ alter table "better_supabase"."workflow_alert_fires" enable row level security;
 revoke all on "better_supabase"."workflow_alert_fires" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_alert_fires" to service_role;
 
+-- Replaces the node kind registry with kinds, keyed by kind ({ kind: {
+-- title, description, branches, configSchema } }); returns how many there are.
+create or replace function "better_supabase"."sync_workflow_node_kinds"(kinds jsonb)
+returns integer
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if jsonb_typeof(coalesce(kinds, '{}'::jsonb)) <> 'object' then
+    raise exception 'kinds is an object keyed by kind' using errcode = '42501', hint = 'WORKFLOW_NODE_KINDS';
+  end if;
+  insert into "better_supabase"."workflow_node_kinds" ("kind", "title", "description", "branches", "config_schema")
+  select e.key, coalesce(e.value ->> 'title', e.key), e.value ->> 'description',
+    coalesce((e.value ->> 'branches')::boolean, false), coalesce(e.value -> 'configSchema', '{}'::jsonb)
+  from jsonb_each(coalesce(kinds, '{}'::jsonb)) e
+  on conflict ("kind") do update set
+    "title" = excluded."title",
+    "description" = excluded."description",
+    "branches" = excluded."branches",
+    "config_schema" = excluded."config_schema",
+    "updated_at" = now();
+  delete from "better_supabase"."workflow_node_kinds" x
+  where not exists (
+    select 1 from jsonb_each(coalesce(kinds, '{}'::jsonb)) e where e.key = x."kind"
+  );
+  select count(*) into v_count from "better_supabase"."workflow_node_kinds";
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."sync_workflow_node_kinds"(jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."sync_workflow_node_kinds"(jsonb) to service_role;
+
+create or replace function "better_supabase"."workflow_node_kinds_list"()
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'kind', x."kind",
+    'title', x."title",
+    'description', x."description",
+    'branches', x."branches",
+    'configSchema', x."config_schema",
+    'updatedAt', x."updated_at"
+  ) order by x."kind"), '[]'::jsonb) from "better_supabase"."workflow_node_kinds" x;
+$$;
+revoke execute on function "better_supabase"."workflow_node_kinds_list"() from public, anon;
+grant execute on function "better_supabase"."workflow_node_kinds_list"() to authenticated, service_role;
+
 -- Problems that keep a graph from being published, as messages; empty when
--- it may be. The step names must be in the step library.
+-- it may be. A node's kind is built in or in the node kind registry, step
+-- names are in the step library, and only a branching kind's edges take a
+-- branch.
 create or replace function "better_supabase"."validate_workflow_graph"(graph jsonb)
 returns jsonb
 language plpgsql
@@ -364,6 +440,7 @@ declare
   v_node jsonb;
   v_edge jsonb;
   v_ids text[] := '{}';
+  v_branching text[] := '{}';
   v_triggers integer := 0;
 begin
   if jsonb_typeof(v_nodes) <> 'array' or jsonb_typeof(v_edges) <> 'array' then
@@ -378,7 +455,14 @@ begin
       v_errors := array_append(v_errors, format('Node %s appears twice', v_node ->> 'id'));
     end if;
     v_ids := array_append(v_ids, v_node ->> 'id');
-    if coalesce(v_node ->> 'kind', '') not in ('trigger', 'step', 'sleep', 'approval', 'condition') then
+    if coalesce(v_node ->> 'kind', '') in ('condition', 'approval') or exists (
+      select 1 from "better_supabase"."workflow_node_kinds" x where x."kind" = v_node ->> 'kind' and x."branches"
+    ) then
+      v_branching := array_append(v_branching, v_node ->> 'id');
+    end if;
+    if coalesce(v_node ->> 'kind', '') not in ('trigger', 'step', 'sleep', 'approval', 'condition') and not exists (
+      select 1 from "better_supabase"."workflow_node_kinds" x where x."kind" = v_node ->> 'kind'
+    ) then
       v_errors := array_append(v_errors, format('Node %s has an unknown kind', v_node ->> 'id'));
     elsif v_node ->> 'kind' = 'trigger' then
       v_triggers := v_triggers + 1;
@@ -394,6 +478,8 @@ begin
   for v_edge in select value from jsonb_array_elements(v_edges) loop
     if not coalesce((v_edge ->> 'source') = any (v_ids), false) or not coalesce((v_edge ->> 'target') = any (v_ids), false) then
       v_errors := array_append(v_errors, format('Edge %s joins a node that does not exist', coalesce(v_edge ->> 'id', '?')));
+    elsif v_edge ? 'branch' and not ((v_edge ->> 'source') = any (v_branching)) then
+      v_errors := array_append(v_errors, format('Edge %s takes a branch from a node that does not branch', coalesce(v_edge ->> 'id', '?')));
     end if;
   end loop;
   return to_jsonb(v_errors);
@@ -495,6 +581,8 @@ begin
     'forkedFrom', v_row."forked_from",
     'forkedFromVersion', v_row."forked_from_version",
     'restricted', v_row."restricted",
+    'purpose', v_row."purpose",
+    'isDefault', v_row."is_default",
     'createdBy', v_row."created_by",
     'createdAt', v_row."created_at",
     'updatedAt', v_row."updated_at"
@@ -529,6 +617,8 @@ as $$
     'forkedFrom', x."forked_from",
     'forkedFromVersion', x."forked_from_version",
     'restricted', x."restricted",
+    'purpose', x."purpose",
+    'isDefault', x."is_default",
     'createdBy', x."created_by",
     'createdAt', x."created_at",
     'updatedAt', x."updated_at"
@@ -570,6 +660,8 @@ as $$
     'forkedFrom', x."forked_from",
     'forkedFromVersion', x."forked_from_version",
     'restricted', x."restricted",
+    'purpose', x."purpose",
+    'isDefault', x."is_default",
     'createdBy', x."created_by",
     'createdAt', x."created_at",
     'updatedAt', x."updated_at"
@@ -954,6 +1046,135 @@ $$;
 revoke execute on function "better_supabase"."workflow_version_get"(uuid) from public, anon;
 grant execute on function "better_supabase"."workflow_version_get"(uuid) to authenticated, service_role;
 
+create index if not exists workflow_definitions_default_idx on "better_supabase"."workflow_definitions" ("tenant_id", "purpose") where "is_default";
+
+-- Sets what a definition is for and whether it is its tenant's default
+-- (workflow.admin, or the service role for a system one). Only a lifecycle
+-- definition is a default; marking one clears the default from the other
+-- lifecycle definitions of its tenant that share a subject type.
+create or replace function "better_supabase"."set_workflow_definition_purpose"(
+  definition uuid,
+  purpose text,
+  is_default boolean default false
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."workflow_definitions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if purpose is null or purpose not in ('automation', 'lifecycle') then
+    raise exception 'purpose is automation or lifecycle' using errcode = '42501', hint = 'WORKFLOW_PURPOSE_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."workflow_definitions" x where x."id" = definition for update;
+  if not found then
+    raise exception 'Workflow definition not found' using errcode = '42501', hint = 'WORKFLOW_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'workflow.admin'), false))) then
+    raise exception 'Changing what a workflow is for needs workflow.admin' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if coalesce(is_default, false) and purpose <> 'lifecycle' then
+    raise exception 'Only a lifecycle workflow is a default' using errcode = '42501', hint = 'WORKFLOW_PURPOSE_INVALID';
+  end if;
+  if purpose = 'lifecycle' and cardinality(v_row."subject_types") = 0 then
+    raise exception 'A lifecycle workflow names its subject types' using errcode = '42501', hint = 'WORKFLOW_PURPOSE_INVALID';
+  end if;
+  if coalesce(is_default, false) then
+    update "better_supabase"."workflow_definitions" x set "is_default" = false
+    where x."tenant_id" is not distinct from v_row."tenant_id"
+      and x."id" <> v_row."id"
+      and x."is_default"
+      and x."subject_types" && v_row."subject_types";
+  end if;
+  update "better_supabase"."workflow_definitions" x set
+    "purpose" = purpose,
+    "is_default" = coalesce(is_default, false),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'tenant', v_row."tenant_id",
+    'slug', v_row."slug",
+    'name', v_row."name",
+    'description', v_row."description",
+    'subjectTypes', to_jsonb(v_row."subject_types"),
+    'scope', v_row."scope",
+    'forkedFrom', v_row."forked_from",
+    'forkedFromVersion', v_row."forked_from_version",
+    'restricted', v_row."restricted",
+    'purpose', v_row."purpose",
+    'isDefault', v_row."is_default",
+    'createdBy', v_row."created_by",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."set_workflow_definition_purpose"(uuid, text, boolean) from public, anon;
+grant execute on function "better_supabase"."set_workflow_definition_purpose"(uuid, text, boolean) to authenticated, service_role;
+
+-- The default definition for purpose in tenant and its published version:
+-- the tenant's own default first, then a system default the tenant didn't
+-- opt out of. subject_type, when given, picks a default that names it. Null
+-- when none is published or the caller may not read it.
+create or replace function "better_supabase"."resolve_workflow_definition"(
+  tenant uuid,
+  purpose text default 'lifecycle',
+  subject_type text default null
+)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select jsonb_build_object('definition', jsonb_build_object(
+    'id', x."id",
+    'tenant', x."tenant_id",
+    'slug', x."slug",
+    'name', x."name",
+    'description', x."description",
+    'subjectTypes', to_jsonb(x."subject_types"),
+    'scope', x."scope",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'restricted', x."restricted",
+    'purpose', x."purpose",
+    'isDefault', x."is_default",
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ), 'version', jsonb_build_object(
+    'id', y."id",
+    'definition', y."definition_id",
+    'version', y."version",
+    'status', y."status",
+    'createdBy', y."created_by",
+    'createdAt', y."created_at",
+    'publishedAt', y."published_at",
+    'publishedBy', y."published_by",
+    'owner', y."owner_kind",
+    'permissions', to_jsonb(y."permissions")
+  ))
+  from "better_supabase"."workflow_definitions" x
+  join "better_supabase"."workflow_versions" y on y."definition_id" = x."id" and y."status" = 'published'
+  where x."is_default"
+    and x."purpose" = resolve_workflow_definition.purpose
+    and (resolve_workflow_definition.subject_type is null or resolve_workflow_definition.subject_type = any (x."subject_types"))
+    and (x."tenant_id" = resolve_workflow_definition.tenant
+      or (x."scope" = 'system' and not exists (select 1 from "better_supabase"."workflow_opt_outs" oo where oo."tenant_id" = resolve_workflow_definition.tenant and oo."definition_id" = x."id")))
+  order by (x."tenant_id" is null), x."updated_at" desc
+  limit 1;
+$$;
+revoke execute on function "better_supabase"."resolve_workflow_definition"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."resolve_workflow_definition"(uuid, text, text) to authenticated, service_role;
+
 -- What a run of definition starts from: the tenant it runs in and the
 -- published version. workflow.run in that tenant (and a run grant on a
 -- restricted definition), or the service role. A system definition runs in
@@ -1012,6 +1233,8 @@ begin
     'forkedFrom', v_def."forked_from",
     'forkedFromVersion', v_def."forked_from_version",
     'restricted', v_def."restricted",
+    'purpose', v_def."purpose",
+    'isDefault', v_def."is_default",
     'createdBy', v_def."created_by",
     'createdAt', v_def."created_at",
     'updatedAt', v_def."updated_at"
@@ -1155,6 +1378,8 @@ begin
     'forkedFrom', v_def."forked_from",
     'forkedFromVersion', v_def."forked_from_version",
     'restricted', v_def."restricted",
+    'purpose', v_def."purpose",
+    'isDefault', v_def."is_default",
     'createdBy', v_def."created_by",
     'createdAt', v_def."created_at",
     'updatedAt', v_def."updated_at"
@@ -1243,6 +1468,8 @@ begin
     'forkedFrom', v_row."forked_from",
     'forkedFromVersion', v_row."forked_from_version",
     'restricted', v_row."restricted",
+    'purpose', v_row."purpose",
+    'isDefault', v_row."is_default",
     'createdBy', v_row."created_by",
     'createdAt', v_row."created_at",
     'updatedAt', v_row."updated_at"
@@ -2093,6 +2320,24 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
+create or replace function "api"."sync_workflow_node_kinds"(kinds jsonb)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."sync_workflow_node_kinds"($1) $$;
+revoke execute on function "api"."sync_workflow_node_kinds"(jsonb) from public, anon, authenticated;
+grant execute on function "api"."sync_workflow_node_kinds"(jsonb) to service_role;
+
+create or replace function "api"."workflow_node_kinds_list"()
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."workflow_node_kinds_list"() $$;
+revoke execute on function "api"."workflow_node_kinds_list"() from public, anon;
+grant execute on function "api"."workflow_node_kinds_list"() to authenticated, service_role;
+
 create or replace function "api"."validate_workflow_graph"(graph jsonb)
 returns jsonb
 language sql
@@ -2191,6 +2436,24 @@ set search_path = ''
 as $$ select "better_supabase"."workflow_version_get"($1) $$;
 revoke execute on function "api"."workflow_version_get"(uuid) from public, anon;
 grant execute on function "api"."workflow_version_get"(uuid) to authenticated, service_role;
+
+create or replace function "api"."set_workflow_definition_purpose"(definition uuid, purpose text, is_default boolean default false)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_workflow_definition_purpose"($1, $2, $3) $$;
+revoke execute on function "api"."set_workflow_definition_purpose"(uuid, text, boolean) from public, anon;
+grant execute on function "api"."set_workflow_definition_purpose"(uuid, text, boolean) to authenticated, service_role;
+
+create or replace function "api"."resolve_workflow_definition"(tenant uuid, purpose text default 'lifecycle', subject_type text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."resolve_workflow_definition"($1, $2, $3) $$;
+revoke execute on function "api"."resolve_workflow_definition"(uuid, text, text) from public, anon;
+grant execute on function "api"."resolve_workflow_definition"(uuid, text, text) to authenticated, service_role;
 
 create or replace function "api"."workflow_start_target"(definition uuid, tenant uuid default null)
 returns jsonb

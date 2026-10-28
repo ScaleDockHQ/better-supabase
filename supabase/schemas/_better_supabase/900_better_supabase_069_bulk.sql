@@ -1,6 +1,6 @@
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:da078111ee1a6a993cae42672b3e83be03fa8a4ff89ece5b4dbb9ec26e8729fe
+-- @bsb-hash sha256:2fc04b69ef53868e7b88531b28babb3927f1e8e55ba207b591589db581c8993b
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -100,7 +100,7 @@ begin
         perform "better_supabase"."untag"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, v_tag);
       end loop;
     when 'stateMachine.transition' then
-      perform "better_supabase"."transition"(bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'to', bulk_row.args ->> 'reason');
+      perform "better_supabase"."transition"(bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'to', bulk_row.args ->> 'reason', bulk_row.args -> 'actor');
     when 'relations.link' then
       perform "better_supabase"."link"(bulk_row.tenant, bulk_row.args ->> 'kind', bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'targetType', bulk_row.args ->> 'targetId', bulk_row.args -> 'data');
     when 'trash.trash' then
