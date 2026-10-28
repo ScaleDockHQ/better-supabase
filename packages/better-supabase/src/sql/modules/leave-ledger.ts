@@ -3,6 +3,10 @@ import type { LeaveOwner } from "./leave-owner.ts";
 
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { leaveTypeKey } from "./leave-feed.ts";
+import {
+  leaveConfidentialFilter,
+  leaveConfidentialReader,
+} from "./leave-owner.ts";
 import { ledgerRebalance, ledgerTables } from "./ledger.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -59,6 +63,9 @@ export function leaveLedgerFunctions(
   const manage = ctx.permission("manage", permissions.manage);
   const { owner } = parts;
   const employee = owner.employee;
+
+  const sees = (fnName: string): string =>
+    `(${leaveConfidentialReader(ctx, `${fnName}.tenant`)} or coalesce(v_user = auth.uid(), false)${employee ? ` or ${owner.manages(`${fnName}.tenant`, "v_owner")}` : ""})`;
 
   const ownerDrop = (name: string, types: string): string =>
     employee ? `drop function if exists ${fn(name)}(${types});\n` : "";
@@ -234,7 +241,7 @@ begin${employee ? `\n  ${owner.resolve("leave_balances.tenant", "leave_balances.
   cross join lateral (
     select ${parts.pending("leave_balances.tenant", key, `t.${ty("id")}`, "v_period")} as pending
   ) w
-  where t.${ty("tenant")} = leave_balances.tenant and t.${ty("tracked")} and t.${ty("archivedAt")} is null;
+  where t.${ty("tenant")} = leave_balances.tenant and t.${ty("tracked")} and t.${ty("archivedAt")} is null${leaveConfidentialFilter(ctx, `t.${ty("id")}`, sees("leave_balances"))};
   return v_rows;
 end;
 $$;
@@ -266,7 +273,7 @@ begin${employee ? `\n  ${owner.resolve("leave_ledger_entries.tenant", "leave_led
   from ${memberEntries}
   where x.${la("tenant")} = leave_ledger_entries.tenant and ${employee ? `x.${la("metadata")} ->> 'employeeId' = v_owner::text` : `x.${la("owner")} = v_user`}
     and (leave_ledger_entries.period is null or (x.${la("metadata")} ->> 'period')::integer = leave_ledger_entries.period)
-    and (leave_ledger_entries.type_id is null or x.${la("holderId")} = leave_ledger_entries.type_id::text);
+    and (leave_ledger_entries.type_id is null or x.${la("holderId")} = leave_ledger_entries.type_id::text)${leaveConfidentialFilter(ctx, `x.${la("holderId")}`, sees("leave_ledger_entries"))};
   return v_rows;
 end;
 $$;

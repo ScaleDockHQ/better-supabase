@@ -33,6 +33,7 @@ import {
   pageOf,
   recordOf,
   recordsOf,
+  stringsOf,
   textOf,
 } from "../shared.ts";
 
@@ -124,6 +125,26 @@ export interface OptionValue {
 export interface SavedOption {
   readonly id: string;
   readonly values: readonly OptionValue[];
+}
+
+export interface OptionMatrixInput {
+  readonly name: string;
+  readonly values: readonly string[];
+}
+
+export interface OptionMatrixOptions {
+  readonly titleSeparator?: string | null;
+}
+
+export interface MatrixVariant {
+  readonly id: string;
+  readonly sku?: string;
+  readonly optionValueIds: readonly string[];
+}
+
+export interface OptionMatrix {
+  readonly options: readonly (SavedOption & { readonly name: string })[];
+  readonly variants: readonly MatrixVariant[];
 }
 
 /**
@@ -346,6 +367,11 @@ export interface Catalog<F extends object = Record<never, never>> {
     productId: string,
     optionIds: readonly string[],
   ): AsyncResult<boolean>;
+  setOptions(
+    productId: string,
+    options: readonly OptionMatrixInput[],
+    settings?: OptionMatrixOptions,
+  ): AsyncResult<OptionMatrix>;
   createVariant(
     productId: string,
     input: VariantInput,
@@ -519,6 +545,30 @@ function variantOf(value: unknown): SavedVariant {
     ...(sku === undefined ? {} : { sku }),
     rank: textOf(row["rank"]),
     ...(isRecord(row["fields"]) ? { fields: row["fields"] } : {}),
+  };
+}
+
+function matrixOf(value: unknown): OptionMatrix {
+  const row = recordOf(value, "set_product_options");
+
+  return {
+    options: recordsOf(row["options"], "set_product_options").map((entry) => ({
+      id: textOf(entry["id"]),
+      name: textOf(entry["name"]),
+      values: recordsOf(entry["values"], "set_product_options").map((item) => ({
+        id: textOf(item["id"]),
+        value: textOf(item["value"]),
+      })),
+    })),
+    variants: recordsOf(row["variants"], "set_product_options").map((entry) => {
+      const sku = optionalText(entry["sku"]);
+
+      return {
+        id: textOf(entry["id"]),
+        ...(sku === undefined ? {} : { sku }),
+        optionValueIds: stringsOf(entry["optionValueIds"]),
+      };
+    }),
   };
 }
 
@@ -766,6 +816,21 @@ export function createCatalog<
         "reorder_product_options",
         { product: productId, options: optionIds },
         (value) => value === true,
+      ),
+    setOptions: (productId, options, settings) =>
+      call(
+        "set_product_options",
+        {
+          product: productId,
+          options: options.map((entry) => ({
+            name: entry.name,
+            values: entry.values,
+          })),
+          ...(settings?.titleSeparator === undefined
+            ? {}
+            : { title_separator: settings.titleSeparator }),
+        },
+        matrixOf,
       ),
     createVariant: (productId, input) =>
       call("save_variant", variantArgs(productId, null, input), variantOf),

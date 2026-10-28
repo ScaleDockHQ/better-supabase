@@ -554,6 +554,34 @@ describe("catalog block", () => {
     ]);
   });
 
+  it("replaces options and reads the variant matrix", async () => {
+    const { calls, transport } = recorder({
+      options: [{ id: "o1", name: "Size", values: [{ id: "s", value: "S" }] }],
+      variants: [{ id: "v1", sku: null, optionValueIds: ["s"] }],
+    });
+
+    expect(
+      await createCatalog({ transport })
+        .setOptions("p1", [{ name: "Size", values: ["S"] }], {
+          titleSeparator: null,
+        })
+        .orThrow(),
+    ).toEqual({
+      options: [{ id: "o1", name: "Size", values: [{ id: "s", value: "S" }] }],
+      variants: [{ id: "v1", optionValueIds: ["s"] }],
+    });
+    expect(calls).toEqual([
+      {
+        fn: "set_product_options",
+        args: {
+          product: "p1",
+          options: [{ name: "Size", values: ["S"] }],
+          title_separator: null,
+        },
+      },
+    ]);
+  });
+
   it("adds, orders and reads product media", async () => {
     const { calls, transport } = recorder({ id: "m1", position: 0 }, true, [
       {

@@ -1,6 +1,9 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { RecordOwner } from "./record-owner.ts";
 
+import { sqlString } from "../../core/template.ts";
+import { SERVICE_CALLER } from "../shared.ts";
+import { moduleOperations } from "./permissions-model.ts";
 import { ownerIsEmployee, recordOwner } from "./record-owner.ts";
 
 const WHERE = "blocks.leave.options";
@@ -48,6 +51,41 @@ export function leaveAutoApprove(ctx: BlockSqlContext): boolean {
     (leaveAutoApproveMapped(ctx) || ctx.owns("types"))
   );
 }
+
+export function leaveConfidential(ctx: BlockSqlContext): boolean {
+  if (!mapped(ctx, "types", "confidential")) {
+    return false;
+  }
+
+  if (ctx.owns("types")) {
+    throw new TypeError(
+      "blocks.leave.columns.types.confidential names a column of your own types table; map tables.types to it",
+    );
+  }
+
+  return true;
+}
+
+export const leaveConfidentialKey = (ctx: BlockSqlContext): string =>
+  sqlString(
+    ctx.config.permissions["readConfidential"] ??
+      ctx.permissionKey("manage", moduleOperations("leave").manage),
+  );
+
+export const leaveConfidentialReader = (
+  ctx: BlockSqlContext,
+  tenant: string,
+): string =>
+  `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, leaveConfidentialKey(ctx))})`;
+
+export const leaveConfidentialFilter = (
+  ctx: BlockSqlContext,
+  type: string,
+  sees: string,
+): string =>
+  leaveConfidential(ctx)
+    ? ` and (${sees} or not exists (select 1 from ${ctx.table("types")} lc where lc.${ctx.col("types", "id")}::text = (${type})::text and lc.${ctx.col("types", "confidential")}))`
+    : "";
 
 export function leaveBalancesTable(ctx: BlockSqlContext): boolean {
   if (typeof ctx.config.tables["balances"] !== "string") {

@@ -15,7 +15,7 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   userGrant,
-  writeExtraColumns,
+  updateExtraColumns,
 } from "../shared.ts";
 import { leaveBalanceFunctions, unpostTaken } from "./leave-balances.ts";
 import {
@@ -43,6 +43,10 @@ import {
   leaveAutoApprove,
   leaveBalancesTable,
   leaveByEmployee,
+  leaveConfidential,
+  leaveConfidentialFilter,
+  leaveConfidentialKey,
+  leaveConfidentialReader,
   leaveOwner,
   leaveParts,
 } from "./leave-owner.ts";
@@ -339,7 +343,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_user_id
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_dates_idx`)} on ${requests} (${q("tenant")}, ${q("startsOn")}, ${q("endsOn")});
 ${approvals === undefined ? "" : `create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_approval_idx`)} on ${requests} (${q("approval")}) where ${q("approval")} is not null;\n`}create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_type_idx`)} on ${requests} (${q("tenant")}, ${q("type")});
 ${lockModuleTable(ctx, "requests", { read: true })}
-${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("leave_requests_read"), command: "select", roles: ["authenticated"], using: `${owner.mine} or ${ctx.scope.check(q("tenant"), read)}` }), { drop: true, target: requests })}
+${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("leave_requests_read"), command: "select", roles: ["authenticated"], using: `${owner.mine} or ${ctx.scope.check(q("tenant"), read)}${leaveConfidential(ctx) ? ` and (${ctx.scope.check(q("tenant"), leaveConfidentialKey(ctx))} or not exists (select 1 from ${types} lc where lc.${ty("id")} = ${requests}.${q("type")} and lc.${ty("confidential")}))` : ""}` }), { drop: true, target: requests })}
 
 `
     : "";
@@ -613,9 +617,9 @@ ${overlapCheck(`v_row.${q("tenant")}`, "v_starts", "v_ends", `v_row.${q("id")}`)
   }
   if v_status = 'approved' then${taken("v_old", 1, "changed")}
   end if;
-  update ${requests} x set ${q("startsOn")} = v_starts, ${q("endsOn")} = v_ends${ctx.has("requests", "partial") ? `, ${q("partial")} = ${ctx.cast("requests", "partial", "v_partial")}` : ""}${parts ? `, ${q("startPart")} = ${ctx.cast("requests", "startPart", "v_start")}, ${q("endPart")} = ${ctx.cast("requests", "endPart", "v_end")}` : ""}, ${q("amount")} = v_amount${ctx.has("requests", "note") ? `, ${q("note")} = case when update_leave_request.note is null then x.${q("note")} else nullif(trim(update_leave_request.note), '') end` : ""}, ${q("updatedAt")} = now()
+  update ${requests} x set ${q("startsOn")} = v_starts, ${q("endsOn")} = v_ends${ctx.has("requests", "partial") ? `, ${q("partial")} = ${ctx.cast("requests", "partial", "v_partial")}` : ""}${parts ? `, ${q("startPart")} = ${ctx.cast("requests", "startPart", "v_start")}, ${q("endPart")} = ${ctx.cast("requests", "endPart", "v_end")}` : ""}, ${q("amount")} = v_amount${ctx.has("requests", "note") ? `, ${q("note")} = case when update_leave_request.note is null then x.${q("note")} else nullif(trim(update_leave_request.note), '') end` : ""}, ${q("updatedAt")} = now()${updateExtraColumns(requests, extras, "update_leave_request.fields")}
     where x.${q("id")} = v_row.${q("id")}
-    returning * into v_row;${writeExtraColumns(requests, extras, "update_leave_request.fields", `x.${q("id")} = v_row.${q("id")}`, "v_row")}
+    returning * into v_row;
   if v_status = 'approved' then${taken("v_row", -1)}
   end if;${
     approvals === undefined
@@ -943,7 +947,12 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_reader boolean := ${SERVICE_CALLER} or ${ctx.can("tenant", "list_leave_requests.tenant", read)};
+  v_reader boolean := ${SERVICE_CALLER} or ${ctx.can("tenant", "list_leave_requests.tenant", read)};${
+    leaveConfidential(ctx)
+      ? `
+  v_confidential boolean := ${leaveConfidentialReader(ctx, "list_leave_requests.tenant")};`
+      : ""
+  }
   v_rows jsonb;${owner.declare}
 begin
 ${
@@ -974,7 +983,7 @@ ${
         else r.${q("user")} = auth.uid()
       end)`
       }
-      and (list_leave_requests.status is null or ${status("r", "p")} = list_leave_requests.status)
+      and (list_leave_requests.status is null or ${status("r", "p")} = list_leave_requests.status)${leaveConfidentialFilter(ctx, `r.${q("type")}`, `(v_confidential or ${owner.employee ? `${ctx.fn("leave_is_mine")}(r.${q("tenant")}, r.${q("employee")})` : `r.${q("user")} = auth.uid()`})`)}
       and (list_leave_requests.starts is null or r.${q("endsOn")} >= list_leave_requests.starts)
       and (list_leave_requests.ends is null or r.${q("startsOn")} <= list_leave_requests.ends)
     order by r.${q("startsOn")}, r.${q("createdAt")}

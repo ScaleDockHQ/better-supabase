@@ -249,6 +249,25 @@ export const OPTIONAL_MODULE_PERMISSIONS: Readonly<
     members: "tenant",
   },
   catalog: { create: "tenant", update: "tenant", delete: "tenant" },
+  invoices: {
+    create: "tenant",
+    update: "tenant",
+    issue: "tenant",
+    payment: "tenant",
+    credit: "tenant",
+    charge: "tenant",
+    void: "tenant",
+    writeOff: "tenant",
+    reverse: "tenant",
+  },
+  leave: { readConfidential: "tenant" },
+  expenses: {
+    create: "tenant",
+    update: "tenant",
+    delete: "tenant",
+    reimburse: "tenant",
+    categories: "tenant",
+  },
 };
 
 /**

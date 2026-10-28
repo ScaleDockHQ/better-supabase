@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:4369d6b48bb4685ea9906600e6fa6ac54572bbbe17844bcfd3e340c5b63a52d3
+-- @bsb-hash sha256:9531835c44788fb64565a41e8d909ae305a5c40dc817627a0fbbd3158c50126b
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1005,6 +1005,140 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_product_option"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_product_option"(uuid) to authenticated, service_role;
+
+-- Replaces a product's options by name and makes its variants the full matrix
+-- of their values in one transaction.
+create or replace function "better_supabase"."set_product_options"(product uuid, options jsonb, title_separator text default ' / ')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_slug text;
+  v_item jsonb;
+  v_option uuid;
+  v_ids uuid[] := '{}';
+  v_variant uuid;
+  v_combo uuid[];
+  v_label text;
+  v_count numeric := 1;
+  v_sku_required boolean;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."slug" into v_tenant, v_slug from "better_supabase"."products" x where x."id" = set_product_options.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if jsonb_typeof(set_product_options.options) is distinct from 'array'
+    or exists (
+      select 1 from jsonb_array_elements(set_product_options.options) e
+      where jsonb_typeof(e) is distinct from 'object'
+        or jsonb_typeof(e -> 'name') is distinct from 'string'
+        or jsonb_typeof(e -> 'values') is distinct from 'array'
+        or exists (select 1 from jsonb_array_elements(e -> 'values') y where jsonb_typeof(y) <> 'string')
+    ) then
+    raise exception 'options is a list of { name, values } with text values' using errcode = '22023', hint = 'CATALOG_OPTIONS_INVALID';
+  end if;
+  if (select count(distinct e ->> 'name') from jsonb_array_elements(set_product_options.options) e) <> jsonb_array_length(set_product_options.options) then
+    raise exception 'the list names an option twice' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';
+  end if;
+  for v_item in select e from jsonb_array_elements(set_product_options.options) e loop
+    v_count := v_count * jsonb_array_length(v_item -> 'values');
+  end loop;
+  if v_count > 100 then
+    raise exception 'a product has at most 100 variants' using errcode = '22023', hint = 'CATALOG_VARIANT_LIMIT';
+  end if;
+  for v_option in
+    select x."id" from "better_supabase"."product_options" x
+    where x."product_id" = set_product_options.product
+      and not (x."name" = any (array(select e ->> 'name' from jsonb_array_elements(set_product_options.options) e)))
+  loop
+    delete from "better_supabase"."product_variant_values" y using "better_supabase"."product_option_values" z where y."option_value_id" = z."id" and z."option_id" = v_option;
+    delete from "better_supabase"."product_options" x where x."id" = v_option;
+  end loop;
+  for v_variant in
+    select d.id from (
+      select x."id" as id, row_number() over (partition by coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) order by x."rank" collate "C", x."id") as n
+      from "better_supabase"."product_variants" x where x."product_id" = set_product_options.product
+    ) d where d.n > 1
+  loop
+    begin
+      delete from "better_supabase"."product_variants" x where x."id" = v_variant;
+      null;
+    exception when foreign_key_violation then
+      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+    end;
+  end loop;
+  for v_item in select e from jsonb_array_elements(set_product_options.options) with ordinality as a(e, n) order by a.n loop
+    select x."id" into v_option from "better_supabase"."product_options" x where x."product_id" = set_product_options.product and x."name" = v_item ->> 'name';
+    v_option := ("better_supabase"."save_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
+    v_ids := v_ids || v_option;
+  end loop;
+  if cardinality(v_ids) > 0 then
+    perform "better_supabase"."reorder_product_options"(set_product_options.product, v_ids);
+  end if;
+  select a.attnotnull into v_sku_required from pg_catalog.pg_attribute a
+  where a.attrelid = '"better_supabase"."product_variants"'::regclass and a.attname = 'sku';
+  for v_combo, v_label in
+    with recursive k as (
+      select x."id" as id, row_number() over (order by x."rank" collate "C") as n
+      from "better_supabase"."product_options" x where x."product_id" = set_product_options.product
+    ), z as (
+      select y."id" as id, y."value" as value, y."option_id" as option, row_number() over (partition by y."option_id" order by y."rank" collate "C") as n
+      from "better_supabase"."product_option_values" y where y."option_id" in (select k.id from k)
+    ), c(depth, ids, labels, sort) as (
+      select 0::bigint, '{}'::uuid[], '{}'::text[], '{}'::bigint[]
+      union all
+      select k.n, c.ids || z.id, c.labels || z.value, c.sort || z.n
+      from c join k on k.n = c.depth + 1 join z on z.option = k.id
+    )
+    select c.ids, array_to_string(c.labels, '-') from c where c.depth = (select count(*) from k) order by c.sort
+  loop
+    if not exists (
+      select 1 from "better_supabase"."product_variants" x
+      where x."product_id" = set_product_options.product
+        and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = (select coalesce(array_agg(u order by u), '{}'::uuid[]) from unnest(v_combo) u)
+    ) then
+      perform "better_supabase"."save_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
+    end if;
+  end loop;
+  if set_product_options.title_separator is not null then
+    update "better_supabase"."product_variants" x set "title" = t.title, "updated_at" = now()
+    from (
+      select y."variant_id" as variant, string_agg(z."value", set_product_options.title_separator order by k."rank" collate "C") as title
+      from "better_supabase"."product_variant_values" y
+      join "better_supabase"."product_option_values" z on z."id" = y."option_value_id"
+      join "better_supabase"."product_options" k on k."id" = z."option_id"
+      where k."product_id" = set_product_options.product
+      group by y."variant_id"
+    ) t
+    where x."id" = t.variant and x."title" is distinct from t.title;
+  end if;
+  return jsonb_build_object(
+    'options', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'id', k."id",
+        'name', k."name",
+        'values', (select coalesce(jsonb_agg(jsonb_build_object('id', z."id", 'value', z."value") order by z."rank" collate "C"), '[]'::jsonb) from "better_supabase"."product_option_values" z where z."option_id" = k."id")
+      ) order by k."rank" collate "C"), '[]'::jsonb)
+      from "better_supabase"."product_options" k where k."product_id" = set_product_options.product
+    ),
+    'variants', (
+      select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'sku', x."sku", 'optionValueIds', to_jsonb(coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]))) order by x."rank" collate "C"), '[]'::jsonb)
+      from "better_supabase"."product_variants" x where x."product_id" = set_product_options.product
+    )
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."set_product_options"(uuid, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."set_product_options"(uuid, jsonb, text) to authenticated, service_role;
 
 -- Creates a price list (price_list null) or renames one. customer_group
 -- names the customers it is for, such as a B2B tier.
@@ -2310,7 +2444,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:47b2fe472f3f5570a63fad278704d144d79fa58745316b2ea3f5977909e2d8fd
+-- @bsb-hash sha256:6d5c06b7dba342530f419afa669e9a0645ad28280f8a81d5fdb97b33e3d44356
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3355,6 +3489,144 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_product_option"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_product_option"(uuid) to authenticated, service_role;
+
+-- Replaces a product's options by name and makes its variants the full matrix
+-- of their values in one transaction.
+create or replace function "better_supabase"."set_product_options"(product uuid, options jsonb, title_separator text default ' / ')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_slug text;
+  v_item jsonb;
+  v_option uuid;
+  v_ids uuid[] := '{}';
+  v_variant uuid;
+  v_combo uuid[];
+  v_label text;
+  v_count numeric := 1;
+  v_sku_required boolean;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."slug" into v_tenant, v_slug from "better_supabase"."products" x where x."id" = set_product_options.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if jsonb_typeof(set_product_options.options) is distinct from 'array'
+    or exists (
+      select 1 from jsonb_array_elements(set_product_options.options) e
+      where jsonb_typeof(e) is distinct from 'object'
+        or jsonb_typeof(e -> 'name') is distinct from 'string'
+        or jsonb_typeof(e -> 'values') is distinct from 'array'
+        or exists (select 1 from jsonb_array_elements(e -> 'values') y where jsonb_typeof(y) <> 'string')
+    ) then
+    raise exception 'options is a list of { name, values } with text values' using errcode = '22023', hint = 'CATALOG_OPTIONS_INVALID';
+  end if;
+  if (select count(distinct e ->> 'name') from jsonb_array_elements(set_product_options.options) e) <> jsonb_array_length(set_product_options.options) then
+    raise exception 'the list names an option twice' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';
+  end if;
+  for v_item in select e from jsonb_array_elements(set_product_options.options) e loop
+    v_count := v_count * jsonb_array_length(v_item -> 'values');
+  end loop;
+  if v_count > 100 then
+    raise exception 'a product has at most 100 variants' using errcode = '22023', hint = 'CATALOG_VARIANT_LIMIT';
+  end if;
+  for v_option in
+    select x."id" from "better_supabase"."product_options" x
+    where x."product_id" = set_product_options.product
+      and not (x."name" = any (array(select e ->> 'name' from jsonb_array_elements(set_product_options.options) e)))
+  loop
+    delete from "better_supabase"."product_variant_values" y using "better_supabase"."product_option_values" z where y."option_value_id" = z."id" and z."option_id" = v_option;
+    delete from "better_supabase"."product_options" x where x."id" = v_option;
+  end loop;
+  for v_variant in
+    select d.id from (
+      select x."id" as id, row_number() over (partition by coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) order by x."rank" collate "C", x."id") as n
+      from "better_supabase"."product_variants" x where x."product_id" = set_product_options.product
+    ) d where d.n > 1
+  loop
+    if exists (select 1 from "better_supabase"."ledger_accounts" sa where sa."managed_by" = 'inventory' and sa."kind" = 'stock' and (case when sa."kind" = 'stock' then (sa."metadata" ->> 'variantId')::uuid end) = v_variant) then
+      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+      continue;
+    end if;
+    begin
+      delete from "better_supabase"."product_variants" x where x."id" = v_variant;
+      perform "better_supabase".emit_event('variant.deleted', jsonb_build_object('organizationId', v_tenant, 'id', v_variant, 'productId', set_product_options.product), 'variants/' || v_variant::text, (v_tenant)::text, null, 'better-supabase/catalog');
+    exception when foreign_key_violation then
+      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+    end;
+  end loop;
+  for v_item in select e from jsonb_array_elements(set_product_options.options) with ordinality as a(e, n) order by a.n loop
+    select x."id" into v_option from "better_supabase"."product_options" x where x."product_id" = set_product_options.product and x."name" = v_item ->> 'name';
+    v_option := ("better_supabase"."save_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
+    v_ids := v_ids || v_option;
+  end loop;
+  if cardinality(v_ids) > 0 then
+    perform "better_supabase"."reorder_product_options"(set_product_options.product, v_ids);
+  end if;
+  select a.attnotnull into v_sku_required from pg_catalog.pg_attribute a
+  where a.attrelid = '"better_supabase"."product_variants"'::regclass and a.attname = 'sku';
+  for v_combo, v_label in
+    with recursive k as (
+      select x."id" as id, row_number() over (order by x."rank" collate "C") as n
+      from "better_supabase"."product_options" x where x."product_id" = set_product_options.product
+    ), z as (
+      select y."id" as id, y."value" as value, y."option_id" as option, row_number() over (partition by y."option_id" order by y."rank" collate "C") as n
+      from "better_supabase"."product_option_values" y where y."option_id" in (select k.id from k)
+    ), c(depth, ids, labels, sort) as (
+      select 0::bigint, '{}'::uuid[], '{}'::text[], '{}'::bigint[]
+      union all
+      select k.n, c.ids || z.id, c.labels || z.value, c.sort || z.n
+      from c join k on k.n = c.depth + 1 join z on z.option = k.id
+    )
+    select c.ids, array_to_string(c.labels, '-') from c where c.depth = (select count(*) from k) order by c.sort
+  loop
+    if not exists (
+      select 1 from "better_supabase"."product_variants" x
+      where x."product_id" = set_product_options.product
+        and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = (select coalesce(array_agg(u order by u), '{}'::uuid[]) from unnest(v_combo) u)
+    ) then
+      perform "better_supabase"."save_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
+    end if;
+  end loop;
+  if set_product_options.title_separator is not null then
+    update "better_supabase"."product_variants" x set "title" = t.title, "updated_at" = now()
+    from (
+      select y."variant_id" as variant, string_agg(z."value", set_product_options.title_separator order by k."rank" collate "C") as title
+      from "better_supabase"."product_variant_values" y
+      join "better_supabase"."product_option_values" z on z."id" = y."option_value_id"
+      join "better_supabase"."product_options" k on k."id" = z."option_id"
+      where k."product_id" = set_product_options.product
+      group by y."variant_id"
+    ) t
+    where x."id" = t.variant and x."title" is distinct from t.title;
+  end if;
+  return jsonb_build_object(
+    'options', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'id', k."id",
+        'name', k."name",
+        'values', (select coalesce(jsonb_agg(jsonb_build_object('id', z."id", 'value', z."value") order by z."rank" collate "C"), '[]'::jsonb) from "better_supabase"."product_option_values" z where z."option_id" = k."id")
+      ) order by k."rank" collate "C"), '[]'::jsonb)
+      from "better_supabase"."product_options" k where k."product_id" = set_product_options.product
+    ),
+    'variants', (
+      select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'sku', x."sku", 'optionValueIds', to_jsonb(coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]))) order by x."rank" collate "C"), '[]'::jsonb)
+      from "better_supabase"."product_variants" x where x."product_id" = set_product_options.product
+    )
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."set_product_options"(uuid, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."set_product_options"(uuid, jsonb, text) to authenticated, service_role;
 
 -- Creates a price list (price_list null) or renames one. customer_group
 -- names the customers it is for, such as a B2B tier.
@@ -4868,7 +5140,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:335f068516562486eb36189293666ebfe4eab18e1b1c665b154757272f67205f
+-- @bsb-hash sha256:1817619385bbbee9f68818c8a937828fc70ba4e3c4813c8be02251a58635ca72
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5877,6 +6149,140 @@ end;
 $$;
 revoke execute on function "app_private"."delete_product_option"(uuid) from public, anon;
 grant execute on function "app_private"."delete_product_option"(uuid) to authenticated, service_role;
+
+-- Replaces a product's options by name and makes its variants the full matrix
+-- of their values in one transaction.
+create or replace function "app_private"."set_product_options"(product uuid, options jsonb, title_separator text default ' / ')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_slug text;
+  v_item jsonb;
+  v_option uuid;
+  v_ids uuid[] := '{}';
+  v_variant uuid;
+  v_combo uuid[];
+  v_label text;
+  v_count numeric := 1;
+  v_sku_required boolean;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."slug" into v_tenant, v_slug from "app_private"."products" x where x."id" = set_product_options.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if jsonb_typeof(set_product_options.options) is distinct from 'array'
+    or exists (
+      select 1 from jsonb_array_elements(set_product_options.options) e
+      where jsonb_typeof(e) is distinct from 'object'
+        or jsonb_typeof(e -> 'name') is distinct from 'string'
+        or jsonb_typeof(e -> 'values') is distinct from 'array'
+        or exists (select 1 from jsonb_array_elements(e -> 'values') y where jsonb_typeof(y) <> 'string')
+    ) then
+    raise exception 'options is a list of { name, values } with text values' using errcode = '22023', hint = 'CATALOG_OPTIONS_INVALID';
+  end if;
+  if (select count(distinct e ->> 'name') from jsonb_array_elements(set_product_options.options) e) <> jsonb_array_length(set_product_options.options) then
+    raise exception 'the list names an option twice' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';
+  end if;
+  for v_item in select e from jsonb_array_elements(set_product_options.options) e loop
+    v_count := v_count * jsonb_array_length(v_item -> 'values');
+  end loop;
+  if v_count > 100 then
+    raise exception 'a product has at most 100 variants' using errcode = '22023', hint = 'CATALOG_VARIANT_LIMIT';
+  end if;
+  for v_option in
+    select x."id" from "app_private"."product_options" x
+    where x."product_id" = set_product_options.product
+      and not (x."name" = any (array(select e ->> 'name' from jsonb_array_elements(set_product_options.options) e)))
+  loop
+    delete from "app_private"."product_variant_values" y using "app_private"."product_option_values" z where y."option_value_id" = z."id" and z."option_id" = v_option;
+    delete from "app_private"."product_options" x where x."id" = v_option;
+  end loop;
+  for v_variant in
+    select d.id from (
+      select x."id" as id, row_number() over (partition by coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "app_private"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) order by x."rank" collate "C", x."id") as n
+      from "app_private"."product_variants" x where x."product_id" = set_product_options.product
+    ) d where d.n > 1
+  loop
+    begin
+      delete from "app_private"."product_variants" x where x."id" = v_variant;
+      null;
+    exception when foreign_key_violation then
+      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+    end;
+  end loop;
+  for v_item in select e from jsonb_array_elements(set_product_options.options) with ordinality as a(e, n) order by a.n loop
+    select x."id" into v_option from "app_private"."product_options" x where x."product_id" = set_product_options.product and x."name" = v_item ->> 'name';
+    v_option := ("app_private"."save_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
+    v_ids := v_ids || v_option;
+  end loop;
+  if cardinality(v_ids) > 0 then
+    perform "app_private"."reorder_product_options"(set_product_options.product, v_ids);
+  end if;
+  select a.attnotnull into v_sku_required from pg_catalog.pg_attribute a
+  where a.attrelid = '"app_private"."product_variants"'::regclass and a.attname = 'sku';
+  for v_combo, v_label in
+    with recursive k as (
+      select x."id" as id, row_number() over (order by x."rank" collate "C") as n
+      from "app_private"."product_options" x where x."product_id" = set_product_options.product
+    ), z as (
+      select y."id" as id, y."value" as value, y."option_id" as option, row_number() over (partition by y."option_id" order by y."rank" collate "C") as n
+      from "app_private"."product_option_values" y where y."option_id" in (select k.id from k)
+    ), c(depth, ids, labels, sort) as (
+      select 0::bigint, '{}'::uuid[], '{}'::text[], '{}'::bigint[]
+      union all
+      select k.n, c.ids || z.id, c.labels || z.value, c.sort || z.n
+      from c join k on k.n = c.depth + 1 join z on z.option = k.id
+    )
+    select c.ids, array_to_string(c.labels, '-') from c where c.depth = (select count(*) from k) order by c.sort
+  loop
+    if not exists (
+      select 1 from "app_private"."product_variants" x
+      where x."product_id" = set_product_options.product
+        and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "app_private"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = (select coalesce(array_agg(u order by u), '{}'::uuid[]) from unnest(v_combo) u)
+    ) then
+      perform "app_private"."save_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
+    end if;
+  end loop;
+  if set_product_options.title_separator is not null then
+    update "app_private"."product_variants" x set "title" = t.title, "updated_at" = now()
+    from (
+      select y."variant_id" as variant, string_agg(z."value", set_product_options.title_separator order by k."rank" collate "C") as title
+      from "app_private"."product_variant_values" y
+      join "app_private"."product_option_values" z on z."id" = y."option_value_id"
+      join "app_private"."product_options" k on k."id" = z."option_id"
+      where k."product_id" = set_product_options.product
+      group by y."variant_id"
+    ) t
+    where x."id" = t.variant and x."title" is distinct from t.title;
+  end if;
+  return jsonb_build_object(
+    'options', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'id', k."id",
+        'name', k."name",
+        'values', (select coalesce(jsonb_agg(jsonb_build_object('id', z."id", 'value', z."value") order by z."rank" collate "C"), '[]'::jsonb) from "app_private"."product_option_values" z where z."option_id" = k."id")
+      ) order by k."rank" collate "C"), '[]'::jsonb)
+      from "app_private"."product_options" k where k."product_id" = set_product_options.product
+    ),
+    'variants', (
+      select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'sku', x."sku", 'optionValueIds', to_jsonb(coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "app_private"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]))) order by x."rank" collate "C"), '[]'::jsonb)
+      from "app_private"."product_variants" x where x."product_id" = set_product_options.product
+    )
+  );
+end;
+$$;
+revoke execute on function "app_private"."set_product_options"(uuid, jsonb, text) from public, anon;
+grant execute on function "app_private"."set_product_options"(uuid, jsonb, text) to authenticated, service_role;
 
 -- Creates a price list (price_list null) or renames one. customer_group
 -- names the customers it is for, such as a B2B tier.
@@ -7182,7 +7588,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:5e1afbd8af0b7cc92db7c8015041d82026eb83a48909f051e1632fadea65a8fd
+-- @bsb-hash sha256:c3e17aa6d66304deb96c6b56e65ec1828f5c1a0f27c8c40405e9ec4195dd4a58
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8186,6 +8592,140 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_product_option"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_product_option"(uuid) to authenticated, service_role;
+
+-- Replaces a product's options by name and makes its variants the full matrix
+-- of their values in one transaction.
+create or replace function "better_supabase"."set_product_options"(product uuid, options jsonb, title_separator text default ' / ')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_slug text;
+  v_item jsonb;
+  v_option uuid;
+  v_ids uuid[] := '{}';
+  v_variant uuid;
+  v_combo uuid[];
+  v_label text;
+  v_count numeric := 1;
+  v_sku_required boolean;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."slug" into v_tenant, v_slug from "better_supabase"."products" x where x."id" = set_product_options.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if jsonb_typeof(set_product_options.options) is distinct from 'array'
+    or exists (
+      select 1 from jsonb_array_elements(set_product_options.options) e
+      where jsonb_typeof(e) is distinct from 'object'
+        or jsonb_typeof(e -> 'name') is distinct from 'string'
+        or jsonb_typeof(e -> 'values') is distinct from 'array'
+        or exists (select 1 from jsonb_array_elements(e -> 'values') y where jsonb_typeof(y) <> 'string')
+    ) then
+    raise exception 'options is a list of { name, values } with text values' using errcode = '22023', hint = 'CATALOG_OPTIONS_INVALID';
+  end if;
+  if (select count(distinct e ->> 'name') from jsonb_array_elements(set_product_options.options) e) <> jsonb_array_length(set_product_options.options) then
+    raise exception 'the list names an option twice' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';
+  end if;
+  for v_item in select e from jsonb_array_elements(set_product_options.options) e loop
+    v_count := v_count * jsonb_array_length(v_item -> 'values');
+  end loop;
+  if v_count > 100 then
+    raise exception 'a product has at most 100 variants' using errcode = '22023', hint = 'CATALOG_VARIANT_LIMIT';
+  end if;
+  for v_option in
+    select x."id" from "better_supabase"."product_options" x
+    where x."product_id" = set_product_options.product
+      and not (x."name" = any (array(select e ->> 'name' from jsonb_array_elements(set_product_options.options) e)))
+  loop
+    delete from "better_supabase"."product_variant_values" y using "better_supabase"."product_option_values" z where y."option_value_id" = z."id" and z."option_id" = v_option;
+    delete from "better_supabase"."product_options" x where x."id" = v_option;
+  end loop;
+  for v_variant in
+    select d.id from (
+      select x."id" as id, row_number() over (partition by coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) order by x."rank" collate "C", x."id") as n
+      from "better_supabase"."product_variants" x where x."product_id" = set_product_options.product
+    ) d where d.n > 1
+  loop
+    begin
+      delete from "better_supabase"."product_variants" x where x."id" = v_variant;
+      null;
+    exception when foreign_key_violation then
+      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+    end;
+  end loop;
+  for v_item in select e from jsonb_array_elements(set_product_options.options) with ordinality as a(e, n) order by a.n loop
+    select x."id" into v_option from "better_supabase"."product_options" x where x."product_id" = set_product_options.product and x."name" = v_item ->> 'name';
+    v_option := ("better_supabase"."save_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
+    v_ids := v_ids || v_option;
+  end loop;
+  if cardinality(v_ids) > 0 then
+    perform "better_supabase"."reorder_product_options"(set_product_options.product, v_ids);
+  end if;
+  select a.attnotnull into v_sku_required from pg_catalog.pg_attribute a
+  where a.attrelid = '"better_supabase"."product_variants"'::regclass and a.attname = 'sku';
+  for v_combo, v_label in
+    with recursive k as (
+      select x."id" as id, row_number() over (order by x."rank" collate "C") as n
+      from "better_supabase"."product_options" x where x."product_id" = set_product_options.product
+    ), z as (
+      select y."id" as id, y."value" as value, y."option_id" as option, row_number() over (partition by y."option_id" order by y."rank" collate "C") as n
+      from "better_supabase"."product_option_values" y where y."option_id" in (select k.id from k)
+    ), c(depth, ids, labels, sort) as (
+      select 0::bigint, '{}'::uuid[], '{}'::text[], '{}'::bigint[]
+      union all
+      select k.n, c.ids || z.id, c.labels || z.value, c.sort || z.n
+      from c join k on k.n = c.depth + 1 join z on z.option = k.id
+    )
+    select c.ids, array_to_string(c.labels, '-') from c where c.depth = (select count(*) from k) order by c.sort
+  loop
+    if not exists (
+      select 1 from "better_supabase"."product_variants" x
+      where x."product_id" = set_product_options.product
+        and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = (select coalesce(array_agg(u order by u), '{}'::uuid[]) from unnest(v_combo) u)
+    ) then
+      perform "better_supabase"."save_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
+    end if;
+  end loop;
+  if set_product_options.title_separator is not null then
+    update "better_supabase"."product_variants" x set "title" = t.title, "updated_at" = now()
+    from (
+      select y."variant_id" as variant, string_agg(z."value", set_product_options.title_separator order by k."rank" collate "C") as title
+      from "better_supabase"."product_variant_values" y
+      join "better_supabase"."product_option_values" z on z."id" = y."option_value_id"
+      join "better_supabase"."product_options" k on k."id" = z."option_id"
+      where k."product_id" = set_product_options.product
+      group by y."variant_id"
+    ) t
+    where x."id" = t.variant and x."title" is distinct from t.title;
+  end if;
+  return jsonb_build_object(
+    'options', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'id', k."id",
+        'name', k."name",
+        'values', (select coalesce(jsonb_agg(jsonb_build_object('id', z."id", 'value', z."value") order by z."rank" collate "C"), '[]'::jsonb) from "better_supabase"."product_option_values" z where z."option_id" = k."id")
+      ) order by k."rank" collate "C"), '[]'::jsonb)
+      from "better_supabase"."product_options" k where k."product_id" = set_product_options.product
+    ),
+    'variants', (
+      select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'sku', x."sku", 'optionValueIds', to_jsonb(coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]))) order by x."rank" collate "C"), '[]'::jsonb)
+      from "better_supabase"."product_variants" x where x."product_id" = set_product_options.product
+    )
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."set_product_options"(uuid, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."set_product_options"(uuid, jsonb, text) to authenticated, service_role;
 
 -- Creates a price list (price_list null) or renames one. customer_group
 -- names the customers it is for, such as a B2B tier.
@@ -9581,6 +10121,15 @@ as $$ select "better_supabase"."delete_product_option"($1) $$;
 revoke execute on function "api"."delete_product_option"(uuid) from public, anon;
 grant execute on function "api"."delete_product_option"(uuid) to authenticated, service_role;
 
+create or replace function "api"."set_product_options"(product uuid, options jsonb, title_separator text default ' / ')
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_product_options"($1, $2, $3) $$;
+revoke execute on function "api"."set_product_options"(uuid, jsonb, text) from public, anon;
+grant execute on function "api"."set_product_options"(uuid, jsonb, text) to authenticated, service_role;
+
 create or replace function "api"."save_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
 returns jsonb
 language sql
@@ -9827,7 +10376,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:bf5de3f57e5e0a71d2851a00fcb07609d81f80ad67ad1f16900531be74b87a62
+-- @bsb-hash sha256:b8ccd55d7403e19754996e7673baf5853af12fe0896b0c259e5fd61c4b80e683
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10812,6 +11361,140 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_product_option"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_product_option"(uuid) to authenticated, service_role;
+
+-- Replaces a product's options by name and makes its variants the full matrix
+-- of their values in one transaction.
+create or replace function "better_supabase"."set_product_options"(product uuid, options jsonb, title_separator text default ' / ')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_slug text;
+  v_item jsonb;
+  v_option uuid;
+  v_ids uuid[] := '{}';
+  v_variant uuid;
+  v_combo uuid[];
+  v_label text;
+  v_count numeric := 1;
+  v_sku_required boolean;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."slug" into v_tenant, v_slug from "better_supabase"."products" x where x."id" = set_product_options.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if jsonb_typeof(set_product_options.options) is distinct from 'array'
+    or exists (
+      select 1 from jsonb_array_elements(set_product_options.options) e
+      where jsonb_typeof(e) is distinct from 'object'
+        or jsonb_typeof(e -> 'name') is distinct from 'string'
+        or jsonb_typeof(e -> 'values') is distinct from 'array'
+        or exists (select 1 from jsonb_array_elements(e -> 'values') y where jsonb_typeof(y) <> 'string')
+    ) then
+    raise exception 'options is a list of { name, values } with text values' using errcode = '22023', hint = 'CATALOG_OPTIONS_INVALID';
+  end if;
+  if (select count(distinct e ->> 'name') from jsonb_array_elements(set_product_options.options) e) <> jsonb_array_length(set_product_options.options) then
+    raise exception 'the list names an option twice' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';
+  end if;
+  for v_item in select e from jsonb_array_elements(set_product_options.options) e loop
+    v_count := v_count * jsonb_array_length(v_item -> 'values');
+  end loop;
+  if v_count > 100 then
+    raise exception 'a product has at most 100 variants' using errcode = '22023', hint = 'CATALOG_VARIANT_LIMIT';
+  end if;
+  for v_option in
+    select x."id" from "better_supabase"."product_options" x
+    where x."product_id" = set_product_options.product
+      and not (x."name" = any (array(select e ->> 'name' from jsonb_array_elements(set_product_options.options) e)))
+  loop
+    delete from "better_supabase"."product_variant_values" y using "better_supabase"."product_option_values" z where y."option_value_id" = z."id" and z."option_id" = v_option;
+    delete from "better_supabase"."product_options" x where x."id" = v_option;
+  end loop;
+  for v_variant in
+    select d.id from (
+      select x."id" as id, row_number() over (partition by coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) order by x."rank" collate "C", x."id") as n
+      from "better_supabase"."product_variants" x where x."product_id" = set_product_options.product
+    ) d where d.n > 1
+  loop
+    begin
+      delete from "better_supabase"."product_variants" x where x."id" = v_variant;
+      null;
+    exception when foreign_key_violation then
+      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+    end;
+  end loop;
+  for v_item in select e from jsonb_array_elements(set_product_options.options) with ordinality as a(e, n) order by a.n loop
+    select x."id" into v_option from "better_supabase"."product_options" x where x."product_id" = set_product_options.product and x."name" = v_item ->> 'name';
+    v_option := ("better_supabase"."save_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
+    v_ids := v_ids || v_option;
+  end loop;
+  if cardinality(v_ids) > 0 then
+    perform "better_supabase"."reorder_product_options"(set_product_options.product, v_ids);
+  end if;
+  select a.attnotnull into v_sku_required from pg_catalog.pg_attribute a
+  where a.attrelid = '"better_supabase"."product_variants"'::regclass and a.attname = 'sku';
+  for v_combo, v_label in
+    with recursive k as (
+      select x."id" as id, row_number() over (order by x."rank" collate "C") as n
+      from "better_supabase"."product_options" x where x."product_id" = set_product_options.product
+    ), z as (
+      select y."id" as id, y."value" as value, y."option_id" as option, row_number() over (partition by y."option_id" order by y."rank" collate "C") as n
+      from "better_supabase"."product_option_values" y where y."option_id" in (select k.id from k)
+    ), c(depth, ids, labels, sort) as (
+      select 0::bigint, '{}'::uuid[], '{}'::text[], '{}'::bigint[]
+      union all
+      select k.n, c.ids || z.id, c.labels || z.value, c.sort || z.n
+      from c join k on k.n = c.depth + 1 join z on z.option = k.id
+    )
+    select c.ids, array_to_string(c.labels, '-') from c where c.depth = (select count(*) from k) order by c.sort
+  loop
+    if not exists (
+      select 1 from "better_supabase"."product_variants" x
+      where x."product_id" = set_product_options.product
+        and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = (select coalesce(array_agg(u order by u), '{}'::uuid[]) from unnest(v_combo) u)
+    ) then
+      perform "better_supabase"."save_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
+    end if;
+  end loop;
+  if set_product_options.title_separator is not null then
+    update "better_supabase"."product_variants" x set "title" = t.title, "updated_at" = now()
+    from (
+      select y."variant_id" as variant, string_agg(z."value", set_product_options.title_separator order by k."rank" collate "C") as title
+      from "better_supabase"."product_variant_values" y
+      join "better_supabase"."product_option_values" z on z."id" = y."option_value_id"
+      join "better_supabase"."product_options" k on k."id" = z."option_id"
+      where k."product_id" = set_product_options.product
+      group by y."variant_id"
+    ) t
+    where x."id" = t.variant and x."title" is distinct from t.title;
+  end if;
+  return jsonb_build_object(
+    'options', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'id', k."id",
+        'name', k."name",
+        'values', (select coalesce(jsonb_agg(jsonb_build_object('id', z."id", 'value', z."value") order by z."rank" collate "C"), '[]'::jsonb) from "better_supabase"."product_option_values" z where z."option_id" = k."id")
+      ) order by k."rank" collate "C"), '[]'::jsonb)
+      from "better_supabase"."product_options" k where k."product_id" = set_product_options.product
+    ),
+    'variants', (
+      select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'sku', x."sku", 'optionValueIds', to_jsonb(coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]))) order by x."rank" collate "C"), '[]'::jsonb)
+      from "better_supabase"."product_variants" x where x."product_id" = set_product_options.product
+    )
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."set_product_options"(uuid, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."set_product_options"(uuid, jsonb, text) to authenticated, service_role;
 
 -- Creates a price list (price_list null) or renames one. customer_group
 -- names the customers it is for, such as a B2B tier.
@@ -12106,7 +12789,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:00b1a9e6fc84739b0ff659f8ff9da616a8a852a2765091c29fc7a6af453265e4
+-- @bsb-hash sha256:94e8eb78049f5f1bbfb418a9dbbaba08a1aeffef78d814c10a4d205fd131ed4e
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13110,6 +13793,140 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_product_option"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_product_option"(uuid) to authenticated, service_role;
+
+-- Replaces a product's options by name and makes its variants the full matrix
+-- of their values in one transaction.
+create or replace function "better_supabase"."set_product_options"(product uuid, options jsonb, title_separator text default ' / ')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_slug text;
+  v_item jsonb;
+  v_option uuid;
+  v_ids uuid[] := '{}';
+  v_variant uuid;
+  v_combo uuid[];
+  v_label text;
+  v_count numeric := 1;
+  v_sku_required boolean;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."org_id", x."slug" into v_tenant, v_slug from "better_supabase"."products" x where x."id" = set_product_options.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if jsonb_typeof(set_product_options.options) is distinct from 'array'
+    or exists (
+      select 1 from jsonb_array_elements(set_product_options.options) e
+      where jsonb_typeof(e) is distinct from 'object'
+        or jsonb_typeof(e -> 'name') is distinct from 'string'
+        or jsonb_typeof(e -> 'values') is distinct from 'array'
+        or exists (select 1 from jsonb_array_elements(e -> 'values') y where jsonb_typeof(y) <> 'string')
+    ) then
+    raise exception 'options is a list of { name, values } with text values' using errcode = '22023', hint = 'CATALOG_OPTIONS_INVALID';
+  end if;
+  if (select count(distinct e ->> 'name') from jsonb_array_elements(set_product_options.options) e) <> jsonb_array_length(set_product_options.options) then
+    raise exception 'the list names an option twice' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';
+  end if;
+  for v_item in select e from jsonb_array_elements(set_product_options.options) e loop
+    v_count := v_count * jsonb_array_length(v_item -> 'values');
+  end loop;
+  if v_count > 100 then
+    raise exception 'a product has at most 100 variants' using errcode = '22023', hint = 'CATALOG_VARIANT_LIMIT';
+  end if;
+  for v_option in
+    select x."id" from "better_supabase"."product_options" x
+    where x."product_id" = set_product_options.product
+      and not (x."name" = any (array(select e ->> 'name' from jsonb_array_elements(set_product_options.options) e)))
+  loop
+    delete from "better_supabase"."product_variant_values" y using "better_supabase"."product_option_values" z where y."option_value_id" = z."id" and z."option_id" = v_option;
+    delete from "better_supabase"."product_options" x where x."id" = v_option;
+  end loop;
+  for v_variant in
+    select d.id from (
+      select x."id" as id, row_number() over (partition by coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) order by x."rank" collate "C", x."id") as n
+      from "better_supabase"."product_variants" x where x."product_id" = set_product_options.product
+    ) d where d.n > 1
+  loop
+    begin
+      delete from "better_supabase"."product_variants" x where x."id" = v_variant;
+      null;
+    exception when foreign_key_violation then
+      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
+    end;
+  end loop;
+  for v_item in select e from jsonb_array_elements(set_product_options.options) with ordinality as a(e, n) order by a.n loop
+    select x."id" into v_option from "better_supabase"."product_options" x where x."product_id" = set_product_options.product and x."name" = v_item ->> 'name';
+    v_option := ("better_supabase"."save_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
+    v_ids := v_ids || v_option;
+  end loop;
+  if cardinality(v_ids) > 0 then
+    perform "better_supabase"."reorder_product_options"(set_product_options.product, v_ids);
+  end if;
+  select a.attnotnull into v_sku_required from pg_catalog.pg_attribute a
+  where a.attrelid = '"better_supabase"."product_variants"'::regclass and a.attname = 'sku';
+  for v_combo, v_label in
+    with recursive k as (
+      select x."id" as id, row_number() over (order by x."rank" collate "C") as n
+      from "better_supabase"."product_options" x where x."product_id" = set_product_options.product
+    ), z as (
+      select y."id" as id, y."value" as value, y."option_id" as option, row_number() over (partition by y."option_id" order by y."rank" collate "C") as n
+      from "better_supabase"."product_option_values" y where y."option_id" in (select k.id from k)
+    ), c(depth, ids, labels, sort) as (
+      select 0::bigint, '{}'::uuid[], '{}'::text[], '{}'::bigint[]
+      union all
+      select k.n, c.ids || z.id, c.labels || z.value, c.sort || z.n
+      from c join k on k.n = c.depth + 1 join z on z.option = k.id
+    )
+    select c.ids, array_to_string(c.labels, '-') from c where c.depth = (select count(*) from k) order by c.sort
+  loop
+    if not exists (
+      select 1 from "better_supabase"."product_variants" x
+      where x."product_id" = set_product_options.product
+        and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = (select coalesce(array_agg(u order by u), '{}'::uuid[]) from unnest(v_combo) u)
+    ) then
+      perform "better_supabase"."save_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
+    end if;
+  end loop;
+  if set_product_options.title_separator is not null then
+    update "better_supabase"."product_variants" x set "title" = t.title, "updated_at" = now()
+    from (
+      select y."variant_id" as variant, string_agg(z."value", set_product_options.title_separator order by k."rank" collate "C") as title
+      from "better_supabase"."product_variant_values" y
+      join "better_supabase"."product_option_values" z on z."id" = y."option_value_id"
+      join "better_supabase"."product_options" k on k."id" = z."option_id"
+      where k."product_id" = set_product_options.product
+      group by y."variant_id"
+    ) t
+    where x."id" = t.variant and x."title" is distinct from t.title;
+  end if;
+  return jsonb_build_object(
+    'options', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'id', k."id",
+        'name', k."name",
+        'values', (select coalesce(jsonb_agg(jsonb_build_object('id', z."id", 'value', z."value") order by z."rank" collate "C"), '[]'::jsonb) from "better_supabase"."product_option_values" z where z."option_id" = k."id")
+      ) order by k."rank" collate "C"), '[]'::jsonb)
+      from "better_supabase"."product_options" k where k."product_id" = set_product_options.product
+    ),
+    'variants', (
+      select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'sku', x."sku", 'optionValueIds', to_jsonb(coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]))) order by x."rank" collate "C"), '[]'::jsonb)
+      from "better_supabase"."product_variants" x where x."product_id" = set_product_options.product
+    )
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."set_product_options"(uuid, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."set_product_options"(uuid, jsonb, text) to authenticated, service_role;
 
 -- Creates a price list (price_list null) or renames one. customer_group
 -- names the customers it is for, such as a B2B tier.

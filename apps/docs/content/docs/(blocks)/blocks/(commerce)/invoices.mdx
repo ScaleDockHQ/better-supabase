@@ -5,7 +5,7 @@ description: Invoices an organization sends its own customers, with drafts and l
 
 `invoices` is accounts receivable: the invoices an organization sends its own customers for work, licences or goods. It is not [billing](/docs/blocks/billing), which charges your organizations for your app through Stripe. An invoice starts as a draft with lines, gets its number when you issue it, collects payments until its balance is zero, and can be credited, voided or written off. With the [quotes](/docs/blocks/quotes) module installed, an accepted quote becomes a deposit invoice and a final invoice.
 
-Reading needs `invoices.read`, creating, issuing, recording payments and credit notes needs `invoices.write`, and voiding and writing off needs `invoices.manage`. Admins get every permission, and members get `invoices.read`.
+Reading needs `invoices.read`, creating, issuing, recording payments and credit notes needs `invoices.write`, and voiding and writing off needs `invoices.manage`; [a key per action](#a-key-per-action) splits them further. Admins get every permission, and members get `invoices.read`.
 
 ```bash
 better-supabase add invoices
@@ -127,6 +127,40 @@ Lines carry `discountBps` and `taxRateBps` in basis points (2100 is 21%). When y
 ### Staff reads and portal reads
 
 `permissions.read` is the key a member needs to read every invoice of the organization, and the block checks it through the authorization provider's SQL functions, so the provider has to mark it `sqlComplete: true`. When your read permission carries a row condition, such as a portal user who may read only their own customer's invoices, give the block a separate staff key (`permissions: { read: "invoice.read_all" }`) and let portal users in through [guests](/docs/blocks/guests): the read policy also admits a guest granted the invoice, and with a provider that answers `portalSubjects`, a portal party of the invoice's company or contact.
+
+### A key per action
+
+`write` and `manage` cover several actions. Name a key per action in `permissions` to split them; an action without its own key checks `write` or `manage` as before.
+
+| Key        | Functions                                     | Without it |
+| ---------- | --------------------------------------------- | ---------- |
+| `create`   | `create_invoice`, `invoice_from_quote`        | `write`    |
+| `update`   | `set_invoice_lines`                           | `write`    |
+| `issue`    | `issue_invoice`                               | `write`    |
+| `payment`  | `record_invoice_payment`                      | `write`    |
+| `credit`   | `credit_invoice`                              | `write`    |
+| `charge`   | `add_invoice_charge`, `remove_invoice_charge` | `write`    |
+| `void`     | `void_invoice`                                | `manage`   |
+| `writeOff` | `write_off_invoice`                           | `manage`   |
+| `reverse`  | `reverse_invoice_payment`                     | `manage`   |
+
+Members who draft invoices but may not send them or book payments:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  invoices: {
+    permissions: {
+      read: "invoice.read",
+      write: "invoice.update",
+      manage: "invoice.cancel",
+      issue: "invoice.send",
+      payment: "invoice.record_payment",
+    },
+  },
+},
+```
+
+The functions check the keys themselves, so a member without `invoice.send` can't issue through the API either.
 
 ### Totals the app keeps
 

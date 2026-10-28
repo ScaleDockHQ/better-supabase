@@ -135,6 +135,7 @@ const NAMES: BlockSqlNames = {
     "locales",
     "rankType",
     "variantInUse",
+    "maxVariants",
   ],
   tables: {
     products: {
@@ -779,6 +780,15 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
             args: ["uuid", "uuid[]"],
             returns: "boolean",
           },
+          ...(ctx.hasTable("variantValues")
+            ? [
+                {
+                  name: "set_product_options",
+                  args: ["uuid", "jsonb", "text"],
+                  returns: "jsonb",
+                },
+              ]
+            : []),
         ]
       : []),
     {

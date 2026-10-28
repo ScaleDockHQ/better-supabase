@@ -7,7 +7,7 @@ import {
   fail,
   insertExtraColumns,
   userGrant,
-  writeExtraColumns,
+  updateExtraColumns,
 } from "../shared.ts";
 import {
   SLUG,
@@ -516,12 +516,12 @@ begin
       returning ${k("id")} into v_id;
     else
       update ${categories} x set ${k("parent")} = save_category.parent, ${k("name")} = save_category.name, ${k("slug")} = v_slug,
-        ${k("description")} = save_category.description, ${k("updatedAt")} = now()
+        ${k("description")} = save_category.description, ${k("updatedAt")} = now()${updateExtraColumns(categories, extras, "save_category.fields")}
       where x.${k("id")} = v_id and x.${k("tenant")} = save_category.tenant
       returning x.${k("rank")} into v_rank;
       if not found then
         ${fail("CATALOG_CATEGORY_NOT_FOUND", "category not found", "P0002")}
-      end if;${writeExtraColumns(categories, extras, "save_category.fields", `x.${k("id")} = v_id`)}
+      end if;
     end if;
   exception when unique_violation then
     ${fail("CATALOG_SLUG_TAKEN", "another category has this slug", "23505")}

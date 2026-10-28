@@ -3,6 +3,10 @@ import type { LeaveLedgerParts } from "./leave-ledger.ts";
 
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { leaveTypeKey } from "./leave-feed.ts";
+import {
+  leaveConfidentialFilter,
+  leaveConfidentialReader,
+} from "./leave-owner.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 export function unpostTaken(ctx: BlockSqlContext, request: string): string {
@@ -100,6 +104,9 @@ export function leaveBalanceFunctions(
     or (coalesce(v_user = auth.uid(), false) and ${ctx.can("tenant", `${fnName}.tenant`, request)})${employee ? ` or ${owner.manages(`${fnName}.tenant`, "v_owner")}` : ""}) then
     ${forbidden("not allowed to read this member's leave balance")}
   end if;`;
+
+  const sees = (fnName: string): string =>
+    `(${leaveConfidentialReader(ctx, `${fnName}.tenant`)} or coalesce(v_user = auth.uid(), false)${employee ? ` or ${owner.manages(`${fnName}.tenant`, "v_owner")}` : ""})`;
 
   const ownerDeclare = employee
     ? "  v_owner uuid;\n  v_user uuid;"
@@ -221,7 +228,7 @@ begin${resolveOwner("leave_balances")}
   cross join lateral (
     select ${parts.pending("leave_balances.tenant", key, `t.${ty("id")}`, "v_period")} as pending
   ) w
-  where t.${ty("tenant")} = leave_balances.tenant and t.${ty("tracked")} and t.${ty("archivedAt")} is null;
+  where t.${ty("tenant")} = leave_balances.tenant and t.${ty("tracked")} and t.${ty("archivedAt")} is null${leaveConfidentialFilter(ctx, `t.${ty("id")}`, sees("leave_balances"))};
   return v_rows;
 end;
 $$;
@@ -244,7 +251,7 @@ begin${resolveOwner("leave_ledger_entries")}
   from ${balances} y
   where y.${b("tenant")} = leave_ledger_entries.tenant and y.${ownerColumn} = ${key}
     and (leave_ledger_entries.period is null or extract(year from coalesce(${effective("y")}, y.${b("createdAt")}::date))::integer = leave_ledger_entries.period)
-    and (leave_ledger_entries.type_id is null or y.${b("type")} = leave_ledger_entries.type_id);
+    and (leave_ledger_entries.type_id is null or y.${b("type")} = leave_ledger_entries.type_id)${leaveConfidentialFilter(ctx, `y.${b("type")}`, sees("leave_ledger_entries"))};
   return v_rows;
 end;
 $$;

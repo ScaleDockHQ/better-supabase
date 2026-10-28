@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:b45c0c0e041e745029bbc955258f9f07b84e01a2ba0c0f29f32946bdffb3a4e8
+-- @bsb-hash sha256:a38c7844f7df9b66faed4ce8048d7d1678d51a64c79cb20617afbb934064b2cc
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -494,15 +494,12 @@ begin
     "subject_type" = case when v_item ? 'subjectType' then v_item ->> 'subjectType' else "subject_type" end,
     "subject_id" = case when v_item ? 'subjectId' then v_item ->> 'subjectId' else "subject_id" end,
     "exdates" = case when v_item ? 'exdates' then v_exdates else "exdates" end,
-    "updated_at" = now()
+    "updated_at" = now(), "app_note" = case when v_item ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."calendar_events", jsonb_build_object('app_note', v_item -> 'app_note')))."app_note" else "app_note" end
     where "id" = v_id and "calendar_id" = save_calendar_event.calendar_id
     returning "uid" into v_uid;
     if not found then
       raise exception 'event not found' using errcode = 'P0002', hint = 'CALENDAR_EVENT_NOT_FOUND';
     end if;
-    update "better_supabase"."calendar_events" x set "app_note" = case when v_item ? 'app_note' then r."app_note" else x."app_note" end
-    from jsonb_populate_record(null::"better_supabase"."calendar_events", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(v_item) e where e.key in ('app_note'))) r
-    where x."id" = v_id;
   end if;
   if v_item ? 'alarms' then
     if jsonb_typeof(v_item -> 'alarms') <> 'array' or jsonb_array_length(v_item -> 'alarms') > 20 then

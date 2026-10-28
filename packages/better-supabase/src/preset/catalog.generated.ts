@@ -4334,6 +4334,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "carryoverMax": "carryover_max",
               "color": "color",
               "autoApprove": "auto_approve",
+              "confidential": "confidential",
               "archivedAt": "archived_at",
               "createdAt": "created_at",
               "updatedAt": "updated_at"

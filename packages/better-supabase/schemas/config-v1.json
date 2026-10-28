@@ -4155,6 +4155,10 @@
               },
               "variantInUse": {
                 "type": "string"
+              },
+              "maxVariants": {
+                "type": "number",
+                "default": 100
               }
             }
           }

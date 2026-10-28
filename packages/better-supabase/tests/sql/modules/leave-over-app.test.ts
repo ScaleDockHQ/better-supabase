@@ -373,6 +373,145 @@ language sql immutable as $$ select sha256(data) $$;
   });
 });
 
+describe("confidential leave types", BOOT, () => {
+  it("hides confidential leave from readers without the key, keeps it for its owner and in the feed only for holders", async () => {
+    const leave = BLOCKS["leave"];
+    const reader = "33333333-3333-4333-8333-333333333333";
+    const asReader = AS_ALICE.replaceAll(ALICE, reader);
+
+    await expect(
+      run(
+        `create table public.denied (user_id uuid, permission text);
+insert into public.denied values ('${reader}', 'leave.manage');
+create or replace function better_supabase.can(scope text, scope_id uuid, permission text)
+returns boolean language sql stable as $$ select not exists (select 1 from public.denied d where d.user_id = auth.uid() and d.permission = can.permission) $$;
+create or replace function better_supabase.can_user(member uuid, scope text, scope_id uuid, permission text)
+returns boolean language sql stable as $$ select not exists (select 1 from public.denied d where d.user_id = can_user.member and d.permission = can_user.permission) $$;
+insert into auth.users (id) values ('${reader}');
+insert into better_supabase.memberships (organization_id, user_id, role) values ('${TENANT}', '${reader}', 'member');
+do $$
+declare
+  v_vacation uuid;
+  v_sick uuid;
+  v_link jsonb;
+begin
+  ${SERVICE}
+  v_vacation := (better_supabase.save_leave_type('${TENANT}', 'vacation', 'Vacation') ->> 'id')::uuid;
+  v_sick := (better_supabase.save_leave_type('${TENANT}', 'sick', 'Sick') ->> 'id')::uuid;
+  update public.absence_kinds set confidential = true where id = v_sick;
+  perform better_supabase.adjust_leave_balance('${TENANT}', '${ALICE}', v_vacation, 10, 2099);
+  perform better_supabase.adjust_leave_balance('${TENANT}', '${ALICE}', v_sick, 10, 2099);
+  ${AS_ALICE}
+  perform better_supabase.approve_leave_request((better_supabase.request_leave('${TENANT}', v_vacation, '2099-03-02', '2099-03-03') ->> 'id')::uuid);
+  perform better_supabase.approve_leave_request((better_supabase.request_leave('${TENANT}', v_sick, '2099-04-06', '2099-04-07') ->> 'id')::uuid);
+  if jsonb_array_length(better_supabase.list_leave_requests('${TENANT}', everyone => true)) <> 2
+    or jsonb_array_length(better_supabase.leave_balances('${TENANT}', '${ALICE}', 2099)) <> 2 then
+    raise exception 'the owner lost confidential leave';
+  end if;
+  ${asReader}
+  if jsonb_array_length(better_supabase.list_leave_requests('${TENANT}', everyone => true)) <> 1
+    or jsonb_array_length(better_supabase.list_leave_requests('${TENANT}', user_id => '${ALICE}')) <> 1
+    or jsonb_array_length(better_supabase.leave_balances('${TENANT}', '${ALICE}', 2099)) <> 1
+    or exists (select 1 from jsonb_array_elements(better_supabase.leave_ledger_entries('${TENANT}', '${ALICE}', 2099)) e where e ->> 'typeId' = v_sick::text) then
+    raise exception 'a reader without the key saw confidential leave';
+  end if;
+  v_link := better_supabase.create_share_link('${TENANT}', 'leave_feed', '${TENANT}', 'view');
+  if jsonb_array_length(better_supabase.leave_feed(v_link ->> 'token') -> 'requests') <> 1 then
+    raise exception 'the feed of a reader without the key showed confidential leave';
+  end if;
+  delete from public.denied;
+  if jsonb_array_length(better_supabase.list_leave_requests('${TENANT}', everyone => true)) <> 2
+    or jsonb_array_length(better_supabase.leave_feed(v_link ->> 'token') -> 'requests') <> 2 then
+    raise exception 'a holder of the key missed confidential leave';
+  end if;
+end;
+$$;`,
+        {
+          leave: {
+            ...leave,
+            columns: {
+              ...leave?.columns,
+              types: {
+                ...leave?.columns?.["types"],
+                confidential: "confidential",
+              },
+            },
+          },
+        },
+        ["leave", "share-links"],
+        `${APP.replace(
+          "  tracked boolean not null default true,",
+          "  tracked boolean not null default true,\n  confidential boolean not null default false,",
+        )}
+create schema if not exists extensions;
+create or replace function extensions.gen_random_bytes(n integer) returns bytea
+language sql volatile as $$ select decode(md5(random()::text) || md5(random()::text), 'hex') $$;
+create or replace function extensions.digest(data bytea, type text) returns bytea
+language sql immutable as $$ select sha256(data) $$;
+`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("matches hidden feed types on a named column and names employees with a split name", () => {
+    const sql = renderBlocks(["leave", "employees", "share-links"], {
+      modules: {
+        leave: {
+          options: {
+            feed: { names: true, hideTypes: ["sick"], typeKey: "category" },
+          },
+        },
+        employees: { options: { name: "split" } },
+      },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(`t."category"::text = any ('{sick}'::text[])`);
+    expect(sql).toContain(`concat_ws(' ', y."first_name"`);
+    expect(() =>
+      renderBlocks(["leave", "share-links"], {
+        modules: { leave: { options: { feed: { typeKey: "Bad Name" } } } },
+      }),
+    ).toThrow(/typeKey/);
+  });
+
+  it("checks the readConfidential key when the config names one", () => {
+    const leave = BLOCKS["leave"];
+
+    const sql = renderBlocks(["leave"], {
+      modules: {
+        leave: {
+          ...leave,
+          columns: {
+            ...leave?.columns,
+            types: {
+              ...leave?.columns?.["types"],
+              confidential: "confidential",
+            },
+          },
+          permissions: { readConfidential: "leave.sickness" },
+        },
+      },
+      ownTables: OWN_TABLES,
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain("'leave.sickness'");
+    expect(
+      renderBlocks(["leave"], { modules: {} })
+        .map((file) => file.contents)
+        .join("\n"),
+    ).not.toContain("lc.");
+    expect(() =>
+      renderBlocks(["leave"], {
+        modules: { leave: { columns: { types: { confidential: "secret" } } } },
+      }),
+    ).toThrow(/confidential/);
+  });
+});
+
 const BOB = "33333333-3333-4333-8333-333333333333";
 const ALICE_EMPLOYEE = "55555555-5555-4555-8555-555555555555";
 const BOB_EMPLOYEE = "66666666-6666-4666-8666-666666666666";

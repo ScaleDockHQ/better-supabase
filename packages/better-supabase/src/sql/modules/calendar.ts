@@ -14,6 +14,7 @@ import {
   lockTable,
   schemaPreamble,
   userGrant,
+  updateExtraColumns,
   writeExtraColumns,
 } from "../shared.ts";
 import { alarmsTable, alarmWrites } from "./calendar-alarms.ts";
@@ -596,12 +597,12 @@ ${
     v_created := true;
   else
     update ${events} set
-    ${updateSet(ctx)}
+    ${updateSet(ctx)}${updateExtraColumns(events, eventExtras(ctx), "v_item", "")}
     where ${e("id")} = v_id and ${e("calendar")} = save_calendar_event.calendar_id
     returning ${e("uid")} into v_uid;
     if not found then
       ${fail("CALENDAR_EVENT_NOT_FOUND", "event not found", "P0002")}
-    end if;${writeExtraColumns(events, eventExtras(ctx), "v_item", `x.${e("id")} = v_id`).replaceAll("\n  ", "\n    ")}
+    end if;
   end if;${tableWrites}${alarmWrites(ctx)}
   if exists (select 1 from ${events} where ${e("id")} = v_id and ${e("endsAt")} < ${e("startsAt")}) then
     ${fail("CALENDAR_EVENT_INVALID", "endsAt must not be before startsAt", "22023")}

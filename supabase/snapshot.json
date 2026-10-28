@@ -157875,6 +157875,46 @@
       {
         "id": 3001425,
         "schema": "better_supabase",
+        "name": "set_product_options",
+        "language": "plpgsql",
+        "definition": "\ndeclare\n  v_tenant uuid;\n  v_slug text;\n  v_item jsonb;\n  v_option uuid;\n  v_ids uuid[] := '{}';\n  v_variant uuid;\n  v_combo uuid[];\n  v_label text;\n  v_count numeric := 1;\n  v_sku_required boolean;\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  select x.\"tenant_id\", x.\"slug\" into v_tenant, v_slug from \"better_supabase\".\"products\" x where x.\"id\" = set_product_options.product for update;\n  if v_tenant is null then\n    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';\n  end if;\n  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then\n    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';\n  end if;\n  if jsonb_typeof(set_product_options.options) is distinct from 'array'\n    or exists (\n      select 1 from jsonb_array_elements(set_product_options.options) e\n      where jsonb_typeof(e) is distinct from 'object'\n        or jsonb_typeof(e -> 'name') is distinct from 'string'\n        or jsonb_typeof(e -> 'values') is distinct from 'array'\n        or exists (select 1 from jsonb_array_elements(e -> 'values') y where jsonb_typeof(y) <> 'string')\n    ) then\n    raise exception 'options is a list of { name, values } with text values' using errcode = '22023', hint = 'CATALOG_OPTIONS_INVALID';\n  end if;\n  if (select count(distinct e ->> 'name') from jsonb_array_elements(set_product_options.options) e) <> jsonb_array_length(set_product_options.options) then\n    raise exception 'the list names an option twice' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';\n  end if;\n  for v_item in select e from jsonb_array_elements(set_product_options.options) e loop\n    v_count := v_count * jsonb_array_length(v_item -> 'values');\n  end loop;\n  if v_count > 100 then\n    raise exception 'a product has at most 100 variants' using errcode = '22023', hint = 'CATALOG_VARIANT_LIMIT';\n  end if;\n  for v_option in\n    select x.\"id\" from \"better_supabase\".\"product_options\" x\n    where x.\"product_id\" = set_product_options.product\n      and not (x.\"name\" = any (array(select e ->> 'name' from jsonb_array_elements(set_product_options.options) e)))\n  loop\n    delete from \"better_supabase\".\"product_variant_values\" y using \"better_supabase\".\"product_option_values\" z where y.\"option_value_id\" = z.\"id\" and z.\"option_id\" = v_option;\n    delete from \"better_supabase\".\"product_options\" x where x.\"id\" = v_option;\n  end loop;\n  for v_variant in\n    select d.id from (\n      select x.\"id\" as id, row_number() over (partition by coalesce((select array_agg(y.\"option_value_id\" order by y.\"option_value_id\") from \"better_supabase\".\"product_variant_values\" y where y.\"variant_id\" = x.\"id\"), '{}'::uuid[]) order by x.\"rank\" collate \"C\", x.\"id\") as n\n      from \"better_supabase\".\"product_variants\" x where x.\"product_id\" = set_product_options.product\n    ) d where d.n > 1\n  loop\n    if exists (select 1 from \"better_supabase\".\"ledger_accounts\" sa where sa.\"managed_by\" = 'inventory' and sa.\"kind\" = 'stock' and (case when sa.\"kind\" = 'stock' then (sa.\"metadata\" ->> 'variantId')::uuid end) = v_variant) then\n      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';\n      continue;\n    end if;\n    begin\n      delete from \"better_supabase\".\"product_variants\" x where x.\"id\" = v_variant;\n      perform \"better_supabase\".emit_event('variant.deleted', jsonb_build_object('organizationId', v_tenant, 'id', v_variant, 'productId', set_product_options.product), 'variants/' || v_variant::text, (v_tenant)::text, null, 'better-supabase/catalog');\n    exception when foreign_key_violation then\n      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';\n    end;\n  end loop;\n  for v_item in select e from jsonb_array_elements(set_product_options.options) with ordinality as a(e, n) order by a.n loop\n    select x.\"id\" into v_option from \"better_supabase\".\"product_options\" x where x.\"product_id\" = set_product_options.product and x.\"name\" = v_item ->> 'name';\n    v_option := (\"better_supabase\".\"save_product_option\"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;\n    v_ids := v_ids || v_option;\n  end loop;\n  if cardinality(v_ids) > 0 then\n    perform \"better_supabase\".\"reorder_product_options\"(set_product_options.product, v_ids);\n  end if;\n  select a.attnotnull into v_sku_required from pg_catalog.pg_attribute a\n  where a.attrelid = '\"better_supabase\".\"product_variants\"'::regclass and a.attname = 'sku';\n  for v_combo, v_label in\n    with recursive k as (\n      select x.\"id\" as id, row_number() over (order by x.\"rank\" collate \"C\") as n\n      from \"better_supabase\".\"product_options\" x where x.\"product_id\" = set_product_options.product\n    ), z as (\n      select y.\"id\" as id, y.\"value\" as value, y.\"option_id\" as option, row_number() over (partition by y.\"option_id\" order by y.\"rank\" collate \"C\") as n\n      from \"better_supabase\".\"product_option_values\" y where y.\"option_id\" in (select k.id from k)\n    ), c(depth, ids, labels, sort) as (\n      select 0::bigint, '{}'::uuid[], '{}'::text[], '{}'::bigint[]\n      union all\n      select k.n, c.ids || z.id, c.labels || z.value, c.sort || z.n\n      from c join k on k.n = c.depth + 1 join z on z.option = k.id\n    )\n    select c.ids, array_to_string(c.labels, '-') from c where c.depth = (select count(*) from k) order by c.sort\n  loop\n    if not exists (\n      select 1 from \"better_supabase\".\"product_variants\" x\n      where x.\"product_id\" = set_product_options.product\n        and coalesce((select array_agg(y.\"option_value_id\" order by y.\"option_value_id\") from \"better_supabase\".\"product_variant_values\" y where y.\"variant_id\" = x.\"id\"), '{}'::uuid[]) = (select coalesce(array_agg(u order by u), '{}'::uuid[]) from unnest(v_combo) u)\n    ) then\n      perform \"better_supabase\".\"save_variant\"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);\n    end if;\n  end loop;\n  if set_product_options.title_separator is not null then\n    update \"better_supabase\".\"product_variants\" x set \"title\" = t.title, \"updated_at\" = now()\n    from (\n      select y.\"variant_id\" as variant, string_agg(z.\"value\", set_product_options.title_separator order by k.\"rank\" collate \"C\") as title\n      from \"better_supabase\".\"product_variant_values\" y\n      join \"better_supabase\".\"product_option_values\" z on z.\"id\" = y.\"option_value_id\"\n      join \"better_supabase\".\"product_options\" k on k.\"id\" = z.\"option_id\"\n      where k.\"product_id\" = set_product_options.product\n      group by y.\"variant_id\"\n    ) t\n    where x.\"id\" = t.variant and x.\"title\" is distinct from t.title;\n  end if;\n  return jsonb_build_object(\n    'options', (\n      select coalesce(jsonb_agg(jsonb_build_object(\n        'id', k.\"id\",\n        'name', k.\"name\",\n        'values', (select coalesce(jsonb_agg(jsonb_build_object('id', z.\"id\", 'value', z.\"value\") order by z.\"rank\" collate \"C\"), '[]'::jsonb) from \"better_supabase\".\"product_option_values\" z where z.\"option_id\" = k.\"id\")\n      ) order by k.\"rank\" collate \"C\"), '[]'::jsonb)\n      from \"better_supabase\".\"product_options\" k where k.\"product_id\" = set_product_options.product\n    ),\n    'variants', (\n      select coalesce(jsonb_agg(jsonb_build_object('id', x.\"id\", 'sku', x.\"sku\", 'optionValueIds', to_jsonb(coalesce((select array_agg(y.\"option_value_id\" order by y.\"option_value_id\") from \"better_supabase\".\"product_variant_values\" y where y.\"variant_id\" = x.\"id\"), '{}'::uuid[]))) order by x.\"rank\" collate \"C\"), '[]'::jsonb)\n      from \"better_supabase\".\"product_variants\" x where x.\"product_id\" = set_product_options.product\n    )\n  );\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.set_product_options(product uuid, options jsonb, title_separator text DEFAULT ' / '::text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_tenant uuid;\n  v_slug text;\n  v_item jsonb;\n  v_option uuid;\n  v_ids uuid[] := '{}';\n  v_variant uuid;\n  v_combo uuid[];\n  v_label text;\n  v_count numeric := 1;\n  v_sku_required boolean;\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  select x.\"tenant_id\", x.\"slug\" into v_tenant, v_slug from \"better_supabase\".\"products\" x where x.\"id\" = set_product_options.product for update;\n  if v_tenant is null then\n    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';\n  end if;\n  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then\n    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';\n  end if;\n  if jsonb_typeof(set_product_options.options) is distinct from 'array'\n    or exists (\n      select 1 from jsonb_array_elements(set_product_options.options) e\n      where jsonb_typeof(e) is distinct from 'object'\n        or jsonb_typeof(e -> 'name') is distinct from 'string'\n        or jsonb_typeof(e -> 'values') is distinct from 'array'\n        or exists (select 1 from jsonb_array_elements(e -> 'values') y where jsonb_typeof(y) <> 'string')\n    ) then\n    raise exception 'options is a list of { name, values } with text values' using errcode = '22023', hint = 'CATALOG_OPTIONS_INVALID';\n  end if;\n  if (select count(distinct e ->> 'name') from jsonb_array_elements(set_product_options.options) e) <> jsonb_array_length(set_product_options.options) then\n    raise exception 'the list names an option twice' using errcode = '23505', hint = 'CATALOG_OPTION_TAKEN';\n  end if;\n  for v_item in select e from jsonb_array_elements(set_product_options.options) e loop\n    v_count := v_count * jsonb_array_length(v_item -> 'values');\n  end loop;\n  if v_count > 100 then\n    raise exception 'a product has at most 100 variants' using errcode = '22023', hint = 'CATALOG_VARIANT_LIMIT';\n  end if;\n  for v_option in\n    select x.\"id\" from \"better_supabase\".\"product_options\" x\n    where x.\"product_id\" = set_product_options.product\n      and not (x.\"name\" = any (array(select e ->> 'name' from jsonb_array_elements(set_product_options.options) e)))\n  loop\n    delete from \"better_supabase\".\"product_variant_values\" y using \"better_supabase\".\"product_option_values\" z where y.\"option_value_id\" = z.\"id\" and z.\"option_id\" = v_option;\n    delete from \"better_supabase\".\"product_options\" x where x.\"id\" = v_option;\n  end loop;\n  for v_variant in\n    select d.id from (\n      select x.\"id\" as id, row_number() over (partition by coalesce((select array_agg(y.\"option_value_id\" order by y.\"option_value_id\") from \"better_supabase\".\"product_variant_values\" y where y.\"variant_id\" = x.\"id\"), '{}'::uuid[]) order by x.\"rank\" collate \"C\", x.\"id\") as n\n      from \"better_supabase\".\"product_variants\" x where x.\"product_id\" = set_product_options.product\n    ) d where d.n > 1\n  loop\n    if exists (select 1 from \"better_supabase\".\"ledger_accounts\" sa where sa.\"managed_by\" = 'inventory' and sa.\"kind\" = 'stock' and (case when sa.\"kind\" = 'stock' then (sa.\"metadata\" ->> 'variantId')::uuid end) = v_variant) then\n      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';\n      continue;\n    end if;\n    begin\n      delete from \"better_supabase\".\"product_variants\" x where x.\"id\" = v_variant;\n      perform \"better_supabase\".emit_event('variant.deleted', jsonb_build_object('organizationId', v_tenant, 'id', v_variant, 'productId', set_product_options.product), 'variants/' || v_variant::text, (v_tenant)::text, null, 'better-supabase/catalog');\n    exception when foreign_key_violation then\n      raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';\n    end;\n  end loop;\n  for v_item in select e from jsonb_array_elements(set_product_options.options) with ordinality as a(e, n) order by a.n loop\n    select x.\"id\" into v_option from \"better_supabase\".\"product_options\" x where x.\"product_id\" = set_product_options.product and x.\"name\" = v_item ->> 'name';\n    v_option := (\"better_supabase\".\"save_product_option\"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;\n    v_ids := v_ids || v_option;\n  end loop;\n  if cardinality(v_ids) > 0 then\n    perform \"better_supabase\".\"reorder_product_options\"(set_product_options.product, v_ids);\n  end if;\n  select a.attnotnull into v_sku_required from pg_catalog.pg_attribute a\n  where a.attrelid = '\"better_supabase\".\"product_variants\"'::regclass and a.attname = 'sku';\n  for v_combo, v_label in\n    with recursive k as (\n      select x.\"id\" as id, row_number() over (order by x.\"rank\" collate \"C\") as n\n      from \"better_supabase\".\"product_options\" x where x.\"product_id\" = set_product_options.product\n    ), z as (\n      select y.\"id\" as id, y.\"value\" as value, y.\"option_id\" as option, row_number() over (partition by y.\"option_id\" order by y.\"rank\" collate \"C\") as n\n      from \"better_supabase\".\"product_option_values\" y where y.\"option_id\" in (select k.id from k)\n    ), c(depth, ids, labels, sort) as (\n      select 0::bigint, '{}'::uuid[], '{}'::text[], '{}'::bigint[]\n      union all\n      select k.n, c.ids || z.id, c.labels || z.value, c.sort || z.n\n      from c join k on k.n = c.depth + 1 join z on z.option = k.id\n    )\n    select c.ids, array_to_string(c.labels, '-') from c where c.depth = (select count(*) from k) order by c.sort\n  loop\n    if not exists (\n      select 1 from \"better_supabase\".\"product_variants\" x\n      where x.\"product_id\" = set_product_options.product\n        and coalesce((select array_agg(y.\"option_value_id\" order by y.\"option_value_id\") from \"better_supabase\".\"product_variant_values\" y where y.\"variant_id\" = x.\"id\"), '{}'::uuid[]) = (select coalesce(array_agg(u order by u), '{}'::uuid[]) from unnest(v_combo) u)\n    ) then\n      perform \"better_supabase\".\"save_variant\"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);\n    end if;\n  end loop;\n  if set_product_options.title_separator is not null then\n    update \"better_supabase\".\"product_variants\" x set \"title\" = t.title, \"updated_at\" = now()\n    from (\n      select y.\"variant_id\" as variant, string_agg(z.\"value\", set_product_options.title_separator order by k.\"rank\" collate \"C\") as title\n      from \"better_supabase\".\"product_variant_values\" y\n      join \"better_supabase\".\"product_option_values\" z on z.\"id\" = y.\"option_value_id\"\n      join \"better_supabase\".\"product_options\" k on k.\"id\" = z.\"option_id\"\n      where k.\"product_id\" = set_product_options.product\n      group by y.\"variant_id\"\n    ) t\n    where x.\"id\" = t.variant and x.\"title\" is distinct from t.title;\n  end if;\n  return jsonb_build_object(\n    'options', (\n      select coalesce(jsonb_agg(jsonb_build_object(\n        'id', k.\"id\",\n        'name', k.\"name\",\n        'values', (select coalesce(jsonb_agg(jsonb_build_object('id', z.\"id\", 'value', z.\"value\") order by z.\"rank\" collate \"C\"), '[]'::jsonb) from \"better_supabase\".\"product_option_values\" z where z.\"option_id\" = k.\"id\")\n      ) order by k.\"rank\" collate \"C\"), '[]'::jsonb)\n      from \"better_supabase\".\"product_options\" k where k.\"product_id\" = set_product_options.product\n    ),\n    'variants', (\n      select coalesce(jsonb_agg(jsonb_build_object('id', x.\"id\", 'sku', x.\"sku\", 'optionValueIds', to_jsonb(coalesce((select array_agg(y.\"option_value_id\" order by y.\"option_value_id\") from \"better_supabase\".\"product_variant_values\" y where y.\"variant_id\" = x.\"id\"), '{}'::uuid[]))) order by x.\"rank\" collate \"C\"), '[]'::jsonb)\n      from \"better_supabase\".\"product_variants\" x where x.\"product_id\" = set_product_options.product\n    )\n  );\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "options",
+            "type_id": 3802,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "product",
+            "type_id": 2950,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "title_separator",
+            "type_id": 25,
+            "has_default": true
+          }
+        ],
+        "argument_types": "product uuid, options jsonb, title_separator text DEFAULT ' / '::text",
+        "identity_argument_types": "product uuid, options jsonb, title_separator text",
+        "return_type_id": 3802,
+        "return_type": "jsonb",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "VOLATILE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3001426,
+        "schema": "better_supabase",
         "name": "set_product_status",
         "language": "plpgsql",
         "definition": "\ndeclare\n  v_tenant uuid;\n  v_from text;\n  v_from_raw text;\n  v_to text := set_product_status.status;\n  v_to_raw text;\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  select x.\"tenant_id\", x.\"status\", x.\"status\"::text into v_tenant, v_from, v_from_raw from \"better_supabase\".\"products\" x where x.\"id\" = set_product_status.product for update;\n  if v_tenant is null then\n    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';\n  end if;\n  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then\n    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';\n  end if;\n  if v_to is null or v_to not in ('draft', 'active', 'archived') then\n    raise exception 'the status must be draft, active or archived' using errcode = '22023', hint = 'CATALOG_STATUS_INVALID';\n  end if;\n  v_to_raw := (set_product_status.status)::text;\n  if v_from_raw = v_to_raw then\n    return jsonb_build_object('id', set_product_status.product, 'status', v_from, 'from', v_from);\n  end if;\n  if v_from <> v_to and not (case v_from\n    when 'draft' then v_to = any ('{active,archived}'::text[])\n    when 'active' then v_to = any ('{draft,archived}'::text[])\n    when 'archived' then v_to = any ('{draft}'::text[])\n    else false\n  end) then\n    raise exception 'the product can''t move to this status' using errcode = '22023', hint = 'CATALOG_TRANSITION_INVALID';\n  end if;\n  update \"better_supabase\".\"products\" x set \"status\" = set_product_status.status, \"updated_at\" = now()\n  where x.\"id\" = set_product_status.product;\n  perform \"better_supabase\".emit_event('product.status_changed', jsonb_build_object('organizationId', v_tenant, 'id', set_product_status.product, 'from', v_from, 'to', v_to), 'products/' || set_product_status.product::text, (v_tenant)::text, null, 'better-supabase/catalog');\n  return jsonb_build_object('id', set_product_status.product, 'status', v_to, 'from', v_from);\nend;\n",
@@ -157907,7 +157947,7 @@
         }
       },
       {
-        "id": 3001426,
+        "id": 3001427,
         "schema": "better_supabase",
         "name": "set_product_translation",
         "language": "plpgsql",
@@ -157953,7 +157993,7 @@
         }
       },
       {
-        "id": 3001427,
+        "id": 3001428,
         "schema": "better_supabase",
         "name": "set_promotion_active",
         "language": "plpgsql",
@@ -157987,7 +158027,7 @@
         }
       },
       {
-        "id": 3001428,
+        "id": 3001429,
         "schema": "better_supabase",
         "name": "set_quote_lines",
         "language": "plpgsql",
@@ -158021,7 +158061,7 @@
         }
       },
       {
-        "id": 3001429,
+        "id": 3001430,
         "schema": "better_supabase",
         "name": "set_quote_lines_recount",
         "language": "plpgsql",
@@ -158049,7 +158089,7 @@
         }
       },
       {
-        "id": 3001430,
+        "id": 3001431,
         "schema": "better_supabase",
         "name": "set_rate_limit",
         "language": "plpgsql",
@@ -158095,7 +158135,7 @@
         }
       },
       {
-        "id": 3001431,
+        "id": 3001432,
         "schema": "better_supabase",
         "name": "set_reorder_point",
         "language": "plpgsql",
@@ -158135,7 +158175,7 @@
         }
       },
       {
-        "id": 3001432,
+        "id": 3001433,
         "schema": "better_supabase",
         "name": "set_retention_policy",
         "language": "plpgsql",
@@ -158181,7 +158221,7 @@
         }
       },
       {
-        "id": 3001433,
+        "id": 3001434,
         "schema": "better_supabase",
         "name": "set_rule_enabled",
         "language": "plpgsql",
@@ -158215,7 +158255,7 @@
         }
       },
       {
-        "id": 3001434,
+        "id": 3001435,
         "schema": "better_supabase",
         "name": "set_service_principal_role",
         "language": "plpgsql",
@@ -158255,7 +158295,7 @@
         }
       },
       {
-        "id": 3001435,
+        "id": 3001436,
         "schema": "better_supabase",
         "name": "set_shipment_label",
         "language": "plpgsql",
@@ -158337,7 +158377,7 @@
         }
       },
       {
-        "id": 3001436,
+        "id": 3001437,
         "schema": "better_supabase",
         "name": "set_shipment_lines",
         "language": "plpgsql",
@@ -158371,7 +158411,7 @@
         }
       },
       {
-        "id": 3001437,
+        "id": 3001438,
         "schema": "better_supabase",
         "name": "set_stock_item",
         "language": "plpgsql",
@@ -158435,7 +158475,7 @@
         }
       },
       {
-        "id": 3001438,
+        "id": 3001439,
         "schema": "better_supabase",
         "name": "set_time_rate",
         "language": "plpgsql",
@@ -158499,7 +158539,7 @@
         }
       },
       {
-        "id": 3001439,
+        "id": 3001440,
         "schema": "better_supabase",
         "name": "set_typing",
         "language": "plpgsql",
@@ -158539,7 +158579,7 @@
         }
       },
       {
-        "id": 3001440,
+        "id": 3001441,
         "schema": "better_supabase",
         "name": "set_user_setting",
         "language": "sql",
@@ -158573,7 +158613,7 @@
         }
       },
       {
-        "id": 3001441,
+        "id": 3001442,
         "schema": "better_supabase",
         "name": "set_user_state",
         "language": "plpgsql",
@@ -158613,7 +158653,7 @@
         }
       },
       {
-        "id": 3001442,
+        "id": 3001443,
         "schema": "better_supabase",
         "name": "set_variant_translation",
         "language": "plpgsql",
@@ -158653,7 +158693,7 @@
         }
       },
       {
-        "id": 3001443,
+        "id": 3001444,
         "schema": "better_supabase",
         "name": "set_view_preference",
         "language": "plpgsql",
@@ -158699,7 +158739,7 @@
         }
       },
       {
-        "id": 3001444,
+        "id": 3001445,
         "schema": "better_supabase",
         "name": "set_work_item_assignees",
         "language": "plpgsql",
@@ -158733,7 +158773,7 @@
         }
       },
       {
-        "id": 3001445,
+        "id": 3001446,
         "schema": "better_supabase",
         "name": "set_work_item_recurrence",
         "language": "plpgsql",
@@ -158773,7 +158813,7 @@
         }
       },
       {
-        "id": 3001446,
+        "id": 3001447,
         "schema": "better_supabase",
         "name": "set_work_order_status",
         "language": "plpgsql",
@@ -158813,7 +158853,7 @@
         }
       },
       {
-        "id": 3001447,
+        "id": 3001448,
         "schema": "better_supabase",
         "name": "set_workflow_definition_grant",
         "language": "plpgsql",
@@ -158865,7 +158905,7 @@
         }
       },
       {
-        "id": 3001448,
+        "id": 3001449,
         "schema": "better_supabase",
         "name": "set_workflow_definition_purpose",
         "language": "plpgsql",
@@ -158905,7 +158945,7 @@
         }
       },
       {
-        "id": 3001449,
+        "id": 3001450,
         "schema": "better_supabase",
         "name": "set_workflow_opt_out",
         "language": "plpgsql",
@@ -158945,7 +158985,7 @@
         }
       },
       {
-        "id": 3001450,
+        "id": 3001451,
         "schema": "better_supabase",
         "name": "share_ai_chat",
         "language": "plpgsql",
@@ -158979,7 +159019,7 @@
         }
       },
       {
-        "id": 3001451,
+        "id": 3001452,
         "schema": "better_supabase",
         "name": "ship_fulfillment",
         "language": "plpgsql",
@@ -159025,7 +159065,7 @@
         }
       },
       {
-        "id": 3001452,
+        "id": 3001453,
         "schema": "better_supabase",
         "name": "ship_transfer",
         "language": "plpgsql",
@@ -159053,7 +159093,7 @@
         }
       },
       {
-        "id": 3001453,
+        "id": 3001454,
         "schema": "better_supabase",
         "name": "shipments_subject_merge",
         "language": "plpgsql",
@@ -159093,7 +159133,7 @@
         }
       },
       {
-        "id": 3001454,
+        "id": 3001455,
         "schema": "better_supabase",
         "name": "shipping_options",
         "language": "plpgsql",
@@ -159121,7 +159161,7 @@
         }
       },
       {
-        "id": 3001455,
+        "id": 3001456,
         "schema": "better_supabase",
         "name": "sign_signature",
         "language": "plpgsql",
@@ -159167,7 +159207,7 @@
         }
       },
       {
-        "id": 3001456,
+        "id": 3001457,
         "schema": "better_supabase",
         "name": "signature_verification",
         "language": "plpgsql",
@@ -159195,7 +159235,7 @@
         }
       },
       {
-        "id": 3001457,
+        "id": 3001458,
         "schema": "better_supabase",
         "name": "signing_jwks",
         "language": "plpgsql",
@@ -159235,7 +159275,7 @@
         }
       },
       {
-        "id": 3001458,
+        "id": 3001459,
         "schema": "better_supabase",
         "name": "signing_key",
         "language": "plpgsql",
@@ -159269,7 +159309,7 @@
         }
       },
       {
-        "id": 3001459,
+        "id": 3001460,
         "schema": "better_supabase",
         "name": "sla_clocks_of",
         "language": "sql",
@@ -159303,7 +159343,7 @@
         }
       },
       {
-        "id": 3001460,
+        "id": 3001461,
         "schema": "better_supabase",
         "name": "sla_due_at",
         "language": "plpgsql",
@@ -159343,7 +159383,7 @@
         }
       },
       {
-        "id": 3001461,
+        "id": 3001462,
         "schema": "better_supabase",
         "name": "snapshot_version",
         "language": "plpgsql",
@@ -159401,7 +159441,7 @@
         }
       },
       {
-        "id": 3001462,
+        "id": 3001463,
         "schema": "better_supabase",
         "name": "split_calendar_event",
         "language": "plpgsql",
@@ -159447,7 +159487,7 @@
         }
       },
       {
-        "id": 3001463,
+        "id": 3001464,
         "schema": "better_supabase",
         "name": "sso_access_token_check",
         "language": "plpgsql",
@@ -159475,7 +159515,7 @@
         }
       },
       {
-        "id": 3001464,
+        "id": 3001465,
         "schema": "better_supabase",
         "name": "sso_domain_for",
         "language": "sql",
@@ -159503,7 +159543,7 @@
         }
       },
       {
-        "id": 3001465,
+        "id": 3001466,
         "schema": "better_supabase",
         "name": "sso_provider",
         "language": "plpgsql",
@@ -159537,7 +159577,7 @@
         }
       },
       {
-        "id": 3001466,
+        "id": 3001467,
         "schema": "better_supabase",
         "name": "start_ai_task_run",
         "language": "plpgsql",
@@ -159565,7 +159605,7 @@
         }
       },
       {
-        "id": 3001467,
+        "id": 3001468,
         "schema": "better_supabase",
         "name": "start_bulk",
         "language": "plpgsql",
@@ -159617,7 +159657,7 @@
         }
       },
       {
-        "id": 3001468,
+        "id": 3001469,
         "schema": "better_supabase",
         "name": "start_conversation",
         "language": "plpgsql",
@@ -159651,7 +159691,7 @@
         }
       },
       {
-        "id": 3001469,
+        "id": 3001470,
         "schema": "better_supabase",
         "name": "start_course_lesson",
         "language": "plpgsql",
@@ -159679,7 +159719,7 @@
         }
       },
       {
-        "id": 3001470,
+        "id": 3001471,
         "schema": "better_supabase",
         "name": "start_import",
         "language": "plpgsql",
@@ -159719,7 +159759,7 @@
         }
       },
       {
-        "id": 3001471,
+        "id": 3001472,
         "schema": "better_supabase",
         "name": "start_sla_clocks",
         "language": "plpgsql",
@@ -159765,7 +159805,7 @@
         }
       },
       {
-        "id": 3001472,
+        "id": 3001473,
         "schema": "better_supabase",
         "name": "start_test_run",
         "language": "plpgsql",
@@ -159817,7 +159857,7 @@
         }
       },
       {
-        "id": 3001473,
+        "id": 3001474,
         "schema": "better_supabase",
         "name": "start_timer",
         "language": "plpgsql",
@@ -159881,7 +159921,7 @@
         }
       },
       {
-        "id": 3001474,
+        "id": 3001475,
         "schema": "better_supabase",
         "name": "status_state",
         "language": "plpgsql",
@@ -159915,7 +159955,7 @@
         }
       },
       {
-        "id": 3001475,
+        "id": 3001476,
         "schema": "better_supabase",
         "name": "stock_detail",
         "language": "plpgsql",
@@ -159949,7 +159989,7 @@
         }
       },
       {
-        "id": 3001476,
+        "id": 3001477,
         "schema": "better_supabase",
         "name": "stock_lot_for",
         "language": "plpgsql",
@@ -159995,7 +160035,7 @@
         }
       },
       {
-        "id": 3001477,
+        "id": 3001478,
         "schema": "better_supabase",
         "name": "stock_valuation",
         "language": "plpgsql",
@@ -160023,7 +160063,7 @@
         }
       },
       {
-        "id": 3001478,
+        "id": 3001479,
         "schema": "better_supabase",
         "name": "stop_timer",
         "language": "plpgsql",
@@ -160057,7 +160097,7 @@
         }
       },
       {
-        "id": 3001479,
+        "id": 3001480,
         "schema": "better_supabase",
         "name": "store_ai_file",
         "language": "plpgsql",
@@ -160127,7 +160167,7 @@
         }
       },
       {
-        "id": 3001480,
+        "id": 3001481,
         "schema": "better_supabase",
         "name": "store_inbound_event",
         "language": "plpgsql",
@@ -160185,7 +160225,7 @@
         }
       },
       {
-        "id": 3001481,
+        "id": 3001482,
         "schema": "better_supabase",
         "name": "store_mail_message",
         "language": "plpgsql",
@@ -160219,7 +160259,7 @@
         }
       },
       {
-        "id": 3001482,
+        "id": 3001483,
         "schema": "better_supabase",
         "name": "storefront_products",
         "language": "sql",
@@ -160240,7 +160280,7 @@
         }
       },
       {
-        "id": 3001483,
+        "id": 3001484,
         "schema": "better_supabase",
         "name": "storefront_tenants",
         "language": "sql",
@@ -160261,7 +160301,7 @@
         }
       },
       {
-        "id": 3001484,
+        "id": 3001485,
         "schema": "better_supabase",
         "name": "stream_append",
         "language": "plpgsql",
@@ -160301,7 +160341,7 @@
         }
       },
       {
-        "id": 3001485,
+        "id": 3001486,
         "schema": "better_supabase",
         "name": "stream_cancel",
         "language": "plpgsql",
@@ -160329,7 +160369,7 @@
         }
       },
       {
-        "id": 3001486,
+        "id": 3001487,
         "schema": "better_supabase",
         "name": "stream_close",
         "language": "plpgsql",
@@ -160357,7 +160397,7 @@
         }
       },
       {
-        "id": 3001487,
+        "id": 3001488,
         "schema": "better_supabase",
         "name": "stream_open",
         "language": "plpgsql",
@@ -160415,7 +160455,7 @@
         }
       },
       {
-        "id": 3001488,
+        "id": 3001489,
         "schema": "better_supabase",
         "name": "stream_read",
         "language": "plpgsql",
@@ -160455,7 +160495,7 @@
         }
       },
       {
-        "id": 3001489,
+        "id": 3001490,
         "schema": "better_supabase",
         "name": "stream_status",
         "language": "sql",
@@ -160483,7 +160523,7 @@
         }
       },
       {
-        "id": 3001490,
+        "id": 3001491,
         "schema": "better_supabase",
         "name": "subject_presence_allowed",
         "language": "plpgsql",
@@ -160511,7 +160551,7 @@
         }
       },
       {
-        "id": 3001491,
+        "id": 3001492,
         "schema": "better_supabase",
         "name": "subject_scores",
         "language": "plpgsql",
@@ -160551,7 +160591,7 @@
         }
       },
       {
-        "id": 3001492,
+        "id": 3001493,
         "schema": "better_supabase",
         "name": "subject_tags",
         "language": "plpgsql",
@@ -160591,7 +160631,7 @@
         }
       },
       {
-        "id": 3001493,
+        "id": 3001494,
         "schema": "better_supabase",
         "name": "subject_title",
         "language": "plpgsql",
@@ -160625,7 +160665,7 @@
         }
       },
       {
-        "id": 3001494,
+        "id": 3001495,
         "schema": "better_supabase",
         "name": "subject_titles",
         "language": "plpgsql",
@@ -160653,7 +160693,7 @@
         }
       },
       {
-        "id": 3001495,
+        "id": 3001496,
         "schema": "better_supabase",
         "name": "subject_types",
         "language": "sql",
@@ -160674,7 +160714,7 @@
         }
       },
       {
-        "id": 3001496,
+        "id": 3001497,
         "schema": "better_supabase",
         "name": "subject_url",
         "language": "plpgsql",
@@ -160708,7 +160748,7 @@
         }
       },
       {
-        "id": 3001497,
+        "id": 3001498,
         "schema": "better_supabase",
         "name": "submit_course_quiz",
         "language": "plpgsql",
@@ -160742,7 +160782,7 @@
         }
       },
       {
-        "id": 3001498,
+        "id": 3001499,
         "schema": "better_supabase",
         "name": "submit_expense_report",
         "language": "plpgsql",
@@ -160770,7 +160810,7 @@
         }
       },
       {
-        "id": 3001499,
+        "id": 3001500,
         "schema": "better_supabase",
         "name": "submit_form",
         "language": "plpgsql",
@@ -160828,7 +160868,7 @@
         }
       },
       {
-        "id": 3001500,
+        "id": 3001501,
         "schema": "better_supabase",
         "name": "submit_public_form",
         "language": "plpgsql",
@@ -160868,7 +160908,7 @@
         }
       },
       {
-        "id": 3001501,
+        "id": 3001502,
         "schema": "better_supabase",
         "name": "submit_scorecard",
         "language": "plpgsql",
@@ -160914,7 +160954,7 @@
         }
       },
       {
-        "id": 3001502,
+        "id": 3001503,
         "schema": "better_supabase",
         "name": "submit_timesheet",
         "language": "plpgsql",
@@ -160954,7 +160994,7 @@
         }
       },
       {
-        "id": 3001503,
+        "id": 3001504,
         "schema": "better_supabase",
         "name": "suggest_ai_document_edit",
         "language": "plpgsql",
@@ -161000,7 +161040,7 @@
         }
       },
       {
-        "id": 3001504,
+        "id": 3001505,
         "schema": "better_supabase",
         "name": "suggest_document_change",
         "language": "plpgsql",
@@ -161040,7 +161080,7 @@
         }
       },
       {
-        "id": 3001505,
+        "id": 3001506,
         "schema": "better_supabase",
         "name": "suggest_inbox_draft",
         "language": "plpgsql",
@@ -161080,7 +161120,7 @@
         }
       },
       {
-        "id": 3001506,
+        "id": 3001507,
         "schema": "better_supabase",
         "name": "suppress_notification_address",
         "language": "plpgsql",
@@ -161138,7 +161178,7 @@
         }
       },
       {
-        "id": 3001507,
+        "id": 3001508,
         "schema": "better_supabase",
         "name": "switch_ai_branch",
         "language": "plpgsql",
@@ -161172,7 +161212,7 @@
         }
       },
       {
-        "id": 3001508,
+        "id": 3001509,
         "schema": "better_supabase",
         "name": "switch_organization",
         "language": "plpgsql",
@@ -161200,7 +161240,7 @@
         }
       },
       {
-        "id": 3001509,
+        "id": 3001510,
         "schema": "better_supabase",
         "name": "sync_number_sequences",
         "language": "plpgsql",
@@ -161234,7 +161274,7 @@
         }
       },
       {
-        "id": 3001510,
+        "id": 3001511,
         "schema": "better_supabase",
         "name": "sync_profile",
         "language": "plpgsql",
@@ -161262,7 +161302,7 @@
         }
       },
       {
-        "id": 3001511,
+        "id": 3001512,
         "schema": "better_supabase",
         "name": "sync_rule_fields",
         "language": "plpgsql",
@@ -161296,7 +161336,7 @@
         }
       },
       {
-        "id": 3001512,
+        "id": 3001513,
         "schema": "better_supabase",
         "name": "sync_templates",
         "language": "plpgsql",
@@ -161324,7 +161364,7 @@
         }
       },
       {
-        "id": 3001513,
+        "id": 3001514,
         "schema": "better_supabase",
         "name": "sync_workflow_node_kinds",
         "language": "plpgsql",
@@ -161352,7 +161392,7 @@
         }
       },
       {
-        "id": 3001514,
+        "id": 3001515,
         "schema": "better_supabase",
         "name": "sync_workflow_steps",
         "language": "plpgsql",
@@ -161380,7 +161420,7 @@
         }
       },
       {
-        "id": 3001515,
+        "id": 3001516,
         "schema": "better_supabase",
         "name": "tag",
         "language": "plpgsql",
@@ -161426,7 +161466,7 @@
         }
       },
       {
-        "id": 3001516,
+        "id": 3001517,
         "schema": "better_supabase",
         "name": "tags_subject_merge",
         "language": "plpgsql",
@@ -161466,7 +161506,7 @@
         }
       },
       {
-        "id": 3001517,
+        "id": 3001518,
         "schema": "better_supabase",
         "name": "take_forecast_snapshot",
         "language": "plpgsql",
@@ -161524,7 +161564,7 @@
         }
       },
       {
-        "id": 3001518,
+        "id": 3001519,
         "schema": "better_supabase",
         "name": "target_progress",
         "language": "sql",
@@ -161564,7 +161604,7 @@
         }
       },
       {
-        "id": 3001519,
+        "id": 3001520,
         "schema": "better_supabase",
         "name": "team_ids_of",
         "language": "plpgsql",
@@ -161592,7 +161632,7 @@
         }
       },
       {
-        "id": 3001520,
+        "id": 3001521,
         "schema": "better_supabase",
         "name": "technician_day",
         "language": "plpgsql",
@@ -161632,7 +161672,7 @@
         }
       },
       {
-        "id": 3001521,
+        "id": 3001522,
         "schema": "better_supabase",
         "name": "template_applications_list",
         "language": "sql",
@@ -161678,7 +161718,7 @@
         }
       },
       {
-        "id": 3001522,
+        "id": 3001523,
         "schema": "better_supabase",
         "name": "template_apply_target",
         "language": "plpgsql",
@@ -161712,7 +161752,7 @@
         }
       },
       {
-        "id": 3001523,
+        "id": 3001524,
         "schema": "better_supabase",
         "name": "template_brand",
         "language": "sql",
@@ -161740,7 +161780,7 @@
         }
       },
       {
-        "id": 3001524,
+        "id": 3001525,
         "schema": "better_supabase",
         "name": "template_get",
         "language": "sql",
@@ -161768,7 +161808,7 @@
         }
       },
       {
-        "id": 3001525,
+        "id": 3001526,
         "schema": "better_supabase",
         "name": "template_schedules_list",
         "language": "plpgsql",
@@ -161802,7 +161842,7 @@
         }
       },
       {
-        "id": 3001526,
+        "id": 3001527,
         "schema": "better_supabase",
         "name": "template_versions_list",
         "language": "sql",
@@ -161830,7 +161870,7 @@
         }
       },
       {
-        "id": 3001527,
+        "id": 3001528,
         "schema": "better_supabase",
         "name": "template_workflow_input_errors",
         "language": "plpgsql",
@@ -161864,7 +161904,7 @@
         }
       },
       {
-        "id": 3001528,
+        "id": 3001529,
         "schema": "better_supabase",
         "name": "template_workflows_list",
         "language": "sql",
@@ -161892,7 +161932,7 @@
         }
       },
       {
-        "id": 3001529,
+        "id": 3001530,
         "schema": "better_supabase",
         "name": "templates_list",
         "language": "sql",
@@ -161932,7 +161972,7 @@
         }
       },
       {
-        "id": 3001530,
+        "id": 3001531,
         "schema": "better_supabase",
         "name": "tenant_disabled",
         "language": "sql",
@@ -161960,7 +162000,7 @@
         }
       },
       {
-        "id": 3001531,
+        "id": 3001532,
         "schema": "better_supabase",
         "name": "tenant_entitlement_value",
         "language": "sql",
@@ -161994,7 +162034,7 @@
         }
       },
       {
-        "id": 3001532,
+        "id": 3001533,
         "schema": "better_supabase",
         "name": "tenant_entitlements",
         "language": "sql",
@@ -162022,7 +162062,7 @@
         }
       },
       {
-        "id": 3001533,
+        "id": 3001534,
         "schema": "better_supabase",
         "name": "tenant_ids_with",
         "language": "sql",
@@ -162050,7 +162090,7 @@
         }
       },
       {
-        "id": 3001534,
+        "id": 3001535,
         "schema": "better_supabase",
         "name": "tenant_ids_with_entitlement",
         "language": "sql",
@@ -162078,7 +162118,7 @@
         }
       },
       {
-        "id": 3001535,
+        "id": 3001536,
         "schema": "better_supabase",
         "name": "tenant_ids_with_flag",
         "language": "sql",
@@ -162106,7 +162146,7 @@
         }
       },
       {
-        "id": 3001536,
+        "id": 3001537,
         "schema": "better_supabase",
         "name": "tenant_plans",
         "language": "sql",
@@ -162134,7 +162174,7 @@
         }
       },
       {
-        "id": 3001537,
+        "id": 3001538,
         "schema": "better_supabase",
         "name": "terminate_lease",
         "language": "plpgsql",
@@ -162180,7 +162220,7 @@
         }
       },
       {
-        "id": 3001538,
+        "id": 3001539,
         "schema": "better_supabase",
         "name": "thread_summary",
         "language": "sql",
@@ -162214,7 +162254,7 @@
         }
       },
       {
-        "id": 3001539,
+        "id": 3001540,
         "schema": "better_supabase",
         "name": "time_rate",
         "language": "plpgsql",
@@ -162266,7 +162306,7 @@
         }
       },
       {
-        "id": 3001540,
+        "id": 3001541,
         "schema": "better_supabase",
         "name": "time_week",
         "language": "sql",
@@ -162294,7 +162334,7 @@
         }
       },
       {
-        "id": 3001541,
+        "id": 3001542,
         "schema": "better_supabase",
         "name": "time_week_locked",
         "language": "sql",
@@ -162334,7 +162374,7 @@
         }
       },
       {
-        "id": 3001542,
+        "id": 3001543,
         "schema": "better_supabase",
         "name": "top_scores",
         "language": "plpgsql",
@@ -162386,7 +162426,7 @@
         }
       },
       {
-        "id": 3001543,
+        "id": 3001544,
         "schema": "better_supabase",
         "name": "touch_ai_sandbox",
         "language": "plpgsql",
@@ -162414,7 +162454,7 @@
         }
       },
       {
-        "id": 3001544,
+        "id": 3001545,
         "schema": "better_supabase",
         "name": "track_events",
         "language": "plpgsql",
@@ -162454,7 +162494,7 @@
         }
       },
       {
-        "id": 3001545,
+        "id": 3001546,
         "schema": "better_supabase",
         "name": "track_mail",
         "language": "plpgsql",
@@ -162500,7 +162540,7 @@
         }
       },
       {
-        "id": 3001546,
+        "id": 3001547,
         "schema": "better_supabase",
         "name": "track_realtime",
         "language": "plpgsql",
@@ -162540,7 +162580,7 @@
         }
       },
       {
-        "id": 3001547,
+        "id": 3001548,
         "schema": "better_supabase",
         "name": "track_updated_at",
         "language": "plpgsql",
@@ -162580,7 +162620,7 @@
         }
       },
       {
-        "id": 3001548,
+        "id": 3001549,
         "schema": "better_supabase",
         "name": "transfer_ownership",
         "language": "plpgsql",
@@ -162620,7 +162660,7 @@
         }
       },
       {
-        "id": 3001549,
+        "id": 3001550,
         "schema": "better_supabase",
         "name": "transition",
         "language": "plpgsql",
@@ -162672,7 +162712,7 @@
         }
       },
       {
-        "id": 3001550,
+        "id": 3001551,
         "schema": "better_supabase",
         "name": "transition_contract",
         "language": "plpgsql",
@@ -162712,7 +162752,7 @@
         }
       },
       {
-        "id": 3001551,
+        "id": 3001552,
         "schema": "better_supabase",
         "name": "trash",
         "language": "plpgsql",
@@ -162752,7 +162792,7 @@
         }
       },
       {
-        "id": 3001552,
+        "id": 3001553,
         "schema": "better_supabase",
         "name": "trash_cascade",
         "language": "plpgsql",
@@ -162810,7 +162850,7 @@
         }
       },
       {
-        "id": 3001553,
+        "id": 3001554,
         "schema": "better_supabase",
         "name": "trash_purge_batch",
         "language": "plpgsql",
@@ -162838,7 +162878,7 @@
         }
       },
       {
-        "id": 3001554,
+        "id": 3001555,
         "schema": "better_supabase",
         "name": "trash_restore_batch",
         "language": "plpgsql",
@@ -162866,7 +162906,7 @@
         }
       },
       {
-        "id": 3001555,
+        "id": 3001556,
         "schema": "better_supabase",
         "name": "unaudit",
         "language": "plpgsql",
@@ -162894,7 +162934,7 @@
         }
       },
       {
-        "id": 3001556,
+        "id": 3001557,
         "schema": "better_supabase",
         "name": "unaudit",
         "language": "plpgsql",
@@ -162922,7 +162962,7 @@
         }
       },
       {
-        "id": 3001557,
+        "id": 3001558,
         "schema": "better_supabase",
         "name": "unban_user",
         "language": "plpgsql",
@@ -162950,7 +162990,7 @@
         }
       },
       {
-        "id": 3001558,
+        "id": 3001559,
         "schema": "better_supabase",
         "name": "unbilled_time",
         "language": "plpgsql",
@@ -162990,7 +163030,7 @@
         }
       },
       {
-        "id": 3001559,
+        "id": 3001560,
         "schema": "better_supabase",
         "name": "unchecked_push_tickets",
         "language": "plpgsql",
@@ -163024,7 +163064,7 @@
         }
       },
       {
-        "id": 3001560,
+        "id": 3001561,
         "schema": "better_supabase",
         "name": "unenroll_from_course",
         "language": "plpgsql",
@@ -163058,7 +163098,7 @@
         }
       },
       {
-        "id": 3001561,
+        "id": 3001562,
         "schema": "better_supabase",
         "name": "unlink",
         "language": "plpgsql",
@@ -163116,7 +163156,7 @@
         }
       },
       {
-        "id": 3001562,
+        "id": 3001563,
         "schema": "better_supabase",
         "name": "unlink_inbox_contact",
         "language": "plpgsql",
@@ -163144,7 +163184,7 @@
         }
       },
       {
-        "id": 3001563,
+        "id": 3001564,
         "schema": "better_supabase",
         "name": "unlink_mail_thread",
         "language": "plpgsql",
@@ -163184,7 +163224,7 @@
         }
       },
       {
-        "id": 3001564,
+        "id": 3001565,
         "schema": "better_supabase",
         "name": "unlock_ai_harness_session",
         "language": "plpgsql",
@@ -163224,7 +163264,7 @@
         }
       },
       {
-        "id": 3001565,
+        "id": 3001566,
         "schema": "better_supabase",
         "name": "unread_counts",
         "language": "sql",
@@ -163252,7 +163292,7 @@
         }
       },
       {
-        "id": 3001566,
+        "id": 3001567,
         "schema": "better_supabase",
         "name": "unregister_push_device",
         "language": "plpgsql",
@@ -163280,7 +163320,7 @@
         }
       },
       {
-        "id": 3001567,
+        "id": 3001568,
         "schema": "better_supabase",
         "name": "unregister_sso_provider",
         "language": "plpgsql",
@@ -163314,7 +163354,7 @@
         }
       },
       {
-        "id": 3001568,
+        "id": 3001569,
         "schema": "better_supabase",
         "name": "unreported_usage",
         "language": "sql",
@@ -163354,7 +163394,7 @@
         }
       },
       {
-        "id": 3001569,
+        "id": 3001570,
         "schema": "better_supabase",
         "name": "unschedule_job",
         "language": "plpgsql",
@@ -163382,7 +163422,7 @@
         }
       },
       {
-        "id": 3001570,
+        "id": 3001571,
         "schema": "better_supabase",
         "name": "unschedule_tenant",
         "language": "sql",
@@ -163410,7 +163450,7 @@
         }
       },
       {
-        "id": 3001571,
+        "id": 3001572,
         "schema": "better_supabase",
         "name": "unschedule_work_order",
         "language": "plpgsql",
@@ -163438,7 +163478,7 @@
         }
       },
       {
-        "id": 3001572,
+        "id": 3001573,
         "schema": "better_supabase",
         "name": "unsuppress_notification_address",
         "language": "plpgsql",
@@ -163472,7 +163512,7 @@
         }
       },
       {
-        "id": 3001573,
+        "id": 3001574,
         "schema": "better_supabase",
         "name": "untag",
         "language": "plpgsql",
@@ -163518,7 +163558,7 @@
         }
       },
       {
-        "id": 3001574,
+        "id": 3001575,
         "schema": "better_supabase",
         "name": "untrack_realtime",
         "language": "plpgsql",
@@ -163546,7 +163586,7 @@
         }
       },
       {
-        "id": 3001575,
+        "id": 3001576,
         "schema": "better_supabase",
         "name": "update_ai_batch",
         "language": "plpgsql",
@@ -163580,7 +163620,7 @@
         }
       },
       {
-        "id": 3001576,
+        "id": 3001577,
         "schema": "better_supabase",
         "name": "update_ai_chat",
         "language": "plpgsql",
@@ -163614,7 +163654,7 @@
         }
       },
       {
-        "id": 3001577,
+        "id": 3001578,
         "schema": "better_supabase",
         "name": "update_ai_document",
         "language": "plpgsql",
@@ -163672,7 +163712,7 @@
         }
       },
       {
-        "id": 3001578,
+        "id": 3001579,
         "schema": "better_supabase",
         "name": "update_asset",
         "language": "plpgsql",
@@ -163706,7 +163746,7 @@
         }
       },
       {
-        "id": 3001579,
+        "id": 3001580,
         "schema": "better_supabase",
         "name": "update_asset_location",
         "language": "plpgsql",
@@ -163740,7 +163780,7 @@
         }
       },
       {
-        "id": 3001580,
+        "id": 3001581,
         "schema": "better_supabase",
         "name": "update_channel",
         "language": "plpgsql",
@@ -163774,7 +163814,7 @@
         }
       },
       {
-        "id": 3001581,
+        "id": 3001582,
         "schema": "better_supabase",
         "name": "update_content_entry",
         "language": "plpgsql",
@@ -163808,7 +163848,7 @@
         }
       },
       {
-        "id": 3001582,
+        "id": 3001583,
         "schema": "better_supabase",
         "name": "update_contract",
         "language": "plpgsql",
@@ -163842,7 +163882,7 @@
         }
       },
       {
-        "id": 3001583,
+        "id": 3001584,
         "schema": "better_supabase",
         "name": "update_deals",
         "language": "plpgsql",
@@ -163870,7 +163910,7 @@
         }
       },
       {
-        "id": 3001584,
+        "id": 3001585,
         "schema": "better_supabase",
         "name": "update_employees",
         "language": "plpgsql",
@@ -163898,7 +163938,7 @@
         }
       },
       {
-        "id": 3001585,
+        "id": 3001586,
         "schema": "better_supabase",
         "name": "update_engagement",
         "language": "plpgsql",
@@ -163938,7 +163978,7 @@
         }
       },
       {
-        "id": 3001586,
+        "id": 3001587,
         "schema": "better_supabase",
         "name": "update_expense_line",
         "language": "plpgsql",
@@ -164002,7 +164042,7 @@
         }
       },
       {
-        "id": 3001587,
+        "id": 3001588,
         "schema": "better_supabase",
         "name": "update_form",
         "language": "plpgsql",
@@ -164054,7 +164094,7 @@
         }
       },
       {
-        "id": 3001588,
+        "id": 3001589,
         "schema": "better_supabase",
         "name": "update_inbox",
         "language": "plpgsql",
@@ -164088,7 +164128,7 @@
         }
       },
       {
-        "id": 3001589,
+        "id": 3001590,
         "schema": "better_supabase",
         "name": "update_incident",
         "language": "plpgsql",
@@ -164122,7 +164162,7 @@
         }
       },
       {
-        "id": 3001590,
+        "id": 3001591,
         "schema": "better_supabase",
         "name": "update_invitation",
         "language": "plpgsql",
@@ -164168,7 +164208,7 @@
         }
       },
       {
-        "id": 3001591,
+        "id": 3001592,
         "schema": "better_supabase",
         "name": "update_knowledge_collection",
         "language": "plpgsql",
@@ -164202,7 +164242,7 @@
         }
       },
       {
-        "id": 3001592,
+        "id": 3001593,
         "schema": "better_supabase",
         "name": "update_mail_account",
         "language": "plpgsql",
@@ -164242,7 +164282,7 @@
         }
       },
       {
-        "id": 3001593,
+        "id": 3001594,
         "schema": "better_supabase",
         "name": "update_maintenance_requests",
         "language": "plpgsql",
@@ -164270,7 +164310,7 @@
         }
       },
       {
-        "id": 3001594,
+        "id": 3001595,
         "schema": "better_supabase",
         "name": "update_member_role",
         "language": "plpgsql",
@@ -164310,7 +164350,7 @@
         }
       },
       {
-        "id": 3001595,
+        "id": 3001596,
         "schema": "better_supabase",
         "name": "update_my_profile",
         "language": "plpgsql",
@@ -164338,7 +164378,7 @@
         }
       },
       {
-        "id": 3001596,
+        "id": 3001597,
         "schema": "better_supabase",
         "name": "update_organization",
         "language": "plpgsql",
@@ -164372,7 +164412,7 @@
         }
       },
       {
-        "id": 3001597,
+        "id": 3001598,
         "schema": "better_supabase",
         "name": "update_organization_domain",
         "language": "plpgsql",
@@ -164412,7 +164452,7 @@
         }
       },
       {
-        "id": 3001598,
+        "id": 3001599,
         "schema": "better_supabase",
         "name": "update_pledge",
         "language": "plpgsql",
@@ -164458,7 +164498,7 @@
         }
       },
       {
-        "id": 3001599,
+        "id": 3001600,
         "schema": "better_supabase",
         "name": "update_post",
         "language": "plpgsql",
@@ -164492,7 +164532,7 @@
         }
       },
       {
-        "id": 3001600,
+        "id": 3001601,
         "schema": "better_supabase",
         "name": "update_product_media",
         "language": "plpgsql",
@@ -164532,7 +164572,7 @@
         }
       },
       {
-        "id": 3001601,
+        "id": 3001602,
         "schema": "better_supabase",
         "name": "update_quote",
         "language": "plpgsql",
@@ -164566,7 +164606,7 @@
         }
       },
       {
-        "id": 3001602,
+        "id": 3001603,
         "schema": "better_supabase",
         "name": "update_tag",
         "language": "plpgsql",
@@ -164600,7 +164640,7 @@
         }
       },
       {
-        "id": 3001603,
+        "id": 3001604,
         "schema": "better_supabase",
         "name": "update_team",
         "language": "plpgsql",
@@ -164646,7 +164686,7 @@
         }
       },
       {
-        "id": 3001604,
+        "id": 3001605,
         "schema": "better_supabase",
         "name": "update_time_entry",
         "language": "plpgsql",
@@ -164680,7 +164720,7 @@
         }
       },
       {
-        "id": 3001605,
+        "id": 3001606,
         "schema": "better_supabase",
         "name": "update_work_items",
         "language": "plpgsql",
@@ -164708,7 +164748,7 @@
         }
       },
       {
-        "id": 3001606,
+        "id": 3001607,
         "schema": "better_supabase",
         "name": "update_work_order",
         "language": "plpgsql",
@@ -164772,7 +164812,7 @@
         }
       },
       {
-        "id": 3001607,
+        "id": 3001608,
         "schema": "better_supabase",
         "name": "upsert_ai_models",
         "language": "plpgsql",
@@ -164806,7 +164846,7 @@
         }
       },
       {
-        "id": 3001608,
+        "id": 3001609,
         "schema": "better_supabase",
         "name": "upsert_contact",
         "language": "plpgsql",
@@ -164840,7 +164880,7 @@
         }
       },
       {
-        "id": 3001609,
+        "id": 3001610,
         "schema": "better_supabase",
         "name": "upsert_message_template",
         "language": "plpgsql",
@@ -164874,7 +164914,7 @@
         }
       },
       {
-        "id": 3001610,
+        "id": 3001611,
         "schema": "better_supabase",
         "name": "usage_breakdown",
         "language": "plpgsql",
@@ -164908,7 +164948,7 @@
         }
       },
       {
-        "id": 3001611,
+        "id": 3001612,
         "schema": "better_supabase",
         "name": "usage_history",
         "language": "plpgsql",
@@ -164954,7 +164994,7 @@
         }
       },
       {
-        "id": 3001612,
+        "id": 3001613,
         "schema": "better_supabase",
         "name": "usage_meters",
         "language": "sql",
@@ -164975,7 +165015,7 @@
         }
       },
       {
-        "id": 3001613,
+        "id": 3001614,
         "schema": "better_supabase",
         "name": "usage_overview",
         "language": "plpgsql",
@@ -165003,7 +165043,7 @@
         }
       },
       {
-        "id": 3001614,
+        "id": 3001615,
         "schema": "better_supabase",
         "name": "usage_quota",
         "language": "sql",
@@ -165049,7 +165089,7 @@
         }
       },
       {
-        "id": 3001615,
+        "id": 3001616,
         "schema": "better_supabase",
         "name": "usage_status",
         "language": "plpgsql",
@@ -165083,7 +165123,7 @@
         }
       },
       {
-        "id": 3001616,
+        "id": 3001617,
         "schema": "better_supabase",
         "name": "usage_used",
         "language": "sql",
@@ -165123,7 +165163,7 @@
         }
       },
       {
-        "id": 3001617,
+        "id": 3001618,
         "schema": "better_supabase",
         "name": "usage_window",
         "language": "plpgsql",
@@ -165169,7 +165209,7 @@
         }
       },
       {
-        "id": 3001618,
+        "id": 3001619,
         "schema": "better_supabase",
         "name": "usage_window_start",
         "language": "plpgsql",
@@ -165209,7 +165249,7 @@
         }
       },
       {
-        "id": 3001619,
+        "id": 3001620,
         "schema": "better_supabase",
         "name": "user_disabled",
         "language": "sql",
@@ -165237,7 +165277,7 @@
         }
       },
       {
-        "id": 3001620,
+        "id": 3001621,
         "schema": "better_supabase",
         "name": "validate_workflow_graph",
         "language": "plpgsql",
@@ -165265,7 +165305,7 @@
         }
       },
       {
-        "id": 3001621,
+        "id": 3001622,
         "schema": "better_supabase",
         "name": "variant_price",
         "language": "sql",
@@ -165311,7 +165351,7 @@
         }
       },
       {
-        "id": 3001622,
+        "id": 3001623,
         "schema": "better_supabase",
         "name": "verify_api_key",
         "language": "plpgsql",
@@ -165345,7 +165385,7 @@
         }
       },
       {
-        "id": 3001623,
+        "id": 3001624,
         "schema": "better_supabase",
         "name": "verify_course_certificate",
         "language": "sql",
@@ -165373,7 +165413,7 @@
         }
       },
       {
-        "id": 3001624,
+        "id": 3001625,
         "schema": "better_supabase",
         "name": "verify_organization_domain",
         "language": "plpgsql",
@@ -165407,7 +165447,7 @@
         }
       },
       {
-        "id": 3001625,
+        "id": 3001626,
         "schema": "better_supabase",
         "name": "version_insert",
         "language": "plpgsql",
@@ -165483,7 +165523,7 @@
         }
       },
       {
-        "id": 3001626,
+        "id": 3001627,
         "schema": "better_supabase",
         "name": "void_donation_receipt",
         "language": "plpgsql",
@@ -165517,7 +165557,7 @@
         }
       },
       {
-        "id": 3001627,
+        "id": 3001628,
         "schema": "better_supabase",
         "name": "void_invoice",
         "language": "plpgsql",
@@ -165551,7 +165591,7 @@
         }
       },
       {
-        "id": 3001628,
+        "id": 3001629,
         "schema": "better_supabase",
         "name": "vote",
         "language": "plpgsql",
@@ -165603,7 +165643,7 @@
         }
       },
       {
-        "id": 3001629,
+        "id": 3001630,
         "schema": "better_supabase",
         "name": "vote_on_post",
         "language": "plpgsql",
@@ -165637,7 +165677,7 @@
         }
       },
       {
-        "id": 3001630,
+        "id": 3001631,
         "schema": "better_supabase",
         "name": "vote_summary",
         "language": "sql",
@@ -165677,7 +165717,7 @@
         }
       },
       {
-        "id": 3001631,
+        "id": 3001632,
         "schema": "better_supabase",
         "name": "vote_tally",
         "language": "sql",
@@ -165717,7 +165757,7 @@
         }
       },
       {
-        "id": 3001632,
+        "id": 3001633,
         "schema": "better_supabase",
         "name": "waitlist_admit",
         "language": "plpgsql",
@@ -165751,7 +165791,7 @@
         }
       },
       {
-        "id": 3001633,
+        "id": 3001634,
         "schema": "better_supabase",
         "name": "wake_snoozed_conversations",
         "language": "plpgsql",
@@ -165772,7 +165812,7 @@
         }
       },
       {
-        "id": 3001634,
+        "id": 3001635,
         "schema": "better_supabase",
         "name": "watch_maintenance_request",
         "language": "plpgsql",
@@ -165806,7 +165846,7 @@
         }
       },
       {
-        "id": 3001635,
+        "id": 3001636,
         "schema": "better_supabase",
         "name": "watch_work_item",
         "language": "plpgsql",
@@ -165840,7 +165880,7 @@
         }
       },
       {
-        "id": 3001636,
+        "id": 3001637,
         "schema": "better_supabase",
         "name": "webhook_secrets",
         "language": "sql",
@@ -165868,7 +165908,7 @@
         }
       },
       {
-        "id": 3001637,
+        "id": 3001638,
         "schema": "better_supabase",
         "name": "within_quota",
         "language": "plpgsql",
@@ -165908,7 +165948,7 @@
         }
       },
       {
-        "id": 3001638,
+        "id": 3001639,
         "schema": "better_supabase",
         "name": "work_item_tree",
         "language": "sql",
@@ -165936,7 +165976,7 @@
         }
       },
       {
-        "id": 3001639,
+        "id": 3001640,
         "schema": "better_supabase",
         "name": "workflow_admission_active",
         "language": "sql",
@@ -165964,7 +166004,7 @@
         }
       },
       {
-        "id": 3001640,
+        "id": 3001641,
         "schema": "better_supabase",
         "name": "workflow_alerts_list",
         "language": "sql",
@@ -165992,7 +166032,7 @@
         }
       },
       {
-        "id": 3001641,
+        "id": 3001642,
         "schema": "better_supabase",
         "name": "workflow_claim_run_key",
         "language": "plpgsql",
@@ -166038,7 +166078,7 @@
         }
       },
       {
-        "id": 3001642,
+        "id": 3001643,
         "schema": "better_supabase",
         "name": "workflow_credential_get",
         "language": "sql",
@@ -166066,7 +166106,7 @@
         }
       },
       {
-        "id": 3001643,
+        "id": 3001644,
         "schema": "better_supabase",
         "name": "workflow_credentials_list",
         "language": "sql",
@@ -166094,7 +166134,7 @@
         }
       },
       {
-        "id": 3001644,
+        "id": 3001645,
         "schema": "better_supabase",
         "name": "workflow_definition_get",
         "language": "sql",
@@ -166122,7 +166162,7 @@
         }
       },
       {
-        "id": 3001645,
+        "id": 3001646,
         "schema": "better_supabase",
         "name": "workflow_definition_grants_list",
         "language": "sql",
@@ -166150,7 +166190,7 @@
         }
       },
       {
-        "id": 3001646,
+        "id": 3001647,
         "schema": "better_supabase",
         "name": "workflow_definitions_list",
         "language": "sql",
@@ -166184,7 +166224,7 @@
         }
       },
       {
-        "id": 3001647,
+        "id": 3001648,
         "schema": "better_supabase",
         "name": "workflow_graph_permissions",
         "language": "sql",
@@ -166212,7 +166252,7 @@
         }
       },
       {
-        "id": 3001648,
+        "id": 3001649,
         "schema": "better_supabase",
         "name": "workflow_node_kinds_list",
         "language": "sql",
@@ -166233,7 +166273,7 @@
         }
       },
       {
-        "id": 3001649,
+        "id": 3001650,
         "schema": "better_supabase",
         "name": "workflow_node_runs_list",
         "language": "sql",
@@ -166261,7 +166301,7 @@
         }
       },
       {
-        "id": 3001650,
+        "id": 3001651,
         "schema": "better_supabase",
         "name": "workflow_open_hooks",
         "language": "sql",
@@ -166343,7 +166383,7 @@
         }
       },
       {
-        "id": 3001651,
+        "id": 3001652,
         "schema": "better_supabase",
         "name": "workflow_purge_runs",
         "language": "plpgsql",
@@ -166383,7 +166423,7 @@
         }
       },
       {
-        "id": 3001652,
+        "id": 3001653,
         "schema": "better_supabase",
         "name": "workflow_release_run_key",
         "language": "sql",
@@ -166411,7 +166451,7 @@
         }
       },
       {
-        "id": 3001653,
+        "id": 3001654,
         "schema": "better_supabase",
         "name": "workflow_run_get",
         "language": "sql",
@@ -166439,7 +166479,7 @@
         }
       },
       {
-        "id": 3001654,
+        "id": 3001655,
         "schema": "better_supabase",
         "name": "workflow_run_principal",
         "language": "plpgsql",
@@ -166473,7 +166513,7 @@
         }
       },
       {
-        "id": 3001655,
+        "id": 3001656,
         "schema": "better_supabase",
         "name": "workflow_runs_list",
         "language": "sql",
@@ -166543,7 +166583,7 @@
         }
       },
       {
-        "id": 3001656,
+        "id": 3001657,
         "schema": "better_supabase",
         "name": "workflow_schedules_list",
         "language": "sql",
@@ -166571,7 +166611,7 @@
         }
       },
       {
-        "id": 3001657,
+        "id": 3001658,
         "schema": "better_supabase",
         "name": "workflow_set_run_key",
         "language": "sql",
@@ -166605,7 +166645,7 @@
         }
       },
       {
-        "id": 3001658,
+        "id": 3001659,
         "schema": "better_supabase",
         "name": "workflow_start_target",
         "language": "plpgsql",
@@ -166639,7 +166679,7 @@
         }
       },
       {
-        "id": 3001659,
+        "id": 3001660,
         "schema": "better_supabase",
         "name": "workflow_steps_list",
         "language": "sql",
@@ -166660,7 +166700,7 @@
         }
       },
       {
-        "id": 3001660,
+        "id": 3001661,
         "schema": "better_supabase",
         "name": "workflow_subject_start_target",
         "language": "plpgsql",
@@ -166706,7 +166746,7 @@
         }
       },
       {
-        "id": 3001661,
+        "id": 3001662,
         "schema": "better_supabase",
         "name": "workflow_triggers_list",
         "language": "sql",
@@ -166734,7 +166774,7 @@
         }
       },
       {
-        "id": 3001662,
+        "id": 3001663,
         "schema": "better_supabase",
         "name": "workflow_version_get",
         "language": "sql",
@@ -166762,7 +166802,7 @@
         }
       },
       {
-        "id": 3001663,
+        "id": 3001664,
         "schema": "better_supabase",
         "name": "workflow_versions_list",
         "language": "sql",
@@ -166790,7 +166830,7 @@
         }
       },
       {
-        "id": 3001664,
+        "id": 3001665,
         "schema": "better_supabase",
         "name": "workflow_webhook_target",
         "language": "sql",
@@ -166818,7 +166858,7 @@
         }
       },
       {
-        "id": 3001665,
+        "id": 3001666,
         "schema": "better_supabase",
         "name": "write_knowledge_chunks",
         "language": "plpgsql",
@@ -166858,7 +166898,7 @@
         }
       },
       {
-        "id": 3001666,
+        "id": 3001667,
         "schema": "better_supabase",
         "name": "write_off_invoice",
         "language": "plpgsql",
@@ -166892,7 +166932,7 @@
         }
       },
       {
-        "id": 3001667,
+        "id": 3001668,
         "schema": "better_supabase",
         "name": "yearly_giving_summary",
         "language": "plpgsql",
@@ -166938,7 +166978,7 @@
         }
       },
       {
-        "id": 3001668,
+        "id": 3001669,
         "schema": "public",
         "name": "app_table_set",
         "language": "plpgsql",
@@ -166984,7 +167024,7 @@
         }
       },
       {
-        "id": 3001669,
+        "id": 3001670,
         "schema": "public",
         "name": "client_notes_reveal",
         "language": "sql",
@@ -167030,7 +167070,7 @@
         }
       },
       {
-        "id": 3001670,
+        "id": 3001671,
         "schema": "public",
         "name": "customer_note_counts",
         "language": "sql",
@@ -167076,7 +167116,7 @@
         }
       },
       {
-        "id": 3001671,
+        "id": 3001672,
         "schema": "public",
         "name": "customers_by_status",
         "language": "sql",
@@ -167110,7 +167150,7 @@
         }
       },
       {
-        "id": 3001672,
+        "id": 3001673,
         "schema": "public",
         "name": "island_counts",
         "language": "sql",
@@ -167138,7 +167178,7 @@
         }
       },
       {
-        "id": 3001673,
+        "id": 3001674,
         "schema": "public",
         "name": "my_organizations",
         "language": "sql",
@@ -167196,7 +167236,7 @@
         }
       },
       {
-        "id": 3001674,
+        "id": 3001675,
         "schema": "public",
         "name": "my_profile",
         "language": "plpgsql",
@@ -167248,7 +167288,7 @@
         }
       },
       {
-        "id": 3001675,
+        "id": 3001676,
         "schema": "public",
         "name": "organization_invitations",
         "language": "sql",
@@ -167312,7 +167352,7 @@
         }
       },
       {
-        "id": 3001676,
+        "id": 3001677,
         "schema": "public",
         "name": "organization_members",
         "language": "sql",
@@ -167382,7 +167422,7 @@
         }
       },
       {
-        "id": 3001677,
+        "id": 3001678,
         "schema": "public",
         "name": "rs_workspace_summary",
         "language": "sql",
@@ -167410,7 +167450,7 @@
         }
       },
       {
-        "id": 3001678,
+        "id": 3001679,
         "schema": "public",
         "name": "search_notes",
         "language": "plpgsql",
@@ -167444,7 +167484,7 @@
         }
       },
       {
-        "id": 3001679,
+        "id": 3001680,
         "schema": "public",
         "name": "search_notes_scores",
         "language": "plpgsql",
@@ -167490,7 +167530,7 @@
         }
       },
       {
-        "id": 3001680,
+        "id": 3001681,
         "schema": "public",
         "name": "set_my_avatar_path",
         "language": "plpgsql",
@@ -167518,7 +167558,7 @@
         }
       },
       {
-        "id": 3001681,
+        "id": 3001682,
         "schema": "public",
         "name": "update_my_profile",
         "language": "plpgsql",
@@ -252191,6 +252231,20 @@
         "schema": "better_supabase",
         "name": "set_product_categories",
         "signature": "product uuid, categories uuid[]",
+        "language": "plpgsql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": [
+          "authenticated"
+        ]
+      },
+      {
+        "schema": "better_supabase",
+        "name": "set_product_options",
+        "signature": "product uuid, options jsonb, title_separator text",
         "language": "plpgsql",
         "volatility": "volatile",
         "securityDefiner": true,

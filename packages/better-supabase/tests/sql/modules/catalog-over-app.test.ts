@@ -450,6 +450,10 @@ declare
   v_small uuid;
   v_medium uuid;
   v_large uuid;
+  v_hoodie uuid;
+  v_matrix jsonb;
+  v_kept uuid;
+  v_pinned uuid;
 begin
   ${SERVICE}
   v_digital := (better_supabase.save_product('${TENANT}', null, 'Manual', null, 'A guide', 'digital', null, null, null, fields => '{"digital_delivery": "download"}') ->> 'id')::uuid;
@@ -463,6 +467,11 @@ begin
   perform better_supabase.save_product('${TENANT}', v_digital, 'Handbook', null, null, null, null, null, null, clear => array['description', 'slug']);
   if (select row(name, slug, description)::text from public.items where id = v_digital) <> '(Handbook,handbook,)' then
     raise exception 'cleared %', (select row_to_json(i) from public.items i where id = v_digital);
+  end if;
+  perform better_supabase.save_product('${TENANT}', v_digital, null, null, null, 'physical', null, null, null, fields => '{"digital_delivery": null}');
+  perform better_supabase.save_product('${TENANT}', v_digital, null, null, null, 'digital', null, null, null, fields => '{"digital_delivery": "email"}');
+  if (select row(item_type, digital_delivery)::text from public.items where id = v_digital) <> '(digital,email)' then
+    raise exception 'switched kind %', (select row_to_json(i) from public.items i where id = v_digital);
   end if;
   v_product := (better_supabase.save_product('${TENANT}', null, 'Tee', null, null, 'physical', null, null, null) ->> 'id')::uuid;
   v_size := better_supabase.save_product_option(v_product, null, 'Size', array['S', 'M', 'L']);
@@ -486,6 +495,37 @@ begin
     or (select status::text from public.item_variants where id = v_large) <> 'archived'
     or (select array_agg(value) from public.item_option_values where option_id = (v_size ->> 'id')::uuid) <> array['XL'] then
     raise exception 'retired %', (select jsonb_agg(row_to_json(v)) from public.item_variants v);
+  end if;
+  v_hoodie := (better_supabase.save_product('${TENANT}', null, 'Hoodie', null, null, 'physical', null, null, null) ->> 'id')::uuid;
+  v_matrix := better_supabase.set_product_options(v_hoodie, '[{"name": "Size", "values": ["S", "M"]}, {"name": "Colour", "values": ["Red", "Blue"]}]');
+  if jsonb_array_length(v_matrix -> 'variants') <> 4 or v_matrix #>> '{options,0,name}' <> 'Size' or v_matrix #>> '{options,1,values,1,value}' <> 'Blue' then
+    raise exception 'matrix %', v_matrix;
+  end if;
+  select vv.variant_id into v_kept from better_supabase.product_variant_values vv
+    join public.item_option_values ov on ov.id = vv.option_value_id
+    group by vv.variant_id having array_agg(ov.value order by ov.value) = array['M', 'Red'];
+  select vv.variant_id into v_pinned from better_supabase.product_variant_values vv
+    join public.item_option_values ov on ov.id = vv.option_value_id
+    group by vv.variant_id having array_agg(ov.value order by ov.value) = array['Blue', 'M'];
+  insert into public.pinned_variants (variant_id) values (v_pinned);
+  v_matrix := better_supabase.set_product_options(v_hoodie, '[{"name": "Size", "values": ["M", "L"]}]');
+  if jsonb_array_length(v_matrix -> 'variants') <> 2
+    or not exists (select 1 from jsonb_array_elements(v_matrix -> 'variants') x where (x ->> 'id')::uuid = v_kept)
+    or (select status::text from public.item_variants where id = v_pinned) <> 'archived'
+    or (select count(*) from public.item_variants where item_id = v_hoodie) <> 3
+    or (select count(*) from public.item_options where item_id = v_hoodie) <> 1 then
+    raise exception 'regenerated %', v_matrix;
+  end if;
+  begin
+    perform better_supabase.set_product_options(v_hoodie, '[{"name": "A", "values": ["1","2","3","4","5","6","7","8","9","10","11"]}, {"name": "B", "values": ["1","2","3","4","5","6","7","8","9","10"]}]');
+    raise exception 'a matrix over the limit was accepted';
+  exception when others then
+    if sqlerrm = 'a matrix over the limit was accepted' then
+      raise;
+    end if;
+  end;
+  if (select count(*) from public.item_options where item_id = v_hoodie) <> 1 then
+    raise exception 'the refused matrix changed options';
   end if;
 end;
 $$;`,

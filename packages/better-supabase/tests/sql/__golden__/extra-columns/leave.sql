@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:98f2d68a397ed123cc1714c637e67dc5263942b8202c827776fbfbcc8175e3b1
+-- @bsb-hash sha256:a52a225adb4b886ae7ae47d097a626ffd9b84b094588ce5c862cb875b2acee7b
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -813,13 +813,9 @@ begin
     perform "better_supabase"."leave_post"(v_old."tenant_id", v_old."user_id", v_old."type_id", 'taken', v_old."amount", extract(year from v_old."starts_on")::integer, v_old."id", 'changed')
     from "better_supabase"."leave_types" t where t."id" = v_old."type_id" and t."tracked";
   end if;
-  update "better_supabase"."leave_requests" x set "starts_on" = v_starts, "ends_on" = v_ends, "partial" = v_partial, "amount" = v_amount, "note" = case when update_leave_request.note is null then x."note" else nullif(trim(update_leave_request.note), '') end, "updated_at" = now()
+  update "better_supabase"."leave_requests" x set "starts_on" = v_starts, "ends_on" = v_ends, "partial" = v_partial, "amount" = v_amount, "note" = case when update_leave_request.note is null then x."note" else nullif(trim(update_leave_request.note), '') end, "updated_at" = now(), "app_note" = case when update_leave_request.fields ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."leave_requests", jsonb_build_object('app_note', update_leave_request.fields -> 'app_note')))."app_note" else x."app_note" end
     where x."id" = v_row."id"
     returning * into v_row;
-  update "better_supabase"."leave_requests" x set "app_note" = case when update_leave_request.fields ? 'app_note' then r."app_note" else x."app_note" end
-  from jsonb_populate_record(null::"better_supabase"."leave_requests", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(update_leave_request.fields) e where e.key in ('app_note'))) r
-  where x."id" = v_row."id"
-  returning x.* into v_row;
   if v_status = 'approved' then
     perform "better_supabase"."leave_post"(v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', -v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id")
     from "better_supabase"."leave_types" t where t."id" = v_row."type_id" and t."tracked";
